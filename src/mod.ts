@@ -75,22 +75,33 @@ export default function activate(letta: LettaMod): (() => void) | void {
   seedDesk(store);
 
   // Freshest handle to the active conversation — captured from /canvas and
-  // from turn/conversation events. The chat bridge forks from it lazily.
+  // from turn/conversation events. Canvas chat sends into it directly when
+  // it's idle (shared transcript); forks only while it's mid-turn.
   let activeConversation: ConversationHandle | null = null;
-  const chat = createChatBridge(() => activeConversation);
+  let mainBusy = false;
+  const chat = createChatBridge({
+    getConversation: () => activeConversation,
+    isMainBusy: () => mainBusy,
+  });
 
   const eventDisposers: Array<(() => void) | void> = [];
-  for (const name of ["conversation_open", "turn_start"]) {
+  const track = (name: string, handler: (event: unknown, ctx: EventContext) => void) => {
     try {
-      eventDisposers.push(
-        letta.events?.on(name, (_event, ctx) => {
-          if (ctx?.conversation?.id) activeConversation = ctx.conversation;
-        }),
-      );
+      eventDisposers.push(letta.events?.on(name, handler));
     } catch {
       // events capability absent — /canvas capture still works
     }
-  }
+  };
+  track("conversation_open", (_e, ctx) => {
+    if (ctx?.conversation?.id) activeConversation = ctx.conversation;
+  });
+  track("turn_start", (_e, ctx) => {
+    mainBusy = true;
+    if (ctx?.conversation?.id) activeConversation = ctx.conversation;
+  });
+  track("turn_end", () => {
+    mainBusy = false;
+  });
 
   const ensureServer = async (): Promise<LociServer> => {
     if (srv) return srv;

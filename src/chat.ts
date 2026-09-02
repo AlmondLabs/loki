@@ -27,9 +27,18 @@ export interface ChatBridge {
   busy(): boolean;
 }
 
-export function createChatBridge(
-  getConversation: () => ConversationHandle | null,
-): ChatBridge {
+export interface ChatBridgeOptions {
+  getConversation: () => ConversationHandle | null;
+  /** Is the main conversation mid-turn right now? (tracked via turn events) */
+  isMainBusy: () => boolean;
+}
+
+/**
+ * Chat mode: send directly into the LIVE conversation when it's idle, so the
+ * canvas and the app window share one transcript. Fall back to a labeled fork
+ * while the main conversation is mid-turn (direct sends would conflict).
+ */
+export function createChatBridge({ getConversation, isMainBusy }: ChatBridgeOptions): ChatBridge {
   let forked: ConversationHandle | null = null;
   let inFlight = false;
 
@@ -53,12 +62,18 @@ export function createChatBridge(
       inFlight = true;
       emit({ type: "chat_state", state: "thinking" });
       try {
-        if (!forked) {
-          forked = await source.fork({ hidden: true });
-          // Sidebars may list the fork even when hidden — label it clearly.
-          await forked.updateTitle?.("loci · canvas chat").catch?.(() => {});
+        let target: ConversationHandle;
+        if (!isMainBusy()) {
+          target = source; // same conversation, same transcript
+        } else {
+          if (!forked) {
+            forked = await source.fork({ hidden: true });
+            // Sidebars may list the fork even when hidden — label it clearly.
+            await forked.updateTitle?.("loci · canvas chat").catch?.(() => {});
+          }
+          target = forked;
         }
-        const stream = await forked.sendMessageStream([{ role: "user", content: text }]);
+        const stream = await target.sendMessageStream([{ role: "user", content: text }]);
 
         let streamed = false;
         for await (const chunk of stream) {
