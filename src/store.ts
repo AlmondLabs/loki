@@ -6,14 +6,16 @@
 
 export interface WidgetState {
   id: string;
-  /** Kit component type, e.g. "info-card". Authored modules come later (U6). */
+  /** Kit component type (e.g. "info-card"), or "authored" for a loci_author module. */
   type: string;
   title: string;
   position: { x: number; y: number };
   size?: { w: number; h: number };
   z: number;
-  /** Widget-specific payload rendered by the kit component. */
+  /** Widget-specific payload rendered by the component. */
   data: unknown;
+  /** For type "authored": bumped on each re-author so the client busts its import cache. */
+  moduleRev?: number;
 }
 
 export interface DeskState {
@@ -28,7 +30,9 @@ export type Patch =
   | { op: "resize"; id: string; size: { w: number; h: number } }
   | { op: "focus"; id: string }
   | { op: "close"; id: string }
-  | { op: "set"; id: string; path: string; value: unknown };
+  | { op: "set"; id: string; path: string; value: unknown }
+  // Upsert an authored widget: keep position/size on re-author, bump moduleRev.
+  | { op: "author"; id: string; title: string; position?: { x: number; y: number }; data?: unknown };
 
 export type DeskListener = (state: DeskState, patch: Patch) => void;
 
@@ -37,6 +41,17 @@ const DEFAULT_SCOPE = "desk";
 export class DeskStore {
   private desks = new Map<string, DeskState>();
   private listeners = new Map<string, Set<DeskListener>>();
+  /** Runtime errors from authored widgets, by widget id. Never persisted. */
+  private errors = new Map<string, string>();
+
+  setError(id: string, message: string | null): void {
+    if (message) this.errors.set(id, message);
+    else this.errors.delete(id);
+  }
+
+  getErrors(): Record<string, string> {
+    return Object.fromEntries(this.errors);
+  }
 
   get(scope: string = DEFAULT_SCOPE): DeskState {
     let desk = this.desks.get(scope);
@@ -81,6 +96,26 @@ export class DeskStore {
       case "set": {
         if (!target) throw new Error(`no widget: ${patch.id}`);
         setPath(target.data, patch.path, patch.value);
+        break;
+      }
+      case "author": {
+        if (target) {
+          // Re-author: keep position/size/z, refresh title/data, bust module cache.
+          target.title = patch.title;
+          if (patch.position) target.position = patch.position;
+          if (patch.data !== undefined) target.data = patch.data;
+          target.moduleRev = (target.moduleRev ?? 0) + 1;
+        } else {
+          desk.widgets[patch.id] = {
+            id: patch.id,
+            type: "authored",
+            title: patch.title,
+            position: patch.position ?? { x: 160, y: 140 },
+            z: this.nextZ(desk),
+            data: patch.data ?? {},
+            moduleRev: 1,
+          };
+        }
         break;
       }
       default:

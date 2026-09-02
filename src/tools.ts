@@ -1,5 +1,6 @@
 import type { DeskStore, Patch, WidgetState } from "./store.js";
 import { KIT_TYPES as KIT_TYPE_LIST, kitDescription } from "./kit-types.js";
+import { authorWidget } from "./author.js";
 
 /**
  * Agent-facing tools (K9). Kit vocabulary lives in kit-types.ts, shared with
@@ -98,14 +99,71 @@ export function registerTools(
       parallelSafe: true,
       run() {
         const desk = store.get();
+        const errors = store.getErrors();
         const widgets = Object.values(desk.widgets).map((w: WidgetState) => ({
           id: w.id,
           type: w.type,
           title: w.title,
           position: w.position,
           data: w.data,
+          ...(errors[w.id] ? { error: errors[w.id] } : {}),
         }));
         return JSON.stringify({ rev: desk.rev, widgets }, null, 2);
+      },
+    }),
+  );
+
+  disposers.push(
+    letta.tools.register({
+      name: "loci_author",
+      description:
+        "Author a custom widget on the loci canvas by writing a React module — use when no kit " +
+        "type fits. The module MUST `export default` a React component. Compose kit components " +
+        'via `import { Stat, ChartCard, SliderControl, ListCard, InfoCard } from "@loci/kit"` and ' +
+        'import hooks from "react". The component receives props { data, onSet } where data is ' +
+        "your initial payload and onSet(path,value) writes user interaction back to the store " +
+        "(readable via loci_state). Returns the bundle result; on a build error, fix and call " +
+        "again with the same id to hot-replace. No network calls, no real money on screen.",
+      parameters: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "Stable widget id (reuse to replace/fix)" },
+          title: { type: "string", description: "Widget title bar text" },
+          source: { type: "string", description: "React/TSX module source; export default a component" },
+          data: { type: "object", description: "Initial data prop for the component" },
+          position: {
+            type: "object",
+            properties: { x: { type: "number" }, y: { type: "number" } },
+            additionalProperties: false,
+          },
+        },
+        required: ["id", "title", "source"],
+        additionalProperties: false,
+      },
+      requiresApproval: false,
+      parallelSafe: false,
+      async run(ctx) {
+        const id = slug(String(ctx.args.id ?? ""));
+        const title = String(ctx.args.title ?? "").trim();
+        const source = String(ctx.args.source ?? "");
+        if (!title) return { status: "error", content: "title is required" };
+        if (!source.trim()) return { status: "error", content: "source is required" };
+
+        const result = await authorWidget(id, source);
+        if (!result.ok) {
+          store.setError(id, `build: ${result.error}`);
+          return { status: "error", content: `build failed:\n${result.error}` };
+        }
+        store.setError(id, null);
+        const patch: Patch = {
+          op: "author",
+          id,
+          title,
+          data: ctx.args.data ?? {},
+          ...(ctx.args.position ? { position: ctx.args.position as { x: number; y: number } } : {}),
+        };
+        apply(patch);
+        return `authored widget "${id}" mounted. If it renders an error on the canvas, read loci_state for the runtime error and call loci_author again with the same id to fix.`;
       },
     }),
   );

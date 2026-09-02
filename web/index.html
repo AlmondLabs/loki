@@ -24,6 +24,16 @@
   <body>
     <div id="root"></div>
     <link rel="stylesheet" href="/assets/main.css" />
+    <!-- Authored widget modules resolve these bare specifiers to host globals. -->
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "/vendor-shims/react.js",
+          "react/jsx-runtime": "/vendor-shims/jsx-runtime.js",
+          "@loci/kit": "/vendor-shims/kit.js"
+        }
+      }
+    </script>
     <script type="module" src="/assets/main.js"></script>
   </body>
 </html>

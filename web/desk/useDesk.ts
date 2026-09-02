@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Mirror of the mod-side types (src/store.ts). Keep in sync by hand until shared. */
 export interface WidgetState {
@@ -9,6 +9,7 @@ export interface WidgetState {
   size?: { w: number; h: number };
   z: number;
   data: unknown;
+  moduleRev?: number;
 }
 export interface DeskState {
   widgets: Record<string, WidgetState>;
@@ -20,7 +21,8 @@ export type Patch =
   | { op: "resize"; id: string; size: { w: number; h: number } }
   | { op: "focus"; id: string }
   | { op: "close"; id: string }
-  | { op: "set"; id: string; path: string; value: unknown };
+  | { op: "set"; id: string; path: string; value: unknown }
+  | { op: "author"; id: string; title: string; position?: { x: number; y: number }; data?: unknown };
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -49,6 +51,29 @@ function applyLocal(state: DeskState, patch: Patch): DeskState {
     case "close":
       delete widgets[patch.id];
       break;
+    case "author": {
+      const existing = widgets[patch.id];
+      if (existing) {
+        widgets[patch.id] = {
+          ...existing,
+          title: patch.title,
+          position: patch.position ?? existing.position,
+          data: patch.data ?? existing.data,
+          moduleRev: (existing.moduleRev ?? 0) + 1,
+        };
+      } else {
+        widgets[patch.id] = {
+          id: patch.id,
+          type: "authored",
+          title: patch.title,
+          position: patch.position ?? { x: 160, y: 140 },
+          z: topZ + 1,
+          data: patch.data ?? {},
+          moduleRev: 1,
+        };
+      }
+      break;
+    }
     case "set": {
       const w = widgets[patch.id];
       if (w) {
@@ -178,5 +203,19 @@ export function useDesk() {
     ws.send(JSON.stringify({ type: "chat_send", text }));
   };
 
-  return { state, connection, patch, chat: { messages: chatMessages, status: chatStatus, error: chatError, send: sendChat } };
+  /** Report an authored widget's runtime error (or null to clear) to the mod. */
+  const reportWidgetError = useCallback((id: string, message: string | null) => {
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "widget_status", id, error: message }));
+    }
+  }, []);
+
+  return {
+    state,
+    connection,
+    patch,
+    reportWidgetError,
+    chat: { messages: chatMessages, status: chatStatus, error: chatError, send: sendChat },
+  };
 }

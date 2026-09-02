@@ -81,3 +81,32 @@ describe("DeskStore", () => {
     expect(Object.keys(store.get().widgets)).toHaveLength(1);
   });
 });
+
+describe("author op", () => {
+  test("creates an authored widget then re-authors preserving position, bumping moduleRev", () => {
+    const store = new DeskStore();
+    store.apply({ op: "author", id: "custom", title: "Custom", position: { x: 30, y: 40 }, data: { a: 1 } });
+    let w = store.get().widgets.custom;
+    expect(w.type).toBe("authored");
+    expect(w.moduleRev).toBe(1);
+    expect(w.position).toEqual({ x: 30, y: 40 });
+
+    // Re-author without position: keep old position, bump rev, refresh data.
+    store.apply({ op: "author", id: "custom", title: "Custom v2", data: { a: 2 } });
+    w = store.get().widgets.custom;
+    expect(w.moduleRev).toBe(2);
+    expect(w.position).toEqual({ x: 30, y: 40 });
+    expect((w.data as { a: number }).a).toBe(2);
+    expect(w.title).toBe("Custom v2");
+  });
+});
+
+describe("error map", () => {
+  test("set/get/clear widget errors, not persisted in DeskState", () => {
+    const store = new DeskStore();
+    store.setError("w1", "boom");
+    expect(store.getErrors()).toEqual({ w1: "boom" });
+    store.setError("w1", null);
+    expect(store.getErrors()).toEqual({});
+  });
+});

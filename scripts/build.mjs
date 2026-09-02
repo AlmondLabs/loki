@@ -37,6 +37,8 @@ const webConfig = {
 function copyStatic() {
   mkdirSync("dist/web", { recursive: true });
   cpSync("web/index.html", "dist/web/index.html");
+  // Vendor shims are served as-is (import-map targets), not bundled.
+  cpSync("web/vendor-shims", "dist/web/vendor-shims", { recursive: true });
 }
 
 if (watch) {

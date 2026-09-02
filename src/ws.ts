@@ -47,11 +47,15 @@ export function attachWs(
       .catch(() => {});
 
     ws.on("message", (raw) => {
-      let msg: { type?: string; patch?: Patch; text?: string };
+      let msg: { type?: string; patch?: Patch; text?: string; id?: string; error?: string | null };
       try {
         msg = JSON.parse(String(raw));
       } catch {
         send(ws, { type: "error", message: "invalid json" });
+        return;
+      }
+      if (msg.type === "widget_status" && typeof msg.id === "string") {
+        store.setError(msg.id, typeof msg.error === "string" ? msg.error : null);
         return;
       }
       if (msg.type === "chat_send" && typeof msg.text === "string" && msg.text.trim()) {

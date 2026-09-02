@@ -4,34 +4,46 @@ import { useDesk } from "./useDesk";
 import { ChatBubble, ChatWindow } from "../chat/ChatWindow";
 
 import { KIT_COMPONENTS } from "../kit";
+import { ModuleHost } from "./ModuleHost";
 import type { Patch } from "./useDesk";
 
-/** Renders a widget body from the kit registry. */
+/** Renders a widget body from the kit registry, or an authored module. */
 function WidgetBody({
   id,
   type,
   data,
+  moduleRev,
   patch,
+  reportError,
 }: {
   id: string;
   type: string;
   data: unknown;
+  moduleRev?: number;
   patch: (p: Patch) => void;
+  reportError: (id: string, message: string | null) => void;
 }) {
+  const onSet = (path: string, value: unknown) => patch({ op: "set", id, path, value });
+  if (type === "authored") {
+    return (
+      <ModuleHost
+        id={id}
+        moduleRev={moduleRev ?? 1}
+        data={(data ?? {}) as Record<string, unknown>}
+        onSet={onSet}
+        onError={reportError}
+      />
+    );
+  }
   const Component = KIT_COMPONENTS[type];
   if (!Component) {
     return <div style={{ fontSize: 12, color: "var(--loci-muted)" }}>unknown widget: {type}</div>;
   }
-  return (
-    <Component
-      data={(data ?? {}) as Record<string, unknown>}
-      onSet={(path, value) => patch({ op: "set", id, path, value })}
-    />
-  );
+  return <Component data={(data ?? {}) as Record<string, unknown>} onSet={onSet} />;
 }
 
 export function Surface() {
-  const { state, connection, patch, chat } = useDesk();
+  const { state, connection, patch, chat, reportWidgetError } = useDesk();
   const [chatOpen, setChatOpen] = useState(false);
   const widgets = Object.values(state.widgets);
 
@@ -47,7 +59,14 @@ export function Surface() {
     >
       {widgets.map((w) => (
         <WidgetFrame key={w.id} widget={w} patch={patch}>
-          <WidgetBody id={w.id} type={w.type} data={w.data} patch={patch} />
+          <WidgetBody
+            id={w.id}
+            type={w.type}
+            data={w.data}
+            moduleRev={w.moduleRev}
+            patch={patch}
+            reportError={reportWidgetError}
+          />
         </WidgetFrame>
       ))}
       {connection !== "open" && (

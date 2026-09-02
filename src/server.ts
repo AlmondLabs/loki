@@ -26,6 +26,8 @@ export interface StartOptions {
   port?: number;
   /** Directory of static web assets. Default: ./web relative to the built mod. */
   webRoot?: string;
+  /** Directory of runtime-authored widget bundles (served at /widgets/). */
+  widgetsRoot?: string;
   /** Stable token (persisted by the mod so URLs survive /reload). Default: random. */
   token?: string;
 }
@@ -34,10 +36,12 @@ export interface StartOptions {
 export async function startServer(opts: StartOptions = {}): Promise<LociServer> {
   const port = opts.port ?? Number(process.env.LOCI_PORT ?? 41414);
   const webRoot = opts.webRoot ?? fileURLToPath(new URL("./web/", import.meta.url));
+  const widgetsRoot =
+    opts.widgetsRoot ?? fileURLToPath(new URL("../widgets/", import.meta.url));
   const token = opts.token ?? randomBytes(16).toString("hex");
 
   const server = createServer((req, res) => {
-    void handle(req, res, { webRoot, token });
+    void handle(req, res, { webRoot, widgetsRoot, token });
   });
 
   // On /reload the previous activation's server closes asynchronously;
@@ -79,7 +83,7 @@ async function listenWithRetry(server: Server, port: number, tries = 4): Promise
 async function handle(
   req: IncomingMessage,
   res: ServerResponse,
-  ctx: { webRoot: string; token: string },
+  ctx: { webRoot: string; widgetsRoot: string; token: string },
 ): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
@@ -92,17 +96,29 @@ async function handle(
     return;
   }
 
-  if (url.pathname.startsWith("/assets/")) {
-    const rel = normalize(url.pathname.slice(1));
-    if (rel.startsWith("..")) {
-      res.writeHead(400).end();
-      return;
-    }
+  // Static web assets and vendor shims both live under webRoot.
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/vendor-shims/")) {
+    const rel = safeRel(url.pathname);
+    if (!rel) return void res.writeHead(400).end();
     await serveFile(res, join(ctx.webRoot, rel));
     return;
   }
 
+  // Runtime-authored widget bundles.
+  if (url.pathname.startsWith("/widgets/")) {
+    const rel = safeRel(url.pathname.slice("/widgets/".length));
+    if (!rel) return void res.writeHead(400).end();
+    await serveFile(res, join(ctx.widgetsRoot, rel));
+    return;
+  }
+
   res.writeHead(404, { "content-type": "text/plain" }).end("not found");
+}
+
+/** Normalize a URL path to a safe relative path, or null if it escapes. */
+function safeRel(pathname: string): string | null {
+  const rel = normalize(decodeURIComponent(pathname.replace(/^\//, "")));
+  return rel.startsWith("..") || rel.includes("../") ? null : rel;
 }
 
 async function serveFile(res: ServerResponse, path: string): Promise<void> {
