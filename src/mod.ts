@@ -73,6 +73,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
     }
   };
 
+  // Eager start: the canvas must survive /reload + tab refresh without
+  // waiting for the next /canvas. Failure lands in diagnostics, not a crash.
+  void ensureServer().catch(() => {});
+
   const disposeCommand = letta.commands.register({
     id: "canvas",
     description: "Open the loci canvas — the widget desk",
