@@ -14,6 +14,10 @@ const modConfig = {
   outfile: "dist/mod.js",
   sourcemap: true,
   logLevel: "info",
+  // ws is CJS; give the ESM bundle a real require() for node builtins.
+  banner: {
+    js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);',
+  },
 };
 
 /** Web bundle: the canvas page. */
