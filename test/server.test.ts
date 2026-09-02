@@ -61,3 +61,13 @@ describe("loci server", () => {
     await b.close();
   });
 });
+
+describe("token stability", () => {
+  test("uses a provided token verbatim", async () => {
+    const s = await startServer({ port: 0, webRoot: fixtureWebRoot(), token: "a".repeat(32) });
+    servers.push(s);
+    expect(s.url).toContain(`t=${"a".repeat(32)}`);
+    const ok = await fetch(s.url);
+    expect(ok.status).toBe(200);
+  });
+});

@@ -26,22 +26,23 @@ export interface StartOptions {
   port?: number;
   /** Directory of static web assets. Default: ./web relative to the built mod. */
   webRoot?: string;
+  /** Stable token (persisted by the mod so URLs survive /reload). Default: random. */
+  token?: string;
 }
 
 /** Serve the canvas page on 127.0.0.1 with a URL token. No token, no page. */
 export async function startServer(opts: StartOptions = {}): Promise<LociServer> {
   const port = opts.port ?? Number(process.env.LOCI_PORT ?? 41414);
   const webRoot = opts.webRoot ?? fileURLToPath(new URL("./web/", import.meta.url));
-  const token = randomBytes(16).toString("hex");
+  const token = opts.token ?? randomBytes(16).toString("hex");
 
   const server = createServer((req, res) => {
     void handle(req, res, { webRoot, token });
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", () => resolve());
-  });
+  // On /reload the previous activation's server closes asynchronously;
+  // retry briefly instead of failing with EADDRINUSE.
+  await listenWithRetry(server, port);
 
   const actualPort = (server.address() as { port: number }).port;
   return {
@@ -54,6 +55,25 @@ export async function startServer(opts: StartOptions = {}): Promise<LociServer> 
         server.close(() => resolve());
       }),
   };
+}
+
+async function listenWithRetry(server: Server, port: number, tries = 4): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(port, "127.0.0.1", () => {
+          server.removeAllListeners("error");
+          resolve();
+        });
+      });
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "EADDRINUSE" || attempt >= tries) throw err;
+      await new Promise((r) => setTimeout(r, 300 * attempt));
+    }
+  }
 }
 
 async function handle(

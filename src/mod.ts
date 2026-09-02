@@ -1,5 +1,25 @@
 import { spawn } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { startServer, type LociServer } from "./server.js";
+
+/** Token persists at ~/.letta/loci/token so canvas URLs survive /reload. */
+function loadOrCreateToken(): string {
+  const dir = join(homedir(), ".letta", "loci");
+  const file = join(dir, "token");
+  try {
+    const existing = readFileSync(file, "utf8").trim();
+    if (/^[a-f0-9]{32}$/.test(existing)) return existing;
+  } catch {
+    // fall through to create
+  }
+  const token = randomBytes(16).toString("hex");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(file, token, { mode: 0o600 });
+  return token;
+}
 
 /**
  * loci — a memory palace your agent builds.
@@ -32,7 +52,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   const ensureServer = async (): Promise<LociServer> => {
     if (srv) return srv;
-    starting ??= startServer().then((s) => (srv = s));
+    starting ??= startServer({ token: loadOrCreateToken() }).then((s) => (srv = s));
     try {
       return await starting;
     } catch (err) {
