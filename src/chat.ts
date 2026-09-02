@@ -12,6 +12,7 @@ export interface ConversationHandle {
     messages: Array<{ role: "user"; content: string }>,
     options?: Record<string, unknown>,
   ): Promise<AsyncIterable<Record<string, unknown>>>;
+  updateTitle?(title: string): Promise<unknown>;
 }
 
 export type ChatFrame =
@@ -52,7 +53,11 @@ export function createChatBridge(
       inFlight = true;
       emit({ type: "chat_state", state: "thinking" });
       try {
-        forked ??= await source.fork({ hidden: true });
+        if (!forked) {
+          forked = await source.fork({ hidden: true });
+          // Sidebars may list the fork even when hidden — label it clearly.
+          await forked.updateTitle?.("loci · canvas chat").catch?.(() => {});
+        }
         const stream = await forked.sendMessageStream([{ role: "user", content: text }]);
 
         let streamed = false;
