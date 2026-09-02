@@ -1,11 +1,11 @@
 import type { DeskStore, Patch, WidgetState } from "./store.js";
-import type { WsBridge } from "./ws.js";
+import { KIT_TYPES as KIT_TYPE_LIST, kitDescription } from "./kit-types.js";
 
 /**
- * Agent-facing tools (K9). v1 kit types the agent may render; grows in U5.
- * Tool-applied patches broadcast to all tabs via the ws bridge.
+ * Agent-facing tools (K9). Kit vocabulary lives in kit-types.ts, shared with
+ * the web bundle. Tool-applied patches broadcast to all tabs via ws bridge.
  */
-const KIT_TYPES = new Set(["info-card"]);
+const KIT_TYPES = new Set(KIT_TYPE_LIST);
 
 interface ToolApi {
   capabilities?: { tools?: boolean };
@@ -40,9 +40,10 @@ export function registerTools(
       name: "loci_render",
       description:
         "Place a widget on the loci canvas (the user's browser widget desk, opened with /canvas). " +
-        `Kit types: ${[...KIT_TYPES].join(", ")}. ` +
-        'For "info-card", data is { lines: string[] }. ' +
-        "Use when the user asks to see something on the canvas/desk, or when a visual answer beats prose.",
+        `Kit types and data shapes — ${kitDescription()}. ` +
+        "Controls (slider, list checkboxes) write user interactions back into widget data, " +
+        "readable via loci_state. Use when the user asks to see something on the canvas/desk, " +
+        "or when a visual answer beats prose.",
       parameters: {
         type: "object",
         properties: {

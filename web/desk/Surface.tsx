@@ -3,21 +3,31 @@ import { WidgetFrame } from "./WidgetFrame";
 import { useDesk } from "./useDesk";
 import { ChatBubble, ChatWindow } from "../chat/ChatWindow";
 
-/** Renders a widget body by kit type. Grows into the real kit in U5. */
-function WidgetBody({ type, data }: { type: string; data: unknown }) {
-  if (type === "info-card") {
-    const lines = (data as { lines?: string[] })?.lines ?? [];
-    return (
-      <div style={{ display: "grid", gap: 6 }}>
-        {lines.map((line, i) => (
-          <div key={i} style={{ fontSize: 13, color: "var(--loci-fg)" }}>
-            {line}
-          </div>
-        ))}
-      </div>
-    );
+import { KIT_COMPONENTS } from "../kit";
+import type { Patch } from "./useDesk";
+
+/** Renders a widget body from the kit registry. */
+function WidgetBody({
+  id,
+  type,
+  data,
+  patch,
+}: {
+  id: string;
+  type: string;
+  data: unknown;
+  patch: (p: Patch) => void;
+}) {
+  const Component = KIT_COMPONENTS[type];
+  if (!Component) {
+    return <div style={{ fontSize: 12, color: "var(--loci-muted)" }}>unknown widget: {type}</div>;
   }
-  return <div style={{ fontSize: 12, color: "var(--loci-muted)" }}>unknown widget: {type}</div>;
+  return (
+    <Component
+      data={(data ?? {}) as Record<string, unknown>}
+      onSet={(path, value) => patch({ op: "set", id, path, value })}
+    />
+  );
 }
 
 export function Surface() {
@@ -37,7 +47,7 @@ export function Surface() {
     >
       {widgets.map((w) => (
         <WidgetFrame key={w.id} widget={w} patch={patch}>
-          <WidgetBody type={w.type} data={w.data} />
+          <WidgetBody id={w.id} type={w.type} data={w.data} patch={patch} />
         </WidgetFrame>
       ))}
       {connection !== "open" && (

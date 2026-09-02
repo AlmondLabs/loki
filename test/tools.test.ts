@@ -86,3 +86,15 @@ describe("capability gating", () => {
     expect(disposers).toHaveLength(0);
   });
 });
+
+describe("kit vocabulary", () => {
+  test("loci_render accepts every registered kit type", async () => {
+    const { KIT_TYPES } = await import("../src/kit-types");
+    const { render, store } = setup();
+    for (const type of KIT_TYPES) {
+      const result = render.run({ args: { type, title: `t-${type}`, data: {} } });
+      expect(String(result)).not.toContain("error");
+    }
+    expect(Object.keys(store.get().widgets)).toHaveLength(KIT_TYPES.length);
+  });
+});
