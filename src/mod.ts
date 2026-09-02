@@ -4,6 +4,8 @@ import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { startServer, type LociServer } from "./server.js";
+import { attachWs, type WsBridge } from "./ws.js";
+import { DeskStore, seedDesk } from "./store.js";
 
 /** Token persists at ~/.letta/loci/token so canvas URLs survive /reload. */
 function loadOrCreateToken(): string {
@@ -48,11 +50,17 @@ export default function activate(letta: LettaMod): (() => void) | void {
   if (!letta.capabilities?.commands) return;
 
   let srv: LociServer | null = null;
+  let ws: WsBridge | null = null;
   let starting: Promise<LociServer> | null = null;
+  const store = new DeskStore();
+  seedDesk(store);
 
   const ensureServer = async (): Promise<LociServer> => {
     if (srv) return srv;
-    starting ??= startServer({ token: loadOrCreateToken() }).then((s) => (srv = s));
+    starting ??= startServer({ token: loadOrCreateToken() }).then((s) => {
+      ws = attachWs(s.server, store, s.token);
+      return (srv = s);
+    });
     try {
       return await starting;
     } catch (err) {
@@ -78,7 +86,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
   });
 
   const shutdown = (): void => {
+    ws?.close();
     void srv?.close();
+    ws = null;
     srv = null;
     starting = null;
   };
