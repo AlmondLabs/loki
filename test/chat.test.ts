@@ -56,10 +56,32 @@ describe("chat bridge — shared transcript, no forking", () => {
 
     busy = false;
     bridge.onMainIdle();
-    await new Promise((r) => setTimeout(r, 10)); // let the async deliver run
+    await new Promise((r) => setTimeout(r, 1400)); // debounced flush (1200ms) + margin
 
     expect(box.sends).toBe(1);
     expect(frames.some((f) => f.type === "chat_delta" && (f as { text: string }).text === "queued reply")).toBe(true);
+  });
+
+  test("a turn starting during the debounce cancels the flush (no tool-call interrupt)", async () => {
+    const box = handleReplying([["late reply"]]);
+    let busy = true;
+    const bridge = createChatBridge({ getConversation: () => box.handle, isMainBusy: () => busy });
+
+    await bridge.send("while busy", () => {});
+    busy = false;
+    bridge.onMainIdle(); // schedule flush
+    await new Promise((r) => setTimeout(r, 400));
+    // A tool-call gap: a new turn starts before the debounce elapses.
+    busy = true;
+    bridge.onMainBusy(); // cancels the pending flush
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(box.sends).toBe(0); // never flushed into the active turn
+
+    // When it finally settles, the flush goes through.
+    busy = false;
+    bridge.onMainIdle();
+    await new Promise((r) => setTimeout(r, 1400));
+    expect(box.sends).toBe(1);
   });
 
   test("second message while one is queued is rejected", async () => {

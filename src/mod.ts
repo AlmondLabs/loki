@@ -82,6 +82,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // it's idle (shared transcript); forks only while it's mid-turn.
   let activeConversation: ConversationHandle | null = null;
   let mainBusy = false;
+  let historyTimer: ReturnType<typeof setTimeout> | null = null;
   const chat = createChatBridge({
     getConversation: () => activeConversation,
     isMainBusy: () => mainBusy,
@@ -100,18 +101,23 @@ export default function activate(letta: LettaMod): (() => void) | void {
   });
   track("turn_start", (_e, ctx) => {
     mainBusy = true;
+    chat.onMainBusy();
     if (ctx?.conversation?.id) activeConversation = ctx.conversation;
   });
   track("turn_end", () => {
     mainBusy = false;
     chat.onMainIdle();
-    // App-side turns should appear on the canvas without a reconnect.
-    void chat
-      .history()
-      .then((messages) => {
-        if (messages.length) ws?.broadcast({ type: "chat_history", messages });
-      })
-      .catch(() => {});
+    // App-side turns should appear on the canvas without a reconnect. Debounce
+    // so we don't rebroadcast on every tool-call gap mid-turn.
+    if (historyTimer) clearTimeout(historyTimer);
+    historyTimer = setTimeout(() => {
+      void chat
+        .history()
+        .then((messages) => {
+          if (messages.length) ws?.broadcast({ type: "chat_history", messages });
+        })
+        .catch(() => {});
+    }, 1200);
   });
 
   const ensureServer = async (): Promise<LociServer> => {

@@ -32,7 +32,9 @@ export type ChatFrame =
 export interface ChatBridge {
   /** Handle one user message; frames go to `emit` as they happen. */
   send(text: string, emit: (frame: ChatFrame) => void): Promise<void>;
-  /** Called on turn_end so any message queued while busy can now go out. */
+  /** turn_start: a turn began — cancel any pending flush. */
+  onMainBusy(): void;
+  /** turn_end: a turn ended — schedule a debounced flush of the queue. */
   onMainIdle(): void;
   busy(): boolean;
   /** Conversation history mapped for the canvas chat window. */
@@ -46,13 +48,25 @@ export interface ChatBridgeOptions {
 }
 
 /**
- * Always sends into the live conversation (shared transcript, no forking).
- * If the conversation is mid-turn, the message is queued and flushed when the
- * turn ends. One in-flight send at a time.
+ * Shared-transcript chat, no forking. Sends into the live conversation only
+ * when it is genuinely idle. A tool call produces a brief turn_end/turn_start
+ * gap; sending in that gap would interrupt the tool call ("Turn did not
+ * complete"). So a queued message is flushed only after a debounce with NO new
+ * turn starting — turn_start cancels the pending flush. One send in flight.
  */
+const FLUSH_DEBOUNCE_MS = 1200;
+
 export function createChatBridge({ getConversation, isMainBusy }: ChatBridgeOptions): ChatBridge {
   let inFlight = false;
   let queued: { text: string; emit: (frame: ChatFrame) => void } | null = null;
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelFlush = () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+  };
 
   const deliver = async (text: string, emit: (frame: ChatFrame) => void): Promise<void> => {
     const source = getConversation();
@@ -110,12 +124,25 @@ export function createChatBridge({ getConversation, isMainBusy }: ChatBridgeOpti
       await deliver(text, emit);
     },
 
+    onMainBusy() {
+      // A turn started (possibly just a tool-call continuation) — do not flush
+      // into it; wait for a real settled idle.
+      cancelFlush();
+    },
+
     onMainIdle() {
-      if (queued && !inFlight) {
-        const { text, emit } = queued;
-        queued = null;
-        void deliver(text, emit);
-      }
+      cancelFlush();
+      if (!queued) return;
+      // Only flush if no new turn starts during the debounce window, and the
+      // conversation is actually idle when the timer fires.
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        if (queued && !inFlight && !isMainBusy()) {
+          const { text, emit } = queued;
+          queued = null;
+          void deliver(text, emit);
+        }
+      }, FLUSH_DEBOUNCE_MS);
     },
 
     async history(limit = 100) {
