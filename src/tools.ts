@@ -115,6 +115,34 @@ export function registerTools(
 
   disposers.push(
     letta.tools.register({
+      name: "loci_camera",
+      description:
+        "Glide the user's canvas camera to a widget (eased zoom-to). Use to direct attention " +
+        "after rendering or when walking the user through the desk. The canvas ignores glides " +
+        "while the user is actively interacting (no yanking).",
+      parameters: {
+        type: "object",
+        properties: {
+          widgetId: { type: "string", description: "Widget id to bring into view" },
+        },
+        required: ["widgetId"],
+        additionalProperties: false,
+      },
+      requiresApproval: false,
+      parallelSafe: false,
+      run(ctx) {
+        const widgetId = String(ctx.args.widgetId ?? "");
+        if (!store.get().widgets[widgetId]) {
+          return { status: "error", content: `no widget "${widgetId}" — check loci_state` };
+        }
+        broadcast({ type: "camera", widgetId });
+        return `camera gliding to "${widgetId}" (suppressed if the user is mid-interaction)`;
+      },
+    }),
+  );
+
+  disposers.push(
+    letta.tools.register({
       name: "loci_author",
       description:
         "Author a custom widget on the loci canvas by writing a React module — use when no kit " +

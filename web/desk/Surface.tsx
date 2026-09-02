@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import { WidgetFrame } from "./WidgetFrame";
+import { Viewport } from "./Viewport";
 import { useDesk } from "./useDesk";
 import { ChatBubble, ChatWindow } from "../chat/ChatWindow";
 
@@ -43,9 +45,21 @@ function WidgetBody({
 }
 
 export function Surface() {
-  const { state, connection, patch, chat, reportWidgetError } = useDesk();
+  const { state, connection, patch, chat, reportWidgetError, cameraTarget } = useDesk();
   const [chatOpen, setChatOpen] = useState(false);
+  const viewportRef = useRef<ReactZoomPanPinchRef | null>(null);
   const widgets = Object.values(state.widgets);
+
+  // Camera glide: eased zoom-to-widget whenever a target lands (agent adds a
+  // widget or calls loci_camera). The no-yank guard already ran in useDesk.
+  useEffect(() => {
+    if (!cameraTarget) return;
+    // New widgets mount on this same render pass; glide after paint.
+    const t = setTimeout(() => {
+      viewportRef.current?.zoomToElement(`widget-${cameraTarget.widgetId}`, 1.15, 600, "easeOut");
+    }, 60);
+    return () => clearTimeout(t);
+  }, [cameraTarget]);
 
   return (
     <div
@@ -57,18 +71,25 @@ export function Surface() {
         transition: "opacity 200ms",
       }}
     >
-      {widgets.map((w) => (
-        <WidgetFrame key={w.id} widget={w} patch={patch}>
-          <WidgetBody
-            id={w.id}
-            type={w.type}
-            data={w.data}
-            moduleRev={w.moduleRev}
+      <Viewport ref={viewportRef}>
+        {widgets.map((w) => (
+          <WidgetFrame
+            key={w.id}
+            widget={w}
             patch={patch}
-            reportError={reportWidgetError}
-          />
-        </WidgetFrame>
-      ))}
+            getScale={() => viewportRef.current?.instance.state.scale ?? 1}
+          >
+            <WidgetBody
+              id={w.id}
+              type={w.type}
+              data={w.data}
+              moduleRev={w.moduleRev}
+              patch={patch}
+              reportError={reportWidgetError}
+            />
+          </WidgetFrame>
+        ))}
+      </Viewport>
       {connection !== "open" && (
         <div
           style={{

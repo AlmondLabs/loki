@@ -26,6 +26,12 @@ export type Patch =
 
 export type Connection = "connecting" | "open" | "closed";
 
+/** A camera request: glide to a widget. Nonce forces re-fire on same target. */
+export interface CameraTarget {
+  widgetId: string;
+  nonce: number;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   text: string;
@@ -100,6 +106,9 @@ export function useDesk() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
   const [chatError, setChatError] = useState<string | null>(null);
+  const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
+  /** Last local interaction; glides within this window are suppressed (no yank). */
+  const lastInteractionRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
   /** Patches made while disconnected; flushed after the reconnect state_sync. */
   const pendingRef = useRef<Patch[]>([]);
@@ -122,6 +131,7 @@ export function useDesk() {
         const msg = JSON.parse(ev.data as string) as
           | { type: "state_sync"; state: DeskState }
           | { type: "patch"; patch: Patch }
+          | { type: "camera"; widgetId: string }
           | { type: "error"; message: string }
           | { type: "chat_history"; messages: ChatMessage[] }
           | { type: "chat_state"; state: ChatStatus }
@@ -141,6 +151,21 @@ export function useDesk() {
           }
           case "patch":
             setState((s) => applyLocal(s, msg.patch));
+            // Broadcast patches come from the agent or another tab. When the
+            // agent lands a widget, glide to it — unless the user is mid-gesture.
+            if (
+              (msg.patch.op === "add" || msg.patch.op === "author") &&
+              Date.now() - lastInteractionRef.current > 2000
+            ) {
+              const widgetId = msg.patch.op === "add" ? msg.patch.widget.id : msg.patch.id;
+              setCameraTarget((t) => ({ widgetId, nonce: (t?.nonce ?? 0) + 1 }));
+            }
+            break;
+          case "camera":
+            if (typeof msg.widgetId === "string" && Date.now() - lastInteractionRef.current > 2000) {
+              const widgetId = msg.widgetId;
+              setCameraTarget((t) => ({ widgetId, nonce: (t?.nonce ?? 0) + 1 }));
+            }
             break;
           case "chat_history":
             // Server history is authoritative on (re)connect.
@@ -186,6 +211,7 @@ export function useDesk() {
 
   /** Apply optimistically and send to the store; queue while disconnected. */
   const patch = (p: Patch) => {
+    lastInteractionRef.current = Date.now(); // local gestures suppress glides
     setState((s) => applyLocal(s, p));
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "patch", patch: p }));
@@ -216,6 +242,7 @@ export function useDesk() {
     connection,
     patch,
     reportWidgetError,
+    cameraTarget,
     chat: { messages: chatMessages, status: chatStatus, error: chatError, send: sendChat },
   };
 }

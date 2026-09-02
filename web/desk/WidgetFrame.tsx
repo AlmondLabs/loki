@@ -9,10 +9,13 @@ import type { Patch, WidgetState } from "./useDesk";
 export function WidgetFrame({
   widget,
   patch,
+  getScale,
   children,
 }: {
   widget: WidgetState;
   patch: (p: Patch) => void;
+  /** Current viewport zoom — screen-pixel drags divide by it (U7). */
+  getScale?: () => number;
   children: ReactNode;
 }) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(
@@ -32,17 +35,21 @@ export function WidgetFrame({
     patch({ op: "focus", id: widget.id });
   };
 
+  const dragPosition = (d: NonNullable<typeof dragRef.current>, e: React.PointerEvent) => {
+    const scale = getScale?.() ?? 1;
+    return {
+      x: d.origX + (e.clientX - d.startX) / scale,
+      y: d.origY + (e.clientY - d.startY) / scale,
+    };
+  };
+
   const onHandlePointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
-    const position = {
-      x: d.origX + (e.clientX - d.startX),
-      y: d.origY + (e.clientY - d.startY),
-    };
     const now = performance.now();
     if (now - lastSent.current > 33) {
       lastSent.current = now;
-      patch({ op: "move", id: widget.id, position });
+      patch({ op: "move", id: widget.id, position: dragPosition(d, e) });
     }
   };
 
@@ -50,15 +57,13 @@ export function WidgetFrame({
     const d = dragRef.current;
     if (!d) return;
     dragRef.current = null;
-    patch({
-      op: "move",
-      id: widget.id,
-      position: { x: d.origX + (e.clientX - d.startX), y: d.origY + (e.clientY - d.startY) },
-    });
+    patch({ op: "move", id: widget.id, position: dragPosition(d, e) });
   };
 
   return (
     <div
+      id={`widget-${widget.id}`}
+      className="loci-no-pan"
       onPointerDown={(e) => {
         e.stopPropagation();
         patch({ op: "focus", id: widget.id });

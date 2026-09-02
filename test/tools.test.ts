@@ -22,7 +22,7 @@ function setup() {
   };
   registerTools(letta as never, store, (msg) => broadcasts.push(msg));
   const byName = (name: string) => tools.find((t) => t.name === name)!;
-  return { store, broadcasts, render: byName("loci_render"), state: byName("loci_state") };
+  return { store, broadcasts, render: byName("loci_render"), state: byName("loci_state"), camera: byName("loci_camera") };
 }
 
 describe("loci_render", () => {
@@ -96,5 +96,18 @@ describe("kit vocabulary", () => {
       expect(String(result)).not.toContain("error");
     }
     expect(Object.keys(store.get().widgets)).toHaveLength(KIT_TYPES.length);
+  });
+});
+
+describe("loci_camera", () => {
+  test("broadcasts camera frame for existing widget; errors on missing", () => {
+    const { render, camera, broadcasts } = setup();
+    render.run({ args: { type: "info-card", title: "Target", data: {} } });
+    const result = camera.run({ args: { widgetId: "target" } });
+    expect(String(result)).toContain("gliding");
+    expect(broadcasts.some((b) => (b as { type?: string }).type === "camera")).toBe(true);
+
+    const missing = camera.run({ args: { widgetId: "ghost" } }) as { status: string };
+    expect(missing.status).toBe("error");
   });
 });
