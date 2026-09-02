@@ -92,6 +92,21 @@ Clip posted on X; repo clean enough to walk an interviewer through; AE1 reproduc
 - A1. *Resolved 2026-09-02:* stack research (`docs/research/stack-research.md`) confirmed all three defaults — CSS tokens (K5), Recharts v3, react-zoom-pan-pinch v4 (K7).
 - A2. `activate()` idempotency and port-rebind behavior on `/reload` works as documented in the creating-mods skill; verified live in U1.
 
+### Spike result (2026-09-02) — GO
+
+All four spike units built, tested (27 bun tests), and verified live on Deepak's machine:
+- U1 server + `/canvas` + tokenized page. Gotchas found and fixed: eager server start (tabs must survive `/reload`), persistent token at `~/.letta/loci/token`, cache-busting dynamic-import shim (static re-export pinned Node's ESM cache → `/reload` silently ran stale builds), `createRequire` banner (CJS `ws` in an ESM bundle).
+- U2 store + WS + draggable widget — verified.
+- U3 canvas chat streaming from a hidden fork — **verified live** (the riskiest unit; fork inherits full conversation context).
+- U4 `loci_render` + `loci_state` tools — verified.
+
+**Bonus, and a real fork in the road (K6 revisited):** built same-transcript chat — when the main conversation is idle, canvas messages send into the *live* conversation (busy tracked via `turn_start`/`turn_end`), so canvas and app share one transcript; the labeled fork is the mid-turn fallback. Confirmed working both directions. **Cost:** shared mode does **not** stream (the app's turn loop is the primary stream consumer; the mod's copy resolves aggregated). Fork mode streams. So streaming and shared-transcript appear mutually exclusive from a mod's position.
+
+**Decision needed at go/no-go:** for the demo clip, pick per shot —
+- **Fork mode** → token-by-token streaming (great on camera), separate transcript.
+- **Shared mode** → one conversation across canvas + app (the better product), reply lands as a block.
+Leaning: shared mode is the better *product* and the better interview story; fork mode is the better *clip*. Can select per-session, so this is not either/or forever.
+
 ### High-Level Technical Design
 
 ```mermaid
