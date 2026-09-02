@@ -15,11 +15,17 @@ Then create the shim that Letta Code's mod loader picks up:
 
 ```bash
 cat > ~/.letta/mods/loci.ts <<'EOF'
-export { default } from "/ABSOLUTE/PATH/TO/loci/dist/mod.js";
+import { pathToFileURL } from "node:url";
+export default async function activate(letta: unknown) {
+  const url = pathToFileURL("/ABSOLUTE/PATH/TO/loci/dist/mod.js");
+  url.searchParams.set("v", String(Date.now()));
+  const mod = await import(url.href);
+  return mod.default(letta);
+}
 EOF
 ```
 
-(Replace the path with this repo's location. Everything in `~/.letta/mods/` is loaded as a mod, so only the shim lives there; the project stays here.)
+(Replace the path with this repo's location. Everything in `~/.letta/mods/` is loaded as a mod, so only the shim lives there; the project stays here. The cache-busting query matters: a plain static re-export would pin Node's ESM cache to the first build ever loaded and `/reload` would silently keep running stale code. Mod cleanup runs via `letta.signal` abort, so the lost-disposer risk of an async activate is covered.)
 
 Run `/reload` in Letta Code, then `/canvas`.
 
