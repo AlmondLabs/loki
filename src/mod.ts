@@ -7,6 +7,7 @@ import { startServer, type LociServer } from "./server.js";
 import { attachWs, type WsBridge } from "./ws.js";
 import { DeskStore, seedDesk } from "./store.js";
 import { createChatBridge, type ConversationHandle } from "./chat.js";
+import { registerTools } from "./tools.js";
 
 /** Token persists at ~/.letta/loci/token so canvas URLs survive /reload. */
 function loadOrCreateToken(): string {
@@ -31,7 +32,12 @@ function loadOrCreateToken(): string {
  */
 // Minimal structural types for the mod API surface we use (no .d.ts ships with letta-code).
 interface LettaMod {
-  capabilities?: { commands?: boolean; events?: { turns?: boolean } | boolean };
+  capabilities?: {
+    commands?: boolean;
+    tools?: boolean;
+    events?: { turns?: boolean } | boolean;
+  };
+  tools?: Parameters<typeof registerTools>[0]["tools"];
   commands: {
     register(command: {
       id: string;
@@ -108,6 +114,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // waiting for the next /canvas. Failure lands in diagnostics, not a crash.
   void ensureServer().catch(() => {});
 
+  // Agent tools: render widgets onto the desk, read desk state.
+  const toolDisposers = registerTools(letta, store, (msg) => ws?.broadcast(msg));
+
   const disposeCommand = letta.commands.register({
     id: "canvas",
     description: "Open the loci canvas — the widget desk",
@@ -133,6 +142,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
   return () => {
     disposeCommand?.();
     for (const dispose of eventDisposers) dispose?.();
+    for (const dispose of toolDisposers) dispose?.();
     shutdown();
   };
 }
