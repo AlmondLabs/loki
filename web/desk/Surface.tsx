@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { WidgetFrame } from "./WidgetFrame";
 import { useDesk } from "./useDesk";
+import { ChatBubble, ChatWindow } from "../chat/ChatWindow";
 
 /** Renders a widget body by kit type. Grows into the real kit in U5. */
 function WidgetBody({ type, data }: { type: string; data: unknown }) {
@@ -19,7 +21,8 @@ function WidgetBody({ type, data }: { type: string; data: unknown }) {
 }
 
 export function Surface() {
-  const { state, connection, patch } = useDesk();
+  const { state, connection, patch, chat } = useDesk();
+  const [chatOpen, setChatOpen] = useState(false);
   const widgets = Object.values(state.widgets);
 
   return (
@@ -51,6 +54,16 @@ export function Surface() {
           {connection === "connecting" ? "connecting…" : "disconnected — retrying"}
         </div>
       )}
+      {chatOpen && (
+        <ChatWindow
+          messages={chat.messages}
+          status={chat.status}
+          error={chat.error}
+          onSend={chat.send}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
+      <ChatBubble open={chatOpen} onToggle={() => setChatOpen((v) => !v)} />
       {widgets.length === 0 && connection === "open" && (
         <div
           style={{

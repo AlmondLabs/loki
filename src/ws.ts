@@ -1,12 +1,15 @@
 import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "node:http";
 import type { DeskStore, Patch } from "./store.js";
+import type { ChatBridge } from "./chat.js";
 
 /**
  * WS protocol v0.
  * server → client: { type: "state_sync", state } | { type: "patch", patch } | { type: "error", message }
- * client → server: { type: "patch", patch }
+ *                  | chat frames: chat_state | chat_delta | chat_done | chat_error
+ * client → server: { type: "patch", patch } | { type: "chat_send", text }
  * Patches from one client are applied to the store and broadcast to all others.
+ * Chat frames broadcast to every client (all tabs share the desk's one chat).
  */
 
 export interface WsBridge {
@@ -15,7 +18,12 @@ export interface WsBridge {
   close(): void;
 }
 
-export function attachWs(server: Server, store: DeskStore, token: string): WsBridge {
+export function attachWs(
+  server: Server,
+  store: DeskStore,
+  token: string,
+  chat?: ChatBridge,
+): WsBridge {
   const wss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (req, socket, head) => {
@@ -31,11 +39,21 @@ export function attachWs(server: Server, store: DeskStore, token: string): WsBri
     send(ws, { type: "state_sync", state: store.get() });
 
     ws.on("message", (raw) => {
-      let msg: { type?: string; patch?: Patch };
+      let msg: { type?: string; patch?: Patch; text?: string };
       try {
         msg = JSON.parse(String(raw));
       } catch {
         send(ws, { type: "error", message: "invalid json" });
+        return;
+      }
+      if (msg.type === "chat_send" && typeof msg.text === "string" && msg.text.trim()) {
+        if (!chat) {
+          send(ws, { type: "chat_error", message: "chat not available" });
+          return;
+        }
+        void chat.send(msg.text, (frame) => {
+          for (const client of wss.clients) send(client, frame);
+        });
         return;
       }
       if (msg.type !== "patch" || !msg.patch) {

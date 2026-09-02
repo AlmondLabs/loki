@@ -24,6 +24,12 @@ export type Patch =
 
 export type Connection = "connecting" | "open" | "closed";
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  text: string;
+}
+export type ChatStatus = "idle" | "thinking" | "streaming";
+
 function applyLocal(state: DeskState, patch: Patch): DeskState {
   const widgets = { ...state.widgets };
   const topZ = Math.max(0, ...Object.values(widgets).map((w) => w.z));
@@ -66,6 +72,9 @@ function applyLocal(state: DeskState, patch: Patch): DeskState {
 export function useDesk() {
   const [state, setState] = useState<DeskState>({ widgets: {}, rev: 0 });
   const [connection, setConnection] = useState<Connection>("connecting");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
+  const [chatError, setChatError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -86,10 +95,39 @@ export function useDesk() {
         const msg = JSON.parse(ev.data as string) as
           | { type: "state_sync"; state: DeskState }
           | { type: "patch"; patch: Patch }
-          | { type: "error"; message: string };
-        if (msg.type === "state_sync") setState(msg.state);
-        else if (msg.type === "patch") setState((s) => applyLocal(s, msg.patch));
-        else console.warn("loci ws error:", msg.message);
+          | { type: "error"; message: string }
+          | { type: "chat_state"; state: ChatStatus }
+          | { type: "chat_delta"; text: string }
+          | { type: "chat_done" }
+          | { type: "chat_error"; message: string };
+        switch (msg.type) {
+          case "state_sync":
+            setState(msg.state);
+            break;
+          case "patch":
+            setState((s) => applyLocal(s, msg.patch));
+            break;
+          case "chat_state":
+            setChatStatus(msg.state);
+            if (msg.state !== "idle") setChatError(null);
+            break;
+          case "chat_delta":
+            setChatMessages((list) => {
+              const last = list[list.length - 1];
+              if (last?.role === "assistant") {
+                return [...list.slice(0, -1), { role: "assistant", text: last.text + msg.text }];
+              }
+              return [...list, { role: "assistant", text: msg.text }];
+            });
+            break;
+          case "chat_done":
+            break;
+          case "chat_error":
+            setChatError(msg.message);
+            break;
+          default:
+            console.warn("loci ws:", msg);
+        }
       };
       ws.onclose = () => {
         setConnection("closed");
@@ -114,5 +152,16 @@ export function useDesk() {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "patch", patch: p }));
   };
 
-  return { state, connection, patch };
+  const sendChat = (text: string) => {
+    const ws = wsRef.current;
+    if (ws?.readyState !== WebSocket.OPEN) {
+      setChatError("not connected");
+      return;
+    }
+    setChatMessages((list) => [...list, { role: "user", text }]);
+    setChatError(null);
+    ws.send(JSON.stringify({ type: "chat_send", text }));
+  };
+
+  return { state, connection, patch, chat: { messages: chatMessages, status: chatStatus, error: chatError, send: sendChat } };
 }
