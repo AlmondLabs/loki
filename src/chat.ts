@@ -12,6 +12,15 @@ export interface ConversationHandle {
     messages: Array<{ role: "user"; content: string }>,
     options?: Record<string, unknown>,
   ): Promise<AsyncIterable<Record<string, unknown>>>;
+  getHistory?(options?: {
+    limit?: number;
+    order?: "asc" | "desc";
+  }): Promise<Array<Record<string, unknown>>>;
+}
+
+export interface ChatHistoryMessage {
+  role: "user" | "assistant";
+  text: string;
 }
 
 export type ChatFrame =
@@ -26,6 +35,8 @@ export interface ChatBridge {
   /** Called on turn_end so any message queued while busy can now go out. */
   onMainIdle(): void;
   busy(): boolean;
+  /** Conversation history mapped for the canvas chat window. */
+  history(limit?: number): Promise<ChatHistoryMessage[]>;
 }
 
 export interface ChatBridgeOptions {
@@ -106,7 +117,59 @@ export function createChatBridge({ getConversation, isMainBusy }: ChatBridgeOpti
         void deliver(text, emit);
       }
     },
+
+    async history(limit = 100) {
+      const source = getConversation();
+      if (!source?.getHistory) return [];
+      try {
+        const messages = await source.getHistory({ limit, order: "asc" });
+        return messagesToChatHistory(messages);
+      } catch {
+        return [];
+      }
+    },
   };
+}
+
+/** Map raw conversation messages to canvas chat entries (text turns only). */
+export function messagesToChatHistory(
+  messages: Array<Record<string, unknown>>,
+): ChatHistoryMessage[] {
+  const out: ChatHistoryMessage[] = [];
+  for (const m of messages) {
+    if (m.message_type === "user_message") {
+      const text = stripSystemTags(textFromContent(m.content)).trim();
+      if (text) out.push({ role: "user", text });
+    } else if (m.message_type === "assistant_message") {
+      const text = textFromContent(m.content).trim();
+      if (text) out.push({ role: "assistant", text });
+    }
+  }
+  return out;
+}
+
+function textFromContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  let out = "";
+  for (const part of content) {
+    if (
+      typeof part === "object" &&
+      part !== null &&
+      (part as { type?: string }).type === "text" &&
+      typeof (part as { text?: unknown }).text === "string"
+    ) {
+      out += (part as { text: string }).text;
+    }
+  }
+  return out;
+}
+
+/** Drop harness machinery (system reminders/alerts) from user-visible text. */
+function stripSystemTags(text: string): string {
+  return text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
+    .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "");
 }
 
 /** Extract assistant text from a stream chunk (string or parts content). */

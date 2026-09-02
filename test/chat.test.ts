@@ -111,3 +111,34 @@ describe("assistantTextFromChunk", () => {
     expect(assistantTextFromChunk({ message_type: "stop_reason" })).toBe("");
   });
 });
+
+describe("messagesToChatHistory", () => {
+  test("maps user/assistant turns, strips system tags, drops empties and non-text", async () => {
+    const { messagesToChatHistory } = await import("../src/chat");
+    const history = messagesToChatHistory([
+      { message_type: "user_message", content: "<system-reminder>env stuff</system-reminder>Hi there" },
+      { message_type: "assistant_message", content: [{ type: "text", text: "Hello" }] },
+      { message_type: "tool_call_message", content: "ignored" },
+      { message_type: "user_message", content: "<system-reminder>only machinery</system-reminder>" },
+    ]);
+    expect(history).toEqual([
+      { role: "user", text: "Hi there" },
+      { role: "assistant", text: "Hello" },
+    ]);
+  });
+});
+
+describe("bridge.history", () => {
+  test("uses getHistory when available, empty otherwise", async () => {
+    const withHistory: ConversationHandle = {
+      id: "c",
+      sendMessageStream: async () => (async function* () {})(),
+      getHistory: async () => [{ message_type: "user_message", content: "yo" }],
+    };
+    const bridge = createChatBridge({ getConversation: () => withHistory, isMainBusy: () => false });
+    expect(await bridge.history()).toEqual([{ role: "user", text: "yo" }]);
+
+    const without = createChatBridge({ getConversation: () => null, isMainBusy: () => false });
+    expect(await without.history()).toEqual([]);
+  });
+});

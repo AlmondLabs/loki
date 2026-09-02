@@ -82,7 +82,7 @@ export function ChatWindow({
       <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: 12 }}>
         {messages.length === 0 && (
           <div style={{ color: "var(--loci-muted)", fontSize: 12, padding: 8 }}>
-            same brain, different room — this chat runs on a fork of your conversation
+            same conversation, different room — everything here lands in your main transcript
           </div>
         )}
         {messages.map((m, i) => (

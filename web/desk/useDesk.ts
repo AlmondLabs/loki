@@ -96,6 +96,7 @@ export function useDesk() {
           | { type: "state_sync"; state: DeskState }
           | { type: "patch"; patch: Patch }
           | { type: "error"; message: string }
+          | { type: "chat_history"; messages: ChatMessage[] }
           | { type: "chat_state"; state: ChatStatus }
           | { type: "chat_delta"; text: string }
           | { type: "chat_done" }
@@ -106,6 +107,10 @@ export function useDesk() {
             break;
           case "patch":
             setState((s) => applyLocal(s, msg.patch));
+            break;
+          case "chat_history":
+            // Server history is authoritative on (re)connect.
+            setChatMessages(msg.messages);
             break;
           case "chat_state":
             setChatStatus(msg.state);

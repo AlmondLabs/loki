@@ -38,6 +38,14 @@ export function attachWs(
   wss.on("connection", (ws) => {
     send(ws, { type: "state_sync", state: store.get() });
 
+    // Hydrate the chat window with the shared conversation's history.
+    void chat
+      ?.history()
+      .then((messages) => {
+        if (messages.length) send(ws, { type: "chat_history", messages });
+      })
+      .catch(() => {});
+
     ws.on("message", (raw) => {
       let msg: { type?: string; patch?: Patch; text?: string };
       try {
