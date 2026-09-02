@@ -76,6 +76,8 @@ export function useDesk() {
   const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
   const [chatError, setChatError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  /** Patches made while disconnected; flushed after the reconnect state_sync. */
+  const pendingRef = useRef<Patch[]>([]);
 
   useEffect(() => {
     let disposed = false;
@@ -102,9 +104,16 @@ export function useDesk() {
           | { type: "chat_done" }
           | { type: "chat_error"; message: string };
         switch (msg.type) {
-          case "state_sync":
-            setState(msg.state);
+          case "state_sync": {
+            // Server state is authoritative; replay anything done offline on top.
+            const pending = pendingRef.current;
+            pendingRef.current = [];
+            let synced = msg.state;
+            for (const p of pending) synced = applyLocal(synced, p);
+            setState(synced);
+            for (const p of pending) ws.send(JSON.stringify({ type: "patch", patch: p }));
             break;
+          }
           case "patch":
             setState((s) => applyLocal(s, msg.patch));
             break;
@@ -150,11 +159,12 @@ export function useDesk() {
     };
   }, []);
 
-  /** Apply optimistically and send to the store. */
+  /** Apply optimistically and send to the store; queue while disconnected. */
   const patch = (p: Patch) => {
     setState((s) => applyLocal(s, p));
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "patch", patch: p }));
+    else pendingRef.current.push(p);
   };
 
   const sendChat = (text: string) => {

@@ -8,6 +8,7 @@ import { attachWs, type WsBridge } from "./ws.js";
 import { DeskStore, seedDesk } from "./store.js";
 import { createChatBridge, type ConversationHandle } from "./chat.js";
 import { registerTools } from "./tools.js";
+import { loadSnapshot, persistOnChange } from "./persist.js";
 
 /** Token persists at ~/.letta/loci/token so canvas URLs survive /reload. */
 function loadOrCreateToken(): string {
@@ -72,7 +73,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
   let ws: WsBridge | null = null;
   let starting: Promise<LociServer> | null = null;
   const store = new DeskStore();
-  seedDesk(store);
+  const restored = loadSnapshot(store);
+  if (!restored) seedDesk(store);
+  const stopPersist = persistOnChange(store);
 
   // Freshest handle to the active conversation — captured from /canvas and
   // from turn/conversation events. Canvas chat sends into it directly when
@@ -102,6 +105,13 @@ export default function activate(letta: LettaMod): (() => void) | void {
   track("turn_end", () => {
     mainBusy = false;
     chat.onMainIdle();
+    // App-side turns should appear on the canvas without a reconnect.
+    void chat
+      .history()
+      .then((messages) => {
+        if (messages.length) ws?.broadcast({ type: "chat_history", messages });
+      })
+      .catch(() => {});
   });
 
   const ensureServer = async (): Promise<LociServer> => {
@@ -155,6 +165,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     disposeCommand?.();
     for (const dispose of eventDisposers) dispose?.();
     for (const dispose of toolDisposers) dispose?.();
+    stopPersist();
     shutdown();
   };
 }
