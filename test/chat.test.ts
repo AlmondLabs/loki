@@ -1,33 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { assistantTextFromChunk, createChatBridge, type ChatFrame, type ConversationHandle } from "../src/chat";
+import {
+  assistantTextFromChunk,
+  createChatBridge,
+  type ChatFrame,
+  type ConversationHandle,
+} from "../src/chat";
 
-const busyFlag = { value: true };
-
-function fakeConversation(replies: string[][]): { handle: ConversationHandle; forks: number } {
-  const counter = { handle: null as unknown as ConversationHandle, forks: 0 };
-  let call = 0;
-  const forked: ConversationHandle = {
-    id: "fork-1",
-    fork: () => Promise.reject(new Error("no nested forks")),
+function handleReplying(replies: string[][]): { handle: ConversationHandle; sends: number } {
+  const box = { handle: null as unknown as ConversationHandle, sends: 0 };
+  box.handle = {
+    id: "conv-1",
     sendMessageStream: async () => {
-      const parts = replies[Math.min(call++, replies.length - 1)];
+      const parts = replies[Math.min(box.sends++, replies.length - 1)];
       return (async function* () {
-        for (const text of parts) {
-          yield { message_type: "assistant_message", content: text };
-        }
+        for (const text of parts) yield { message_type: "assistant_message", content: text };
         yield { message_type: "stop_reason", stop_reason: "end_turn" };
       })();
     },
   };
-  counter.handle = {
-    id: "conv-1",
-    fork: async () => {
-      counter.forks++;
-      return forked;
-    },
-    sendMessageStream: () => Promise.reject(new Error("direct send forbidden in tests")),
-  };
-  return counter;
+  return box;
 }
 
 async function collect(bridge: ReturnType<typeof createChatBridge>, text: string) {
@@ -36,23 +27,15 @@ async function collect(bridge: ReturnType<typeof createChatBridge>, text: string
   return frames;
 }
 
-describe("chat bridge", () => {
-  test("streams deltas and returns to idle", async () => {
-    const conv = fakeConversation([["hel", "lo"]]);
-    const bridge = createChatBridge({ getConversation: () => conv.handle, isMainBusy: () => busyFlag.value });
+describe("chat bridge — shared transcript, no forking", () => {
+  test("sends into the live conversation and streams deltas", async () => {
+    const box = handleReplying([["hel", "lo"]]);
+    const bridge = createChatBridge({ getConversation: () => box.handle, isMainBusy: () => false });
     const frames = await collect(bridge, "hi");
     const deltas = frames.filter((f) => f.type === "chat_delta").map((f) => (f as { text: string }).text);
     expect(deltas.join("")).toBe("hello");
+    expect(box.sends).toBe(1);
     expect(frames.at(-1)).toEqual({ type: "chat_state", state: "idle" });
-    expect(frames.some((f) => f.type === "chat_done")).toBe(true);
-  });
-
-  test("forks once and reuses the fork across messages", async () => {
-    const conv = fakeConversation([["a"], ["b"]]);
-    const bridge = createChatBridge({ getConversation: () => conv.handle, isMainBusy: () => busyFlag.value });
-    await collect(bridge, "one");
-    await collect(bridge, "two");
-    expect(conv.forks).toBe(1);
   });
 
   test("no conversation captured → chat_error, no crash", async () => {
@@ -61,26 +44,49 @@ describe("chat bridge", () => {
     expect(frames.some((f) => f.type === "chat_error")).toBe(true);
   });
 
-  test("stream failure resets the fork and reports the error", async () => {
+  test("mid-turn message is queued, not sent, then flushed on idle", async () => {
+    const box = handleReplying([["queued reply"]]);
+    let busy = true;
+    const frames: ChatFrame[] = [];
+    const bridge = createChatBridge({ getConversation: () => box.handle, isMainBusy: () => busy });
+
+    await bridge.send("while busy", (f) => frames.push(f));
+    expect(box.sends).toBe(0); // nothing sent while busy
+    expect(frames).toContainEqual({ type: "chat_state", state: "thinking" });
+
+    busy = false;
+    bridge.onMainIdle();
+    await new Promise((r) => setTimeout(r, 10)); // let the async deliver run
+
+    expect(box.sends).toBe(1);
+    expect(frames.some((f) => f.type === "chat_delta" && (f as { text: string }).text === "queued reply")).toBe(true);
+  });
+
+  test("second message while one is queued is rejected", async () => {
+    const box = handleReplying([["r"]]);
+    const bridge = createChatBridge({ getConversation: () => box.handle, isMainBusy: () => true });
+    await collect(bridge, "first");
+    const second = await collect(bridge, "second");
+    expect(second.some((f) => f.type === "chat_error")).toBe(true);
+  });
+
+  test("stream failure reports the error and stays usable", async () => {
     let calls = 0;
     const handle: ConversationHandle = {
       id: "conv-1",
-      fork: async () => ({
-        id: "fork-x",
-        fork: () => Promise.reject(new Error("nope")),
-        sendMessageStream: async () => {
-          calls++;
-          throw new Error("stream exploded");
-        },
-      }),
-      sendMessageStream: () => Promise.reject(new Error("unused")),
+      sendMessageStream: async () => {
+        calls++;
+        if (calls === 1) throw new Error("stream exploded");
+        return (async function* () {
+          yield { message_type: "assistant_message", content: "ok" };
+        })();
+      },
     };
-    const bridge = createChatBridge({ getConversation: () => handle, isMainBusy: () => true });
-    const frames = await collect(bridge, "hi");
-    expect(frames.some((f) => f.type === "chat_error" && (f as { message: string }).message.includes("exploded"))).toBe(true);
-    // Next send re-forks instead of reusing the dead fork.
-    await collect(bridge, "again");
-    expect(calls).toBe(2);
+    const bridge = createChatBridge({ getConversation: () => handle, isMainBusy: () => false });
+    const first = await collect(bridge, "hi");
+    expect(first.some((f) => f.type === "chat_error" && (f as { message: string }).message.includes("exploded"))).toBe(true);
+    const second = await collect(bridge, "again");
+    expect(second.some((f) => f.type === "chat_delta")).toBe(true);
   });
 });
 
@@ -103,28 +109,5 @@ describe("assistantTextFromChunk", () => {
   test("non-assistant chunks are empty", () => {
     expect(assistantTextFromChunk({ message_type: "reasoning_message", reasoning: "x" })).toBe("");
     expect(assistantTextFromChunk({ message_type: "stop_reason" })).toBe("");
-  });
-});
-
-describe("direct mode (main conversation idle)", () => {
-  test("sends on the live conversation without forking", async () => {
-    let directSends = 0;
-    const handle: ConversationHandle = {
-      id: "conv-main",
-      fork: async () => {
-        throw new Error("must not fork when idle");
-      },
-      sendMessageStream: async () => {
-        directSends++;
-        return (async function* () {
-          yield { message_type: "assistant_message", content: "direct" };
-        })();
-      },
-    };
-    const bridge = createChatBridge({ getConversation: () => handle, isMainBusy: () => false });
-    const frames = await collect(bridge, "hi");
-    expect(directSends).toBe(1);
-    const deltas = frames.filter((f) => f.type === "chat_delta");
-    expect(deltas).toHaveLength(1);
   });
 });

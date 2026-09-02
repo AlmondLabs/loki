@@ -1,18 +1,17 @@
 /**
- * Canvas chat — runs on a hidden fork of the active conversation (the
- * supported streaming path; direct sends to the live conversation bypass
- * the app's turn loop). One fork per activation, created lazily on the
- * first message so it inherits current conversation context.
+ * Canvas chat — sends into the LIVE conversation so the canvas and the app
+ * window share ONE transcript. No forking (deliberate product call): if the
+ * conversation is mid-turn, the message is QUEUED and flushed on turn_end.
+ * Trade-off accepted: the reply arrives aggregated, not streamed, because the
+ * app's turn loop is the primary stream consumer.
  */
 
 export interface ConversationHandle {
   id: string | null;
-  fork(options?: { hidden?: boolean }): Promise<ConversationHandle>;
   sendMessageStream(
     messages: Array<{ role: "user"; content: string }>,
     options?: Record<string, unknown>,
   ): Promise<AsyncIterable<Record<string, unknown>>>;
-  updateTitle?(title: string): Promise<unknown>;
 }
 
 export type ChatFrame =
@@ -24,6 +23,8 @@ export type ChatFrame =
 export interface ChatBridge {
   /** Handle one user message; frames go to `emit` as they happen. */
   send(text: string, emit: (frame: ChatFrame) => void): Promise<void>;
+  /** Called on turn_end so any message queued while busy can now go out. */
+  onMainIdle(): void;
   busy(): boolean;
 }
 
@@ -34,13 +35,48 @@ export interface ChatBridgeOptions {
 }
 
 /**
- * Chat mode: send directly into the LIVE conversation when it's idle, so the
- * canvas and the app window share one transcript. Fall back to a labeled fork
- * while the main conversation is mid-turn (direct sends would conflict).
+ * Always sends into the live conversation (shared transcript, no forking).
+ * If the conversation is mid-turn, the message is queued and flushed when the
+ * turn ends. One in-flight send at a time.
  */
 export function createChatBridge({ getConversation, isMainBusy }: ChatBridgeOptions): ChatBridge {
-  let forked: ConversationHandle | null = null;
   let inFlight = false;
+  let queued: { text: string; emit: (frame: ChatFrame) => void } | null = null;
+
+  const deliver = async (text: string, emit: (frame: ChatFrame) => void): Promise<void> => {
+    const source = getConversation();
+    if (!source) {
+      emit({
+        type: "chat_error",
+        message: "no conversation captured yet — run /canvas from a conversation once",
+      });
+      emit({ type: "chat_state", state: "idle" });
+      return;
+    }
+
+    inFlight = true;
+    emit({ type: "chat_state", state: "thinking" });
+    try {
+      const stream = await source.sendMessageStream([{ role: "user", content: text }]);
+      let streamed = false;
+      for await (const chunk of stream) {
+        const delta = assistantTextFromChunk(chunk);
+        if (delta) {
+          if (!streamed) {
+            streamed = true;
+            emit({ type: "chat_state", state: "streaming" });
+          }
+          emit({ type: "chat_delta", text: delta });
+        }
+      }
+      emit({ type: "chat_done" });
+    } catch (err) {
+      emit({ type: "chat_error", message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      inFlight = false;
+      emit({ type: "chat_state", state: "idle" });
+    }
+  };
 
   return {
     busy: () => inFlight,
@@ -50,53 +86,24 @@ export function createChatBridge({ getConversation, isMainBusy }: ChatBridgeOpti
         emit({ type: "chat_error", message: "still thinking — one message at a time" });
         return;
       }
-      const source = getConversation();
-      if (!source) {
-        emit({
-          type: "chat_error",
-          message: "no conversation captured yet — run /canvas from a conversation once",
-        });
+      // Never send into a busy conversation; queue and flush on turn_end.
+      if (isMainBusy()) {
+        if (queued) {
+          emit({ type: "chat_error", message: "a message is already queued for when this turn ends" });
+          return;
+        }
+        queued = { text, emit };
+        emit({ type: "chat_state", state: "thinking" });
         return;
       }
+      await deliver(text, emit);
+    },
 
-      inFlight = true;
-      emit({ type: "chat_state", state: "thinking" });
-      try {
-        let target: ConversationHandle;
-        if (!isMainBusy()) {
-          target = source; // same conversation, same transcript
-        } else {
-          if (!forked) {
-            forked = await source.fork({ hidden: true });
-            // Sidebars may list the fork even when hidden — label it clearly.
-            await forked.updateTitle?.("loci · canvas chat").catch?.(() => {});
-          }
-          target = forked;
-        }
-        const stream = await target.sendMessageStream([{ role: "user", content: text }]);
-
-        let streamed = false;
-        for await (const chunk of stream) {
-          const delta = assistantTextFromChunk(chunk);
-          if (delta) {
-            if (!streamed) {
-              streamed = true;
-              emit({ type: "chat_state", state: "streaming" });
-            }
-            emit({ type: "chat_delta", text: delta });
-          }
-        }
-        emit({ type: "chat_done" });
-      } catch (err) {
-        // A dead fork (e.g. deleted conversation) shouldn't wedge chat forever.
-        forked = null;
-        emit({
-          type: "chat_error",
-          message: err instanceof Error ? err.message : String(err),
-        });
-      } finally {
-        inFlight = false;
-        emit({ type: "chat_state", state: "idle" });
+    onMainIdle() {
+      if (queued && !inFlight) {
+        const { text, emit } = queued;
+        queued = null;
+        void deliver(text, emit);
       }
     },
   };

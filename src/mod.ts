@@ -101,6 +101,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
   });
   track("turn_end", () => {
     mainBusy = false;
+    chat.onMainIdle();
   });
 
   const ensureServer = async (): Promise<LociServer> => {
