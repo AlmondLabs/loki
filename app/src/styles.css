@@ -1,0 +1,33 @@
+@import "tailwindcss";
+/* The agent's widget files live outside the repo; the loci:desks Vite plugin fills in the path. */
+@source "__LOCI_WIDGETS_DIR__";
+@import "./kit/tokens.css";
+
+/* Tailwind utilities that resolve to the loci tokens: bg-loci-panel, text-loci-muted, … */
+@theme inline {
+  --color-loci-bg: var(--loci-bg);
+  --color-loci-panel: var(--loci-panel);
+  --color-loci-panel-header: var(--loci-panel-header);
+  --color-loci-border: var(--loci-border);
+  --color-loci-fg: var(--loci-fg);
+  --color-loci-muted: var(--loci-muted);
+  --color-loci-accent: var(--loci-accent);
+  --color-loci-accent-soft: var(--loci-accent-soft);
+  --color-loci-positive: var(--loci-positive);
+  --color-loci-negative: var(--loci-negative);
+  --font-loci: var(--loci-font);
+  --font-loci-display: var(--loci-display);
+  --font-loci-label: var(--loci-label);
+  --font-loci-mono: var(--loci-mono);
+  --radius-loci: var(--loci-radius);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--loci-bg);
+  color: var(--loci-fg);
+  font-family: var(--loci-font);
+}
