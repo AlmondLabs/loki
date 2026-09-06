@@ -1,25 +1,25 @@
 @import "tailwindcss";
-/* The agent's widget files live outside the repo; the loci:desks Vite plugin fills in the path. */
-@source "__LOCI_WIDGETS_DIR__";
+/* The agent's widget files live outside the repo; the loki:desks Vite plugin fills in the path. */
+@source "__LOKI_WIDGETS_DIR__";
 @import "./kit/tokens.css";
 
-/* Tailwind utilities that resolve to the loci tokens: bg-loci-panel, text-loci-muted, … */
+/* Tailwind utilities that resolve to the loki tokens: bg-loki-panel, text-loki-muted, … */
 @theme inline {
-  --color-loci-bg: var(--loci-bg);
-  --color-loci-panel: var(--loci-panel);
-  --color-loci-panel-header: var(--loci-panel-header);
-  --color-loci-border: var(--loci-border);
-  --color-loci-fg: var(--loci-fg);
-  --color-loci-muted: var(--loci-muted);
-  --color-loci-accent: var(--loci-accent);
-  --color-loci-accent-soft: var(--loci-accent-soft);
-  --color-loci-positive: var(--loci-positive);
-  --color-loci-negative: var(--loci-negative);
-  --font-loci: var(--loci-font);
-  --font-loci-display: var(--loci-display);
-  --font-loci-label: var(--loci-label);
-  --font-loci-mono: var(--loci-mono);
-  --radius-loci: var(--loci-radius);
+  --color-loki-bg: var(--loki-bg);
+  --color-loki-panel: var(--loki-panel);
+  --color-loki-panel-header: var(--loki-panel-header);
+  --color-loki-border: var(--loki-border);
+  --color-loki-fg: var(--loki-fg);
+  --color-loki-muted: var(--loki-muted);
+  --color-loki-accent: var(--loki-accent);
+  --color-loki-accent-soft: var(--loki-accent-soft);
+  --color-loki-positive: var(--loki-positive);
+  --color-loki-negative: var(--loki-negative);
+  --font-loki: var(--loki-font);
+  --font-loki-display: var(--loki-display);
+  --font-loki-label: var(--loki-label);
+  --font-loki-mono: var(--loki-mono);
+  --radius-loki: var(--loki-radius);
 }
 
 html,
@@ -27,7 +27,7 @@ body,
 #root {
   margin: 0;
   height: 100%;
-  background: var(--loci-bg);
-  color: var(--loci-fg);
-  font-family: var(--loci-font);
+  background: var(--loki-bg);
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
 }

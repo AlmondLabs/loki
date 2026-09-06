@@ -9,10 +9,13 @@ import type { KitProps } from "../kit";
  * edits it. Runtime errors land in an in-frame boundary and go back to the
  * mod so desk_state (and the next turn) can report them.
  */
-declare const __LOCI_WIDGETS_DIR__: string;
+declare const __LOKI_WIDGETS_DIR__: string;
+import { inTauri } from "./env";
 // "@desks" is aliased to the widgets dir in vite.config.ts. Keys come back in whatever form Vite
 // resolves them to, so lookups match on the "<desk>/<name>.ext" suffix.
-const loaders = import.meta.glob<Record<string, unknown>>("@desks/*/*.{tsx,jsx}");
+// Dev only: Vite pre-registers the agent's widget files so HMR reaches them. A production build
+// must not bundle files from ~/.letta; there widgets arrive compiled from the shell (loki://) instead.
+const loaders: Record<string, () => Promise<Record<string, unknown>>> = import.meta.env.DEV ? import.meta.glob<Record<string, unknown>>("@desks/*/*.{tsx,jsx}") : {};
 const loaderFor = (file: string) => {
   const suffix = `/${file}`;
   const key = Object.keys(loaders).find((k) => k.endsWith(suffix));
@@ -49,7 +52,11 @@ export function ModuleWidget({
           // fall through
         }
       }
-      const direct = `/@fs${__LOCI_WIDGETS_DIR__}/${entry.file}?v=${entry.hash}`;
+      // Tauri: the Rust core transpiles the file on request and rewrites its bare imports to the
+      // app's shared copies (window.__lokiShared). Browser: Vite serves the file from disk.
+      const direct = inTauri
+        ? `loki://localhost/widgets/${entry.file.replace(/\.(tsx|jsx)$/, ".js")}?v=${entry.hash}`
+        : `/@fs${__LOKI_WIDGETS_DIR__}/${entry.file}?v=${entry.hash}`;
       return (await import(/* @vite-ignore */ direct)) as Record<string, unknown>;
     };
 
@@ -64,6 +71,7 @@ export function ModuleWidget({
             onError(entry.id, msg);
             return;
           }
+          if (inTauri) console.info(`widget loaded: ${entry.id}`);
           setComp(() => C);
           setModuleData(typeof mod.data === "object" && mod.data !== null ? (mod.data as Record<string, unknown>) : {});
           setLoadError(null);
@@ -88,7 +96,7 @@ export function ModuleWidget({
 
   if (entry.error && !Comp) return <WidgetError message={entry.error} />;
   if (loadError) return <WidgetError message={loadError} />;
-  if (!Comp) return <div className="loci-muted" style={{ fontSize: 12 }}>loading…</div>;
+  if (!Comp) return <div className="loki-muted" style={{ fontSize: 12 }}>loading…</div>;
 
   const data = mergeData(moduleData, overlay);
   const onSet = (path: string, value: unknown) => gesture({ kind: "set", id: entry.id, path, value, prev: getPath(data, path) });
@@ -101,7 +109,7 @@ export function ModuleWidget({
 
 export function WidgetError({ message }: { message: string }) {
   return (
-    <div style={{ fontSize: 12, color: "var(--loci-negative)", fontFamily: "var(--loci-mono)", whiteSpace: "pre-wrap" }}>
+    <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", whiteSpace: "pre-wrap" }}>
       {message}
     </div>
   );

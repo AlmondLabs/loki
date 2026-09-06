@@ -1,48 +1,86 @@
-/* loci design tokens — a drafting table at night.
+/* loki design tokens — a drafting table at night.
    Ink-slate ground, paper-white data, brass for anything that needs you
    (approvals, unread), verdigris for live/positive, oxblood for failure.
    Type: New York (display) for room names, Avenir Next Condensed (label)
    for title-block lettering, the system face for reading, SF Mono for data. */
 :root {
-  --loci-bg: #12151b;
-  --loci-panel: #1a1e27;
-  --loci-panel-header: #1f2430;
-  --loci-border: #2b313d;
-  --loci-fg: #e7e3d8;
-  --loci-muted: #8b909c;
-  --loci-accent: #c9a45c;
-  --loci-accent-soft: #262c39;
-  --loci-brass-soft: rgba(201, 164, 92, 0.1);
-  --loci-positive: #6fb3a4;
-  --loci-negative: #c0665b;
-  --loci-grid: #2c3240;
-  --loci-radius: 10px;
-  --loci-font:
+  --loki-bg: #12151b;
+  --loki-panel: #1a1e27;
+  --loki-panel-header: #1f2430;
+  --loki-border: #2b313d;
+  --loki-fg: #e7e3d8;
+  --loki-muted: #8b909c;
+  --loki-accent: #c9a45c;
+  --loki-accent-soft: #262c39;
+  --loki-brass-soft: rgba(201, 164, 92, 0.1);
+  --loki-positive: #6fb3a4;
+  --loki-negative: #c0665b;
+  --loki-grid: #2c3240;
+  --loki-radius: 10px;
+  --loki-font:
     -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
-  --loci-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-  --loci-label: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
-  --loci-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --loki-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --loki-label: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
+  --loki-mono: "SF Mono", ui-monospace, Menlo, monospace;
 }
 
 /* Title-block lettering: condensed caps, tracked. */
-.loci-label {
-  font-family: var(--loci-label);
+.loki-label {
+  font-family: var(--loki-label);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--loci-muted);
+  color: var(--loki-muted);
 }
 
-.loci-cell:hover,
-.loci-plate:hover {
-  background: var(--loci-panel-header) !important;
+.loki-cell:hover,
+.loki-plate:hover {
+  background: var(--loki-panel-header) !important;
 }
-.loci-cell:focus-visible,
-.loci-plate:focus-visible {
-  outline: 1px solid var(--loci-accent);
+.loki-cell:focus-visible,
+.loki-plate:focus-visible {
+  outline: 1px solid var(--loki-accent);
   outline-offset: -1px;
 }
+.loki-pulse {
+  animation: loki-pulse 1.2s ease-in-out infinite;
+}
+@keyframes loki-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+/* Widgets settle onto the sheet when a desk loads (staggered per frame). */
+.loki-frame { animation: loki-settle 260ms ease-out both; }
+@keyframes loki-settle {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+/* Frame controls stay quiet until the frame is hovered or focused. */
+.loki-frame-controls { opacity: 0.35; transition: opacity 160ms ease-out; }
+.loki-frame:hover .loki-frame-controls,
+.loki-frame:focus-within .loki-frame-controls { opacity: 1; }
+
+/* The brass plate ticks when the waiting count goes up. */
+.loki-tick { animation: loki-tick 480ms ease-out; }
+@keyframes loki-tick {
+  0% { transform: none; }
+  30% { transform: translateY(-2px) scale(1.03); box-shadow: 0 8px 30px rgba(201,164,92,0.35); }
+  100% { transform: none; }
+}
+
+/* Inbox: cards move the way you did. */
+@keyframes loki-veil { from { opacity: 0; } to { opacity: 1; } }
+/* The desks tree slides out from the rail. */
+.loki-drawer { animation: loki-drawer 180ms ease-out both; }
+@keyframes loki-drawer { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+/* Rail buttons. */
+.loki-rail:hover { background: var(--loki-panel-header) !important; color: var(--loki-fg) !important; }
+.loki-rail:focus-visible { outline: 1px solid var(--loki-accent); outline-offset: -1px; }
+@keyframes loki-card-next { from { opacity: 0; transform: translateX(28px) scale(0.99); } to { opacity: 1; transform: none; } }
+@keyframes loki-card-back { from { opacity: 0; transform: translateX(-28px) scale(0.99); } to { opacity: 1; transform: none; } }
+
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0ms !important;
@@ -50,18 +88,18 @@
   }
 }
 
-.loci-widget-body {
-  font-family: var(--loci-font);
-  color: var(--loci-fg);
+.loki-widget-body {
+  font-family: var(--loki-font);
+  color: var(--loki-fg);
   font-size: 13px;
   line-height: 1.45;
 }
 
-.loci-muted {
-  color: var(--loci-muted);
+.loki-muted {
+  color: var(--loki-muted);
 }
 
-input[type="range"].loci-slider {
+input[type="range"].loki-slider {
   width: 100%;
-  accent-color: var(--loci-accent);
+  accent-color: var(--loki-accent);
 }

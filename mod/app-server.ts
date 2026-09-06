@@ -1,7 +1,23 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
+import { readFileSync } from "node:fs";
 import { log } from "./log.ts";
+import { paths } from "./paths.ts";
+
+/**
+ * Headers for any socket the mod opens to an app-server. A harness started by
+ * the loki app runs with `--ws-auth capability-token` keyed on loki's own token;
+ * Desktop's harness has no auth and ignores the header.
+ */
+export function appServerHeaders(): Record<string, string> {
+  try {
+    const token = readFileSync(paths.token, "utf8").trim();
+    return token ? { authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Letta's harness hosts an "app-server": one WebSocket speaking a documented
@@ -44,7 +60,7 @@ export function probeAppServer(url: string, timeoutMs = PROBE_TIMEOUT_MS): Promi
       resolve(v);
     };
     const t = setTimeout(() => finish(null), timeoutMs);
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(url, { headers: appServerHeaders() });
     ws.on("open", () => ws.send(JSON.stringify({ type: "app_server_info", request_id: "probe" })));
     ws.on("message", (raw) => {
       try {
@@ -134,164 +150,3 @@ type Pending = { resolve: (v: AppServerEvent) => void; reject: (e: Error) => voi
  * Minimal protocol client: request/response correlation by request_id,
  * runtime subscriptions that survive reconnects, and an event fan-out.
  */
-export class AppServerClient {
-  private ws: WebSocket | null = null;
-  private pending = new Map<string, Pending>();
-  private listeners = new Set<EventListener>();
-  private runtimes = new Map<string, Runtime>();
-  private closed = false;
-  private retryMs = 500;
-  private openPromise: Promise<void> | null = null;
-
-  readonly url: string;
-  private readonly clientInfo: { name: string; title: string; version: string };
-
-  constructor(url: string, clientInfo = { name: "loci", title: "loci canvas", version: "0.2.0" }) {
-    this.url = url;
-    this.clientInfo = clientInfo;
-  }
-
-  on(fn: EventListener): () => void {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  }
-
-  connect(): Promise<void> {
-    if (this.openPromise) return this.openPromise;
-    this.openPromise = new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(this.url);
-      this.ws = ws;
-      let settled = false;
-      ws.on("open", () => {
-        settled = true;
-        this.retryMs = 500;
-        log("app-server:connected", { url: this.url });
-        resolve();
-        // re-subscribe after a reconnect
-        for (const rt of this.runtimes.values()) void this.runtimeStart(rt).catch(() => {});
-      });
-      ws.on("message", (raw) => this.onMessage(String(raw)));
-      ws.on("error", (err) => {
-        log("app-server:error", err.message);
-        if (!settled) {
-          settled = true;
-          reject(err);
-        }
-      });
-      ws.on("close", () => {
-        this.ws = null;
-        this.openPromise = null;
-        for (const p of this.pending.values()) {
-          clearTimeout(p.timer);
-          p.reject(new Error("app-server connection closed"));
-        }
-        this.pending.clear();
-        if (this.closed) return;
-        setTimeout(() => void this.connect().catch(() => {}), this.retryMs);
-        this.retryMs = Math.min(this.retryMs * 2, 8000);
-      });
-    });
-    return this.openPromise;
-  }
-
-  close(): void {
-    this.closed = true;
-    this.ws?.close();
-  }
-
-  private onMessage(raw: string): void {
-    let m: AppServerEvent;
-    try {
-      m = JSON.parse(raw) as AppServerEvent;
-    } catch {
-      return;
-    }
-    // Replies echo our request_id (e.g. runtime_start_response, input_accepted); events never carry one of ours.
-    const rid = typeof m.request_id === "string" ? m.request_id : null;
-    if (rid && this.pending.has(rid)) {
-      const p = this.pending.get(rid)!;
-      this.pending.delete(rid);
-      clearTimeout(p.timer);
-      p.resolve(m);
-      return;
-    }
-    for (const fn of this.listeners) {
-      try {
-        fn(m);
-      } catch (err) {
-        log("app-server:listener-error", err instanceof Error ? err.message : String(err));
-      }
-    }
-  }
-
-  async request(type: string, payload: Record<string, unknown>, timeoutMs = 15_000): Promise<AppServerEvent> {
-    await this.connect();
-    const request_id = `${type}-${randomUUID().slice(0, 8)}`;
-    return new Promise<AppServerEvent>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(request_id);
-        reject(new Error(`${type} timed out`));
-      }, timeoutMs);
-      this.pending.set(request_id, { resolve, reject, timer });
-      this.ws!.send(JSON.stringify({ type, request_id, ...payload }));
-    });
-  }
-
-  /** Fire-and-forget send (for messages whose reply is not correlated). */
-  async send(message: Record<string, unknown>): Promise<void> {
-    await this.connect();
-    this.ws!.send(JSON.stringify(message));
-  }
-
-  /** Subscribe to a runtime (idempotent); replays state on the connection. */
-  async runtimeStart(rt: Runtime, cwd?: string): Promise<AppServerEvent> {
-    const key = `${rt.agent_id}/${rt.conversation_id}`;
-    this.runtimes.set(key, rt);
-    const res = await this.request("runtime_start", {
-      agent_id: rt.agent_id,
-      conversation_id: rt.conversation_id,
-      ...(cwd ? { cwd } : {}),
-      // No `mode`: a runtime_start that names one resets the conversation's
-      // permission mode in Desktop. loci only observes; the user's choice stands.
-      client_info: this.clientInfo,
-      recover_approvals: false,
-    });
-    if (res.success === false) {
-      this.runtimes.delete(key);
-      throw new Error(typeof res.error === "string" ? res.error : "runtime_start failed");
-    }
-    return res;
-  }
-
-  isSubscribed(rt: Runtime): boolean {
-    return this.runtimes.has(`${rt.agent_id}/${rt.conversation_id}`);
-  }
-
-  /** Submit a user message. Letta queues it if the conversation is mid-turn. */
-  async sendUserMessage(rt: Runtime, text: string, clientMessageId: string = randomUUID()): Promise<{ accepted: boolean; disposition?: string }> {
-    const res = await this.request("input", {
-      runtime: rt,
-      payload: {
-        kind: "create_message",
-        messages: [{ role: "user", content: text, client_message_id: clientMessageId }],
-      },
-    });
-    return {
-      accepted: res.accepted !== false && res.success !== false,
-      disposition: typeof res.disposition === "string" ? res.disposition : undefined,
-    };
-  }
-}
-
-/** Text of a stream_delta assistant/user message chunk, if any. */
-export function deltaText(delta: Record<string, unknown> | undefined): string {
-  if (!delta) return "";
-  const c = delta.content;
-  if (typeof c === "string") return c;
-  if (Array.isArray(c)) {
-    return c
-      .map((p) => (typeof p === "object" && p !== null && (p as { type?: string }).type === "text" ? String((p as { text?: string }).text ?? "") : ""))
-      .join("");
-  }
-  return "";
-}

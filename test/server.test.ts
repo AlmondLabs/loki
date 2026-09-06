@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { attachWs, startServer, type Client } from "../mod/server.ts";
 import { WebSocketServer } from "ws";
 
-describe("loci server", () => {
+describe("loki server", () => {
   test("health, 404s, tokenized WS upgrade, scope from URL", async () => {
     const s = await startServer({ port: 0, health: () => ({ desks: ["x"] }) });
     const connected: Client[] = [];

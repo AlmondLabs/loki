@@ -1,27 +1,9 @@
-// Run the loci mod outside Letta for smoke testing: node scripts/harness.mjs
-// Control:  POST :41500/canvas | /tool {name,args} | /event {name,event} | /quit
+// Run the loki mod outside Letta for smoke testing: node scripts/harness.mjs
+// Control:  POST :41500/tool {name,args} | /event {name,event} | /quit
 import { pathToFileURL } from "node:url";
 import { createServer } from "node:http";
-import { execFileSync } from "node:child_process";
 
-/**
- * The mod starts Vite detached so it outlives /reload in Letta. For the harness
- * that leaves an orphan on LOCI_APP_PORT whose proxy points at a dead mod (a tab
- * on it shows "disconnected" forever), so /quit takes it down. Only the
- * harness's own port is touched, never Desktop's default 5173.
- */
-function stopOwnVite() {
-  const port = process.env.LOCI_APP_PORT;
-  if (!port || port === "5173") return;
-  try {
-    const out = execFileSync("/usr/sbin/lsof", ["-nP", "-tiTCP:" + port, "-sTCP:LISTEN"], { encoding: "utf8" });
-    for (const pid of out.split("\n").filter(Boolean)) process.kill(Number(pid), "SIGTERM");
-  } catch {
-    // nothing listening
-  }
-}
 
-process.env.LOCI_NO_OPEN ??= "1";
 const modUrl = pathToFileURL(new URL("../mod/boot.ts", import.meta.url).pathname); // same path Letta takes
 modUrl.searchParams.set("v", String(Date.now()));
 const mod = await import(modUrl.href);
@@ -60,8 +42,7 @@ createServer(async (req, res) => {
   const body = await text(req);
   try {
     let out;
-    if (url.pathname === "/canvas") out = await commands.get("canvas").run({ conversation: conv, agent: process.env.HARNESS_AGENT ? { id: process.env.HARNESS_AGENT } : undefined });
-    else if (url.pathname === "/tool") {
+    if (url.pathname === "/tool") {
       const { name, args } = JSON.parse(body || "{}");
       out = await tools.get(name).run({ args: args ?? {}, conversation: conv });
     } else if (url.pathname === "/event") {
@@ -72,7 +53,6 @@ createServer(async (req, res) => {
       out = { results, event: ev };
     } else if (url.pathname === "/quit") {
       dispose?.();
-      stopOwnVite();
       res.end("bye");
       setTimeout(() => process.exit(0), 200);
       return;
@@ -83,4 +63,4 @@ createServer(async (req, res) => {
     res.writeHead(500);
     res.end(String(e?.stack ?? e));
   }
-}).listen(41500, "127.0.0.1", () => console.error("harness: control on http://127.0.0.1:41500  (/canvas /tool /event /quit)"));
+}).listen(41500, "127.0.0.1", () => console.error("harness: control on http://127.0.0.1:41500  (/tool /event /quit)"));

@@ -1,7 +1,7 @@
 /**
  * Letta's harness injects machinery into transcripts as ordinary messages:
  * system reminders, background-task notifications, compaction notes, and
- * loci's own desk-activity block. Both halves of loci need to recognise them:
+ * loki's own desk-activity block. Both halves of loki need to recognise them:
  * the mod for the chat mirror, the browser for the Catch Up thread.
  */
 
@@ -9,7 +9,7 @@ export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
-    .replace(/<loci-desk[^>]*>[\s\S]*?<\/loci-desk>/g, "")
+    .replace(/<loki-desk[^>]*>[\s\S]*?<\/loki-desk>/g, "")
     .replace(/<channel-notification[^>]*>[\s\S]*?<\/channel-notification>/g, "")
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
     .replace(/^\s*Full transcript available at: \S+\s*$/gm, "")
@@ -139,6 +139,10 @@ export function toolLabel(name: string, input: unknown): string {
     }
   }
   if (!args) return name;
+  if (name === "AskUserQuestion") {
+    const q = (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question;
+    if (typeof q === "string" && q.trim()) return `${name} · ${q.trim().length > 80 ? q.trim().slice(0, 77) + "…" : q.trim()}`;
+  }
   const pick = ["command", "file_path", "path", "pattern", "query", "url", "description", "prompt"].find((k) => typeof args![k] === "string" && (args![k] as string).trim());
   if (!pick) return name;
   const raw = (args[pick] as string).trim().split("\n")[0];

@@ -1,0 +1,83 @@
+import { describe, expect, test } from "bun:test";
+import { KEYMAP, conflicts, formatKeys, matches, menuSpec, resolve, tauriAccelerator } from "../app/src/shell/keymap.ts";
+
+const ev = (key: string, mods: Partial<{ meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }> = {}, typing = false) =>
+  ({ key, metaKey: !!mods.meta, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift, altKey: !!mods.alt, target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" } }) as unknown as KeyboardEvent;
+
+describe("keymap: table hygiene", () => {
+  test("no two bindings share a key in one scope", () => {
+    expect(conflicts()).toEqual([]);
+  });
+  test("ids are unique", () => {
+    const ids = KEYMAP.map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  test("every menu item has a label fit for a menu (capitalised, no trailing key hints)", () => {
+    for (const b of KEYMAP.filter((b) => b.menu)) {
+      expect(b.label[0]).toBe(b.label[0].toUpperCase());
+      expect(b.label).not.toMatch(/[⌘⇧⌥]/);
+    }
+  });
+});
+
+describe("keymap: matching", () => {
+  test("cmd matches ⌘ or ctrl, and shifted digits arrive as symbols", () => {
+    expect(matches(ev("k", { meta: true }), "cmd+k")).toBe(true);
+    expect(matches(ev("k", { ctrl: true }), "cmd+k")).toBe(true);
+    expect(matches(ev("k"), "cmd+k")).toBe(false);
+    expect(matches(ev("0", { meta: true, shift: true }), "cmd+shift+0")).toBe(true);
+    expect(matches(ev(")", { meta: true, shift: true }), "cmd+shift+0")).toBe(true);
+    expect(matches(ev("0", { meta: true }), "cmd+shift+0")).toBe(false);
+    expect(matches(ev("]", { meta: true }), "cmd+]")).toBe(true);
+    expect(matches(ev("ArrowRight", { meta: true, alt: true }), "alt+cmd+right")).toBe(true);
+    expect(matches(ev("ArrowRight", { meta: true }), "alt+cmd+right")).toBe(false);
+    expect(matches(ev("A", { shift: true }), "a")).toBe(false);
+    expect(matches(ev("Enter", { meta: true }), "cmd+enter")).toBe(true);
+  });
+});
+
+describe("keymap: resolution", () => {
+  test("view bindings win over anywhere: ⌘] is next card in the inbox, next desk on the desk", () => {
+    expect(resolve(ev("]", { meta: true }), "inbox")?.id).toBe("inbox.next");
+    expect(resolve(ev("]", { meta: true }), "desk")?.id).toBe("desk.next");
+    expect(resolve(ev("]", { meta: true }), "board")?.id).toBe("desk.next");
+  });
+  test("plain letters never fire inside a text box; chords marked typing do", () => {
+    expect(resolve(ev("a"), "inbox")?.id).toBe("inbox.approve");
+    expect(resolve(ev("a", {}, true), "inbox")).toBeNull();
+    expect(resolve(ev("Enter", { meta: true }, true), "inbox")?.id).toBe("inbox.approve");
+    expect(resolve(ev("z", { meta: true }, true), "inbox")).toBeNull(); // the text's undo
+    expect(resolve(ev("d", { meta: true, shift: true }, true), "inbox")?.id).toBe("inbox.deny");
+    expect(resolve(ev("Backspace", { meta: true }, true), "inbox")).toBeNull(); // the text's delete-to-line-start
+    expect(resolve(ev("ArrowLeft", { meta: true }, true), "desk")).toBeNull(); // the caret's
+    expect(resolve(ev("ArrowLeft", { meta: true, alt: true }, true), "desk")?.id).toBe("chat.left");
+  });
+  test("segments and settings comma", () => {
+    expect(resolve(ev(",", { meta: true }), "board")?.id).toBe("segment.settings");
+    expect(resolve(ev("4", { meta: true }), "desk")?.id).toBe("segment.settings");
+  });
+});
+
+describe("keymap: presentation", () => {
+  test("formats chords with Mac symbols", () => {
+    expect(formatKeys("cmd+shift+a")).toBe("⌘⇧A");
+    expect(formatKeys("cmd+]")).toBe("⌘]");
+    expect(formatKeys("shift+backspace")).toBe("⇧⌫");
+    expect(formatKeys("alt+space")).toBe("⌥space");
+  });
+  test("tauri accelerators use code names for punctuation and digits", () => {
+    expect(tauriAccelerator("cmd+]")).toBe("CmdOrCtrl+BracketRight");
+    expect(tauriAccelerator("cmd+shift+0")).toBe("CmdOrCtrl+Shift+Digit0");
+    expect(tauriAccelerator("cmd+,")).toBe("CmdOrCtrl+Comma");
+    expect(tauriAccelerator("cmd+k")).toBe("CmdOrCtrl+K");
+  });
+  test("the menu spec groups with separators and omits accelerators the text needs", () => {
+    const spec = menuSpec();
+    const inbox = spec.find((m) => m.title === "Inbox")!;
+    expect(inbox.items.some((i) => "separator" in i)).toBe(true);
+    const undo = inbox.items.find((i) => "id" in i && i.id === "inbox.undo") as { accelerator: string | null };
+    expect(undo.accelerator).toBeNull(); // ⌘Z is the text's while typing; the menu must not steal it
+    const approve = inbox.items.find((i) => "id" in i && i.id === "inbox.approve") as { accelerator: string | null };
+    expect(approve.accelerator).toBe("CmdOrCtrl+Enter");
+  });
+});

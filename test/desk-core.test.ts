@@ -113,3 +113,16 @@ describe("desk-core reducer", () => {
     expect(scopeFor("default")).toBe("default");
   });
 });
+
+describe("applyMeasure guards", () => {
+  test("a collapsed frame (a few px wide) is never persisted as the widget's size", () => {
+    const { applyMeasure, emptyDesk, ensureLayout } = require("../shared/desk-core.ts");
+    let state = ensureLayout(emptyDesk("d"), "d/a", []);
+    const before = state.layout["d/a"].size;
+    expect(applyMeasure(state, "d/a", { w: 2, h: 900 })).toBe(state);
+    expect(applyMeasure(state, "d/a", { w: 300, h: 20 })).toBe(state);
+    state = applyMeasure(state, "d/a", { w: 300, h: 200 });
+    expect(state.layout["d/a"].size).toEqual({ w: 300, h: 200 });
+    expect(before).not.toEqual({ w: 300, h: 200 });
+  });
+});

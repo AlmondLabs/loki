@@ -1,21 +1,22 @@
 import { createServer, type Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { log } from "./log.ts";
+import { appServerHeaders } from "./app-server.ts";
 import type { Scope } from "../shared/desk-core.ts";
 import { scopeFor } from "../shared/desk-core.ts";
 
 /**
  * Transport only. HTTP exists for /health and the WebSocket upgrade; the
- * canvas page itself is served by Vite, which proxies /loci/* here.
+ * canvas itself is the loki app (or, in development, a Vite tab proxying /loki/* here).
  */
 
-export interface LociServer {
+export interface LokiServer {
   server: Server;
   port: number;
   close(): Promise<void>;
 }
 
-export async function startServer(opts: { port: number; health?: () => object }): Promise<LociServer> {
+export async function startServer(opts: { port: number; health?: () => object }): Promise<LokiServer> {
   const server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -24,7 +25,7 @@ export async function startServer(opts: { port: number; health?: () => object })
         res.end(JSON.stringify({ ok: true, ...(opts.health?.() ?? {}) }));
         return;
       }
-      res.writeHead(404, { "content-type": "text/plain" }).end("loci: not found");
+      res.writeHead(404, { "content-type": "text/plain" }).end("loki: not found");
     } catch {
       res.writeHead(400).end();
     }
@@ -163,7 +164,7 @@ export function tunnel(browser: WebSocket, target: string | null): void {
     browser.close(1011, "no app-server");
     return;
   }
-  const upstream = new WebSocket(target);
+  const upstream = new WebSocket(target, { headers: appServerHeaders() });
   const queue: string[] = [];
   upstream.on("open", () => {
     for (const q of queue) upstream.send(q);

@@ -28,7 +28,7 @@ const sleep: WidgetManifestEntry = {
   id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",
   data: { value: 6 }, hash: "h", updatedAt: 0,
 };
-const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loci", type: "info-card", data: { lines: [] } };
+const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loki", type: "info-card", data: { lines: [] } };
 
 function client(scope: string): Client & { sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
@@ -64,7 +64,7 @@ describe("bridge", () => {
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "focus", id: "shared/welcome" } });
     expect(store.get("c1").overlay["c1/sleep"]).toEqual({ value: 7 });
     expect(store.get("shared").layout["shared/welcome"].position).toEqual({ x: 3, y: 4 });
-    expect(gestures.peek("c1")).toEqual(['set value = 7 (was 6) on "Sleep" (c1/sleep)', 'moved "loci" (shared/welcome) to (3, 4)']);
+    expect(gestures.peek("c1")).toEqual(['set value = 7 (was 6) on "Sleep" (c1/sleep)', 'moved "loki" (shared/welcome) to (3, 4)']);
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "move", id: "c1/sleep" } });
     expect(c.sent.at(-1)).toEqual({ type: "error", message: "malformed gesture" });
   });
@@ -86,33 +86,10 @@ describe("bridge", () => {
     expect(widgets.runtime.size).toBe(0);
   });
 
-  test("chat_send echoes chat_user to the desk and hands the text to the transport; connect attaches + hydrates", async () => {
-    const store = new DeskStore();
-    const broadcasts: Array<[Record<string, unknown>, string | undefined]> = [];
-    const calls: string[] = [];
-    const transport = {
-      mode: "app-server" as const,
-      attach: async (s: string) => void calls.push(`attach:${s}`),
-      send: async (s: string, t: string) => void calls.push(`send:${s}:${t}`),
-      history: async () => [{ role: "user" as const, text: "earlier" }],
-    };
-    const bridge = createBridge({ store, widgets: fakeWidgets([sleep]), gestures: new GestureLog(), chat: () => transport, broadcast: (m, s) => broadcasts.push([m as Record<string, unknown>, s]) });
-    const c = client("c1");
-    bridge.onConnect(c);
-    await new Promise((r) => setTimeout(r, 10));
-    expect(c.sent.map((m) => m.type)).toEqual(["config", "desk", "desk", "chat_history"]);
-    expect(calls).toEqual(["attach:c1"]);
-    bridge.onMessage(c, { type: "chat_send", text: "  hi there " });
-    await new Promise((r) => setTimeout(r, 10));
-    expect(broadcasts).toEqual([[{ type: "chat_user", text: "hi there" }, "c1"]]);
-    expect(calls).toEqual(["attach:c1", "send:c1:  hi there "]);
-  });
 
-  test("desk frames carry the conversation title and status; deleted desks skip chat attach", async () => {
-    const calls: string[] = [];
-    const transport = { mode: "app-server" as const, attach: async (s: string) => void calls.push(`attach:${s}`), send: async () => {}, history: async () => [] };
+  test("desk frames carry the conversation title and status", async () => {
     const bridge = createBridge({
-      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {}, chat: () => transport,
+      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
       deskInfo: (s) => (s === "c1" ? { title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", agentId: "a1" } : s === "gone" ? { title: null, status: "deleted", agentName: null, agentId: null } : { title: "shared", status: "none", agentName: null, agentId: null }),
     });
     const c = client("c1");
@@ -122,7 +99,6 @@ describe("bridge", () => {
     expect(c.sent[2]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
     bridge.onConnect(client("gone"));
     await new Promise((r) => setTimeout(r, 10));
-    expect(calls).toEqual(["attach:c1"]);
   });
 
   test("sortDesks: shared, then live (active first, then recent), then archived, then deleted", () => {
@@ -187,5 +163,22 @@ describe("bridge", () => {
     const c = client("c1");
     bridge.onMessage(c, { type: "wat" });
     expect(c.sent[0]).toEqual({ type: "error", message: "unsupported message type: wat" });
+  });
+});
+
+describe("bridge history", () => {
+  test("history_get answers with the local transcript and echoes the request id", () => {
+    const bridge = createBridge({
+      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
+      transcript: (agentId, conversationId) => (agentId === "a1" && conversationId === "c9" ? [{ role: "user", text: "hi" }, { role: "tool", text: "Bash · ls" }] : []),
+    });
+    const c = client("c1");
+    bridge.onConnect(c);
+    bridge.onMessage(c, { type: "history_get", requestId: "h1", agentId: "a1", conversationId: "c9" });
+    const reply = c.sent.find((m) => m.type === "history")!;
+    expect(reply).toMatchObject({ requestId: "h1", agentId: "a1", conversationId: "c9" });
+    expect((reply.messages as unknown[]).length).toBe(2);
+    bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "unknown" });
+    expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ requestId: "h2", messages: [] });
   });
 });

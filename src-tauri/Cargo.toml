@@ -1,0 +1,29 @@
+[package]
+name = "loki"
+version = "0.3.0"
+description = "loki — a memory palace your agent builds"
+edition = "2021"
+
+[lib]
+name = "loki_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "fs", "signal"] }
+tokio-tungstenite = "0.30"
+futures-util = "0.3"
+http = "1"
+oxc_allocator = "0.148"
+oxc_parser = "0.148"
+oxc_span = "0.148"
+oxc_semantic = "0.148"
+oxc_transformer = "0.148"
+oxc_codegen = "0.148"
+percent-encoding = "2"
+tauri-plugin-global-shortcut = "2"

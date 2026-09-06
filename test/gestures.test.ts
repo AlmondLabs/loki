@@ -39,9 +39,9 @@ describe("GestureLog", () => {
 describe("attachDeskContext", () => {
   const block = formatDeskContext("c1", ["moved A"]);
   test("block format", () => {
-    expect(block.startsWith('<loci-desk desk="c1">')).toBe(true);
+    expect(block.startsWith('<loki-desk desk="c1">')).toBe(true);
     expect(block).toContain("- moved A");
-    expect(block.endsWith("</loci-desk>")).toBe(true);
+    expect(block.endsWith("</loki-desk>")).toBe(true);
   });
   test("appends to the last user message (string content)", () => {
     const out = attachDeskContext([{ type: "message", role: "user", content: "hi" }], block);

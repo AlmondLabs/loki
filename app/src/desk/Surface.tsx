@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import type { Gesture } from "../../../shared/desk-core.ts";
-import { getPath, mergeData } from "../../../shared/desk-core.ts";
+import { conversationDirName, getPath, mergeData } from "../../../shared/desk-core.ts";
 import { KIT_COMPONENTS } from "../kit";
-import { ChatBubble, ChatWindow, type ChatLayout } from "../chat/ChatWindow";
-import { Plate, TitleBlock } from "./TitleBlock";
-import { useDesk, type VisibleWidget } from "./useDesk";
+import { CHAT_WIDTHS, ChatBubble, ChatWindow, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
+import type { useDesk, VisibleWidget } from "./useDesk";
+import type { useAttention } from "../attention/useAttention";
 import { Viewport } from "./Viewport";
 import { WidgetFrame } from "./WidgetFrame";
 import { ModuleWidget, WidgetError } from "./ModuleWidget";
-import { DeskSwitcher } from "./DeskSwitcher";
-import { CatchUp, catchUpQueue } from "./CatchUp";
-import { useAttention } from "../attention/useAttention";
-import { AgentChip } from "./AgentChip";
-import { scopeFor } from "../../../shared/desk-core.ts";
+import { registerActions } from "../shell/keymap";
 
 function WidgetBody({
   w,
@@ -34,68 +30,191 @@ function WidgetBody({
   return <Kit data={data} onSet={onSet} />;
 }
 
-export function Surface() {
-  const { scope, title, status, agentName, agentId, conversationId, connection, visible, closed, ownCount, desks, attention, gesture, measure, arrange, trash, reportWidgetError, cameraTarget, chat } = useDesk();
-  const [chatOpen, setChatOpen] = useState(false);
-  const [scale, setScale] = useState(1);
-  const [chatLayout, setChatLayout] = useState<ChatLayout>(() => (localStorage.getItem("loci.chatLayout") === "center" ? "center" : "right"));
-  const toggleChatLayout = () => {
-    const next: ChatLayout = chatLayout === "center" ? "right" : "center";
-    setChatLayout(next);
-    localStorage.setItem("loci.chatLayout", next);
-  };
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [catchUpOpen, setCatchUpOpen] = useState(false);
-  const catchUp = useAttention({ enabled: attention.available, tunnelUrl: attention.tunnelUrl, seen: attention.seen, markSeen: attention.markSeen, unmarkSeen: attention.unmarkSeen });
-  const waiting = catchUpQueue(catchUp.items).length;
-  /** This desk's conversation as Catch Up sees it, so a pending permission shows in the chat panel too. */
-  const thisConversation = agentId && conversationId ? catchUp.items.find((i) => i.agentId === agentId && i.id === conversationId) ?? null : null;
-  const pendingApproval = thisConversation?.pendingApproval ?? null;
+/** Bounds of a set of widget elements in canvas units (offset* are untransformed content coordinates). */
+function boundsOf(els: HTMLElement[]) {
+  const left = Math.min(...els.map((e) => e.offsetLeft));
+  const top = Math.min(...els.map((e) => e.offsetTop));
+  const right = Math.max(...els.map((e) => e.offsetLeft + e.offsetWidth));
+  const bottom = Math.max(...els.map((e) => e.offsetTop + e.offsetHeight));
+  return { left, top, right, bottom, w: right - left, h: bottom - top, cx: (left + right) / 2, cy: (top + bottom) / 2 };
+}
 
-  // The tab title carries the count so it reads from across the room.
-  useEffect(() => {
-    const base = title ? `${title} · loci` : "loci";
-    document.title = waiting > 0 ? `(${waiting}) ${base}` : base;
-  }, [waiting, title]);
+/**
+ * The desk view: the sheet edge to edge, the chat stacked on the left over it. The chat's
+ * rectangle is a viewport inset — every framing move (fit all, focus, camera glides) centres
+ * in the uncovered part, and opening, closing or widening the chat slides the sheet by the
+ * difference so what you were looking at stays in view.
+ */
+export function Surface({
+  desk,
+  catchUp,
+  chatOpen,
+  onChatOpen,
+  chatWidth,
+  onChatWidth,
+  chatPlacement,
+  focusChat,
+  findChat = 0,
+}: {
+  desk: ReturnType<typeof useDesk>;
+  catchUp: ReturnType<typeof useAttention>;
+  chatOpen: boolean;
+  onChatOpen: (open: boolean) => void;
+  chatWidth: ChatWidth;
+  onChatWidth: (w: ChatWidth) => void;
+  /** Where the panel sits; the shell owns it (⌘← / ⌘→) and centres it on an empty desk. */
+  chatPlacement: ChatPlacement;
+  /** Bumped by the shell to put the caret in the message box. */
+  focusChat: number;
+  /** Bumped by the shell (⌘F) to open the chat's find bar. */
+  findChat?: number;
+}) {
+  const { scope, title, status, agentName, agentId, conversationId, connection, visible, closed, ownCount, loaded, attention, gesture, measure, arrange, trash, reportWidgetError, cameraTarget } = desk;
+  const [deskFolder, setDeskFolder] = useState<string | null>(null);
 
-  // ⌘K opens the desk switcher, ⌘⇧K opens Catch Up, ⌘⇧A tidies the desk (Ctrl on other platforms).
+  // An empty desk is a conversation, not a canvas: the chat opens by itself (the shell centres it).
+  const autoOpened = useRef(new Set<string>());
+  const emptyDesk = loaded && connection === "open" && ownCount === 0;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setCatchUpOpen((v) => !v);
-      } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setSwitcherOpen((v) => {
-          if (!v) desks.request();
-          return !v;
-        });
-      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "a") {
-        e.preventDefault();
-        arrange();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    if (!emptyDesk || autoOpened.current.has(scope)) return;
+    autoOpened.current.add(scope);
+    onChatOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [emptyDesk, scope]);
+  const toggleChatWidth = () => onChatWidth(chatWidth === "wide" ? "narrow" : "wide");
+
+  // The desk's conversation, from the same model the inbox uses: subscribed while the desk is open,
+  // transcript loaded when the chat opens, streaming rows and approvals shared with the deck.
+  const deskRuntime = agentId && conversationId ? { agent_id: agentId, conversation_id: conversationId } : null;
+  const deskChat = deskRuntime ? catchUp.conversation(deskRuntime.agent_id, deskRuntime.conversation_id) : null;
+  const pendingApproval = deskChat?.pending ?? null;
+  const pendingQuestion = deskChat?.question ?? null;
+  useEffect(() => {
+    if (deskRuntime && catchUp.status === "open") void catchUp.subscribe(deskRuntime);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, conversationId, catchUp.status]);
+  useEffect(() => {
+    if (!deskRuntime) return setDeskFolder(null);
+    void attention.folders.recent().then((r) => setDeskFolder(r.byConversation[conversationDirName(deskRuntime.conversation_id, deskRuntime.agent_id)] ?? null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, conversationId, connection]);
+  useEffect(() => {
+    if (chatOpen && deskRuntime && catchUp.status === "open") void catchUp.loadThread(deskRuntime);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatOpen, agentId, conversationId, catchUp.status]);
+
   const viewportRef = useRef<ReactZoomPanPinchRef | null>(null);
+
+  // The sheet's actions, by keymap id: the shell's one key handler (and the menu bar) dispatch to these.
+  useEffect(
+    () =>
+      registerActions({
+        "view.fit": () => fitAllRef.current(),
+        "view.reset": () => resetZoomRef.current(),
+        "view.zoomIn": () => zoomBy(1.25),
+        "view.zoomOut": () => zoomBy(1 / 1.25),
+        "desk.arrange": () => arrange(),
+        "desk.undo": () => {
+          if (!desk.undo()) console.info("loki: nothing to undo on the sheet");
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  /** How much of the viewport's left and right edges the chat covers right now (a centred chat floats: no inset). */
+  const sideWidth = chatOpen && chatPlacement !== "center" ? CHAT_WIDTHS[chatWidth] : 0;
+  const inset = chatPlacement === "left" ? sideWidth : 0;
+  const insetRight = chatPlacement === "right" ? sideWidth : 0;
+  const insetRef = useRef({ left: inset, right: insetRight });
+  insetRef.current = { left: inset, right: insetRight };
+  // Slide the sheet with the chat on the left: open → content moves right by the chat's width, close → back.
+  const prevInset = useRef(inset);
+  useEffect(() => {
+    const delta = inset - prevInset.current;
+    prevInset.current = inset;
+    const api = viewportRef.current;
+    if (!delta || !api) return;
+    const { positionX, positionY, scale: s } = api.instance.state;
+    api.setTransform(positionX + delta, positionY, s, 220, "easeOut");
+  }, [inset]);
+
+  // Each desk starts at 1:1 with the sheet's origin at the chat's edge, so a layout that
+  // begins at x = 0 is never born under the panel.
+  const cameraReset = useRef<string | null>(null);
+  useEffect(() => {
+    if (!loaded || cameraReset.current === scope) return;
+    cameraReset.current = scope;
+    viewportRef.current?.setTransform(insetRef.current.left, 0, 1, 0);
+  }, [loaded, scope]);
+
+  /** The visible part of the viewport: everything the chat does not cover. */
+  const stage = () => {
+    const api = viewportRef.current;
+    const wrapper = api?.instance.wrapperComponent;
+    const vw = wrapper?.clientWidth ?? window.innerWidth;
+    const vh = wrapper?.clientHeight ?? window.innerHeight;
+    const { left, right } = insetRef.current;
+    return { left, w: Math.max(200, vw - left - right), h: vh };
+  };
+  /** Move the camera so `els` sit centred in the stage at scale `s`. */
+  const frameAt = (els: HTMLElement[], s: number, ms = 600) => {
+    const api = viewportRef.current;
+    if (!api) return;
+    const st = stage();
+    const b = boundsOf(els);
+    api.setTransform(st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s, ms, "easeOut");
+  };
+  const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);
 
   // Widgets the camera is pointing at glow for a few seconds, so the eye finds them.
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
 
-  /** Focus: bring the widget to the front and zoom so it fills a good part of the viewport. */
+  /** Fit every visible widget into the stage (⌘0). */
+  const fitAll = () => {
+    const els = widgetEls(visible.map((w) => w.entry.id));
+    if (!els.length) return;
+    const st = stage();
+    const b = boundsOf(els);
+    const pad = 80;
+    frameAt(els, Math.min(1.5, Math.max(0.1, Math.min((st.w - pad * 2) / b.w, (st.h - pad * 2) / b.h))));
+  };
+  /** Zoom about the stage centre by a factor (⌘= / ⌘-). */
+  const zoomBy = (factor: number) => {
+    const api = viewportRef.current;
+    if (!api) return;
+    const { positionX, positionY, scale: s } = api.instance.state;
+    const next = Math.min(4, Math.max(0.1, s * factor));
+    const k = next / s;
+    const st = stage();
+    const cx = st.left + st.w / 2;
+    const cy = st.h / 2;
+    api.setTransform(cx - (cx - positionX) * k, cy - (cy - positionY) * k, next, 180, "easeOut");
+  };
+  /** Back to 1:1 around the stage centre (⌘⇧0). */
+  const resetZoom = () => {
+    const api = viewportRef.current;
+    if (!api) return;
+    const { positionX, positionY, scale: s } = api.instance.state;
+    const st = stage();
+    const cx = st.left + st.w / 2;
+    const cy = st.h / 2;
+    // keep the canvas point under the centre where it is
+    api.setTransform(cx - (cx - positionX) / s, cy - (cy - positionY) / s, 1, 500, "easeOut");
+  };
+  const fitAllRef = useRef(fitAll);
+  fitAllRef.current = fitAll;
+  const resetZoomRef = useRef(resetZoom);
+  resetZoomRef.current = resetZoom;
+
+  /** Focus: bring the widget to the front and zoom so it fills a good part of the stage. */
   const focusWidget = (id: string) => {
     gesture({ kind: "focus", id });
-    const elId = `widget-${id.replace("/", "--")}`;
-    const el = document.getElementById(elId);
-    const api = viewportRef.current;
-    if (!el || !api) return;
-    const wrapper = api.instance.wrapperComponent;
-    const vw = wrapper?.clientWidth ?? window.innerWidth;
-    const vh = wrapper?.clientHeight ?? window.innerHeight;
-    const scale = Math.min(2.5, Math.max(0.5, Math.min((vw * 0.6) / el.offsetWidth, (vh * 0.7) / el.offsetHeight)));
-    api.zoomToElement(elId, scale, 600, "easeOut");
+    const els = widgetEls([id]);
+    if (!els.length) return;
+    const st = stage();
+    const el = els[0];
+    frameAt(els, Math.min(2.5, Math.max(0.5, Math.min((st.w * 0.6) / el.offsetWidth, (st.h * 0.7) / el.offsetHeight))));
     setHighlighted(new Set([id]));
     setTimeout(() => setHighlighted((h) => (h.has(id) && h.size === 1 ? new Set() : h)), 2500);
   };
@@ -106,35 +225,23 @@ export function Surface() {
     if (window.confirm(`Delete "${name}"?\n\nThis removes the widget's file for good. Minimise instead if you may want it back.`)) trash(id);
   };
 
-  // Camera glide when a widget lands or loci_camera asks. One id: zoom to it. Several: fit them all.
+  // Camera glide when a widget lands or loki_camera asks. One id: zoom to it. Several: fit them all.
   // Elements may mount a beat after the frame arrives, so retry briefly.
   useEffect(() => {
     if (!cameraTarget) return;
     const ids = cameraTarget.widgetIds;
-    const elIds = ids.map((id) => `widget-${id.replace("/", "--")}`);
     let tries = 0;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
-      const els = elIds.map((e) => document.getElementById(e)).filter((e): e is HTMLElement => !!e);
-      if (els.length === elIds.length) {
-        const api = viewportRef.current;
-        if (!api) return;
+      const els = widgetEls(ids);
+      if (els.length === ids.length) {
         if (els.length === 1) {
-          api.zoomToElement(elIds[0], 1.15, 600, "easeOut");
+          frameAt(els, 1.15);
         } else {
-          // offsetLeft/Top/Width/Height are in canvas units (untransformed content coordinates)
-          const left = Math.min(...els.map((e) => e.offsetLeft));
-          const top = Math.min(...els.map((e) => e.offsetTop));
-          const right = Math.max(...els.map((e) => e.offsetLeft + e.offsetWidth));
-          const bottom = Math.max(...els.map((e) => e.offsetTop + e.offsetHeight));
-          const wrapper = api.instance.wrapperComponent;
-          const vw = wrapper?.clientWidth ?? window.innerWidth;
-          const vh = wrapper?.clientHeight ?? window.innerHeight;
+          const st = stage();
+          const b = boundsOf(els);
           const pad = 80;
-          const scale = Math.min(1.15, Math.max(0.1, Math.min((vw - pad * 2) / (right - left), (vh - pad * 2) / (bottom - top))));
-          const x = vw / 2 - ((left + right) / 2) * scale;
-          const y = vh / 2 - ((top + bottom) / 2) * scale;
-          api.setTransform(x, y, scale, 600, "easeOut");
+          frameAt(els, Math.min(1.15, Math.max(0.1, Math.min((st.w - pad * 2) / b.w, (st.h - pad * 2) / b.h))));
         }
         setHighlighted(new Set(ids));
       } else if (tries++ < 20) {
@@ -147,7 +254,12 @@ export function Surface() {
       clearTimeout(timer);
       clearTimeout(clear);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraTarget]);
+
+  /** The reopen bubble sits on the chat's side; the minimised tray keeps clear of both. */
+  const bubbleSide = chatPlacement === "right" ? "right" : "left";
+  const trayLeft = inset + (chatOpen ? 16 : bubbleSide === "left" ? 80 : 16);
 
   return (
     <div
@@ -160,69 +272,28 @@ export function Surface() {
       }}
     >
       <div style={{ position: "absolute", inset: 0 }}>
-      <Viewport ref={viewportRef} onScale={setScale}>
-        {visible.map((w) => (
-          <WidgetFrame
-            key={w.entry.id}
-            entry={w.entry}
-            layout={w.layout}
-            highlighted={highlighted.has(w.entry.id)}
-            gesture={gesture}
-            onMeasure={measure}
-            onFocus={focusWidget}
-            onTrash={trashWidget}
-            getScale={() => viewportRef.current?.instance.state.scale ?? 1}
-          >
-            <WidgetBody w={w} gesture={gesture} reportError={reportWidgetError} />
-          </WidgetFrame>
-        ))}
-      </Viewport>
+        <Viewport ref={viewportRef}>
+          {visible.map((w, i) => (
+            <WidgetFrame
+              key={w.entry.id}
+              order={i}
+              entry={w.entry}
+              layout={w.layout}
+              highlighted={highlighted.has(w.entry.id)}
+              gesture={gesture}
+              onMeasure={measure}
+              onFocus={focusWidget}
+              onTrash={trashWidget}
+              getScale={() => viewportRef.current?.instance.state.scale ?? 1}
+            >
+              <WidgetBody w={w} gesture={gesture} reportError={reportWidgetError} />
+            </WidgetFrame>
+          ))}
+        </Viewport>
       </div>
-
-      <div style={{ position: "absolute", top: 10, right: chatOpen && chatLayout === "right" ? 412 : 12, transition: "right 200ms ease-out", display: "flex", alignItems: "stretch", gap: 8 }}>
-        {visible.length > 1 && (
-          <Plate onClick={arrange} title="tidy the desk into a grid (⌘⇧A)" ariaLabel="arrange widgets">
-            arrange
-          </Plate>
-        )}
-        <TitleBlock
-          title={title}
-          scope={scope}
-          status={status}
-          agentName={agentName}
-          scale={scale}
-          onOpenSwitcher={() => {
-            desks.request();
-            setSwitcherOpen(true);
-          }}
-        />
-      </div>
-
-      {attention.available && (
-        <div style={{ position: "absolute", top: 10, left: 12 }}>
-          <Plate onClick={() => setCatchUpOpen(true)} title="catch up on conversations waiting for you (⌘⇧K)" ariaLabel="catch up" accent={waiting > 0}>
-            {waiting > 0 ? `${waiting} waiting · catch up` : "catch up"}
-          </Plate>
-        </div>
-      )}
-
-      <CatchUp
-        open={catchUpOpen}
-        onClose={() => setCatchUpOpen(false)}
-        items={catchUp.items}
-        onSeen={catchUp.seen}
-        onUnread={catchUp.unread}
-        onApprove={catchUp.approve}
-        onReply={catchUp.reply}
-        onOpenDesk={(agentId, conversationId) => desks.switchTo(scopeFor(conversationId, agentId))}
-        histories={catchUp.histories}
-        loadHistory={(item) => void catchUp.loadHistory(item)}
-      />
-
-      <DeskSwitcher open={switcherOpen} onClose={() => setSwitcherOpen(false)} desks={desks.list} current={scope} onSwitch={desks.switchTo} />
 
       {connection !== "open" && (
-        <div className="loci-label" style={{ position: "absolute", bottom: 16, left: 16 }}>
+        <div className="loki-label" style={{ position: "absolute", bottom: 30, left: trayLeft }}>
           {connection === "connecting" ? "connecting…" : "disconnected · retrying"}
         </div>
       )}
@@ -230,10 +301,10 @@ export function Surface() {
       {closed.length > 0 && connection === "open" && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
-          style={{ position: "absolute", bottom: 16, left: 16, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", maxWidth: "60%" }}
+          style={{ position: "absolute", bottom: 16, left: trayLeft, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", maxWidth: "60%", transition: "left 220ms ease-out" }}
           aria-label="minimised widgets"
         >
-          <span className="loci-label" style={{ marginRight: 4 }}>minimised</span>
+          <span className="loki-label" style={{ marginRight: 4 }}>minimised</span>
           {closed.map((entry) => (
             <button
               key={entry.id}
@@ -243,9 +314,9 @@ export function Surface() {
                 fontSize: 12,
                 padding: "4px 10px",
                 borderRadius: 999,
-                border: "1px solid var(--loci-border)",
-                background: "var(--loci-panel)",
-                color: "var(--loci-fg)",
+                border: "1px solid var(--loki-border)",
+                background: "var(--loki-panel)",
+                color: "var(--loki-fg)",
                 cursor: "pointer",
               }}
             >
@@ -257,32 +328,35 @@ export function Surface() {
 
       {chatOpen && (
         <ChatWindow
-          messages={chat.messages}
-          status={chat.status}
-          error={chat.error}
-          title={title}
+          messages={deskChat?.rows ?? []}
+          status={deskChat?.status ?? "idle"}
+          error={!attention.available ? "chat needs Letta's app-server — is a harness running?" : deskChat?.error ?? null}
           agentName={agentName}
-          layout={chatLayout}
-          onToggleLayout={toggleChatLayout}
+          width={chatWidth}
+          placement={chatPlacement}
+          onToggleWidth={toggleChatWidth}
+          focusTick={focusChat}
+          findTick={findChat}
           approval={pendingApproval}
-          onApprove={(behavior) => {
-            if (thisConversation && pendingApproval) catchUp.approve(thisConversation, pendingApproval.requestId, behavior);
+          question={pendingQuestion}
+          onAnswer={(answers) => {
+            if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
           }}
-          onSend={chat.send}
-          onClose={() => setChatOpen(false)}
+          onApprove={(behavior) => {
+            if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
+          }}
+          onSend={(text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder, desk: title })}
+          onClose={() => onChatOpen(false)}
         />
       )}
-      {!chatOpen && <ChatBubble open={chatOpen} alert={!!pendingApproval} onToggle={() => setChatOpen((v) => !v)} />}
+      {!chatOpen && <ChatBubble side={bubbleSide} open={chatOpen} alert={!!pendingApproval || !!pendingQuestion} onToggle={() => onChatOpen(!chatOpen)} />}
 
-      {ownCount === 0 && connection === "open" && (
-        <div
-          data-empty-desk
-          style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}
-        >
-          <div style={{ textAlign: "center", color: "var(--loci-muted)", maxWidth: 460 }}>
-            <div style={{ fontFamily: "var(--loci-display)", fontSize: 22, color: "var(--loci-fg)", lineHeight: 1.25 }}>Nothing on this desk yet.</div>
+      {ownCount === 0 && connection === "open" && !chatOpen && (
+        <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
+          <div style={{ textAlign: "center", color: "var(--loki-muted)", maxWidth: 460 }}>
+            <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)", lineHeight: 1.25 }}>Nothing on this desk yet.</div>
             <div style={{ fontSize: 13, marginTop: 10, lineHeight: 1.6 }}>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</div>
-            <div className="loci-label" style={{ marginTop: 14, fontSize: 10 }}>widgets are files · ~/.letta/loci/widgets/{scope}/</div>
+            <div className="loki-label" style={{ marginTop: 14, fontSize: 10 }}>widgets are files · ~/.letta/loki/widgets/{scope}/</div>
           </div>
         </div>
       )}

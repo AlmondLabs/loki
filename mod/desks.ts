@@ -43,7 +43,7 @@ export class DeskRegistry {
 
   /**
    * The runtime behind a desk. The registry is a cache of what turn_start /
-   * /canvas told us; a desk it has never seen is still resolvable from the
+   * turn_start told us; a desk it has never seen is still resolvable from the
    * scope itself: `default-<agentId>` names its agent, and any other scope is
    * a conversation id whose owner the local backend records.
    */
@@ -198,9 +198,10 @@ function textParts(content: unknown): string {
   if (!Array.isArray(content)) return "";
   let out = "";
   for (const part of content) {
-    if (typeof part === "object" && part !== null && (part as { type?: string }).type === "text" && typeof (part as { text?: unknown }).text === "string") {
-      out += (out ? "\n" : "") + (part as { text: string }).text;
-    }
+    if (typeof part !== "object" || part === null) continue;
+    const type = (part as { type?: string }).type;
+    if (type === "text" && typeof (part as { text?: unknown }).text === "string") out += (out ? "\n" : "") + (part as { text: string }).text;
+    else if (type === "image") out += (out ? "\n" : "") + "[image]";
   }
   return out;
 }

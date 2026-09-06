@@ -1,4 +1,5 @@
 node_modules/
 *.log
 .DS_Store
-.loci-build/
+.loki-build/
+app/dist

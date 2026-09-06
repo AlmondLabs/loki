@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "loci",
-  "short_name": "loci",
+  "name": "loki",
+  "short_name": "loki",
   "description": "A widget desk your agent furnishes, plus a catch-up deck for conversations waiting on you.",
   "start_url": "/",
   "scope": "/",

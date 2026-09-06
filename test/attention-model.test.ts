@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, digest, emptyLive, keyOf, toConversations, type ConversationInfo } from "../app/src/attention/model";
+import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type ConversationInfo } from "../app/src/attention/model";
 import { toTranscript } from "../shared/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
@@ -81,5 +81,94 @@ describe("attention model (browser)", () => {
     ]);
     expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:go", "tool:Bash", "event:background task b1 completed", "assistant:Done."]);
     expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
+  });
+});
+
+describe("live transcript tail", () => {
+  test("user, tool and assistant rows fold in order; own sends are not echoed twice; streaming settles", () => {
+    const l = emptyLive();
+    l.tail.push({ role: "user", text: "hello" });
+    l.ownSends.push("hello");
+    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "hello" } });
+    expect(l.tail).toEqual([{ role: "user", text: "hello" }]); // echo recognised
+    applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    expect(chatStatusOf(l)).toBe("thinking");
+    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "Let me " } });
+    expect(chatStatusOf(l)).toBe("streaming");
+    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } });
+    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } }); // same call, more deltas
+    expect(l.tail).toEqual([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
+    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "done." } });
+    applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "WAITING_ON_INPUT" } });
+    expect(l.tail.at(-1)).toEqual({ role: "assistant", text: "done." });
+    expect(chatStatusOf(l)).toBe("idle");
+    // a message typed elsewhere (Desktop) shows up as a user row
+    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "from desktop" } });
+    expect(l.tail.at(-1)).toEqual({ role: "user", text: "from desktop" });
+  });
+});
+
+describe("AskUserQuestion as a pending question", () => {
+  test("a can_use_tool for AskUserQuestion becomes a question, not an approval, and clears when the loop moves on", () => {
+    const l = emptyLive();
+    applyEvent(l, { type: "control_request", request_id: "perm-q1", runtime: { agent_id: "a", conversation_id: "c" }, request: { subtype: "can_use_tool", tool_name: "AskUserQuestion", input: { questions: [{ question: "Ship it?", options: [{ label: "yes" }, { label: "no" }] }] } } });
+    expect(l.pending).toBeNull();
+    expect(l.pendingAsk?.requestId).toBe("perm-q1");
+    expect(l.pendingAsk?.questions[0].options.map((o) => o.label)).toEqual(["yes", "no"]);
+    const items = buildItems([{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }], new Map(), new Map([[keyOf("a", "c"), l]]), {});
+    expect(items[0].status).toBe("question");
+    expect(items[0].pendingQuestion?.requestId).toBe("perm-q1");
+    applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    expect(l.pendingAsk).toBeNull();
+  });
+});
+
+describe("a finished reply re-queues a decided card", () => {
+  test("lastAssistantText updates when the loop goes idle before stop_reason/turn_finished, so the stamp changes", () => {
+    const l = emptyLive();
+    l.lastAssistantText = "earlier";
+    const rt = { agent_id: "a", conversation_id: "c" };
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "here is the answer" } });
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    expect(l.lastAssistantText).toBe("here is the answer");
+    expect(l.tail.at(-1)).toEqual({ role: "assistant", text: "here is the answer" });
+    applyEvent(l, { type: "turn_finished", runtime: rt }); // arrives late, with nothing left to settle
+    expect(l.lastAssistantText).toBe("here is the answer");
+    expect(l.tail.length).toBe(1);
+  });
+});
+
+describe("a turn that ends in a tool call still counts as new", () => {
+  test("turns increments once per completed turn, on idle or turn_finished, never on streaming alone", () => {
+    const l = emptyLive();
+    const rt = { agent_id: "a", conversation_id: "c" };
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "SENDING_API_REQUEST" } });
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "tool_call_message", tool_call: { name: "Write", tool_call_id: "t1" } } });
+    expect(l.turns).toBe(0);
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    expect(l.turns).toBe(1);
+    applyEvent(l, { type: "turn_finished", runtime: rt }); // same turn, reported again: no double count
+    expect(l.turns).toBe(1);
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "PROCESSING_API_RESPONSE" } });
+    applyEvent(l, { type: "turn_finished", runtime: rt });
+    expect(l.turns).toBe(2);
+    const items = buildItems([{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }], new Map(), new Map([[keyOf("a", "c"), l]]), {});
+    expect(items[0].turns).toBe(2);
+  });
+});
+
+describe("one marker per tool call", () => {
+  test("the approval_request_message for a call already announced does not add a second row", () => {
+    const l = emptyLive();
+    const rt = { agent_id: "a", conversation_id: "c" };
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "tool_call_message", tool_call: { name: "AskUserQuestion", tool_call_id: "t1" } } });
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "approval_request_message", tool_call: { name: "AskUserQuestion", tool_call_id: "approval-9" } } });
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "approval_request_message", tool_call: { name: "AskUserQuestion" } } });
+    expect(l.tail.filter((r) => r.role === "tool").length).toBe(1);
+    // a genuinely new call of the same tool after some text is a new row
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "and again" } });
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "tool_call_message", tool_call: { name: "AskUserQuestion", tool_call_id: "t2" } } });
+    expect(l.tail.filter((r) => r.role === "tool").length).toBe(2);
   });
 });

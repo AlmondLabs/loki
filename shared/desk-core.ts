@@ -1,5 +1,5 @@
 /**
- * desk-core — the vocabulary both halves of loci speak.
+ * desk-core — the vocabulary both halves of loki speak.
  * Imported by the mod (Node, type-stripped) and by the canvas app (Vite).
  * Pure data and pure functions only: no I/O, no framework imports.
  */
@@ -156,11 +156,15 @@ export function ensureLayout(state: DeskState, id: string, obstacles: Rect[] = o
 }
 
 /** Record the rendered size of a widget (reported by the tab). No-op if unchanged. */
+/** Smallest size a rendered widget frame can honestly have; anything under it is a transient layout glitch, not a measurement. */
+export const MIN_FRAME = { w: 80, h: 40 };
+
 export function applyMeasure(state: DeskState, id: string, size: Size): DeskState {
   const l = state.layout[id];
   if (!l) return state;
   const w = Math.round(size.w);
   const h = Math.round(size.h);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < MIN_FRAME.w || h < MIN_FRAME.h) return state; // never persist a collapsed frame
   if (l.size && Math.abs(l.size.w - w) < 2 && Math.abs(l.size.h - h) < 2) return state;
   return { ...state, layout: { ...state.layout, [id]: { ...l, size: { w, h } } }, rev: state.rev + 1 };
 }
@@ -287,9 +291,13 @@ export function scopeFor(conversationId: string | null | undefined, agentId?: st
   return s || SHARED_SCOPE;
 }
 
-/** The local backend names files/dirs with unpadded base64 of a key. */
+/** The local backend names files/dirs with unpadded base64 of a key. Works in Node and the browser (no Buffer there). */
 export function backendName(key: string): string {
-  return Buffer.from(key).toString("base64").replace(/=+$/, "");
+  const bytes = new TextEncoder().encode(key);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  const b64 = typeof btoa === "function" ? btoa(bin) : Buffer.from(bytes).toString("base64");
+  return b64.replace(/=+$/, "");
 }
 
 /** Local-backend directory name for a conversation. Default conversations live under `default:<agentId>`. */

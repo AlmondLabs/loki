@@ -8,7 +8,7 @@ import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 
  *   - drag on empty canvas             → pan
  * The library's own wheel handling is off; we apply transforms directly,
  * coalescing all input that arrives within one animation frame. Widgets carry
- * `.loci-no-pan` so dragging one never pans the canvas.
+ * `.loki-no-pan` so dragging one never pans the canvas.
  * Camera glides (zoomToElement) keep the library's easing.
  */
 const MIN_SCALE = 0.1;
@@ -136,7 +136,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
           position: "absolute",
           inset: 0,
           pointerEvents: "none",
-          backgroundImage: "radial-gradient(circle, var(--loci-grid) 1.2px, transparent 1.5px)",
+          backgroundImage: "radial-gradient(circle, var(--loki-grid) 1.2px, transparent 1.5px)",
           backgroundSize: "24px 24px",
           backgroundPosition: "0px 0px",
         }}
@@ -152,7 +152,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
         doubleClick={{ disabled: true }}
         wheel={{ disabled: true }}
         pinch={{ disabled: true }}
-        panning={{ excluded: ["loci-no-pan"], velocityDisabled: true }}
+        panning={{ excluded: ["loki-no-pan"], velocityDisabled: true }}
         velocityAnimation={{ disabled: true }}
       >
         <TransformComponent

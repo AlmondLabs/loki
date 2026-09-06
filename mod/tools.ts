@@ -6,6 +6,7 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { scopeOfId } from "./bridge.ts";
 import { log, withTimeout } from "./log.ts";
+import type { TaskBoard } from "./tasks.ts";
 
 /**
  * Two tools. Rendering and authoring are file writes, not tool calls — the
@@ -23,6 +24,9 @@ export interface ToolDeps {
   /** Bind a conversation to its desk and return the scope. */
   remember?: (conversationId: string, agentId?: string | null) => Scope;
   broadcast(msg: object, scope?: Scope): void;
+  /** The shared board (beads) and the folder a conversation works in, for the task stamp. */
+  tasks?: TaskBoard;
+  folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
 }
 
 /**
@@ -68,11 +72,11 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
     letta.tools.register({
       name: "desk_state",
       description:
-        "Read the loci canvas (the user's browser widget desk). Returns the widgets on this conversation's desk " +
+        "Read the loki canvas (the user's browser widget desk). Returns the widgets on this conversation's desk " +
         "and on the shared desk: file, type, title, data (with the user's gesture edits applied), position, and any " +
         "build/runtime error. To ADD or CHANGE a widget, write a file — do not look for a render tool: " +
         `${deps.widgetsDir}/<desk>/<name>.json for a kit widget ({ "type", "title", "data" }; kit types — ${kitLine}) ` +
-        `or <name>.tsx for a custom React component (export default function Widget({ data, onSet }); import kit pieces from "@loci/kit"). ` +
+        `or <name>.tsx for a custom React component (export default function Widget({ data, onSet }); import kit pieces from "@loki/kit"). ` +
         "The result is for the conversation you are in (pass `desk` to look at another). Files appear on the canvas instantly; call this again to confirm they mounted without error. " +
         "User gestures are also attached automatically to your next turn.",
       parameters: {
@@ -110,7 +114,7 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
 
   disposers.push(
     letta.tools.register({
-      name: "loci_camera",
+      name: "loki_camera",
       description:
         "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
         "highlighted for a few seconds). Use it to direct attention after writing a widget or when referring to " +
@@ -134,7 +138,7 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
           : typeof args.widgetId === "string" && args.widgetId
             ? [args.widgetId]
             : [];
-        log("tool:loci_camera", { ids, dwell: args.dwell });
+        log("tool:loki_camera", { ids, dwell: args.dwell });
         if (ids.length === 0) return { status: "error", content: "give widgetId or widgetIds" };
         const missing = ids.filter((id) => !deps.widgets.get(id));
         if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check desk_state` };
@@ -149,6 +153,80 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
       },
     }),
   );
+
+  if (deps.tasks) {
+    const board = deps.tasks;
+    disposers.push(
+      letta.tools.register({
+        name: "loki_task",
+        description:
+          "The user's board of tasks for later (beads, shared by every agent and folder). Use it when the user asks to " +
+          "note, park, or file something for later, or when you wrap up with explicit follow-ups — never on your own " +
+          "initiative mid-task. `create` files a task (title, description, labels, priority 0–4; the source conversation, " +
+          "desk and folder are stamped automatically) and returns its id: tell the user the id. `list` shows tasks assigned " +
+          "to this conversation (or every open task with all:true). `comment` adds progress; `close` finishes one with a " +
+          "reason. Tasks assigned to this conversation are also attached to the user's next message inside <loki-tasks>.",
+        parameters: {
+          type: "object",
+          properties: {
+            action: { type: "string", enum: ["create", "list", "comment", "close"], description: "What to do." },
+            title: { type: "string", description: "create: one line, imperative (\"rotate the SSO creds before the audit\")." },
+            description: { type: "string", description: "create: what, why, where to look. Enough for someone starting cold." },
+            labels: { type: "array", items: { type: "string" }, description: "create: short tags (aws, security, docs). The project's folder name is added for you." },
+            priority: { type: "number", description: "create: 0 (urgent) to 4 (someday); default 2." },
+            id: { type: "string", description: "comment / close: the task id (lk-…)." },
+            text: { type: "string", description: "comment: the progress note." },
+            reason: { type: "string", description: "close: what was done, one line." },
+            all: { type: "boolean", description: "list: every open task on the board, not just this conversation's." },
+          },
+          required: ["action"],
+          additionalProperties: false,
+        },
+        requiresApproval: false,
+        parallelSafe: false,
+        async run(ctx) {
+          const args = ctx?.args ?? {};
+          const action = String(args.action ?? "");
+          const conversation = ctx?.conversation?.id ?? null;
+          const agentId = ctx?.agent?.id ?? null;
+          const agent = ctx?.agent?.name ?? null;
+          log("tool:loki_task", { action, agent, conversation });
+          try {
+            if (action === "create") {
+              const task = await board.create({
+                title: String(args.title ?? ""),
+                description: typeof args.description === "string" ? args.description : undefined,
+                labels: Array.isArray(args.labels) ? (args.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
+                priority: typeof args.priority === "number" ? args.priority : undefined,
+                stamp: { by: "agent", agent, agentId, conversation, desk: scopeForCall(deps, ctx), folder: deps.folderFor?.(agentId, conversation) ?? null },
+              });
+              deps.broadcast({ type: "tasks_changed" });
+              return JSON.stringify({ filed: task.id, title: task.title, priority: task.priority, labels: task.labels });
+            }
+            if (action === "list") {
+              const tasks = await board.list();
+              const mine = args.all === true ? tasks : tasks.filter((t) => t.metadata.assignedTo === conversation || (t.metadata.conversation === conversation && !t.metadata.assignedTo));
+              return JSON.stringify(mine.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, labels: t.labels, assignedTo: t.metadata.assignedTo ?? null, description: t.description })), null, 2);
+            }
+            if (action === "comment") {
+              if (typeof args.id !== "string" || typeof args.text !== "string") return { status: "error", content: "comment needs id and text" };
+              await board.comment(args.id, args.text);
+              return `noted on ${args.id}`;
+            }
+            if (action === "close") {
+              if (typeof args.id !== "string") return { status: "error", content: "close needs id" };
+              await board.close([args.id], typeof args.reason === "string" ? args.reason : undefined);
+              deps.broadcast({ type: "tasks_changed" });
+              return `${args.id} closed`;
+            }
+            return { status: "error", content: `unknown action "${action}" — create, list, comment, close` };
+          } catch (err) {
+            return { status: "error", content: err instanceof Error ? err.message : String(err) };
+          }
+        },
+      }),
+    );
+  }
 
   return disposers;
 }

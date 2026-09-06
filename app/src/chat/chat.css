@@ -1,34 +1,36 @@
 /* Markdown inside assistant bubbles: compact, dark, token-driven. */
-.loci-md > :first-child { margin-top: 0; }
-.loci-md > :last-child { margin-bottom: 0; }
-.loci-md p { margin: 0 0 8px; white-space: pre-wrap; }
-.loci-md h1, .loci-md h2, .loci-md h3, .loci-md h4 {
-  margin: 12px 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; color: var(--loci-fg);
+.loki-md > :first-child { margin-top: 0; }
+.loki-md > :last-child { margin-bottom: 0; }
+.loki-md p { margin: 0 0 8px; white-space: pre-wrap; }
+.loki-md h1, .loki-md h2, .loki-md h3, .loki-md h4 {
+  margin: 12px 0 6px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; color: var(--loki-fg);
 }
-.loci-md h1 { font-size: 15px; } .loci-md h2 { font-size: 14px; }
+.loki-md h1 { font-size: 15px; } .loki-md h2 { font-size: 14px; }
 /* Tailwind's preflight strips list markers; put them back for chat markdown. */
-.loci-md ul, .loci-md ol { margin: 4px 0 8px; padding-left: 22px; }
-.loci-md ul { list-style: disc outside; }
-.loci-md ol { list-style: decimal outside; }
-.loci-md ol ol { list-style: lower-alpha outside; }
-.loci-md ul ul { list-style: circle outside; }
-.loci-md li { margin: 2px 0; display: list-item; }
-.loci-md li::marker { color: var(--loci-muted); font-variant-numeric: tabular-nums; }
-.loci-md li > p { margin: 0; }
-.loci-md code {
-  font-family: var(--loci-mono); font-size: 12px; background: rgba(255,255,255,0.07);
+.loki-md ul, .loki-md ol { margin: 4px 0 8px; padding-left: 22px; }
+.loki-md ul { list-style: disc outside; }
+.loki-md ol { list-style: decimal outside; }
+.loki-md ol ol { list-style: lower-alpha outside; }
+.loki-md ul ul { list-style: circle outside; }
+.loki-md li { margin: 2px 0; display: list-item; }
+.loki-md li::marker { color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+.loki-md li > p { margin: 0; }
+.loki-md code {
+  font-family: var(--loki-mono); font-size: 12px; background: rgba(255,255,255,0.07);
   padding: 1px 5px; border-radius: 4px;
 }
-.loci-md pre {
-  margin: 8px 0; padding: 10px 12px; overflow-x: auto; background: #101014;
-  border: 1px solid var(--loci-border); border-radius: 8px;
+.loki-md pre {
+  margin: 8px 0; padding: 10px 12px; background: #101014;
+  /* Wrap long lines rather than growing a scrollbar per block: the bubbles are narrow and this is prose-adjacent output, not an editor. */
+  white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden;
+  border: 1px solid var(--loki-border); border-radius: 8px;
 }
-.loci-md pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.5; }
-.loci-md blockquote { margin: 6px 0; padding: 2px 10px; border-left: 2px solid var(--loci-border); color: var(--loci-muted); }
-.loci-md a { color: var(--loci-accent); text-decoration: none; }
-.loci-md a:hover { text-decoration: underline; }
-.loci-md hr { border: 0; border-top: 1px solid var(--loci-border); margin: 10px 0; }
-.loci-md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; }
-.loci-md th, .loci-md td { border: 1px solid var(--loci-border); padding: 4px 8px; text-align: left; }
-.loci-md th { color: var(--loci-muted); font-weight: 500; }
-.loci-md strong { color: var(--loci-fg); }
+.loki-md pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.5; }
+.loki-md blockquote { margin: 6px 0; padding: 2px 10px; border-left: 2px solid var(--loki-border); color: var(--loki-muted); }
+.loki-md a { color: var(--loki-accent); text-decoration: none; }
+.loki-md a:hover { text-decoration: underline; }
+.loki-md hr { border: 0; border-top: 1px solid var(--loki-border); margin: 10px 0; }
+.loki-md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; max-width: 100%; overflow-x: auto; }
+.loki-md th, .loki-md td { border: 1px solid var(--loki-border); padding: 4px 8px; text-align: left; }
+.loki-md th { color: var(--loki-muted); font-weight: 500; }
+.loki-md strong { color: var(--loki-fg); }

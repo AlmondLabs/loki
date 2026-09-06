@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../shared/desk-core.ts";
+import { MIN_FRAME } from "../../../shared/desk-core.ts";
 
 /**
  * Standard widget chrome: drag by the title bar, close, focus-to-front, an
@@ -10,6 +11,7 @@ export function WidgetFrame({
   entry,
   layout,
   highlighted = false,
+  order = 0,
   gesture,
   onMeasure,
   onFocus,
@@ -21,6 +23,8 @@ export function WidgetFrame({
   layout: WidgetLayout;
   /** The camera is pointing here: accent ring that fades when it moves on. */
   highlighted?: boolean;
+  /** Position in the desk's render order; staggers the settle-in animation. */
+  order?: number;
   gesture: (g: Gesture) => void;
   /** Rendered size, so the mod can place new widgets around this one. */
   onMeasure?: (id: string, size: Size) => void;
@@ -45,6 +49,10 @@ export function WidgetFrame({
       const h = el.offsetHeight;
       if (Math.abs(w - last.w) < 2 && Math.abs(h - last.h) < 2) return;
       last = { w, h };
+      if (w < MIN_FRAME.w || h < MIN_FRAME.h) {
+        console.warn("loki: ignoring collapsed frame measurement", entry.id, { w, h });
+        return;
+      }
       onMeasure(entry.id, { w, h });
     };
     report();
@@ -87,7 +95,7 @@ export function WidgetFrame({
     <div
       ref={frameRef}
       id={`widget-${entry.id.replace("/", "--")}`}
-      className="loci-no-pan"
+      className="loki-frame loki-no-pan"
       onPointerDown={(e) => {
         e.stopPropagation();
         gesture({ kind: "focus", id: entry.id });
@@ -97,12 +105,15 @@ export function WidgetFrame({
         left: layout.position.x,
         top: layout.position.y,
         zIndex: layout.z,
-        width: layout.size?.w ?? 280,
-        background: "var(--loci-panel)",
-        border: `1px solid ${entry.error ? "var(--loci-negative)" : highlighted ? "var(--loci-accent)" : "var(--loci-border)"}`,
-        borderRadius: "var(--loci-radius)",
+        // A stored size below the minimum is a bad measurement that got persisted; fall back so the frame
+        // renders at a real width, re-measures, and heals the stored size.
+        width: layout.size && layout.size.w >= MIN_FRAME.w ? layout.size.w : 280,
+        background: "var(--loki-panel)",
+        border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
+        borderRadius: "var(--loki-radius)",
+        animationDelay: `${Math.min(order, 12) * 35}ms`,
         boxShadow: highlighted
-          ? "0 0 0 3px var(--loci-accent-soft), 0 0 40px 4px rgba(91,124,250,0.35), 0 8px 28px rgba(0,0,0,0.45)"
+          ? "0 0 0 3px var(--loki-brass-soft), 0 0 40px 4px rgba(201,164,92,0.28), 0 8px 28px rgba(0,0,0,0.45)"
           : "0 8px 28px rgba(0,0,0,0.45)",
         transition: "box-shadow 500ms ease-out, border-color 500ms ease-out",
         overflow: "hidden",
@@ -130,19 +141,19 @@ export function WidgetFrame({
           gap: 8,
           padding: "8px 12px",
           cursor: "grab",
-          background: "var(--loci-panel-header)",
-          borderBottom: "1px solid var(--loci-border)",
+          background: "var(--loki-panel-header)",
+          borderBottom: "1px solid var(--loki-border)",
           touchAction: "none",
         }}
       >
-        <span style={{ fontFamily: "var(--loci-label)", fontSize: 11, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--loci-fg)", display: "flex", gap: 8, alignItems: "center" }}>
+        <span style={{ fontFamily: "var(--loki-label)", fontSize: 11, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
           {entry.error && (
-            <span title={entry.error} style={{ width: 7, height: 7, borderRadius: 4, background: "var(--loci-negative)" }} />
+            <span title={entry.error} style={{ width: 7, height: 7, borderRadius: 4, background: "var(--loki-negative)" }} />
           )}
           {entry.title}
         </span>
-        <span style={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: "var(--loci-muted)", fontFamily: "var(--loci-mono)", marginRight: 6 }}>{entry.name}</span>
+        <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
+          <span style={{ fontSize: 10, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
           <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
             {/* target */}
             <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -194,16 +205,16 @@ function FrameButton({
         border: "none",
         borderRadius: 6,
         background: "transparent",
-        color: "var(--loci-muted)",
+        color: "var(--loki-muted)",
         cursor: "pointer",
         padding: 0,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.color = danger ? "var(--loci-negative)" : "var(--loci-fg)";
+        e.currentTarget.style.color = danger ? "var(--loki-negative)" : "var(--loki-fg)";
         e.currentTarget.style.background = "rgba(255,255,255,0.06)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.color = "var(--loci-muted)";
+        e.currentTarget.style.color = "var(--loki-muted)";
         e.currentTarget.style.background = "transparent";
       }}
     >

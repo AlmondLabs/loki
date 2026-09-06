@@ -1,3 +1,6 @@
+import { buildUserContent, type ImageAttachment } from "./content";
+import { makeTransport, type Transport } from "./transport";
+import { inTauri } from "../desk/env";
 /**
  * Browser client for Letta's app-server protocol, reached through the mod's
  * /appserver tunnel (the app-server itself refuses browser origins). Requests
@@ -12,7 +15,7 @@ export type ServerEvent = Record<string, unknown> & { type: string; runtime?: Ru
 type Listener = (ev: ServerEvent) => void;
 
 export class AppServerSocket {
-  private ws: WebSocket | null = null;
+  private transport: Transport | null = null;
   private pending = new Map<string, { resolve: (v: ServerEvent) => void; reject: (e: Error) => void; timer: number }>();
   private listeners = new Set<Listener>();
   private runtimes = new Map<string, Runtime>();
@@ -35,43 +38,46 @@ export class AppServerSocket {
     if (this.opening) return this.opening;
     this.onStatus?.("connecting");
     this.opening = new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(this.url);
-      this.ws = ws;
+      const transport = makeTransport(this.url);
+      this.transport = transport;
       let settled = false;
-      ws.onopen = () => {
-        settled = true;
-        this.retryMs = 500;
-        this.onStatus?.("open");
-        resolve();
-        for (const rt of this.runtimes.values()) void this.runtimeStart(rt).catch(() => {});
-      };
-      ws.onmessage = (e) => this.onMessage(String(e.data));
-      ws.onerror = () => {
-        if (!settled) {
+      transport.open({
+        onOpen: () => {
           settled = true;
-          reject(new Error("app-server tunnel failed"));
-        }
-      };
-      ws.onclose = () => {
-        this.ws = null;
-        this.opening = null;
-        this.onStatus?.("closed");
-        for (const p of this.pending.values()) {
-          clearTimeout(p.timer);
-          p.reject(new Error("tunnel closed"));
-        }
-        this.pending.clear();
-        if (this.closed) return;
-        setTimeout(() => void this.connect().catch(() => {}), this.retryMs);
-        this.retryMs = Math.min(this.retryMs * 2, 8000);
-      };
+          this.retryMs = 500;
+          this.onStatus?.("open");
+          resolve();
+          for (const rt of this.runtimes.values()) void this.runtimeStart(rt).catch(() => {});
+        },
+        onMessage: (raw) => this.onMessage(raw),
+        onError: (err) => {
+          if (!settled) {
+            settled = true;
+            reject(err);
+          }
+        },
+        onClose: () => {
+          this.onStatus?.("closed");
+          for (const p of this.pending.values()) {
+            clearTimeout(p.timer);
+            p.reject(new Error("app-server link closed"));
+          }
+          this.pending.clear();
+          if (this.closed) return;
+          if (inTauri) return; // the Rust link reconnects on its own and will report "open" again
+          this.transport = null;
+          this.opening = null;
+          setTimeout(() => void this.connect().catch(() => {}), this.retryMs);
+          this.retryMs = Math.min(this.retryMs * 2, 8000);
+        },
+      });
     });
     return this.opening;
   }
 
   close(): void {
     this.closed = true;
-    this.ws?.close();
+    this.transport?.close();
   }
 
   private onMessage(raw: string): void {
@@ -101,7 +107,7 @@ export class AppServerSocket {
         reject(new Error(`${type} timed out`));
       }, timeoutMs);
       this.pending.set(request_id, { resolve, reject, timer });
-      this.ws!.send(JSON.stringify({ type, request_id, ...payload }));
+      this.transport!.send(JSON.stringify({ type, request_id, ...payload }));
     });
   }
 
@@ -112,7 +118,7 @@ export class AppServerSocket {
       agent_id: rt.agent_id,
       conversation_id: rt.conversation_id,
       // No `mode` (see mod/app-server.ts): never override the permission mode Deepak picked in Desktop.
-      client_info: { name: "loci", title: "loci canvas", version: "0.2.0" },
+      client_info: { name: "loki", title: "loki canvas", version: "0.2.0" },
       recover_approvals: false,
     });
     if (res.success === false) {
@@ -120,6 +126,35 @@ export class AppServerSocket {
       throw new Error(typeof res.error === "string" ? res.error : "runtime_start failed");
     }
     return res;
+  }
+
+  /** Answer an AskUserQuestion: an allow decision carrying the tool input with `answers` filled in. */
+  async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
+    try {
+      const res = await this.request("input", { runtime: rt, payload: { kind: "approval_response", request_id: requestId, decision: { behavior: "allow", updated_input: updatedInput } } });
+      const ok = res.type === "input_accepted" && res.success !== false && (res as { accepted?: boolean }).accepted !== false;
+      if (!ok) console.warn("loki: answer not accepted", res);
+      return ok;
+    } catch (err) {
+      console.warn("loki: answer failed", err);
+      return false;
+    }
+  }
+
+  /** Start a brand-new conversation for an agent in `cwd`; returns its runtime. */
+  async createConversation(agentId: string, cwd: string, name?: string): Promise<Runtime> {
+    const res = await this.request("runtime_start", {
+      agent_id: agentId,
+      create_conversation: { body: name?.trim() ? { summary: name.trim() } : {} },
+      cwd,
+      client_info: { name: "loki", title: "loki canvas", version: "0.2.0" },
+      recover_approvals: false,
+    });
+    if (res.success === false) throw new Error(typeof res.error === "string" ? res.error : "could not create the conversation");
+    const rt = res.runtime as Runtime | undefined;
+    if (!rt?.conversation_id) throw new Error("the server returned no conversation");
+    this.runtimes.set(`${rt.agent_id}/${rt.conversation_id}`, rt);
+    return rt;
   }
 
   isSubscribed(rt: Runtime): boolean {
@@ -143,12 +178,14 @@ export class AppServerSocket {
     return [...messages].reverse();
   }
 
-  async sendUserMessage(rt: Runtime, text: string): Promise<boolean> {
+  async sendUserMessage(rt: Runtime, text: string, images: ImageAttachment[] = [], context?: string): Promise<boolean> {
     const res = await this.request("input", {
       runtime: rt,
-      payload: { kind: "create_message", messages: [{ role: "user", content: text, client_message_id: `loci-${Date.now()}` }] },
+      payload: { kind: "create_message", messages: [{ role: "user", content: buildUserContent(text, images, context), client_message_id: `loki-${Date.now()}` }] },
     });
-    return res.accepted !== false && res.success !== false;
+    const ok = res.accepted !== false && res.success !== false;
+    if (!ok) console.warn("loki: message not accepted", res);
+    return ok;
   }
 
   /**
@@ -157,14 +194,14 @@ export class AppServerSocket {
    * waits for the ack and reports whether the decision landed.
    */
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
-    const decision = behavior === "allow" ? { behavior } : { behavior, message: "Denied from the loci canvas." };
+    const decision = behavior === "allow" ? { behavior } : { behavior, message: "Denied from the loki canvas." };
     try {
       const res = await this.request("input", { runtime: rt, payload: { kind: "approval_response", request_id: requestId, decision } });
       const ok = res.type === "input_accepted" && res.success !== false && (res as { accepted?: boolean }).accepted !== false;
-      if (!ok) console.warn("loci: approval response not accepted", res);
+      if (!ok) console.warn("loki: approval response not accepted", res);
       return ok;
     } catch (err) {
-      console.warn("loci: approval response failed", err);
+      console.warn("loki: approval response failed", err);
       return false;
     }
   }

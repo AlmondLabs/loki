@@ -22,7 +22,7 @@ export function AgentChip({ name, size = 11 }: { name: string | null | undefined
         color: `hsl(${hue} 60% 78%)`,
         background: `hsl(${hue} 45% 22% / 0.55)`,
         border: `1px solid hsl(${hue} 50% 40% / 0.6)`,
-        fontFamily: "var(--loci-mono)",
+        fontFamily: "var(--loki-mono)",
         whiteSpace: "nowrap",
       }}
     >

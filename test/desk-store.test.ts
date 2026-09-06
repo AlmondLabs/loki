@@ -53,7 +53,7 @@ describe("DeskStore", () => {
 
 describe("persistence", () => {
   test("empty desks are never written; non-empty desks round-trip", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "loci-persist-"));
+    const dir = mkdtempSync(join(tmpdir(), "loki-persist-"));
     try {
       const store = new DeskStore();
       const stop = persistDesks(store, dir, 10);
@@ -77,7 +77,7 @@ describe("persistence", () => {
   });
 
   test("corrupt snapshot files are skipped", () => {
-    const dir = mkdtempSync(join(tmpdir(), "loci-persist-"));
+    const dir = mkdtempSync(join(tmpdir(), "loki-persist-"));
     try {
       Bun.write(join(dir, "bad.json"), "{not json");
       const store = new DeskStore();

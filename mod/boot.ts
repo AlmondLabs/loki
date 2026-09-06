@@ -14,7 +14,7 @@ import * as esbuild from "esbuild";
 export default async function activate(letta: unknown): Promise<unknown> {
   const here = fileURLToPath(new URL(import.meta.url)); // query stripped by fileURLToPath
   const root = dirname(dirname(here));
-  const outDir = join(root, ".loci-build");
+  const outDir = join(root, ".loki-build");
   mkdirSync(outDir, { recursive: true });
   const outfile = join(outDir, `mod-${Date.now()}.mjs`);
 

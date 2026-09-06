@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeskState, Gesture, Scope, Size, WidgetLayout, WidgetManifestEntry } from "../../../shared/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, autoPlace, emptyDesk, scopeFor } from "../../../shared/desk-core.ts";
-import type { ChatMessage, ChatStatus } from "../chat/ChatWindow";
 import { readSession, rememberDesk } from "./session";
+import { inTauri, modWsBase } from "./env";
+import type { Task } from "../board/model";
+import type { Snooze } from "../attention/snooze";
+import type { TranscriptRow } from "../chat/Transcript";
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -47,9 +50,6 @@ export function useDesk() {
   const [widgets, setWidgets] = useState<Record<Scope, WidgetManifestEntry[]>>({});
   const [connection, setConnection] = useState<Connection>("connecting");
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatStatus, setChatStatus] = useState<ChatStatus>("idle");
-  const [chatError, setChatError] = useState<string | null>(null);
   const [deskList, setDeskList] = useState<DeskSummary[]>([]);
   const [titles, setTitles] = useState<Record<Scope, string>>({});
   const [statuses, setStatuses] = useState<Record<Scope, DeskStatus>>({});
@@ -58,10 +58,17 @@ export function useDesk() {
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   const [appServer, setAppServer] = useState(false);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+  const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
+  /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
+  const [tasksVersion, setTasksVersion] = useState(0);
+  /** Pending request/reply exchanges with the mod, by requestId. */
+  const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
   const wsRef = useRef<WebSocket | null>(null);
   const lastInteractionRef = useRef(0);
   const pendingRef = useRef<Gesture[]>([]);
+  /** Latest measured size per widget that could not be sent yet (frames measure before the socket opens). */
+  const pendingMeasures = useRef(new Map<string, Size>());
 
   useEffect(() => {
     let disposed = false;
@@ -70,7 +77,7 @@ export function useDesk() {
 
     const connect = () => {
       const proto = location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${proto}://${location.host}/loci/ws?t=${token}&desk=${encodeURIComponent(scope)}`);
+      const ws = new WebSocket(`${modWsBase()}/ws?t=${token}&desk=${encodeURIComponent(scope)}`);
       wsRef.current = ws;
       setConnection("connecting");
 
@@ -84,6 +91,7 @@ export function useDesk() {
         switch (msg.type) {
           case "desk": {
             const s = msg.scope as Scope;
+            console.info(`desk frame: ${s} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
             if (typeof msg.title === "string" && msg.title) setTitles((t) => ({ ...t, [s]: msg.title as string }));
             if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [s]: msg.status as DeskStatus }));
             if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [s]: msg.agentName as string }));
@@ -93,6 +101,9 @@ export function useDesk() {
             const pending = pendingRef.current;
             pendingRef.current = [];
             for (const g of pending) ws.send(JSON.stringify({ type: "gesture", gesture: g }));
+            const measures = pendingMeasures.current;
+            pendingMeasures.current = new Map();
+            for (const [id, size] of measures) ws.send(JSON.stringify({ type: "measure", id, size }));
             break;
           }
           case "state":
@@ -119,8 +130,28 @@ export function useDesk() {
           case "config":
             setAppServer(msg.appServer === true);
             break;
+          case "tasks_changed":
+            setTasksVersion((v) => v + 1);
+            break;
+          case "tasks":
+          case "task_created":
+          case "tasks_updated":
+          case "task_error":
+          case "history":
+          case "folders":
+          case "folder_matches":
+          case "folder_status":
+          case "folder_picked": {
+            const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
+            if (w) {
+              waiters.current.delete(msg.requestId as string);
+              w(msg);
+            }
+            break;
+          }
           case "seen":
             setSeenMap((msg.seen as Record<string, string>) ?? {});
+            setSnoozeMap((msg.snooze as Record<string, Snooze>) ?? {});
             if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
           case "desk_title":
@@ -128,39 +159,11 @@ export function useDesk() {
             if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [msg.scope as Scope]: msg.status as DeskStatus }));
             if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [msg.scope as Scope]: msg.agentName as string }));
             break;
-          case "chat_history":
-            setChatMessages(msg.messages as ChatMessage[]);
-            break;
-          case "chat_user":
-            // A user message on this desk's conversation: from this tab, another tab, or typed in Desktop.
-            setChatMessages((list) => [...list, { role: "user", text: msg.text as string }]);
-            break;
-          case "chat_tool":
-            setChatMessages((list) => [...list, { role: "tool", text: msg.text as string }]);
-            break;
-          case "chat_state":
-            setChatStatus(msg.state as ChatStatus);
-            if (msg.state !== "idle") setChatError(null);
-            break;
-          case "chat_delta":
-            setChatMessages((list) => {
-              const last = list[list.length - 1];
-              if (last?.role === "assistant") {
-                return [...list.slice(0, -1), { role: "assistant", text: last.text + (msg.text as string) }];
-              }
-              return [...list, { role: "assistant", text: msg.text as string }];
-            });
-            break;
-          case "chat_done":
-            break;
-          case "chat_error":
-            setChatError(msg.message as string);
-            break;
           case "error":
-            console.warn("loci:", msg.message);
+            console.warn("loki:", msg.message);
             break;
           default:
-            console.warn("loci ws: unknown frame", msg);
+            console.warn("loki ws: unknown frame", msg);
         }
       };
       ws.onclose = () => {
@@ -196,22 +199,38 @@ export function useDesk() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Show another desk in this tab: URL param + reconnect; chat re-attaches to that conversation. */
+  /** Show another desk in this tab: URL param + reconnect. */
   const switchDesk = (next: Scope) => {
     if (!next || next === scope) return;
     rememberDesk(next);
     const url = new URL(location.href);
     url.searchParams.set("desk", next);
     history.replaceState(null, "", url);
-    setChatMessages([]);
-    setChatStatus("idle");
-    setChatError(null);
     setScope(next); // the connection effect re-runs on the new desk
   };
 
   const requestDesks = () => {
     send({ type: "list_desks" });
   };
+
+  /** Ask the mod something and wait for the reply frame carrying the same requestId (null on timeout / not connected). */
+  const request = (type: string, payload: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown> | null> =>
+    new Promise((resolve) => {
+      const requestId = `${type}-${Math.random().toString(36).slice(2, 10)}`;
+      const timer = window.setTimeout(() => {
+        waiters.current.delete(requestId);
+        resolve(null);
+      }, timeoutMs);
+      waiters.current.set(requestId, (m) => {
+        window.clearTimeout(timer);
+        resolve(m);
+      });
+      if (!send({ type, requestId, ...payload })) {
+        window.clearTimeout(timer);
+        waiters.current.delete(requestId);
+        resolve(null);
+      }
+    });
 
   const send = (msg: object): boolean => {
     const ws = wsRef.current;
@@ -220,11 +239,50 @@ export function useDesk() {
     return true;
   };
 
-  const gesture = (g: Gesture) => {
+  /** Inverse gestures, newest last; ⌘Z on the sheet pops one. Local to this window. */
+  const undoStack = useRef<Gesture[]>([]);
+  const desksRef = useRef(desks);
+  desksRef.current = desks;
+  const inverseOf = (g: Gesture): Gesture | null => {
+    const s = scopeOfId(g.id);
+    const l = desksRef.current[s]?.layout[g.id];
+    switch (g.kind) {
+      case "move":
+        return l ? { kind: "move", id: g.id, position: l.position } : null;
+      case "resize":
+        return l?.size ? { kind: "resize", id: g.id, size: l.size } : null;
+      case "close":
+        return { kind: "open", id: g.id };
+      case "open":
+        return { kind: "close", id: g.id };
+      case "set":
+        return g.prev === undefined ? null : { kind: "set", id: g.id, path: g.path, value: g.prev, prev: g.value };
+      default:
+        return null; // focus is not worth undoing
+    }
+  };
+  const apply = (g: Gesture) => {
     lastInteractionRef.current = Date.now();
     const s = scopeOfId(g.id);
     setDesks((d) => ({ ...d, [s]: applyGesture(d[s] ?? emptyDesk(s), g) }));
     if (!send({ type: "gesture", gesture: g })) pendingRef.current.push(g);
+  };
+  const gesture = (g: Gesture) => {
+    const inv = inverseOf(g);
+    if (inv) {
+      // Drags arrive as a stream of moves; keep one undo step per widget per burst.
+      const top = undoStack.current[undoStack.current.length - 1];
+      if (!(top && top.kind === inv.kind && top.id === inv.id && Date.now() - lastInteractionRef.current < 400)) undoStack.current.push(inv);
+      if (undoStack.current.length > 60) undoStack.current.shift();
+    }
+    apply(g);
+  };
+  /** Undo the last widget move, resize, close, open, or data edit. Returns false when there is nothing to undo. */
+  const undo = (): boolean => {
+    const inv = undoStack.current.pop();
+    if (!inv) return false;
+    apply(inv);
+    return true;
   };
 
   const reportWidgetError = useCallback((id: string, error: string | null) => {
@@ -232,17 +290,46 @@ export function useDesk() {
   }, []);
 
   const measure = useCallback((id: string, size: Size) => {
-    send({ type: "measure", id, size });
+    if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size); // flushed when the desk frame arrives
   }, []);
 
   const token = readSession().token;
-  const tunnelUrl = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/loci/appserver?t=${token}`;
+  const tunnelUrl = `${modWsBase()}/appserver?t=${token}`;
+  /** The board, through the mod. Every call resolves to tasks or an error message; never throws. */
+  const boardCall = (type: string, payload: Record<string, unknown>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
+    request(type, payload, 25_000).then((m) => {
+      if (!m) return { ok: false, message: "no answer from the mod" };
+      if (m.type === "task_error") return { ok: false, message: String(m.message ?? "the board refused") };
+      const tasks = (m.tasks as Task[] | undefined) ?? (m.task ? [m.task as Task] : []);
+      return { ok: true, tasks };
+    });
+  const board = {
+    list: (all = true) => boardCall("tasks_list", { all }),
+    create: (t: { title: string; description?: string; labels?: string[]; priority?: number; desk?: string | null; agentId?: string | null; agentName?: string | null; conversationId?: string | null }) => boardCall("task_create", t),
+    assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) => boardCall("task_assign", { ids, ...target, start }),
+    close: (ids: string[], reason?: string) => boardCall("task_close", { ids, reason }),
+    setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => boardCall("task_status", { ids, status }),
+  };
+
   const attention = {
-    available: appServer,
+    available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab
     tunnelUrl,
     seen: seenMap,
+    snooze: snoozeMap,
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
+    setSnooze: (agentId: string, conversationId: string, rec: Snooze) => send({ type: "snooze_set", agentId, conversationId, ...rec }),
+    /** The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame). */
+    loadHistory: (agentId: string, conversationId: string): Promise<TranscriptRow[]> =>
+      request("history_get", { agentId, conversationId }, 4000).then((m) => ((m?.messages as TranscriptRow[] | undefined) ?? [])),
+    /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
+    folders: {
+      recent: () => request("folders_get", {}, 4000).then((m) => ({ byAgent: ((m?.byAgent as Record<string, string[]>) ?? {}), byConversation: ((m?.byConversation as Record<string, string>) ?? {}) })),
+      complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((m) => ((m?.matches as string[] | undefined) ?? [])),
+      check: (path: string) => request("folder_check", { path }, 3000).then((m) => (m ? { ok: m.ok === true, path: String(m.path ?? path), branch: (m.branch as string | null) ?? null, reason: (m.reason as string | undefined) } : { ok: false, path, branch: null, reason: "no answer from the mod" })),
+      pick: (defaultPath?: string) => request("folder_pick", { defaultPath }, 180_000).then((m) => ((m?.path as string | null | undefined) ?? null)),
+    },
+    clearSnooze: (agentId: string, conversationId: string) => send({ type: "snooze_clear", agentId, conversationId }),
   };
 
   /** Delete a widget's file for good. The mod removes it; the watcher takes it off every tab. */
@@ -257,14 +344,6 @@ export function useDesk() {
     send({ type: "arrange" });
   };
 
-  const sendChat = (text: string) => {
-    if (!send({ type: "chat_send", text })) {
-      setChatError("not connected");
-      return;
-    }
-    // The mod echoes it back as chat_user to every tab on this desk, including this one.
-    setChatError(null);
-  };
 
   /** Shared widgets under this desk's widgets; closed ones go to the tray; layout falls back to a cascade until the mod assigns one. */
   const visible: VisibleWidget[] = [];
@@ -284,6 +363,8 @@ export function useDesk() {
 
   /** Widgets this desk owns (shared ones excluded), minimised included. Zero → first-run hint. */
   const ownCount = scope === SHARED_SCOPE ? (widgets[SHARED_SCOPE] ?? []).length : (widgets[scope] ?? []).length;
+  /** The desk frame for this scope has arrived; before that ownCount is not meaningful. */
+  const loaded = widgets[scope] !== undefined;
 
   const title = titles[scope] ?? null;
   const status: DeskStatus = statuses[scope] ?? "none";
@@ -303,14 +384,17 @@ export function useDesk() {
     visible,
     closed,
     ownCount,
+    loaded,
     desks: { list: deskList, request: requestDesks, switchTo: switchDesk },
     attention,
+    board,
+    tasksVersion,
+    undo,
     gesture,
     measure,
     arrange,
     trash,
     reportWidgetError,
     cameraTarget,
-    chat: { messages: chatMessages, status: chatStatus, error: chatError, send: sendChat },
   };
 }

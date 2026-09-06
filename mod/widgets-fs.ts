@@ -137,7 +137,7 @@ export interface WidgetsWatcher {
   get(id: string): WidgetManifestEntry | undefined;
   /** Runtime error reported by a tab (null clears). Returns true if it changed. */
   setRuntimeError(id: string, message: string | null): boolean;
-  /** Force a rescan now (tests, /canvas). */
+  /** Force a rescan now (tests). */
   rescan(): Promise<void>;
   close(): void;
 }
@@ -194,7 +194,7 @@ export function watchWidgets(
       }, debounceMs);
     });
   } catch {
-    // no watcher: /canvas and tools call rescan() explicitly
+    // no watcher: tools call rescan() explicitly
   }
   void rescan();
 

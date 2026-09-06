@@ -7,7 +7,7 @@ import { conversationDirName } from "../shared/desk-core.ts";
 
 describe("desk registry", () => {
   test("remembers, persists, reloads; scope is the sanitized conversation id", () => {
-    const dir = mkdtempSync(join(tmpdir(), "loci-desks-"));
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
     try {
       const path = join(dir, "desks.json");
       const reg = new DeskRegistry(path);
@@ -25,7 +25,7 @@ describe("desk registry", () => {
   });
 
   test("lookupLocalAgentId reads the local backend's conversation.json", () => {
-    const dir = mkdtempSync(join(tmpdir(), "loci-backend-"));
+    const dir = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {
       const convDir = join(dir, "conversations", Buffer.from("conversation:local-conv-9").toString("base64").replace(/=+$/, ""));
       mkdirSync(convDir, { recursive: true });
@@ -52,7 +52,7 @@ describe("desk registry", () => {
 
 describe("local transcript", () => {
   test("keeps user/assistant text across compactions, marks tool calls, drops tool results and harness markup", () => {
-    const backend = mkdtempSync(join(tmpdir(), "loci-backend-"));
+    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {
       const dir = join(backend, "conversations", conversationDirName("local-conv-9"));
       mkdirSync(dir, { recursive: true });
@@ -83,7 +83,7 @@ describe("local transcript", () => {
 
 describe("desk registry fallback", () => {
   test("resolves desks it never saw: main chats from the scope, others from the local backend", () => {
-    const dir = mkdtempSync(join(tmpdir(), "loci-desks-"));
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
     try {
       const conv = join(dir, "backend", "conversations", conversationDirName("local-conv-77"));
       mkdirSync(conv, { recursive: true });

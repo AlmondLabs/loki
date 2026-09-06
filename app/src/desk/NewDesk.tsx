@@ -1,0 +1,263 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AgentChip } from "./AgentChip";
+import { btn } from "../chat/ui";
+
+export interface FolderApi {
+  recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;
+  complete: (prefix: string) => Promise<string[]>;
+  check: (path: string) => Promise<{ ok: boolean; path: string; branch: string | null; reason?: string }>;
+  pick: (defaultPath?: string) => Promise<string | null>;
+}
+
+/**
+ * "New desk": a fresh conversation under an agent, in a folder. Agent first,
+ * folder second (defaults follow the agent), name optional. Enter starts.
+ */
+export function NewDesk({
+  open,
+  onClose,
+  agents,
+  defaultAgentId,
+  defaultFolder,
+  initialName = "",
+  folders,
+  onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  agents: Array<{ id: string; name: string }>;
+  defaultAgentId: string | null;
+  /** The folder of the desk you are on, if known. */
+  defaultFolder: string | null;
+  initialName?: string;
+  folders: FolderApi;
+  onCreate: (agentId: string, folder: string, name: string) => Promise<void>;
+}) {
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [folder, setFolder] = useState("");
+  const [folderTouched, setFolderTouched] = useState(false);
+  const [name, setName] = useState("");
+  const [recent, setRecent] = useState<Record<string, string[]>>({});
+  const [matches, setMatches] = useState<string[]>([]);
+  const [status, setStatus] = useState<{ ok: boolean; branch: string | null; reason?: string } | null>(null);
+  const [busy, setBusy] = useState<false | "creating" | "picking">(false);
+  const [error, setError] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const folderRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // Open: reset to the desk you are on.
+  useEffect(() => {
+    if (!open) return;
+    setAgentId(defaultAgentId ?? agents[0]?.id ?? null);
+    setFolder(defaultFolder ?? "");
+    setFolderTouched(false);
+    setName(initialName);
+    setError(null);
+    setBusy(false);
+    setListOpen(false);
+    void folders.recent().then((r) => setRecent(r.byAgent));
+    setTimeout(() => (initialName ? folderRef : nameRef).current?.focus(), 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // The folder follows the agent until you edit it.
+  useEffect(() => {
+    if (!open || folderTouched || !agentId) return;
+    const first = recent[agentId]?.[0];
+    if (first) setFolder(first);
+    else if (defaultFolder) setFolder(defaultFolder);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, recent, open]);
+
+  // Validate (and complete) as you type, debounced.
+  useEffect(() => {
+    if (!open) return;
+    const f = folder.trim();
+    if (!f) {
+      setStatus(null);
+      setMatches([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      void folders.check(f).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
+      if (folderTouched) void folders.complete(f).then(setMatches);
+    }, 160);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folder, open]);
+
+  const options = useMemo(() => {
+    // typed completions first; then this agent's recent folders; then everyone else's
+    const mine = agentId ? recent[agentId] ?? [] : [];
+    const others = Object.entries(recent).filter(([a]) => a !== agentId).flatMap(([, l]) => l);
+    const seen = new Set<string>();
+    const list: Array<{ path: string; group: "match" | "mine" | "others" }> = [];
+    for (const p of folderTouched ? matches : []) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "match" }));
+    for (const p of mine) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "mine" }));
+    for (const p of others) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "others" }));
+    return list.slice(0, 14);
+  }, [recent, matches, agentId, folderTouched]);
+
+  const canStart = !!agentId && !!folder.trim() && status?.ok === true && !busy;
+  const start = async () => {
+    if (!canStart || !agentId) return;
+    setBusy("creating");
+    setError(null);
+    try {
+      await onCreate(agentId, folder.trim(), name.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  };
+  const browse = async () => {
+    setBusy("picking");
+    const picked = await folders.pick(status?.ok ? folder.trim() : undefined);
+    setBusy(false);
+    if (picked) {
+      setFolder(picked);
+      setFolderTouched(true);
+      setListOpen(false);
+    }
+  };
+
+  if (!open) return null;
+  const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
+  const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 13.5, background: "#101014", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-font)" };
+
+  return (
+    <div
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="loki-veil"
+      style={{ position: "absolute", inset: 0, background: "rgba(8,8,10,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "grid", placeItems: "start center", paddingTop: 72, zIndex: 200000 }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          if (listOpen) setListOpen(false);
+          else onClose();
+        } else if (e.key === "Enter" && !listOpen) {
+          e.preventDefault();
+          void start();
+        }
+      }}
+    >
+      <div role="dialog" aria-label="new desk" style={{ width: 560, maxWidth: "94vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", boxShadow: "0 30px 90px rgba(0,0,0,0.6)", animation: "loki-card-next 200ms ease-out" }}>
+        <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
+          <div className="loki-label">new desk</div>
+          <div style={{ fontFamily: "var(--loki-display)", fontSize: 18, color: "var(--loki-fg)", marginTop: 4 }}>a fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
+        </div>
+
+        <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
+          <div>
+            <div className="loki-label" style={{ fontSize: 10, marginBottom: 6 }}>agent</div>
+            <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {agents.map((a) => (
+                <button
+                  key={a.id}
+                  role="radio"
+                  aria-checked={a.id === agentId}
+                  onClick={() => setAgentId(a.id)}
+                  style={{ ...btn(a.id === agentId ? "var(--loki-fg)" : "var(--loki-muted)"), padding: "5px 10px", borderColor: a.id === agentId ? "var(--loki-accent)" : "var(--loki-border)", background: a.id === agentId ? "var(--loki-brass-soft)" : "transparent" }}
+                >
+                  <AgentChip name={a.name} />
+                </button>
+              ))}
+              {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
+            </div>
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <div className="loki-label" style={{ fontSize: 10, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+              <span>folder</span>
+              <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
+                {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                ref={folderRef}
+                value={folder}
+                onChange={(e) => {
+                  setFolder(e.target.value);
+                  setFolderTouched(true);
+                  setListOpen(true);
+                  setHi(0);
+                }}
+                onFocus={() => setListOpen(true)}
+                onBlur={() => setTimeout(() => setListOpen(false), 120)}
+                onKeyDown={(e) => {
+                  if (!listOpen || !options.length) return;
+                  if (e.key === "ArrowDown") (e.preventDefault(), setHi((i) => Math.min(options.length - 1, i + 1)));
+                  else if (e.key === "ArrowUp") (e.preventDefault(), setHi((i) => Math.max(0, i - 1)));
+                  else if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    setFolder(options[hi].path);
+                    setFolderTouched(true);
+                    setListOpen(false);
+                  }
+                }}
+                placeholder="~/Documents/…"
+                aria-label="folder"
+                autoComplete="off"
+                spellCheck={false}
+                style={{ ...field, fontFamily: "var(--loki-mono)", fontSize: 12.5, borderColor: status && !status.ok ? "var(--loki-negative)" : "var(--loki-border)" }}
+              />
+              <button onClick={() => void browse()} disabled={busy !== false} style={btn()} title="choose a folder in Finder">
+                {busy === "picking" ? "choosing…" : "browse…"}
+              </button>
+            </div>
+            {listOpen && options.length > 0 && (
+              <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.5)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+                {options.map((o, i) => {
+                  const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
+                  const first = i === 0 || options[i - 1].group !== o.group;
+                  return (
+                    <div key={o.path}>
+                      {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
+                      <div
+                        role="option"
+                        aria-selected={i === hi}
+                        onMouseEnter={() => setHi(i)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setFolder(o.path);
+                          setFolderTouched(true);
+                          setListOpen(false);
+                        }}
+                        style={{ padding: "7px 10px", cursor: "pointer", background: i === hi ? "var(--loki-accent-soft)" : "transparent" }}
+                      >
+                        <div style={{ fontSize: 13, color: "var(--loki-fg)" }}>{label}</div>
+                        <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="loki-label" style={{ fontSize: 10, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
+            <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this desk is about" aria-label="desk name" autoComplete="off" style={field} />
+          </div>
+
+          {error && <div style={{ color: "var(--loki-negative)", fontSize: 12, fontFamily: "var(--loki-mono)" }}>{error}</div>}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
+          <span className="loki-label" style={{ fontSize: 10 }}>enter start · esc close</span>
+          <span style={{ flex: 1 }} />
+          <button onClick={onClose} style={btn()}>cancel</button>
+          <button onClick={() => void start()} disabled={!canStart} style={{ ...btn("var(--loki-accent)"), opacity: canStart ? 1 : 0.5 }}>
+            {busy === "creating" ? "starting…" : "start"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -9,7 +9,7 @@ const sleep: WidgetManifestEntry = {
   id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",
   data: { value: 6 }, hash: "h", updatedAt: 0, error: "missing \"title\"",
 };
-const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loci", type: "info-card", data: { lines: ["a"] }, error: undefined };
+const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loki", type: "info-card", data: { lines: ["a"] }, error: undefined };
 
 function harness(deps?: Partial<ToolDeps>) {
   const tools = new Map<string, ToolDefinition>();
@@ -73,14 +73,14 @@ describe("desk_state", () => {
   test("description tells the agent to write files, not to look for a render tool", () => {
     const { tools } = harness();
     expect(tools.get("desk_state")!.description).toMatch(/write a file/);
-    expect(tools.get("desk_state")!.description).toMatch(/@loci\/kit/);
+    expect(tools.get("desk_state")!.description).toMatch(/@loki\/kit/);
   });
 });
 
-describe("loci_camera", () => {
+describe("loki_camera", () => {
   test("broadcasts to the widget's desk; shared goes to everyone; missing errors", async () => {
     const { tools, broadcasts } = harness();
-    const cam = tools.get("loci_camera")!;
+    const cam = tools.get("loki_camera")!;
     expect(await cam.run({ args: { widgetId: "c1/sleep" } })).toMatch(/gliding/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep"] }, "c1"]);
     await cam.run({ args: { widgetId: "shared/welcome" } });
@@ -91,7 +91,7 @@ describe("loci_camera", () => {
 
   test("frames several widgets and honours dwell", async () => {
     const { tools, broadcasts } = harness();
-    const cam = tools.get("loci_camera")!;
+    const cam = tools.get("loki_camera")!;
     const t = Date.now();
     const out = await cam.run({ args: { widgetIds: ["c1/sleep", "shared/welcome"], dwell: 120 } });
     expect(Date.now() - t).toBeGreaterThanOrEqual(110);

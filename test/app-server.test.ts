@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { WebSocketServer, type WebSocket } from "ws";
-import { AppServerClient, deltaText, parseGatewayUrls, parseLsofPorts, probeAppServer } from "../mod/app-server.ts";
+import { parseGatewayUrls, parseLsofPorts, probeAppServer } from "../mod/app-server.ts";
 
 /** A fake Letta app-server speaking just enough of the protocol. */
 function fakeAppServer() {
@@ -51,47 +51,7 @@ describe("app-server client", () => {
     }
   });
 
-  test("runtime_start correlates by request_id, records subscriptions, surfaces errors", async () => {
-    const srv = fakeAppServer();
-    const client = new AppServerClient(srv.url);
-    try {
-      const rt = { agent_id: "agent-1", conversation_id: "conv-1" };
-      const res = await client.runtimeStart(rt, "/tmp");
-      expect(res.success).toBe(true);
-      expect(client.isSubscribed(rt)).toBe(true);
-      const start = srv.received.find((m) => m.type === "runtime_start")!;
-      expect(start).toMatchObject({ agent_id: "agent-1", conversation_id: "conv-1", cwd: "/tmp" });
-      expect(start.mode).toBeUndefined(); // naming a mode would reset the user's permission mode in Desktop
-      await expect(client.runtimeStart({ agent_id: "agent-missing", conversation_id: "c" })).rejects.toThrow(/not found/);
-      expect(client.isSubscribed({ agent_id: "agent-missing", conversation_id: "c" })).toBe(false);
-    } finally {
-      client.close();
-      await srv.close();
-    }
-  });
 
-  test("sendUserMessage submits create_message input; events fan out to listeners", async () => {
-    const srv = fakeAppServer();
-    const client = new AppServerClient(srv.url);
-    try {
-      const rt = { agent_id: "agent-1", conversation_id: "conv-1" };
-      const events: string[] = [];
-      client.on((e) => events.push(e.type));
-      await client.runtimeStart(rt);
-      const res = await client.sendUserMessage(rt, "hello", "cm-1");
-      expect(res).toEqual({ accepted: true, disposition: "started" });
-      const input = srv.received.find((m) => m.type === "input") as { payload: { kind: string; messages: Array<Record<string, unknown>> } };
-      expect(input.payload.kind).toBe("create_message");
-      expect(input.payload.messages[0]).toMatchObject({ role: "user", content: "hello", client_message_id: "cm-1" });
-      srv.push({ type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "hi" } });
-      await new Promise((r) => setTimeout(r, 50));
-      expect(events).toContain("stream_delta");
-      expect(events).not.toContain("input_accepted"); // correlated replies are not fanned out
-    } finally {
-      client.close();
-      await srv.close();
-    }
-  });
 
   test("discovery parsers: lsof -Fn output and the gateway command line", () => {
     expect(parseLsofPorts("p56965\nn127.0.0.1:41414\nn127.0.0.1:49985\nn*:41414\n")).toEqual([41414, 49985]);
@@ -99,9 +59,4 @@ describe("app-server client", () => {
     expect(parseGatewayUrls("nothing here")).toEqual([]);
   });
 
-  test("deltaText handles string and parts content", () => {
-    expect(deltaText({ content: "abc" })).toBe("abc");
-    expect(deltaText({ content: [{ type: "text", text: "a" }, { type: "image" }, { type: "text", text: "b" }] })).toBe("ab");
-    expect(deltaText(undefined)).toBe("");
-  });
 });

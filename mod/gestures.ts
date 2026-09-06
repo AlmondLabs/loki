@@ -69,13 +69,13 @@ export function describeGesture(
   }
 }
 
-export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~/.letta/loci/widgets"): string {
+export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~/.letta/loki/widgets"): string {
   return [
-    `<loci-desk desk="${scope}">`,
-    "Canvas activity since your last turn (the user's gestures on the loci desk):",
+    `<loki-desk desk="${scope}">`,
+    "Canvas activity since your last turn (the user's gestures on the loki desk):",
     ...lines.map((l) => `- ${l}`),
     `Widget files live under ${widgetsDir}/${scope}/; call desk_state for the full picture.`,
-    "</loci-desk>",
+    "</loki-desk>",
   ].join("\n");
 }
 

@@ -1,4 +1,4 @@
-/** Minimal structural types for the Letta mod API surface loci uses (no .d.ts ships with letta-code). */
+/** Minimal structural types for the Letta mod API surface loki uses (no .d.ts ships with letta-code). */
 
 export interface ConversationHandle {
   id: string | null;

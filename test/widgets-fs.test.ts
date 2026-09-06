@@ -33,7 +33,7 @@ describe("modules", () => {
 
 describe("scan + watch", () => {
   test("scan builds ids as <scope>/<name>; watcher diffs add/change/remove", async () => {
-    const root = mkdtempSync(join(tmpdir(), "loci-widgets-"));
+    const root = mkdtempSync(join(tmpdir(), "loki-widgets-"));
     try {
       mkdirSync(join(root, "shared"));
       writeFileSync(join(root, "shared", "welcome.json"), '{"type":"info-card","title":"hi","data":{"lines":["a"]}}');
@@ -78,7 +78,7 @@ describe("scan + watch", () => {
   });
 
   test("a broken module carries its error in the manifest", async () => {
-    const root = mkdtempSync(join(tmpdir(), "loci-widgets-"));
+    const root = mkdtempSync(join(tmpdir(), "loki-widgets-"));
     try {
       mkdirSync(join(root, "d"));
       writeFileSync(join(root, "d", "bad.tsx"), "export default function B() { return <div> }");

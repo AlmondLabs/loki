@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 /**
- * Append-only trace log at ~/.letta/loci/mod.log. The mod runs inside a Letta
+ * Append-only trace log at ~/.letta/loki/mod.log. The mod runs inside a Letta
  * process with no console we can read, so this is how we see activation, tool
  * calls, scans, and errors. Never throws.
  */
