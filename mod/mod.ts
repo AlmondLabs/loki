@@ -15,7 +15,7 @@ import { SeenStore } from "./seen.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
-import { memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
+import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName } from "../packages/core/src/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
 import { sortDesks } from "./bridge.ts";
@@ -153,6 +153,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
     return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, mode, lastActive: info.lastMessageAt };
   };
   const listDesks = (): DeskSummary[] => {
+    // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
+    for (const agentId of new Set(desks.all().map((d) => d.agent_id))) if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
     const scopes = new Set<Scope>([SHARED_SCOPE, ...store.scopes(), ...desks.all().map((d) => d.scope)]);
     for (const e of widgets.entries()) scopes.add(e.scope);
     const pins = readPins();
@@ -313,6 +315,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (ctx?.conversation?.id) activeConversation = ctx.conversation;
     const ev = event as TurnStartEvent | undefined;
     const convId = ev?.conversationId ?? ctx?.conversation?.id ?? null;
+    // Letta's own helper agents get no desk: their turn still runs, it just is not furnished or listed.
+    if (ev?.agentId && isSubagent(ev.agentId)) return;
     const scope = convId ? desks.remember(convId, ev?.agentId ?? null) : SHARED_SCOPE;
     activeScope = scope;
     // The return path: everything the user did on this desk (and the shared desk) rides along.

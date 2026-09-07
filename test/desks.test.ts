@@ -24,6 +24,21 @@ describe("desk registry", () => {
     }
   });
 
+  test("forgetAgent drops every desk of one agent and persists", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
+    try {
+      const reg = new DeskRegistry(join(dir, "desks.json"), dir);
+      reg.remember("default", "agent-helper");
+      reg.remember("local-conv-1", "agent-helper");
+      reg.remember("local-conv-2", "agent-9");
+      expect(reg.forgetAgent("agent-helper")).toBe(2);
+      expect(reg.forgetAgent("agent-helper")).toBe(0);
+      expect(new DeskRegistry(join(dir, "desks.json"), dir).all().map((d) => d.agent_id)).toEqual(["agent-9"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("lookupLocalAgentId reads the local backend's conversation.json", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {

@@ -231,7 +231,8 @@ export function CatchUp({
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !typing) onClose();
+      // A layer over the inbox (the desks tree, a dialog) owns Esc while it is up: it closes, the inbox stays.
+      if (e.key === "Escape" && !typing && !document.querySelector('[role="dialog"]')) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

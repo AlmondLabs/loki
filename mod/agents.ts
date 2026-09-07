@@ -57,6 +57,15 @@ export function isAgentId(id: unknown): id is string {
   return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
 }
 
+/**
+ * Letta spawns helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
+ * history-analyzer), all named "Letta Code". They are the harness's, not the user's: no desk, no tree
+ * row, no inbox card. Unknown agents (no record) are not treated as subagents.
+ */
+export function isSubagent(agentId: string, dir = backendDir()): boolean {
+  return readLocalAgent(agentId, dir)?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;
+}
+
 export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent | null {
   if (!isAgentId(agentId)) return null;
   try {
