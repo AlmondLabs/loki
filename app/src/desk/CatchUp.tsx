@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ChatInput } from "../chat/ChatInput";
 import { AgentChip, AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
@@ -32,6 +32,28 @@ export const BADGE: Record<AttentionStatus, { label: string; color: string }> = 
 };
 
 export { catchUpQueue };
+
+/**
+ * The recent thread inside a card: newest at the bottom and kept there, tool calls as muted mono
+ * markers (Transcript does that), a failure's error last. The desktop deck and the phone deck
+ * (app/src/phone/Inbox.tsx) both render this; `style` lets the phone tighten the padding.
+ */
+export function CardThread({ rows, status, error, style }: { rows: TranscriptRow[] | undefined; status?: "idle" | "thinking" | "streaming"; error?: string | null; style?: CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [rows?.length, status]);
+  return (
+    <div ref={ref} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
+      {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
+      {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>no transcript on disk</div>}
+      {rows && <Transcript rows={rows} streaming={status === "streaming"} />}
+      {status === "thinking" && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
+      {error && <div style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", fontSize: 12, marginTop: 12, overflowWrap: "anywhere" }}>{error}</div>}
+    </div>
+  );
+}
 
 function ago(iso: string | null): string {
   if (!iso) return "";
@@ -141,19 +163,12 @@ export function CatchUp({
   const typing = typingRaw && !!current;
   const thread = current ? conversation(current.agentId, current.id) : undefined;
   const history = thread?.rows;
-  const threadRef = useRef<HTMLDivElement>(null);
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
   useEffect(() => {
     if (open && current) loadHistory(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, current?.agentId, current?.id]);
-
-  // Newest at the bottom, scrolled into view.
-  useEffect(() => {
-    const el = threadRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [history?.length, thread?.status, current?.id]);
 
   const advance = (action: "seen" | "unread", via: Decision["via"] = action === "seen" ? "next" : "later") => {
     if (!current) return;
@@ -378,15 +393,7 @@ export function CatchUp({
               </span>
             </div>
 
-            <div ref={threadRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
-              {!history && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
-              {history && history.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>no transcript on disk</div>}
-              {history && <Transcript rows={history} streaming={thread?.status === "streaming"} />}
-              {thread?.status === "thinking" && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
-              {current.status === "failed" && current.error && (
-                <div style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", fontSize: 12, marginTop: 12 }}>{current.error}</div>
-              )}
-            </div>
+            <CardThread rows={history} status={thread?.status} error={current.status === "failed" ? current.error : null} />
 
             {current.status === "approval" && current.pendingApproval && <ApprovalCard approval={current.pendingApproval} />}
             {current.pendingQuestion && <QuestionCard question={current.pendingQuestion} onAnswer={(answers) => onAnswer(current, current.pendingQuestion!.requestId, answers)} />}
