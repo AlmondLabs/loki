@@ -167,7 +167,7 @@ export function Board({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="filter tasks…  /"
           aria-label="filter tasks"
-          style={{ width: 280, padding: "7px 10px", fontSize: 13, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none" }}
+          style={{ width: 280, padding: "7px 10px", fontSize: 13.5, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none" }}
         />
         <span className="loki-label" style={{ fontSize: 9.5 }}>
           {tasks === null ? (loading ? "loading the board…" : "") : `${openCount} open`}
@@ -225,7 +225,7 @@ function TaskCard({ task: t, column, selected, focused, assignedTitle, onClick }
       style={{
         background: selected ? "var(--loki-accent-soft)" : "var(--loki-panel)",
         border: `1px solid ${focused ? "var(--loki-accent)" : selected ? "var(--loki-accent-soft)" : "var(--loki-border)"}`,
-        borderRadius: 10,
+        borderRadius: 12,
         padding: "10px 12px",
         cursor: "pointer",
         opacity: column === "done" ? 0.6 : 1,
@@ -235,7 +235,7 @@ function TaskCard({ task: t, column, selected, focused, assignedTitle, onClick }
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
-        <span style={{ fontFamily: "var(--loki-display)", fontSize: 14, lineHeight: 1.3, color: "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
+        <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
       </div>
       {t.description && column !== "done" && <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
@@ -248,7 +248,7 @@ function TaskCard({ task: t, column, selected, focused, assignedTitle, onClick }
         <span style={{ marginLeft: "auto" }}>{ago(column === "done" ? t.closedAt : t.updatedAt)}</span>
       </div>
       {assignedTitle && column !== "done" && (
-        <div style={{ fontSize: 11, color: "var(--loki-accent)", display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ fontSize: 10.5, color: "var(--loki-accent)", display: "flex", alignItems: "center", gap: 6 }}>
           <span aria-hidden>→</span>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{assignedTitle}</span>
           {t.assignee && <AgentChip name={t.assignee} size={9} />}

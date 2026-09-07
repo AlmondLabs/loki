@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LAYER } from "../kit/layers";
 import { scopeFor } from "../../../shared/desk-core.ts";
 import { useAttention } from "../attention/useAttention";
 import { catchUpQueue } from "../attention/queue";
@@ -10,10 +11,15 @@ import { inTauri } from "../desk/env";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { DeskTree } from "./DeskTree";
 import { Board } from "../board/Board";
+import { Agents } from "../agents/Agents";
+import { avatarUrl } from "../desk/env";
 import { TaskCapture } from "../board/TaskCapture";
 import { dispatchMessage, type Task } from "../board/model";
 import type { DeskSummary } from "../desk/useDesk";
 import { Settings } from "./Settings";
+import { Welcome } from "./Welcome";
+import { useBootstrap } from "./bootstrap";
+import { welcomeStep } from "../settings/provider-model";
 import { Sidebar, SIDEBAR_WIDTH } from "./Sidebar";
 import { typingIn, type Segment } from "./shortcuts";
 import { menuSpec, registerActions, resolve, runAction } from "./keymap";
@@ -45,7 +51,7 @@ export function Shell() {
   // The segment survives a reload of the same window; a refresh mid-pass reopens the inbox.
   const [segment, setSegmentRaw] = useState<Segment>(() => {
     const s = sessionStorage.getItem(SEGMENT_KEY);
-    return s === "inbox" || s === "settings" || s === "board" ? s : "desk";
+    return s === "inbox" || s === "settings" || s === "board" || s === "agents" ? s : "desk";
   });
   const setSegment = useCallback((s: Segment) => {
     setSegmentRaw(s);
@@ -83,6 +89,46 @@ export function Shell() {
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
+  // Models: fetched once from the app-server when a picker first opens; switches go per conversation.
+  const [models, setModels] = useState<import("../chat/ModelPicker").ModelEntry[] | null>(null);
+  const modelsLoading = useRef(false);
+  const loadModels = useCallback(() => {
+    if (models || modelsLoading.current) return;
+    modelsLoading.current = true;
+    void catchUp.listModels().then((m) => {
+      setModels(m);
+      modelsLoading.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [models]);
+  /** First launch: nothing to talk to yet. Only while the harness has answered and lists no agents. */
+  const boot = useBootstrap();
+  const welcome: "letta" | "provider" | "agent" | null =
+    boot.status && !boot.status.letta && catchUp.status !== "open"
+      ? "letta" // no Letta Code on this Mac and no harness answering: loki is installing one
+      : catchUp.status === "open" && catchUp.agentsLoaded
+        ? welcomeStep({ agents: catchUp.agents.length, providers: catchUp.providers })
+        : null;
+  useEffect(() => {
+    if (catchUp.status === "open" && catchUp.agentsLoaded && catchUp.agents.length === 0 && catchUp.providers === null) void catchUp.loadProviders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catchUp.status, catchUp.agentsLoaded, catchUp.agents.length, catchUp.providers === null]);
+  const pickModel = async (scope: string, rt: { agent_id: string; conversation_id: string }, handle: string) => {
+    const err = await catchUp.updateModel(rt, handle);
+    if (err) return notice(`model: ${err}`);
+    desk.setDeskModel(scope, handle);
+    notice(`${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${handle.split("/").pop()}`);
+  };
+  const [modelPickerTick, setModelPickerTick] = useState(0);
+  const [modeMenuTick, setModeMenuTick] = useState(0);
+  const pickMode = async (scope: string, rt: { agent_id: string; conversation_id: string }, mode: string) => {
+    const err = await catchUp.setMode(rt, mode);
+    if (err) return notice(`permissions: ${err}`);
+    desk.setDeskMode(scope, mode);
+    notice(`permissions for this conversation: ${mode === "acceptEdits" ? "accept edits" : mode}`);
+  };
+  /** A request another view wants typed into the chat ("ask ira to update this"). */
+  const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
 
   // --- the board -------------------------------------------------------
   const [tasks, setTasks] = useState<Task[] | null>(null);
@@ -157,7 +203,7 @@ export function Shell() {
     // "agent · title", the way Letta names a main chat ("ira · main chat"); no repeat when the title already leads with it.
     const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
     const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
-    const name = segment === "inbox" ? (waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox") : segment === "board" ? (openTasks > 0 ? `Board · ${openTasks} open` : "Board") : segment === "settings" ? "Settings" : `${who}${deskName}${state}`;
+    const name = segment === "inbox" ? (waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox") : segment === "board" ? (openTasks > 0 ? `Board · ${openTasks} open` : "Board") : segment === "agents" ? "Agents" : segment === "settings" ? "Settings" : `${who}${deskName}${state}`;
     document.title = waiting > 0 && segment !== "inbox" ? `(${waiting}) ${name}` : name;
     if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name)).catch((e) => console.warn("loki: window title", e));
   }, [waiting, desk.title, desk.status, desk.scope, desk.agentName, segment, openTasks]);
@@ -254,6 +300,7 @@ export function Shell() {
         "segment.desk": () => (setSegment("desk"), setTreeOpen(false)),
         "segment.inbox": () => (setSegment("inbox"), setTreeOpen(false)),
         "segment.board": () => (setSegment("board"), setTreeOpen(false)),
+        "segment.agents": () => (setSegment("agents"), setTreeOpen(false)),
         "segment.settings": () => (setSegment("settings"), setTreeOpen(false)),
         "tree.toggle": () => (keysRef.current.treeOpen ? setTreeOpen(false) : openTree()),
         "desk.new": () => setNewDesk({ open: true, name: "", agentId: null }),
@@ -267,6 +314,8 @@ export function Shell() {
         "chat.close": () => setChatOpen(false),
         "chat.focus": () => (setChatOpen(true), setFocusChat((n) => n + 1)),
         "chat.find": () => (setChatOpen(true), setFindChat((n) => n + 1)),
+        "chat.model": () => (setChatOpen(true), setModelPickerTick((n) => n + 1)),
+        "chat.mode": () => (setChatOpen(true), setModeMenuTick((n) => n + 1)),
         "chat.left": () => keysRef.current.moveChat(-1),
         "chat.right": () => keysRef.current.moveChat(1),
       }),
@@ -286,7 +335,7 @@ export function Shell() {
         if (treeOpen) {
           e.preventDefault();
           setTreeOpen(false);
-        } else if (segment === "settings" || segment === "board") {
+        } else if (segment === "settings" || segment === "board" || segment === "agents") {
           e.preventDefault();
           setSegment("desk");
         }
@@ -343,6 +392,13 @@ export function Shell() {
               chatPlacement={effectivePlacement}
               focusChat={focusChat}
               findChat={findChat}
+              chatPrefill={chatPrefill}
+              models={models}
+              onLoadModels={loadModels}
+              onPickModel={pickModel}
+              modelPickerTick={modelPickerTick}
+              onPickMode={pickMode}
+              modeMenuTick={modeMenuTick}
             />
           </div>
 
@@ -362,6 +418,12 @@ export function Shell() {
               onOpenDesk={(agentId, conversationId) => openDesk(agentId, conversationId, { chat: true })}
               conversation={catchUp.conversation}
               loadHistory={(item) => void catchUp.loadHistory(item)}
+              modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}
+              models={models}
+              onLoadModels={loadModels}
+              onPickModel={(item, handle) => pickModel(scopeFor(item.id, item.agentId), item.runtime, handle)}
+              modeFor={(agentId, conversationId) => desk.modeOf(scopeFor(conversationId, agentId))}
+              onPickMode={(item, mode) => pickMode(scopeFor(item.id, item.agentId), item.runtime, mode)}
             />
           )}
 
@@ -383,8 +445,46 @@ export function Shell() {
             />
           )}
 
+          {segment === "agents" && (
+            <Agents
+              agents={catchUp.agents}
+              api={desk.agents}
+              avatar={avatarUrl}
+              desks={desk.desks.list}
+              tasks={tasks}
+              initialAgentId={desk.agentId}
+              onOpenDesk={(agentId, conversationId) => openDesk(agentId, conversationId, { chat: true })}
+              onAskToUpdate={(agentId, text) => {
+                openDesk(agentId, "default", { chat: true });
+                setChatPrefill({ text, tick: Date.now() });
+              }}
+              onUpdateAgent={catchUp.updateAgent}
+              write={{ createAgent: catchUp.createAgent, deleteAgent: catchUp.deleteAgent, writeMemory: catchUp.memory.write, removeMemory: catchUp.memory.remove, enableSkill: catchUp.skills.enable, disableSkill: catchUp.skills.disable }}
+              listModels={catchUp.listModels}
+              onShowDesks={openTree}
+              onShowBoard={() => setSegment("board")}
+            />
+          )}
+
           {segment === "settings" && (
-            <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={setChatWidth} chatPlacement={chatPlacement} onChatPlacement={setChatPlacement} />
+            <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={setChatWidth} chatPlacement={chatPlacement} onChatPlacement={setChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={() => setModels(null)} bootstrap={boot.status} onInstallLetta={boot.install} />
+          )}
+
+          {welcome && segment !== "settings" && (
+            <Welcome
+              step={welcome}
+              providers={catchUp.providers}
+              onLoadProviders={catchUp.loadProviders}
+              onConnect={catchUp.connectProvider}
+              onDisconnect={catchUp.disconnectProvider}
+              onModelsChanged={() => setModels(null)}
+              models={models ? models.map((m) => m.handle) : null}
+              onLoadModels={loadModels}
+              onCreate={catchUp.createAgent}
+              onDone={(agentId) => openDesk(agentId, "default", { chat: true })}
+              bootstrap={boot.status}
+              onInstallLetta={boot.install}
+            />
           )}
 
           {/* The board's target picker: the same tree, choosing instead of switching. */}
@@ -425,13 +525,28 @@ export function Shell() {
               setSegment("desk");
             }}
             onNew={attention.available ? (agentId, name) => setNewDesk({ open: true, name, agentId }) : undefined}
+            onPin={(d, pinned) => {
+              if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
+            }}
+            onArchive={
+              attention.available
+                ? (d, archived) => {
+                    if (!d.conversationId) return;
+                    void catchUp.archiveConversation(d.conversationId, archived).then((err) => {
+                      if (err) return notice(`archive: ${err}`);
+                      notice(`${d.title ?? d.scope} ${archived ? "archived" : "restored"}`);
+                      desk.desks.request();
+                    });
+                  }
+                : undefined
+            }
           />
         </div>
       </div>
 
       <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
       {boardNotice && (
-        <div role="status" style={{ position: "absolute", left: "50%", bottom: 22, transform: "translateX(-50%)", padding: "8px 14px", borderRadius: 999, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", color: "var(--loki-fg)", fontSize: 12.5, boxShadow: "0 12px 40px rgba(0,0,0,0.5)", zIndex: 300000, maxWidth: "70%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div role="status" style={{ position: "absolute", left: "50%", bottom: 22, transform: "translateX(-50%)", padding: "8px 14px", borderRadius: 999, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", color: "var(--loki-fg)", fontSize: 12, boxShadow: "var(--loki-shadow-float)", zIndex: LAYER.toast, maxWidth: "70%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
           {boardNotice}
         </div>
       )}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- App Nap throttles a window that is behind others, and the throttle reaches the harness and the
+       installer's curl/npm, which loki spawns as children. The harness must keep running at full speed
+       whether or not the window is frontmost. -->
+  <key>NSAppSleepDisabled</key>
+  <true/>
+</dict>
+</plist>

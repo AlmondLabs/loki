@@ -1,16 +1,16 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import "./shared-modules";
-import { installShellLogging } from "./desk/env";
+import { inTauri, installShellLogging } from "./desk/env";
 
 installShellLogging();
 import { Shell } from "./shell/Shell";
 
 /**
  * Links leave the canvas. Anything the agent or a widget links to — markdown in
- * the chat, a URL in a card — opens in a new browser tab, never inside this
- * window. In an installed (standalone) app a new tab lands in the browser
- * proper, which is where reading a link belongs; the desk stays put.
+ * the chat, a URL in a card — opens in the default browser, never inside this
+ * window: through the opener plugin in the Tauri shell, a new tab in a browser
+ * tab. Reading a link belongs in the browser; the desk stays put.
  */
 document.addEventListener(
   "click",
@@ -22,7 +22,9 @@ document.addEventListener(
     if (!/^https?:$/.test(url.protocol)) return; // mailto:, etc. keep their default
     if (url.origin === location.origin && url.pathname === location.pathname) return; // in-page (#anchors, desk links)
     e.preventDefault();
-    window.open(url.href, "_blank", "noopener,noreferrer");
+    // The Tauri webview blocks window.open; the opener plugin hands the URL to the default browser.
+    if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url.href)).catch((err) => console.warn("loki: open link", err));
+    else window.open(url.href, "_blank", "noopener,noreferrer");
   },
   true,
 );

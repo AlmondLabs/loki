@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { readFileSync } from "node:fs";
 import { WebSocketServer, WebSocket } from "ws";
 import { log } from "./log.ts";
 import { appServerHeaders } from "./app-server.ts";
@@ -16,13 +17,23 @@ export interface LokiServer {
   close(): Promise<void>;
 }
 
-export async function startServer(opts: { port: number; health?: () => object }): Promise<LokiServer> {
+export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null }): Promise<LokiServer> {
   const server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
       if (url.pathname === "/health") {
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true, ...(opts.health?.() ?? {}) }));
+        return;
+      }
+      // The agent's face: GET /agents/<id>/profile.png?t=<token>. Read from its memory filesystem, never cached long.
+      const face = url.pathname.match(/^\/agents\/([^/]+)\/profile\.png$/);
+      if (face) {
+        if (!opts.token || url.searchParams.get("t") !== opts.token) return void res.writeHead(403).end();
+        const p = opts.profile?.(decodeURIComponent(face[1])) ?? null;
+        if (!p) return void res.writeHead(404).end();
+        res.writeHead(200, { "content-type": "image/png", "cache-control": "private, max-age=60", "access-control-allow-origin": "*" });
+        res.end(readFileSync(p));
         return;
       }
       res.writeHead(404, { "content-type": "text/plain" }).end("loki: not found");

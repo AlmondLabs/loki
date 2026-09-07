@@ -1,3 +1,23 @@
+import { useState } from "react";
+
+/**
+ * The agent's face: its profile.png from the memory filesystem, served by the mod. Falls back to a
+ * coloured initial when there is no image (or the mod is away), so the layout never jumps.
+ */
+export function AgentFace({ name, src, size = 20 }: { name: string | null | undefined; src: string | null; size?: number }) {
+  const [broken, setBroken] = useState(false);
+  const hue = agentHue(name ?? "agent");
+  const style: React.CSSProperties = { width: size, height: size, borderRadius: "50%", flex: "0 0 auto", objectFit: "cover", background: `hsl(${hue} 45% 22%)`, border: `1px solid hsl(${hue} 50% 40% / 0.6)`, boxSizing: "border-box" };
+  if (!src || broken) {
+    return (
+      <span aria-hidden style={{ ...style, display: "inline-grid", placeItems: "center", color: `hsl(${hue} 60% 78%)`, fontFamily: "var(--loki-display)", fontSize: Math.max(9, Math.round(size * 0.5)), lineHeight: 1 }}>
+        {(name ?? "?").slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  return <img src={src} alt={name ? `${name}'s face` : "agent"} style={style} onError={() => setBroken(true)} />;
+}
+
 /** Small tag naming the agent that owns a conversation; colour is stable per name. */
 export function agentHue(name: string): number {
   let h = 0;

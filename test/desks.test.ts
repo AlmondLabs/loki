@@ -31,7 +31,7 @@ describe("desk registry", () => {
       mkdirSync(convDir, { recursive: true });
       writeFileSync(join(convDir, "conversation.json"), JSON.stringify({ id: "local-conv-9", agent_id: "agent-9", summary: "[Short] - Trip planning", last_message_at: "2026-09-03T05:00:00.000Z" }));
       expect(lookupLocalAgentId("local-conv-9", dir)).toBe("agent-9");
-      expect(lookupLocalConversation("local-conv-9", null, dir)).toEqual({ agentId: "agent-9", title: "[Short] - Trip planning", lastMessageAt: "2026-09-03T05:00:00.000Z", archived: false });
+      expect(lookupLocalConversation("local-conv-9", null, dir)).toEqual({ agentId: "agent-9", title: "[Short] - Trip planning", lastMessageAt: "2026-09-03T05:00:00.000Z", archived: false, model: null });
       writeFileSync(join(convDir, "conversation.json"), JSON.stringify({ id: "local-conv-9", agent_id: "agent-9", summary: "x", archived: true, archived_at: "2026-09-03T06:00:00.000Z" }));
       expect(lookupLocalConversation("local-conv-9", null, dir)?.archived).toBe(true);
       expect(lookupLocalConversation("nope", null, dir)).toBeNull();
@@ -99,5 +99,46 @@ describe("desk registry fallback", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("DeskRegistry: one scope per conversation", () => {
+  test("a legacy bare 'default' key folds onto default-<agentId> and is rewritten on disk", async () => {
+    const { mkdtempSync, writeFileSync: w, readFileSync: r, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join: j } = await import("node:path");
+    const { DeskRegistry } = await import("../mod/desks.ts");
+    const dir = mkdtempSync(j(tmpdir(), "loki-registry-"));
+    const file = j(dir, "desks.json");
+    w(file, JSON.stringify({ default: { agent_id: "agent-1", conversation_id: "default" }, "default-agent-1": { agent_id: "agent-1", conversation_id: "default" }, "local-conv-9": { agent_id: "agent-1", conversation_id: "local-conv-9" } }));
+    const reg = new DeskRegistry(file, dir);
+    expect(reg.all().map((d) => d.scope).sort()).toEqual(["default-agent-1", "local-conv-9"]);
+    expect(Object.keys(JSON.parse(r(file, "utf8"))).sort()).toEqual(["default-agent-1", "local-conv-9"]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("listLocalConversations", () => {
+  test("reads every conversation dir with its agent, archive and hidden flags", async () => {
+    const { mkdtempSync, mkdirSync: mk, writeFileSync: w, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join: j } = await import("node:path");
+    const { listLocalConversations, agentHasMemory } = await import("../mod/desks.ts");
+    const dir = mkdtempSync(j(tmpdir(), "loki-convs-"));
+    for (const [name, c] of [["a", { id: "local-conv-1", agent_id: "agent-1", last_message_at: "2026-09-01T00:00:00Z" }], ["b", { id: "local-conv-2", agent_id: "agent-1", archived: true }], ["c", { id: "local-conv-3", agent_id: "agent-2", hidden: true }]] as const) {
+      mk(j(dir, "conversations", name), { recursive: true });
+      w(j(dir, "conversations", name, "conversation.json"), JSON.stringify(c));
+    }
+    mk(j(dir, "conversations", "junk"), { recursive: true });
+    mk(j(dir, "memfs", "agent-1"), { recursive: true });
+    const rows = listLocalConversations(dir).sort((a, b) => a.conversationId.localeCompare(b.conversationId));
+    expect(rows).toEqual([
+      { conversationId: "local-conv-1", agentId: "agent-1", archived: false, hidden: false, lastMessageAt: "2026-09-01T00:00:00Z" },
+      { conversationId: "local-conv-2", agentId: "agent-1", archived: true, hidden: false, lastMessageAt: null },
+      { conversationId: "local-conv-3", agentId: "agent-2", archived: false, hidden: true, lastMessageAt: null },
+    ]);
+    expect(agentHasMemory("agent-1", dir)).toBe(true);
+    expect(agentHasMemory("agent-2", dir)).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -98,7 +98,7 @@ export const ChatInput = forwardRef<
                 type="button"
                 onClick={() => onImages?.(images.filter((i) => i.id !== img.id))}
                 aria-label="remove image"
-                style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-fg)", fontSize: 11, lineHeight: "16px", cursor: "pointer", padding: 0 }}
+                style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-fg)", fontSize: 10.5, lineHeight: "16px", cursor: "pointer", padding: 0 }}
               >
                 ×
               </button>
@@ -171,8 +171,8 @@ export const ChatInput = forwardRef<
           resize: "none",
           overflowY: "auto",
           lineHeight: "21px",
-          background: "#101014",
-          border: `1px solid ${listening ? "var(--loki-accent)" : "var(--loki-border, #2c2c34)"}`,
+          background: "var(--loki-well)",
+          border: `1px solid ${listening ? "var(--loki-accent)" : "var(--loki-border)"}`,
           borderRadius: 8,
           padding: dictation.supported ? "9px 40px 9px 12px" : "9px 12px",
           fontSize: 13.5,
@@ -200,7 +200,7 @@ export const ChatInput = forwardRef<
             display: "grid",
             placeItems: "center",
             border: "none",
-            borderRadius: 7,
+            borderRadius: 6,
             background: listening ? "var(--loki-brass-soft)" : "transparent",
             color: listening || dictation.pending ? "var(--loki-accent)" : "var(--loki-muted)",
             cursor: disabled ? "default" : "pointer",
@@ -215,7 +215,7 @@ export const ChatInput = forwardRef<
       )}
       </div>
       {dictation.error && (
-        <span id="loki-dictation-error" role="status" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6, fontSize: 11, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
+        <span id="loki-dictation-error" role="status" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6, fontSize: 10.5, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
           {dictation.error}
         </span>
       )}

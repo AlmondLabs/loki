@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LAYER } from "../kit/layers";
 import type { Scope } from "../../../shared/desk-core.ts";
 import type { AttentionItem } from "../attention/model";
 import type { DeskSummary } from "../desk/useDesk";
-import { AgentChip } from "../desk/AgentChip";
+import { AgentChip, AgentFace } from "../desk/AgentChip";
+import { avatarUrl } from "../desk/env";
 
-export const TREE_WIDTH = 320;
+export const TREE_WIDTH = 560;
 
-type Row = { kind: "desk"; desk: DeskSummary } | { kind: "new"; agentId: string | null; agentName: string | null; name: string };
+type Row = { kind: "desk"; desk: DeskSummary } | { kind: "new"; agentId: string | null; name: string };
 
 /**
- * The desks tree: a drawer over the sheet, desks grouped by the agent that drew them,
- * "new desk" at the foot of each group. Type to filter, ↑↓ move, ↵ switch, esc close.
- * Archived and deleted conversations sit under a folded "archive" group at the bottom.
- * Each desk carries the same attention mark the inbox would give it.
+ * The desks tree: one centred list, every desk of every agent, pinned first then by recency, with the
+ * agent's face on each row. A chip row under the search filters to one agent (click, or Tab / ⇧Tab).
+ * Type to filter, ↑↓ move, ↵ open, ⌘P pin, ⌘E archive, esc close. Archived and deleted conversations
+ * sit under a folded "archive" group at the bottom. Each desk carries the same attention mark the inbox gives it.
  */
 export function DeskTree({
   open,
@@ -25,11 +27,13 @@ export function DeskTree({
   onNew,
   heading,
   onPickDesk,
+  onPin,
+  onArchive,
 }: {
   open: boolean;
   onClose: () => void;
   desks: DeskSummary[];
-  /** Agents the app-server knows; an agent with no desk yet still gets a group with "new desk". */
+  /** Agents the app-server knows; an agent with no desk yet still gets a chip. */
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   current: Scope;
@@ -39,10 +43,15 @@ export function DeskTree({
   /** Picker mode: a heading above the filter, and choosing a desk calls this instead of switching to it. */
   heading?: string | null;
   onPickDesk?: (desk: DeskSummary) => void;
+  /** Pin / unpin and archive / restore a desk's conversation (hover buttons, ⌘P and ⌘E while filtering). */
+  onPin?: (desk: DeskSummary, pinned: boolean) => void;
+  onArchive?: (desk: DeskSummary, archived: boolean) => void;
 }) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [showArchive, setShowArchive] = useState(false);
+  /** null: every agent. */
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const keyboardMove = useRef(false);
@@ -53,40 +62,39 @@ export function DeskTree({
     return m;
   }, [items]);
 
-  const q = query.trim().toLowerCase();
-  const matches = (d: DeskSummary) => !q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q);
-
-  /** Groups in agent order (agents the server lists first, then any agent only the desks know), then the archive. */
-  const groups = useMemo(() => {
-    const live = desks.filter((d) => d.status === "live" && matches(d));
-    const byAgent = new Map<string, { agentId: string | null; agentName: string | null; desks: DeskSummary[] }>();
-    for (const a of agents) byAgent.set(a.id, { agentId: a.id, agentName: a.name, desks: [] });
-    for (const d of live) {
-      const key = d.agentId ?? d.agentName ?? "—";
-      if (!byAgent.has(key)) byAgent.set(key, { agentId: d.agentId, agentName: d.agentName, desks: [] });
-      byAgent.get(key)!.desks.push(d);
+  /** Chips: the agents the server lists, plus any agent only the desks know. */
+  const chips = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string | null; count: number }>();
+    for (const a of agents) byId.set(a.id, { id: a.id, name: a.name, count: 0 });
+    for (const d of desks) {
+      if (d.status !== "live" || !d.agentId) continue;
+      if (!byId.has(d.agentId)) byId.set(d.agentId, { id: d.agentId, name: d.agentName, count: 0 });
+      byId.get(d.agentId)!.count++;
     }
-    const list = [...byAgent.values()].filter((g) => g.desks.length > 0 || !q);
-    const archive = desks.filter((d) => d.status !== "live" && matches(d));
-    return { list, archive };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desks, agents, q]);
+    return [...byId.values()];
+  }, [agents, desks]);
+  const liveCount = useMemo(() => desks.filter((d) => d.status === "live").length, [desks]);
+
+  const q = query.trim().toLowerCase();
+  const matches = (d: DeskSummary) =>
+    (!agentFilter || d.agentId === agentFilter) && (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const live = useMemo(() => desks.filter((d) => d.status === "live" && d.scope !== "shared" && matches(d)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? "")), [desks, q, agentFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const archive = useMemo(() => desks.filter((d) => d.status !== "live" && matches(d)), [desks, q, agentFilter]);
 
   /** Every row the arrows can land on, in display order. */
   const rows = useMemo<Row[]>(() => {
-    const out: Row[] = [];
-    for (const g of groups.list) {
-      for (const d of g.desks) out.push({ kind: "desk", desk: d });
-      if (onNew && (!q || g.desks.length === 0)) out.push({ kind: "new", agentId: g.agentId, agentName: g.agentName, name: "" });
-    }
-    if (q && rows_live_count(groups.list) === 0 && onNew) out.push({ kind: "new", agentId: null, agentName: null, name: query.trim() });
-    if (showArchive || q) for (const d of groups.archive) out.push({ kind: "desk", desk: d });
+    const out: Row[] = live.map((d) => ({ kind: "desk", desk: d }));
+    if (onNew) out.push({ kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" });
+    if (showArchive || q) for (const d of archive) out.push({ kind: "desk", desk: d });
     return out;
-  }, [groups, q, query, showArchive, onNew]);
+  }, [live, archive, q, query, showArchive, onNew, agentFilter]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
+      setAgentFilter(null);
       setIndex(Math.max(0, rows.findIndex((r) => r.kind === "desk" && r.desk.scope === current)));
       setTimeout(() => inputRef.current?.focus(), 0);
     }
@@ -110,9 +118,16 @@ export function DeskTree({
     else if (onPickDesk) onPickDesk(row.desk);
     else if (row.desk.scope !== current) onSwitch(row.desk.scope);
   };
+  const cycleAgent = (dir: 1 | -1) => {
+    const order: Array<string | null> = [null, ...chips.map((c) => c.id)];
+    const i = order.indexOf(agentFilter);
+    setAgentFilter(order[(i + dir + order.length) % order.length]);
+    setIndex(0);
+  };
 
   let cursor = 0;
   const rowIndex = () => cursor++;
+  const pickName = (agentId: string | null) => chips.find((c) => c.id === agentId)?.name ?? null;
 
   return (
     <div
@@ -120,26 +135,14 @@ export function DeskTree({
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}
-      style={{ position: "absolute", inset: 0, background: "rgba(8,8,10,0.35)", zIndex: 200000 }}
+      style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", zIndex: LAYER.modal, display: "grid", placeItems: "start center", paddingTop: "6vh", boxSizing: "border-box" }}
     >
       <div
         role="dialog"
         data-tree
         aria-label="desks"
-        className="loki-drawer"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: TREE_WIDTH,
-          maxWidth: "85vw",
-          background: "var(--loki-panel)",
-          borderRight: "1px solid var(--loki-border)",
-          boxShadow: "18px 0 60px rgba(0,0,0,0.5)",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        className="loki-sheet"
+        style={{ width: TREE_WIDTH, maxWidth: "calc(100% - 48px)", maxHeight: "84vh", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-sheet)", display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
         {heading && <div className="loki-label" style={{ padding: "12px 16px 0", fontSize: 9.5, color: "var(--loki-accent)" }}>{heading}</div>}
         <input
@@ -165,41 +168,68 @@ export function DeskTree({
               e.preventDefault();
               keyboardMove.current = true;
               setIndex((i) => Math.max(0, i - 1));
+            } else if (e.key === "Tab") {
+              e.preventDefault();
+              cycleAgent(e.shiftKey ? -1 : 1);
             } else if (e.key === "Enter") {
               e.preventDefault();
               choose(rows[index]);
             } else if (e.key === "Escape") {
               e.preventDefault();
-              onClose();
+              if (agentFilter) setAgentFilter(null);
+              else onClose();
+            } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "p" && onPin) {
+              e.preventDefault();
+              const r = rows[index];
+              if (r?.kind === "desk") onPin(r.desk, !r.desk.pinned);
+            } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "e" && onArchive) {
+              e.preventDefault();
+              const r = rows[index];
+              if (r?.kind === "desk" && r.desk.conversationId && r.desk.conversationId !== "default") onArchive(r.desk, r.desk.status !== "archived");
             }
           }}
-          placeholder="find a desk…"
+          placeholder={agentFilter ? `find a desk of ${pickName(agentFilter) ?? "this agent"}…` : "find a desk…"}
           aria-label="find a desk"
-          style={{ width: "100%", boxSizing: "border-box", padding: "13px 16px", fontSize: 14, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none" }}
+          style={{ width: "100%", boxSizing: "border-box", padding: "13px 16px", fontSize: 13.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none" }}
         />
-        <div ref={listRef} role="listbox" aria-label="desks" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 12px" }}>
-          {groups.list.map((g) => (
-            <div key={g.agentId ?? g.agentName ?? "—"} style={{ marginTop: 10 }}>
-              <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", fontSize: 9.5 }}>
-                <AgentChip name={g.agentName} size={10} />
-                {!g.agentName && <span>unknown agent</span>}
-                <span style={{ color: "var(--loki-muted)", marginLeft: "auto", fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{g.desks.length || ""}</span>
-              </div>
-              {g.desks.map((d) => (
-                <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} />
-              ))}
-              {onNew && (!q || g.desks.length === 0) && (
-                <NewRow index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "new", agentId: g.agentId, agentName: g.agentName, name: "" })} label="new desk" />
-              )}
-            </div>
+
+        {/* agent filter */}
+        <div role="tablist" aria-label="agent" style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto" }}>
+          <Chip active={agentFilter === null} onClick={() => (setAgentFilter(null), setIndex(0))}>
+            all <span style={{ opacity: 0.7 }}>{liveCount}</span>
+          </Chip>
+          {chips.map((c) => (
+            <Chip key={c.id} active={agentFilter === c.id} onClick={() => (setAgentFilter(agentFilter === c.id ? null : c.id), setIndex(0))}>
+              <AgentFace name={c.name} src={avatarUrl(c.id)} size={14} />
+              {c.name ?? "agent"} <span style={{ opacity: 0.7 }}>{c.count}</span>
+            </Chip>
           ))}
-          {q && rows_live_count(groups.list) === 0 && onNew && (
-            <div style={{ marginTop: 10 }}>
-              <NewRow index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "new", agentId: null, agentName: null, name: query.trim() })} label={<>create desk <span style={{ fontFamily: "var(--loki-display)" }}>“{query.trim()}”</span></>} />
-            </div>
+        </div>
+
+        <div ref={listRef} role="listbox" aria-label="desks" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 10px" }}>
+          {live.map((d) => (
+            <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} showFace={!agentFilter} index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />
+          ))}
+          {onNew && (
+            <NewRow
+              index={rowIndex()}
+              selected={index}
+              onHover={setIndex}
+              onChoose={() => choose({ kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" })}
+              label={
+                q && live.length === 0 ? (
+                  <>
+                    create desk <span style={{ fontFamily: "var(--loki-display)" }}>“{query.trim()}”</span>
+                    {agentFilter ? ` with ${pickName(agentFilter)}` : ""}
+                  </>
+                ) : (
+                  `new desk${agentFilter ? ` with ${pickName(agentFilter)}` : "…"}`
+                )
+              }
+            />
           )}
-          {groups.archive.length > 0 && (
-            <div style={{ marginTop: 14 }}>
+          {archive.length > 0 && (
+            <div style={{ marginTop: 10 }}>
               <button
                 onClick={() => setShowArchive((v) => !v)}
                 className="loki-label"
@@ -208,21 +238,33 @@ export function DeskTree({
               >
                 <span style={{ display: "inline-block", transform: showArchive || q ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
                 archive
-                <span style={{ marginLeft: "auto", fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{groups.archive.length}</span>
+                <span style={{ marginLeft: "auto", fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{archive.length}</span>
               </button>
-              {(showArchive || q) && groups.archive.map((d) => <DeskRow key={d.scope} desk={d} mark={undefined} here={d.scope === current} index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} />)}
+              {(showArchive || q) && archive.map((d) => <DeskRow key={d.scope} desk={d} mark={undefined} here={d.scope === current} showFace={!agentFilter} index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />)}
             </div>
           )}
           {rows.length === 0 && <div style={{ padding: 14, fontSize: 12, color: "var(--loki-muted)" }}>no desks match</div>}
         </div>
-        <div style={{ padding: "6px 14px", fontSize: 10, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>{onPickDesk ? "↑↓ move · ↵ choose · esc cancel" : "↑↓ move · ↵ open · esc close"}</div>
+        <div style={{ padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
+          {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
+        </div>
       </div>
     </div>
   );
 }
 
-function rows_live_count(list: Array<{ desks: DeskSummary[] }>): number {
-  return list.reduce((n, g) => n + g.desks.length, 0);
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className="loki-label"
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", border: `1px solid ${active ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: 999, background: active ? "var(--loki-brass-soft)" : "transparent", color: active ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer", fontSize: 9.5, whiteSpace: "nowrap", textTransform: "none", letterSpacing: "0.06em" }}
+    >
+      {children}
+    </button>
+  );
 }
 
 function when(iso: string | null): string {
@@ -266,7 +308,13 @@ function Mark({ item, status }: { item: AttentionItem | undefined; status: DeskS
   return <span aria-label={title || undefined} title={title || undefined} style={{ width: 7, height: 7, borderRadius: 4, background: color, border: `1px solid ${border}`, boxSizing: "border-box", flex: "0 0 auto", animation: pulse ? "loki-pulse 1.6s ease-in-out infinite" : undefined }} />;
 }
 
-function DeskRow({ desk: d, mark, here, index, selected, onHover, onChoose }: { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; index: number; selected: number; onHover: (i: number) => void; onChoose: () => void }) {
+function DeskRow({ desk: d, mark, here, showFace, index, selected, onHover, onChoose, onPin, onArchive }: { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; selected: number; onHover: (i: number) => void; onChoose: () => void; onPin?: (desk: DeskSummary, pinned: boolean) => void; onArchive?: (desk: DeskSummary, archived: boolean) => void }) {
+  const canArchive = !!onArchive && !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+  const canPin = !!onPin && !!d.agentId && !!d.conversationId && d.status === "live";
+  const act = (fn: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    fn();
+  };
   return (
     <div
       role="option"
@@ -274,17 +322,35 @@ function DeskRow({ desk: d, mark, here, index, selected, onHover, onChoose }: { 
       aria-selected={index === selected}
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
+      className="loki-tree-row"
       style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-accent-soft)" : "transparent", opacity: d.status === "live" ? 1 : 0.7 }}
     >
       <Mark item={mark} status={d.status} />
-      <span style={{ flex: 1, minWidth: 0, fontFamily: "var(--loki-display)", fontSize: 14, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {showFace && (d.agentId ? <AgentFace name={d.agentName} src={avatarUrl(d.agentId)} size={18} /> : <AgentChip name={d.agentName} size={9} />)}
+      <span style={{ flex: 1, minWidth: 0, fontFamily: "var(--loki-display)", fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {d.pinned && <span aria-label="pinned" title="pinned" style={{ color: "var(--loki-accent)", marginRight: 6, fontSize: 10.5 }}>⌖</span>}
         {d.title ?? (d.status === "live" ? "new desk" : d.scope)}
-        {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 11, fontFamily: "var(--loki-font)" }}>· here</span>}
+        {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
       </span>
-      <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
+      {/* Hover actions take the place of the timestamp so the row never widens. */}
+      <span className="loki-tree-meta" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
         {d.widgets > 0 ? `${d.widgets} · ` : ""}
         {when(d.lastActive)}
       </span>
+      {(canPin || canArchive) && (
+        <span className="loki-tree-actions" style={{ display: "none", gap: 2 }}>
+          {canPin && (
+            <button onClick={act(() => onPin!(d, !d.pinned))} title={d.pinned ? "unpin (⌘P)" : "pin to the top (⌘P)"} aria-label={d.pinned ? "unpin" : "pin"} style={{ border: "none", background: "transparent", color: d.pinned ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer", fontSize: 12, padding: "0 4px" }}>
+              ⌖
+            </button>
+          )}
+          {canArchive && (
+            <button onClick={act(() => onArchive!(d, d.status !== "archived"))} title={d.status === "archived" ? "restore from the archive (⌘E)" : "archive (⌘E)"} aria-label={d.status === "archived" ? "restore" : "archive"} style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", fontSize: 12, padding: "0 4px" }}>
+              {d.status === "archived" ? "↶" : "⊟"}
+            </button>
+          )}
+        </span>
+      )}
     </div>
   );
 }
@@ -297,9 +363,9 @@ function NewRow({ index, selected, onHover, onChoose, label }: { index: number; 
       aria-selected={index === selected}
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-muted)", fontSize: 12.5 }}
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", marginTop: 4, borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-muted)", fontSize: 12 }}
     >
-      <span style={{ width: 7, textAlign: "center", color: "var(--loki-accent)", fontSize: 14, lineHeight: 1 }}>+</span>
+      <span style={{ width: 7, textAlign: "center", color: "var(--loki-accent)", fontSize: 13.5, lineHeight: 1 }}>+</span>
       <span>{label}</span>
     </div>
   );

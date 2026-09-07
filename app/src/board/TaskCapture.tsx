@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LAYER } from "../kit/layers";
 import { btn, kbd } from "../chat/ui";
 import { PRIORITY_LABEL } from "./model";
 
@@ -64,9 +65,9 @@ export function TaskCapture({
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}
-      style={{ position: "absolute", inset: 0, background: "rgba(8,8,10,0.45)", display: "grid", placeItems: "start center", paddingTop: "14vh", zIndex: 200001 }}
+      style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", display: "grid", placeItems: "start center", paddingTop: "14vh", zIndex: LAYER.modal + 1 }}
     >
-      <div role="dialog" aria-label="new task" onKeyDown={onKey} style={{ width: 560, maxWidth: "92vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "0 24px 80px rgba(0,0,0,0.6)", overflow: "hidden" }}>
+      <div role="dialog" aria-label="new task" onKeyDown={onKey} style={{ width: 560, maxWidth: "92vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-sheet)", overflow: "hidden" }}>
         <input
           ref={titleRef}
           type="search"
@@ -87,7 +88,7 @@ export function TaskCapture({
           placeholder="why, and where to look (optional · shift+enter for a new line)"
           aria-label="task description"
           rows={3}
-          style={{ width: "100%", boxSizing: "border-box", padding: "10px 16px", fontSize: 13, lineHeight: 1.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none", resize: "none", fontFamily: "inherit" }}
+          style={{ width: "100%", boxSizing: "border-box", padding: "10px 16px", fontSize: 13.5, lineHeight: 1.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none", resize: "none", fontFamily: "inherit" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px" }}>
           <input
@@ -111,7 +112,7 @@ export function TaskCapture({
             ))}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px", fontSize: 11, color: "var(--loki-muted)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px", fontSize: 10.5, color: "var(--loki-muted)" }}>
           <span>
             filed by you{context.desk ? ` · from ${context.desk === "shared" ? "the shared desk" : `desk ${context.desk}`}` : ""}
             {context.agentName ? ` · ${context.agentName}'s thread` : ""}

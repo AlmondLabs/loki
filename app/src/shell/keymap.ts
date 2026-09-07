@@ -7,7 +7,7 @@
  * elsewhere. `typing` says whether a binding fires while a text box has focus: plain letters never
  * do; chords may, except the ones the text itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→, ⌘A, ⌘C, ⌘V, ⌘X are the text's).
  */
-export type Segment = "desk" | "inbox" | "board" | "settings";
+export type Segment = "desk" | "inbox" | "board" | "agents" | "settings";
 export type Where = "anywhere" | Segment | "chat" | "global";
 
 export interface Binding {
@@ -34,7 +34,8 @@ export const KEYMAP: Binding[] = [
   { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Desk", typing: true, menu: "View/segments" },
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Inbox", typing: true, menu: "View/segments" },
   { id: "segment.board", keys: ["cmd+3"], where: "anywhere", label: "Board", typing: true, menu: "View/segments" },
-  { id: "segment.settings", keys: ["cmd+4", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
+  { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
+  { id: "segment.settings", keys: ["cmd+5", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   { id: "tree.toggle", keys: ["cmd+k"], where: "anywhere", label: "Desks Tree", typing: true, menu: "Desk" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
@@ -48,6 +49,8 @@ export const KEYMAP: Binding[] = [
   { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
   { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },
   { id: "chat.find", keys: ["cmd+f"], where: "desk", label: "Find in Transcript…", typing: true, menu: "Chat" },
+  { id: "chat.model", keys: ["cmd+shift+m"], where: "desk", label: "Change Model…", typing: true, menu: "Chat" },
+  { id: "chat.mode", keys: ["cmd+shift+p"], where: "desk", label: "Change Permission Mode…", typing: true, menu: "Chat" },
   { id: "chat.left", keys: ["cmd+left", "alt+cmd+left"], where: "desk", label: "Move Chat Left", typing: true, menu: "Chat/place", menuAccel: false },
   { id: "chat.right", keys: ["cmd+right", "alt+cmd+right"], where: "desk", label: "Move Chat Right", typing: true, menu: "Chat/place", menuAccel: false },
   { id: "view.fit", keys: ["cmd+0"], where: "desk", label: "Fit All Widgets", typing: true, menu: "View" },

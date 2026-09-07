@@ -59,6 +59,13 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   makes the gesture visible to you.
 - You never position widgets. New files are placed automatically in free space
   next to what is already there; the user can tidy the desk with one click.
+- You never set a width either. A frame sizes itself to your content up to about
+  760px, then reflows below that; the user can drag a frame's corner to pin a
+  size. So author fluid content: no fixed pixel widths, no wide fixed grids that
+  assume a big canvas. Let text wrap, size things in % or rem, and a single
+  readable column beats a poster that only fits on a wide screen. Content wider
+  than the frame scrolls rather than being clipped, but scrolling is a fallback,
+  not a layout.
 - Compose `@loki/kit` components where they fit. Tailwind classes work.
   Prefer the tokens: `bg-loki-panel text-loki-fg text-loki-muted text-loki-accent
   text-loki-positive text-loki-negative`, or CSS vars `--loki-*`.

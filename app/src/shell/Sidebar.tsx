@@ -1,9 +1,10 @@
 import { SEGMENTS, type Segment } from "./shortcuts";
+import { LAYER } from "../kit/layers";
 
 export const SIDEBAR_WIDTH = 48;
 
 /**
- * The rail under the title bar: four segments and nothing else. The inbox icon carries
+ * The rail under the title bar: five segments and nothing else. The inbox icon carries
  * the waiting count — the same number the tray title and the dock badge show — and ticks
  * when it grows. The desk icon is also the tree's toggle, so it reads pressed while the
  * tree is out.
@@ -42,7 +43,7 @@ export function Sidebar({
         alignItems: "center",
         padding: "10px 0",
         gap: 6,
-        zIndex: 100003,
+        zIndex: LAYER.rail,
       }}
     >
       {SEGMENTS.map((s) => {
@@ -75,7 +76,7 @@ export function Sidebar({
               {isInbox && waiting > 0 && <Badge n={waiting} tone="accent" />}
               {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
             </button>
-            <span className="loki-label" style={{ fontSize: 7.5, letterSpacing: "0.14em", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
+            <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
               {s.label}
             </span>
           </span>
@@ -143,6 +144,17 @@ function Icon({ id }: { id: Segment }) {
         <rect x="2.5" y="3.5" width="4" height="13" rx="0.8" />
         <rect x="8" y="3.5" width="4" height="8" rx="0.8" />
         <rect x="13.5" y="3.5" width="4" height="10.5" rx="0.8" />
+      </svg>
+    );
+  }
+  if (id === "agents") {
+    // two faces
+    return (
+      <svg {...common} aria-hidden>
+        <circle cx="7" cy="7.5" r="3" />
+        <path d="M2.5 16.5c0-2.8 2-4.5 4.5-4.5s4.5 1.7 4.5 4.5" />
+        <circle cx="14" cy="8.5" r="2.4" />
+        <path d="M13 12.6c2.6 0 4.5 1.6 4.5 3.9" />
       </svg>
     );
   }

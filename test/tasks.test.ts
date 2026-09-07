@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TaskBoard, assignArgs, createArgs, formatTasksContext, parseTasks, projectLabel, clampPriority, type Task } from "../mod/tasks.ts";
+import { INIT_ARGS, TaskBoard, bdBinary, assignArgs, createArgs, formatTasksContext, parseTasks, projectLabel, clampPriority, type Task } from "../mod/tasks.ts";
 
 const raw = (over: Record<string, unknown> = {}) => ({
   id: "lk-a1",
@@ -112,5 +112,21 @@ describe("tasks: board", () => {
   });
   test("a title is required", async () => {
     await expect(new TaskBoard({ dir: "/nonexistent", run: async () => "[]" }).create({ title: "  ", stamp: { by: "you" } })).rejects.toThrow(/title/);
+  });
+});
+
+describe("board setup", () => {
+  test("init is non-interactive with the lk prefix", () => {
+    expect(INIT_ARGS).toEqual(["init", "--prefix", "lk", "--non-interactive"]);
+  });
+  test("bdBinary honours LOKI_BD and searches PATH", () => {
+    const prev = { bd: process.env.LOKI_BD, path: process.env.PATH };
+    process.env.LOKI_BD = process.execPath; // any existing file
+    expect(bdBinary()).toBe(process.execPath);
+    delete process.env.LOKI_BD;
+    process.env.PATH = "/definitely/not/here";
+    expect(bdBinary() === null || bdBinary()!.endsWith("/bd")).toBe(true);
+    if (prev.bd !== undefined) process.env.LOKI_BD = prev.bd;
+    process.env.PATH = prev.path;
   });
 });

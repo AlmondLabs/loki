@@ -3,6 +3,8 @@ name = "loki"
 version = "0.3.0"
 description = "loki — a memory palace your agent builds"
 edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/skilp4d/loki"
 
 [lib]
 name = "loki_lib"
@@ -27,3 +29,4 @@ oxc_transformer = "0.148"
 oxc_codegen = "0.148"
 percent-encoding = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2"

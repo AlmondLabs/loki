@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LAYER } from "../kit/layers";
 import "./chat.css";
 import { ChatInput } from "./ChatInput";
 import type { PendingApproval, PendingQuestion } from "../attention/model";
@@ -7,6 +8,8 @@ import type { ImageAttachment } from "../attention/content";
 import { ApprovalCard } from "./ApprovalCard";
 import { Transcript, type TranscriptRow } from "./Transcript";
 import { btn } from "./ui";
+import { ModelChip, ModelPicker, type ModelEntry } from "./ModelPicker";
+import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./PermissionMode";
 
 export type ChatMessage = TranscriptRow;
 export type ChatStatus = "idle" | "thinking" | "streaming";
@@ -32,6 +35,15 @@ export function ChatWindow({
   onToggleWidth,
   focusTick = 0,
   findTick = 0,
+  prefill = null,
+  model = null,
+  models = null,
+  onLoadModels,
+  onPickModel,
+  modelPickerTick = 0,
+  mode = null,
+  onPickMode,
+  modeMenuTick = 0,
   approval = null,
   onApprove,
   question = null,
@@ -51,6 +63,20 @@ export function ChatWindow({
   focusTick?: number;
   /** Bumped by the host (⌘F) to open the find bar. */
   findTick?: number;
+  /** Text the host wants in the box (an "ask the agent to…" from another view); a new tick replaces the draft. */
+  prefill?: { text: string; tick: number } | null;
+  /** The conversation's model and the switcher (list_models / update_model through the app-server). */
+  model?: string | null;
+  models?: ModelEntry[] | null;
+  onLoadModels?: () => void;
+  onPickModel?: (handle: string) => Promise<void>;
+  /** Bumped by the host (⌘⇧M) to open the model picker. */
+  modelPickerTick?: number;
+  /** The conversation's permission mode and its setter (runtime_start { mode }). */
+  mode?: string | null;
+  onPickMode?: (mode: PermissionMode) => Promise<void>;
+  /** Bumped by the host (⌘⇧P) to open the mode menu. */
+  modeMenuTick?: number;
   /** The conversation is paused on a tool permission; the panel shows it inline. */
   approval?: PendingApproval | null;
   onApprove?: (behavior: "allow" | "deny") => void;
@@ -67,6 +93,45 @@ export function ChatWindow({
   useEffect(() => {
     if (focusTick > 0) setTimeout(() => inputRef.current?.focus(), 0);
   }, [focusTick]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => {
+    if (modelPickerTick > 0 && onPickModel) {
+      onLoadModels?.();
+      setPickerOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelPickerTick]);
+  const [modeOpen, setModeOpen] = useState(false);
+  const [changingMode, setChangingMode] = useState(false);
+  useEffect(() => {
+    if (modeMenuTick > 0 && onPickMode) setModeOpen(true);
+  }, [modeMenuTick, onPickMode]);
+  const pickMode = async (m: PermissionMode) => {
+    if (!onPickMode) return;
+    setModeOpen(false);
+    setChangingMode(true);
+    await onPickMode(m);
+    setChangingMode(false);
+  };
+  const pickModel = async (handle: string) => {
+    if (!onPickModel) return;
+    setPickerOpen(false);
+    setSwitching(true);
+    await onPickModel(handle);
+    setSwitching(false);
+  };
+  useEffect(() => {
+    if (prefill && prefill.tick > 0) {
+      setDraft(prefill.text);
+      setTimeout(() => {
+        const el = inputRef.current;
+        el?.focus();
+        el?.setSelectionRange(el.value.length, el.value.length);
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.tick]);
   // Find in the transcript: the browser's own text search, scoped by starting from the transcript and
   // wrapping. Enter finds the next match, ⇧Enter the previous, Esc closes.
   const [findOpen, setFindOpen] = useState(false);
@@ -160,17 +225,17 @@ export function ChatWindow({
       style={{
         position: "absolute",
         ...(placement === "center"
-          ? { top: 12, bottom: 12, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border, #2c2c34)", borderRadius: 14 }
+          ? { top: 12, bottom: 12, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border)", borderRadius: 12 }
           : placement === "right"
-            ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border, #2c2c34)" }
-            : { top: 0, left: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderRight: "1px solid var(--loki-border, #2c2c34)" }),
+            ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border)" }
+            : { top: 0, left: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderRight: "1px solid var(--loki-border)" }),
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        background: "var(--loki-panel, #1a1a20)",
-        boxShadow: attentive ? (placement === "center" ? "0 24px 80px rgba(0,0,0,0.55)" : placement === "right" ? "-12px 0 40px rgba(0,0,0,0.45)" : "12px 0 40px rgba(0,0,0,0.45)") : "none",
+        background: "var(--loki-panel)",
+        boxShadow: attentive ? (placement === "center" ? "var(--loki-shadow-sheet)" : placement === "right" ? "var(--loki-shadow-panel)" : "var(--loki-shadow-panel)") : "none",
         overflow: "hidden",
-        zIndex: 100000,
+        zIndex: LAYER.panel,
         opacity: attentive ? 1 : 0.6,
         transition: "opacity 220ms ease-out, box-shadow 220ms ease-out, width 200ms ease-out",
       }}
@@ -181,13 +246,30 @@ export function ChatWindow({
           justifyContent: "space-between",
           alignItems: "center",
           gap: 10,
-          padding: "2px 8px 2px 16px",
+          padding: "2px 8px 2px 12px",
           minHeight: 28,
-          borderBottom: "1px solid var(--loki-border, #2c2c34)",
+          borderBottom: "1px solid var(--loki-border)",
+          position: "relative",
+          zIndex: 2,
         }}
       >
-        {/* No label: the desk header already names the agent. Only the two controls live here. */}
-        <span className="loki-label" style={{ fontSize: 8.5, color: "var(--loki-muted)", opacity: 0.7 }}>{status === "thinking" ? "thinking…" : status === "streaming" ? "replying…" : ""}</span>
+        {/* The model chip on the left (the desk's name is in the title bar), the two controls on the right. */}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, position: "relative" }}>
+          {onPickModel && (
+            <ModelChip
+              model={model}
+              busy={switching}
+              onClick={() => {
+                onLoadModels?.();
+                setPickerOpen((v) => !v);
+              }}
+            />
+          )}
+          {onPickMode && <ModeChip mode={isPermissionMode(mode) ? mode : null} busy={changingMode} onClick={() => setModeOpen((v) => !v)} />}
+          <span className="loki-label" style={{ fontSize: 9.5, color: "var(--loki-muted)", opacity: 0.7 }}>{status === "thinking" ? "thinking…" : status === "streaming" ? "replying…" : ""}</span>
+        </span>
+        <ModeMenu open={modeOpen} current={isPermissionMode(mode) ? mode : null} onPick={(m) => void pickMode(m)} onClose={() => setModeOpen(false)} />
+        <ModelPicker open={pickerOpen} current={model} entries={models} loading={!models} onPick={(h) => void pickModel(h)} onClose={() => setPickerOpen(false)} />
         <span style={{ display: "flex", gap: 2, alignItems: "center" }}>
           {onToggleWidth && placement !== "center" && (
             <button
@@ -211,7 +293,7 @@ export function ChatWindow({
             background: "transparent",
             color: "var(--loki-muted)",
             cursor: "pointer",
-            fontSize: 14,
+            fontSize: 13.5,
           }}
         >
           ×
@@ -220,7 +302,7 @@ export function ChatWindow({
       </div>
 
       {findOpen && (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderBottom: "1px solid var(--loki-border, #2c2c34)", background: "var(--loki-panel-header)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderBottom: "1px solid var(--loki-border)", background: "var(--loki-panel-header)" }}>
           <input
             ref={findRef}
             type="search"
@@ -243,7 +325,7 @@ export function ChatWindow({
             }}
             placeholder="find in transcript… (↵ next · ⇧↵ previous · esc)"
             aria-label="find in transcript"
-            style={{ flex: 1, padding: "5px 8px", fontSize: 12.5, background: "var(--loki-bg)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }}
+            style={{ flex: 1, padding: "5px 8px", fontSize: 12, background: "var(--loki-bg)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }}
           />
           <button onClick={() => findNext(true)} aria-label="previous match" style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer" }}>↑</button>
           <button onClick={() => findNext(false)} aria-label="next match" style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer" }}>↓</button>
@@ -284,7 +366,7 @@ export function ChatWindow({
         <button
           onClick={jumpToLatest}
           aria-label="jump to latest"
-          style={{ position: "absolute", bottom: 84, left: "50%", transform: "translateX(-50%)", padding: "4px 10px", borderRadius: 999, border: "1px solid var(--loki-border, #2c2c34)", background: "var(--loki-panel, #1a1a20)", color: "var(--loki-muted)", fontSize: 11, fontFamily: "var(--loki-mono)", cursor: "pointer", boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}
+          style={{ position: "absolute", bottom: 84, left: "50%", transform: "translateX(-50%)", padding: "4px 10px", borderRadius: 999, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-muted)", fontSize: 10.5, fontFamily: "var(--loki-mono)", cursor: "pointer", boxShadow: "var(--loki-shadow-low)" }}
         >
           ↓ latest
         </button>
@@ -327,20 +409,20 @@ export function ChatBubble({ open, onToggle, alert = false, side = "left" }: { o
         width: 48,
         height: 48,
         borderRadius: 24,
-        border: "1px solid var(--loki-border, #2c2c34)",
-        background: open ? "#3b5bdb" : "var(--loki-panel, #1a1a20)",
+        border: "1px solid var(--loki-border)",
+        background: open ? "var(--loki-accent)" : "var(--loki-panel)",
         color: "var(--loki-fg)",
-        fontSize: 18,
+        fontSize: 17,
         cursor: "pointer",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-        zIndex: 100001,
+        boxShadow: "var(--loki-shadow-panel)",
+        zIndex: LAYER.panel + 1,
       }}
     >
       {open ? "×" : "✳"}
       {alert && !open && (
         <span
           aria-label="permission waiting"
-          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, background: "#e6b450", border: "2px solid var(--loki-bg, #101014)" }}
+          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, background: "var(--loki-accent)", border: "2px solid var(--loki-bg)" }}
         />
       )}
     </button>

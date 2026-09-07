@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LAYER } from "../kit/layers";
 import { AgentChip } from "./AgentChip";
 import { btn } from "../chat/ui";
 
@@ -125,7 +126,7 @@ export function NewDesk({
 
   if (!open) return null;
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-  const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 13.5, background: "#101014", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-font)" };
+  const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 13.5, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-font)" };
 
   return (
     <div
@@ -134,7 +135,7 @@ export function NewDesk({
         if (e.target === e.currentTarget) onClose();
       }}
       className="loki-veil"
-      style={{ position: "absolute", inset: 0, background: "rgba(8,8,10,0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "grid", placeItems: "start center", paddingTop: 72, zIndex: 200000 }}
+      style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "grid", placeItems: "start center", paddingTop: 72, zIndex: LAYER.modal }}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -146,15 +147,15 @@ export function NewDesk({
         }
       }}
     >
-      <div role="dialog" aria-label="new desk" style={{ width: 560, maxWidth: "94vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", boxShadow: "0 30px 90px rgba(0,0,0,0.6)", animation: "loki-card-next 200ms ease-out" }}>
+      <div role="dialog" aria-label="new desk" style={{ width: 560, maxWidth: "94vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", boxShadow: "var(--loki-shadow-sheet)", animation: "loki-card-next 200ms ease-out" }}>
         <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
           <div className="loki-label">new desk</div>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 18, color: "var(--loki-fg)", marginTop: 4 }}>a fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
+          <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", marginTop: 4 }}>a fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
         </div>
 
         <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
           <div>
-            <div className="loki-label" style={{ fontSize: 10, marginBottom: 6 }}>agent</div>
+            <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>agent</div>
             <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {agents.map((a) => (
                 <button
@@ -172,7 +173,7 @@ export function NewDesk({
           </div>
 
           <div style={{ position: "relative" }}>
-            <div className="loki-label" style={{ fontSize: 10, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+            <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
               <span>folder</span>
               <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
                 {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
@@ -205,20 +206,20 @@ export function NewDesk({
                 aria-label="folder"
                 autoComplete="off"
                 spellCheck={false}
-                style={{ ...field, fontFamily: "var(--loki-mono)", fontSize: 12.5, borderColor: status && !status.ok ? "var(--loki-negative)" : "var(--loki-border)" }}
+                style={{ ...field, fontFamily: "var(--loki-mono)", fontSize: 12, borderColor: status && !status.ok ? "var(--loki-negative)" : "var(--loki-border)" }}
               />
               <button onClick={() => void browse()} disabled={busy !== false} style={btn()} title="choose a folder in Finder">
                 {busy === "picking" ? "choosing…" : "browse…"}
               </button>
             </div>
             {listOpen && options.length > 0 && (
-              <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.5)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+              <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
                 {options.map((o, i) => {
                   const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
                   const first = i === 0 || options[i - 1].group !== o.group;
                   return (
                     <div key={o.path}>
-                      {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
+                      {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
                       <div
                         role="option"
                         aria-selected={i === hi}
@@ -231,7 +232,7 @@ export function NewDesk({
                         }}
                         style={{ padding: "7px 10px", cursor: "pointer", background: i === hi ? "var(--loki-accent-soft)" : "transparent" }}
                       >
-                        <div style={{ fontSize: 13, color: "var(--loki-fg)" }}>{label}</div>
+                        <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
                         <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
                       </div>
                     </div>
@@ -242,7 +243,7 @@ export function NewDesk({
           </div>
 
           <div>
-            <div className="loki-label" style={{ fontSize: 10, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
+            <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
             <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this desk is about" aria-label="desk name" autoComplete="off" style={field} />
           </div>
 
@@ -250,7 +251,7 @@ export function NewDesk({
         </div>
 
         <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
-          <span className="loki-label" style={{ fontSize: 10 }}>enter start · esc close</span>
+          <span className="loki-label" style={{ fontSize: 10.5 }}>enter start · esc close</span>
           <span style={{ flex: 1 }} />
           <button onClick={onClose} style={btn()}>cancel</button>
           <button onClick={() => void start()} disabled={!canStart} style={{ ...btn("var(--loki-accent)"), opacity: canStart ? 1 : 0.5 }}>

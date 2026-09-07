@@ -22,6 +22,12 @@ export interface WidgetLayout {
   position: Position;
   size?: Size;
   z: number;
+  /**
+   * The size came from a human dragging the resize handle, not from measuring the content.
+   * A sized frame keeps that width and height (content scrolls inside it); an unsized frame
+   * sizes itself to its content, up to WIDGET_MAX_WIDTH.
+   */
+  sized?: boolean;
   /** User closed the widget; the file still exists. The agent may delete it. */
   hidden?: boolean;
 }
@@ -87,6 +93,10 @@ export interface Rect extends Position, Size {}
 
 /** Frames are 280 wide by default; height is unknown until the tab measures it. */
 export const DEFAULT_SIZE: Size = { w: 280, h: 160 };
+/** An auto-sized frame grows to its content up to this width, then the content scrolls; a reading measure, matching the centred chat. */
+export const WIDGET_MAX_WIDTH = 760;
+/** Smallest a human may drag a frame; below this is a mis-grab, not an intent. */
+export const RESIZE_MIN: Size = { w: 200, h: 120 };
 export const ORIGIN: Position = { x: 120, y: 120 };
 /** Breathing room between widgets, and how wide a row grows before wrapping. */
 export const GAP = 24;
@@ -202,7 +212,8 @@ export function applyGesture(state: DeskState, g: Gesture): DeskState {
       layout[g.id] = { ...current, position: g.position };
       break;
     case "resize":
-      layout[g.id] = { ...current, size: g.size };
+      // A human pinned the size: keep it, and stop auto-sizing to content.
+      layout[g.id] = { ...current, size: g.size, sized: true };
       break;
     case "focus": {
       const top = topZ(layout);

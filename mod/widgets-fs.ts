@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import * as esbuild from "esbuild";
 import type { Scope, WidgetKind, WidgetManifestEntry } from "../shared/desk-core.ts";
 import { KIT } from "../shared/desk-core.ts";
 
@@ -54,10 +53,20 @@ export function titleFromModule(source: string): string | null {
   return m ? m[2] : null;
 }
 
+/**
+ * esbuild is a development dependency of the repo; the mod the app installs is a single bundle
+ * without node_modules, so the checker loads it lazily and does without when it is absent (the
+ * app's own transpiler still reports a broken file inside the widget's frame).
+ */
+type Esbuild = typeof import("esbuild");
+let esbuildPromise: Promise<Esbuild | null> | undefined;
+const loadEsbuild = (): Promise<Esbuild | null> => (esbuildPromise ??= import("esbuild").catch(() => null));
+
 /** Syntax-check a TSX module. Returns esbuild's message or null. */
 export async function checkModule(source: string, file: string): Promise<string | null> {
   try {
-    await esbuild.transform(source, { loader: "tsx", jsx: "automatic", sourcefile: file, logLevel: "silent" });
+    const esbuild = await loadEsbuild();
+    if (esbuild) await esbuild.transform(source, { loader: "tsx", jsx: "automatic", sourcefile: file, logLevel: "silent" });
     if (!/export\s+default\b/.test(source)) return "module has no default export (export default a React component)";
     return null;
   } catch (err) {

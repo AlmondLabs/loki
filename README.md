@@ -1,31 +1,78 @@
 # loki
 
-A memory palace your agent builds. loki is a [Letta Code](https://docs.letta.com) mod plus a native
-widget desk (Tauri). **The desk is a directory**: the agent writes `.json` and `.tsx` files into
-`~/.letta/loki/widgets/<desk>/`, the app loads them the moment they land, you drag and operate them, and what you
-did rides along on your next message.
+A memory palace your agent builds. loki is a macOS app around [Letta Code](https://docs.letta.com):
+a desk per conversation that the agent furnishes with live widgets, an inbox of everything waiting on you,
+a shared task board, and a page per agent. (Not [Grafana Loki](https://grafana.com/oss/loki/), the log
+system.)
 
-Each conversation gets its own desk, created lazily on first widget. A `shared` desk holds widgets that
-belong to no conversation.
+**The desk is a directory**: the agent writes `.json` and `.tsx` files into `~/.letta/loki/widgets/<desk>/`,
+the app loads them the moment they land, you drag and operate them, and what you did rides along on your
+next message. Each conversation gets its own desk, created lazily on first widget. A `shared` desk holds
+widgets that belong to no conversation.
+
+## Requirements
+
+- **macOS 13 or later.** The shell finds Letta Desktop with `lsof`, picks folders with the Finder, and
+  uses the native title bar, dock badge and a global shortcut. Nothing else is supported today.
+- **Letta Code.** If it is already on the Mac (or Letta Desktop is running) loki uses that. If not, the
+  first launch installs a private copy under `~/Library/Application Support/dev.deepak.loki/runtime/`:
+  Node 22 from nodejs.org (checked against its published checksum) when the Mac has none, then
+  `@letta-ai/letta-code` at the release loki was tested with, from registry.npmjs.org. Nothing else on
+  the machine is touched, and a `letta` you install yourself later takes precedence. Settings shows which
+  one is in use and the harness's version next to the tested one.
+- **beads** (`brew install beads`) for the board. Optional; everything else works without it.
+
+## Install
+
+1. Download the `.dmg` from the latest release and drag loki to Applications. You do not need Node, npm
+   or Letta installed first. Until the app is signed,
+   macOS will refuse to open it the first time: right-click → Open, or run
+   `xattr -dr com.apple.quarantine /Applications/loki.app`.
+2. Open loki. On first launch it copies its mod to `~/Library/Application Support/dev.deepak.loki/mod/`,
+   writes the shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill at
+   `~/.agents/skills/loki/`. Settings → install shows what happened.
+3. If Letta Desktop (or a `letta` session) was already running, `/reload` in Letta Code so the harness
+   picks the mod up. If nothing was running, loki starts its own harness and the mod is already in it.
+4. The first launch shows **Welcome** over the empty desk: connect a model provider (paste a key; Letta
+   checks it with the provider and keeps it, loki never sees it again), then name your first agent and
+   pick one of Letta's personalities. You land on its desk with the chat open.
+5. Ask your agent to put something on the desk.
+
+Updates are a new `.dmg`; the app re-installs its mod on launch when the bundle changed. It never overwrites
+a shim or skill it did not write, so a checkout wired up for development (below) keeps working.
 
 ## The window
 
-The native title bar carries the desk's name (or "Inbox · n waiting", "Board · n open", "Settings"), a rail of
-four segments sits on the left, and one view fills the rest:
+The native title bar carries the desk's name (or "Inbox · n waiting", "Board · n open", "Agents", "Settings"), a
+rail of five segments sits on the left, and one view fills the rest:
 
 - **Desk** (⌘1): the sheet edge to edge, the chat stacked over it on the left, centred and wider, or on the
   right (⌘← and ⌘→ move it, ⌥⌘ from inside a text box, ⌘/ toggles it, ⌘W closes it, ⌘L focuses the message box,
   ⌘F finds in the transcript; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget move).
+  The chat's header carries two chips for the conversation: its **permission mode** (strict, standard, accept
+  edits, unrestricted; ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply
+  per conversation through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips.
   A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part, and
   opening or closing a left chat slides the sheet so nothing ends up under it. An empty desk opens the chat
-  centred until its first widget lands. Clicking the desk icon again (or ⌘K) slides out the **desks tree**: desks grouped by
-  agent, an attention dot per desk, "new desk" at the foot of each group; type to filter, ↑↓, ↵. Picking a desk
-  closes it. ⌘[ and ⌘] step through live desks without opening anything.
+  centred until its first widget lands. Clicking the desk icon again (or ⌘K) opens the **desks tree**: one centred list of every
+  desk, pinned first then by recency, each with its agent's face and attention dot; a chip row filters to one
+  agent (click, or Tab / ⇧Tab); type to filter, ↑↓, ↵; ⌘P pins, ⌘E archives; "new desk" at the bottom, the
+  archive folded under it. Picking a desk closes it. ⌘[ and ⌘] step through live desks without opening anything.
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Board** (⌘3): tasks for later, see below.
-- **Settings** (⌘4): which harness the app is on, how it reaches the mod, where the files live, chat width, and
-  the complete keymap.
+- **Agents** (⌘4): one page per agent — its face, name, description and model (editable), its memory as a
+  browsable tree with the git history of what it learned (click a commit for the diff), its skills, and where it
+  is working. Memory is read-only here; "ask ira to update this" opens the agent's chat with the request started.
+  **+ new** creates an agent (name, description, one of Letta's personalities, model); "delete this agent…" asks
+  once, naming the desks that go with it. **Skills**: remove one from the agent's memory, write one in place
+  (a name and the markdown; it lands as `skills/<name>/SKILL.md`), or install from a source the CLI knows
+  (`owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL). **Global skills** lists
+  `~/.letta/skills`, which every agent reads, with disable and "enable a folder".
+- **Settings** (⌘5, ⌘,): **providers** (the harness's catalogue, connected first; a row opens into the fields it
+  needs, keys are checked with the provider before Letta keeps them; OAuth ones say which `letta connect` to run),
+  requirements and install status, which harness the app is on, how it reaches the mod, where the files live,
+  chat width, and the complete keymap.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
@@ -42,6 +89,9 @@ app/            Vite + React canvas
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
 test/           bun tests
 ```
+
+How these fit into Letta's own layers — the model, the Letta server, the harness, and loki — is in
+[docs/architecture.md](docs/architecture.md).
 
 ## What the mod does
 
@@ -61,10 +111,12 @@ Only the things a mod can do:
 ## Install (development)
 
 ```bash
-npm install
+bun install
 ```
 
-Shim. Everything in `~/.letta/mods/` is loaded as a mod, so only this file lives there:
+Point Letta at your checkout instead of the installed copy. Everything in `~/.letta/mods/` is loaded as a
+mod, so only this file lives there (the app leaves it alone because it does not start with the managed
+marker):
 
 ```ts
 // ~/.letta/mods/loki.ts
@@ -83,7 +135,8 @@ Skill, so the agent knows the vocabulary:
 ln -s /ABSOLUTE/PATH/TO/loki/skills/loki ~/.agents/skills/loki
 ```
 
-Then `/reload` in Letta Code and open the loki app (`src-tauri/target/release/loki`), or run `bun run dev` and open the Vite URL for a browser tab.
+Then `/reload` in Letta Code and run `bun run dev` (Vite) plus `bun run desktop:dev` (the window against
+it), or open the Vite URL in a browser tab.
 
 ## Install as an app (Chrome)
 
@@ -164,28 +217,39 @@ sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent
 starts now. New desk is a target too. ⌫ marks done, ⇧⌫ toggles blocked, ⌘R
 refreshes, / filters. Agents close tasks through the tool.
 
-Setup once: `brew install beads`, then `mkdir -p ~/.letta/loki/board && cd $_ && bd init --prefix lk --non-interactive`.
+Setup: `brew install beads`. The mod creates the board (`bd init --prefix lk`) the first time it is used.
 
 ## Widget frame controls
 
 Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise** (to the tray at the bottom-left; the file stays), and **trash** (deletes the file after a confirm). The agent hears about all three on your next turn.
 
-## Commands
-
-
 ## Development
 
 ```bash
-npm test               # bun test
-npm run typecheck      # tsc
-npm run dev            # run Vite by hand (the mod normally does this)
+bun test                                          # mod, shared, app logic, design tokens
+bun run typecheck                                 # tsc
+cargo test --manifest-path src-tauri/Cargo.toml   # the shell
+bun run dev                                       # Vite on 127.0.0.1:5173
+bun run desktop:dev                               # the Tauri window against it
+bun run desktop:build                             # the .app and .dmg (bundles app/dist and the mod)
 ```
 
-Env: `LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`), `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_NO_OPEN=1` (do not open a browser).
-Trace log: `~/.letta/loki/mod.log`. Harness for running the mod without Letta: `node scripts/harness.mjs`.
-Vite's log: `~/.letta/loki/vite.log`.
+Env: `LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
+`LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1` (make a
+dev build install its mod), `LOKI_NO_INSTALL=1` (stop a release build from doing so).
+Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log`. Harness for running the mod without
+Letta: `node scripts/harness.mjs`.
+
+`docs/architecture.md` explains Letta's four-responsibility execution model — model, Letta server,
+harness, loki — which are processes, and the journey of a message. `docs/plans/` is the design history,
+one dated plan per feature; `docs/design.md` is the visual direction
+and the token contract. See CONTRIBUTING.md, SECURITY.md and RELEASING.md.
 
 ## Hard rules
 
 - No real money amounts on screen, in the repo, or in recordings. Ever.
-- Widget code runs with the page's full trust. This is your machine and your agent; it is not a sandbox.
+- Widget code runs with the page's full trust. This is your machine and your agent; it is not a sandbox (SECURITY.md).
+
+## Licence
+
+Apache-2.0. See LICENSE.

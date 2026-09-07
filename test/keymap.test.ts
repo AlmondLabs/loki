@@ -54,7 +54,8 @@ describe("keymap: resolution", () => {
   });
   test("segments and settings comma", () => {
     expect(resolve(ev(",", { meta: true }), "board")?.id).toBe("segment.settings");
-    expect(resolve(ev("4", { meta: true }), "desk")?.id).toBe("segment.settings");
+    expect(resolve(ev("4", { meta: true }), "desk")?.id).toBe("segment.agents");
+    expect(resolve(ev("5", { meta: true }), "desk")?.id).toBe("segment.settings");
   });
 });
 

@@ -2,35 +2,58 @@
 //! with a fixed address and the loki token as the capability token. Killed when
 //! the app quits (never two harnesses on one backend).
 
-use std::path::PathBuf;
+use crate::bootstrap::Runtime;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 pub const LISTEN_URL: &str = "ws://127.0.0.1:41600/ws";
 
+/// The child, once started. Managed from launch so a harness can start later (after an install).
+#[derive(Default)]
 pub struct Harness(pub Mutex<Option<Child>>);
 
-fn letta_binary() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("LOKI_LETTA_BIN") { return Some(PathBuf::from(p)); }
-    let home = std::env::var_os("HOME").map(PathBuf::from)?;
-    let candidates = [home.join(".volta/bin/letta"), PathBuf::from("/opt/homebrew/bin/letta"), PathBuf::from("/usr/local/bin/letta")];
-    candidates.into_iter().find(|p| p.exists())
+/// PATH for anything that runs `letta`: the shim is `#!/usr/bin/env node`, and GUI apps get a short PATH.
+fn path_with(node_bin_dir: Option<&Path>) -> String {
+    let base = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into());
+    match node_bin_dir {
+        Some(d) => format!("{}:{base}", d.display()),
+        None => base,
+    }
+}
+
+/// A machine that never ran `letta` has no backend chosen, and `letta server` would stop to ask.
+/// `letta backend local` is non-interactive and writes `preferredBackendMode` to ~/.letta/settings.json;
+/// a user who chose cloud keeps it.
+pub fn ensure_backend_mode(rt: &Runtime, home: &Path) {
+    let settings = home.join(".letta").join("settings.json");
+    let chosen = std::fs::read_to_string(&settings).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).map(|v| v.get("preferredBackendMode").and_then(|m| m.as_str()).is_some()).unwrap_or(false);
+    if chosen { return; }
+    eprintln!("loki: no backend mode chosen yet — running `letta backend local`");
+    match Command::new(&rt.letta).args(["backend", "local"]).env("PATH", path_with(rt.node_bin_dir.as_deref())).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status() {
+        Ok(s) if s.success() => {}
+        Ok(s) => eprintln!("loki: `letta backend local` exited with {s}"),
+        Err(e) => eprintln!("loki: could not run `letta backend local`: {e}"),
+    }
 }
 
 impl Harness {
-    pub fn spawn(token_file: &std::path::Path, log_dir: &std::path::Path) -> Result<Harness, String> {
-        let bin = letta_binary().ok_or("letta CLI not found (looked in ~/.volta/bin, /opt/homebrew/bin, /usr/local/bin; set LOKI_LETTA_BIN)")?;
+    /// Start `letta server` with `rt`; replaces a child started earlier.
+    pub fn start(&self, rt: &Runtime, token_file: &Path, log_dir: &Path) -> Result<(), String> {
         std::fs::create_dir_all(log_dir).map_err(|e| e.to_string())?;
         let log = std::fs::File::create(log_dir.join("harness.log")).map_err(|e| e.to_string())?;
-        let child = Command::new(bin)
+        let child = Command::new(&rt.letta)
             .args(["server", "--listen", LISTEN_URL, "--ws-auth", "capability-token", "--ws-token-file"])
             .arg(token_file)
+            .env("PATH", path_with(rt.node_bin_dir.as_deref()))
             .stdin(Stdio::null())
             .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
             .stderr(Stdio::from(log))
             .spawn()
             .map_err(|e| format!("could not start letta server: {e}"))?;
-        Ok(Harness(Mutex::new(Some(child))))
+        self.stop();
+        if let Ok(mut g) = self.0.lock() { *g = Some(child); }
+        Ok(())
     }
 
     pub fn stop(&self) {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../../../shared/harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol";
+import type { ConnectProvider, Personality } from "./protocol";
 import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model";
 import { buildQuestionAnswer, environmentReminder } from "./content";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -31,9 +32,13 @@ export interface UseAttentionOptions {
 export function useAttention(opts: UseAttentionOptions) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
+  /** False until the first agent_list answered: an empty list before that means nothing. */
+  const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [digests, setDigests] = useState<Map<string, Digest>>(new Map());
   const [tick, setTick] = useState(0); // bumps when live state changes (live map is mutable by design)
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
+  /** From the harness's app_server_info reply: which Letta Code this is. */
+  const [server, setServer] = useState<{ version: string | null; protocol: number | null } | null>(null);
   /** Loaded transcripts by key; live rows (Live.tail) are appended on top when read. */
   const [histories, setHistories] = useState<Record<string, TranscriptRow[]>>({});
   const loading = useRef(new Set<string>());
@@ -90,9 +95,15 @@ export function useAttention(opts: UseAttentionOptions) {
     let cancelled = false;
     const load = async () => {
       try {
+        void sock.request("app_server_info").then((info) => {
+          if (!cancelled) setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null });
+        }).catch(() => {});
         const agents = await sock.listAgents();
         const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
-        if (!cancelled) setAgents([...names].map(([id, name]) => ({ id, name })));
+        if (!cancelled) {
+          setAgents([...names].map(([id, name]) => ({ id, name })));
+          setAgentsLoaded(true);
+        }
         const records: Array<Record<string, unknown>> = [];
         for (const id of names.keys()) records.push(...(await sock.listConversations(id, 100)));
         const convs = toConversations(records, names);
@@ -189,12 +200,12 @@ export function useAttention(opts: UseAttentionOptions) {
    * approval. `rows` is undefined until the transcript has been asked for.
    */
   const conversation = useCallback(
-    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null } => {
+    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null } => {
       const key = keyOf(agentId, conversationId);
       const l = liveRef.current.get(key);
       const base = histories[key];
       const live: TranscriptRow[] = l ? [...l.tail, ...(l.streamingText ? [{ role: "assistant" as const, text: l.streamingText }] : [])] : [];
-      return { rows: base === undefined && !live.length ? undefined : [...(base ?? []), ...live], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null };
+      return { rows: base === undefined && !live.length ? undefined : [...(base ?? []), ...live], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [histories, tick],
@@ -249,9 +260,173 @@ export function useAttention(opts: UseAttentionOptions) {
   }, [opts, subscribe, bump]);
   const reply = useCallback((item: AttentionItem, text: string, images: ImageAttachment[] = []) => send(item.runtime, text, images, { desk: item.title }), [send]);
 
+  const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      await sock.updateAgent(agentId, body);
+      if (body.name) setAgents((a) => a.map((x) => (x.id === agentId ? { ...x, name: body.name! } : x)));
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
+  /** The provider catalogue, loaded on demand; null until asked. */
+  const [providers, setProviders] = useState<ConnectProvider[] | null>(null);
+  const loadProviders = useCallback(async (): Promise<ConnectProvider[]> => {
+    const sock = socketRef.current;
+    if (!sock) return [];
+    try {
+      const list = await sock.listConnectProviders();
+      setProviders(list);
+      return list;
+    } catch {
+      return providers ?? [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const connectProvider = useCallback(async (providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      setProviders(await sock.connectProvider(providerId, fields, authMethodId));
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
+  const disconnectProvider = useCallback(async (providerId: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      setProviders(await sock.disconnectProvider(providerId));
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
+  /** create_agent, then agent_update for the name and description; the agent list reloads. Resolves to the new id. */
+  const createAgent = useCallback(async (opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string } | { error: string }> => {
+    const sock = socketRef.current;
+    if (!sock) return { error: "not connected to the app-server" };
+    try {
+      const created = await sock.createAgent({ personality: opts.personality, model: opts.model });
+      const body: Record<string, unknown> = {};
+      if (opts.name.trim() && opts.name.trim() !== created.name) body.name = opts.name.trim();
+      if (opts.description?.trim()) body.description = opts.description.trim();
+      if (Object.keys(body).length) await sock.updateAgent(created.id, body);
+      setAgents((a) => (a.some((x) => x.id === created.id) ? a : [...a, { id: created.id, name: (body.name as string | undefined) ?? created.name }]));
+      reloadRef.current?.();
+      return { id: created.id };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  }, []);
+  const deleteAgent = useCallback(async (agentId: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      await sock.deleteAgent(agentId);
+      setAgents((a) => a.filter((x) => x.id !== agentId));
+      reloadRef.current?.();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
+  const memory = useMemo(
+    () => ({
+      write: async (agentId: string, path: string, content: string, message?: string): Promise<string | null> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to the app-server";
+        return sock.writeMemoryFile(agentId, path, content, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+      },
+      remove: async (agentId: string, path: string, message?: string): Promise<string | null> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to the app-server";
+        return sock.deleteMemoryFile(agentId, path, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+      },
+    }),
+    [],
+  );
+  const skills = useMemo(
+    () => ({
+      enable: async (path: string): Promise<string | null> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to the app-server";
+        return sock.skillEnable(path).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+      },
+      disable: async (name: string): Promise<string | null> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to the app-server";
+        return sock.skillDisable(name).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+      },
+    }),
+    [],
+  );
+  const listModels = useCallback(async () => {
+    try {
+      return (await socketRef.current?.listModels()) ?? [];
+    } catch {
+      return [];
+    }
+  }, []);
+  /** Set a conversation's permission mode (runtime_start with `mode`); resolves to an error message or null. */
+  const setMode = useCallback(async (rt: Runtime, mode: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      await sock.runtimeStart(rt, { mode });
+      const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+      if (l) l.mode = mode;
+      bump();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, [bump]);
+  /** Switch a conversation's model; resolves to an error message or null. */
+  /** Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived. */
+  const archiveConversation = useCallback(async (conversationId: string, archived: boolean): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    if (conversationId === "default") return "a main chat cannot be archived";
+    try {
+      await sock.updateConversation(conversationId, { archived });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
+  const updateModel = useCallback(async (rt: Runtime, handle: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      await sock.updateModel(rt, handle);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
+
   return {
     status,
+    server,
     agents,
+    agentsLoaded,
+    providers,
+    loadProviders,
+    connectProvider,
+    disconnectProvider,
+    createAgent,
+    deleteAgent,
+    memory,
+    skills,
+    updateAgent,
+    listModels,
+    updateModel,
+    setMode,
+    archiveConversation,
     createDesk,
     items,
     loadHistory,

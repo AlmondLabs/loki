@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { homedir } from "node:os";
 import { log } from "./log.ts";
@@ -60,9 +60,13 @@ export type Runner = (args: string[]) => Promise<string>;
 export const boardDir = (): string => process.env.LOKI_BOARD_DIR ?? join(homedir(), ".letta", "loki", "board");
 
 export function bdBinary(): string | null {
-  const candidates = [process.env.LOKI_BD, "/opt/homebrew/bin/bd", "/usr/local/bin/bd", join(homedir(), "go", "bin", "bd")].filter((p): p is string => !!p);
+  const onPath = (process.env.PATH ?? "").split(":").filter(Boolean).map((d) => join(d, "bd"));
+  const candidates = [process.env.LOKI_BD, ...onPath, "/opt/homebrew/bin/bd", "/usr/local/bin/bd", join(homedir(), "go", "bin", "bd"), join(homedir(), ".local", "bin", "bd")].filter((p): p is string => !!p);
   return candidates.find((p) => existsSync(p)) ?? null;
 }
+
+/** The one-time `bd init` for the shared board. Exported for tests. */
+export const INIT_ARGS = ["init", "--prefix", "lk", "--non-interactive"];
 
 /** A label for the project a task came from: the folder's name, lower-cased, safe for bd. */
 export function projectLabel(folder: string | null | undefined): string | null {
@@ -174,10 +178,33 @@ export class TaskBoard {
     return existsSync(join(this.dir, ".beads"));
   }
 
-  private exec(args: string[]): Promise<string> {
+  private initialising: Promise<void> | null = null;
+
+  /** The board exists when `bd init` has been run in its directory; the first call creates it. */
+  private ensure(bin: string): Promise<void> {
+    if (this.ready()) return Promise.resolve();
+    if (!this.initialising) {
+      log("board:init", { dir: this.dir });
+      mkdirSync(this.dir, { recursive: true });
+      this.initialising = this.spawn(bin, INIT_ARGS).then(
+        () => undefined,
+        (err) => {
+          this.initialising = null; // try again next time
+          throw new Error(`could not create the board at ${this.dir}: ${err instanceof Error ? err.message : String(err)}`);
+        },
+      );
+    }
+    return this.initialising;
+  }
+
+  private async exec(args: string[]): Promise<string> {
     const bin = bdBinary();
-    if (!bin) return Promise.reject(new Error("bd (beads) is not installed — brew install beads"));
-    if (!this.ready()) return Promise.reject(new Error(`no board at ${this.dir} — run: cd ${this.dir} && bd init --prefix lk --non-interactive`));
+    if (!bin) throw new Error("bd (beads) is not installed — brew install beads");
+    await this.ensure(bin);
+    return this.spawn(bin, args);
+  }
+
+  private spawn(bin: string, args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
       execFile(
         bin,

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +22,20 @@ export class DeskRegistry {
     this.backendDir = backendDir;
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Runtime>;
-      for (const [k, v] of Object.entries(parsed)) if (v?.agent_id && v?.conversation_id) this.byScope.set(k, v);
+      let rewritten = false;
+      for (const [k, v] of Object.entries(parsed)) {
+        if (!v?.agent_id || !v?.conversation_id) continue;
+        // One scope per conversation: an older loki filed a main chat under the bare scope "default";
+        // today it is `default-<agentId>`. Fold legacy keys onto the canonical one so no desk shows twice.
+        const canonical = scopeFor(v.conversation_id, v.agent_id);
+        if (k !== canonical) {
+          rewritten = true;
+          if (!this.byScope.has(canonical)) this.byScope.set(canonical, v);
+          continue;
+        }
+        this.byScope.set(k, v);
+      }
+      if (rewritten) this.persist();
     } catch {
       // fresh
     }
@@ -83,6 +96,8 @@ export interface LocalConversationInfo {
   title: string | null;
   lastMessageAt: string | null;
   archived: boolean;
+  /** The conversation's own model, when it was switched away from the agent's. */
+  model: string | null;
 }
 
 /** The agent's display name from the local backend, if present. */
@@ -101,7 +116,7 @@ export function lookupLocalConversation(conversationId: string, agentId?: string
     const dir = join(backendDir, "conversations", conversationDirName(conversationId, agentId));
     const p = join(dir, "conversation.json");
     if (!existsSync(p)) return null;
-    const c = JSON.parse(readFileSync(p, "utf8")) as { agent_id?: string; summary?: string | null; last_message_at?: string | null; archived?: boolean };
+    const c = JSON.parse(readFileSync(p, "utf8")) as { agent_id?: string; summary?: string | null; last_message_at?: string | null; archived?: boolean; model?: string | null };
     const agent = typeof c.agent_id === "string" ? c.agent_id : null;
     // An agent's main chat has no summary; call it by the agent's name.
     const fallback = conversationId === "default" && agent ? `${lookupLocalAgentName(agent, backendDir) ?? "agent"} · main chat` : null;
@@ -110,6 +125,7 @@ export function lookupLocalConversation(conversationId: string, agentId?: string
       title: typeof c.summary === "string" && c.summary.trim() ? c.summary.trim() : fallback,
       lastMessageAt: typeof c.last_message_at === "string" ? c.last_message_at : null,
       archived: c.archived === true,
+      model: typeof c.model === "string" && c.model ? c.model : null,
     };
   } catch {
     return null;
@@ -121,6 +137,39 @@ export function lookupLocalConversation(conversationId: string, agentId?: string
  * ~/.letta/lc-local-backend/conversations/<base64("conversation:"+id)>/conversation.json
  * with an agent_id field. Lets a tab attach before any turn has told us the agent.
  */
+export interface LocalConversationRow {
+  conversationId: string;
+  agentId: string;
+  archived: boolean;
+  hidden: boolean;
+  lastMessageAt: string | null;
+}
+
+/**
+ * Every conversation the local backend has, so the desks list is complete: a conversation that
+ * never ran a turn while loki was up, and has no widgets, still deserves a row in the tree.
+ */
+export function listLocalConversations(backendDir = join(homedir(), ".letta", "lc-local-backend")): LocalConversationRow[] {
+  const root = join(backendDir, "conversations");
+  if (!existsSync(root)) return [];
+  const out: LocalConversationRow[] = [];
+  for (const name of readdirSync(root)) {
+    try {
+      const c = JSON.parse(readFileSync(join(root, name, "conversation.json"), "utf8")) as { id?: string; agent_id?: string; archived?: boolean; hidden?: boolean; last_message_at?: string | null };
+      if (typeof c.id !== "string" || typeof c.agent_id !== "string") continue;
+      out.push({ conversationId: c.id, agentId: c.agent_id, archived: c.archived === true, hidden: c.hidden === true, lastMessageAt: typeof c.last_message_at === "string" ? c.last_message_at : null });
+    } catch {
+      // not a conversation dir
+    }
+  }
+  return out;
+}
+
+/** Agents with a memory filesystem are the user's own; the rest are one-off subagents the app-server hides. */
+export function agentHasMemory(agentId: string, backendDir = join(homedir(), ".letta", "lc-local-backend")): boolean {
+  return existsSync(join(backendDir, "memfs", agentId));
+}
+
 export function lookupLocalAgentId(conversationId: string, backendDir = join(homedir(), ".letta", "lc-local-backend")): string | null {
   if (conversationId === "default") return null; // ambiguous without the agent
   try {

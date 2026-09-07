@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput } from "../chat/ChatInput";
-import { AgentChip } from "./AgentChip";
+import { AgentChip, AgentFace } from "./AgentChip";
+import { avatarUrl } from "./env";
 import type { AttentionItem, AttentionStatus } from "../attention/model";
 import { catchUpQueue, idOf, mergeQueue, snoozedItems, stampOf, type Decision } from "../attention/queue";
 import { formatIn, ordinal, type Snooze } from "../attention/snooze";
@@ -10,6 +11,8 @@ import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";
 import { btn, kbd } from "../chat/ui";
 import { registerActions } from "../shell/keymap";
+import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
+import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../chat/PermissionMode";
 
 /**
  * Catch Up: one waiting conversation at a time, a decision per card.
@@ -20,7 +23,7 @@ import { registerActions } from "../shell/keymap";
 
 const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
   approval: { label: "needs approval", color: "var(--loki-accent)" },
-  question: { label: "asked you", color: "#d7a54a" },
+  question: { label: "asked you", color: "var(--loki-accent)" },
   failed: { label: "failed", color: "var(--loki-negative)" },
   done: { label: "finished", color: "var(--loki-positive)" },
   running: { label: "running", color: "var(--loki-muted)" },
@@ -54,6 +57,12 @@ export function CatchUp({
   onOpenDesk,
   conversation,
   loadHistory,
+  modelFor,
+  models = null,
+  onLoadModels,
+  onPickModel,
+  modeFor,
+  onPickMode,
 }: {
   open: boolean;
   onClose: () => void;
@@ -64,7 +73,7 @@ export function CatchUp({
   /** Raw deferral records by "agentId/conversationId" (expired ones included) for the "nth time around" label. */
   snoozes: Record<string, Snooze>;
   /** The live conversation model behind a card; `rows` is undefined until loaded. */
-  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming" };
+  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; mode?: string | null };
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem) => void;
   onUnread: (item: AttentionItem) => void;
@@ -72,7 +81,19 @@ export function CatchUp({
   onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
+  /** The model a card's conversation runs on, and the switcher (shared with the desk chat). */
+  modelFor?: (agentId: string, conversationId: string) => string | null;
+  models?: ModelEntry[] | null;
+  onLoadModels?: () => void;
+  onPickModel?: (item: AttentionItem, handle: string) => Promise<void>;
+  /** The permission mode of a card's conversation, and its setter. */
+  modeFor?: (agentId: string, conversationId: string) => string | null;
+  onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
 }) {
+  const [modelPicker, setModelPicker] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [modeMenu, setModeMenu] = useState(false);
+  const [changingMode, setChangingMode] = useState(false);
   // The current card never moves under your hands, but the queue stays live: new items join at the end,
   // items resolved elsewhere drop out, decided ones fall out. The count in the header follows.
   const [queue, setQueue] = useState<AttentionItem[]>([]);
@@ -256,7 +277,7 @@ export function CatchUp({
         )}
 
         {!current ? (
-          <div style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 14, padding: "36px 28px", textAlign: "center" }}>
+          <div style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "36px 28px", textAlign: "center" }}>
             <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>You're caught up.</div>
             <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>
               {items.filter((i) => i.status === "running").length > 0
@@ -265,11 +286,11 @@ export function CatchUp({
             </div>
             {snoozed.length > 0 && nextDue && (
               <div style={{ fontSize: 12, color: "var(--loki-accent)", marginTop: 6 }}>
-                {snoozed.length} snoozed · next back in {formatIn(nextDue)} · <span style={{ fontFamily: "var(--loki-mono)", fontSize: 11 }}>S</span> to show them now
+                {snoozed.length} snoozed · next back in {formatIn(nextDue)} · <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>S</span> to show them now
               </div>
             )}
             {(decided.length > 0 || replies > 0) && (
-              <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontFamily: "var(--loki-mono)", letterSpacing: "0.04em" }}>
+              <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>
                 {[
                   `${decided.length} cleared this pass`,
                   ...(["approve", "deny", "later"] as const)
@@ -281,7 +302,7 @@ export function CatchUp({
               </div>
             )}
             <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 6 }}>anything new lands here while this stays open</div>
-            <div style={{ marginTop: 18, fontSize: 11, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
+            <div style={{ marginTop: 18, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
           </div>
         ) : (
           <div
@@ -293,8 +314,8 @@ export function CatchUp({
               flexDirection: "column",
               background: "var(--loki-panel)",
               border: `1px solid ${badge?.color ?? "var(--loki-border)"}`,
-              borderRadius: 14,
-              boxShadow: "0 30px 90px rgba(0,0,0,0.6)",
+              borderRadius: 12,
+              boxShadow: "var(--loki-shadow-sheet)",
               overflow: "hidden",
               animation: `${dir === "back" ? "loki-card-back" : "loki-card-next"} 200ms ease-out`,
             }}
@@ -302,15 +323,55 @@ export function CatchUp({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.title ?? current.id}</div>
-                <div style={{ fontSize: 11, color: "var(--loki-muted)", marginTop: 4, fontFamily: "var(--loki-mono)", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ fontSize: 10.5, color: "var(--loki-muted)", marginTop: 4, fontFamily: "var(--loki-mono)", display: "flex", alignItems: "center", gap: 10 }}>
+                  <AgentFace name={current.agentName} src={avatarUrl(current.agentId)} size={18} />
                   <AgentChip name={current.agentName} />
                   <span>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</span>
                   {cameBack && <span style={{ color: "var(--loki-accent)" }}>back · new since you moved on</span>}
                   {timesAround > 1 && <span style={{ color: "var(--loki-accent)" }}>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</span>}
                   {current.snooze && <span style={{ color: "var(--loki-muted)" }}>snoozed · due in {formatIn(current.snooze.until)}</span>}
+                  {onPickMode && modeFor && (
+                    <span style={{ position: "relative", display: "inline-flex" }}>
+                      <ModeChip mode={isPermissionMode(thread?.mode) ? thread.mode : isPermissionMode(modeFor(current.agentId, current.id)) ? (modeFor(current.agentId, current.id) as PermissionMode) : null} busy={changingMode} onClick={() => setModeMenu((v) => !v)} />
+                      <ModeMenu
+                        open={modeMenu}
+                        current={isPermissionMode(thread?.mode) ? thread.mode : isPermissionMode(modeFor(current.agentId, current.id)) ? (modeFor(current.agentId, current.id) as PermissionMode) : null}
+                        onClose={() => setModeMenu(false)}
+                        onPick={(m) => {
+                          setModeMenu(false);
+                          setChangingMode(true);
+                          void onPickMode(current, m).finally(() => setChangingMode(false));
+                        }}
+                      />
+                    </span>
+                  )}
+                  {onPickModel && modelFor && (
+                    <span style={{ position: "relative", display: "inline-flex" }}>
+                      <ModelChip
+                        model={modelFor(current.agentId, current.id)}
+                        busy={switching}
+                        onClick={() => {
+                          onLoadModels?.();
+                          setModelPicker((v) => !v);
+                        }}
+                      />
+                      <ModelPicker
+                        open={modelPicker}
+                        current={modelFor(current.agentId, current.id)}
+                        entries={models}
+                        loading={!models}
+                        onClose={() => setModelPicker(false)}
+                        onPick={(h) => {
+                          setModelPicker(false);
+                          setSwitching(true);
+                          void onPickModel(current, h).finally(() => setSwitching(false));
+                        }}
+                      />
+                    </span>
+                  )}
                 </div>
               </div>
-              <span style={{ fontSize: 11, letterSpacing: "0.08em", color: badge?.color, border: `1px solid ${badge?.color}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 10.5, letterSpacing: "0.06em", color: badge?.color, border: `1px solid ${badge?.color}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap" }}>
                 {flash ?? badge?.label}
               </span>
             </div>
@@ -357,7 +418,7 @@ export function CatchUp({
             </div>
           </div>
         )}
-        <div style={{ textAlign: "center", marginTop: 12, fontSize: 10, color: "var(--loki-muted)", letterSpacing: "0.08em", fontFamily: "var(--loki-mono)" }}>
+        <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
           {typing ? "enter send (you stay on the card) · ⌘] next · ⌘[ later · ⌘↵ approve · ⌘⇧D deny · ⌘O open · ⌘S snoozed · esc back to the deck's keys" : "→ next · ← later · A approve · D deny · R reply · O open · S snoozed · Z undo · esc close"}
         </div>
       </div>

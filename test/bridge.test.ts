@@ -90,7 +90,7 @@ describe("bridge", () => {
   test("desk frames carry the conversation title and status", async () => {
     const bridge = createBridge({
       store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
-      deskInfo: (s) => (s === "c1" ? { title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", agentId: "a1" } : s === "gone" ? { title: null, status: "deleted", agentName: null, agentId: null } : { title: "shared", status: "none", agentName: null, agentId: null }),
+      deskInfo: (s) => (s === "c1" ? { title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", agentId: "a1", model: "anthropic/claude-fable-5" } : s === "gone" ? { title: null, status: "deleted", agentName: null, agentId: null, model: null } : { title: "shared", status: "none", agentName: null, agentId: null, model: null }),
     });
     const c = client("c1");
     bridge.onConnect(c);
@@ -101,8 +101,8 @@ describe("bridge", () => {
     await new Promise((r) => setTimeout(r, 10));
   });
 
-  test("sortDesks: shared, then live (active first, then recent), then archived, then deleted", () => {
-    const d = (scope: string, status: DeskSummary["status"], extra: Partial<DeskSummary> = {}): DeskSummary => ({ scope, status, title: null, agentName: null, agentId: null, conversationId: null, widgets: 0, active: false, lastActive: null, ...extra });
+  test("sortDesks: shared, then live (pinned, active, then recent), then archived, then deleted", () => {
+    const d = (scope: string, status: DeskSummary["status"], extra: Partial<DeskSummary> = {}): DeskSummary => ({ scope, status, title: null, agentName: null, agentId: null, conversationId: null, model: null, widgets: 0, active: false, lastActive: null, ...extra });
     const sorted = sortDesks([
       d("old", "live", { lastActive: "2026-09-01T00:00:00Z" }),
       d("gone", "deleted"),
@@ -110,12 +110,13 @@ describe("bridge", () => {
       d("shared", "none"),
       d("now", "live", { active: true, lastActive: "2026-08-01T00:00:00Z" }),
       d("new", "live", { lastActive: "2026-09-02T00:00:00Z" }),
+      d("pinned", "live", { pinned: true, lastActive: "2026-07-01T00:00:00Z" }),
     ]).map((x) => x.scope);
-    expect(sorted).toEqual(["shared", "now", "new", "old", "arch", "gone"]);
+    expect(sorted).toEqual(["shared", "pinned", "now", "new", "old", "arch", "gone"]);
   });
 
   test("list_desks replies with the mod's desk list", () => {
-    const desks: DeskSummary[] = [{ scope: "shared", title: "shared", status: "none", agentName: null, agentId: null, conversationId: null, widgets: 1, active: false, lastActive: null }];
+    const desks: DeskSummary[] = [{ scope: "shared", title: "shared", status: "none", agentName: null, agentId: null, conversationId: null, model: null, widgets: 1, active: false, lastActive: null }];
     const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listDesks: () => desks });
     const c = client("c1");
     bridge.onMessage(c, { type: "list_desks" });

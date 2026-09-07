@@ -16,7 +16,25 @@
   --loki-positive: #6fb3a4;
   --loki-negative: #c0665b;
   --loki-grid: #2c3240;
-  --loki-radius: 10px;
+  /* Wells (inputs), the agent's bubble, veils and glows — the few surfaces that are not panel or bg. */
+  --loki-well: #0f1218;
+  --loki-bubble: #20252e;
+  --loki-veil: rgba(8, 8, 10, 0.45);
+  --loki-brass-glow: rgba(201, 164, 92, 0.28);
+  --loki-hairline: rgba(255, 255, 255, 0.06);
+  /* Shadows: sheet (modals), float (popovers), panel (the chat), low (small plates). */
+  --loki-shadow-sheet: 0 30px 90px rgba(0, 0, 0, 0.6);
+  --loki-shadow-float: 0 18px 60px rgba(0, 0, 0, 0.55);
+  --loki-shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --loki-shadow-low: 0 6px 20px rgba(0, 0, 0, 0.4);
+  /*
+   * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
+   *   9.5 micro (labels, kbd, rail)   10.5 meta (mono details)   12 small   13.5 body   15 row title
+   *   17 card title   22 display   28 hero
+   * Radii: 6 control · 8 row · 12 card / sheet · 999 pill (circles use half their size).
+   * Tracking: 0.06em for mono meta, 0.14em for condensed labels (.loki-label).
+   */
+  --loki-radius: 12px;
   --loki-font:
     -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
   --loki-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
@@ -58,6 +76,14 @@
 }
 /* Frame controls stay quiet until the frame is hovered or focused. */
 .loki-frame-controls { opacity: 0.35; transition: opacity 160ms ease-out; }
+/* Agent content should never punch out of its frame: media and code fit the width, wide blocks scroll. */
+.loki-frame-body img, .loki-frame-body svg, .loki-frame-body video, .loki-frame-body canvas { max-width: 100%; height: auto; }
+.loki-frame-body pre { max-width: 100%; overflow-x: auto; }
+.loki-frame-body table { display: block; max-width: 100%; overflow-x: auto; }
+/* The resize grip hides until the frame is hovered, like the controls. */
+.loki-frame-resize { opacity: 0; transition: opacity 160ms ease-out; }
+.loki-frame:hover .loki-frame-resize, .loki-frame:focus-within .loki-frame-resize { opacity: 0.5; }
+.loki-frame-resize:hover { opacity: 1 !important; }
 .loki-frame:hover .loki-frame-controls,
 .loki-frame:focus-within .loki-frame-controls { opacity: 1; }
 
@@ -71,9 +97,12 @@
 
 /* Inbox: cards move the way you did. */
 @keyframes loki-veil { from { opacity: 0; } to { opacity: 1; } }
-/* The desks tree slides out from the rail. */
-.loki-drawer { animation: loki-drawer 180ms ease-out both; }
-@keyframes loki-drawer { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+/* The desks tree rises into the centre. */
+.loki-sheet { animation: loki-sheet 160ms ease-out both; }
+@keyframes loki-sheet { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: none; } }
+/* Tree rows: hover (or the keyboard highlight) swaps the timestamp for the pin / archive actions. */
+.loki-tree-row:hover .loki-tree-meta, .loki-tree-row[aria-selected="true"] .loki-tree-meta { display: none; }
+.loki-tree-row:hover .loki-tree-actions, .loki-tree-row[aria-selected="true"] .loki-tree-actions { display: inline-flex !important; }
 /* Rail buttons. */
 .loki-rail:hover { background: var(--loki-panel-header) !important; color: var(--loki-fg) !important; }
 .loki-rail:focus-visible { outline: 1px solid var(--loki-accent); outline-offset: -1px; }

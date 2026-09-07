@@ -68,6 +68,8 @@ export interface Live {
   /** Turns the agent has completed since this tab connected — a turn is new content even when it ended in a tool call. */
   turns: number;
   inTurn: boolean;
+  /** From update_device_status: the permission mode the harness applies to this conversation right now. */
+  mode?: string;
 }
 
 import type { Snooze } from "./snooze";
@@ -152,6 +154,14 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
       }
       l.lastMessageAt = now;
       return { changed: true, userSpoke: false };
+    }
+    case "update_device_status": {
+      const m = (ev.device_status as { current_permission_mode?: string } | undefined)?.current_permission_mode;
+      if (m && m !== l.mode) {
+        l.mode = m;
+        return { changed: true, userSpoke: false };
+      }
+      return { changed: false, userSpoke: false };
     }
     case "update_loop_status": {
       const status = (ev.loop_status as { status?: string } | undefined)?.status;

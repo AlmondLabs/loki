@@ -12,7 +12,7 @@ export function ApprovalCard({ approval, actions }: { approval: PendingApproval;
       <div className="loki-label" style={{ color: "var(--loki-accent)", marginBottom: 8 }}>
         needs your approval · <code style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)", textTransform: "none", letterSpacing: 0 }}>{approval.toolName}</code>
       </div>
-      <pre style={{ margin: 0, padding: "10px 12px", background: "#101014", border: "1px solid var(--loki-border)", borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflow: "auto", color: "var(--loki-fg)" }}>
+      <pre style={{ margin: 0, padding: "10px 12px", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 140, overflow: "auto", color: "var(--loki-fg)" }}>
         {formatInput(approval.input)}
       </pre>
       {actions && <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>{actions}</div>}

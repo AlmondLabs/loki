@@ -1,7 +1,27 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys } from "./keymap";
+import { btn } from "../chat/ui";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
+import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../shared/compat";
+import type { ConnectProvider } from "../attention/protocol";
+import { Providers } from "../settings/Providers";
+import type { BootstrapStatus } from "./bootstrap";
+
+/** What launch did about the mod and the skill (src-tauri/src/install.rs). */
+interface InstallReport {
+  mod: "installed" | "updated" | "current" | "custom" | "skipped" | "error";
+  shim: string;
+  mod_path: string;
+  skill: "installed" | "updated" | "current" | "custom" | "skipped" | "error";
+  skill_path: string;
+  needs_reload: boolean;
+  error: string | null;
+}
+interface Tools {
+  letta: string | null;
+  bd: string | null;
+}
 
 const HOME = "~/.letta/loki";
 
@@ -18,6 +38,14 @@ export function Settings({
   onChatWidth,
   chatPlacement,
   onChatPlacement,
+  lettaVersion,
+  providers,
+  onLoadProviders,
+  onConnectProvider,
+  onDisconnectProvider,
+  onModelsChanged,
+  bootstrap,
+  onInstallLetta,
 }: {
   appServerStatus: "connecting" | "open" | "closed" | "unavailable";
   tunnelUrl: string | null;
@@ -27,12 +55,31 @@ export function Settings({
   onChatWidth: (w: ChatWidth) => void;
   chatPlacement: ChatPlacement;
   onChatPlacement: (p: ChatPlacement) => void;
+  /** From the harness's app_server_info reply. */
+  lettaVersion: string | null;
+  providers: ConnectProvider[] | null;
+  onLoadProviders: () => Promise<unknown>;
+  onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
+  onDisconnectProvider: (providerId: string) => Promise<string | null>;
+  onModelsChanged: () => void;
+  bootstrap: BootstrapStatus | null;
+  onInstallLetta: () => Promise<void>;
 }) {
   const [appServerUrl, setAppServerUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!inTauri) return setAppServerUrl(tunnelUrl);
     void import("@tauri-apps/api/core").then(({ invoke }) => invoke<string>("appserver_url")).then(setAppServerUrl).catch(() => setAppServerUrl(null));
   }, [tunnelUrl]);
+  const [install, setInstall] = useState<InstallReport | null>(null);
+  const [tools, setTools] = useState<Tools | null>(null);
+  useEffect(() => {
+    if (!inTauri) return;
+    void import("@tauri-apps/api/core").then(async ({ invoke }) => {
+      setInstall(await invoke<InstallReport>("install_status").catch(() => null));
+      setTools(await invoke<Tools>("tool_status").catch(() => null));
+    });
+  }, []);
+  const compatible = lettaCompatible(lettaVersion);
   // Never print the token: a browser tab's tunnel URL carries it as a query.
   const shownUrl = appServerUrl ? appServerUrl.replace(/\?.*$/, "") : null;
   const viaTunnel = !!appServerUrl && appServerUrl.includes("/appserver");
@@ -52,6 +99,25 @@ export function Settings({
           <Fact label="link" value={<Status s={modConnection} />} />
           <Fact label="desks" value={String(deskCount)} mono />
         </Section>
+        <Section title="providers" hint="who answers the models; keys are checked, then kept by Letta on this Mac">
+          {appServerStatus === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="link" value="the harness is not linked yet" />}
+        </Section>
+        <Section title="requirements" hint="what loki needs on this machine, and where it found it">
+          <Fact label="letta code" value={lettaVersion ? <span>harness reports {lettaVersion}{compatible === false ? <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}, whose harness reports {TESTED_APP_SERVER_REPORT} — if something is off, this is the first suspect</Note> : <Note>as the tested release ({TESTED_LETTA_CODE}) does</Note>}</span> : tools ? (tools.letta ? "harness not linked yet" : <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note>) : "—"} />
+          <Fact label="letta cli" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.private ? <Note>installed by loki, under its own folder</Note> : null}</span> : bootstrap.installing ? <Note tone="warn">installing a private copy… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <button type="button" onClick={() => void onInstallLetta()} style={{ ...btn(), marginLeft: 8, padding: "2px 8px", fontSize: 10.5 }}>install</button> <Note>or: npm install -g @letta-ai/letta-code</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note> : "—"} mono />
+          <Fact label="bd (beads)" value={tools ? tools.bd ?? <Note tone="warn">not found — brew install beads (the board needs it; everything else works without)</Note> : "—"} mono />
+          <Fact label="system" value="macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript" />
+        </Section>
+        {inTauri && (
+          <Section title="install" hint="on launch the app puts its mod and skill where Letta looks">
+            <Fact label="mod" value={install ? <span><InstallState s={install.mod} /> {install.mod === "custom" ? <Note>your own shim is in place; the app leaves it alone</Note> : install.mod === "skipped" ? <Note>development build — set LOKI_INSTALL=1 to install anyway</Note> : install.needs_reload ? <Note tone="warn">the harness started before this copy landed: run /reload in Letta Code, or restart Letta Desktop</Note> : null}</span> : "—"} />
+            <Fact label="shim" value={install?.shim ?? "~/.letta/mods/loki.ts"} mono />
+            {install?.mod_path ? <Fact label="bundle" value={install.mod_path} mono /> : null}
+            <Fact label="skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : null}</span> : "—"} />
+            <Fact label="skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
+            {install?.error ? <Fact label="error" value={<span style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{install.error}</span>} /> : null}
+          </Section>
+        )}
         <Section title="files" hint="everything loki keeps, in one folder">
           <Fact label="widgets" value={`${HOME}/widgets/<desk>/`} mono />
           <Fact label="layout" value={`${HOME}/state/<desk>.json`} mono />
@@ -67,7 +133,7 @@ export function Settings({
           <Fact label="later" value="5m · 15m · 45m · 2h · 6h · 1d, one step further each time a card is deferred" />
         </Section>
         <Section title="keys" hint="⌘ here is ctrl on other systems">
-          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
             <tbody>
               {WHERE_ORDER.flatMap((where) => KEYMAP.filter((b) => b.where === where)).map((b, i, rows) => (
                 <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
@@ -82,7 +148,7 @@ export function Settings({
             </tbody>
           </table>
         </Section>
-        <div className="loki-label" style={{ fontSize: 9, textAlign: "center" }}>
+        <div className="loki-label" style={{ fontSize: 9.5, textAlign: "center" }}>
           loki {__LOKI_VERSION__} · {inTauri ? "tauri shell" : "browser tab"}
         </div>
       </div>
@@ -94,7 +160,7 @@ function Choice<T extends string>({ options, value, onPick, labels = {} }: { opt
   return (
     <span style={{ display: "inline-flex", gap: 6 }}>
       {options.map((o) => (
-        <button key={o} onClick={() => onPick(o)} aria-pressed={value === o} className="loki-label" style={{ padding: "4px 10px", border: `1px solid ${value === o ? "var(--loki-accent)" : "var(--loki-border)"}`, background: value === o ? "var(--loki-brass-soft)" : "transparent", color: value === o ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer", fontSize: 10 }}>
+        <button key={o} onClick={() => onPick(o)} aria-pressed={value === o} className="loki-label" style={{ padding: "4px 10px", border: `1px solid ${value === o ? "var(--loki-accent)" : "var(--loki-border)"}`, background: value === o ? "var(--loki-brass-soft)" : "transparent", color: value === o ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer", fontSize: 10.5 }}>
           {labels[o] ?? o}
         </button>
       ))}
@@ -107,7 +173,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
     <section style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "6px 24px", alignItems: "start" }}>
       <div style={{ paddingTop: 2 }}>
         <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)" }}>{title}</div>
-        {hint && <div style={{ fontSize: 11.5, color: "var(--loki-muted)", marginTop: 4, lineHeight: 1.45 }}>{hint}</div>}
+        {hint && <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 4, lineHeight: 1.45 }}>{hint}</div>}
       </div>
       <div style={{ display: "grid", gap: 6, borderLeft: "1px solid var(--loki-border)", paddingLeft: 20 }}>{children}</div>
     </section>
@@ -116,17 +182,26 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 
 function Fact({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "baseline", fontSize: 13, lineHeight: 1.5 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "baseline", fontSize: 13.5, lineHeight: 1.5 }}>
       <span className="loki-label" style={{ fontSize: 9.5 }}>{label}</span>
       <span style={{ color: "var(--loki-fg)", fontFamily: mono ? "var(--loki-mono)" : undefined, fontSize: mono ? 12 : 13, overflowWrap: "anywhere" }}>{value}</span>
     </div>
   );
 }
 
+function Note({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "warn" }) {
+  return <span style={{ marginLeft: 8, fontSize: 12, color: tone === "warn" ? "var(--loki-accent)" : "var(--loki-muted)" }}>{children}</span>;
+}
+
+function InstallState({ s }: { s: string }) {
+  const color = s === "error" ? "var(--loki-negative)" : s === "custom" || s === "skipped" ? "var(--loki-muted)" : "var(--loki-positive)";
+  return <span style={{ color, fontFamily: "var(--loki-label)", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase" }}>{s}</span>;
+}
+
 function Status({ s }: { s: string }) {
   const color = s === "open" ? "var(--loki-positive)" : s === "connecting" ? "var(--loki-accent)" : "var(--loki-negative)";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color, fontFamily: "var(--loki-label)", fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color, fontFamily: "var(--loki-label)", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase" }}>
       <span style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
       {s}
     </span>

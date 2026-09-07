@@ -9,28 +9,32 @@ title, drawn by macOS; anything that needs a human is brass.
 
 ## Tokens (`app/src/kit/tokens.css`)
 
-| role | value | why |
-| --- | --- | --- |
-| ground `--loki-bg` | `#12151b` ink-slate | cool, not black; dots read as drafting paper |
-| panel / header | `#1a1e27` / `#1f2430` | one step up, never glossy |
-| rule `--loki-border` | `#2b313d` | hairline cells |
-| text `--loki-fg` | `#e7e3d8` paper | warm against the cool ground |
-| brass `--loki-accent` | `#c9a45c` | needs you: approvals, unread, catch-up count |
-| verdigris `--loki-positive` | `#6fb3a4` | live, finished, allow |
-| oxblood `--loki-negative` | `#c0665b` | deleted, failed, deny |
+Colour: ink-slate ground `--loki-bg`, panels `--loki-panel` / `--loki-panel-header`, hairlines
+`--loki-border`, paper `--loki-fg`, `--loki-muted`; brass `--loki-accent` (with `--loki-accent-soft`,
+`--loki-brass-soft`, `--loki-brass-glow`) for anything that needs the human; verdigris `--loki-positive`;
+oxblood `--loki-negative`. Three more surfaces: `--loki-well` (inputs), `--loki-bubble` (the agent's
+speech), `--loki-veil` (behind a sheet). No literal colour appears in a component; the agent chip's
+hue is the one computed colour.
 
-Type roles: **display** New York / ui-serif for room names (desk and
-conversation titles); **label** Avenir Next Condensed, caps, tracked 0.14em, for
-title-block lettering, widget names, eyebrows; **body** the system face;
-**mono** SF Mono for ids, paths, commands, the drawing scale.
+Type scale, in px, used as plain numbers in inline styles: **9.5** micro (labels, kbd, rail) ·
+**10.5** meta (mono details) · **12** small · **13.5** body · **15** row title · **17** card title ·
+**22** display · **28** hero. Faces: New York for display, Avenir Next Condensed for labels, the
+system face for reading, SF Mono for data. Tracking: 0.06em on mono meta, 0.14em on labels.
+
+Radii: **6** controls · **8** rows · **12** cards and sheets · **999** pills; circles use half their size.
+Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers), `--loki-shadow-panel` (the
+chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in `app/src/kit/layers.ts` (panel 100,
+rail 110, modal 200, toast 300); small inline z-indexes are for stacking inside one component only.
+
+`test/tokens.test.ts` fails the build when an inline style leaves these scales.
 
 ## Signature
 
 There is no top chrome of our own. The **native title bar** shows the desk's
 name (with "· archived" or "· deleted" when that is the case), "Inbox · n
 waiting", or "Settings", and changes as you move. Who drew the desk is in the
-tree and the chat; the sheet's actions are on the keys (⌘⇧A arrange, ⇧1 fit,
-⌘0 1:1) and listed in Settings. Two earlier forms were dropped on 2026-09-06:
+tree and the chat; the sheet's actions are on the keys (⌘⇧A arrange, ⌘0 fit,
+⌘⇧0 1:1) and listed in Settings. Two earlier forms were dropped on 2026-09-06:
 a drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom
 40px bar with a header line — both were chrome justifying itself.
 

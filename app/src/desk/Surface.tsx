@@ -55,6 +55,13 @@ export function Surface({
   chatPlacement,
   focusChat,
   findChat = 0,
+  chatPrefill = null,
+  models = null,
+  onLoadModels,
+  onPickModel,
+  modelPickerTick = 0,
+  onPickMode,
+  modeMenuTick = 0,
 }: {
   desk: ReturnType<typeof useDesk>;
   catchUp: ReturnType<typeof useAttention>;
@@ -68,6 +75,15 @@ export function Surface({
   focusChat: number;
   /** Bumped by the shell (⌘F) to open the chat's find bar. */
   findChat?: number;
+  chatPrefill?: { text: string; tick: number } | null;
+  models?: import("../chat/ModelPicker").ModelEntry[] | null;
+  onLoadModels?: () => void;
+  /** Switch this desk's conversation to a model; the shell talks to the app-server. */
+  onPickModel?: (scope: string, rt: { agent_id: string; conversation_id: string }, handle: string) => Promise<void>;
+  modelPickerTick?: number;
+  /** Set this desk's conversation permission mode; the shell talks to the app-server. */
+  onPickMode?: (scope: string, rt: { agent_id: string; conversation_id: string }, mode: string) => Promise<void>;
+  modeMenuTick?: number;
 }) {
   const { scope, title, status, agentName, agentId, conversationId, connection, visible, closed, ownCount, loaded, attention, gesture, measure, arrange, trash, reportWidgetError, cameraTarget } = desk;
   const [deskFolder, setDeskFolder] = useState<string | null>(null);
@@ -337,6 +353,15 @@ export function Surface({
           onToggleWidth={toggleChatWidth}
           focusTick={focusChat}
           findTick={findChat}
+          prefill={chatPrefill}
+          model={desk.model}
+          models={models}
+          onLoadModels={onLoadModels}
+          onPickModel={deskRuntime && onPickModel ? (h) => onPickModel(scope, deskRuntime, h) : undefined}
+          modelPickerTick={modelPickerTick}
+          mode={deskChat?.mode ?? desk.mode}
+          onPickMode={deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined}
+          modeMenuTick={modeMenuTick}
           approval={pendingApproval}
           question={pendingQuestion}
           onAnswer={(answers) => {
@@ -355,8 +380,8 @@ export function Surface({
         <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
           <div style={{ textAlign: "center", color: "var(--loki-muted)", maxWidth: 460 }}>
             <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)", lineHeight: 1.25 }}>Nothing on this desk yet.</div>
-            <div style={{ fontSize: 13, marginTop: 10, lineHeight: 1.6 }}>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</div>
-            <div className="loki-label" style={{ marginTop: 14, fontSize: 10 }}>widgets are files · ~/.letta/loki/widgets/{scope}/</div>
+            <div style={{ fontSize: 13.5, marginTop: 10, lineHeight: 1.6 }}>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</div>
+            <div className="loki-label" style={{ marginTop: 14, fontSize: 10.5 }}>widgets are files · ~/.letta/loki/widgets/{scope}/</div>
           </div>
         </div>
       )}

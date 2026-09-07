@@ -10,9 +10,12 @@ import { watchWidgets } from "./widgets-fs.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
+import { readPins, setPin } from "./pins.ts";
+import { installSkill, listGlobalSkills } from "./skills.ts";
+import { memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName } from "../shared/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
 import { sortDesks } from "./bridge.ts";
@@ -131,17 +134,27 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   // --- transport -------------------------------------------------------
   const deskInfo = (scope: Scope): DeskInfo & { lastActive: string | null } => {
-    if (scope === SHARED_SCOPE) return { title: "shared", status: "none", agentName: null, agentId: null, lastActive: null };
+    if (scope === SHARED_SCOPE) return { title: "shared", status: "none", agentName: null, agentId: null, model: null, lastActive: null };
     const rt = desks.get(scope);
-    if (!rt) return { title: null, status: "none", agentName: null, agentId: null, lastActive: null };
+    if (!rt) return { title: null, status: "none", agentName: null, agentId: null, model: null, lastActive: null };
     const agentName = lookupLocalAgentName(rt.agent_id);
+    const agentModel = readLocalAgent(rt.agent_id)?.model ?? null;
     const info = lookupLocalConversation(rt.conversation_id, rt.agent_id);
-    if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, lastActive: null };
-    return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, lastActive: info.lastMessageAt };
+    const mode = permissionModeOf(rt.agent_id, rt.conversation_id);
+    if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, mode, lastActive: null };
+    return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, mode, lastActive: info.lastMessageAt };
   };
   const listDesks = (): DeskSummary[] => {
     const scopes = new Set<Scope>([SHARED_SCOPE, ...store.scopes(), ...desks.all().map((d) => d.scope)]);
     for (const e of widgets.entries()) scopes.add(e.scope);
+    const pins = readPins();
+    // Every conversation of the user's own agents, seen by loki or not (subagents' one-off chats stay out).
+    const ownAgents = new Set(desks.all().map((d) => d.agent_id));
+    for (const c of listLocalConversations()) {
+      // A deleted agent leaves its memory repo behind: its record must still exist too.
+      if (c.hidden || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
+      scopes.add(desks.remember(c.conversationId, c.agentId));
+    }
     return sortDesks(
       [...scopes].map((scope) => {
         const info = deskInfo(scope);
@@ -152,6 +165,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
           agentName: info.agentName,
           agentId: info.agentId,
           conversationId: desks.get(scope)?.conversation_id ?? null,
+          pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
+          model: info.model,
+          mode: info.mode ?? null,
           widgets: widgets.entries(scope).length,
           active: scope === activeScope,
           lastActive: info.lastActive,
@@ -186,13 +202,27 @@ export default function activate(letta: LettaMod): (() => void) | void {
     appServerUrl: () => appServerUrl,
     transcript: (agentId, conversationId) => readLocalTranscript(conversationId, agentId, 400),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
+    setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
+    agents: {
+      get: (id) => readLocalAgent(id),
+      tree: (id) => memoryTree(id),
+      skills: (id) => memorySkills(id),
+      hasProfile: (id) => profilePath(id) !== null,
+      read: (id, path) => readMemoryFile(id, path),
+      log: (id, opts) => memoryLog(id, opts),
+      diff: (id, sha) => memoryDiff(id, sha),
+      globalSkills: () => listGlobalSkills(),
+      install: (id, source, force) => installSkill(source, id, { force }),
+    },
   });
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;
     starting ??= startServer({
       port: modPort,
+      token,
+      profile: (agentId) => profilePath(agentId),
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
     }).then((s) => {
       ws = attachWs(s.server, token, bridge);
@@ -279,7 +309,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       const scope = activeScope;
       // Letta names conversations lazily; tell tabs when the title or status changes.
       const info = deskInfo(scope);
-      if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName }, scope === SHARED_SCOPE ? undefined : scope);
+      if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName, model: info.model, mode: info.mode ?? null }, scope === SHARED_SCOPE ? undefined : scope);
     }, 1200);
   });
 

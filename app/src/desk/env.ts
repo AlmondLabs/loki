@@ -24,6 +24,12 @@ export function modWsBase(): string {
   return modBase().replace(/^http/, "ws");
 }
 
+/** The agent's face as the mod serves it (its memory filesystem's profile.png). */
+export function avatarUrl(agentId: string): string {
+  const token = injectedToken() ?? localStorage.getItem("loki.token") ?? "";
+  return `${modBase()}/agents/${encodeURIComponent(agentId)}/profile.png?t=${encodeURIComponent(token)}`;
+}
+
 /** The token the Rust side injected, if any (browser tabs get it from the URL / localStorage instead). */
 export function injectedToken(): string | null {
   return window.__LOKI__?.token ?? null;
@@ -45,6 +51,8 @@ export function installShellLogging(): void {
     console.warn = mirror("warn", console.warn.bind(console));
     console.error = mirror("error", console.error.bind(console));
     console.info = mirror("info", console.info.bind(console));
+    // WebKit prints CSP refusals to the console directly, bypassing console.error: report them ourselves.
+    document.addEventListener("securitypolicyviolation", (e) => void invoke("client_log", { level: "error", message: `csp: ${e.violatedDirective} blocked ${e.blockedURI || "inline"} at ${e.sourceFile || location.pathname}:${e.lineNumber}` }).catch(() => {}));
     window.addEventListener("error", (e) => void invoke("client_log", { level: "error", message: `uncaught: ${e.message}` }).catch(() => {}));
     window.addEventListener("unhandledrejection", (e) => void invoke("client_log", { level: "error", message: `unhandled rejection: ${String((e as PromiseRejectionEvent).reason)}` }).catch(() => {}));
     void invoke("client_log", { level: "info", message: `page booted at ${location.href}` }).catch(() => {});

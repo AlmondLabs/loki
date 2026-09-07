@@ -126,3 +126,18 @@ describe("applyMeasure guards", () => {
     expect(before).not.toEqual({ w: 300, h: 200 });
   });
 });
+
+describe("frame sizing", () => {
+  test("a resize gesture pins the size and marks the frame user-sized", () => {
+    let st = ensureLayout(emptyDesk("s"), "s/a");
+    st = applyGesture(st, { kind: "resize", id: "s/a", size: { w: 500, h: 300 } });
+    expect(st.layout["s/a"].size).toEqual({ w: 500, h: 300 });
+    expect(st.layout["s/a"].sized).toBe(true);
+  });
+  test("measuring content never marks a frame user-sized (it stays auto)", () => {
+    let st = ensureLayout(emptyDesk("s"), "s/b");
+    st = applyMeasure(st, "s/b", { w: 420, h: 260 });
+    expect(st.layout["s/b"].size).toEqual({ w: 420, h: 260 });
+    expect(st.layout["s/b"].sized).toBeUndefined();
+  });
+});

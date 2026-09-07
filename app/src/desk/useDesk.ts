@@ -4,6 +4,9 @@ import { SHARED_SCOPE, applyGesture, autoPlace, emptyDesk, scopeFor } from "../.
 import { readSession, rememberDesk } from "./session";
 import { inTauri, modWsBase } from "./env";
 import type { Task } from "../board/model";
+import type { AgentDetails } from "../agents/Agents";
+import type { GlobalSkill } from "../../../mod/skills.ts";
+import type { MemoryCommit } from "../../../mod/agents.ts";
 import type { Snooze } from "../attention/snooze";
 import type { TranscriptRow } from "../chat/Transcript";
 
@@ -25,6 +28,11 @@ export interface DeskSummary {
   agentName: string | null;
   agentId: string | null;
   conversationId: string | null;
+  /** The model the conversation runs on (its override, else the agent's). */
+  model: string | null;
+  /** The permission mode Letta persisted for the conversation. */
+  mode?: string | null;
+  pinned?: boolean;
   widgets: number;
   active: boolean;
   lastActive: string | null;
@@ -55,6 +63,8 @@ export function useDesk() {
   const [statuses, setStatuses] = useState<Record<Scope, DeskStatus>>({});
   const [agentNames, setAgentNames] = useState<Record<Scope, string>>({});
   const [agentIds, setAgentIds] = useState<Record<Scope, string>>({});
+  const [models, setModels] = useState<Record<Scope, string>>({});
+  const [modes, setModes] = useState<Record<Scope, string>>({});
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   const [appServer, setAppServer] = useState(false);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
@@ -96,6 +106,8 @@ export function useDesk() {
             if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [s]: msg.status as DeskStatus }));
             if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [s]: msg.agentName as string }));
             if (typeof msg.agentId === "string" && msg.agentId) setAgentIds((t) => ({ ...t, [s]: msg.agentId as string }));
+            if (typeof msg.model === "string" && msg.model) setModels((t) => ({ ...t, [s]: msg.model as string }));
+            if (typeof msg.mode === "string" && msg.mode) setModes((t) => ({ ...t, [s]: msg.mode as string }));
             setDesks((d) => ({ ...d, [s]: msg.state as DeskState }));
             setWidgets((w) => ({ ...w, [s]: msg.widgets as WidgetManifestEntry[] }));
             const pending = pendingRef.current;
@@ -133,6 +145,11 @@ export function useDesk() {
           case "tasks_changed":
             setTasksVersion((v) => v + 1);
             break;
+          case "agent":
+          case "memory_file":
+          case "memory_commits":
+          case "memory_diff":
+          case "agent_error":
           case "tasks":
           case "task_created":
           case "tasks_updated":
@@ -141,7 +158,9 @@ export function useDesk() {
           case "folders":
           case "folder_matches":
           case "folder_status":
-          case "folder_picked": {
+          case "folder_picked":
+          case "skills_global":
+          case "skill_installed": {
             const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
             if (w) {
               waiters.current.delete(msg.requestId as string);
@@ -158,6 +177,8 @@ export function useDesk() {
             if (typeof msg.title === "string" && msg.title) setTitles((t) => ({ ...t, [msg.scope as Scope]: msg.title as string }));
             if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [msg.scope as Scope]: msg.status as DeskStatus }));
             if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [msg.scope as Scope]: msg.agentName as string }));
+            if (typeof msg.model === "string" && msg.model) setModels((t) => ({ ...t, [msg.scope as Scope]: msg.model as string }));
+            if (typeof msg.mode === "string" && msg.mode) setModes((t) => ({ ...t, [msg.scope as Scope]: msg.mode as string }));
             break;
           case "error":
             console.warn("loki:", msg.message);
@@ -213,22 +234,30 @@ export function useDesk() {
     send({ type: "list_desks" });
   };
 
-  /** Ask the mod something and wait for the reply frame carrying the same requestId (null on timeout / not connected). */
+  /**
+   * Ask the mod something and wait for the reply frame carrying the same requestId (null on timeout).
+   * A request made before the socket is open (a view mounting at startup) is sent as soon as it is.
+   */
   const request = (type: string, payload: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown> | null> =>
     new Promise((resolve) => {
       const requestId = `${type}-${Math.random().toString(36).slice(2, 10)}`;
-      const timer = window.setTimeout(() => {
-        waiters.current.delete(requestId);
-        resolve(null);
-      }, timeoutMs);
-      waiters.current.set(requestId, (m) => {
+      let retry: number | null = null;
+      const done = (m: Record<string, unknown> | null) => {
         window.clearTimeout(timer);
+        if (retry !== null) window.clearInterval(retry);
+        waiters.current.delete(requestId);
         resolve(m);
-      });
-      if (!send({ type, requestId, ...payload })) {
-        window.clearTimeout(timer);
-        waiters.current.delete(requestId);
-        resolve(null);
+      };
+      const timer = window.setTimeout(() => done(null), timeoutMs);
+      waiters.current.set(requestId, done);
+      const frame = { type, requestId, ...payload };
+      if (!send(frame)) {
+        retry = window.setInterval(() => {
+          if (send(frame) && retry !== null) {
+            window.clearInterval(retry);
+            retry = null;
+          }
+        }, 250);
       }
     });
 
@@ -311,6 +340,19 @@ export function useDesk() {
     setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => boardCall("task_status", { ids, status }),
   };
 
+  /** The Agents page, through the mod: the local record and the memory filesystem (read-only). */
+  const agents = {
+    get: (agentId: string) =>
+      request("agent_get", { agentId }, 10_000).then((m) => (m && m.type === "agent" ? ({ agent: m.agent, files: m.files, skills: m.skills, hasProfile: m.hasProfile === true, lastCommit: m.lastCommit ?? null } as AgentDetails) : null)),
+    read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((m) => (m && m.type === "memory_file" ? ((m.content as string | null) ?? null) : null)),
+    log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((m) => (m && m.type === "memory_commits" ? ((m.commits as MemoryCommit[]) ?? []) : [])),
+    diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((m) => (m && m.type === "memory_diff" ? ((m.diff as string) ?? null) : null)),
+    globalSkills: () => request("skills_global", {}, 10_000).then((m) => (m && m.type === "skills_global" ? ((m.skills as GlobalSkill[]) ?? []) : [])),
+    /** `letta install <source> --agent <id>` through the mod; resolves to an error message or null. */
+    installSkill: (agentId: string, source: string, force = false) =>
+      request("skill_install", { agentId, source, force }, 130_000).then((m) => (m && m.type === "skill_installed" ? null : m && m.type === "agent_error" ? String(m.message ?? "install failed") : "install timed out")),
+  };
+
   const attention = {
     available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab
     tunnelUrl,
@@ -369,6 +411,19 @@ export function useDesk() {
   const title = titles[scope] ?? null;
   const status: DeskStatus = statuses[scope] ?? "none";
   const agentName = agentNames[scope] ?? null;
+  const model = models[scope] ?? null;
+  /** After a switch the mod only re-reads the conversation at the next turn end; remember the new model now. */
+  const setDeskModel = (s: Scope, handle: string) => {
+    setModels((t) => ({ ...t, [s]: handle }));
+    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, model: handle } : d)));
+  };
+  const modelOf = (s: Scope): string | null => models[s] ?? deskList.find((d) => d.scope === s)?.model ?? null;
+  const mode = modes[scope] ?? null;
+  const setDeskMode = (s: Scope, m: string) => {
+    setModes((t) => ({ ...t, [s]: m }));
+    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, mode: m } : d)));
+  };
+  const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
   const agentId = agentIds[scope] ?? null;
   /** The conversation behind this desk, as the app-server names it. */
   const conversationId = scope === SHARED_SCOPE ? null : scope.startsWith("default-") ? "default" : scope;
@@ -380,16 +435,29 @@ export function useDesk() {
     agentName,
     agentId,
     conversationId,
+    model,
+    modelOf,
+    setDeskModel,
+    mode,
+    modeOf,
+    setDeskMode,
     connection,
     visible,
     closed,
     ownCount,
     loaded,
-    desks: { list: deskList, request: requestDesks, switchTo: switchDesk },
+    desks: {
+      list: deskList,
+      request: requestDesks,
+      switchTo: switchDesk,
+      /** Pin or unpin; the mod rewrites Letta's file and broadcasts the list back. */
+      pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agentId, conversationId, pinned }),
+    },
     attention,
     board,
     tasksVersion,
     undo,
+    agents,
     gesture,
     measure,
     arrange,

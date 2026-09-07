@@ -5,13 +5,14 @@
   "identifier": "dev.deepak.loki",
   "build": {
     "frontendDist": "../app/dist",
-    "beforeDevCommand": "",
-    "beforeBuildCommand": "bun run build:app"
+    "beforeDevCommand": "bun run build:mod",
+    "beforeBuildCommand": "bun run build:app && bun run build:mod"
   },
   "app": {
     "windows": [],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' loki: ipc: http://ipc.localhost; script-src 'self' loki:; style-src 'self' 'unsafe-inline'; img-src 'self' loki: data: blob: http://127.0.0.1:* https:; font-src 'self' data:; connect-src 'self' loki: ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https: wss:; media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'",
+      "devCsp": "default-src 'self' loki: http://127.0.0.1:5173 ipc: http://ipc.localhost; script-src 'self' loki: http://127.0.0.1:5173 'unsafe-inline' 'unsafe-eval'; style-src 'self' http://127.0.0.1:5173 'unsafe-inline'; img-src 'self' loki: data: blob: http://127.0.0.1:* https:; font-src 'self' data:; connect-src 'self' loki: ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https: wss:; media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'"
     }
   },
   "bundle": {
@@ -28,6 +29,9 @@
     ],
     "macOS": {
       "minimumSystemVersion": "13.0"
-    }
+    },
+    "resources": [
+      "resources/**/*"
+    ]
   }
 }

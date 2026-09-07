@@ -29,6 +29,13 @@ import type { Client, WsHandlers } from "./server.ts";
  *    task_assign { requestId, ids, conversationId, desk, agentId?, agentName?, start? }  reply: tasks_updated { requestId, tasks }
  *    task_close { requestId, ids, reason? } / task_status { requestId, ids, status }        reply: tasks_updated; errors: task_error { requestId, message }
  *    (every board mutation also broadcasts tasks_changed {} so other tabs refetch)
+ *    agent_get { requestId, agentId }        reply: agent { requestId, agent, files, skills, hasProfile, lastCommit }
+ *    memory_read { requestId, agentId, path } reply: memory_file { requestId, agentId, path, content|null }
+ *    memory_log { requestId, agentId, path?, limit? }  reply: memory_commits { requestId, agentId, commits }
+ *    memory_diff { requestId, agentId, sha }  reply: memory_diff { requestId, agentId, sha, diff }; errors: agent_error
+ *    skills_global { requestId }             reply: skills_global { requestId, skills } (~/.letta/skills, mod/skills.ts)
+ *    skill_install { requestId, agentId, source, force? }  reply: skill_installed { requestId, agentId, output }; errors: agent_error
+ *  HTTP: GET /agents/<agentId>/profile.png?t=<token>  the agent's face from its memory filesystem
  *    folders_get { requestId }                              reply: folders { requestId, byAgent, byConversation }
  *    folder_complete { requestId, prefix }                  reply: folder_matches { requestId, matches }
  *    folder_check { requestId, path }                       reply: folder_status { requestId, ok, path, branch, reason }
@@ -36,6 +43,7 @@ import type { Client, WsHandlers } from "./server.ts";
  *  Catch Up itself talks to Letta's app-server through the /appserver tunnel (see server.ts).
  *    widget_status { id, error }             runtime/HMR error from the tab (null clears)
  *    list_desks    {}
+ *    pin_set       { agentId, conversationId, pinned }   → broadcast desks (pins live in ~/.letta/pinned-conversations.json)
  */
 
 /** live: conversation exists. archived: Letta archived it. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
@@ -47,11 +55,17 @@ export interface DeskInfo {
   /** Which agent owns the conversation behind this desk. */
   agentName: string | null;
   agentId: string | null;
+  /** The model this conversation runs on: its own override, else the agent's. */
+  model: string | null;
+  /** The permission mode Letta persisted for this conversation (default: unrestricted). */
+  mode?: string | null;
 }
 
 export interface DeskSummary extends DeskInfo {
   scope: Scope;
   conversationId: string | null;
+  /** Pinned in Letta's pinned-conversations.json (shared with Desktop). */
+  pinned?: boolean;
   widgets: number;
   active: boolean;
   lastActive: string | null;
@@ -59,12 +73,13 @@ export interface DeskSummary extends DeskInfo {
 
 const STATUS_RANK: Record<DeskStatus, number> = { live: 0, none: 0, archived: 1, deleted: 2 };
 
-/** shared first, then the active desk, then live desks by recency, then archived, then deleted. */
+/** shared first, then live desks (pinned, then the active one, then by recency), then archived, then deleted. */
 export function sortDesks(desks: DeskSummary[]): DeskSummary[] {
   return [...desks].sort((a, b) => {
     if (a.scope === SHARED_SCOPE) return -1;
     if (b.scope === SHARED_SCOPE) return 1;
     if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) return STATUS_RANK[a.status] - STATUS_RANK[b.status];
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
     if (a.active !== b.active) return a.active ? -1 : 1;
     return (b.lastActive ?? "").localeCompare(a.lastActive ?? "") || (a.title ?? a.scope).localeCompare(b.title ?? b.scope);
   });
@@ -93,6 +108,21 @@ export interface BridgeDeps {
     check: (path: string) => import("./folders.ts").FolderCheck;
     pick: (defaultPath?: string) => Promise<string | null>;
   };
+  /** The Agents page: the local record and the memory filesystem (mod/agents.ts), read-only. */
+  agents?: {
+    get: (agentId: string) => import("./agents.ts").LocalAgent | null;
+    tree: (agentId: string) => import("./agents.ts").MemoryFile[];
+    skills: (agentId: string) => import("./agents.ts").MemorySkill[];
+    hasProfile: (agentId: string) => boolean;
+    read: (agentId: string, path: string) => string | null;
+    log: (agentId: string, opts: { path?: string; limit?: number }) => Promise<import("./agents.ts").MemoryCommit[]>;
+    diff: (agentId: string, sha: string) => Promise<string>;
+    /** Skills outside memory (mod/skills.ts). */
+    globalSkills?: () => import("./skills.ts").GlobalSkill[];
+    install?: (agentId: string, source: string, force: boolean) => Promise<string>;
+  };
+  /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
+  setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
   /** The board (mod/tasks.ts) and the folder a conversation works in, for the task stamp. */
   tasks?: import("./tasks.ts").TaskBoard;
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
@@ -131,8 +161,8 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
   const deskFrame = (scope: Scope) => {
-    const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null };
-    return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, state: store.get(scope), widgets: widgets.entries(scope) };
+    const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null };
+    return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, model: info.model, mode: info.mode ?? null, state: store.get(scope), widgets: widgets.entries(scope) };
   };
 
   return {
@@ -236,6 +266,12 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           client.send({ type: "desks", desks: listDesks?.() ?? [] });
           return;
         }
+        case "pin_set": {
+          if (typeof msg.agentId !== "string" || typeof msg.conversationId !== "string" || !deps.setPin) return;
+          deps.setPin(msg.agentId, msg.conversationId, msg.pinned === true);
+          deps.broadcast({ type: "desks", desks: listDesks?.() ?? [] }); // every tab's tree follows
+          return;
+        }
         case "folders_get": {
           const r = folders?.recent() ?? { byAgent: {}, byConversation: {} };
           client.send({ type: "folders", requestId: msg.requestId, byAgent: r.byAgent, byConversation: r.byConversation });
@@ -299,6 +335,55 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
             const status = msg.status;
             if (status !== "open" && status !== "in_progress" && status !== "blocked" && status !== "deferred") return fail(new Error(`unknown status ${String(status)}`));
             void board.setStatus(ids, status).then(done).catch(fail);
+          }
+          return;
+        }
+        case "skills_global": {
+          const ag = deps.agents;
+          client.send({ type: "skills_global", requestId: msg.requestId, skills: ag?.globalSkills?.() ?? [] });
+          return;
+        }
+        case "skill_install": {
+          const requestId = msg.requestId;
+          const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
+          const ag = deps.agents;
+          if (!ag?.install) return fail(new Error("skill install is not available in this mod"));
+          if (typeof msg.agentId !== "string" || typeof msg.source !== "string") return fail(new Error("agentId and source required"));
+          const agentId = msg.agentId;
+          ag.install(agentId, msg.source, msg.force === true).then((output) => client.send({ type: "skill_installed", requestId, agentId, output }), fail);
+          return;
+        }
+        case "agent_get":
+        case "memory_read":
+        case "memory_log":
+        case "memory_diff": {
+          const requestId = msg.requestId;
+          const ag = deps.agents;
+          const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
+          if (!ag) return fail(new Error("agents are not available in this mod"));
+          if (typeof msg.agentId !== "string") return fail(new Error("agentId required"));
+          const agentId = msg.agentId;
+          if (msg.type === "agent_get") {
+            const agent = ag.get(agentId);
+            if (!agent) return fail(new Error("no local record for this agent"));
+            void ag
+              .log(agentId, { limit: 1 })
+              .catch(() => [])
+              .then((last) => client.send({ type: "agent", requestId, agent, files: ag.tree(agentId), skills: ag.skills(agentId), hasProfile: ag.hasProfile(agentId), lastCommit: last[0] ?? null }));
+          } else if (msg.type === "memory_read") {
+            if (typeof msg.path !== "string") return fail(new Error("path required"));
+            client.send({ type: "memory_file", requestId, agentId, path: msg.path, content: ag.read(agentId, msg.path) });
+          } else if (msg.type === "memory_log") {
+            void ag
+              .log(agentId, { path: typeof msg.path === "string" ? msg.path : undefined, limit: typeof msg.limit === "number" ? msg.limit : undefined })
+              .then((commits) => client.send({ type: "memory_commits", requestId, agentId, commits }))
+              .catch(fail);
+          } else {
+            if (typeof msg.sha !== "string") return fail(new Error("sha required"));
+            void ag
+              .diff(agentId, msg.sha)
+              .then((diff) => client.send({ type: "memory_diff", requestId, agentId, sha: msg.sha, diff }))
+              .catch(fail);
           }
           return;
         }

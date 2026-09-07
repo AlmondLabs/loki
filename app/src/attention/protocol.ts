@@ -12,6 +12,44 @@ export interface Runtime {
   conversation_id: string;
 }
 export type ServerEvent = Record<string, unknown> & { type: string; runtime?: Runtime };
+
+/** One credential the harness asks for when connecting a provider. */
+export interface ProviderField {
+  key: string;
+  label: string;
+  placeholder?: string;
+  secret?: boolean;
+  required?: boolean;
+}
+export interface ProviderAuthMethod {
+  id: string;
+  label: string;
+  description?: string;
+  fields: ProviderField[];
+}
+/** An entry of list_connect_providers. */
+export interface ConnectProvider {
+  id: string;
+  display_name: string;
+  description?: string;
+  provider_type: string;
+  provider_name: string;
+  is_oauth?: boolean;
+  oauth_provider_id?: string;
+  requires_api_key: boolean;
+  fields?: ProviderField[];
+  auth_methods?: ProviderAuthMethod[];
+  connected: { is_connected: boolean; id?: string; provider_name?: string; provider_type?: string; auth_type?: string };
+}
+/** Letta's personality presets accepted by create_agent. */
+export type Personality = "memo" | "blank" | "tutorial" | "linus" | "kawaii";
+export const PERSONALITIES: Array<{ id: Personality; label: string; description: string }> = [
+  { id: "memo", label: "Letta Code", description: "the memory-first coding agent; what `letta` itself creates" },
+  { id: "blank", label: "Blank", description: "no personality written; you or the agent fill in persona.md" },
+  { id: "tutorial", label: "Tutor", description: "knows Letta, helps set up and configure agents" },
+  { id: "linus", label: "Linus", description: "terse and exacting" },
+  { id: "kawaii", label: "Kawaii", description: "cheerful" },
+];
 type Listener = (ev: ServerEvent) => void;
 
 export class AppServerSocket {
@@ -111,13 +149,15 @@ export class AppServerSocket {
     });
   }
 
-  async runtimeStart(rt: Runtime): Promise<ServerEvent> {
+  async runtimeStart(rt: Runtime, opts: { mode?: string } = {}): Promise<ServerEvent> {
     const key = `${rt.agent_id}/${rt.conversation_id}`;
     this.runtimes.set(key, rt);
     const res = await this.request("runtime_start", {
       agent_id: rt.agent_id,
       conversation_id: rt.conversation_id,
-      // No `mode` (see mod/app-server.ts): never override the permission mode Deepak picked in Desktop.
+      // `mode` only when the user asked for a change here: runtime_start is how the app-server sets the
+      // permission mode for a conversation, so sending it unasked would override what was picked in Desktop.
+      ...(opts.mode ? { mode: opts.mode } : {}),
       client_info: { name: "loki", title: "loki canvas", version: "0.2.0" },
       recover_approvals: false,
     });
@@ -159,6 +199,99 @@ export class AppServerSocket {
 
   isSubscribed(rt: Runtime): boolean {
     return this.runtimes.has(`${rt.agent_id}/${rt.conversation_id}`);
+  }
+
+  /** agent_update: name, description, model (the local backend accepts the record's own fields). */
+  async updateAgent(agentId: string, body: Record<string, unknown>): Promise<void> {
+    const res = await this.request("agent_update", { agent_id: agentId, body });
+    if (res.success === false) throw new Error(String(res.error ?? "agent update refused"));
+  }
+
+  // --- providers, agents, memory, skills (the onboarding surface) ----------------------------------
+
+  /** list_connect_providers: the catalogue with each provider's connected state and credential fields. */
+  async listConnectProviders(): Promise<ConnectProvider[]> {
+    const res = await this.request("list_connect_providers", { target: "local" }, 20_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not list providers"));
+    return (res.providers as ConnectProvider[] | undefined) ?? [];
+  }
+
+  /** connect_provider: the harness checks the credentials against the provider before saving them. */
+  async connectProvider(providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<ConnectProvider[]> {
+    const res = await this.request("connect_provider", { target: "local", provider_id: providerId, fields, ...(authMethodId ? { auth_method_id: authMethodId } : {}) }, 45_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not connect the provider"));
+    return (res.providers as ConnectProvider[] | undefined) ?? [];
+  }
+
+  async disconnectProvider(providerId: string): Promise<ConnectProvider[]> {
+    const res = await this.request("disconnect_provider", { target: "local", provider_id: providerId }, 20_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not disconnect the provider"));
+    return (res.providers as ConnectProvider[] | undefined) ?? [];
+  }
+
+  /**
+   * create_agent: a memory-enabled agent from one of Letta's personality presets. Never pinned globally
+   * by us (that is Letta Code's own TUI notion). Name and description are set afterwards with agent_update.
+   */
+  async createAgent(opts: { personality: Personality; model?: string; tags?: string[] }): Promise<{ id: string; name: string; model: string | null }> {
+    const res = await this.request("create_agent", { personality: opts.personality, ...(opts.model ? { model: opts.model } : {}), ...(opts.tags ? { tags: opts.tags } : {}), pin_global: false }, 60_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not create the agent"));
+    return { id: String(res.agent_id), name: String(res.name ?? ""), model: typeof res.model === "string" ? res.model : null };
+  }
+
+  async deleteAgent(agentId: string): Promise<void> {
+    const res = await this.request("agent_delete", { agent_id: agentId }, 30_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not delete the agent"));
+  }
+
+  /** write_memory_file: a file in the agent's memory repo, committed. */
+  async writeMemoryFile(agentId: string, path: string, content: string, commitMessage?: string): Promise<void> {
+    const res = await this.request("write_memory_file", { agent_id: agentId, path, content, encoding: "utf8", ...(commitMessage ? { commit_message: commitMessage } : {}) }, 30_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not write the memory file"));
+  }
+
+  async deleteMemoryFile(agentId: string, path: string, commitMessage?: string): Promise<void> {
+    const res = await this.request("delete_memory_file", { agent_id: agentId, path, ...(commitMessage ? { commit_message: commitMessage } : {}) }, 30_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not delete the memory file"));
+  }
+
+  /** skill_enable: symlink a folder holding a SKILL.md into the global skills directory (~/.letta/skills). */
+  async skillEnable(skillPath: string): Promise<{ name: string; linkPath: string }> {
+    const res = await this.request("skill_enable", { skill_path: skillPath }, 15_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not enable the skill"));
+    return { name: String(res.name ?? ""), linkPath: String(res.link_path ?? "") };
+  }
+
+  async skillDisable(name: string): Promise<void> {
+    const res = await this.request("skill_disable", { name }, 15_000);
+    if (res.success === false) throw new Error(String(res.error ?? "could not disable the skill"));
+  }
+
+  /** list_models: every handle this harness can run — { id, handle, label, description, isDefault?, isFeatured? }. */
+  async listModels(): Promise<Array<{ id: string; handle: string; label: string; description?: string; isDefault?: boolean; isFeatured?: boolean }>> {
+    const res = await this.request("list_models", {}, 20_000);
+    const entries = (res.entries as Array<Record<string, unknown>> | undefined) ?? [];
+    return entries
+      .map((e) => ({ id: String(e.id ?? e.handle ?? ""), handle: String(e.handle ?? e.id ?? ""), label: String(e.label ?? e.handle ?? ""), description: typeof e.description === "string" ? e.description : undefined, isDefault: e.isDefault === true, isFeatured: e.isFeatured === true }))
+      .filter((e) => e.handle);
+  }
+
+  /**
+   * update_model: switch the model for one conversation (the main chat's switch lands on the agent).
+   * Resolves to the handle the server applied; throws with the server's message on refusal.
+   */
+  /** conversation_update: archive / unarchive (and other record fields). The main chat cannot be updated. */
+  async updateConversation(conversationId: string, body: Record<string, unknown>): Promise<void> {
+    const res = await this.request("conversation_update", { conversation_id: conversationId, body });
+    if (res.success === false) throw new Error(String(res.error ?? "conversation update refused"));
+  }
+
+  async updateModel(rt: Runtime, handle: string, reasoningEffort?: string | null): Promise<string> {
+    const payload: Record<string, unknown> = { model_handle: handle };
+    if (reasoningEffort !== undefined) payload.reasoning_effort = reasoningEffort;
+    const res = await this.request("update_model", { runtime: rt, payload }, 60_000);
+    if (res.success === false) throw new Error(String(res.error ?? "model update refused"));
+    return String(res.model_handle ?? handle);
   }
 
   async listAgents(): Promise<Array<{ id: string; name?: string; hidden?: boolean }>> {

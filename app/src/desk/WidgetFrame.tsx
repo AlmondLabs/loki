@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../shared/desk-core.ts";
-import { MIN_FRAME } from "../../../shared/desk-core.ts";
+import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../shared/desk-core.ts";
 
 /**
  * Standard widget chrome: drag by the title bar, close, focus-to-front, an
@@ -36,15 +36,22 @@ export function WidgetFrame({
   children: ReactNode;
 }) {
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const resizeRef = useRef<{ startX: number; startY: number; origW: number; origH: number } | null>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const lastSent = useRef(0);
+  const sized = layout.sized === true && !!layout.size;
+  // The measurement observer reads these live, so a resize in progress (or just committed) never lets a
+  // trailing content measurement overwrite the width the human just pinned.
+  const sizedRef = useRef(sized);
+  sizedRef.current = sized;
 
   // Report the rendered size (canvas units: offsetWidth/Height ignore the viewport transform).
   useEffect(() => {
     const el = frameRef.current;
-    if (!el || !onMeasure) return;
+    if (!el || !onMeasure || sized) return; // a user-sized frame reports nothing: its size is the human's, not the content's
     let last = { w: 0, h: 0 };
     const report = () => {
+      if (sizedRef.current || resizeRef.current) return; // a resize is in flight or done: don't fight the human
       const w = el.offsetWidth;
       const h = el.offsetHeight;
       if (Math.abs(w - last.w) < 2 && Math.abs(h - last.h) < 2) return;
@@ -59,7 +66,7 @@ export function WidgetFrame({
     const ro = new ResizeObserver(report);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [entry.id, onMeasure]);
+  }, [entry.id, onMeasure, sized]);
 
   const dragPosition = (d: NonNullable<typeof dragRef.current>, e: React.PointerEvent) => {
     const scale = getScale?.() ?? 1;
@@ -91,6 +98,29 @@ export function WidgetFrame({
     gesture({ kind: "move", id: entry.id, position: dragPosition(d, e) });
   };
 
+  // The resize handle at the bottom-right: drag to pin a width and height; the content then scrolls inside.
+  const onResizeMove = (e: React.PointerEvent) => {
+    const r = resizeRef.current;
+    if (!r) return;
+    const scale = getScale?.() ?? 1;
+    const w = Math.max(RESIZE_MIN.w, r.origW + (e.clientX - r.startX) / scale);
+    const h = Math.max(RESIZE_MIN.h, r.origH + (e.clientY - r.startY) / scale);
+    const el = frameRef.current;
+    if (el) {
+      el.style.width = `${Math.round(w)}px`;
+      el.style.height = `${Math.round(h)}px`;
+    }
+  };
+  const onResizeEnd = (e: React.PointerEvent) => {
+    const r = resizeRef.current;
+    if (!r) return;
+    resizeRef.current = null;
+    const scale = getScale?.() ?? 1;
+    const w = Math.round(Math.max(RESIZE_MIN.w, r.origW + (e.clientX - r.startX) / scale));
+    const h = Math.round(Math.max(RESIZE_MIN.h, r.origH + (e.clientY - r.startY) / scale));
+    gesture({ kind: "resize", id: entry.id, size: { w, h } });
+  };
+
   return (
     <div
       ref={frameRef}
@@ -105,19 +135,23 @@ export function WidgetFrame({
         left: layout.position.x,
         top: layout.position.y,
         zIndex: layout.z,
-        // A stored size below the minimum is a bad measurement that got persisted; fall back so the frame
-        // renders at a real width, re-measures, and heals the stored size.
-        width: layout.size && layout.size.w >= MIN_FRAME.w ? layout.size.w : 280,
+        // A human-sized frame keeps its width and height. Otherwise it sizes to its content up to a
+        // reading width, then the content scrolls — never clipped, never a fixed measurement of itself.
+        ...(sized
+          ? { width: layout.size!.w, height: layout.size!.h }
+          : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
         background: "var(--loki-panel)",
         border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
         borderRadius: "var(--loki-radius)",
         animationDelay: `${Math.min(order, 12) * 35}ms`,
         boxShadow: highlighted
-          ? "0 0 0 3px var(--loki-brass-soft), 0 0 40px 4px rgba(201,164,92,0.28), 0 8px 28px rgba(0,0,0,0.45)"
-          : "0 8px 28px rgba(0,0,0,0.45)",
+          ? "0 0 0 3px var(--loki-brass-soft), 0 0 40px 4px var(--loki-brass-glow), var(--loki-shadow-panel)"
+          : "var(--loki-shadow-panel)",
         transition: "box-shadow 500ms ease-out, border-color 500ms ease-out",
         overflow: "hidden",
         userSelect: "none",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div
@@ -146,14 +180,14 @@ export function WidgetFrame({
           touchAction: "none",
         }}
       >
-        <span style={{ fontFamily: "var(--loki-label)", fontSize: 11, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
+        <span style={{ fontFamily: "var(--loki-label)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
           {entry.error && (
             <span title={entry.error} style={{ width: 7, height: 7, borderRadius: 4, background: "var(--loki-negative)" }} />
           )}
           {entry.title}
         </span>
         <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
+          <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
           <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
             {/* target */}
             <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -173,7 +207,32 @@ export function WidgetFrame({
           </FrameButton>
         </span>
       </div>
-      <div style={{ padding: 12 }}>{children}</div>
+      <div className="loki-frame-body" style={{ padding: 12, minHeight: 0, ...(sized ? { flex: 1, overflow: "auto" } : { overflowX: "auto" }) }}>{children}</div>
+      <div
+        className="loki-frame-resize"
+        aria-hidden
+        title="drag to resize"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          try {
+            (e.target as Element).setPointerCapture(e.pointerId);
+          } catch {
+            // fine without capture
+          }
+          const w = frameRef.current?.offsetWidth ?? layout.size?.w ?? 280;
+          const h = frameRef.current?.offsetHeight ?? layout.size?.h ?? 160;
+          resizeRef.current = { startX: e.clientX, startY: e.clientY, origW: w, origH: h };
+        }}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        style={{ position: "absolute", right: 0, bottom: 0, width: 16, height: 16, cursor: "nwse-resize", touchAction: "none", zIndex: 1 }}
+      >
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="var(--loki-muted)" strokeWidth="1.2" style={{ position: "absolute", right: 1, bottom: 1 }}>
+          <path d="M11 15L15 11M7.5 15L15 7.5" />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -211,7 +270,7 @@ function FrameButton({
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.color = danger ? "var(--loki-negative)" : "var(--loki-fg)";
-        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+        e.currentTarget.style.background = "var(--loki-hairline)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.color = "var(--loki-muted)";

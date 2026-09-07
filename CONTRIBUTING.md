@@ -1,0 +1,52 @@
+# Contributing
+
+Thanks for looking. loki is a small personal project that went public; issues and pull requests are
+welcome, and so is a fork that takes it somewhere else.
+
+## Setup
+
+macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup), and Letta Code (`npm i -g @letta-ai/letta-code`).
+
+```bash
+bun install
+bun run dev            # Vite on 127.0.0.1:5173
+bun run desktop:dev    # the Tauri window against the dev server (in a second terminal)
+```
+
+For the mod, point Letta at your checkout instead of the installed copy: write the shim from the README's
+"Install (development)" section to `~/.letta/mods/loki.ts`. A shim that does not start with the managed
+marker is never overwritten by the app.
+
+## Checks
+
+```bash
+bun test                                          # mod, shared, app logic, design tokens
+bun run typecheck
+cargo test --manifest-path src-tauri/Cargo.toml   # shell
+```
+
+CI runs the same three. `test/tokens.test.ts` fails when an inline style leaves the design scales in
+`docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
+
+## Where things are
+
+- `mod/` the Letta mod. Plain TypeScript, no build step in development; `scripts/build-mod.mjs` bundles it
+  for the app.
+- `shared/` types and the pure gesture reducer both halves use.
+- `app/` the React canvas and shell. Every shortcut lives in `app/src/shell/keymap.ts`.
+- `src-tauri/` the shell: harness discovery, the app-server link, widget transpiling, the install step.
+- `skills/loki/SKILL.md` what the agent reads; keep it in step with `mod/tools.ts`.
+- `docs/plans/` design history, dated. New behaviour gets a short plan there first.
+
+## Rules of the house
+
+- No real money amounts on screen, in the repo, or in recordings. Fixtures use made-up numbers.
+- Brass is spent only on things that need the human (see `docs/design.md`).
+- Tests for the mod are pure where possible: inject the `bd` runner, the clock, the file root.
+- Commit messages say what changed and why in one line; the plan doc carries the reasoning.
+
+## Compatibility
+
+Letta Code's mod API and app-server protocol are undocumented for third parties; `shared/compat.ts`
+records the version loki was last tested with. If you upgrade Letta and things break, that constant is the
+first thing to check and the first thing to update in your pull request.
