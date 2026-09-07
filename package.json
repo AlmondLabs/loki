@@ -5,8 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "mobile"
+    "packages/*"
   ],
   "description": "A memory palace your agent builds \u2014 Letta Code mod + Vite widget desk the agent writes files into",
   "scripts": {

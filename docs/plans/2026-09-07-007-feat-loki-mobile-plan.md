@@ -296,3 +296,92 @@ in (gate b); whether Metro resolves `.ts`-extension relative imports from the wo
 without a resolver shim; whether the `?code=` query survives Camera → Expo Go → `getInitialURL`
 on iOS and Android; the exact `runtimeVersion` string Expo Go 57 sends. Everything in U2–U7 is
 written for gate (a); gate (b) adds one line; gate (c) ends this plan.
+
+## Addendum (same evening): U1 ran, and we switched to a PWA
+
+**What U1 found** (iPhone 15 Pro Max, iOS 26.6.1, Expo Go 57.0.9 from the App Store, signed out):
+
+- Expo Go opened the `exp://192.168.1.3:41415/expo?code=…` QR from the Camera and fetched the manifest
+  with `expo-runtime-version: exposdk:57.0.0`, `expo-protocol-version: 1`, `expo-expect-signature:
+  sig, keyid="expo-root", alg="rsa-v1_5-sha256"`, `expo-client-release-type: APPLE_APP_STORE`. It then
+  fetched the plain-JS bundle. No login was asked for. So an unsigned, self-hosted manifest is at least
+  *fetched and followed* signed out.
+- It refused the first manifest: "Failed to parse manifest JSON: Value for (key = scopeKey) is null".
+  Expo's dev server (`@expo/cli` `ExpoGoManifestHandlerMiddleware`) sends `extra.scopeKey =
+  @anonymous/<slug>-<uuid>` when nobody is signed in, `extra.expoClient.hostUri`, `platforms`, an
+  `extra.expoGo` block marked "Required for Expo Go to function", and answers with
+  **`expo-protocol-version: 0`**, not the spec's 1.
+- With those added, Expo Go crashed natively (SIGABRT, `-[NSException raise]` on a background queue,
+  `Expo Go-2026-09-07-221246.ips`) on each retry, the last time without making a network request at all,
+  which points at state it had stored from the earlier manifests. Apple's report carries no exception
+  text and Expo Go ships no symbols, so the cause is not recoverable without Console.app on a cable.
+- Metro export works: `expo export --platform ios --no-bytecode` → one 926 KB JS bundle,
+  `metadata.json`, no assets for the blank template.
+
+**Why we switched.** Deepak: "Is expo really worth it. Does it have performance any better than a
+PWA?" → "sure, let's switch to the PWA". For an inbox, a transcript and a reply box, a standalone
+home-screen web app on iOS is WebKit without browser chrome and performs the same. Expo Go added: a
+login regime aimed at dev servers, one supported SDK at a time, opaque native crashes, a separate React
+Native UI to write and test, and a runtime Expo itself calls a playground. The PWA reuses the canvas's
+existing React DOM views and the mod already serves a browser tab.
+
+**What stays.** U2 (done: `packages/core`), U3 as written except the token transport, U5 and U7.
+D1, D4, D5 and U4/U6 are replaced below. Distribution is unchanged in spirit: the `.dmg` is the only
+download; the phone needs nothing installed.
+
+### Decisions (revised)
+
+- D1' **The mod serves the canvas over the LAN.** `scripts/build-mod.mjs` also copies `app/dist` into
+  `src-tauri/resources/app/`; `src-tauri/src/install.rs` copies it to `<data>/app/` beside
+  `<data>/mod/loki-mod.mjs` on launch. The LAN listener serves it as a single-page app: `/assets/*`
+  static, everything else `index.html` with `<script>window.__LOKI__={lan:true}</script>` injected
+  before `</head>`. Resolution order: `LOKI_APP_DIST`, `<dir of the mod file>/../app`,
+  `<repo>/app/dist`; when none exists `/` answers a plain page saying to run `bun run build:app`.
+- D3' **Device tokens ride in a cookie, not a header.** Browsers cannot set WebSocket headers.
+  `POST /pair {code, name}` answers `Set-Cookie: loki_device=<token>; Path=/; HttpOnly; SameSite=Lax;
+  Max-Age=31536000` and `{deviceId, name}`. Upgrades and the profile route on the LAN accept the cookie
+  or `Authorization: Bearer`; `?t=` is ignored there. `GET /me` → `{deviceId, name}` or 401 tells the
+  page whether it is paired. `POST /unpair` clears the cookie and forgets the device.
+- D4' **The QR is `http://<lan-ip>:41415/?code=ABC123`.** The page redeems `code` on load. Codes live
+  ten minutes and may be redeemed more than once inside that window, each time as a new device,
+  because an iOS home-screen web app has its own cookie jar: the user pairs in Safari, adds to the
+  Home Screen, opens the new icon unpaired, and either the bookmark's `?code=` (if the manifest's
+  `start_url` keeps it) or typing the six characters still shown in Settings pairs it again. The
+  unpaired page always offers the code field. No service worker (a LAN `http://` origin is not a
+  secure context), so no offline shell and no web push; neither is needed while the Mac must be up.
+- D5' **No version coupling.** The phone loads whatever canvas the running loki serves.
+- D8' **Phone mode is a second shell.** When `window.__LOKI__.lan` is set, `main.tsx` renders
+  `<Phone/>` instead of `<Shell/>`: Pair (auto from `?code`, else the code field), Inbox (Catch Up's
+  items and actions in a single-column layout), Conversation (transcript, approval and question cards,
+  reply box). Reuses `useDesk`, `useAttention`, `CatchUp`'s card pieces and `Transcript`. Same
+  tokens, same no-desk scope as D8. `modBase()` is `location.origin` in LAN mode.
+
+### Bridge frames (contract for U3, U5, U6')
+
+    lan_get                      → lan_status { enabled, address, addresses[], port, appServed, error }
+    lan_set { enabled }          → lan_status (persisted to state/lan.json first, then bind/close)
+    pair_begin                   → pair_code { code, url, expiresAt }
+    devices_list                 → devices { devices: [{ id, name, createdAt, lastSeenAt }] }
+    device_forget { id }         → devices (and that device's sockets close)
+    broadcast lan_status on enable/disable/bind error; devices on pair/forget/seen
+
+Devices file `state/devices.json`: `{ id, name, tokenHash (sha256 hex), createdAt, lastSeenAt }[]`.
+Pairing codes: alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, six characters, in memory only.
+
+### Units (revised)
+
+- **U3'** as U3, with the cookie and `Authorization` acceptance from D3', `/pair`, `/me`, `/unpair`,
+  the SPA static route from D1' (`mod/static.ts`), `scripts/build-mod.mjs` copying `app/dist`, and
+  `src-tauri/src/install.rs` installing `app/`. Tests as U3 plus: `/pair` sets the cookie and `/me`
+  then answers 200; `/me` without the cookie is 401; a redeem after ten minutes is 404; two redeems of
+  one code make two devices; `GET /` serves `index.html` with the injected script and `GET /assets/x.js`
+  the file; a missing dist makes `/` a 503 page; `Set-Cookie` carries `HttpOnly` and `SameSite=Lax`.
+- **U5'** Settings › phone as U5; the QR encodes D4's URL; the copy says "scan, then Add to Home
+  Screen; the new icon asks for this code once".
+- **U6'** `app/src/phone/{Phone,Pair,Inbox,Conversation}.tsx`, `app/src/desk/env.ts` (`inLan`,
+  `modBase`), `app/src/main.tsx` (branch), `app/index.html`/`manifest.webmanifest` (`start_url`
+  keeps the query, `apple-mobile-web-app-*` metas, viewport-fit). Tests: `test/phone.test.ts` for the
+  pure bits (pair URL parse, "last seen" formatting); `test/tokens.test.ts` keeps passing. Device
+  smoke as U6 but in Safari and from the Home Screen icon.
+- **U4 and U6 (Expo) are dropped.** `mobile/`, `scripts/spike-serve.mjs` and the `mobile` workspace
+  entry were removed after the spike.
