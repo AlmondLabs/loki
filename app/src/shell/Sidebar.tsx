@@ -16,6 +16,7 @@ export function Sidebar({
   tick,
   treeOpen,
   openTasks = 0,
+  lanOn = false,
 }: {
   segment: Segment;
   onSelect: (s: Segment) => void;
@@ -24,6 +25,8 @@ export function Sidebar({
   treeOpen: boolean;
   /** Open tasks on the board, shown quietly under its icon. */
   openTasks?: number;
+  /** The mod is reachable on the Wi‑Fi (Settings › phone): a brass dot on the settings icon while it is. */
+  lanOn?: boolean;
 }) {
   return (
     <nav
@@ -53,7 +56,7 @@ export function Sidebar({
           <span key={s.id} style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" ? "auto" : 0 }}>
             <button
               onClick={() => onSelect(s.id)}
-              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.label}
+              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "settings" && lanOn ? `${s.label}, reachable on this Wi‑Fi` : s.label}
               aria-pressed={active}
               title={`${s.label} (${s.key})`}
               className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
@@ -75,6 +78,8 @@ export function Sidebar({
               {/* Badges like the Dock's: brass when something needs you (inbox), quiet for a count you chose to keep (board). */}
               {isInbox && waiting > 0 && <Badge n={waiting} tone="accent" />}
               {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
+              {/* The listener is on: the page is reachable from the Wi‑Fi, which is worth a brass dot (D11). */}
+              {s.id === "settings" && lanOn && <span aria-hidden style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: 3, background: "var(--loki-accent)", border: "1px solid var(--loki-panel)" }} />}
             </button>
             <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
               {s.label}

@@ -210,9 +210,13 @@ export function Shell() {
     if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name)).catch((e) => console.warn("loki: window title", e));
   }, [waiting, desk.title, desk.status, desk.scope, desk.agentName, segment, openTasks]);
 
-  // The desks list feeds the tree and ⌘[ ⌘]; ask for it once the mod link is up.
+  // The desks list feeds the tree and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
+  // status too, so the rail's brass dot is right before Settings is ever opened.
   useEffect(() => {
-    if (desk.connection === "open") desk.desks.request();
+    if (desk.connection === "open") {
+      desk.desks.request();
+      desk.phone.refresh();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
 
@@ -379,7 +383,7 @@ export function Shell() {
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
-        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={openTasks} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={openTasks} lanOn={desk.phone.status?.enabled === true} />
 
         <div style={{ position: "absolute", top: 0, left: SIDEBAR_WIDTH, right: 0, bottom: 0 }}>
           {/* The sheet stays mounted behind the other views so the desk link and camera keep their state. */}
@@ -469,7 +473,7 @@ export function Shell() {
           )}
 
           {segment === "settings" && (
-            <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={setChatWidth} chatPlacement={chatPlacement} onChatPlacement={setChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={() => setModels(null)} bootstrap={boot.status} onInstallLetta={boot.install} />
+            <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={setChatWidth} chatPlacement={chatPlacement} onChatPlacement={setChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={() => setModels(null)} bootstrap={boot.status} onInstallLetta={boot.install} phone={desk.phone} />
           )}
 
           {welcome && segment !== "settings" && (

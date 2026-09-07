@@ -1,10 +1,11 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 import "./shared-modules";
-import { inTauri, installShellLogging } from "./desk/env";
+import { inLan, inTauri, installShellLogging } from "./desk/env";
 
 installShellLogging();
 import { Shell } from "./shell/Shell";
+import { Phone } from "./phone/Phone";
 
 /**
  * Links leave the canvas. Anything the agent or a widget links to — markdown in
@@ -29,4 +30,5 @@ document.addEventListener(
   true,
 );
 
-createRoot(document.getElementById("root")!).render(<Shell />);
+// Served over the Wi‑Fi by the mod (window.__LOKI__.lan): the phone's inbox instead of the desk.
+createRoot(document.getElementById("root")!).render(inLan ? <Phone /> : <Shell />);

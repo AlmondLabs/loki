@@ -1,6 +1,7 @@
 # Security
 
-loki is a local desktop app. Everything it talks to is on your machine.
+loki is a local desktop app. Everything it talks to is on your machine — unless you switch on the phone
+listener, described below.
 
 ## What runs where
 
@@ -14,6 +15,29 @@ loki is a local desktop app. Everything it talks to is on your machine.
 - **The page** (`app/`, React) runs in the system WebView at `tauri://localhost`. Its only Tauri
   permissions are the core defaults, set-title, hide, and opening URLs in the system browser (see
   `src-tauri/capabilities/default.json`). It cannot read files or run programs.
+
+## The phone, over the LAN
+
+Settings › phone puts a second listener on the local network so a phone can open the inbox. The model:
+
+- **Off by default.** Nothing listens beyond loopback until you switch "reachable on this Wi‑Fi" on. The
+  choice is persisted (`~/.letta/loki/state/lan.json`) and the rail shows a brass dot on the settings
+  icon while it is on.
+- **The page's code is public while it is on.** The listener (`0.0.0.0:41415`) serves the canvas build to
+  anyone on the same network, unauthenticated: that is the app's JavaScript and nothing else. Every
+  *action* — the `/ws` and `/appserver` sockets, agent faces — needs a paired device.
+- **Pairing.** "pair a phone" mints a six-character code (alphabet without 0/O/1/I) that lives ten minutes
+  and is kept in memory only. `POST /pair {code, name}` on the LAN redeems it and answers with a
+  per-device token in an `HttpOnly; SameSite=Lax` cookie, so the page's JavaScript never sees it.
+  Only the token's SHA-256 is stored (`~/.letta/loki/state/devices.json`). A code may be redeemed more
+  than once inside its ten minutes, each time as a separate device, because an iOS home-screen app has
+  its own cookie jar and has to pair again after "Add to Home Screen".
+- **Forget a phone in Settings.** Each device is listed with when it was last seen; "forget" deletes it
+  and closes its sockets. `POST /unpair` from the phone does the same for itself.
+- **Plain http.** A LAN `http://` origin is not a secure context, so there is no service worker and no
+  TLS; the traffic — transcripts, approvals, your replies — is readable by anyone on the network path. On
+  a network you do not trust (cafés, hotels, offices you do not run), do not switch it on; if you need
+  the phone there, put both devices on a Tailscale network and use that address instead.
 
 ## Agent-written code
 
