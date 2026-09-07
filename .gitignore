@@ -5,3 +5,4 @@ node_modules/
 app/dist
 .letta/
 src-tauri/resources/
+.claude/worktrees/
