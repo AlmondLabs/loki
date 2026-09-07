@@ -16,6 +16,6 @@
     "paths": { "@loki/kit": ["app/src/kit/index.tsx"] },
     "types": ["node", "bun", "vite/client"]
   },
-  "include": ["mod", "shared", "app/src", "app/vite.config.ts", "test"],
+  "include": ["mod", "packages", "app/src", "app/vite.config.ts", "test"],
   "exclude": ["app/src/widgets"]
 }

@@ -3,7 +3,7 @@ import { registerTools, type ToolDeps } from "../mod/tools.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { LettaMod, ToolDefinition } from "../mod/letta-types.ts";
-import type { WidgetManifestEntry } from "../shared/desk-core.ts";
+import type { WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
 
 const sleep: WidgetManifestEntry = {
   id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",

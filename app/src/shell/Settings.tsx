@@ -3,8 +3,8 @@ import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys } from "./keymap";
 import { btn } from "../chat/ui";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
-import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../shared/compat";
-import type { ConnectProvider } from "../attention/protocol";
+import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../packages/core/src/compat.ts";
+import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import type { BootstrapStatus } from "./bootstrap";
 

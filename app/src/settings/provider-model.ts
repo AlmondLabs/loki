@@ -1,4 +1,4 @@
-import type { ConnectProvider, ProviderField } from "../attention/protocol";
+import type { ConnectProvider, ProviderField } from "../../../packages/core/src/attention/protocol.ts";
 
 /**
  * Pure helpers for the provider rows: which fields a connect form shows, whether it can be

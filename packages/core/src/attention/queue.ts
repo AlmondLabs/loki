@@ -1,4 +1,4 @@
-import type { AttentionItem, AttentionStatus } from "./model";
+import type { AttentionItem, AttentionStatus } from "./model.ts";
 
 const ACTIONABLE: AttentionStatus[] = ["approval", "question", "failed", "done"];
 export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;

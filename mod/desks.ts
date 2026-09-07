@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, readdir
 import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Scope } from "../shared/desk-core.ts";
-import { backendName, conversationDirName, scopeFor } from "../shared/desk-core.ts";
-import { extractHarnessEvents, stripHarnessMarkup, toolLabel } from "../shared/harness.ts";
+import type { Scope } from "../packages/core/src/desk-core.ts";
+import { backendName, conversationDirName, scopeFor } from "../packages/core/src/desk-core.ts";
+import { extractHarnessEvents, stripHarnessMarkup, toolLabel } from "../packages/core/src/harness.ts";
 import type { Runtime } from "./app-server.ts";
 
 /**

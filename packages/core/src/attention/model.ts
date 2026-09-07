@@ -1,5 +1,5 @@
-import { looksLikeQuestion, messageText, stripHarnessMarkup } from "../../../shared/harness.ts";
-import type { Runtime, ServerEvent } from "./protocol";
+import { looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
+import type { Runtime, ServerEvent } from "./protocol.ts";
 
 /**
  * Attention model: which conversations are waiting on the user, and why.
@@ -72,8 +72,8 @@ export interface Live {
   mode?: string;
 }
 
-import type { Snooze } from "./snooze";
-import { askQuestions, type AskQuestion } from "./content";
+import type { Snooze } from "./snooze.ts";
+import { askQuestions, type AskQuestion } from "./content.ts";
 
 export interface AttentionItem extends ConversationInfo {
   /** Set by the attention hook: the deferral currently hiding this item, if any. */

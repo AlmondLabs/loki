@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ConnectProvider } from "../app/src/attention/protocol";
+import type { ConnectProvider } from "../packages/core/src/attention/protocol.ts";
 import { canConnect, fieldValues, fieldsFor, needsTerminal, sortProviders, welcomeStep } from "../app/src/settings/provider-model";
 
 const p = (id: string, extra: Partial<ConnectProvider> = {}): ConnectProvider => ({ id, display_name: id[0].toUpperCase() + id.slice(1), provider_type: id, provider_name: id, requires_api_key: true, fields: [{ key: "apiKey", label: "API Key", secret: true, required: true }], connected: { is_connected: false }, ...extra });

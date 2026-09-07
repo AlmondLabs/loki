@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { GestureLog, attachDeskContext, describeGesture, formatDeskContext } from "../mod/gestures.ts";
-import type { WidgetManifestEntry } from "../shared/desk-core.ts";
+import type { WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
 
 const entry: WidgetManifestEntry = {
   id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",

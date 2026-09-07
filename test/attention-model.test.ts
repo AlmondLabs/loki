@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type ConversationInfo } from "../app/src/attention/model";
-import { toTranscript } from "../shared/harness.ts";
+import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type ConversationInfo } from "../packages/core/src/attention/model.ts";
+import { toTranscript } from "../packages/core/src/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
 

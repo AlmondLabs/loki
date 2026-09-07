@@ -101,7 +101,7 @@ Only the things a mod can do:
 - watches `~/.letta/loki/widgets/`, syntax-checks `.tsx` with esbuild, tells the tab what changed
 - appends the user's desk activity to their next turn (`turn_start`)
 - finds Letta's app-server and tunnels the browser to it (`/appserver`); the browser owns every conversation
-  view from there — the desk chat and Catch Up cards are one model (`app/src/attention`), streaming token by token
+  view from there — the desk chat and Catch Up cards are one model (`packages/core/src/attention`), streaming token by token
   whether a turn was typed in Desktop or in the canvas
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
   and keeps the seen / snooze markers Catch Up needs

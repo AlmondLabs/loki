@@ -3,7 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../../../mod/agents.ts";
 import type { GlobalSkill } from "../../../mod/skills.ts";
-import { PERSONALITIES, type Personality } from "../attention/protocol";
+import { PERSONALITIES, type Personality } from "../../../packages/core/src/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
 import { btn, kbd } from "../chat/ui";

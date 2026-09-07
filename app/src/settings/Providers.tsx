@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ConnectProvider } from "../attention/protocol";
+import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
 import { btn } from "../chat/ui";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, needsTerminal, sortProviders } from "./provider-model";
 

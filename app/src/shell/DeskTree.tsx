@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
-import type { Scope } from "../../../shared/desk-core.ts";
-import type { AttentionItem } from "../attention/model";
+import type { Scope } from "../../../packages/core/src/desk-core.ts";
+import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";

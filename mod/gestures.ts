@@ -1,5 +1,5 @@
-import type { Gesture, Scope, WidgetManifestEntry } from "../shared/desk-core.ts";
-import { getPath } from "../shared/desk-core.ts";
+import type { Gesture, Scope, WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
+import { getPath } from "../packages/core/src/desk-core.ts";
 
 /**
  * The return path. Gestures are described in plain language, logged per desk,

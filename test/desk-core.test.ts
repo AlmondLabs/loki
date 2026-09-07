@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect } from "../shared/desk-core.ts";
+import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect } from "../packages/core/src/desk-core.ts";
 
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -116,7 +116,7 @@ describe("desk-core reducer", () => {
 
 describe("applyMeasure guards", () => {
   test("a collapsed frame (a few px wide) is never persisted as the widget's size", () => {
-    const { applyMeasure, emptyDesk, ensureLayout } = require("../shared/desk-core.ts");
+    const { applyMeasure, emptyDesk, ensureLayout } = require("../packages/core/src/desk-core.ts");
     let state = ensureLayout(emptyDesk("d"), "d/a", []);
     const before = state.layout["d/a"].size;
     expect(applyMeasure(state, "d/a", { w: 2, h: 900 })).toBe(state);

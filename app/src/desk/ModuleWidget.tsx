@@ -1,6 +1,6 @@
 import { Component, useEffect, useState, type ComponentType, type ReactNode } from "react";
-import type { Gesture, WidgetManifestEntry } from "../../../shared/desk-core.ts";
-import { getPath, mergeData } from "../../../shared/desk-core.ts";
+import type { Gesture, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
+import { getPath, mergeData } from "../../../packages/core/src/desk-core.ts";
 import type { KitProps } from "../kit";
 
 /**

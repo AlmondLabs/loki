@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
-import type { ImageAttachment } from "../attention/content";
+import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 
 /**
  * Message box shared by the chat panel and the Catch Up reply: Enter sends,

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../shared/desk-core.ts";
-import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../shared/desk-core.ts";
+import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
+import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../packages/core/src/desk-core.ts";
 
 /**
  * Standard widget chrome: drag by the title bar, close, focus-to-front, an

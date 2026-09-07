@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeskState, Gesture, Scope, Size, WidgetLayout, WidgetManifestEntry } from "../../../shared/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, autoPlace, emptyDesk, scopeFor } from "../../../shared/desk-core.ts";
+import type { DeskState, Gesture, Scope, Size, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
+import { SHARED_SCOPE, applyGesture, autoPlace, emptyDesk, scopeFor } from "../../../packages/core/src/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { inTauri, modWsBase } from "./env";
 import type { Task } from "../board/model";
 import type { AgentDetails } from "../agents/Agents";
 import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
-import type { Snooze } from "../attention/snooze";
+import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 
 export type Connection = "connecting" | "open" | "closed";

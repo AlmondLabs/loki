@@ -11,7 +11,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The Letta Code release loki was tested with (shared/compat.ts carries the same number).
+/// The Letta Code release loki was tested with (packages/core/src/compat.ts carries the same number).
 pub const LETTA_CODE_VERSION: &str = "0.31.12";
 /// letta-code's engines.node.
 pub const NODE_MIN: (u32, u32, u32) = (22, 19, 0);

@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toTranscript } from "../../../shared/harness.ts";
-import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol";
-import type { ConnectProvider, Personality } from "./protocol";
-import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model";
-import { buildQuestionAnswer, environmentReminder } from "./content";
-import type { TranscriptRow } from "../chat/Transcript";
-import type { ImageAttachment } from "./content";
-import { activeSnooze, nextSnooze, type Snooze } from "./snooze";
-import { stampOf } from "./queue";
+import { toTranscript } from "../harness.ts";
+import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
+import type { ConnectProvider, Personality } from "./protocol.ts";
+import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { buildQuestionAnswer, environmentReminder } from "./content.ts";
+import type { TranscriptRow } from "./transcript.ts";
+import type { ImageAttachment } from "./content.ts";
+import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
+import { stampOf } from "./queue.ts";
+import type { MakeTransport } from "./transport.ts";
 
 /**
- * Catch Up, browser-side: talks to Letta's app-server through the mod's
+ * Catch Up, client-side: talks to Letta's app-server through the mod's
  * tunnel, subscribes to recent conversations, folds live events with a
  * per-conversation digest, and reads seen markers the mod keeps on disk.
  */
@@ -18,6 +19,8 @@ export interface UseAttentionOptions {
   /** The mod says whether an app-server was discovered. */
   enabled: boolean;
   tunnelUrl: string;
+  /** How to reach the app-server from here: a WebSocket in a tab or on the phone, the Rust link in the shell. */
+  makeTransport: MakeTransport;
   seen: Record<string, string>;
   snooze: Record<string, Snooze>;
   markSeen: (agentId: string, conversationId: string) => void;
@@ -44,16 +47,16 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<AppServerSocket | null>(null);
   const liveRef = useRef(new Map<string, Live>());
-  const notifyTimer = useRef<number | null>(null);
+  const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Conversations the list knows about; an event from an unknown one means the list is stale (a new desk, an empty conversation that just got its first turn). */
   const knownRef = useRef(new Set<string>());
   const reloadRef = useRef<(() => void) | null>(null);
-  const reloadTimer = useRef<number | null>(null);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastReload = useRef(0);
 
   const bump = useCallback(() => {
     if (notifyTimer.current) return;
-    notifyTimer.current = window.setTimeout(() => {
+    notifyTimer.current = setTimeout(() => {
       notifyTimer.current = null;
       setTick((t) => t + 1);
     }, 150);
@@ -67,7 +70,7 @@ export function useAttention(opts: UseAttentionOptions) {
       setStatus("off");
       return;
     }
-    const sock = new AppServerSocket(opts.tunnelUrl);
+    const sock = new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
     sock.onStatus = setStatus;
     socketRef.current = sock;
     const off = sock.on((ev: ServerEvent) => {
@@ -85,7 +88,7 @@ export function useAttention(opts: UseAttentionOptions) {
       if (changed) bump();
       if (changed && !knownRef.current.has(key) && !reloadTimer.current && Date.now() - lastReload.current > 10_000) {
         // not in the list yet: refresh it soon so the conversation can become a card
-        reloadTimer.current = window.setTimeout(() => {
+        reloadTimer.current = setTimeout(() => {
           reloadTimer.current = null;
           reloadRef.current?.();
         }, 1500);
@@ -130,10 +133,10 @@ export function useAttention(opts: UseAttentionOptions) {
     };
     reloadRef.current = () => void load();
     void load();
-    const refresh = window.setInterval(() => void load(), 60_000);
+    const refresh = setInterval(() => void load(), 60_000);
     return () => {
       cancelled = true;
-      window.clearInterval(refresh);
+      clearInterval(refresh);
       off();
       sock.close();
       socketRef.current = null;
@@ -144,8 +147,8 @@ export function useAttention(opts: UseAttentionOptions) {
   // Snoozes expire on their own; re-evaluate twice a minute so cards come due without any event.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(t);
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
   }, []);
   const items = useMemo(
     () => buildItems(conversations, digests, liveRef.current, opts.seen).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),

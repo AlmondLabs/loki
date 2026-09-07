@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { AttentionItem } from "../app/src/attention/model";
-import { mergeQueue, stampOf } from "../app/src/attention/queue";
+import type { AttentionItem } from "../packages/core/src/attention/model.ts";
+import { mergeQueue, stampOf } from "../packages/core/src/attention/queue.ts";
 
 const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({
   id,

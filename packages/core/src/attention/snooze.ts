@@ -1,5 +1,5 @@
-import type { AttentionItem } from "./model";
-import { stampOf } from "./queue";
+import type { AttentionItem } from "./model.ts";
+import { stampOf } from "./queue.ts";
 
 /**
  * "Later" with a memory, Anki-style: each time you defer the same card the

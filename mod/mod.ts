@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import type { Scope } from "../shared/desk-core.ts";
-import { SHARED_SCOPE, scopeFor } from "../shared/desk-core.ts";
+import type { Scope } from "../packages/core/src/desk-core.ts";
+import { SHARED_SCOPE, scopeFor } from "../packages/core/src/desk-core.ts";
 import type { ConversationHandle, ConversationOpenEvent, EventContext, LettaMod, TurnStartEvent } from "./letta-types.ts";
 import { DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
@@ -16,7 +16,7 @@ import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
-import { conversationDirName } from "../shared/desk-core.ts";
+import { conversationDirName } from "../packages/core/src/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
 import { sortDesks } from "./bridge.ts";
 import { join } from "node:path";

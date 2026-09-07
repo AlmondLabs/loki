@@ -1,17 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { inTauri } from "../desk/env";
+import type { Transport } from "../../../packages/core/src/attention/transport.ts";
 
 /**
- * How frames reach Letta's app-server. In a browser tab: a WebSocket to the
+ * How frames reach Letta's app-server from the canvas. In a browser tab: a WebSocket to the
  * mod's tunnel. In the Tauri shell: the Rust core holds the socket (it can send
- * the bearer token) and relays frames as events. Same interface either way.
+ * the bearer token) and relays frames as events. Same interface (from core) either way.
  */
-export interface Transport {
-  open(handlers: { onOpen: () => void; onMessage: (raw: string) => void; onClose: () => void; onError: (err: Error) => void }): void;
-  send(raw: string): void;
-  close(): void;
-}
+export type { Transport };
 
 export class BrowserTransport implements Transport {
   private ws: WebSocket | null = null;
@@ -40,6 +37,8 @@ export class BrowserTransport implements Transport {
 
 /** Events from the Rust link: `app-server:status` {state} and `app-server:event` (a JSON frame as text). */
 export class TauriTransport implements Transport {
+  /** The Rust core reconnects by itself and reports "open" again; the socket must not rebuild us. */
+  readonly reconnects = true;
   private unlisten: UnlistenFn[] = [];
   private isOpen = false;
   open(h: Parameters<Transport["open"]>[0]): void {

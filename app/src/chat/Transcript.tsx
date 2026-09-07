@@ -2,18 +2,10 @@ import { memo } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-/**
- * One row of a conversation as loki shows it everywhere (desk chat, Catch Up):
- * user and assistant bubbles, quiet tool markers, collapsible harness events.
- */
-export interface TranscriptRow {
-  role: "user" | "assistant" | "tool" | "event";
-  text: string;
-  summary?: string | null;
-  detail?: string | null;
-  /** Data URLs of images sent with a user message (live rows only; history shows a marker). */
-  images?: string[];
-}
+import type { TranscriptRow } from "../../../packages/core/src/attention/transcript.ts";
+
+/** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
+export type { TranscriptRow };
 
 /**
  * Rows are memoised: parsing markdown for a long thread on every keystroke in

@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, type FSWatcher } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import type { Scope, WidgetKind, WidgetManifestEntry } from "../shared/desk-core.ts";
-import { KIT } from "../shared/desk-core.ts";
+import type { Scope, WidgetKind, WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
+import { KIT } from "../packages/core/src/desk-core.ts";
 
 /**
  * The widgets directory is the agent's half of the desk. This module turns

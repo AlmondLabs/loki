@@ -1,8 +1,7 @@
-import { buildUserContent, type ImageAttachment } from "./content";
-import { makeTransport, type Transport } from "./transport";
-import { inTauri } from "../desk/env";
+import { buildUserContent, type ImageAttachment } from "./content.ts";
+import type { MakeTransport, Transport } from "./transport.ts";
 /**
- * Browser client for Letta's app-server protocol, reached through the mod's
+ * Client for Letta's app-server protocol, reached through the mod's
  * /appserver tunnel (the app-server itself refuses browser origins). Requests
  * correlate by request_id; everything else fans out as events.
  * Docs: https://docs.letta.com/platform/app-server/protocol-lifecycle
@@ -54,17 +53,19 @@ type Listener = (ev: ServerEvent) => void;
 
 export class AppServerSocket {
   private transport: Transport | null = null;
-  private pending = new Map<string, { resolve: (v: ServerEvent) => void; reject: (e: Error) => void; timer: number }>();
+  private pending = new Map<string, { resolve: (v: ServerEvent) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private listeners = new Set<Listener>();
   private runtimes = new Map<string, Runtime>();
   private opening: Promise<void> | null = null;
   private closed = false;
   private retryMs = 500;
   readonly url: string;
+  private readonly makeTransport: MakeTransport;
   onStatus?: (s: "connecting" | "open" | "closed") => void;
 
-  constructor(url: string) {
+  constructor(url: string, makeTransport: MakeTransport) {
     this.url = url;
+    this.makeTransport = makeTransport;
   }
 
   on(fn: Listener): () => void {
@@ -76,7 +77,7 @@ export class AppServerSocket {
     if (this.opening) return this.opening;
     this.onStatus?.("connecting");
     this.opening = new Promise<void>((resolve, reject) => {
-      const transport = makeTransport(this.url);
+      const transport = this.makeTransport(this.url);
       this.transport = transport;
       let settled = false;
       transport.open({
@@ -102,7 +103,7 @@ export class AppServerSocket {
           }
           this.pending.clear();
           if (this.closed) return;
-          if (inTauri) return; // the Rust link reconnects on its own and will report "open" again
+          if (transport.reconnects) return; // the link (the Rust core, say) reconnects on its own and will report "open" again
           this.transport = null;
           this.opening = null;
           setTimeout(() => void this.connect().catch(() => {}), this.retryMs);
@@ -140,7 +141,7 @@ export class AppServerSocket {
     await this.connect();
     const request_id = `${type}-${Math.random().toString(36).slice(2, 10)}`;
     return new Promise<ServerEvent>((resolve, reject) => {
-      const timer = window.setTimeout(() => {
+      const timer = setTimeout(() => {
         this.pending.delete(request_id);
         reject(new Error(`${type} timed out`));
       }, timeoutMs);

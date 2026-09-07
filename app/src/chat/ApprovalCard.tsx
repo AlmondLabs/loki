@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { PendingApproval } from "../attention/model";
-import { formatInput } from "../attention/format";
+import type { PendingApproval } from "../../../packages/core/src/attention/model.ts";
+import { formatInput } from "../../../packages/core/src/attention/format.ts";
 
 /**
  * "waiting for your approval to run X" with the tool input, as Catch Up shows

@@ -1,4 +1,4 @@
-import type { ImageAttachment } from "../attention/content";
+import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 
 const MAX_EDGE = 1600;
 

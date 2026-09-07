@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { AttentionItem } from "../app/src/attention/model";
-import { SNOOZE_TIERS_MS, activeSnooze, formatIn, nextSnooze, ordinal } from "../app/src/attention/snooze";
-import { stampOf } from "../app/src/attention/queue";
+import type { AttentionItem } from "../packages/core/src/attention/model.ts";
+import { SNOOZE_TIERS_MS, activeSnooze, formatIn, nextSnooze, ordinal } from "../packages/core/src/attention/snooze.ts";
+import { stampOf } from "../packages/core/src/attention/queue.ts";
 
 const T0 = new Date("2026-09-05T10:00:00").getTime(); // local time, mid-day
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({

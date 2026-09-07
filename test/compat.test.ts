@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../shared/compat";
+import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../packages/core/src/compat.ts";
 
 test("compatibility compares major.minor of what the harness reports", () => {
   expect(lettaCompatible(null)).toBeNull();

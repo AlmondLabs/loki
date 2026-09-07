@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
-import type { Gesture } from "../../../shared/desk-core.ts";
-import { conversationDirName, getPath, mergeData } from "../../../shared/desk-core.ts";
+import type { Gesture } from "../../../packages/core/src/desk-core.ts";
+import { conversationDirName, getPath, mergeData } from "../../../packages/core/src/desk-core.ts";
 import { KIT_COMPONENTS } from "../kit";
 import { CHAT_WIDTHS, ChatBubble, ChatWindow, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import type { useDesk, VisibleWidget } from "./useDesk";
-import type { useAttention } from "../attention/useAttention";
+import type { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
 import { Viewport } from "./Viewport";
 import { WidgetFrame } from "./WidgetFrame";
 import { ModuleWidget, WidgetError } from "./ModuleWidget";

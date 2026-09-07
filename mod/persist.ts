@@ -1,6 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DeskState, Scope } from "../shared/desk-core.ts";
+import type { DeskState, Scope } from "../packages/core/src/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 
 const DEBOUNCE_MS = 200;

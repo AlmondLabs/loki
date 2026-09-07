@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
-import { scopeFor } from "../../../shared/desk-core.ts";
-import { useAttention } from "../attention/useAttention";
-import { catchUpQueue } from "../attention/queue";
+import { scopeFor } from "../../../packages/core/src/desk-core.ts";
+import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
+import { makeTransport } from "../attention/transport";
+import { catchUpQueue } from "../../../packages/core/src/attention/queue.ts";
 import { CatchUp } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Surface } from "../desk/Surface";
@@ -39,6 +40,7 @@ export function Shell() {
   const catchUp = useAttention({
     enabled: attention.available,
     tunnelUrl: attention.tunnelUrl,
+    makeTransport,
     seen: attention.seen,
     snooze: attention.snooze,
     markSeen: attention.markSeen,

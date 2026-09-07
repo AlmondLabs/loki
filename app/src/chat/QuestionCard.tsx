@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PendingQuestion } from "../attention/model";
+import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
 import { btn } from "./ui";
 
 /**

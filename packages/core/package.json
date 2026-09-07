@@ -1,0 +1,13 @@
+{
+  "name": "@loki/core",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "loki's one core for three clients: desk model, harness parsing, the attention model and the app-server protocol. Source is consumed as .ts; there is no build step.",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  }
+}

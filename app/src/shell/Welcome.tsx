@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
 import { btn, kbd } from "../chat/ui";
-import { PERSONALITIES, type ConnectProvider, type Personality } from "../attention/protocol";
+import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../packages/core/src/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";
 import type { BootstrapStatus } from "./bootstrap";

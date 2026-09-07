@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkFolder, completeFolder, expandPath, gitBranch, recentFolders } from "../mod/folders.ts";
-import { conversationDirName } from "../shared/desk-core.ts";
+import { conversationDirName } from "../packages/core/src/desk-core.ts";
 
 describe("folders", () => {
   test("recent folders per agent, newest first, deduped; the desk's own folder by conversation", () => {

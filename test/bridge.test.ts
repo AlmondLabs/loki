@@ -3,7 +3,7 @@ import { createBridge, scopeOfId, sortDesks, type DeskSummary } from "../mod/bri
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
-import type { WidgetManifestEntry } from "../shared/desk-core.ts";
+import type { WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
 import type { Client } from "../mod/server.ts";
 
 function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
