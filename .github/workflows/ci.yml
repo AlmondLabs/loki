@@ -28,5 +28,7 @@ jobs:
         with:
           workspaces: src-tauri
       - run: bun install --frozen-lockfile
+      # tauri::generate_context!() needs frontendDist (app/dist) to exist at compile time; build:mod then ships it for phones.
+      - run: bun run build:app
       - run: bun run build:mod
       - run: cargo test --manifest-path src-tauri/Cargo.toml

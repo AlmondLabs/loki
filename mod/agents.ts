@@ -48,7 +48,17 @@ export interface MemoryCommit {
   files: string[];
 }
 
+/**
+ * Agent ids reach the mod from the socket and from the LAN page, then become path segments under the
+ * backend's memfs. Only the shape Letta itself produces is allowed: letters, digits, `.`, `_`, `-`, not
+ * starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
+ */
+export function isAgentId(id: unknown): id is string {
+  return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
+}
+
 export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent | null {
+  if (!isAgentId(agentId)) return null;
   try {
     const raw = JSON.parse(readFileSync(join(dir, "agents", `${backendName(agentId)}.json`), "utf8")) as Record<string, unknown>;
     const tags = Array.isArray(raw.tags) ? (raw.tags as unknown[]).filter((t): t is string => typeof t === "string") : [];
@@ -69,10 +79,12 @@ export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent 
 }
 
 export function memoryRoot(agentId: string, dir = backendDir()): string {
+  if (!isAgentId(agentId)) throw new Error("invalid agent id");
   return join(dir, "memfs", agentId, "memory");
 }
 
 export function profilePath(agentId: string, dir = backendDir()): string | null {
+  if (!isAgentId(agentId)) return null;
   const p = join(memoryRoot(agentId, dir), "profile.png");
   return existsSync(p) ? p : null;
 }

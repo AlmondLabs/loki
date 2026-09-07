@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backendName } from "../packages/core/src/desk-core.ts";
-import { memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
+import { isAgentId, memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
 
 const AGENT = "agent-local-test-1234";
 let dir: string;
@@ -39,6 +39,16 @@ describe("agents: the record", () => {
     expect(a.favourite).toBe(true);
     expect(a.systemHead).toBe("You are a Letta Code agent.");
   });
+  test("agent ids are path segments: traversal shapes are refused everywhere", () => {
+    expect(isAgentId("default-agent-local-45b66c51-fe5b-44e8-b36c-696adc14ee28")).toBe(true);
+    expect(isAgentId("agent_1.v2")).toBe(true);
+    for (const bad of ["../../etc", "..", "a/b", ".hidden", "", "a b", 42, null, "x".repeat(201)]) expect(isAgentId(bad)).toBe(false);
+    expect(readLocalAgent("../" + AGENT, dir)).toBeNull();
+    expect(profilePath("../../" + AGENT, dir)).toBeNull();
+    expect(() => memoryRoot("../x", dir)).toThrow("invalid agent id");
+    expect(() => memoryTree("../x", dir)).toThrow("invalid agent id");
+  });
+
   test("unknown agent is null", () => {
     expect(readLocalAgent("agent-local-nope", dir)).toBeNull();
   });

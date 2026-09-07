@@ -5,6 +5,7 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { describeGesture } from "./gestures.ts";
 import type { Client, WsHandlers } from "./server.ts";
+import { isAgentId } from "./agents.ts";
 
 /**
  * WS protocol v2 (socket-free so it is testable):
@@ -365,7 +366,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
           const ag = deps.agents;
           if (!ag?.install) return fail(new Error("skill install is not available in this mod"));
-          if (typeof msg.agentId !== "string" || typeof msg.source !== "string") return fail(new Error("agentId and source required"));
+          if (!isAgentId(msg.agentId) || typeof msg.source !== "string") return fail(new Error("agentId and source required"));
           const agentId = msg.agentId;
           ag.install(agentId, msg.source, msg.force === true).then((output) => client.send({ type: "skill_installed", requestId, agentId, output }), fail);
           return;
@@ -378,7 +379,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const ag = deps.agents;
           const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
           if (!ag) return fail(new Error("agents are not available in this mod"));
-          if (typeof msg.agentId !== "string") return fail(new Error("agentId required"));
+          if (!isAgentId(msg.agentId)) return fail(new Error("agentId required"));
           const agentId = msg.agentId;
           if (msg.type === "agent_get") {
             const agent = ag.get(agentId);
