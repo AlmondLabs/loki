@@ -148,7 +148,12 @@ describe("LAN listener", () => {
       await f.lan.setEnabled(true);
       const bad = await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "ZZZZZZ", name: "x" }) });
       expect(bad.status).toBe(404);
-      expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", body: "not json" })).status).toBe(400);
+      // Cross-site protection: a body not declared JSON (what a form or no-cors text post looks like) is 415,
+      // a foreign Origin is 403, the page's own origin passes, and a JSON body that is not JSON is 400.
+      expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", body: "not json" })).status).toBe(415);
+      expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: "http://evil.example" }, body: "{}" })).status).toBe(403);
+      expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: base(f.lan) }, body: "{" })).status).toBe(400);
+      expect((await fetch(`${base(f.lan)}/unpair`, { method: "POST" })).status).toBe(415);
       expect((await fetch(`${base(f.lan)}/me`)).status).toBe(401);
 
       const { code } = f.codes.mint();
@@ -178,11 +183,27 @@ describe("LAN listener", () => {
       expect(q.body.deviceId).not.toBe(p.body.deviceId);
       expect(f.devices.list()).toHaveLength(2);
 
-      const un = await fetch(`${base(f.lan)}/unpair`, { method: "POST", headers: { cookie: p.cookie } });
+      const un = await fetch(`${base(f.lan)}/unpair`, { method: "POST", headers: { cookie: p.cookie, "content-type": "application/json" } });
       expect(un.status).toBe(200);
       expect(un.headers.get("set-cookie")).toContain("Max-Age=0");
       expect((await fetch(`${base(f.lan)}/me`, { headers: { cookie: p.cookie } })).status).toBe(401);
       expect(f.devices.list().map((d) => d.id)).toEqual([q.body.deviceId]);
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
+    }
+  });
+
+  test("ten wrong codes from one address and it waits; a right code clears the slate", async () => {
+    const f = fixture();
+    try {
+      await f.lan.setEnabled(true);
+      for (let i = 0; i < 9; i++) expect((await pair(f.lan, "ZZZZZZ")).res.status).toBe(404);
+      const { code } = f.codes.mint();
+      expect((await pair(f.lan, code)).res.status).toBe(200); // the ninth miss did not block; a hit resets
+      for (let i = 0; i < 10; i++) expect((await pair(f.lan, "ZZZZZZ")).res.status).toBe(404);
+      const fresh = f.codes.mint().code;
+      expect((await pair(f.lan, fresh)).res.status).toBe(429); // blocked even with a valid code
     } finally {
       await f.lan.stop();
       f.cleanup();

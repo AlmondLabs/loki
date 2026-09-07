@@ -70,9 +70,11 @@ const MAX_BODY = 64 * 1024;
 export class LanListener {
   private readonly opts: LanOptions;
   private readonly configuredPort: number;
-  private readonly dist: string | null;
-  private readonly serveStatic: StaticHandler;
+  private dist: string | null;
+  private serveStatic: StaticHandler;
   private enabledFlag: boolean;
+  /** Wrong pairing codes per remote address: ten in ten minutes and that address waits ten minutes. */
+  private readonly attempts = new Attempts();
   private server: Server | null = null;
   private ws: WsBridge | null = null;
   private boundPort: number | null = null;
@@ -204,9 +206,12 @@ export class LanListener {
       switch (url.pathname) {
         case "/health":
           return void json(res, 200, { ok: true, ...(this.opts.health?.() ?? {}) });
-        case "/pair":
+        case "/pair": {
           if (req.method !== "POST") return void json(res, 405, { error: "POST" });
+          const refused = crossSite(req);
+          if (refused) return void json(res, refused.status, { error: refused.error });
           return void this.pair(req, res);
+        }
         case "/me": {
           const who = this.authorize(req, url);
           const device = who.deviceId ? this.opts.devices.get(who.deviceId) : null;
@@ -215,6 +220,8 @@ export class LanListener {
         }
         case "/unpair": {
           if (req.method !== "POST") return void json(res, 405, { error: "POST" });
+          const refused = crossSite(req);
+          if (refused) return void json(res, refused.status, { error: refused.error });
           const who = this.authorize(req, url);
           if (who.deviceId) {
             this.forget(who.deviceId);
@@ -224,6 +231,17 @@ export class LanListener {
         }
       }
       if (profileRoute(req, res, url, this.authorize, this.opts.profile, 401)) return;
+      // The canvas build can land after the mod started (the app installs it on launch; a developer runs
+      // build:app later): look again while it is missing, so phones stop seeing the 503 without a /reload.
+      if (this.dist === null && this.opts.appDist === undefined) {
+        const found = resolveAppDist();
+        if (found) {
+          this.dist = found;
+          this.serveStatic = createStaticApp(found);
+          log("lan:app-dist", { dist: found });
+          this.opts.onChange?.("status", this.status());
+        }
+      }
       this.serveStatic(req, res, url);
     } catch (err) {
       log("lan:request-error", err instanceof Error ? err.message : String(err));
@@ -232,9 +250,15 @@ export class LanListener {
   }
 
   private pair(req: IncomingMessage, res: ServerResponse): void {
+    const ip = req.socket.remoteAddress ?? "?";
+    if (this.attempts.blocked(ip)) return void json(res, 429, { error: "too many wrong codes; wait a while" });
     void readJson(req).then((body) => {
       if (!body || typeof body.code !== "string") return json(res, 400, { error: "expected {code, name}" });
-      if (!this.opts.codes.redeem(body.code)) return json(res, 404, { error: "unknown or expired code" });
+      if (!this.opts.codes.redeem(body.code)) {
+        this.attempts.failed(ip);
+        return json(res, 404, { error: "unknown or expired code" });
+      }
+      this.attempts.clear(ip);
       const name = typeof body.name === "string" && body.name.trim() ? body.name : "Phone";
       const { id, token } = this.opts.devices.mint(name);
       log("lan:paired", { id, name });
@@ -245,6 +269,61 @@ export class LanListener {
 }
 
 // --- helpers ------------------------------------------------------------------------------------
+
+/**
+ * `/pair` and `/unpair` set or clear the device cookie, and a browser applies Set-Cookie even from a
+ * cross-site no-cors POST. So: the body must be declared JSON (a form or text/plain post cannot be),
+ * and when the browser names an Origin it must be this listener's own. Fetches from the served page
+ * are same-origin; a QR-reading camera app never posts. Codes can also be guessed: see Attempts.
+ */
+export function crossSite(req: IncomingMessage): { status: number; error: string } | null {
+  const type = String(req.headers["content-type"] ?? "").toLowerCase();
+  if (!type.startsWith("application/json")) return { status: 415, error: "send application/json" };
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin !== "null") {
+    let host: string;
+    try {
+      host = new URL(origin).host;
+    } catch {
+      return { status: 403, error: "bad origin" };
+    }
+    if (host !== req.headers.host) return { status: 403, error: "cross-site request refused" };
+  }
+  return null;
+}
+
+/** Wrong-code counter per address. Codes have 32^6 values; ten guesses in ten minutes is plenty for a human. */
+export class Attempts {
+  private readonly byIp = new Map<string, { count: number; first: number; until: number }>();
+  private readonly limit: number;
+  private readonly windowMs: number;
+  private readonly now: () => number;
+  constructor(limit = 10, windowMs = 10 * 60_000, now: () => number = Date.now) {
+    this.limit = limit;
+    this.windowMs = windowMs;
+    this.now = now;
+  }
+  blocked(ip: string): boolean {
+    const rec = this.byIp.get(ip);
+    if (!rec) return false;
+    if (rec.until > this.now()) return true;
+    if (this.now() - rec.first > this.windowMs) this.byIp.delete(ip);
+    return false;
+  }
+  failed(ip: string): void {
+    const t = this.now();
+    const rec = this.byIp.get(ip);
+    if (!rec || t - rec.first > this.windowMs) {
+      this.byIp.set(ip, { count: 1, first: t, until: 0 });
+      return;
+    }
+    rec.count += 1;
+    if (rec.count >= this.limit) rec.until = t + this.windowMs;
+  }
+  clear(ip: string): void {
+    this.byIp.delete(ip);
+  }
+}
 
 /** Non-internal IPv4 addresses, en0 (the Mac's Wi‑Fi) first. */
 export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfaces> = networkInterfaces): string[] {

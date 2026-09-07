@@ -5,19 +5,13 @@
  * docs/plans/2026-09-07-007-feat-loki-mobile-plan.md, "Bridge frames").
  */
 
-/** What the mod says about its LAN listener (`lan_status`). */
-export interface LanStatus {
-  enabled: boolean;
-  /** The address the QR should carry (the first of `addresses`), or null when the listener is off or has none. */
-  address: string | null;
-  addresses: string[];
-  /** The Mac's Bonjour name (`name.local`), what the QR carries; null when the mod could not find one. */
-  host: string | null;
-  port: number;
-  /** The canvas build was found and is served on `/`; false means "run bun run build:app". */
-  appServed: boolean;
-  error: string | null;
-}
+import type { LanStatus } from "../../../mod/lan.ts";
+import type { DeviceSummary } from "../../../mod/devices.ts";
+import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../packages/core/src/pairing-code.ts";
+
+/** The mod's own types: what `lan_status` and `devices` carry (mod/lan.ts, mod/devices.ts). */
+export type { LanStatus };
+export type PairedDevice = DeviceSummary;
 
 /** A fresh pairing code (`pair_code`). */
 export interface PairCode {
@@ -27,23 +21,9 @@ export interface PairCode {
   expiresAt: string;
 }
 
-/** A phone that redeemed a code (`devices`). */
-export interface PairedDevice {
-  id: string;
-  name: string;
-  createdAt: string;
-  lastSeenAt: string;
-}
-
-/** The pairing alphabet: no 0/O or 1/I, six characters. */
-export const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-export const CODE_LENGTH = 6;
-
-/** `http://<host>:<port>/?code=<code>` — what the QR encodes and Settings prints. IPv6 hosts get brackets. */
-export function pairUrl(host: string, port: number, code: string): string {
-  const h = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-  return `http://${h}:${port}/?code=${encodeURIComponent(code)}`;
-}
+/** The pairing alphabet and length are the mod's (mod/pairing.ts); the URL itself comes from the mod in `pair_code`. */
+export const CODE_ALPHABET = PAIRING_ALPHABET;
+export const CODE_LENGTH = PAIRING_LENGTH;
 
 /** The code in a pairing URL or a bare query string, normalised; null when there is none. */
 export function codeFromUrl(url: string): string | null {

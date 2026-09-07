@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createBridge, scopeOfId, sortDesks, type DeskSummary } from "../mod/bridge.ts";
+import { createBridge, scopeOfId, sortDesks, type DeskSummary, PHONE_FRAMES } from "../mod/bridge.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
@@ -181,6 +181,38 @@ describe("bridge history", () => {
     expect((reply.messages as unknown[]).length).toBe(2);
     bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "unknown" });
     expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ requestId: "h2", messages: [] });
+  });
+});
+
+describe("bridge: a paired phone's authority", () => {
+  test("a device client gets the inbox frames and nothing else", () => {
+    const broadcasts: Record<string, unknown>[] = [];
+    let forgot: string | null = null;
+    const lan = {
+      status: () => ({ enabled: true, address: "192.168.1.3", addresses: ["192.168.1.3"], host: null, port: 41415, appServed: true, error: null }),
+      setEnabled: async (e: boolean) => ({ enabled: e, address: "192.168.1.3", addresses: ["192.168.1.3"], host: null, port: 41415, appServed: true, error: null }),
+      pairBegin: () => ({ code: "ABC234", url: "http://x/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
+      devices: () => [],
+      forget: (id: string) => ((forgot = id), true),
+    };
+    const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan, listDesks: () => [] });
+    const phone = { ...client("shared"), deviceId: "d1" };
+    for (const type of ["pair_begin", "device_forget", "lan_set", "lan_get", "devices_list", "gesture", "arrange", "trash", "pin_set", "folder_pick", "skill_install", "agent_get", "task_create", "tasks_list"]) {
+      phone.sent.length = 0;
+      bridge.onMessage(phone, { type, requestId: "r1", id: "d2", enabled: false });
+      expect(phone.sent).toEqual([{ type: "error", requestId: "r1", message: `${type} is not available on the phone` }]);
+    }
+    expect(forgot).toBeNull();
+    expect(broadcasts).toEqual([]);
+    for (const type of PHONE_FRAMES) {
+      phone.sent.length = 0;
+      bridge.onMessage(phone, { type, agentId: "a1", conversationId: "c1", skips: 1, until: "2026-09-07T10:10:00.000Z", stamp: "s", at: "2026-09-07T10:00:00.000Z" });
+      expect(phone.sent.some((m) => m.type === "error" && String(m.message).includes("not available on the phone"))).toBe(false);
+    }
+    // the desktop (no deviceId) keeps everything
+    const desk = client("shared");
+    bridge.onMessage(desk, { type: "pair_begin" });
+    expect(desk.sent.at(-1)?.type).toBe("pair_code");
   });
 });
 

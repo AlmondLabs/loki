@@ -175,6 +175,9 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 const isPoint = (v: unknown): boolean =>
   typeof v === "object" && v !== null && isNum((v as Record<string, unknown>).x) && isNum((v as Record<string, unknown>).y);
 
+/** The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`. */
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get"]);
+
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
@@ -192,6 +195,12 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
     },
 
     onMessage(client: Client, msg: Record<string, unknown>) {
+      // A paired phone shares this bridge with the desktop but not its authority: it reads desks and
+      // transcripts and keeps its seen/snooze markers, nothing else (no gestures, board, pins, folders,
+      // skills, agents, and never the pairing and device frames that mint or evict phones).
+      if (client.deviceId && !PHONE_FRAMES.has(String(msg.type))) {
+        return client.send({ type: "error", requestId: msg.requestId, message: `${String(msg.type)} is not available on the phone` });
+      }
       switch (msg.type) {
         case "gesture": {
           const g = msg.gesture;

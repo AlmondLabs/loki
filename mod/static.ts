@@ -54,7 +54,8 @@ export function createStaticApp(dist: string | null): StaticHandler {
       return void notFound(res);
     }
     const ext = extname(pathname);
-    if (!ext) return void serveIndex(root, res);
+    // Routes have no extension; an explicit /index.html is the same page and must carry the boot script too.
+    if (!ext || pathname === "/index.html") return void serveIndex(root, res);
     // Resolve inside the dist and refuse anything that escapes it (".." in any encoding).
     const file = resolve(root, `.${pathname}`);
     const rel = relative(root, file);

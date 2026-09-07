@@ -7,9 +7,9 @@ import { randomInt } from "node:crypto";
  * jar, so the user pairs in Safari, adds to the Home Screen, and pairs the new
  * icon with the same code.
  */
-export const PAIRING_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I
+import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../packages/core/src/pairing-code.ts";
+export { PAIRING_ALPHABET, PAIRING_LENGTH };
 export const PAIRING_TTL_MS = 10 * 60_000;
-export const PAIRING_LENGTH = 6;
 
 export interface PairingCode {
   code: string;

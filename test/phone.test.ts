@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lastSeen, normalizeCode, pairUrl } from "../app/src/phone/model.ts";
+import { CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lastSeen, normalizeCode } from "../app/src/phone/model.ts";
+import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../packages/core/src/pairing-code.ts";
 
 /**
  * The phone's pure bits (app/src/phone/model.ts): the pairing URL both ways, the device label,
@@ -22,15 +23,10 @@ describe("pairing URL", () => {
   test("a code of the wrong length is not a code", () => {
     expect(codeFromUrl("http://10.0.0.5:41415/?code=Q7K")).toBeNull();
   });
-  test("the builder Settings prints is the exact string", () => {
-    expect(pairUrl("10.0.0.5", 41415, "Q7K2M9")).toBe("http://10.0.0.5:41415/?code=Q7K2M9");
-    expect(pairUrl("192.168.1.3", 41415, "ABCDEF")).toBe("http://192.168.1.3:41415/?code=ABCDEF");
-  });
-  test("an IPv6 host gets brackets", () => {
-    expect(pairUrl("fe80::1", 41415, "Q7K2M9")).toBe("http://[fe80::1]:41415/?code=Q7K2M9");
-  });
-  test("builder and parser agree", () => {
-    expect(codeFromUrl(pairUrl("10.0.0.5", 41415, "Q7K2M9"))).toBe("Q7K2M9");
+  test("the phone's alphabet is the mod's, so a typed code matches a minted one", () => {
+    expect(CODE_ALPHABET).toBe(PAIRING_ALPHABET);
+    expect(CODE_LENGTH).toBe(PAIRING_LENGTH);
+    expect(codeFromUrl("http://deepaks-macbook-pro.local:41415/?code=Q7K2M9")).toBe("Q7K2M9");
   });
 });
 

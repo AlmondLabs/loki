@@ -21,7 +21,8 @@ import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../ch
  * Approvals first, then questions, failures, finished work.
  */
 
-const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
+/** Status → label and colour for an attention item; the phone inbox (app/src/phone/Inbox.tsx) uses the same table. */
+export const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
   approval: { label: "needs approval", color: "var(--loki-accent)" },
   question: { label: "asked you", color: "var(--loki-accent)" },
   failed: { label: "failed", color: "var(--loki-negative)" },

@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 pub const MARKER: &str = "// loki: managed by the loki app — edits are overwritten on launch";
 const SKILL_MARKER: &str = ".managed-by-loki";
 const APP_MARKER: &str = ".managed-by-loki";
+const APP_MARKER_TEXT: &[u8] = b"files here are written by the loki app on launch\n";
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -53,8 +54,10 @@ impl Report {
     pub fn skipped(home: &Path) -> Report {
         Report { r#mod: State::Skipped, shim: shim_path(home).display().to_string(), mod_path: String::new(), skill: State::Skipped, skill_path: skill_dir(home).display().to_string(), app: State::Skipped, app_path: String::new(), needs_reload: false, error: None }
     }
+    /// The harness must pick up a new mod bundle; a new app/ matters too, because the mod resolves the
+    /// canvas directory when its LAN listener starts.
     pub fn changed(&self) -> bool {
-        matches!(self.r#mod, State::Installed | State::Updated)
+        matches!(self.r#mod, State::Installed | State::Updated) || matches!(self.app, State::Installed | State::Updated)
     }
 }
 
@@ -175,6 +178,12 @@ fn install_app(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), St
     let mut state = if fresh { State::Installed } else { State::Current };
     let mut files = Vec::new();
     walk(&src, Path::new(""), &mut files).map_err(|e| format!("bundled app unreadable: {e}"))?;
+    if fresh {
+        // The marker goes down first: a copy that fails halfway must still read as ours next launch,
+        // so it is repaired rather than treated as a directory somebody else wrote.
+        std::fs::create_dir_all(&dst).map_err(|e| e.to_string())?;
+        std::fs::write(dst.join(APP_MARKER), APP_MARKER_TEXT).map_err(|e| e.to_string())?;
+    }
     for rel in &files {
         let bytes = std::fs::read(src.join(rel)).map_err(|e| e.to_string())?;
         let s = write_if_changed(&dst.join(rel), &bytes).map_err(|e| format!("could not write app: {e}"))?;
@@ -193,7 +202,7 @@ fn install_app(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), St
             state = State::Updated;
         }
     }
-    std::fs::write(dst.join(APP_MARKER), b"files here are written by the loki app on launch\n").map_err(|e| e.to_string())?;
+    std::fs::write(dst.join(APP_MARKER), APP_MARKER_TEXT).map_err(|e| e.to_string())?;
     Ok((state, dst))
 }
 

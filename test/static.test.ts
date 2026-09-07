@@ -51,7 +51,7 @@ describe("static app", () => {
   });
 
   test("index.html carries the LAN boot script for / and for SPA routes", async () => {
-    for (const path of ["/", "/inbox", "/c/conv_1", "/?code=ABC234"]) {
+    for (const path of ["/", "/index.html", "/inbox", "/c/conv_1", "/?code=ABC234"]) {
       const res = await fetch(`${served.base}${path}`);
       expect(res.status).toBe(200);
       expect(res.headers.get("content-type")).toContain("text/html");

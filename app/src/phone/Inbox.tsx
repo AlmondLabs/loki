@@ -5,6 +5,7 @@ import { formatInput } from "../../../packages/core/src/attention/format.ts";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { lastSeen } from "./model";
+import { BADGE } from "../desk/CatchUp";
 import { SAFE, tap } from "./ui";
 
 /**
@@ -13,14 +14,6 @@ import { SAFE, tap } from "./ui";
  * conversation. Deferred cards sit at the bottom, quieter, with "unsnooze".
  */
 
-const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
-  approval: { label: "needs approval", color: "var(--loki-accent)" },
-  question: { label: "asked you", color: "var(--loki-accent)" },
-  failed: { label: "failed", color: "var(--loki-negative)" },
-  done: { label: "finished", color: "var(--loki-positive)" },
-  running: { label: "running", color: "var(--loki-muted)" },
-  idle: { label: "", color: "var(--loki-muted)" },
-};
 
 /** The two or three lines a card shows under its title. */
 export function preview(item: AttentionItem): string {
