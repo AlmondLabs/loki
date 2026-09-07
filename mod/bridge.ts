@@ -44,6 +44,13 @@ import type { Client, WsHandlers } from "./server.ts";
  *    widget_status { id, error }             runtime/HMR error from the tab (null clears)
  *    list_desks    {}
  *    pin_set       { agentId, conversationId, pinned }   → broadcast desks (pins live in ~/.letta/pinned-conversations.json)
+ *  The phone listener (mod/lan.ts), controlled from Settings:
+ *    lan_get {}                    reply: lan_status { enabled, address, addresses, port, appServed, error }
+ *    lan_set { enabled }           reply: lan_status (persisted to state/lan.json first, then bind/close); also broadcast
+ *    pair_begin {}                 reply: pair_code { code, url, expiresAt }   (url = http://<address>:<port>/?code=<code>)
+ *    devices_list {}               reply: devices { devices: [{ id, name, createdAt, lastSeenAt }] }
+ *    device_forget { id }          broadcast devices (that device's sockets close)
+ *    (lan_status is broadcast on enable/disable/bind error; devices on pair/forget/seen)
  */
 
 /** live: conversation exists. archived: Letta archived it. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
@@ -126,6 +133,16 @@ export interface BridgeDeps {
   /** The board (mod/tasks.ts) and the folder a conversation works in, for the task stamp. */
   tasks?: import("./tasks.ts").TaskBoard;
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
+  /** The phone listener (mod/lan.ts) and its paired devices, for Settings › phone. */
+  lan?: {
+    status: () => import("./lan.ts").LanStatus;
+    setEnabled: (enabled: boolean) => Promise<import("./lan.ts").LanStatus>;
+    /** Mint a pairing code and the URL the QR carries. */
+    pairBegin: () => { code: string; url: string; expiresAt: string };
+    devices: () => import("./devices.ts").DeviceSummary[];
+    /** Forget a device and close its sockets. */
+    forget: (id: string) => boolean;
+  };
   broadcast(msg: object, scope?: Scope): void;
 }
 
@@ -391,6 +408,25 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           if (typeof msg.conversationId !== "string") return;
           const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
           client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [] });
+          return;
+        }
+        case "lan_get":
+        case "lan_set":
+        case "pair_begin":
+        case "devices_list":
+        case "device_forget": {
+          const lan = deps.lan;
+          if (!lan) return client.send({ type: "error", message: "the phone listener is not available in this mod" });
+          if (msg.type === "lan_get") return client.send({ type: "lan_status", ...lan.status() });
+          if (msg.type === "lan_set") {
+            // Persisted first, then bound or closed; the listener's own onChange broadcasts to every tab.
+            void lan.setEnabled(msg.enabled === true).then((status) => client.send({ type: "lan_status", ...status }));
+            return;
+          }
+          if (msg.type === "pair_begin") return client.send({ type: "pair_code", ...lan.pairBegin() });
+          if (msg.type === "devices_list") return client.send({ type: "devices", devices: lan.devices() });
+          if (typeof msg.id === "string") lan.forget(msg.id);
+          deps.broadcast({ type: "devices", devices: lan.devices() });
           return;
         }
         default:

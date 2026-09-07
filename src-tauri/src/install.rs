@@ -5,6 +5,10 @@
 //! ~/.letta/mods/loki.ts points at it. A shim the app did not write (a developer's, pointing at a
 //! checkout) is left alone. The same goes for the skill in ~/.agents/skills/loki.
 //!
+//! The built canvas (src-tauri/resources/app, a copy of app/dist) lands at <data>/app beside the
+//! mod: the mod's LAN listener serves it to phones (mod/static.ts). Optional: a build without it
+//! still installs the mod.
+//!
 //! Also here: which external programs the app needs (`letta`, `bd`) and where they were found.
 
 use serde::Serialize;
@@ -12,6 +16,7 @@ use std::path::{Path, PathBuf};
 
 pub const MARKER: &str = "// loki: managed by the loki app — edits are overwritten on launch";
 const SKILL_MARKER: &str = ".managed-by-loki";
+const APP_MARKER: &str = ".managed-by-loki";
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -36,6 +41,9 @@ pub struct Report {
     pub mod_path: String,
     pub skill: State,
     pub skill_path: String,
+    /// The canvas for phones (<data>/app). Skipped when the build shipped without app/dist.
+    pub app: State,
+    pub app_path: String,
     /// The harness loaded before this mod landed: it needs `/reload` (or a restart) to pick it up.
     pub needs_reload: bool,
     pub error: Option<String>,
@@ -43,7 +51,7 @@ pub struct Report {
 
 impl Report {
     pub fn skipped(home: &Path) -> Report {
-        Report { r#mod: State::Skipped, shim: shim_path(home).display().to_string(), mod_path: String::new(), skill: State::Skipped, skill_path: skill_dir(home).display().to_string(), needs_reload: false, error: None }
+        Report { r#mod: State::Skipped, shim: shim_path(home).display().to_string(), mod_path: String::new(), skill: State::Skipped, skill_path: skill_dir(home).display().to_string(), app: State::Skipped, app_path: String::new(), needs_reload: false, error: None }
     }
     pub fn changed(&self) -> bool {
         matches!(self.r#mod, State::Installed | State::Updated)
@@ -133,9 +141,75 @@ fn install_skill(resources: &Path, home: &Path) -> Result<(State, PathBuf), Stri
     Ok((state, dst))
 }
 
-/// Install both. Never panics; failures land in `error` with whatever did succeed.
+/// Files under `dir`, relative to it, recursively. Symlinks are skipped: the bundle has none.
+fn walk(dir: &Path, prefix: &Path, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let ft = entry.file_type()?;
+        let rel = prefix.join(entry.file_name());
+        if ft.is_dir() {
+            walk(&entry.path(), &rel, out)?;
+        } else if ft.is_file() {
+            out.push(rel);
+        }
+    }
+    Ok(())
+}
+
+/// The canvas for phones: <resources>/app → <data>/app, every file write-if-changed, stale files
+/// (an older build's hashed assets) removed. A directory we did not write is left alone.
+/// `Skipped` when the build shipped without app/dist.
+fn install_app(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), String> {
+    let src = resources.join("app");
+    let dst = data_dir.join("app");
+    if !src.join("index.html").is_file() {
+        return Ok((State::Skipped, dst));
+    }
+    let meta = std::fs::symlink_metadata(&dst).ok();
+    if let Some(m) = &meta {
+        if m.file_type().is_symlink() || !dst.join(APP_MARKER).exists() {
+            return Ok((State::Custom, dst));
+        }
+    }
+    let fresh = meta.is_none();
+    let mut state = if fresh { State::Installed } else { State::Current };
+    let mut files = Vec::new();
+    walk(&src, Path::new(""), &mut files).map_err(|e| format!("bundled app unreadable: {e}"))?;
+    for rel in &files {
+        let bytes = std::fs::read(src.join(rel)).map_err(|e| e.to_string())?;
+        let s = write_if_changed(&dst.join(rel), &bytes).map_err(|e| format!("could not write app: {e}"))?;
+        if !fresh && s != State::Current {
+            state = State::Updated;
+        }
+    }
+    let mut existing = Vec::new();
+    walk(&dst, Path::new(""), &mut existing).map_err(|e| e.to_string())?;
+    for rel in existing {
+        if rel.as_os_str() == APP_MARKER || files.contains(&rel) {
+            continue;
+        }
+        std::fs::remove_file(dst.join(&rel)).map_err(|e| format!("could not remove stale {}: {e}", rel.display()))?;
+        if !fresh {
+            state = State::Updated;
+        }
+    }
+    std::fs::write(dst.join(APP_MARKER), b"files here are written by the loki app on launch\n").map_err(|e| e.to_string())?;
+    Ok((state, dst))
+}
+
+/// Install all three. Never panics; failures land in `error` with whatever did succeed.
 pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
     let mut report = Report::skipped(home);
+    match install_app(resources, data_dir) {
+        Ok((state, dir)) => {
+            report.app = state;
+            report.app_path = dir.display().to_string();
+        }
+        Err(e) => {
+            report.app = State::Error;
+            report.error = Some(e);
+        }
+    }
     match install_mod(resources, data_dir, home) {
         Ok((state, shim, mod_path)) => {
             report.r#mod = state;
@@ -144,7 +218,7 @@ pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
         }
         Err(e) => {
             report.r#mod = State::Error;
-            report.error = Some(e);
+            report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {e}"), None => e });
         }
     }
     match install_skill(resources, home) {
@@ -242,6 +316,57 @@ mod tests {
         assert_eq!(r.skill, State::Custom);
         assert_eq!(std::fs::read_to_string(&shim).unwrap(), "// my shim\nexport default () => {}\n");
         assert!(!data.join("mod").exists());
+        assert!(r.error.is_none());
+    }
+
+    fn with_app(resources: &Path) {
+        std::fs::create_dir_all(resources.join("app").join("assets")).unwrap();
+        std::fs::write(resources.join("app").join("index.html"), b"<html></html>").unwrap();
+        std::fs::write(resources.join("app").join("assets").join("index-abc.js"), b"1").unwrap();
+    }
+
+    #[test]
+    fn app_is_optional_and_installs_beside_the_mod() {
+        let (_root, resources, data, home) = fixture();
+        // no app/ in the bundle: skipped, no error, the mod still lands
+        let r = run(&resources, &data, &home);
+        assert_eq!(r.app, State::Skipped);
+        assert_eq!(r.r#mod, State::Installed);
+        assert!(r.error.is_none());
+        assert!(!data.join("app").exists());
+
+        with_app(&resources);
+        let r = run(&resources, &data, &home);
+        assert_eq!(r.app, State::Installed);
+        assert_eq!(r.app_path, data.join("app").display().to_string());
+        assert!(data.join("app").join("index.html").is_file());
+        assert!(data.join("app").join("assets").join("index-abc.js").is_file());
+        assert!(data.join("app").join(APP_MARKER).is_file());
+        // the layout mod/static.ts resolves: <data>/mod/loki-mod.mjs and <data>/app/index.html
+        assert!(data.join("mod").join("loki-mod.mjs").is_file());
+
+        let r = run(&resources, &data, &home);
+        assert_eq!(r.app, State::Current);
+
+        // a new build: new hashed asset, the old one goes
+        std::fs::remove_file(resources.join("app").join("assets").join("index-abc.js")).unwrap();
+        std::fs::write(resources.join("app").join("assets").join("index-def.js"), b"2").unwrap();
+        let r = run(&resources, &data, &home);
+        assert_eq!(r.app, State::Updated);
+        assert!(!data.join("app").join("assets").join("index-abc.js").exists());
+        assert!(data.join("app").join("assets").join("index-def.js").is_file());
+        assert!(r.error.is_none());
+    }
+
+    #[test]
+    fn leaves_an_app_dir_it_did_not_write_alone() {
+        let (_root, resources, data, home) = fixture();
+        with_app(&resources);
+        std::fs::create_dir_all(data.join("app")).unwrap();
+        std::fs::write(data.join("app").join("index.html"), b"mine").unwrap();
+        let r = run(&resources, &data, &home);
+        assert_eq!(r.app, State::Custom);
+        assert_eq!(std::fs::read(data.join("app").join("index.html")).unwrap(), b"mine");
         assert!(r.error.is_none());
     }
 

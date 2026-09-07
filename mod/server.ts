@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { WebSocketServer, WebSocket } from "ws";
 import { log } from "./log.ts";
@@ -17,7 +17,20 @@ export interface LokiServer {
   close(): Promise<void>;
 }
 
-export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null }): Promise<LokiServer> {
+/**
+ * Who may upgrade to /ws or /appserver, or fetch an agent's face. The loopback server
+ * checks `?t=` against the desktop token (tokenAuth); the LAN listener (mod/lan.ts)
+ * looks a device cookie or bearer up and names the device, so its sockets can be
+ * closed when the device is forgotten.
+ */
+export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string };
+
+export const tokenAuth =
+  (token: string | undefined): Authorize =>
+  (_req, url) => ({ ok: !!token && url.searchParams.get("t") === token });
+
+export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize }): Promise<LokiServer> {
+  const authorize = opts.authorize ?? tokenAuth(opts.token);
   const server = createServer((req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -26,16 +39,7 @@ export async function startServer(opts: { port: number; health?: () => object; t
         res.end(JSON.stringify({ ok: true, ...(opts.health?.() ?? {}) }));
         return;
       }
-      // The agent's face: GET /agents/<id>/profile.png?t=<token>. Read from its memory filesystem, never cached long.
-      const face = url.pathname.match(/^\/agents\/([^/]+)\/profile\.png$/);
-      if (face) {
-        if (!opts.token || url.searchParams.get("t") !== opts.token) return void res.writeHead(403).end();
-        const p = opts.profile?.(decodeURIComponent(face[1])) ?? null;
-        if (!p) return void res.writeHead(404).end();
-        res.writeHead(200, { "content-type": "image/png", "cache-control": "private, max-age=60", "access-control-allow-origin": "*" });
-        res.end(readFileSync(p));
-        return;
-      }
+      if (profileRoute(req, res, url, authorize, opts.profile, 403)) return;
       res.writeHead(404, { "content-type": "text/plain" }).end("loki: not found");
     } catch {
       res.writeHead(400).end();
@@ -43,30 +47,51 @@ export async function startServer(opts: { port: number; health?: () => object; t
   });
   await listenWithRetry(server, opts.port);
   const port = (server.address() as { port: number }).port;
-  return {
-    server,
-    port,
-    close: () =>
-      new Promise<void>((resolve) => {
-        const done = () => {
-          clearTimeout(fallback);
-          resolve();
-        };
-        // Keep-alive and upgraded sockets would otherwise hold close() open; never block /reload on them.
-        const fallback = setTimeout(done, 1000);
-        server.close(done);
-        server.closeAllConnections();
-      }),
-  };
+  return { server, port, close: () => closeServer(server) };
+}
+
+/**
+ * The agent's face: GET /agents/<id>/profile.png, read from its memory filesystem, never cached long.
+ * Returns false when the URL is not this route. `denied` is the status for a failed authorize
+ * (403 on loopback, where the token is the only credential; 401 on the LAN, where the page can pair).
+ */
+export function profileRoute(req: IncomingMessage, res: ServerResponse, url: URL, authorize: Authorize, profile: ((agentId: string) => string | null) | undefined, denied: 401 | 403): boolean {
+  const face = url.pathname.match(/^\/agents\/([^/]+)\/profile\.png$/);
+  if (!face) return false;
+  if (!authorize(req, url).ok) {
+    res.writeHead(denied).end();
+    return true;
+  }
+  const p = profile?.(decodeURIComponent(face[1])) ?? null;
+  if (!p) {
+    res.writeHead(404).end();
+    return true;
+  }
+  res.writeHead(200, { "content-type": "image/png", "cache-control": "private, max-age=60", "access-control-allow-origin": "*" });
+  res.end(readFileSync(p));
+  return true;
+}
+
+/** Close, and never wait more than a second: keep-alive and upgraded sockets would otherwise hold /reload open. */
+export function closeServer(server: Server): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(fallback);
+      resolve();
+    };
+    const fallback = setTimeout(done, 1000);
+    server.close(done);
+    server.closeAllConnections();
+  });
 }
 
 /** On /reload the previous server closes asynchronously; retry instead of EADDRINUSE. */
-async function listenWithRetry(server: Server, port: number, tries = 4): Promise<void> {
+export async function listenWithRetry(server: Server, port: number, tries = 4, host = "127.0.0.1"): Promise<void> {
   for (let attempt = 1; ; attempt++) {
     try {
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
-        server.listen(port, "127.0.0.1", () => {
+        server.listen(port, host, () => {
           server.removeAllListeners("error");
           resolve();
         });
@@ -81,6 +106,8 @@ async function listenWithRetry(server: Server, port: number, tries = 4): Promise
 
 export interface Client {
   scope: Scope;
+  /** The paired phone behind this socket (LAN listener only); undefined on loopback. */
+  deviceId?: string;
   send(msg: object): void;
 }
 
@@ -99,12 +126,20 @@ export interface WsBridge {
   /** Send to every tab, or only tabs showing `scope`. */
   broadcast(msg: object, scope?: Scope): void;
   clientCount(): number;
+  /** Terminate every socket (/ws and /appserver) a device holds. Returns how many. */
+  closeDevice(deviceId: string): number;
   close(): void;
 }
 
-export function attachWs(server: Server, token: string, handlers: WsHandlers): WsBridge {
+/**
+ * WebSocket upgrades on `/ws` (the bridge) and `/appserver` (the tunnel). `auth` is the desktop
+ * token (checked as `?t=`) or an Authorize callback; the handlers are the same for both listeners.
+ */
+export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers): WsBridge {
+  const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
   const wss = new WebSocketServer({ noServer: true });
   const clients = new Map<WebSocket, Client>();
+  const tunnels = new Map<WebSocket, string | undefined>(); // /appserver sockets → device
 
   server.on("upgrade", (req, socket, head) => {
     let url: URL;
@@ -114,13 +149,18 @@ export function attachWs(server: Server, token: string, handlers: WsHandlers): W
       socket.destroy();
       return;
     }
-    if (url.searchParams.get("t") !== token) {
+    const who = authorize(req, url);
+    if (!who.ok) {
       socket.destroy();
       return;
     }
     if (url.pathname === "/appserver") {
       const target = handlers.appServerUrl?.() ?? null;
-      wss.handleUpgrade(req, socket, head, (ws) => tunnel(ws, target));
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        tunnels.set(ws, who.deviceId);
+        ws.on("close", () => tunnels.delete(ws));
+        tunnel(ws, target);
+      });
       return;
     }
     if (url.pathname !== "/ws") {
@@ -130,6 +170,7 @@ export function attachWs(server: Server, token: string, handlers: WsHandlers): W
     const scope = scopeFor(url.searchParams.get("desk"));
     wss.handleUpgrade(req, socket, head, (ws) => {
       const client: Client = { scope, send: (msg) => send(ws, msg) };
+      if (who.deviceId) client.deviceId = who.deviceId;
       clients.set(ws, client);
       ws.on("close", () => clients.delete(ws));
       ws.on("message", (raw) => {
@@ -156,9 +197,27 @@ export function attachWs(server: Server, token: string, handlers: WsHandlers): W
       for (const [ws, c] of clients) if (!scope || c.scope === scope) send(ws, msg);
     },
     clientCount: () => clients.size,
+    closeDevice(deviceId) {
+      let n = 0;
+      for (const [ws, c] of clients) {
+        if (c.deviceId !== deviceId) continue;
+        ws.terminate();
+        clients.delete(ws);
+        n++;
+      }
+      for (const [ws, d] of tunnels) {
+        if (d !== deviceId) continue;
+        ws.terminate();
+        tunnels.delete(ws);
+        n++;
+      }
+      return n;
+    },
     close: () => {
       for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
+      for (const ws of tunnels.keys()) ws.terminate();
       clients.clear();
+      tunnels.clear();
       wss.close();
     },
   };

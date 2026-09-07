@@ -1,8 +1,9 @@
 // Bundle the mod into the single file the loki app installs: src-tauri/resources/mod/loki-mod.mjs
-// (plus the agent's skill). `bun run build:mod`; tauri runs it before dev and build.
+// (plus the agent's skill, and the built canvas for phones when app/dist exists).
+// `bun run build:mod`; tauri runs it before dev and build.
 // node_modules are bundled in (ws), except esbuild, which the mod treats as optional.
 import { build } from "esbuild";
-import { cpSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
@@ -22,4 +23,13 @@ await build({
   logLevel: "warning",
 });
 cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
-console.log("mod bundled → src-tauri/resources/");
+
+// The canvas the LAN listener serves to phones (mod/static.ts); install.rs puts it at <data>/app beside the mod.
+const appDist = here("../app/dist");
+if (existsSync(`${appDist}/index.html`)) {
+  cpSync(appDist, `${out}/app`, { recursive: true });
+  console.log("mod bundled → src-tauri/resources/ (with app/dist for phones)");
+} else {
+  console.log("mod bundled → src-tauri/resources/");
+  console.log("note: app/dist not found — phones get a 'run bun run build:app' page until the canvas is built and build:mod runs again");
+}

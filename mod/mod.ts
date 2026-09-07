@@ -22,6 +22,9 @@ import { sortDesks } from "./bridge.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
 import { createBridge, scopeOfId } from "./bridge.ts";
+import { DeviceStore } from "./devices.ts";
+import { PairingCodes } from "./pairing.ts";
+import { LanListener } from "./lan.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 
@@ -70,7 +73,12 @@ export default function activate(letta: LettaMod): (() => void) | void {
   let srv: LokiServer | null = null;
   let ws: WsBridge | null = null;
   let starting: Promise<LokiServer> | null = null;
-  const broadcast = (msg: object, scope?: Scope) => ws?.broadcast(msg, scope);
+  let lan: LanListener | null = null; // the phone listener, built after the bridge (it serves the same handlers)
+  // Every frame goes to the desktop's tabs and to paired phones alike.
+  const broadcast = (msg: object, scope?: Scope) => {
+    ws?.broadcast(msg, scope);
+    lan?.broadcast(msg, scope);
+  };
 
   store.subscribe((scope, state) => broadcast({ type: "state", scope, state }, scope === SHARED_SCOPE ? undefined : scope));
 
@@ -189,6 +197,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
       return null;
     }
   };
+  // Paired phones and the codes that pair them (mod/devices.ts, mod/pairing.ts); the listener itself follows the bridge.
+  const devices = new DeviceStore(paths.devices);
+  const codes = new PairingCodes();
   const bridge = createBridge({
     store,
     widgets,
@@ -205,6 +216,17 @@ export default function activate(letta: LettaMod): (() => void) | void {
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
+    lan: {
+      status: () => lan!.status(),
+      setEnabled: (enabled) => lan!.setEnabled(enabled),
+      pairBegin: () => {
+        const { code, expiresAt } = codes.mint();
+        log("lan:pair-code", { expiresAt });
+        return { code, url: lan!.pairUrl(code), expiresAt };
+      },
+      devices: () => devices.list(),
+      forget: (id) => lan!.forget(id),
+    },
     agents: {
       get: (id) => readLocalAgent(id),
       tree: (id) => memoryTree(id),
@@ -243,6 +265,27 @@ export default function activate(letta: LettaMod): (() => void) | void {
   };
   // The desk server is always up while the mod is: the loki app (or a browser tab) connects whenever it likes.
   void ensureServer().catch((err) => log("server:error", err instanceof Error ? err.message : String(err)));
+
+  // --- phones ----------------------------------------------------------
+  // A second listener on the LAN, off by default; state/lan.json remembers the switch across /reload.
+  lan = new LanListener({
+    stateFile: paths.lan,
+    devices,
+    codes,
+    handlers: bridge,
+    desktopToken: token,
+    profile: (agentId) => profilePath(agentId),
+    health: () => ({ phones: lan?.clientCount() ?? 0 }),
+    onChange: (what, status) => {
+      if (what === "status") {
+        log("lan:status", status);
+        broadcast({ type: "lan_status", ...status });
+      } else {
+        broadcast({ type: "devices", devices: devices.list() });
+      }
+    },
+  });
+  if (lan.enabled()) void lan.start();
 
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<(() => void) | void> = [];
@@ -331,6 +374,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     log("shutdown");
     ws?.close();
     void srv?.close();
+    void lan?.stop(); // the socket only; the setting stays so the listener returns with the mod
     ws = null;
     srv = null;
     starting = null;

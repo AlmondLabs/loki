@@ -183,3 +183,59 @@ describe("bridge history", () => {
     expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ requestId: "h2", messages: [] });
   });
 });
+
+describe("bridge phone frames", () => {
+  const status = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], port: 41415, appServed: true, error: null };
+  function lanDeps() {
+    const calls: unknown[] = [];
+    let enabled = false;
+    const devices = [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }];
+    return {
+      calls,
+      lan: {
+        status: () => ({ ...status, enabled }),
+        setEnabled: async (e: boolean) => {
+          calls.push(["setEnabled", e]);
+          enabled = e;
+          return { ...status, enabled };
+        },
+        pairBegin: () => ({ code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
+        devices: () => devices,
+        forget: (id: string) => {
+          calls.push(["forget", id]);
+          const i = devices.findIndex((d) => d.id === id);
+          if (i < 0) return false;
+          devices.splice(i, 1);
+          return true;
+        },
+      },
+    };
+  }
+
+  test("lan_get / lan_set / pair_begin / devices_list / device_forget", async () => {
+    const broadcasts: Array<Record<string, unknown>> = [];
+    const d = lanDeps();
+    const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan: d.lan });
+    const c = client("c1");
+    bridge.onMessage(c, { type: "lan_get" });
+    expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status });
+    bridge.onMessage(c, { type: "lan_set", enabled: true });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d.calls).toEqual([["setEnabled", true]]);
+    expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status, enabled: true });
+    bridge.onMessage(c, { type: "pair_begin" });
+    expect(c.sent.at(-1)).toEqual({ type: "pair_code", code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" });
+    bridge.onMessage(c, { type: "devices_list" });
+    expect(c.sent.at(-1)).toEqual({ type: "devices", devices: [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }] });
+    bridge.onMessage(c, { type: "device_forget", id: "d1" });
+    expect(d.calls.at(-1)).toEqual(["forget", "d1"]);
+    expect(broadcasts.at(-1)).toEqual({ type: "devices", devices: [] });
+  });
+
+  test("without a listener the frames answer with an error", () => {
+    const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
+    const c = client("c1");
+    bridge.onMessage(c, { type: "lan_get" });
+    expect(c.sent[0]).toMatchObject({ type: "error" });
+  });
+});

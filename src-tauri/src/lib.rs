@@ -177,7 +177,7 @@ pub fn run() {
                     (None, _) => install::Report { r#mod: install::State::Error, error: Some("bundled mod not found in the app's resources".into()), ..install::Report::skipped(&home) },
                     (_, Err(e)) => install::Report { r#mod: install::State::Error, error: Some(e), ..install::Report::skipped(&home) },
                 };
-                eprintln!("loki: install: mod {:?} · skill {:?}{}", report.r#mod, report.skill, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
+                eprintln!("loki: install: mod {:?} · skill {:?} · app {:?}{}", report.r#mod, report.skill, report.app, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             }
 
             // Which harness? Desktop's if it is running; otherwise our own on a fixed port.
