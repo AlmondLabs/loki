@@ -39,8 +39,13 @@ describe("static app", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  test("resolveAppDist takes the first candidate with an index.html", () => {
-    expect(resolveAppDist([join(dir, "missing"), dist, join(dir, "other")])).toBe(dist);
+  test("resolveAppDist takes the first candidate that is a build: index.html plus assets/", () => {
+    // The source app/ has an index.html that points at /src/main.tsx and needs Vite; it must be skipped.
+    const source = join(dir, "source-app");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "index.html"), '<script type="module" src="/src/main.tsx"></script>');
+    expect(resolveAppDist([join(dir, "missing"), source, dist, join(dir, "other")])).toBe(dist);
+    expect(resolveAppDist([source])).toBeNull();
     expect(resolveAppDist([join(dir, "missing")])).toBeNull();
     expect(resolveAppDist([])).toBeNull();
   });

@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 
 /**
@@ -38,7 +38,9 @@ export const DEFAULT_LAN_PORT = 41415;
  * mod/static.ts takes the first that has an index.html. In a checkout `<mod dir>/../app`
  * is the app's *source* directory, whose index.html loads /src/main.tsx: skipped.
  */
-const installedBundle = modFile.endsWith(".mjs");
+// Only the installed bundle (<data>/mod/loki-mod.mjs) has an app/ beside it; the dev bundle boot.ts writes
+// (.loki-build/mod-<ts>.mjs) sits next to the *source* app/, which must not be served.
+const installedBundle = basename(modFile) === "loki-mod.mjs";
 export const appDistCandidates: string[] = [
   ...(process.env.LOKI_APP_DIST ? [process.env.LOKI_APP_DIST] : []),
   ...(installedBundle ? [join(dirname(modFile), "..", "app")] : []),

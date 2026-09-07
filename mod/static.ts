@@ -31,7 +31,8 @@ const TYPES: Record<string, string> = {
 export function resolveAppDist(candidates: string[] = appDistCandidates): string | null {
   for (const dir of candidates) {
     try {
-      if (existsSync(join(dir, "index.html"))) return resolve(dir);
+      // A Vite build has index.html and assets/; the source app/ has only index.html and must be skipped.
+      if (existsSync(join(dir, "index.html")) && existsSync(join(dir, "assets"))) return resolve(dir);
     } catch {
       // unreadable: next
     }
