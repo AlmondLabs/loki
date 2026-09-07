@@ -14,9 +14,13 @@ export const SAFE = {
   right: "env(safe-area-inset-right, 0px)",
 };
 
-export function TopBar({ left, title, sub, right }: { left?: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode }) {
+/**
+ * `progress` (0..1) swaps the bottom hairline for a 2px brass bar that fills as a pass goes; the
+ * deck uses it for "n of N". null keeps the hairline.
+ */
+export function TopBar({ left, title, sub, right, progress = null }: { left?: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode; progress?: number | null }) {
   return (
-    <header style={{ flex: "0 0 auto", paddingTop: SAFE.top, background: "var(--loki-panel)", borderBottom: "1px solid var(--loki-border)" }}>
+    <header style={{ flex: "0 0 auto", paddingTop: SAFE.top, background: "var(--loki-panel)", borderBottom: progress === null ? "1px solid var(--loki-border)" : "none" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 48, padding: `0 calc(12px + ${SAFE.right}) 0 calc(8px + ${SAFE.left})` }}>
         {left}
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -25,6 +29,11 @@ export function TopBar({ left, title, sub, right }: { left?: ReactNode; title: R
         </div>
         {right}
       </div>
+      {progress !== null && (
+        <div aria-hidden style={{ height: 2, background: "var(--loki-border)", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`, background: "var(--loki-accent)", transition: "width 240ms ease-out" }} />
+        </div>
+      )}
     </header>
   );
 }

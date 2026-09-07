@@ -9,7 +9,7 @@ import { Conversation, type Thread } from "./Conversation";
 import { Inbox } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { lastSeen } from "./model";
-import { Banner, SAFE, TopBar, tap } from "./ui";
+import { Banner, SAFE, tap } from "./ui";
 
 /**
  * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
@@ -107,9 +107,17 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   };
   const banner = unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked.current)}</Banner> : null;
 
+  const status = (
+    <>
+      <span>{me.name}</span>
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: linked ? "var(--loki-positive)" : unreachable ? "var(--loki-negative)" : "var(--loki-muted)", flex: "0 0 auto" }} />
+      <span>{linked ? "linked" : unreachable ? "reconnecting" : "connecting"}</span>
+    </>
+  );
+
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)", color: "var(--loki-fg)", fontFamily: "var(--loki-font)" }}>
-      {thread ? (
+      {thread && (
         <Conversation
           thread={thread}
           view={catchUp.conversation(thread.agentId, thread.conversationId)}
@@ -122,22 +130,24 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
           onSend={(rt, text, deskTitle) => catchUp.send(rt, text, [], { desk: deskTitle })}
           onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
         />
-      ) : (
-        <>
-          <TopBar
-            title={waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox"}
-            sub={
-              <>
-                <span>{me.name}</span>
-                <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: linked ? "var(--loki-positive)" : unreachable ? "var(--loki-negative)" : "var(--loki-muted)", flex: "0 0 auto" }} />
-                <span>{linked ? "linked" : unreachable ? "reconnecting" : "connecting"}</span>
-              </>
-            }
-          />
-          {banner}
-          <Inbox items={catchUp.items} loaded={catchUp.agentsLoaded} available={attention.available} onOpen={open} onApprove={catchUp.approve} onSeen={catchUp.seen} onLater={later} onUnsnooze={catchUp.unsnooze} />
-        </>
       )}
+      {/* The deck stays mounted under an open conversation so the pass (n of N, dismissed cards) survives the round trip. */}
+      <Inbox
+        hidden={!!thread}
+        items={catchUp.items}
+        loaded={catchUp.agentsLoaded}
+        available={attention.available}
+        sub={status}
+        banner={banner}
+        conversation={catchUp.conversation}
+        onLoad={(item) => void catchUp.loadHistory(item)}
+        onOpen={open}
+        onApprove={catchUp.approve}
+        onSeen={catchUp.seen}
+        onLater={later}
+        onUnsnooze={catchUp.unsnooze}
+        onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
+      />
     </div>
   );
 }
