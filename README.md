@@ -91,8 +91,12 @@ inbox: the same cards as Catch Up in the same order — approvals, questions, fa
 approve / deny / answer / seen / later, and a tap opens the conversation with the transcript, the approval or
 question card, and a reply box. No desks, board or agents on the phone.
 
-The phone talks to the Mac directly over the local network (port 41415), so both must be on the same Wi‑Fi and
-the Mac must be awake with loki running; when it is not, the phone says "Mac unreachable, last seen …" and
+The QR and the bookmark carry the Mac's Bonjour name (`deepaks-macbook-pro.local:41415`, from System Settings
+› General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
+when the Mac gets a new address. The phone talks to the Mac directly over the local network (port 41415), so
+both must be on the same Wi‑Fi and the Mac must be awake with loki running; some office networks isolate
+clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
+Settings › phone too) is the way around that; when it is not, the phone says "Mac unreachable, last seen …" and
 reconnects by itself. Each paired phone is listed in Settings › phone with when it was last seen; "forget"
 locks it out. The rail shows a brass dot on the settings icon while the switch is on. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.

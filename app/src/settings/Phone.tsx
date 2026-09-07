@@ -28,7 +28,8 @@ export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolea
 
   if (!connected || !status) return <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>asking the mod…</div>;
   const on = status.enabled;
-  const where = status.address ? `${status.address}:${status.port}` : `port ${status.port}`;
+  // The name is what phones bookmark (it survives a new address on another Wi‑Fi); the address is the fallback and the check.
+  const where = status.host ? `${status.host}:${status.port}${status.address ? ` (${status.address})` : ""}` : status.address ? `${status.address}:${status.port}` : `port ${status.port}`;
 
   return (
     <div style={{ display: "grid", gap: 10 }}>

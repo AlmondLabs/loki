@@ -151,7 +151,7 @@ export function useDesk() {
             setTasksVersion((v) => v + 1);
             break;
           case "lan_status": {
-            const st: LanStatus = { enabled: msg.enabled === true, address: typeof msg.address === "string" ? msg.address : null, addresses: Array.isArray(msg.addresses) ? (msg.addresses as string[]) : [], port: typeof msg.port === "number" ? msg.port : 41415, appServed: msg.appServed === true, error: typeof msg.error === "string" ? msg.error : null };
+            const st: LanStatus = { enabled: msg.enabled === true, address: typeof msg.address === "string" ? msg.address : null, addresses: Array.isArray(msg.addresses) ? (msg.addresses as string[]) : [], host: typeof msg.host === "string" ? msg.host : null, port: typeof msg.port === "number" ? msg.port : 41415, appServed: msg.appServed === true, error: typeof msg.error === "string" ? msg.error : null };
             setLanStatus(st);
             if (!st.enabled) setPairCode(null); // a code is only redeemable while the listener is up
             break;

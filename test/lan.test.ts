@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { LanListener, type LanStatus } from "../mod/lan.ts";
+import { LanListener, type LanStatus, bonjourHost } from "../mod/lan.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 
 const DESKTOP = "0123456789abcdef0123456789abcdef";
@@ -264,6 +264,9 @@ describe("LAN listener", () => {
       expect((await fetch(`${base(noApp.lan)}/`)).status).toBe(503);
 
       expect(withApp.lan.pairUrl("ABC234")).toMatch(/^http:\/\/[^/]+:\d+\/\?code=ABC234$/);
+      // The Bonjour name wins over the address so a bookmark survives a new network; no name → the address.
+      expect(withApp.lan.status().host).toBe(bonjourHost());
+      expect(withApp.lan.pairUrl("ABC234").startsWith(`http://${withApp.lan.status().host ?? withApp.lan.status().address}:`)).toBe(true);
     } finally {
       await withApp.lan.stop();
       await noApp.lan.stop();

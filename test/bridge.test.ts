@@ -185,7 +185,7 @@ describe("bridge history", () => {
 });
 
 describe("bridge phone frames", () => {
-  const status = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], port: 41415, appServed: true, error: null };
+  const status = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], host: "deepaks-macbook-pro.local", port: 41415, appServed: true, error: null };
   function lanDeps() {
     const calls: unknown[] = [];
     let enabled = false;

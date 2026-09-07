@@ -11,6 +11,8 @@ export interface LanStatus {
   /** The address the QR should carry (the first of `addresses`), or null when the listener is off or has none. */
   address: string | null;
   addresses: string[];
+  /** The Mac's Bonjour name (`name.local`), what the QR carries; null when the mod could not find one. */
+  host: string | null;
   port: number;
   /** The canvas build was found and is served on `/`; false means "run bun run build:app". */
   appServed: boolean;

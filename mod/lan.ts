@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { networkInterfaces } from "node:os";
+import { hostname, networkInterfaces } from "node:os";
+import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";
 import type { Scope } from "../packages/core/src/desk-core.ts";
 import type { DeviceStore } from "./devices.ts";
@@ -28,6 +29,8 @@ export interface LanStatus {
   /** First non-internal IPv4 (en0 preferred), or null when the machine is off the network. */
   address: string | null;
   addresses: string[];
+  /** The Mac's Bonjour name with `.local`: what the QR and the bookmark carry, because it survives a new address on a new network. */
+  host: string | null;
   port: number;
   /** A built canvas was found to serve. */
   appServed: boolean;
@@ -56,6 +59,8 @@ export interface LanOptions {
   onChange?: (what: LanChange, status: LanStatus) => void;
   /** For tests: the interface table. */
   interfaces?: () => ReturnType<typeof networkInterfaces>;
+  /** For tests: the Bonjour host (default bonjourHost()). */
+  host?: () => string | null;
 }
 
 export const DEVICE_COOKIE = "loki_device";
@@ -95,6 +100,7 @@ export class LanListener {
       enabled: this.enabledFlag,
       address: addresses[0] ?? null,
       addresses,
+      host: (this.opts.host ?? bonjourHost)(),
       port: this.boundPort ?? this.configuredPort,
       appServed: this.dist !== null,
       error: this.bindError ?? (listening && addresses.length === 0 ? "no network interface with an IPv4 address" : null),
@@ -102,9 +108,10 @@ export class LanListener {
   }
 
   /** The QR's payload: the page redeems `code` on load (D4'). */
+  /** The name first: a phone bookmark made from it keeps working when the Mac gets a new address on another Wi‑Fi. */
   pairUrl(code: string): string {
     const s = this.status();
-    return `http://${s.address ?? "127.0.0.1"}:${s.port}/?code=${encodeURIComponent(code)}`;
+    return `http://${s.host ?? s.address ?? "127.0.0.1"}:${s.port}/?code=${encodeURIComponent(code)}`;
   }
 
   /** Persist first, then bind or close. Resolves with the status either way. */
@@ -251,6 +258,29 @@ export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfac
   const out: string[] = [];
   for (const name of names) for (const info of table[name] ?? []) if (!info.internal && (info.family === "IPv4" || (info.family as unknown) === 4)) out.push(info.address);
   return out;
+}
+
+/**
+ * The Mac's Bonjour name, `<LocalHostName>.local`, which iOS resolves on the LAN without DNS. macOS keeps it in
+ * scutil; os.hostname() is the fallback (it may already carry .local, or be a DHCP-assigned name). Lower-cased:
+ * mDNS is case-insensitive and lower reads better in a URL. Null when neither answers.
+ */
+export function bonjourHost(): string | null {
+  let name: string | null = null;
+  try {
+    name = execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+  } catch {
+    // not macOS, or scutil unavailable
+  }
+  if (!name) {
+    try {
+      name = hostname().replace(/\.local\.?$/i, "").trim() || null;
+    } catch {
+      return null;
+    }
+  }
+  if (!name || !/^[A-Za-z0-9-]+$/.test(name)) return null;
+  return `${name.toLowerCase()}.local`;
 }
 
 /** The device token from the cookie or an Authorization: Bearer header; `?t=` is never read here. */
