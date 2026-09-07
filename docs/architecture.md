@@ -32,7 +32,9 @@ inside this process.
 geometry, gestures, the board, pins, and reading agent memory for the Agents page. The Rust shell is
 the native window that finds or installs and starts the harness, holds the authenticated socket, and
 draws the tray, dock badge and global shortcut. The canvas renders chat, inbox, board, agents and the
-widgets themselves.
+widgets themselves. The same canvas has three clients: the desktop window, a browser tab on the Mac,
+and — when Settings › phone is on — a phone on the Wi‑Fi, which the mod serves directly and which shows
+the inbox alone (`app/src/phone/`).
 
 ## The one rule that removes the confusion
 
@@ -68,12 +70,14 @@ separate in cloud mode, and even then the server half is not on your Mac.
 
 ## The two ports, and why the mod needs one
 
-The harness process listens on two loopback ports, each token-guarded:
+The harness process listens on two loopback ports, each token-guarded — and, only when you switch it
+on, a third on the local network, guarded by a per-device cookie:
 
 | port | server | speaks |
 | --- | --- | --- |
 | 41600 | the app-server (Letta Code) | agent and conversation lists, runtime subscriptions, streaming, approvals |
-| 41414 | loki's mod | desk state, gestures, the board, agents, pins, folders, agent faces, and the app-server tunnel |
+| 41414 | loki's mod, loopback | desk state, gestures, the board, agents, pins, folders, agent faces, and the app-server tunnel |
+| 41415 | loki's mod, LAN (off by default) | the canvas build as a single-page app, `/pair` `/me` `/unpair`, and the same `/ws`, `/appserver` and face routes for paired phones |
 
 The mod exposes its own port because its code runs in Node while the loki UI runs in a browser
 context — the WebView or a tab — and Node cannot reach into a browser page any other way. A localhost
@@ -82,7 +86,18 @@ which the app-server knows nothing about; static pieces like agent face images; 
 tunnel, because the real app-server refuses browser origins and wants a bearer token a browser cannot
 set. In the desktop shell the app-server frames instead ride the Rust side's authenticated link, which
 can set that header; the mod's port is still used for everything that is loki's own. A browser tab, and
-a future phone client, use the tunnel.
+the phone, use the tunnel.
+
+The phone is the reason for the second mod port. The loopback port trusts a token the page carries in
+its URL, which is fine on one machine and useless on a network. The LAN listener trusts nothing by
+default: it serves the page to anyone (public code), and lets a device in only after `POST /pair` with a
+code from Settings › phone, answered by an `HttpOnly` cookie the page's JavaScript never sees. From the
+canvas's side the difference is one flag: the served `index.html` carries `window.__LOKI__ = {lan: true}`,
+`modBase()` becomes the page's own origin, `main.tsx` mounts `<Phone/>` instead of `<Shell/>`, and the
+same `useDesk` and `useAttention` hooks connect to `/ws` and `/appserver` with an empty `?t=` — the
+cookie does the authenticating. Settings › phone itself speaks to the mod over the loopback socket
+(`lan_get`, `lan_set`, `pair_begin`, `devices_list`, `device_forget`) and hears `lan_status`,
+`pair_code` and `devices` back.
 
 ## Following one message
 

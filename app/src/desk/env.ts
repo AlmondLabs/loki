@@ -2,20 +2,25 @@
  * Where the app runs and how it reaches the mod. In a browser tab the page is
  * served by Vite (or the mod) and everything is same-origin under /loki. In the
  * Tauri shell the page is tauri://localhost, so the mod is addressed directly
- * and the token is handed over by the Rust side at startup.
+ * and the token is handed over by the Rust side at startup. On a phone the mod
+ * itself serves the page over the LAN and marks it with `__LOKI__.lan`; there
+ * the origin is the mod and the device's cookie is the credential, not a token.
  */
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
-    __LOKI__?: { token?: string; modPort?: number; desk?: string | null };
+    __LOKI__?: { token?: string; modPort?: number; desk?: string | null; lan?: boolean };
   }
 }
 
 export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+/** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
+export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
 
 /** http(s) origin + path prefix for the mod's HTTP/WS endpoints, without a trailing slash. */
 export function modBase(): string {
   if (inTauri) return `http://127.0.0.1:${window.__LOKI__?.modPort ?? 41414}`;
+  if (inLan) return location.origin; // the mod is the page's own server on the LAN
   return `${location.origin}/loki`;
 }
 
@@ -27,7 +32,8 @@ export function modWsBase(): string {
 /** The agent's face as the mod serves it (its memory filesystem's profile.png). */
 export function avatarUrl(agentId: string): string {
   const token = injectedToken() ?? localStorage.getItem("loki.token") ?? "";
-  return `${modBase()}/agents/${encodeURIComponent(agentId)}/profile.png?t=${encodeURIComponent(token)}`;
+  const url = `${modBase()}/agents/${encodeURIComponent(agentId)}/profile.png`;
+  return token ? `${url}?t=${encodeURIComponent(token)}` : url; // on the LAN the device cookie authenticates
 }
 
 /** The token the Rust side injected, if any (browser tabs get it from the URL / localStorage instead). */

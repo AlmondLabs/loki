@@ -9,6 +9,7 @@ import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
 import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
+import type { LanStatus, PairCode, PairedDevice } from "../phone/model";
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -71,6 +72,10 @@ export function useDesk() {
   const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
   /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
   const [tasksVersion, setTasksVersion] = useState(0);
+  /** The LAN listener (Settings › phone): its status, the paired phones, and the last pairing code minted here. */
+  const [lanStatus, setLanStatus] = useState<LanStatus | null>(null);
+  const [devices, setDevices] = useState<PairedDevice[] | null>(null);
+  const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** Pending request/reply exchanges with the mod, by requestId. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
@@ -144,6 +149,18 @@ export function useDesk() {
             break;
           case "tasks_changed":
             setTasksVersion((v) => v + 1);
+            break;
+          case "lan_status": {
+            const st: LanStatus = { enabled: msg.enabled === true, address: typeof msg.address === "string" ? msg.address : null, addresses: Array.isArray(msg.addresses) ? (msg.addresses as string[]) : [], port: typeof msg.port === "number" ? msg.port : 41415, appServed: msg.appServed === true, error: typeof msg.error === "string" ? msg.error : null };
+            setLanStatus(st);
+            if (!st.enabled) setPairCode(null); // a code is only redeemable while the listener is up
+            break;
+          }
+          case "pair_code":
+            if (typeof msg.code === "string" && typeof msg.url === "string" && typeof msg.expiresAt === "string") setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expiresAt });
+            break;
+          case "devices":
+            setDevices(Array.isArray(msg.devices) ? (msg.devices as PairedDevice[]) : []);
             break;
           case "agent":
           case "memory_file":
@@ -374,6 +391,26 @@ export function useDesk() {
     clearSnooze: (agentId: string, conversationId: string) => send({ type: "snooze_clear", agentId, conversationId }),
   };
 
+  /**
+   * Settings › phone: the mod's LAN listener and the phones paired to it. Every action is a frame; the
+   * answers (`lan_status`, `pair_code`, `devices`) land in state above, and the first and last are also
+   * broadcast whenever they change, so the section reads the same in every window.
+   */
+  const phone = {
+    status: lanStatus,
+    devices,
+    lastCode: pairCode,
+    /** Ask for the status and the device list (the section does this on mount). */
+    refresh: () => {
+      send({ type: "lan_get" });
+      send({ type: "devices_list" });
+    },
+    setEnabled: (enabled: boolean) => send({ type: "lan_set", enabled }),
+    /** Mint a pairing code; the reply arrives as `lastCode`. */
+    beginPair: () => send({ type: "pair_begin" }),
+    forget: (id: string) => send({ type: "device_forget", id }),
+  };
+
   /** Delete a widget's file for good. The mod removes it; the watcher takes it off every tab. */
   const trash = (id: string) => {
     lastInteractionRef.current = Date.now();
@@ -454,6 +491,7 @@ export function useDesk() {
       pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agentId, conversationId, pinned }),
     },
     attention,
+    phone,
     board,
     tasksVersion,
     undo,

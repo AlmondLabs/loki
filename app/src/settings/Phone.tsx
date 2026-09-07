@@ -1,0 +1,142 @@
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
+import { btn } from "../chat/ui";
+import { countdown, lastSeen, type LanStatus, type PairCode, type PairedDevice } from "../phone/model";
+
+/** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
+export interface PhoneApi {
+  status: LanStatus | null;
+  devices: PairedDevice[] | null;
+  lastCode: PairCode | null;
+  refresh: () => void;
+  setEnabled: (enabled: boolean) => void;
+  beginPair: () => void;
+  forget: (id: string) => void;
+}
+
+/**
+ * Settings › phone. A switch puts the mod on the Wi‑Fi (port 41415); a pairing code, shown as a QR
+ * and as six letters, lets a phone in for good; the list underneath is every phone that did. The
+ * QR is the mod's own URL with the code as a query, so the phone's camera does the typing.
+ */
+export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolean }) {
+  const { status, devices, lastCode } = phone;
+  useEffect(() => {
+    if (connected) phone.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
+  if (!connected || !status) return <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>asking the mod…</div>;
+  const on = status.enabled;
+  const where = status.address ? `${status.address}:${status.port}` : `port ${status.port}`;
+
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <Row label="wi‑fi">
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="reachable on this Wi‑Fi" />
+          {on && <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)" }}>{where}</span>}
+          {on && status.addresses.length > 1 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>also {status.addresses.filter((a) => a !== status.address).join(", ")}</span>}
+        </span>
+        {status.error && <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", marginTop: 4 }}>{status.error}</div>}
+        {on && !status.appServed && <div style={{ fontSize: 12, color: "var(--loki-accent)", marginTop: 4 }}>the canvas build is missing; run bun run build:app</div>}
+      </Row>
+
+      {on && (
+        <Row label="pair">
+          {lastCode ? (
+            <PairPlate code={lastCode} onNew={phone.beginPair} />
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+              <button type="button" onClick={phone.beginPair} style={btn("var(--loki-accent)")}>
+                pair a phone
+              </button>
+              <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>a code that lives ten minutes</span>
+            </span>
+          )}
+        </Row>
+      )}
+
+      <Row label="phones">
+        {devices === null ? (
+          <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>—</span>
+        ) : devices.length === 0 ? (
+          <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no phones yet</span>
+        ) : (
+          <div style={{ display: "grid", gap: 4 }}>
+            {devices.map((d) => (
+              <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+                <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>last seen {lastSeen(d.lastSeenAt)}</span>
+                <button type="button" onClick={() => phone.forget(d.id)} style={{ ...btn("var(--loki-negative)"), padding: "3px 8px", fontSize: 10.5 }} title="this phone has to pair again">
+                  forget
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Row>
+
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--loki-accent)", borderLeft: "2px solid var(--loki-accent)", paddingLeft: 10 }}>
+        While this is on, anyone on this network can open the page and read the app's code; every action needs a paired phone; forget a phone here. Plain http on the LAN — on a network you do not trust, use Tailscale.
+      </div>
+    </div>
+  );
+}
+
+/** The QR, the six letters, the URL as text, and the time left; "new code" mints another. */
+function PairPlate({ code, onNew }: { code: PairCode; onNew: () => void }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    let live = true;
+    // Dark on light, whatever the page: cameras read that; the SVG carries its own quiet zone as the plate.
+    void QRCode.toString(code.url, { type: "svg", errorCorrectionLevel: "M", margin: 2 }).then((s) => live && setSvg(s)).catch((err) => console.warn("loki: qr", err));
+    return () => {
+      live = false;
+    };
+  }, [code.url]);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const left = countdown(code.expiresAt, now);
+  const expired = left === "expired";
+  return (
+    <div style={{ display: "flex", gap: 18, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div aria-label={`QR code for ${code.url}`} role="img" style={{ width: 168, height: 168, borderRadius: 8, overflow: "hidden", flex: "0 0 auto", opacity: expired ? 0.35 : 1 }} dangerouslySetInnerHTML={svg ? { __html: svg } : undefined} />
+      <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
+        <div style={{ fontFamily: "var(--loki-mono)", fontSize: 22, letterSpacing: "0.14em", color: expired ? "var(--loki-muted)" : "var(--loki-fg)" }}>{code.code}</div>
+        <div style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-muted)", overflowWrap: "anywhere" }}>{code.url}</div>
+        <div style={{ fontSize: 12, color: expired ? "var(--loki-negative)" : "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{expired ? "expired" : `${left} left`}</div>
+        <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>Scan with the phone's camera, then Add to Home Screen. The new icon asks for this code once.</div>
+        <div>
+          <button type="button" onClick={onNew} style={btn(expired ? "var(--loki-accent)" : undefined)}>
+            new code
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: on ? "var(--loki-fg)" : "var(--loki-muted)", fontSize: 13.5 }}>
+      <span aria-hidden style={{ width: 28, height: 16, borderRadius: 999, background: on ? "var(--loki-accent)" : "var(--loki-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
+        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 12, height: 12, borderRadius: 6, background: on ? "var(--loki-bg)" : "var(--loki-muted)", transition: "left 160ms ease-out" }} />
+      </span>
+      {label}
+    </button>
+  );
+}
+
+/** A labelled row in the style of Settings' facts (the label column matches). */
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
+      <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 4 }}>{label}</span>
+      <div style={{ minWidth: 0 }}>{children}</div>
+    </div>
+  );
+}

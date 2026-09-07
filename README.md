@@ -71,14 +71,31 @@ rail of five segments sits on the left, and one view fills the rest:
   `~/.letta/skills`, which every agent reads, with disable and "enable a folder".
 - **Settings** (⌘5, ⌘,): **providers** (the harness's catalogue, connected first; a row opens into the fields it
   needs, keys are checked with the provider before Letta keeps them; OAuth ones say which `letta connect` to run),
-  requirements and install status, which harness the app is on, how it reaches the mod, where the files live,
-  chat width, and the complete keymap.
+  requirements and install status, **phone** (put the inbox on your phone over the Wi‑Fi: a switch, a pairing
+  QR and code, the paired phones; see below), which harness the app is on, how it reaches the mod, where the
+  files live, chat width, and the complete keymap.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
 menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the board, the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
 itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
+
+## Phone
+
+The inbox, on your phone, with nothing installed. Settings › phone → switch on "reachable on this Wi‑Fi" →
+"pair a phone" → scan the QR with the phone's camera → in Safari, Share → Add to Home Screen → open the new
+icon and type the six-character code once (a home-screen app has its own cookie jar, so the code shown in
+Settings is asked for one more time; it stays valid ten minutes). From then on the icon opens straight into the
+inbox: the same cards as Catch Up in the same order — approvals, questions, failures, finished — each with
+approve / deny / answer / seen / later, and a tap opens the conversation with the transcript, the approval or
+question card, and a reply box. No desks, board or agents on the phone.
+
+The phone talks to the Mac directly over the local network (port 41415), so both must be on the same Wi‑Fi and
+the Mac must be awake with loki running; when it is not, the phone says "Mac unreachable, last seen …" and
+reconnects by itself. Each paired phone is listed in Settings › phone with when it was last seen; "forget"
+locks it out. The rail shows a brass dot on the settings icon while the switch is on. Read [SECURITY.md](SECURITY.md)
+before switching it on somewhere you do not trust the network.
 
 ## Layout
 

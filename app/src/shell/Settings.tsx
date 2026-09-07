@@ -6,6 +6,7 @@ import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/Cha
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../packages/core/src/compat.ts";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
+import { Phone, type PhoneApi } from "../settings/Phone";
 import type { BootstrapStatus } from "./bootstrap";
 
 /** What launch did about the mod and the skill (src-tauri/src/install.rs). */
@@ -46,6 +47,7 @@ export function Settings({
   onModelsChanged,
   bootstrap,
   onInstallLetta,
+  phone,
 }: {
   appServerStatus: "connecting" | "open" | "closed" | "unavailable";
   tunnelUrl: string | null;
@@ -64,6 +66,8 @@ export function Settings({
   onModelsChanged: () => void;
   bootstrap: BootstrapStatus | null;
   onInstallLetta: () => Promise<void>;
+  /** The LAN listener and paired phones (useDesk().phone). */
+  phone: PhoneApi;
 }) {
   const [appServerUrl, setAppServerUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -101,6 +105,9 @@ export function Settings({
         </Section>
         <Section title="providers" hint="who answers the models; keys are checked, then kept by Letta on this Mac">
           {appServerStatus === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="link" value="the harness is not linked yet" />}
+        </Section>
+        <Section title="phone" hint="the inbox on a phone, over this Wi‑Fi; nothing to install">
+          <Phone phone={phone} connected={modConnection === "open"} />
         </Section>
         <Section title="requirements" hint="what loki needs on this machine, and where it found it">
           <Fact label="letta code" value={lettaVersion ? <span>harness reports {lettaVersion}{compatible === false ? <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}, whose harness reports {TESTED_APP_SERVER_REPORT} — if something is off, this is the first suspect</Note> : <Note>as the tested release ({TESTED_LETTA_CODE}) does</Note>}</span> : tools ? (tools.letta ? "harness not linked yet" : <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note>) : "—"} />
