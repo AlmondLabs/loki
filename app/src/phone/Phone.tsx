@@ -127,13 +127,6 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   };
   const banner = unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked.current)}</Banner> : null;
 
-  const status = (
-    <>
-      <span>{me.name}</span>
-      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: linked ? "var(--loki-positive)" : unreachable ? "var(--loki-negative)" : "var(--loki-muted)", flex: "0 0 auto" }} />
-      <span>{linked ? "linked" : unreachable ? "reconnecting" : "connecting"}</span>
-    </>
-  );
 
   // The conversation on screen, from the route: its title and agent from the desks list, the inbox, or the agent list.
   const conv = route.kind === "conversation" ? route : null;
@@ -185,7 +178,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(route.agentId)} api={desk.agents} banner={banner} onBack={() => back({ kind: "agent", agentId: route.agentId })} />}
 
       {tab === "home" && (
-        <Home desks={desk.desks.list} agents={catchUp.agents} items={catchUp.items} sub={status} banner={banner} onRefresh={desk.desks.request} onPin={desk.desks.pin} recentFolders={recentFolders} onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))} />
+        <Home desks={desk.desks.list} agents={catchUp.agents} items={catchUp.items} banner={banner} onRefresh={desk.desks.request} onPin={desk.desks.pin} recentFolders={recentFolders} onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))} />
       )}
       {/* The deck stays mounted under the other tabs and pages so the pass (n of N, dismissed cards) survives the round trip. */}
       <Inbox
@@ -203,8 +196,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         onUnsnooze={catchUp.unsnooze}
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
-      {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} sub={status} banner={banner} />}
-      {tab === "settings" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} sub={status} banner={banner} onUnpaired={onUnpaired} />}
+      {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
+      {tab === "settings" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
 
       <UpdateBar servedBuild={desk.servedBuild} withTabBar={onTab} />
       {onTab && <TabBar active={tab} waiting={waiting} />}

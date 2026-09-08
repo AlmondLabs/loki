@@ -40,9 +40,20 @@ export { catchUpQueue };
  */
 export function CardThread({ rows, status, error, style }: { rows: TranscriptRow[] | undefined; status?: "idle" | "thinking" | "streaming"; error?: string | null; style?: CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Newest at the bottom. The phone keeps its deck mounted under the other tabs (display: none), where
+  // scrollHeight is 0, so also scroll when the thread first gains height.
   useEffect(() => {
     const el = ref.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const toEnd = () => (el.scrollTop = el.scrollHeight);
+    toEnd();
+    let height = el.clientHeight;
+    const ro = new ResizeObserver(() => {
+      if (height === 0 && el.clientHeight > 0) toEnd();
+      height = el.clientHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [rows?.length, status]);
   return (
     <div ref={ref} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
