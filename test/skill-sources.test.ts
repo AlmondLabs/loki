@@ -135,7 +135,7 @@ describe("refresh", () => {
     expect((await sources.refresh(AGENT, "fmt-linked")).outcome).toBe("current");
     const info = await sources.annotate(AGENT, memorySkills(AGENT, backend));
     expect(info.find((s) => s.name === "fmt-linked")).toMatchObject({ origin: "other", edited: false });
-  });
+  }, 20_000); // several git invocations; a busy machine took this past bun's 5 s default once
   test("an edited copy is not overwritten: upstream is staged and the agent is asked to reconcile", async () => {
     // Upstream moves on.
     writeFileSync(join(checkout, "fmt-typed", "SKILL.md"), readFileSync(join(checkout, "fmt-typed", "SKILL.md"), "utf8").replace("v1", "v2"));

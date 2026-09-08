@@ -10,6 +10,7 @@ import { AgentFace } from "../desk/AgentChip";
 import { btn, kbd } from "../chat/ui";
 import type { Task } from "../board/model";
 import { ago } from "../board/model";
+import { stripFrontmatter } from "../phone/model";
 
 export interface AgentDetails {
   agent: LocalAgent;
@@ -47,6 +48,9 @@ export interface AgentsWrite {
  * and where it is working (desks, tasks). Memory is read-only here: to change a fact you hand the
  * request to the agent in its own chat.
  */
+/** A small action in a section head: the head's own label style, clickable. */
+const headBtn: React.CSSProperties = { background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit" };
+
 export function Agents({
   agents,
   api,
@@ -120,6 +124,8 @@ export function Agents({
 
   const d = selected ? details[selected] : undefined;
   const log = selected ? commits[selected] ?? [] : [];
+  /** The skill the right pane is showing, when the open file is a skill's SKILL.md. */
+  const viewSkill = view?.kind === "file" && d ? d.skills.find((s) => s.path === view.path) ?? null : null;
   const myDesks = useMemo(() => desks.filter((x) => x.agentId === selected && x.status === "live"), [desks, selected]);
   const myTasks = useMemo(() => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assignedAgentId === selected || t.assignee === d?.agent.name)), [tasks, selected, d]);
   const flash = (m: string) => {
@@ -135,6 +141,9 @@ export function Agents({
   };
   const [creating, setCreating] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** The skills section's add form (write here, or install from a source), and whether the global list is unfolded. */
+  const [adding, setAdding] = useState<null | "write" | "install">(null);
+  const [showGlobal, setShowGlobal] = useState(false);
   const [globalSkills, setGlobalSkills] = useState<GlobalSkill[] | null>(null);
   const loadGlobal = () => void api.globalSkills().then(setGlobalSkills);
   useEffect(loadGlobal, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -254,118 +263,143 @@ export function Agents({
           {/* left: identity, memory tree, skills, where */}
           <div style={{ overflowY: "auto", padding: "18px 20px 24px 24px", borderRight: "1px solid var(--loki-border)", display: "grid", gap: 22, alignContent: "start" }}>
             <Identity d={d} avatar={avatar(selected)} models={models} onLoadModels={() => void listModels().then((m) => setModels(m.map((e) => e.handle)))} onSave={save} />
-            {confirmDelete ? (
-              <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
-                <span>
-                  Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live desk${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? "…" : ""}) go with it.` : "It has no live desks."}
-                  {myTasks.length ? ` ${myTasks.length} open task${myTasks.length === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
-                </span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => void remove()} style={btn("var(--loki-negative)")}>delete {d.agent.name}</button>
-                  <button onClick={() => setConfirmDelete(false)} style={btn()}>keep</button>
-                </div>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmDelete(true)} style={{ ...btn(), justifySelf: "start", color: "var(--loki-muted)", fontSize: 10.5 }}>delete this agent…</button>
-            )}
+            {/* where it is working: a line, not a section */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>
+              <span>{myDesks.length} desk{myDesks.length === 1 ? "" : "s"} live · {myTasks.length} task{myTasks.length === 1 ? "" : "s"}</span>
+              <span style={{ flex: 1 }} />
+              <button onClick={() => onOpenDesk(selected, "default")} style={{ ...btn(), padding: "2px 8px", fontSize: 10.5 }}>main chat</button>
+              <button onClick={onShowDesks} title="the desk tree (⌘K)" style={{ ...btn(), padding: "2px 8px", fontSize: 10.5 }}>desks</button>
+              <button onClick={onShowBoard} title="the board (⌘3)" style={{ ...btn(), padding: "2px 8px", fontSize: 10.5 }}>board</button>
+            </div>
 
             <section>
               <Head>memory{d.lastCommit ? <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>last change {ago(d.lastCommit.at)}</span> : null}</Head>
               <Tree files={d.files.filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")} current={view?.kind === "file" ? view.path : null} onPick={(p) => setView({ kind: "file", path: p })} />
             </section>
 
-            {/* Two lists. Self: the agent (or you) wrote it; nothing to pull. Other: installed from somewhere, and that somewhere may have moved — refresh. */}
-            {(["self", "other"] as const).map((origin) => {
-              const list = d.skills.filter((s) => (s.origin ?? "self") === origin);
-              return (
-                <section key={origin}>
-                  <Head>
-                    skills · {origin} <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{list.length || ""}</span>
-                  </Head>
-                  {list.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{origin === "self" ? `nothing ${d.agent.name} wrote yet` : "nothing installed"}</div>}
-                  <div style={{ display: "grid", gap: 4 }}>
-                    {list.map((s) => (
-                      <div key={s.name} className="loki-tree-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", borderRadius: 6, background: view?.kind === "file" && view.path === s.path ? "var(--loki-accent-soft)" : "transparent" }}>
-                        <button onClick={() => setView({ kind: "file", path: s.path })} style={{ display: "grid", gap: 2, textAlign: "left", padding: "6px 8px", border: "none", background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", minWidth: 0 }}>
-                          <span style={{ fontSize: 13.5, fontFamily: "var(--loki-mono)" }}>{s.name}</span>
-                          {origin === "other" && <span style={{ fontSize: 10.5, color: s.source ? "var(--loki-muted)" : "var(--loki-accent)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{s.source ? `from ${s.source.label}` : "source unknown"}{s.edited ? ` · edited by ${d.agent.name}` : ""}</span>}
-                          {s.description && <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>{s.description}</span>}
-                        </button>
-                        <span style={{ display: "inline-flex", gap: 4, margin: "5px 6px 0 0" }}>
-                          {origin === "other" && (
-                            <button onClick={() => void refreshSkill(s).then((err) => err && flash(err))} disabled={refreshing === s.name} title={s.source ? `pull the latest from ${s.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"} aria-label={`refresh ${s.name}`} style={{ ...btn(s.source ? "var(--loki-accent)" : undefined), padding: "3px 7px", fontSize: 10.5, opacity: refreshing === s.name ? 0.5 : 1 }}>
-                              {refreshing === s.name ? "refreshing…" : "refresh"}
-                            </button>
-                          )}
-                          <button onClick={() => void removeSkill(s)} title={`remove ${s.name} from ${d.agent.name}'s memory`} aria-label={`remove ${s.name}`} style={{ ...btn(), padding: "3px 7px", fontSize: 10.5 }}>remove</button>
-                        </span>
-                        {needsSource === s.name && (
-                          <div style={{ gridColumn: "1 / -1", padding: "0 8px 8px" }}>
-                            <SourceAsk name={s.name} onGo={(src) => refreshSkill(s, src)} onCancel={() => setNeedsSource(null)} />
-                          </div>
-                        )}
+            {/* One line per skill, in two groups. Self: the agent (or you) wrote it. Other: installed from somewhere,
+                named on the right. Pick a row and the skill opens on the right, with refresh and remove up there. */}
+            <section>
+              <Head>
+                skills
+                <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
+                  <button className="loki-label" onClick={() => setAdding(adding === "write" ? null : "write")} aria-pressed={adding === "write"} style={{ ...headBtn, color: adding === "write" ? "var(--loki-accent)" : undefined }}>write</button>
+                  <button className="loki-label" onClick={() => setAdding(adding === "install" ? null : "install")} aria-pressed={adding === "install"} style={{ ...headBtn, color: adding === "install" ? "var(--loki-accent)" : undefined }}>install</button>
+                </span>
+              </Head>
+              {adding && <SkillAdd key={adding} mode={adding} onWrite={addSkill} onInstall={installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
+              {d.skills.length === 0 && !adding && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none in memory</div>}
+              <div style={{ display: "grid", gap: 8 }}>
+                {(["self", "other"] as const).map((origin) => {
+                  const list = d.skills.filter((s) => (s.origin ?? "self") === origin);
+                  if (list.length === 0) return null;
+                  return (
+                    <div key={origin}>
+                      <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{origin === "self" ? `self · ${list.length}` : `other · ${list.length}`}</div>
+                      {list.map((s) => {
+                        const on = view?.kind === "file" && view.path === s.path;
+                        return (
+                          <button key={s.name} onClick={() => setView({ kind: "file", path: s.path })} title={s.description ?? s.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: on ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--loki-mono)" }}>{s.name}</span>
+                            {origin === "other" && (
+                              <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: s.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 0 auto", maxWidth: "45%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.source ? `from ${s.source.label}` : "source unknown"}>
+                                {s.source ? s.source.label : "source?"}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Every agent reads these; they are not this agent's, so they stay folded until asked for. */}
+            <section>
+              <Head>
+                <button className="loki-label" onClick={() => setShowGlobal((v) => !v)} aria-expanded={showGlobal} style={{ ...headBtn, display: "inline-flex", gap: 6, alignItems: "baseline" }}>
+                  <span aria-hidden style={{ display: "inline-block", width: 8, transform: showGlobal ? "rotate(90deg)" : "none", transition: "transform 120ms ease-out" }}>▸</span>
+                  global skills
+                </button>
+                <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{globalSkills?.length || ""}</span>
+              </Head>
+              {showGlobal && (
+                <>
+                  <div style={{ fontSize: 12, color: "var(--loki-muted)", margin: "0 8px 6px", lineHeight: 1.4 }}>~/.letta/skills — every agent reads these</div>
+                  {globalSkills === null && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>reading…</div>}
+                  {globalSkills?.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none</div>}
+                  <div style={{ display: "grid", gap: 2 }}>
+                    {(globalSkills ?? []).map((g) => (
+                      <div key={g.name} className="loki-tree-row" style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0 2px 8px", borderRadius: 6 }} title={g.description ?? g.path}>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
+                        {g.isLink && <span style={{ fontSize: 9.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>link</span>}
+                        <button onClick={() => void write.disableSkill(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), loadGlobal())))} style={{ ...btn(), padding: "2px 7px", marginRight: 6, fontSize: 10.5 }}>disable</button>
                       </div>
                     ))}
                   </div>
-                  {origin === "self" && <SkillAdd onWrite={addSkill} onInstall={installSkill} agentName={d.agent.name} />}
-                </section>
-              );
-            })}
+                  <PathAdd onAdd={(path) => write.enableSkill(path).then((err) => (err ? err : (flash("enabled"), loadGlobal(), null)))} />
+                </>
+              )}
+            </section>
 
-            <section>
-              <Head>global skills <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{globalSkills?.length || ""}</span></Head>
-              <div style={{ fontSize: 12, color: "var(--loki-muted)", marginBottom: 6, lineHeight: 1.4 }}>~/.letta/skills — every agent reads these; each entry links to a folder holding a SKILL.md</div>
-              {globalSkills === null && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>reading…</div>}
-              {globalSkills?.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>none</div>}
-              <div style={{ display: "grid", gap: 4 }}>
-                {(globalSkills ?? []).map((g) => (
-                  <div key={g.name} className="loki-tree-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", padding: "4px 0 4px 8px", borderRadius: 6 }}>
-                    <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
-                      <span style={{ fontSize: 13.5, fontFamily: "var(--loki-mono)" }}>{g.name}</span>
-                      <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={g.path}>{g.description ?? g.path}</span>
-                    </span>
-                    <button onClick={() => void write.disableSkill(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), loadGlobal())))} style={{ ...btn(), padding: "3px 7px", margin: "1px 6px 0 0", fontSize: 10.5 }}>disable</button>
+            <div style={{ paddingTop: 8 }}>
+              {confirmDelete ? (
+                <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
+                  <span>
+                  Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live desk${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? "…" : ""}) go with it.` : "It has no live desks."}
+                  {myTasks.length ? ` ${myTasks.length} open task${myTasks.length === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
+                </span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => void remove()} style={btn("var(--loki-negative)")}>delete {d.agent.name}</button>
+                    <button onClick={() => setConfirmDelete(false)} style={btn()}>keep</button>
                   </div>
-                ))}
-              </div>
-              <PathAdd onAdd={(path) => write.enableSkill(path).then((err) => (err ? err : (flash("enabled"), loadGlobal(), null)))} />
-            </section>
-
-            <section>
-              <Head>where</Head>
-              <div style={{ display: "grid", gap: 6, fontSize: 13.5 }}>
-                <Row label="desks">
-                  <span>{myDesks.length} live</span>
-                  <button onClick={onShowDesks} style={btn()}>open the tree <kbd style={kbd}>⌘K</kbd></button>
-                  <button onClick={() => onOpenDesk(selected, "default")} style={btn()}>main chat</button>
-                </Row>
-                <Row label="tasks">
-                  <span>{myTasks.length} assigned</span>
-                  <button onClick={onShowBoard} style={btn()}>board <kbd style={kbd}>⌘3</kbd></button>
-                </Row>
-              </div>
-            </section>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDelete(true)} style={{ ...btn(), color: "var(--loki-muted)", fontSize: 10.5 }}>delete this agent…</button>
+              )}
+            </div>
           </div>
 
           {/* right: the file or the diff, and the history */}
           <div style={{ minWidth: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr) auto", overflow: "hidden" }}>
             <div style={{ minHeight: 0, overflowY: "auto", padding: "18px 28px 24px" }}>
               {view && (
-                <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 12 }}>
+                <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: viewSkill ? 6 : 12 }}>
                   <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{view.kind === "file" ? view.path : `commit ${view.sha.slice(0, 8)}`}</span>
                   {loadingView && <span>loading…</span>}
                   <span style={{ flex: 1 }} />
-                  {view.kind === "file" && (
+                  {viewSkill && viewSkill.origin === "other" && (
+                    <button onClick={() => void refreshSkill(viewSkill).then((err) => err && flash(err))} disabled={refreshing === viewSkill.name} title={viewSkill.source ? `pull the latest from ${viewSkill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"} style={{ ...btn("var(--loki-accent)"), opacity: refreshing === viewSkill.name ? 0.5 : 1 }}>
+                      {refreshing === viewSkill.name ? "refreshing…" : "refresh"}
+                    </button>
+                  )}
+                  {viewSkill && (
+                    <button onClick={() => void removeSkill(viewSkill)} title={`remove ${viewSkill.name} from ${d.agent.name}'s memory`} style={btn()}>
+                      remove
+                    </button>
+                  )}
+                  {view.kind === "file" && !viewSkill && (
                     <button onClick={() => onAskToUpdate(selected, `In your memory file \`${view.path}\`, please update: `)} style={btn("var(--loki-accent)")} title="opens the agent's main chat with the request started">
                       ask {d.agent.name} to update this
                     </button>
                   )}
                 </div>
               )}
+              {viewSkill && (
+                <div style={{ display: "grid", gap: 4, marginBottom: 14 }}>
+                  <div style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", color: viewSkill.origin === "other" && !viewSkill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+                    {viewSkill.origin === "self" ? `written by ${d.agent.name}` : viewSkill.source ? `from ${viewSkill.source.label}` : "installed · source unknown"}
+                    {viewSkill.origin === "other" && viewSkill.edited ? ` · edited by ${d.agent.name} since` : ""}
+                  </div>
+                  {viewSkill.description && <div style={{ fontSize: 13.5, color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{viewSkill.description}</div>}
+                  {needsSource === viewSkill.name && <SourceAsk name={viewSkill.name} onGo={(src) => refreshSkill(viewSkill, src)} onCancel={() => setNeedsSource(null)} />}
+                </div>
+              )}
               {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here (binary, too large, or gone)</div>}
               {content !== null && view?.kind === "file" && (
                 <div className="loki-chat" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760 }}>
-                  <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+                  <Markdown remarkPlugins={[remarkGfm]}>{viewSkill ? stripFrontmatter(content) : content}</Markdown>
                 </div>
               )}
               {content !== null && view?.kind === "commit" && <Diff text={content} />}
@@ -440,8 +474,7 @@ function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { mod
 }
 
 /** Add a skill to this agent: write one here, or install from a source the CLI knows. */
-function SkillAdd({ onWrite, onInstall, agentName }: { onWrite: (name: string, markdown: string) => Promise<string | null>; onInstall: (source: string) => Promise<string | null>; agentName: string }) {
-  const [mode, setMode] = useState<null | "write" | "install">(null);
+function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "write" | "install"; onWrite: (name: string, markdown: string) => Promise<string | null>; onInstall: (source: string) => Promise<string | null>; onClose: () => void; agentName: string }) {
   const [name, setName] = useState("");
   const [text, setText] = useState("");
   const [source, setSource] = useState("");
@@ -455,22 +488,11 @@ function SkillAdd({ onWrite, onInstall, agentName }: { onWrite: (name: string, m
     const err = mode === "write" ? (slug && text.trim() ? await onWrite(slug, `---\nname: ${slug}\ndescription: ${text.trim().split("\n")[0].replace(/^#+\s*/, "").slice(0, 120)}\n---\n\n${text.trim()}\n`) : "a name and some text") : source.trim() ? await onInstall(source) : "a source";
     setBusy(false);
     if (err) return setError(err);
-    setMode(null);
-    setName("");
-    setText("");
-    setSource("");
+    onClose();
   };
   const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "6px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" };
-  if (!mode) {
-    return (
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        <button onClick={() => setMode("write")} style={btn()}>write a skill</button>
-        <button onClick={() => setMode("install")} style={btn()}>install…</button>
-      </div>
-    );
-  }
   return (
-    <div style={{ display: "grid", gap: 6, marginTop: 8, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
+    <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
       {mode === "write" ? (
         <>
           <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="skill name (becomes skills/<name>/SKILL.md)" autoComplete="off" data-form-type="other" style={{ ...field, fontFamily: "var(--loki-mono)" }} />
@@ -485,7 +507,7 @@ function SkillAdd({ onWrite, onInstall, agentName }: { onWrite: (name: string, m
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
-        <button onClick={() => setMode(null)} style={btn()}>cancel</button>
+        <button onClick={onClose} style={btn()}>cancel</button>
         <button onClick={() => void go()} disabled={busy} style={{ ...btn("var(--loki-accent)"), opacity: busy ? 0.5 : 1 }}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</button>
       </div>
     </div>
@@ -602,7 +624,6 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
           ))}
           {d.agent.favourite && <span style={{ color: "var(--loki-accent)" }}>· ★ favourite</span>}
         </div>
-        {d.agent.systemHead && <div style={{ fontSize: 10.5, color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.45 }}>system prompt (Letta Code's): {d.agent.systemHead}</div>}
       </div>
     </section>
   );
