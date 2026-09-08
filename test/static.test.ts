@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LAN_BOOT_SCRIPT, createStaticApp, resolveAppDist } from "../mod/static.ts";
+import { LAN_BOOT_SCRIPT, bootScript, buildIdOf, createStaticApp, resolveAppDist } from "../mod/static.ts";
 
 const INDEX = `<!doctype html><html><head><meta charset="utf-8"><title>loki</title></head><body><div id="root"></div></body></html>`;
 
@@ -57,7 +57,9 @@ describe("static app", () => {
       expect(res.headers.get("content-type")).toContain("text/html");
       expect(res.headers.get("cache-control")).toBe("no-cache");
       const html = await res.text();
-      expect(html).toContain(`${LAN_BOOT_SCRIPT}</head>`);
+      // The boot script carries the build id (a hash of index.html) so the page can tell when a new build is up.
+      expect(html).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}"\}<\/script><\/head>/);
+      expect(html).toContain(bootScript(buildIdOf(dist)));
       expect(html).toContain('<div id="root">');
     }
     expect(LAN_BOOT_SCRIPT).toBe("<script>window.__LOKI__={lan:true}</script>");

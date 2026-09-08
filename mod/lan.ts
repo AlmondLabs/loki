@@ -8,7 +8,7 @@ import type { DeviceStore } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
 import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
-import { createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
+import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
 import { log } from "./log.ts";
 
 /**
@@ -61,6 +61,8 @@ export interface LanOptions {
   interfaces?: () => ReturnType<typeof networkInterfaces>;
   /** For tests: the Bonjour host (default bonjourHost()). */
   host?: () => string | null;
+  /** How often to look for a new canvas build while listening (default 5 s). */
+  buildPollMs?: number;
 }
 
 export const DEVICE_COOKIE = "loki_device";
@@ -76,6 +78,9 @@ export class LanListener {
   /** Wrong pairing codes per remote address: ten in ten minutes and that address waits ten minutes. */
   private readonly attempts = new Attempts();
   private server: Server | null = null;
+  /** While listening: the build id last announced, and the poll that watches for a new one. */
+  private announcedBuild: string | null = null;
+  private buildPoll: ReturnType<typeof setInterval> | null = null;
   private ws: WsBridge | null = null;
   private boundPort: number | null = null;
   private bindError: string | null = null;
@@ -142,12 +147,26 @@ export class LanListener {
       this.boundPort = (server.address() as { port: number }).port;
       this.ws = attachWs(server, this.authorize, this.opts.handlers);
       log("lan:listening", { port: this.boundPort, addresses: lanAddresses(this.opts.interfaces), appDist: this.dist });
+      // Phones cannot reload themselves from a menu: watch the build and tell them when it changes.
+      this.announcedBuild = buildIdOf(this.dist);
+      this.buildPoll = setInterval(() => this.checkBuild(), this.opts.buildPollMs ?? 5000);
     });
+  }
+
+  /** Announce a new canvas build to every phone (`app_build {build}`); they offer to reload. */
+  checkBuild(): void {
+    const build = buildIdOf(this.dist);
+    if (!build || build === this.announcedBuild) return;
+    this.announcedBuild = build;
+    log("lan:app-build", { build });
+    this.broadcast({ type: "app_build", build });
   }
 
   stop(): Promise<LanStatus> {
     return this.serialized(async () => {
       const server = this.server;
+      if (this.buildPoll) clearInterval(this.buildPoll);
+      this.buildPoll = null;
       this.ws?.close();
       this.ws = null;
       this.server = null;
@@ -205,7 +224,7 @@ export class LanListener {
     try {
       switch (url.pathname) {
         case "/health":
-          return void json(res, 200, { ok: true, ...(this.opts.health?.() ?? {}) });
+          return void json(res, 200, { ok: true, build: buildIdOf(this.dist), ...(this.opts.health?.() ?? {}) });
         case "/pair": {
           if (req.method !== "POST") return void json(res, 405, { error: "POST" });
           const refused = crossSite(req);

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, relative, resolve, sep } from "node:path";
 import { appDistCandidates } from "./paths.ts";
@@ -10,6 +11,25 @@ import { appDistCandidates } from "./paths.ts";
  * and `/` says so.
  */
 export const LAN_BOOT_SCRIPT = "<script>window.__LOKI__={lan:true}</script>";
+
+/**
+ * The build id of a dist: a short hash of its index.html, which Vite rewrites with new asset names on
+ * every build. A home-screen web app has no reload button, so the page compares this with what it was
+ * served (`window.__LOKI__.build`, `/health`, the `app_build` frame) and offers to reload itself.
+ */
+export function buildIdOf(dist: string | null): string | null {
+  if (!dist) return null;
+  try {
+    return createHash("sha256").update(readFileSync(join(dist, "index.html"))).digest("hex").slice(0, 12);
+  } catch {
+    return null;
+  }
+}
+
+/** The boot script with the build stamped in. */
+export function bootScript(build: string | null): string {
+  return build ? `<script>window.__LOKI__={lan:true,build:${JSON.stringify(build)}}</script>` : LAN_BOOT_SCRIPT;
+}
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -84,8 +104,9 @@ function serveIndex(root: string, res: ServerResponse): void {
   } catch {
     return void serveMissing(undefined, res);
   }
+  const boot = bootScript(createHash("sha256").update(html).digest("hex").slice(0, 12));
   const i = html.indexOf("</head>");
-  html = i >= 0 ? html.slice(0, i) + LAN_BOOT_SCRIPT + html.slice(i) : LAN_BOOT_SCRIPT + html;
+  html = i >= 0 ? html.slice(0, i) + boot + html.slice(i) : boot + html;
   res.writeHead(200, { "content-type": TYPES[".html"], "cache-control": "no-cache" });
   res.end(html);
 }

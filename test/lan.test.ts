@@ -256,6 +256,36 @@ describe("LAN listener", () => {
     }
   });
 
+  test("a new canvas build is announced to phones as app_build and shows in /health", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-lan-build-"));
+    mkdirSync(join(dir, "assets"), { recursive: true });
+    writeFileSync(join(dir, "index.html"), "<html><head></head><body><div id=\"root\"></div></body></html>");
+    const f = fixture({ appDist: dir });
+    try {
+      await f.lan.setEnabled(true);
+      const first = ((await (await fetch(`${base(f.lan)}/health`)).json()) as { build: string }).build;
+      expect(first).toMatch(/^[a-f0-9]{12}$/);
+      const html = await (await fetch(`${base(f.lan)}/`)).text();
+      expect(html).toContain(`build:"${first}"`);
+      const { code } = f.codes.mint();
+      const p = await pair(f.lan, code);
+      const phone = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?desk=shared`, { cookie: p.cookie });
+      await new Promise<void>((r) => phone.once("message", () => r()));
+      const announced = new Promise<Record<string, unknown>>((r) => phone.on("message", (raw) => { const m = JSON.parse(String(raw)); if (m.type === "app_build") r(m); }));
+      writeFileSync(join(dir, "index.html"), "<html><head></head><body><div id=\"root\"></div><!-- v2 --></body></html>");
+      f.lan.checkBuild();
+      const m = (await announced) as { build: string };
+      expect(m.build).toMatch(/^[a-f0-9]{12}$/);
+      expect(m.build).not.toBe(first);
+      expect(((await (await fetch(`${base(f.lan)}/health`)).json()) as { build: string }).build).toBe(m.build);
+      phone.close();
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("profile route needs device auth and ignores ?t=; static falls back to the SPA or a 503", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-lan-dist-"));
     mkdirSync(join(dir, "assets"));
@@ -280,7 +310,7 @@ describe("LAN listener", () => {
 
       const index = await fetch(`${base(withApp.lan)}/inbox?code=${code}`);
       expect(index.status).toBe(200);
-      expect(await index.text()).toContain("<script>window.__LOKI__={lan:true}</script></head>");
+      expect(await index.text()).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}"\}<\/script><\/head>/);
       expect(await (await fetch(`${base(withApp.lan)}/assets/a.js`)).text()).toBe("1");
       expect((await fetch(`${base(noApp.lan)}/`)).status).toBe(503);
 
