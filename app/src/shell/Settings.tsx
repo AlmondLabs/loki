@@ -159,7 +159,7 @@ export function Settings({
         )}
         {page === "phone" && (
           <>
-            <Section title="phone" hint="the inbox on a phone, over this Wi‑Fi; nothing to install">
+            <Section title="phone" hint="the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install">
               <Phone phone={phone} connected={modConnection === "open"} />
             </Section>
           </>

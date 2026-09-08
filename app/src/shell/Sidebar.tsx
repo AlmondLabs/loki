@@ -56,7 +56,7 @@ export function Sidebar({
           <span key={s.id} style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" ? "auto" : 0 }}>
             <button
               onClick={() => onSelect(s.id)}
-              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "settings" && lanOn ? `${s.label}, reachable on this Wi‑Fi` : s.label}
+              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
               aria-pressed={active}
               title={`${s.label} (${s.key})`}
               className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
