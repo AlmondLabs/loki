@@ -5,6 +5,8 @@ import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import type { WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
 import type { Client } from "../mod/server.ts";
+import type { LanStatus, LanVia } from "../mod/lan.ts";
+import type { TailscaleStatus } from "../mod/tailscale.ts";
 
 function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
   const runtime = new Map<string, string>();
@@ -188,16 +190,20 @@ describe("bridge: a paired phone's authority", () => {
   test("a device client gets the inbox frames and nothing else", () => {
     const broadcasts: Record<string, unknown>[] = [];
     let forgot: string | null = null;
+    const st: LanStatus = { enabled: true, address: "192.168.1.3", addresses: ["192.168.1.3"], host: null, port: 41415, appServed: true, error: null, via: "lan", tailscale: null };
     const lan = {
-      status: () => ({ enabled: true, address: "192.168.1.3", addresses: ["192.168.1.3"], host: null, port: 41415, appServed: true, error: null }),
-      setEnabled: async (e: boolean) => ({ enabled: e, address: "192.168.1.3", addresses: ["192.168.1.3"], host: null, port: 41415, appServed: true, error: null }),
+      status: () => st,
+      refresh: async () => st,
+      setEnabled: async (e: boolean) => ({ ...st, enabled: e }),
+      setVia: (via: LanVia) => ({ ...st, via }),
+      setServe: async () => st,
       pairBegin: () => ({ code: "ABC234", url: "http://x/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
       devices: () => [],
       forget: (id: string) => ((forgot = id), true),
     };
     const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan, listDesks: () => [] });
     const phone = { ...client("shared"), deviceId: "d1" };
-    for (const type of ["pair_begin", "device_forget", "lan_set", "lan_get", "devices_list", "gesture", "arrange", "trash", "folder_pick", "folder_check", "skill_install", "skills_global", "task_create", "tasks_list", "widget_status", "measure"]) {
+    for (const type of ["pair_begin", "device_forget", "lan_set", "lan_get", "lan_via_set", "lan_serve_set", "devices_list", "gesture", "arrange", "trash", "folder_pick", "folder_check", "skill_install", "skills_global", "task_create", "tasks_list", "widget_status", "measure"]) {
       phone.sent.length = 0;
       bridge.onMessage(phone, { type, requestId: "r1", id: "d2", enabled: false });
       expect(phone.sent).toEqual([{ type: "error", requestId: "r1", message: `${type} is not available on the phone` }]);
@@ -217,19 +223,45 @@ describe("bridge: a paired phone's authority", () => {
 });
 
 describe("bridge phone frames", () => {
-  const status = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], host: "deepaks-macbook-pro.local", port: 41415, appServed: true, error: null };
+  const tailscale: TailscaleStatus = { installed: true, running: true, ip: "100.101.102.103", name: "deepaks-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
+  const status: LanStatus = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], host: "deepaks-macbook-pro.local", port: 41415, appServed: true, error: null, via: "tailscale", tailscale };
   function lanDeps() {
     const calls: unknown[] = [];
     let enabled = false;
+    let via: LanVia = "tailscale";
+    let refreshed = 0;
+    let serveError: string | null = null;
+    let serveUrl: string | null = null;
     const devices = [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }];
+    const current = (): LanStatus => ({ ...status, enabled, via, tailscale: { ...tailscale, serveUrl, error: serveError } });
     return {
       calls,
+      refreshed: () => refreshed,
       lan: {
-        status: () => ({ ...status, enabled }),
+        status: current,
+        refresh: async () => {
+          refreshed += 1;
+          return current();
+        },
         setEnabled: async (e: boolean) => {
           calls.push(["setEnabled", e]);
           enabled = e;
-          return { ...status, enabled };
+          return current();
+        },
+        setVia: (v: LanVia) => {
+          calls.push(["setVia", v]);
+          via = v;
+          return current();
+        },
+        setServe: async (e: boolean) => {
+          calls.push(["setServe", e]);
+          // the stub's tailnet has HTTPS disabled: turning serve on fails with the CLI's words, off works
+          if (e) serveError = "Error: HTTPS is not enabled for this tailnet";
+          else {
+            serveError = null;
+            serveUrl = null;
+          }
+          return current();
         },
         pairBegin: () => ({ code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
         devices: () => devices,
@@ -250,6 +282,8 @@ describe("bridge phone frames", () => {
     const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan: d.lan });
     const c = client("c1");
     bridge.onMessage(c, { type: "lan_get" });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d.refreshed()).toBe(1); // lan_get asks Tailscale again before answering
     expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status });
     bridge.onMessage(c, { type: "lan_set", enabled: true });
     await new Promise((r) => setTimeout(r, 0));
@@ -262,6 +296,35 @@ describe("bridge phone frames", () => {
     bridge.onMessage(c, { type: "device_forget", id: "d1" });
     expect(d.calls.at(-1)).toEqual(["forget", "d1"]);
     expect(broadcasts.at(-1)).toEqual({ type: "devices", devices: [] });
+  });
+
+  test("lan_via_set persists the route and answers lan_status; a bad via is an error", () => {
+    const d = lanDeps();
+    const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, lan: d.lan });
+    const c = client("c1");
+    bridge.onMessage(c, { type: "lan_via_set", via: "lan" });
+    expect(d.calls).toEqual([["setVia", "lan"]]);
+    expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status, via: "lan" });
+    bridge.onMessage(c, { type: "lan_via_set", via: "tailscale" });
+    expect(c.sent.at(-1)).toMatchObject({ type: "lan_status", via: "tailscale" });
+    bridge.onMessage(c, { type: "lan_via_set", via: "carrier-pigeon" });
+    expect(c.sent.at(-1)).toMatchObject({ type: "error" });
+    expect(d.calls).toHaveLength(2);
+  });
+
+  test("lan_serve_set turns the https front on or off; a CLI failure rides in tailscale.error, not an error frame", async () => {
+    const d = lanDeps();
+    const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, lan: d.lan });
+    const c = client("c1");
+    bridge.onMessage(c, { type: "lan_serve_set", enabled: true });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d.calls).toEqual([["setServe", true]]);
+    expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status, tailscale: { ...tailscale, error: "Error: HTTPS is not enabled for this tailnet" } });
+    expect(c.sent.some((m) => m.type === "error")).toBe(false);
+    bridge.onMessage(c, { type: "lan_serve_set", enabled: false });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(d.calls.at(-1)).toEqual(["setServe", false]);
+    expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status });
   });
 
   test("without a listener the frames answer with an error", () => {

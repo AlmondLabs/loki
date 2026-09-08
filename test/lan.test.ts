@@ -6,12 +6,32 @@ import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { LanListener, type LanStatus, bonjourHost } from "../mod/lan.ts";
+import { LanListener, type LanStatus, bonjourHost, crossSite } from "../mod/lan.ts";
+import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
+import type { IncomingMessage } from "node:http";
+import type { networkInterfaces } from "node:os";
+import { SERVE_41415, STATUS_RUNNING } from "./fixtures/tailscale.ts";
 
 const DESKTOP = "0123456789abcdef0123456789abcdef";
+const TAILNET = "deepaks-macbook-pro.tail1234.ts.net";
 
-function fixture(opts: { port?: number; appDist?: string | null } = {}) {
+/** A Tailscale whose CLI is recorded output: running (or stopped), with or without the https front on `port`. */
+function fakeTailscale(opts: { running?: boolean; serve?: boolean; port?: number } = {}) {
+  const port = opts.port ?? 41415;
+  const serve = opts.serve ?? false;
+  return new Tailscale({
+    bin: "/fake/tailscale",
+    port,
+    exec: async (_bin, args) => {
+      if (args[0] === "status") return opts.running === false ? JSON.stringify({ BackendState: "Stopped", Self: { DNSName: `${TAILNET}.` } }) : STATUS_RUNNING;
+      if (args[0] === "serve" && args[1] === "status") return serve ? SERVE_41415.replace("41415", String(port)) : "{}";
+      return "";
+    },
+  });
+}
+
+function fixture(opts: { port?: number; appDist?: string | null; tailscale?: Tailscale; host?: () => string | null; interfaces?: () => ReturnType<typeof networkInterfaces> } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-lan-"));
   const devices = new DeviceStore(join(dir, "devices.json"));
   const codes = new PairingCodes();
@@ -38,6 +58,9 @@ function fixture(opts: { port?: number; appDist?: string | null } = {}) {
     profile: (id) => (id === "a1" ? join(dir, "face.png") : null),
     appDist: opts.appDist === undefined ? null : opts.appDist,
     onChange: (what, status) => changes.push([what, status]),
+    tailscale: opts.tailscale,
+    host: opts.host,
+    interfaces: opts.interfaces,
   });
   const cleanup = () => rmSync(dir, { recursive: true, force: true });
   return { dir, devices, codes, handlers, connected, changes, lan, cleanup };
@@ -283,6 +306,152 @@ describe("LAN listener", () => {
       await f.lan.stop();
       f.cleanup();
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("no Tailscale given: via is lan, tailscale is null, and the old QR and state file are unchanged", async () => {
+    const f = fixture({ port: 41415, host: () => "deepaks-macbook-pro.local" });
+    try {
+      expect(f.lan.status()).toMatchObject({ via: "lan", tailscale: null });
+      expect(await f.lan.refresh()).toMatchObject({ via: "lan", tailscale: null });
+      expect(f.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  test("pairUrl prefers the https front, then the tailnet name, then the Bonjour name, then the address", async () => {
+    const en0 = { en0: [{ address: "192.168.1.3", netmask: "255.255.255.0", family: "IPv4" as const, mac: "0", internal: false, cidr: "192.168.1.3/24" }] };
+    const served = fixture({ port: 41415, tailscale: fakeTailscale({ serve: true }), host: () => "deepaks-macbook-pro.local", interfaces: () => en0 });
+    const named = fixture({ port: 41415, tailscale: fakeTailscale(), host: () => "deepaks-macbook-pro.local", interfaces: () => en0 });
+    const stopped = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => "deepaks-macbook-pro.local", interfaces: () => en0 });
+    const noName = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => en0 });
+    const nothing = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => ({}) });
+    try {
+      // before the first refresh the cache only knows the binary exists: the Wi‑Fi route
+      expect(served.lan.status().tailscale).toEqual({ installed: true, running: false, ip: null, name: null, serveUrl: null, error: null });
+      expect(served.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+
+      const s = await served.lan.refresh();
+      expect(s.via).toBe("tailscale");
+      expect(s.tailscale).toEqual({ installed: true, running: true, ip: "100.101.102.103", name: TAILNET, serveUrl: `https://${TAILNET}`, error: null });
+      expect(served.lan.pairUrl("ABC234")).toBe(`https://${TAILNET}/?code=ABC234`);
+
+      expect((await named.lan.refresh()).tailscale?.serveUrl).toBeNull();
+      expect(named.lan.pairUrl("ABC234")).toBe(`http://${TAILNET}:41415/?code=ABC234`);
+      // the user's choice of the Wi‑Fi wins over a running tailnet
+      expect(named.lan.setVia("lan").via).toBe("lan");
+      expect(named.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      expect(named.lan.setVia("tailscale").via).toBe("tailscale");
+      expect(named.lan.pairUrl("ABC234")).toBe(`http://${TAILNET}:41415/?code=ABC234`);
+
+      const st = await stopped.lan.refresh();
+      expect(st.via).toBe("lan");
+      expect(st.tailscale).toMatchObject({ running: false, name: TAILNET });
+      expect(stopped.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      // asking for the tailnet while it is stopped falls through to the Wi‑Fi rather than a dead name
+      stopped.lan.setVia("tailscale");
+      expect(stopped.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+
+      await noName.lan.refresh();
+      expect(noName.lan.pairUrl("ABC234")).toBe("http://192.168.1.3:41415/?code=ABC234");
+      await nothing.lan.refresh();
+      expect(nothing.lan.pairUrl("ABC234")).toBe("http://127.0.0.1:41415/?code=ABC234");
+    } finally {
+      for (const f of [served, named, stopped, noName, nothing]) f.cleanup();
+    }
+  });
+
+  test("via persists to lan.json, survives a new instance, and defaults to tailscale only while it runs", async () => {
+    const f = fixture({ port: 41415, tailscale: fakeTailscale() });
+    try {
+      // an older file has no via: the default applies
+      writeFileSync(join(f.dir, "lan.json"), JSON.stringify({ enabled: false }));
+      const fresh = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415, tailscale: fakeTailscale({ running: false }) });
+      expect((await fresh.refresh()).via).toBe("lan");
+      const running = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415, tailscale: fakeTailscale() });
+      expect((await running.refresh()).via).toBe("tailscale");
+
+      f.changes.length = 0;
+      expect(f.lan.setVia("lan").via).toBe("lan");
+      expect(JSON.parse(readFileSync(join(f.dir, "lan.json"), "utf8"))).toEqual({ enabled: false, via: "lan" });
+      expect(f.changes.map((c) => c[0])).toEqual(["status"]);
+      expect(f.changes[0][1].via).toBe("lan");
+      // the choice outlives a restart and an enable/disable, which rewrite the file
+      const again = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415, tailscale: fakeTailscale() });
+      expect((await again.refresh()).via).toBe("lan");
+      await f.lan.setEnabled(false);
+      expect(JSON.parse(readFileSync(join(f.dir, "lan.json"), "utf8"))).toEqual({ enabled: false, via: "lan" });
+      const junk = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415 });
+      writeFileSync(join(f.dir, "lan.json"), JSON.stringify({ enabled: true, via: "pigeon" }));
+      expect(new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415 }).status()).toMatchObject({ enabled: true, via: "lan" });
+      expect(junk.status().via).toBe("lan");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  test("a refresh that changes the tailnet's answer broadcasts lan_status; one that does not stays quiet", async () => {
+    let running = true;
+    let serve = false;
+    const ts = new Tailscale({
+      bin: "/fake/tailscale",
+      port: 41415,
+      ttlMs: 0,
+      exec: async (_bin, args) => {
+        if (args[0] === "status") return running ? STATUS_RUNNING : JSON.stringify({ BackendState: "Stopped" });
+        return serve ? SERVE_41415 : "{}";
+      },
+    });
+    const f = fixture({ port: 41415, tailscale: ts });
+    try {
+      await f.lan.refresh();
+      expect(f.changes).toEqual([]); // the first read is not a change
+      await f.lan.refresh();
+      expect(f.changes).toEqual([]);
+      serve = true;
+      await f.lan.refresh();
+      expect(f.changes.map((c) => c[0])).toEqual(["status"]);
+      expect(f.changes[0][1].tailscale?.serveUrl).toBe(`https://${TAILNET}`);
+      running = false;
+      await f.lan.refresh();
+      expect(f.changes).toHaveLength(2);
+      expect(f.changes[1][1]).toMatchObject({ via: "lan", tailscale: { running: false } });
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  test("cross-site: an Origin matching the Host, X-Forwarded-Host or an allowed host passes; a stranger is refused", () => {
+    const req = (headers: Record<string, string>) => ({ headers: { "content-type": "application/json", ...headers } }) as unknown as IncomingMessage;
+    const allowed = [TAILNET, `${TAILNET}:443`, "deepaks-macbook-pro.local"];
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}` }), allowed)).toBeNull();
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}` }))).toMatchObject({ status: 403 });
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: "https://evil.example" }), allowed)).toMatchObject({ status: 403, error: "cross-site request refused" });
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}.evil.example` }), allowed)).toMatchObject({ status: 403 });
+    expect(crossSite(req({ host: "127.0.0.1:41415", "x-forwarded-host": TAILNET, origin: `https://${TAILNET}` }))).toBeNull();
+    expect(crossSite(req({ host: "127.0.0.1:41415", "x-forwarded-host": `${TAILNET}, 127.0.0.1:41415`, origin: `https://${TAILNET}` }))).toBeNull();
+    expect(crossSite(req({ host: "Deepaks-MacBook-Pro.local:41415", origin: "http://deepaks-macbook-pro.local:41415" }))).toBeNull();
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: "http://127.0.0.1:41415" }))).toBeNull();
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: "null" }))).toBeNull();
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: "not a url" }), allowed)).toMatchObject({ status: 403, error: "bad origin" });
+    expect(crossSite({ headers: { "content-type": "text/plain", origin: `https://${TAILNET}` } } as unknown as IncomingMessage, allowed)).toMatchObject({ status: 415 });
+  });
+
+  test("behind tailscale serve: /pair from the tailnet origin reaches the code check; a stranger is still 403", async () => {
+    const port = await freePort();
+    const f = fixture({ port, tailscale: fakeTailscale({ port }) });
+    try {
+      await f.lan.setEnabled(true);
+      expect(f.lan.status().tailscale?.name).toBe(TAILNET); // start() refreshed
+      const post = (origin: string, extra: Record<string, string> = {}) => fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin, ...extra }, body: JSON.stringify({ code: "ZZZZZZ", name: "x" }) });
+      expect((await post(`https://${TAILNET}`)).status).toBe(404); // past the origin check, the code is wrong
+      expect((await post(`http://${TAILNET}:${port}`)).status).toBe(404);
+      expect((await post("https://evil.example")).status).toBe(403);
+      expect((await post("https://evil.example", { "x-forwarded-host": "evil.example" })).status).toBe(404); // a proxy in front vouches for the Host
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
     }
   });
 
