@@ -79,6 +79,10 @@ on, a third on the local network, guarded by a per-device cookie:
 | 41414 | loki's mod, loopback | desk state, gestures, the board, agents, pins, folders, agent faces, and the app-server tunnel |
 | 41415 | loki's mod, LAN (off by default) | the canvas build as a single-page app, `/pair` `/me` `/unpair`, and the same `/ws`, `/appserver` and face routes for paired phones |
 
+When Tailscale runs on the Mac the same 41415 listener is reached by the tailnet name instead of the Wi‑Fi
+one (`lan_status.via`), and `tailscale serve` can optionally front it with https on 443 inside the tailnet,
+forwarding to `127.0.0.1:41415` — no fourth port of loki's own.
+
 The mod exposes its own port because its code runs in Node while the loki UI runs in a browser
 context — the WebView or a tab — and Node cannot reach into a browser page any other way. A localhost
 socket is the bridge. It carries three things: loki's own protocol (widgets, gestures, board, agents),

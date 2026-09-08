@@ -9,7 +9,7 @@ import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
 import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
-import type { LanStatus, PairCode, PairedDevice } from "../phone/model";
+import { lanStatusFromFrame, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -49,6 +49,19 @@ const scopeOfId = (id: string): Scope => id.slice(0, Math.max(0, id.indexOf("/")
 const NO_YANK_MS = 2000;
 
 /**
+ * Dev only: `?phoneDemo=tailscale` on the Vite tab makes Settings › phone read as if Tailscale were
+ * running on this Mac, so the route chooser and the https switch can be seen without a tailnet. The
+ * flag is compiled out of production builds; `setVia` / `setServe` then change local state instead of
+ * asking the mod. Remove once the mod's `tailscale.ts` is in and a real tailnet is at hand.
+ */
+const PHONE_DEMO = import.meta.env.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).get("phoneDemo") === "tailscale";
+function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
+  const name = "deepaks-macbook-pro.tail1234.ts.net";
+  const on = serve ?? !!s.tailscale?.serveUrl;
+  return { ...s, tailscale: { installed: true, running: true, ip: "100.101.102.103", name, serveUrl: on ? `https://${name}` : null, error: null } };
+}
+
+/**
  * The tab's view of the desk: manifest + geometry per scope, synced from the
  * mod over WebSocket. Gestures apply optimistically with the same pure
  * reducer the mod uses, then go up the wire.
@@ -73,7 +86,7 @@ export function useDesk() {
   /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
   const [tasksVersion, setTasksVersion] = useState(0);
   /** The LAN listener (Settings › phone): its status, the paired phones, and the last pairing code minted here. */
-  const [lanStatus, setLanStatus] = useState<LanStatus | null>(null);
+  const [lanStatus, setLanStatus] = useState<PhoneLanStatus | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
@@ -153,7 +166,7 @@ export function useDesk() {
             setTasksVersion((v) => v + 1);
             break;
           case "lan_status": {
-            const st: LanStatus = { enabled: msg.enabled === true, address: typeof msg.address === "string" ? msg.address : null, addresses: Array.isArray(msg.addresses) ? (msg.addresses as string[]) : [], host: typeof msg.host === "string" ? msg.host : null, port: typeof msg.port === "number" ? msg.port : 41415, appServed: msg.appServed === true, error: typeof msg.error === "string" ? msg.error : null };
+            const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame(msg), via: "tailscale" }) : lanStatusFromFrame(msg);
             setLanStatus(st);
             if (!st.enabled) setPairCode(null); // a code is only redeemable while the listener is up
             break;
@@ -411,6 +424,10 @@ export function useDesk() {
       send({ type: "devices_list" });
     },
     setEnabled: (enabled: boolean) => send({ type: "lan_set", enabled }),
+    /** Which way the QR sends the phone (addendum 3); the mod persists it and answers with `lan_status`. */
+    setVia: (via: LanVia) => (PHONE_DEMO ? setLanStatus((s) => (s ? phoneDemo({ ...s, via }) : s)) : send({ type: "lan_via_set", via })),
+    /** Put `tailscale serve` in front of the listener, or take it off; a CLI failure lands in `tailscale.error`. */
+    setServe: (enabled: boolean) => (PHONE_DEMO ? setLanStatus((s) => (s ? phoneDemo(s, enabled) : s)) : send({ type: "lan_serve_set", enabled })),
     /** Mint a pairing code; the reply arrives as `lastCode`. */
     beginPair: () => send({ type: "pair_begin" }),
     forget: (id: string) => send({ type: "device_forget", id }),

@@ -13,6 +13,82 @@ import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../packages/core/src/pai
 export type { LanStatus };
 export type PairedDevice = DeviceSummary;
 
+/** Which way the QR sends the phone: over the tailnet, or over this Wi‑Fi (Bonjour name, else the address). */
+export type LanVia = "tailscale" | "lan";
+
+/** What `mod/tailscale.ts` found (addendum 3): the CLI, its state, the MagicDNS name, the 100.x address, an https front. */
+export interface TailscaleStatus {
+  installed: boolean;
+  running: boolean;
+  /** The 100.x address, when running. */
+  ip: string | null;
+  /** The MagicDNS name without its trailing dot, e.g. deepaks-macbook-pro.tail1234.ts.net. */
+  name: string | null;
+  /** `https://<name>` while `tailscale serve` fronts the listener; null when it does not. */
+  serveUrl: string | null;
+  /** The CLI's own words when `tailscale serve` failed; null when all is well. */
+  error: string | null;
+}
+
+/**
+ * `lan_status` as the canvas reads it: the mod's LanStatus plus the route fields from addendum 3.
+ * Structural on purpose, so the canvas and the mod can land in either order; `lanStatusFromFrame`
+ * fills the new fields with "not on this Mac" when a mod does not send them yet.
+ */
+export type PhoneLanStatus = LanStatus & { via: LanVia; tailscale: TailscaleStatus | null };
+
+/** The `lan_status` frame, read defensively: a field of the wrong shape becomes its quiet default. */
+export function lanStatusFromFrame(msg: Record<string, unknown>): PhoneLanStatus {
+  const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+  const t = msg.tailscale;
+  let tailscale: TailscaleStatus | null = null;
+  if (t && typeof t === "object") {
+    const o = t as Record<string, unknown>;
+    tailscale = { installed: o.installed === true, running: o.running === true, ip: str(o.ip), name: str(o.name), serveUrl: str(o.serveUrl), error: str(o.error) };
+  }
+  return {
+    enabled: msg.enabled === true,
+    address: str(msg.address),
+    addresses: Array.isArray(msg.addresses) ? (msg.addresses as unknown[]).filter((a): a is string => typeof a === "string") : [],
+    host: str(msg.host),
+    port: typeof msg.port === "number" ? msg.port : 41415,
+    appServed: msg.appServed === true,
+    error: str(msg.error),
+    // The tailnet is a route only while it runs; an older mod sends neither field and the QR carries the Wi‑Fi.
+    via: msg.via === "tailscale" && tailscale?.running ? "tailscale" : "lan",
+    tailscale,
+  };
+}
+
+/**
+ * The origin the next pairing QR will carry, in the mod's order (`pairUrl`): the https front, the
+ * tailnet name, the Bonjour name, the address. Null when there is nothing to reach the Mac by.
+ */
+export function pairOrigin(s: PhoneLanStatus): string | null {
+  const ts = s.tailscale;
+  if (s.via === "tailscale" && ts?.running) {
+    if (ts.serveUrl) return ts.serveUrl;
+    if (ts.name) return `http://${ts.name}:${s.port}`;
+    if (ts.ip) return `http://${ts.ip}:${s.port}`;
+  }
+  const h = s.host ?? s.address;
+  return h ? `http://${h}:${s.port}` : null;
+}
+
+/**
+ * How this phone reaches the Mac, read off the page's own `location`: a `.ts.net` host is the
+ * tailnet, `.local` is Bonjour on this Wi‑Fi, a bare address is this Wi‑Fi too; anything else is
+ * named as it is. `https:` is worth a word because it means `tailscale serve` is in front.
+ */
+export function routeOf(host: string, protocol: string): string {
+  const hostname = host.replace(/^\[([^\]]+)\](?::\d+)?$/, "$1").replace(/^([^:]+):\d+$/, "$1").toLowerCase();
+  const secure = protocol === "https:" ? " · https" : "";
+  if (hostname.endsWith(".ts.net")) return `via Tailscale${secure}`;
+  if (hostname.endsWith(".local")) return `via this Wi‑Fi (Bonjour)${secure}`;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(":")) return `via this Wi‑Fi (address)${secure}`;
+  return hostname ? `via ${hostname}${secure}` : "unknown";
+}
+
 /** A fresh pairing code (`pair_code`). */
 export interface PairCode {
   code: string;

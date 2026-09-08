@@ -102,6 +102,16 @@ reconnects by itself. Each paired phone is listed in Settings › phone with whe
 locks it out. The rail shows a brass dot on the settings icon while the switch is on. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.
 
+**Phone, anywhere.** Install [Tailscale](https://tailscale.com/download) on the Mac and on the phone and sign in to
+the same account. Settings › phone then shows the Mac's tailnet name (`deepaks-macbook-pro.tail1234.ts.net`) under
+"reach the Mac", and the QR carries that name instead of the Wi‑Fi one, so the phone reaches the Mac from any
+network — the office, mobile data, a café — without a thought about which Wi‑Fi either is on. A pair of pills
+switches the QR back to "this Wi‑Fi" for a phone without Tailscale. The optional "serve over Tailscale (https)"
+switch runs `tailscale serve` in front of the listener so the phone gets an `https://<name>` origin; it needs HTTPS
+certificates enabled for your tailnet (Tailscale admin console › DNS) and stays inside the tailnet — loki never
+uses Funnel. Whichever way you switch, the address the phone bookmarked has changed, so it pairs once more:
+open Settings › phone, "pair a phone", and type the code on the phone's Settings page.
+
 ## Layout
 
 ```text

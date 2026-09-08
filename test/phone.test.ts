@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
+import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, routeOf, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
 import type { AttentionItem } from "../packages/core/src/attention/model.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../packages/core/src/pairing-code.ts";
@@ -101,6 +101,59 @@ describe("countdown", () => {
   });
   test("past → expired", () => {
     expect(countdown(new Date(now - 1000).toISOString(), now)).toBe("expired");
+  });
+});
+
+describe("the route the phone is on (Phone › Settings)", () => {
+  test("a .ts.net host is the tailnet; https says serve is in front", () => {
+    expect(routeOf("deepaks-macbook-pro.tail1234.ts.net:41415", "http:")).toBe("via Tailscale");
+    expect(routeOf("deepaks-macbook-pro.tail1234.ts.net", "https:")).toBe("via Tailscale · https");
+  });
+  test(".local is Bonjour on this Wi‑Fi", () => {
+    expect(routeOf("deepaks-macbook-pro.local:41415", "http:")).toBe("via this Wi‑Fi (Bonjour)");
+  });
+  test("an address is this Wi‑Fi too", () => {
+    expect(routeOf("172.20.0.90:41415", "http:")).toBe("via this Wi‑Fi (address)");
+    expect(routeOf("[fe80::1]:41415", "http:")).toBe("via this Wi‑Fi (address)");
+  });
+  test("anything else is named as it is; nothing is unknown", () => {
+    expect(routeOf("mac.example.com:41415", "http:")).toBe("via mac.example.com");
+    expect(routeOf("", "http:")).toBe("unknown");
+  });
+});
+
+describe("lan_status with the route fields (addendum 3)", () => {
+  const base = { type: "lan_status", enabled: true, address: "172.20.0.90", addresses: ["172.20.0.90"], host: "deepaks-macbook-pro.local", port: 41415, appServed: true, error: null };
+  const running = { installed: true, running: true, ip: "100.101.102.103", name: "deepaks-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
+  test("an older mod sends neither field: no Tailscale, the Wi‑Fi route", () => {
+    const s = lanStatusFromFrame(base);
+    expect(s.tailscale).toBeNull();
+    expect(s.via).toBe("lan");
+    expect(s.host).toBe("deepaks-macbook-pro.local");
+    expect(pairOrigin(s)).toBe("http://deepaks-macbook-pro.local:41415");
+  });
+  test("tailscale running and chosen: the QR carries the tailnet name, or the https front", () => {
+    const s = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running });
+    expect(s.via).toBe("tailscale");
+    expect(s.tailscale?.name).toBe("deepaks-macbook-pro.tail1234.ts.net");
+    expect(pairOrigin(s)).toBe("http://deepaks-macbook-pro.tail1234.ts.net:41415");
+    const served = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, serveUrl: "https://deepaks-macbook-pro.tail1234.ts.net" } });
+    expect(pairOrigin(served)).toBe("https://deepaks-macbook-pro.tail1234.ts.net");
+  });
+  test("via tailscale while it is not running falls back to the Wi‑Fi", () => {
+    const s = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, running: false, ip: null, name: null } });
+    expect(s.via).toBe("lan");
+    expect(s.tailscale?.installed).toBe(true);
+    expect(pairOrigin(s)).toBe("http://deepaks-macbook-pro.local:41415");
+  });
+  test("this Wi‑Fi chosen with Tailscale running: the QR carries the Bonjour name", () => {
+    expect(pairOrigin(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }))).toBe("http://deepaks-macbook-pro.local:41415");
+  });
+  test("wrong shapes become their defaults; the CLI's error comes through verbatim", () => {
+    const s = lanStatusFromFrame({ ...base, addresses: ["a", 3, null], tailscale: { installed: "yes", running: 1, ip: 7, error: "tailscale serve: HTTPS is not enabled for this tailnet" } });
+    expect(s.addresses).toEqual(["a"]);
+    expect(s.tailscale).toEqual({ installed: false, running: false, ip: null, name: null, serveUrl: null, error: "tailscale serve: HTTPS is not enabled for this tailnet" });
+    expect(pairOrigin(lanStatusFromFrame({ enabled: true }))).toBeNull();
   });
 });
 

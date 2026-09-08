@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { modBase } from "../desk/env";
 import type { Me } from "./Pair";
+import { routeOf } from "./model";
 import { currentBuild } from "./UpdateBar";
 import { GUTTER, Scroll, TopBar, tap } from "./ui";
 
@@ -47,7 +48,7 @@ export function Settings({
       <TopBar title="Settings" sub={sub} />
       {banner}
       <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} 32px ${GUTTER.left}` }}>
-        <Section title="this phone" hint="paired to the Mac over this Wi‑Fi; nothing is installed">
+        <Section title="this phone" hint="paired to the Mac; nothing is installed">
           <Fact label="name" value={me.name} />
           <Fact label="paired" value="paired" />
           {confirm ? (
@@ -74,6 +75,7 @@ export function Settings({
 
         <Section title="the Mac" hint="loki's mod serves this page; Letta's app-server answers the chats">
           <Fact label="address" value={location.host} mono />
+          <Fact label="route" value={routeOf(location.host, location.protocol)} />
           <Fact label="letta code" value={version ?? "—"} mono />
           <Fact label="mod" value={<Link state={modLink} />} />
           <Fact label="app-server" value={<Link state={appServerLink} />} />

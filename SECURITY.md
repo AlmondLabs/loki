@@ -37,7 +37,27 @@ Settings › phone puts a second listener on the local network so a phone can op
 - **Plain http.** A LAN `http://` origin is not a secure context, so there is no service worker and no
   TLS; the traffic — transcripts, approvals, your replies — is readable by anyone on the network path. On
   a network you do not trust (cafés, hotels, offices you do not run), do not switch it on; if you need
-  the phone there, put both devices on a Tailscale network and use that address instead.
+  the phone there, put both devices on a Tailscale network and use that route (below).
+
+## The phone, over Tailscale
+
+When Tailscale runs on the Mac, Settings › phone offers the tailnet as the route and the QR carries the
+Mac's MagicDNS name. The model changes in one place:
+
+- **The tailnet replaces the Wi‑Fi as the boundary.** The listener still binds `0.0.0.0:41415`, but the
+  device that reaches it by the tailnet name is one you signed into Tailscale yourself, and the traffic
+  between the two is WireGuard-encrypted end to end, whatever network either sits on. Who may reach the
+  Mac at all is decided by your tailnet's ACLs, not by whoever shares the café's Wi‑Fi.
+- **Pairing still gates every device.** A tailnet peer gets the same public page as a Wi‑Fi client and
+  nothing more until it redeems a code from Settings › phone; forgetting a phone works the same. Reaching
+  the Mac and being allowed to act on it stay two separate steps.
+- **`tailscale serve`, never Funnel.** The optional https switch runs `tailscale serve` to put a TLS
+  front on the listener, reachable only from inside the tailnet, with a certificate Tailscale issues for
+  the tailnet name. loki never enables Funnel, which would publish the listener to the internet; if you
+  turn Funnel on yourself, the pairing code is the only thing between the world and your inbox.
+- **What loki runs.** Only the Tailscale CLI already on the Mac (`tailscale status --json`, `tailscale
+  serve status --json`, and `tailscale serve` on and off for the switch). loki does not install Tailscale,
+  sign in, or change the tailnet's settings.
 
 ## Agent-written code
 
