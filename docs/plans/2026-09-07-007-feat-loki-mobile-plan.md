@@ -407,3 +407,25 @@ Slack Catch Up deck (swipe right seen, left later, tap open; approvals refuse to
 - **Mod.** `PHONE_FRAMES` gains the reads a phone needs: `pin_set`, `folders_get`, `agent_get`,
   `memory_read`, `memory_log`, `memory_diff`. Writes to agents, skills, the board and pairing stay
   desktop-only.
+
+## Addendum 3 (2026-09-08): Tailscale is the way off the Wi‑Fi
+
+Deepak, from the office on the wrong Wi‑Fi: "I don't want to worry about that. Can we use personal
+tailscale to manage this properly. It will become easy for the rest of the users as well IMO."
+
+- **Detect, don't install.** `mod/tailscale.ts` finds the CLI (`/Applications/Tailscale.app/Contents/
+  MacOS/Tailscale`, Homebrew, PATH) and reads `tailscale status --json`: running, the MagicDNS name
+  (`Self.DNSName`, trailing dot dropped), the 100.x address; and `tailscale serve status --json` for an
+  https front. Cached briefly; never blocks a request. Not installed → say so and how.
+- **The QR prefers the tailnet.** `lan_status` gains `via: "tailscale" | "lan"` (persisted in lan.json;
+  default tailscale when it runs) and `tailscale: { installed, running, ip, name, serveUrl, error }`.
+  `pairUrl`: `serveUrl` → `http://<name>:41415` → `http://<LocalHostName>.local:41415` → the address.
+  Frames: `lan_via_set {via}`, `lan_serve_set {enabled}` (runs `tailscale serve --bg --https=443
+  http://127.0.0.1:41415`, or turns it off); errors from the CLI land in `tailscale.error` verbatim.
+  Funnel is never used.
+- **Behind `tailscale serve`** the request reaches the listener from loopback with the tailnet Host; the
+  cross-site check accepts an Origin that matches the Host, `X-Forwarded-Host`, or the tailnet name.
+- **Settings › phone** grows a "reach the Mac" block: Tailscale state, the via chooser, the https switch
+  with its URL, and the install hint. **Phone › Settings** shows which route it is on.
+- Re-pairing once per new origin is expected; the code field handles it. README "Phone, anywhere";
+  SECURITY: the tailnet replaces the Wi‑Fi as the trust boundary; the pairing code still gates devices.
