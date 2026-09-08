@@ -16,6 +16,8 @@ export interface GlobalSkill {
   path: string;
   isLink: boolean;
   description: string | null;
+  /** Where it came from, when known (mod/skill-sources.ts describeGlobal): the checkout a link points into, or the repo the `skills` CLI recorded. */
+  source?: string | null;
 }
 
 export const globalSkillsDir = (): string => process.env.LETTA_HOME ? join(process.env.LETTA_HOME, "skills") : join(homedir(), ".letta", "skills");

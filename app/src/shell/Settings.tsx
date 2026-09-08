@@ -7,6 +7,7 @@ import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "..
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { Phone, type PhoneApi } from "../settings/Phone";
+import { Skills, type GlobalSkillsApi } from "../settings/Skills";
 import type { BootstrapStatus } from "./bootstrap";
 
 /** What launch did about the mod and the skill (src-tauri/src/install.rs). */
@@ -27,8 +28,8 @@ interface Tools {
 const HOME = "~/.letta/loki";
 
 /** The pages down the left. "letta" gathers what loki runs on: harness, mod, requirements, install. */
-export type SettingsPage = "letta" | "providers" | "phone" | "chat" | "files" | "keys";
-export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "providers" }, { id: "phone" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+export type SettingsPage = "letta" | "providers" | "phone" | "skills" | "chat" | "files" | "keys";
+export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
 const PAGE_KEY = "loki.settingsPage";
 export function isSettingsPage(v: unknown): v is SettingsPage {
   return PAGES.some((p) => p.id === v);
@@ -56,6 +57,7 @@ export function Settings({
   bootstrap,
   onInstallLetta,
   phone,
+  globalSkills,
 }: {
   appServerStatus: "connecting" | "open" | "closed" | "unavailable";
   tunnelUrl: string | null;
@@ -76,6 +78,8 @@ export function Settings({
   onInstallLetta: () => Promise<void>;
   /** The LAN listener and paired phones (useDesk().phone). */
   phone: PhoneApi;
+  /** ~/.letta/skills, which every agent reads (Settings › skills). */
+  globalSkills: GlobalSkillsApi;
 }) {
   const [appServerUrl, setAppServerUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -161,6 +165,13 @@ export function Settings({
           <>
             <Section title="phone" hint="the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install">
               <Phone phone={phone} connected={modConnection === "open"} />
+            </Section>
+          </>
+        )}
+        {page === "skills" && (
+          <>
+            <Section title="skills" hint="~/.letta/skills — every agent reads these; an agent's own skills are on its page">
+              <Skills api={globalSkills} />
             </Section>
           </>
         )}

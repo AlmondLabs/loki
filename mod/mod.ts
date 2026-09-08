@@ -246,7 +246,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       read: (id, path) => readMemoryFile(id, path),
       log: (id, opts) => memoryLog(id, opts),
       diff: (id, sha) => memoryDiff(id, sha),
-      globalSkills: () => listGlobalSkills(),
+      globalSkills: () => listGlobalSkills().map((g) => ({ ...g, source: skillSources.describeGlobal(g) })),
       install: (id, source, force) => installSkill(source, id, { force }),
     },
   });

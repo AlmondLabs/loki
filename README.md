@@ -61,18 +61,19 @@ rail of five segments sits on the left, and one view fills the rest:
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Board** (⌘3): tasks for later, see below.
-- **Agents** (⌘4): one page per agent — its face, name, description and model (editable), its memory as a
-  browsable tree with the git history of what it learned (click a commit for the diff), and its skills, one line each in
-  two groups. **Self** are the ones the agent (or you) wrote; "write" adds one here (a name and the markdown; it lands as
-  `skills/<name>/SKILL.md`), "install" takes a source the CLI knows (`owner/repo/path`, `official/<path>`, `clawhub/<slug>`,
-  a GitHub or SKILL.md URL). **Other** came from somewhere else, named on the row — a checkout linked into `~/.letta/skills`,
-  a repo the `skills` CLI recorded, a source you typed once. Pick a skill and it opens on the right with its origin, whether
-  the agent has edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is
-  replaced and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens
-  with a request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
-  current. A skill nobody recorded a source for asks for one the first time. **Global skills** (`~/.letta/skills`, which every
-  agent reads) stay folded at the bottom until asked for, with disable and "enable a folder".
-- **Settings** (⌘5, ⌘,): six pages down the left, one showing at a time, the last one remembered for the
+- **Agents** (⌘4): one tab per agent, then four pages down the left. **profile**: face, name, description and model
+  (editable), effort and context, where it is working (its live desks, each a link, and its open tasks), and delete at
+  the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
+  this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right. **skills**:
+  one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
+  source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
+  **other**, installed from somewhere named on the row (a checkout linked into `~/.letta/skills`, a repo the `skills`
+  CLI recorded, a source you typed once). Pick a skill and it opens on the right with its origin, whether the agent has
+  edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is replaced
+  and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
+  request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
+  current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
+- **Settings** (⌘5, ⌘,): seven pages down the left, one showing at a time, the last one remembered for the
   window. **letta**: which harness the app is on, how it reaches the mod, requirements and install status.
   **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN

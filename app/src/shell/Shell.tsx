@@ -465,7 +465,7 @@ export function Shell() {
                 setChatPrefill({ text, tick: Date.now() });
               }}
               onUpdateAgent={catchUp.updateAgent}
-              write={{ createAgent: catchUp.createAgent, deleteAgent: catchUp.deleteAgent, writeMemory: catchUp.memory.write, removeMemory: catchUp.memory.remove, enableSkill: catchUp.skills.enable, disableSkill: catchUp.skills.disable }}
+              write={{ createAgent: catchUp.createAgent, deleteAgent: catchUp.deleteAgent, writeMemory: catchUp.memory.write, removeMemory: catchUp.memory.remove }}
               listModels={catchUp.listModels}
               onShowDesks={openTree}
               onShowBoard={() => setSegment("board")}
@@ -473,7 +473,7 @@ export function Shell() {
           )}
 
           {segment === "settings" && (
-            <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={setChatWidth} chatPlacement={chatPlacement} onChatPlacement={setChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={() => setModels(null)} bootstrap={boot.status} onInstallLetta={boot.install} phone={desk.phone} />
+            <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={setChatWidth} chatPlacement={chatPlacement} onChatPlacement={setChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={() => setModels(null)} bootstrap={boot.status} onInstallLetta={boot.install} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} />
           )}
 
           {welcome && segment !== "settings" && (

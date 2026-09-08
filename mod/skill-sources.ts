@@ -122,6 +122,13 @@ export class SkillSources {
     return null;
   }
 
+  /** A global skill's provenance in a few words: the checkout its link points into, or the repo the lock file names; null when neither. */
+  describeGlobal(g: { name: string; path: string; isLink: boolean }): string | null {
+    if (g.isLink) return localSource(g.path).label;
+    const locked = readLock(this.opts.lockFile ?? DEFAULT_LOCK).find((e) => e.name === g.name);
+    return locked ? locked.source : null;
+  }
+
   /** Remember a source the user typed for this agent's skill; returns the parsed source or throws. */
   remember(agentId: string, name: string, spec: string): SkillSource {
     const parsed = parseSource(spec);

@@ -119,7 +119,7 @@ export function AgentPage({ agentId, name, desks, api, banner, onBack }: { agent
             })}
 
             <section>
-              <Heading>learned recently</Heading>
+              <Heading>changes</Heading>
               {commits === null && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 4px" }}>reading the log…</div>}
               {commits?.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 4px" }}>no memory commits yet</div>}
               <div style={{ display: "grid", gap: 2 }}>

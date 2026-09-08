@@ -11,6 +11,7 @@ import { btn, kbd } from "../chat/ui";
 import type { Task } from "../board/model";
 import { ago } from "../board/model";
 import { stripFrontmatter } from "../phone/model";
+import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, DEFAULT_AGENT_PAGE, isAgentPage, type AgentPage } from "./pages";
 
 export interface AgentDetails {
   agent: LocalAgent;
@@ -38,8 +39,6 @@ export interface AgentsWrite {
   deleteAgent: (agentId: string) => Promise<string | null>;
   writeMemory: (agentId: string, path: string, content: string, message?: string) => Promise<string | null>;
   removeMemory: (agentId: string, path: string, message?: string) => Promise<string | null>;
-  enableSkill: (path: string) => Promise<string | null>;
-  disableSkill: (name: string) => Promise<string | null>;
 }
 
 /**
@@ -88,7 +87,24 @@ export function Agents({
   }, [agents, selected]);
   const [details, setDetails] = useState<Record<string, AgentDetails | null | undefined>>({});
   const [commits, setCommits] = useState<Record<string, MemoryCommit[]>>({});
-  const [view, setView] = useState<{ kind: "file"; path: string } | { kind: "commit"; sha: string } | null>(null);
+  /** The page down the left, remembered for the window; and what each page has picked. */
+  const [page, setPageState] = useState<AgentPage>(() => {
+    const saved = sessionStorage.getItem(AGENT_PAGE_KEY);
+    return isAgentPage(saved) ? saved : DEFAULT_AGENT_PAGE;
+  });
+  const pick = (p: AgentPage) => {
+    setPageState(p);
+    sessionStorage.setItem(AGENT_PAGE_KEY, p);
+  };
+  const [filePath, setFilePath] = useState("system/persona.md");
+  const [sha, setSha] = useState<string | null>(null);
+  const [skillName, setSkillName] = useState<string | null>(null);
+  const dNow = selected ? details[selected] : undefined;
+  const logNow = selected ? commits[selected] ?? [] : [];
+  const shownSkill = dNow ? dNow.skills.find((x) => x.name === skillName) ?? dNow.skills[0] ?? null : null;
+  const shownSha = sha ?? logNow[0]?.sha ?? null;
+  /** What the reading pane shows: the memory file, the commit, or the skill's SKILL.md — by page. */
+  const view: { kind: "file"; path: string } | { kind: "commit"; sha: string } | null = page === "memory" ? { kind: "file", path: filePath } : page === "changes" ? (shownSha ? { kind: "commit", sha: shownSha } : null) : page === "skills" ? (shownSkill ? { kind: "file", path: shownSkill.path } : null) : null;
   const [content, setContent] = useState<string | null>(null);
   const [loadingView, setLoadingView] = useState(false);
   const [models, setModels] = useState<string[] | null>(null);
@@ -102,7 +118,9 @@ export function Agents({
   };
   useEffect(() => {
     if (!selected) return;
-    setView({ kind: "file", path: "system/persona.md" });
+    setFilePath("system/persona.md");
+    setSha(null);
+    setSkillName(null);
     if (details[selected] === undefined) void load(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
@@ -124,8 +142,8 @@ export function Agents({
 
   const d = selected ? details[selected] : undefined;
   const log = selected ? commits[selected] ?? [] : [];
-  /** The skill the right pane is showing, when the open file is a skill's SKILL.md. */
-  const viewSkill = view?.kind === "file" && d ? d.skills.find((s) => s.path === view.path) ?? null : null;
+  /** The skill the reading pane is showing, on the skills page. */
+  const viewSkill = page === "skills" ? shownSkill : null;
   const myDesks = useMemo(() => desks.filter((x) => x.agentId === selected && x.status === "live"), [desks, selected]);
   const myTasks = useMemo(() => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assignedAgentId === selected || t.assignee === d?.agent.name)), [tasks, selected, d]);
   const flash = (m: string) => {
@@ -143,10 +161,6 @@ export function Agents({
   const [confirmDelete, setConfirmDelete] = useState(false);
   /** The skills section's add form (write here, or install from a source), and whether the global list is unfolded. */
   const [adding, setAdding] = useState<null | "write" | "install">(null);
-  const [showGlobal, setShowGlobal] = useState(false);
-  const [globalSkills, setGlobalSkills] = useState<GlobalSkill[] | null>(null);
-  const loadGlobal = () => void api.globalSkills().then(setGlobalSkills);
-  useEffect(loadGlobal, []); // eslint-disable-line react-hooks/exhaustive-deps
   const created = async (opts: { personality: Personality; name: string; description?: string; model?: string }) => {
     const r = await write.createAgent(opts);
     if ("error" in r) return r.error;
@@ -183,7 +197,8 @@ export function Agents({
     if (err) return err;
     flash(`${name} added`);
     void load(selected);
-    setView({ kind: "file", path });
+    setSkillName(name);
+    pick("skills");
     return null;
   };
   const installSkill = async (source: string) => {
@@ -259,164 +274,208 @@ export function Agents({
       {!creating && selected && d === undefined && <Empty text="reading the agent…" />}
       {!creating && selected && d === null && <Empty text="This agent has no local record on this machine (a remote or hidden agent)." />}
       {!creating && selected && d && (
-        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "minmax(300px, 380px) 1fr", gap: 0 }}>
-          {/* left: identity, memory tree, skills, where */}
-          <div style={{ overflowY: "auto", padding: "18px 20px 24px 24px", borderRight: "1px solid var(--loki-border)", display: "grid", gap: 22, alignContent: "start" }}>
-            <Identity d={d} avatar={avatar(selected)} models={models} onLoadModels={() => void listModels().then((m) => setModels(m.map((e) => e.handle)))} onSave={save} />
-            {/* where it is working: a line, not a section */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>
-              <span>{myDesks.length} desk{myDesks.length === 1 ? "" : "s"} live · {myTasks.length} task{myTasks.length === 1 ? "" : "s"}</span>
-              <span style={{ flex: 1 }} />
-              <button onClick={() => onOpenDesk(selected, "default")} style={{ ...btn(), padding: "2px 8px", fontSize: 10.5 }}>main chat</button>
-              <button onClick={onShowDesks} title="the desk tree (⌘K)" style={{ ...btn(), padding: "2px 8px", fontSize: 10.5 }}>desks</button>
-              <button onClick={onShowBoard} title="the board (⌘3)" style={{ ...btn(), padding: "2px 8px", fontSize: 10.5 }}>board</button>
+        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "150px 1fr" }}>
+          {/* Pages down the left, the way Settings has them; the page is remembered for the window. */}
+          <nav aria-label="agent pages" style={{ display: "grid", alignContent: "start", gap: 2, padding: "18px 12px 18px 20px", borderRight: "1px solid var(--loki-border)" }}>
+            {AGENT_PAGES.map((p) => (
+              <button key={p} type="button" onClick={() => pick(p)} aria-current={page === p ? "page" : undefined} style={{ textAlign: "left", background: page === p ? "var(--loki-panel)" : "transparent", border: "1px solid", borderColor: page === p ? "var(--loki-border)" : "transparent", borderRadius: 8, padding: "6px 10px", color: page === p ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-display)", fontSize: 15 }}>
+                {p}
+              </button>
+            ))}
+          </nav>
+
+          <div style={{ minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "auto minmax(0, 1fr)" }}>
+            <div style={{ padding: "18px 28px 10px", display: "flex", alignItems: "baseline", gap: 12, borderBottom: "1px solid var(--loki-border)" }}>
+              <span style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>{page}</span>
+              <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{AGENT_PAGE_HINT[page]}</span>
             </div>
 
-            <section>
-              <Head>memory{d.lastCommit ? <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>last change {ago(d.lastCommit.at)}</span> : null}</Head>
-              <Tree files={d.files.filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")} current={view?.kind === "file" ? view.path : null} onPick={(p) => setView({ kind: "file", path: p })} />
-            </section>
+            {page === "profile" && (
+              <div style={{ minHeight: 0, overflowY: "auto", padding: "22px 28px 32px" }}>
+                <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
+                  <Identity d={d} avatar={avatar(selected)} models={models} onLoadModels={() => void listModels().then((m) => setModels(m.map((e) => e.handle)))} onSave={save} />
 
-            {/* One line per skill, in two groups. Self: the agent (or you) wrote it. Other: installed from somewhere,
-                named on the right. Pick a row and the skill opens on the right, with refresh and remove up there. */}
-            <section>
-              <Head>
-                skills
-                <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
-                  <button className="loki-label" onClick={() => setAdding(adding === "write" ? null : "write")} aria-pressed={adding === "write"} style={{ ...headBtn, color: adding === "write" ? "var(--loki-accent)" : undefined }}>write</button>
-                  <button className="loki-label" onClick={() => setAdding(adding === "install" ? null : "install")} aria-pressed={adding === "install"} style={{ ...headBtn, color: adding === "install" ? "var(--loki-accent)" : undefined }}>install</button>
-                </span>
-              </Head>
-              {adding && <SkillAdd key={adding} mode={adding} onWrite={addSkill} onInstall={installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
-              {d.skills.length === 0 && !adding && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none in memory</div>}
-              <div style={{ display: "grid", gap: 8 }}>
-                {(["self", "other"] as const).map((origin) => {
-                  const list = d.skills.filter((s) => (s.origin ?? "self") === origin);
-                  if (list.length === 0) return null;
-                  return (
-                    <div key={origin}>
-                      <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{origin === "self" ? `self · ${list.length}` : `other · ${list.length}`}</div>
-                      {list.map((s) => {
-                        const on = view?.kind === "file" && view.path === s.path;
-                        return (
-                          <button key={s.name} onClick={() => setView({ kind: "file", path: s.path })} title={s.description ?? s.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: on ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--loki-mono)" }}>{s.name}</span>
-                            {origin === "other" && (
-                              <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: s.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 0 auto", maxWidth: "45%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={s.source ? `from ${s.source.label}` : "source unknown"}>
-                                {s.source ? s.source.label : "source?"}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
+                  <section>
+                    <Head>
+                      desks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
+                    </Head>
+                    {myDesks.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no live desks</div>}
+                    <div style={{ display: "grid", gap: 2 }}>
+                      {myDesks.map((x) => (
+                        <button key={x.scope} onClick={() => onOpenDesk(selected, x.conversationId ?? "default")} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", textAlign: "left", padding: "5px 8px", border: "none", borderRadius: 6, background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
+                          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
+                        </button>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            </section>
+                    <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
+                      <button onClick={() => onOpenDesk(selected, "default")} style={btn("var(--loki-accent)")}>main chat</button>
+                      <button onClick={onShowDesks} style={btn()}>the desk tree <kbd style={kbd}>⌘K</kbd></button>
+                    </div>
+                  </section>
 
-            {/* Every agent reads these; they are not this agent's, so they stay folded until asked for. */}
-            <section>
-              <Head>
-                <button className="loki-label" onClick={() => setShowGlobal((v) => !v)} aria-expanded={showGlobal} style={{ ...headBtn, display: "inline-flex", gap: 6, alignItems: "baseline" }}>
-                  <span aria-hidden style={{ display: "inline-block", width: 8, transform: showGlobal ? "rotate(90deg)" : "none", transition: "transform 120ms ease-out" }}>▸</span>
-                  global skills
-                </button>
-                <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{globalSkills?.length || ""}</span>
-              </Head>
-              {showGlobal && (
-                <>
-                  <div style={{ fontSize: 12, color: "var(--loki-muted)", margin: "0 8px 6px", lineHeight: 1.4 }}>~/.letta/skills — every agent reads these</div>
-                  {globalSkills === null && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>reading…</div>}
-                  {globalSkills?.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none</div>}
-                  <div style={{ display: "grid", gap: 2 }}>
-                    {(globalSkills ?? []).map((g) => (
-                      <div key={g.name} className="loki-tree-row" style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 0 2px 8px", borderRadius: 6 }} title={g.description ?? g.path}>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
-                        {g.isLink && <span style={{ fontSize: 9.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>link</span>}
-                        <button onClick={() => void write.disableSkill(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), loadGlobal())))} style={{ ...btn(), padding: "2px 7px", marginRight: 6, fontSize: 10.5 }}>disable</button>
+                  <section>
+                    <Head>
+                      tasks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{myTasks.length ? `${myTasks.length} open` : ""}</span>
+                    </Head>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
+                      <span>{myTasks.length === 0 ? "nothing assigned" : `${myTasks.length} assigned on the board`}</span>
+                      <button onClick={onShowBoard} style={btn()}>board <kbd style={kbd}>⌘3</kbd></button>
+                    </div>
+                  </section>
+
+                  <div style={{ paddingTop: 8 }}>
+                    {confirmDelete ? (
+                      <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
+                        <span>
+                          Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live desk${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.` : ""}
+                          {myTasks.length ? ` ${myTasks.length} open task${myTasks.length === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
+                        </span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button onClick={() => void remove()} style={btn("var(--loki-negative)")}>delete {d.agent.name}</button>
+                          <button onClick={() => setConfirmDelete(false)} style={btn()}>keep</button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                  <PathAdd onAdd={(path) => write.enableSkill(path).then((err) => (err ? err : (flash("enabled"), loadGlobal(), null)))} />
-                </>
-              )}
-            </section>
-
-            <div style={{ paddingTop: 8 }}>
-              {confirmDelete ? (
-                <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
-                  <span>
-                  Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live desk${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? "…" : ""}) go with it.` : "It has no live desks."}
-                  {myTasks.length ? ` ${myTasks.length} open task${myTasks.length === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
-                </span>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => void remove()} style={btn("var(--loki-negative)")}>delete {d.agent.name}</button>
-                    <button onClick={() => setConfirmDelete(false)} style={btn()}>keep</button>
+                    ) : (
+                      <button onClick={() => setConfirmDelete(true)} style={{ ...btn(), color: "var(--loki-muted)", fontSize: 10.5 }}>delete this agent…</button>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)} style={{ ...btn(), color: "var(--loki-muted)", fontSize: 10.5 }}>delete this agent…</button>
-              )}
-            </div>
-          </div>
+              </div>
+            )}
 
-          {/* right: the file or the diff, and the history */}
-          <div style={{ minWidth: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr) auto", overflow: "hidden" }}>
-            <div style={{ minHeight: 0, overflowY: "auto", padding: "18px 28px 24px" }}>
-              {view && (
-                <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: viewSkill ? 6 : 12 }}>
-                  <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{view.kind === "file" ? view.path : `commit ${view.sha.slice(0, 8)}`}</span>
-                  {loadingView && <span>loading…</span>}
-                  <span style={{ flex: 1 }} />
-                  {viewSkill && viewSkill.origin === "other" && (
-                    <button onClick={() => void refreshSkill(viewSkill).then((err) => err && flash(err))} disabled={refreshing === viewSkill.name} title={viewSkill.source ? `pull the latest from ${viewSkill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"} style={{ ...btn("var(--loki-accent)"), opacity: refreshing === viewSkill.name ? 0.5 : 1 }}>
-                      {refreshing === viewSkill.name ? "refreshing…" : "refresh"}
-                    </button>
-                  )}
-                  {viewSkill && (
-                    <button onClick={() => void removeSkill(viewSkill)} title={`remove ${viewSkill.name} from ${d.agent.name}'s memory`} style={btn()}>
-                      remove
-                    </button>
-                  )}
-                  {view.kind === "file" && !viewSkill && (
-                    <button onClick={() => onAskToUpdate(selected, `In your memory file \`${view.path}\`, please update: `)} style={btn("var(--loki-accent)")} title="opens the agent's main chat with the request started">
+            {page === "memory" && (
+              <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
+                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
+                  <Head>files{d.lastCommit ? <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>last change {ago(d.lastCommit.at)}</span> : null}</Head>
+                  <Tree files={d.files.filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")} current={filePath} onPick={setFilePath} />
+                </div>
+                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 28px 24px" }}>
+                  <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 12 }}>
+                    <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{filePath}</span>
+                    {loadingView && <span>loading…</span>}
+                    <span style={{ flex: 1 }} />
+                    <button onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)} style={btn("var(--loki-accent)")} title="opens the agent's main chat with the request started">
                       ask {d.agent.name} to update this
                     </button>
+                  </div>
+                  {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here (binary, too large, or gone)</div>}
+                  {content !== null && (
+                    <div className="loki-chat" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760 }}>
+                      <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+                    </div>
                   )}
                 </div>
-              )}
-              {viewSkill && (
-                <div style={{ display: "grid", gap: 4, marginBottom: 14 }}>
-                  <div style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", color: viewSkill.origin === "other" && !viewSkill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
-                    {viewSkill.origin === "self" ? `written by ${d.agent.name}` : viewSkill.source ? `from ${viewSkill.source.label}` : "installed · source unknown"}
-                    {viewSkill.origin === "other" && viewSkill.edited ? ` · edited by ${d.agent.name} since` : ""}
-                  </div>
-                  {viewSkill.description && <div style={{ fontSize: 13.5, color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{viewSkill.description}</div>}
-                  {needsSource === viewSkill.name && <SourceAsk name={viewSkill.name} onGo={(src) => refreshSkill(viewSkill, src)} onCancel={() => setNeedsSource(null)} />}
-                </div>
-              )}
-              {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here (binary, too large, or gone)</div>}
-              {content !== null && view?.kind === "file" && (
-                <div className="loki-chat" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760 }}>
-                  <Markdown remarkPlugins={[remarkGfm]}>{viewSkill ? stripFrontmatter(content) : content}</Markdown>
-                </div>
-              )}
-              {content !== null && view?.kind === "commit" && <Diff text={content} />}
-            </div>
-            <div style={{ borderTop: "1px solid var(--loki-border)", maxHeight: 220, overflowY: "auto", padding: "10px 28px 14px" }}>
-              <Head>learned recently</Head>
-              {log.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>no memory commits yet</div>}
-              <div style={{ display: "grid", gap: 2 }}>
-                {log.map((c) => (
-                  <button key={c.sha} onClick={() => setView({ kind: "commit", sha: c.sha })} style={{ display: "grid", gridTemplateColumns: "56px 1fr auto", gap: 10, alignItems: "baseline", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: view?.kind === "commit" && view.sha === c.sha ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 12 }}>
-                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>{ago(c.at)}</span>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.message}</span>
-                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", whiteSpace: "nowrap" }}>{c.files.length === 1 ? c.files[0].split("/").pop() : `${c.files.length} files`}</span>
-                  </button>
-                ))}
               </div>
-            </div>
+            )}
+
+            {page === "changes" && (
+              <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(320px, 440px) 1fr" }}>
+                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
+                  <Head>commits <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{log.length ? `last ${log.length}` : ""}</span></Head>
+                  {log.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no memory commits yet</div>}
+                  <div style={{ display: "grid", gap: 2 }}>
+                    {log.map((c) => {
+                      const on = c.sha === shownSha;
+                      return (
+                        <button key={c.sha} onClick={() => setSha(c.sha)} style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "2px 10px", alignItems: "baseline", textAlign: "left", padding: "6px 8px", border: "none", borderRadius: 6, background: on ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>{ago(c.at)}</span>
+                          <span style={{ lineHeight: 1.4 }}>{c.message}</span>
+                          <span />
+                          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 28px 24px" }}>
+                  {shownSha && (
+                    <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 12 }}>
+                      <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>commit {shownSha.slice(0, 8)}</span>
+                      {loadingView && <span>loading…</span>}
+                    </div>
+                  )}
+                  {!shownSha && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing learned yet</div>}
+                  {shownSha && content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here</div>}
+                  {shownSha && content !== null && <Diff text={content} />}
+                </div>
+              </div>
+            )}
+
+            {page === "skills" && (
+              <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
+                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
+                  <Head>
+                    skills
+                    <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
+                      <button className="loki-label" onClick={() => setAdding(adding === "write" ? null : "write")} aria-pressed={adding === "write"} style={{ ...headBtn, color: adding === "write" ? "var(--loki-accent)" : undefined }}>write</button>
+                      <button className="loki-label" onClick={() => setAdding(adding === "install" ? null : "install")} aria-pressed={adding === "install"} style={{ ...headBtn, color: adding === "install" ? "var(--loki-accent)" : undefined }}>install</button>
+                    </span>
+                  </Head>
+                  {adding && <SkillAdd key={adding} mode={adding} onWrite={addSkill} onInstall={installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
+                  {d.skills.length === 0 && !adding && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none in memory</div>}
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {(["self", "other"] as const).map((origin) => {
+                      const list = d.skills.filter((x) => (x.origin ?? "self") === origin);
+                      if (list.length === 0) return null;
+                      return (
+                        <div key={origin}>
+                          <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{origin} · {list.length}</div>
+                          {list.map((x) => {
+                            const on = shownSkill?.name === x.name;
+                            return (
+                              <button key={x.name} onClick={() => setSkillName(x.name)} title={x.description ?? x.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: on ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                                <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--loki-mono)" }}>{x.name}</span>
+                                {origin === "other" && (
+                                  <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: x.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 1 auto", minWidth: 0, maxWidth: "50%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={x.source ? `from ${x.source.label}` : "source unknown"}>
+                                    {x.source ? x.source.label : "source?"}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "var(--loki-muted)", padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
+                </div>
+                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 28px 24px" }}>
+                  {!viewSkill && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>}
+                  {viewSkill && (
+                    <>
+                      <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 6 }}>
+                        <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{viewSkill.path}</span>
+                        {loadingView && <span>loading…</span>}
+                        <span style={{ flex: 1 }} />
+                        {viewSkill.origin === "other" && (
+                          <button onClick={() => void refreshSkill(viewSkill).then((err) => err && flash(err))} disabled={refreshing === viewSkill.name} title={viewSkill.source ? `pull the latest from ${viewSkill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"} style={{ ...btn("var(--loki-accent)"), opacity: refreshing === viewSkill.name ? 0.5 : 1 }}>
+                            {refreshing === viewSkill.name ? "refreshing…" : "refresh"}
+                          </button>
+                        )}
+                        <button onClick={() => void removeSkill(viewSkill)} title={`remove ${viewSkill.name} from ${d.agent.name}'s memory`} style={btn()}>
+                          remove
+                        </button>
+                      </div>
+                      <div style={{ display: "grid", gap: 4, marginBottom: 14 }}>
+                        <div style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", color: viewSkill.origin === "other" && !viewSkill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+                          {viewSkill.origin === "self" ? `written by ${d.agent.name}` : viewSkill.source ? `from ${viewSkill.source.label}` : "installed · source unknown"}
+                          {viewSkill.origin === "other" && viewSkill.edited ? ` · edited by ${d.agent.name} since` : ""}
+                        </div>
+                        {viewSkill.description && <div style={{ fontSize: 13.5, color: "var(--loki-muted)", lineHeight: 1.5, maxWidth: 760 }}>{viewSkill.description}</div>}
+                        {needsSource === viewSkill.name && <SourceAsk name={viewSkill.name} onGo={(src) => refreshSkill(viewSkill, src)} onCancel={() => setNeedsSource(null)} />}
+                      </div>
+                      {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here</div>}
+                      {content !== null && (
+                        <div className="loki-chat" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760 }}>
+                          <Markdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</Markdown>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -542,35 +601,6 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
   );
 }
 
-function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> }) {
-  const [open, setOpen] = useState(false);
-  const [path, setPath] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const go = async () => {
-    if (busy || !path.trim()) return;
-    setBusy(true);
-    setError(null);
-    const err = await onAdd(path.trim().replace(/^~(?=\/|$)/, "$HOME"));
-    setBusy(false);
-    if (err) return setError(err);
-    setOpen(false);
-    setPath("");
-  };
-  if (!open) return <button onClick={() => setOpen(true)} style={{ ...btn(), marginTop: 8, justifySelf: "start" }}>enable a folder…</button>;
-  return (
-    <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-      <input autoFocus value={path} onChange={(e) => setPath(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="/absolute/path/to/a/folder/with/SKILL.md" autoComplete="off" data-form-type="other" style={{ width: "100%", boxSizing: "border-box", padding: "6px 10px", fontSize: 12, fontFamily: "var(--loki-mono)", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }} />
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
-        <span style={{ flex: 1 }} />
-        <button onClick={() => setOpen(false)} style={btn()}>cancel</button>
-        <button onClick={() => void go()} disabled={busy || !path.trim()} style={{ ...btn("var(--loki-accent)"), opacity: busy || !path.trim() ? 0.5 : 1 }}>enable</button>
-      </div>
-    </div>
-  );
-}
-
 function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails; avatar: string; models: string[] | null; onLoadModels: () => void; onSave: (body: { name?: string; description?: string; model?: string }) => Promise<void> }) {
   const [name, setName] = useState(d.agent.name);
   const [description, setDescription] = useState(d.agent.description ?? "");
@@ -680,6 +710,7 @@ function Head({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
