@@ -103,14 +103,15 @@ locks it out. The rail shows a brass dot on the settings icon while the switch i
 before switching it on somewhere you do not trust the network.
 
 **Phone, anywhere.** Install [Tailscale](https://tailscale.com/download) on the Mac and on the phone and sign in to
-the same account. Settings › phone then shows the Mac's tailnet name (`deepaks-macbook-pro.tail1234.ts.net`) under
-"reach the Mac", and the QR carries that name instead of the Wi‑Fi one, so the phone reaches the Mac from any
-network — the office, mobile data, a café — without a thought about which Wi‑Fi either is on. A pair of pills
-switches the QR back to "this Wi‑Fi" for a phone without Tailscale. The optional "serve over Tailscale (https)"
-switch runs `tailscale serve` in front of the listener so the phone gets an `https://<name>` origin; it needs HTTPS
-certificates enabled for your tailnet (Tailscale admin console › DNS) and stays inside the tailnet — loki never
-uses Funnel. Whichever way you switch, the address the phone bookmarked has changed, so it pairs once more:
-open Settings › phone, "pair a phone", and type the code on the phone's Settings page.
+the same account. Settings › phone then shows two routes under "route", Tailscale and this Wi‑Fi, each with the
+address a phone uses for it; the lit one is what the QR carries, and switching it redraws the QR at once. Over
+Tailscale (`deepaks-macbook-pro.tail1234.ts.net`) the phone reaches the Mac from any network — the office, mobile
+data, a café — without a thought about which Wi‑Fi either is on. Each paired phone in the list says which route its
+last request came in by ("via Tailscale", "via Wi‑Fi"), so there is never a question of which way you are connected.
+The small "https on the tailnet" switch runs `tailscale serve` in front of the listener so the phone gets an
+`https://<name>` origin; it needs HTTPS certificates enabled for your tailnet (Tailscale admin console › DNS) and
+stays inside the tailnet — loki never uses Funnel. Whichever way you switch, the address the phone bookmarked has
+changed, so it pairs once more:
 
 ## Layout
 

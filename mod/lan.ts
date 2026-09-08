@@ -4,7 +4,7 @@ import { hostname, networkInterfaces } from "node:os";
 import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";
 import type { Scope } from "../packages/core/src/desk-core.ts";
-import type { DeviceStore } from "./devices.ts";
+import type { DeviceStore, DeviceVia } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
 import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
@@ -29,6 +29,7 @@ export interface LanStatus {
   enabled: boolean;
   /** First non-internal IPv4 (en0 preferred), or null when the machine is off the network. */
   address: string | null;
+  /** Every Wi‑Fi/Ethernet address; the tailnet's 100.x address is in `tailscale.ip`, not here. */
   addresses: string[];
   /** The Mac's Bonjour name with `.local`: what the QR and the bookmark carry, because it survives a new address on a new network. */
   host: string | null;
@@ -123,7 +124,7 @@ export class LanListener {
 
   /** Synchronous: the Tailscale part is whatever the last refresh() (or the cache) said. */
   status(): LanStatus {
-    const addresses = lanAddresses(this.opts.interfaces);
+    const addresses = lanAddresses(this.opts.interfaces).filter((a) => !isTailnetAddress(a));
     const listening = this.server !== null;
     const tailscale = this.tailscale?.cached() ?? null;
     return {
@@ -295,7 +296,7 @@ export class LanListener {
   private readonly authorize: Authorize = (req) => {
     const token = deviceToken(req);
     if (!token || token === this.opts.desktopToken) return { ok: false };
-    const device = this.opts.devices.verify(token);
+    const device = this.opts.devices.verify(token, requestVia(req));
     return device ? { ok: true, deviceId: device.id } : { ok: false };
   };
 
@@ -437,6 +438,30 @@ export class Attempts {
     this.byIp.delete(ip);
   }
 }
+
+/**
+ * Which way a request reached the listener, so Settings can say "via Tailscale" next to a phone. A peer
+ * on the tailnet arrives from a 100.64.0.0/10 address; behind `tailscale serve` the proxy connects from
+ * loopback and names the peer in X-Forwarded-For (and the tailnet in Host). Everything else is the Wi‑Fi.
+ */
+export function requestVia(req: Pick<IncomingMessage, "headers"> & { socket?: { remoteAddress?: string | null } }): DeviceVia {
+  const remote = (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
+  if (isTailnetAddress(remote)) return "tailscale";
+  const forwarded = req.headers["x-forwarded-for"];
+  const peer = (Array.isArray(forwarded) ? forwarded[0] : forwarded ?? "").split(",")[0]?.trim() ?? "";
+  if (isLoopback(remote) && isTailnetAddress(peer)) return "tailscale";
+  const host = typeof req.headers.host === "string" ? req.headers.host.toLowerCase() : "";
+  if (isLoopback(remote) && /\.ts\.net(:\d+)?$/.test(host)) return "tailscale";
+  return "lan";
+}
+
+/** Tailscale hands every node an address in the CGNAT range 100.64.0.0/10 (100.64–100.127). */
+export function isTailnetAddress(ip: string): boolean {
+  const m = /^100\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/.exec(ip);
+  return !!m && Number(m[1]) >= 64 && Number(m[1]) <= 127;
+}
+
+const isLoopback = (ip: string) => ip === "127.0.0.1" || ip === "::1";
 
 /** Non-internal IPv4 addresses, en0 (the Mac's Wi‑Fi) first. */
 export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfaces> = networkInterfaces): string[] {

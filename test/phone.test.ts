@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, routeOf, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
+import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
 import type { AttentionItem } from "../packages/core/src/attention/model.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../packages/core/src/pairing-code.ts";
@@ -148,6 +148,19 @@ describe("lan_status with the route fields (addendum 3)", () => {
   });
   test("this Wi‑Fi chosen with Tailscale running: the QR carries the Bonjour name", () => {
     expect(pairOrigin(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }))).toBe("http://deepaks-macbook-pro.local:41415");
+  });
+  test("the QR follows the route while a code lives: same code, the other origin", () => {
+    // The mod built pair_code.url at minting; Settings rebuilds it from the current status, so switching
+    // the route never leaves a Tailscale pill over a .local QR.
+    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }), "K9HF6D")).toBe("http://deepaks-macbook-pro.local:41415/?code=K9HF6D");
+    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running }), "K9HF6D")).toBe("http://deepaks-macbook-pro.tail1234.ts.net:41415/?code=K9HF6D");
+    expect(pairUrlFor(lanStatusFromFrame({ enabled: true }), "K9HF6D")).toBeNull();
+  });
+  test("a phone's route reads as a word, or nothing when the mod never recorded one", () => {
+    expect(viaLabel("tailscale")).toBe("Tailscale");
+    expect(viaLabel("lan")).toBe("Wi‑Fi");
+    expect(viaLabel(undefined)).toBeNull();
+    expect(viaLabel("funnel")).toBeNull();
   });
   test("wrong shapes become their defaults; the CLI's error comes through verbatim", () => {
     const s = lanStatusFromFrame({ ...base, addresses: ["a", 3, null], tailscale: { installed: "yes", running: 1, ip: 7, error: "tailscale serve: HTTPS is not enabled for this tailnet" } });

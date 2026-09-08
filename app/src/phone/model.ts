@@ -92,9 +92,25 @@ export function routeOf(host: string, protocol: string): string {
 /** A fresh pairing code (`pair_code`). */
 export interface PairCode {
   code: string;
+  /** The URL the mod built when it minted the code; Settings prefers pairUrlFor(), which follows the route as it changes. */
   url: string;
   /** ISO time after which the code is refused. */
   expiresAt: string;
+}
+
+/**
+ * The URL the QR should carry now: the current route's origin plus the code. The mod's `pair_code.url`
+ * was built once, at minting; if the route is switched while the code lives, the QR must follow, or the
+ * pill says Tailscale while the phone is sent to the Wi‑Fi. Null when nothing can reach the Mac.
+ */
+export function pairUrlFor(s: PhoneLanStatus, code: string): string | null {
+  const origin = pairOrigin(s);
+  return origin ? `${origin}/?code=${encodeURIComponent(code)}` : null;
+}
+
+/** "Tailscale" or "Wi‑Fi": the word next to a phone for the route its last request used; null when the mod has not seen it since routes were recorded. */
+export function viaLabel(via: unknown): string | null {
+  return via === "tailscale" ? "Tailscale" : via === "lan" ? "Wi‑Fi" : null;
 }
 
 /** The pairing alphabet and length are the mod's (mod/pairing.ts); the URL itself comes from the mod in `pair_code`. */

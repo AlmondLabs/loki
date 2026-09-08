@@ -54,7 +54,7 @@ import { isLanVia } from "./lan.ts";
  *    lan_serve_set { enabled }     `tailscale serve --bg --https=443 http://127.0.0.1:<port>` or off; reply lan_status
  *                                  (a CLI complaint lands in tailscale.error, never in an error frame)
  *    pair_begin {}                 reply: pair_code { code, url, expiresAt }   (url = <serveUrl | http://<tailnet name>:<port> | http://<host>:<port>>/?code=<code>)
- *    devices_list {}               reply: devices { devices: [{ id, name, createdAt, lastSeenAt }] }
+ *    devices_list {}               reply: devices { devices: [{ id, name, createdAt, lastSeenAt, lastVia? }] }  (lastVia: "tailscale" | "lan", the route of the last request)
  *    device_forget { id }          broadcast devices (that device's sockets close)
  *    (lan_status is broadcast on enable/disable/bind error/via change/serve change/a tailnet change; devices on pair/forget/seen)
  */

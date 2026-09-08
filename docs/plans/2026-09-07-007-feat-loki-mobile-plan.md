@@ -429,3 +429,21 @@ tailscale to manage this properly. It will become easy for the rest of the users
   with its URL, and the install hint. **Phone › Settings** shows which route it is on.
 - Re-pairing once per new origin is expected; the code field handles it. README "Phone, anywhere";
   SECURITY: the tailnet replaces the Wi‑Fi as the trust boundary; the pairing code still gates devices.
+
+## Addendum 4 (2026-09-08): one route, lit
+
+Deepak, with Tailscale installed and the page in front of him: "I think we have to simplify the settings
+section. I don't know if I am connecting through tailscale or the regular route." The page had the answer
+in four places (the address line, "also …", the via pills, "the QR carries …") and got one of them wrong:
+the QR was built at minting, so a route switched while a code lived left a Tailscale pill over a `.local` QR.
+
+- **Four rows, four questions.** *phone*: the switch. *route*: two radio rows, Tailscale and this Wi‑Fi, each
+  carrying the address a phone uses for it; the lit one is what the QR carries. Without Tailscale there is one
+  row and the install hint; installed but signed out, the Tailscale row is present but cannot be lit. The
+  https switch sits under the lit Tailscale row only. *pair*: the QR, whose URL is rebuilt on the canvas from
+  the current status (`pairUrlFor`) so it follows the route. *phones*: each with "via Tailscale" / "via Wi‑Fi".
+- **The mod records the route.** `requestVia(req)`: a peer from 100.64.0.0/10 is the tailnet; loopback with a
+  100.x `X-Forwarded-For` or a `.ts.net` Host is `tailscale serve`; everything else is the Wi‑Fi. `DeviceStore.
+  verify(token, via)` keeps it as `lastVia`, written at once when it changes (the minute throttle still covers
+  a steady route). `devices` frames carry `lastVia?`; a phone not seen since shows no word.
+- The tailnet's own 100.x address no longer appears among the Wi‑Fi addresses (it had shown twice).

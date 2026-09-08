@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { LanListener, type LanStatus, bonjourHost, crossSite } from "../mod/lan.ts";
+import { LanListener, type LanStatus, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 import type { IncomingMessage } from "node:http";
@@ -196,6 +196,8 @@ describe("LAN listener", () => {
       const me = await fetch(`${base(f.lan)}/me`, { headers: { cookie: p.cookie } });
       expect(me.status).toBe(200);
       expect(await me.json()).toEqual({ deviceId: p.body.deviceId, name: "Deepak's iPhone" });
+      // The request came from loopback with no tailnet marks: the Wi‑Fi route, recorded on the device for Settings.
+      expect(f.devices.list()[0].lastVia).toBe("lan");
       const bearer = await fetch(`${base(f.lan)}/me`, { headers: { authorization: `Bearer ${p.token}` } });
       expect(bearer.status).toBe(200);
       expect((await fetch(`${base(f.lan)}/me`, { headers: { authorization: `Bearer ${DESKTOP}` } })).status).toBe(401);
@@ -417,6 +419,34 @@ describe("LAN listener", () => {
       await f.lan.refresh();
       expect(f.changes).toHaveLength(2);
       expect(f.changes[1][1]).toMatchObject({ via: "lan", tailscale: { running: false } });
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  test("the route of a request: a 100.x peer or tailscale serve on loopback is the tailnet; anything else is the Wi‑Fi", () => {
+    const req = (remoteAddress: string, headers: Record<string, string> = {}) => ({ headers, socket: { remoteAddress } });
+    expect(requestVia(req("100.74.177.93"))).toBe("tailscale");
+    expect(requestVia(req("::ffff:100.101.102.103"))).toBe("tailscale");
+    expect(requestVia(req("127.0.0.1", { "x-forwarded-for": "100.74.177.93", host: "deepaks-macbook-pro.tail1234.ts.net" }))).toBe("tailscale");
+    expect(requestVia(req("127.0.0.1", { host: "deepaks-macbook-pro.tail1234.ts.net:443" }))).toBe("tailscale");
+    expect(requestVia(req("192.168.1.20", { host: "deepaks-macbook-pro.local:41415" }))).toBe("lan");
+    expect(requestVia(req("::ffff:172.20.0.7"))).toBe("lan");
+    expect(requestVia(req("127.0.0.1"))).toBe("lan");
+    // A 100.x address is only the tailnet inside CGNAT space (100.64–100.127); 100.1.x is somebody's real network.
+    expect(requestVia(req("100.1.2.3"))).toBe("lan");
+    expect(requestVia(req("192.168.1.20", { "x-forwarded-for": "100.74.177.93" }))).toBe("lan"); // a header alone proves nothing
+    expect(isTailnetAddress("100.64.0.1")).toBe(true);
+    expect(isTailnetAddress("100.127.255.254")).toBe(true);
+    expect(isTailnetAddress("100.128.0.1")).toBe(false);
+    expect(isTailnetAddress("10.8.0.2")).toBe(false);
+  });
+
+  test("the tailnet's 100.x address is not listed among the Wi‑Fi addresses", async () => {
+    const f = fixture({ interfaces: () => ({ en0: [{ address: "192.168.1.3", family: "IPv4", internal: false }], utun4: [{ address: "100.74.177.93", family: "IPv4", internal: false }], lo0: [{ address: "127.0.0.1", family: "IPv4", internal: true }] }) as unknown as ReturnType<typeof networkInterfaces> });
+    try {
+      expect(f.lan.status().addresses).toEqual(["192.168.1.3"]);
+      expect(f.lan.status().address).toBe("192.168.1.3");
     } finally {
       f.cleanup();
     }

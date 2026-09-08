@@ -74,4 +74,40 @@ describe("device store", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test("the route of the last request is kept, and a change of route is written at once", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-devices-"));
+    try {
+      const path = join(dir, "devices.json");
+      let now = Date.parse("2026-09-08T10:00:00Z");
+      const store = new DeviceStore(path, { now: () => now });
+      const seen: string[] = [];
+      store.onSeen = (d) => seen.push(d.lastVia ?? "?");
+      const a = store.mint("a");
+      expect(store.list()[0]).not.toHaveProperty("lastVia"); // never seen: the canvas shows no route
+      // First request, seconds after pairing: the route is new, so it is written despite the throttle.
+      now += 5_000;
+      store.verify(a.token, "lan");
+      expect(store.list()[0].lastVia).toBe("lan");
+      expect(JSON.parse(readFileSync(path, "utf8"))[0].lastVia).toBe("lan");
+      expect(seen).toEqual(["lan"]);
+      // Same route seconds later: throttled, no write, no callback.
+      now += 5_000;
+      store.verify(a.token, "lan");
+      expect(seen).toEqual(["lan"]);
+      // The phone leaves the Wi‑Fi for the tailnet: written at once.
+      now += 5_000;
+      store.verify(a.token, "tailscale");
+      expect(store.list()[0].lastVia).toBe("tailscale");
+      expect(JSON.parse(readFileSync(path, "utf8"))[0].lastVia).toBe("tailscale");
+      expect(seen).toEqual(["lan", "tailscale"]);
+      // A verify without a route (a caller that does not know) keeps the last one.
+      now += 120_000;
+      store.verify(a.token);
+      expect(store.list()[0].lastVia).toBe("tailscale");
+      expect(new DeviceStore(path).list()[0].lastVia).toBe("tailscale");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

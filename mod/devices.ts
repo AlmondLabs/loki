@@ -6,7 +6,7 @@ import { dirname } from "node:path";
  * Paired phones. Each holds a 32-byte token (in an HttpOnly cookie, see mod/lan.ts);
  * the file at state/devices.json keeps only the token's sha256, so reading the file
  * never yields a usable credential.
- *   [{ id, name, tokenHash, createdAt, lastSeenAt }]
+ *   [{ id, name, tokenHash, createdAt, lastSeenAt, lastVia? }]
  */
 export interface DeviceRecord {
   id: string;
@@ -15,7 +15,12 @@ export interface DeviceRecord {
   tokenHash: string;
   createdAt: string;
   lastSeenAt: string;
+  /** Which route the phone's last request came in by (mod/lan.ts requestVia); absent for a phone not seen since this field existed. */
+  lastVia?: DeviceVia;
 }
+
+/** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */
+export type DeviceVia = "tailscale" | "lan";
 
 /** What the canvas sees: never the hash. */
 export type DeviceSummary = Omit<DeviceRecord, "tokenHash">;
@@ -56,15 +61,21 @@ export class DeviceStore {
     return { id, token };
   }
 
-  /** The device a token belongs to, or null. Refreshes lastSeenAt; the file is rewritten at most once a minute per device. */
-  verify(token: string): DeviceRecord | null {
+  /**
+   * The device a token belongs to, or null. Refreshes lastSeenAt and, when given, the route the request
+   * came in by; the file is rewritten at most once a minute per device, or at once when the route changed
+   * (that is the fact Settings shows, and a phone switching Wi‑Fi for the tailnet should read so right away).
+   */
+  verify(token: string, via?: DeviceVia): DeviceRecord | null {
     if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return null;
     const hash = hashToken(token);
     const device = this.devices.find((d) => d.tokenHash === hash);
     if (!device) return null;
     const now = this.now();
-    if (now - Date.parse(device.lastSeenAt) >= SEEN_WRITE_INTERVAL_MS) {
+    const routeChanged = via !== undefined && via !== device.lastVia;
+    if (routeChanged || now - Date.parse(device.lastSeenAt) >= SEEN_WRITE_INTERVAL_MS) {
       device.lastSeenAt = new Date(now).toISOString();
+      if (via !== undefined) device.lastVia = via;
       this.persist();
       this.onSeen?.(device);
     }
@@ -87,7 +98,7 @@ export class DeviceStore {
   }
 
   list(): DeviceSummary[] {
-    return this.devices.map(({ id, name, createdAt, lastSeenAt }) => ({ id, name, createdAt, lastSeenAt }));
+    return this.devices.map(({ id, name, createdAt, lastSeenAt, lastVia }) => ({ id, name, createdAt, lastSeenAt, ...(lastVia ? { lastVia } : {}) }));
   }
 
   private persist(): void {
