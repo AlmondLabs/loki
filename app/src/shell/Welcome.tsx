@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { LAYER } from "../kit/layers";
-import { btn, kbd } from "../chat/ui";
+import { Button, Field, Sheet, Title } from "../ui";
 import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../packages/core/src/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";
@@ -68,82 +67,81 @@ export function Welcome({
   };
 
   return (
-    <div style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", display: "grid", placeItems: "start center", paddingTop: "10vh", zIndex: LAYER.modal, overflowY: "auto" }}>
-      <div role="dialog" aria-label="welcome" className="loki-sheet" style={{ width: 640, maxWidth: "92vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-sheet)", padding: "26px 28px 22px", display: "grid", gap: 18, marginBottom: 40 }}>
-        <div>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>Welcome to loki</div>
-          <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
-            A memory palace your agent builds. Two things before the first desk: a model to think with, and an agent to think.
-          </div>
+    // Nothing closes this sheet — it stays until the first agent exists — so the veil's click and Escape are no-ops.
+    <Sheet label="welcome" width={640} top="10vh" scroll style={{ padding: "26px 28px 22px", display: "grid", gap: 18 }}>
+      <div>
+        <Title page>Welcome to loki</Title>
+        <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
+          A memory palace your agent builds. Two things before the first desk: a model to think with, and an agent to think.
         </div>
-
-        <Step n={0} title="Letta Code" done={!lettaStep} active={lettaStep}>
-          {lettaStep ? (
-            <LettaInstall status={bootstrap} onRetry={onInstallLetta} />
-          ) : (
-            <span style={{ fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ? `${bootstrap.private ? "installed by loki · " : ""}${bootstrap.letta}` : "the harness this window is linked to"}</span>
-          )}
-        </Step>
-
-        <Step n={1} title="a model provider" done={connected} active={!showAgent && !lettaStep}>
-          {lettaStep ? (
-            <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>after Letta Code is in place</span>
-          ) : !showAgent ? (
-            <div style={{ display: "grid", gap: 10 }}>
-              <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onModelsChanged} shortlist />
-              <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--loki-muted)" }}>
-                <span>Keys are checked with the provider and kept by Letta on this Mac; loki never sees them again.</span>
-                <span style={{ flex: 1 }} />
-                <button type="button" onClick={() => setSkipProvider(true)} style={btn()}>
-                  {connected ? "next" : "skip for now"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{connected ? `${providers!.filter(isConnected).map((p) => p.display_name).join(", ")}` : "none yet — Settings › providers, any time"}</span>
-          )}
-        </Step>
-
-        <Step n={2} title="your first agent" active={showAgent}>
-          {showAgent && (
-            <div style={{ display: "grid", gap: 10 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
-              <Field label="name">
-                <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" style={input} />
-              </Field>
-              <Field label="description">
-                <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" style={input} />
-              </Field>
-              <Field label="personality">
-                <div role="radiogroup" style={{ display: "grid", gap: 4 }}>
-                  {PERSONALITIES.map((p) => (
-                    <button key={p.id} type="button" role="radio" aria-checked={personality === p.id} onClick={() => setPersonality(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, textAlign: "left", padding: "6px 10px", border: `1px solid ${personality === p.id ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: 6, background: personality === p.id ? "var(--loki-brass-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}>
-                      <span style={{ fontSize: 13.5, color: personality === p.id ? "var(--loki-accent)" : "var(--loki-fg)" }}>{p.label}</span>
-                      <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</span>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              <Field label="model">
-                <input list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the harness default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" style={{ ...input, fontFamily: "var(--loki-mono)" }} />
-                <datalist id="loki-welcome-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
-              </Field>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
-                {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
-                <span style={{ flex: 1 }} />
-                {step === "provider" && (
-                  <button type="button" onClick={() => setSkipProvider(false)} style={btn()}>
-                    back
-                  </button>
-                )}
-                <button type="button" onClick={() => void create()} disabled={busy || !name.trim()} style={{ ...btn("var(--loki-accent)"), opacity: busy || !name.trim() ? 0.5 : 1 }}>
-                  {busy ? "creating…" : "create and open the desk"} <kbd style={kbd}>↵</kbd>
-                </button>
-              </div>
-            </div>
-          )}
-        </Step>
       </div>
-    </div>
+
+      <Step n={0} title="Letta Code" done={!lettaStep} active={lettaStep}>
+        {lettaStep ? (
+          <LettaInstall status={bootstrap} onRetry={onInstallLetta} />
+        ) : (
+          <span style={{ fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ? `${bootstrap.private ? "installed by loki · " : ""}${bootstrap.letta}` : "the harness this window is linked to"}</span>
+        )}
+      </Step>
+
+      <Step n={1} title="a model provider" done={connected} active={!showAgent && !lettaStep}>
+        {lettaStep ? (
+          <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>after Letta Code is in place</span>
+        ) : !showAgent ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onModelsChanged} shortlist />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--loki-muted)" }}>
+              <span>Keys are checked with the provider and kept by Letta on this Mac; loki never sees them again.</span>
+              <span style={{ flex: 1 }} />
+              <Button size="sm" onClick={() => setSkipProvider(true)}>
+                {connected ? "next" : "skip for now"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{connected ? `${providers!.filter(isConnected).map((p) => p.display_name).join(", ")}` : "none yet — Settings › providers, any time"}</span>
+        )}
+      </Step>
+
+      <Step n={2} title="your first agent" active={showAgent}>
+        {showAgent && (
+          <div style={{ display: "grid", gap: 10 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
+            <Labelled label="name">
+              <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" />
+            </Labelled>
+            <Labelled label="description">
+              <Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" />
+            </Labelled>
+            <Labelled label="personality">
+              <div role="radiogroup" style={{ display: "grid", gap: 4 }}>
+                {PERSONALITIES.map((p) => (
+                  <button key={p.id} type="button" role="radio" aria-checked={personality === p.id} onClick={() => setPersonality(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, textAlign: "left", padding: "6px 10px", border: `1px solid ${personality === p.id ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: 6, background: personality === p.id ? "var(--loki-brass-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}>
+                    <span style={{ fontSize: 13.5, color: personality === p.id ? "var(--loki-accent)" : "var(--loki-fg)" }}>{p.label}</span>
+                    <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</span>
+                  </button>
+                ))}
+              </div>
+            </Labelled>
+            <Labelled label="model">
+              <Field mono list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the harness default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" />
+              <datalist id="loki-welcome-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
+            </Labelled>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+              {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+              <span style={{ flex: 1 }} />
+              {step === "provider" && (
+                <Button size="sm" onClick={() => setSkipProvider(false)}>
+                  back
+                </Button>
+              )}
+              <Button size="sm" tone="brass" kbd="↵" onClick={() => void create()} disabled={busy || !name.trim()}>
+                {busy ? "creating…" : "create and open the desk"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Step>
+    </Sheet>
   );
 }
 
@@ -168,17 +166,15 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
             Retry below, or install it yourself in a terminal and relaunch loki:
             <code style={{ display: "block", marginTop: 4, fontFamily: "var(--loki-mono)", padding: "6px 10px", background: "var(--loki-well)", borderRadius: 6 }}>npm install -g @letta-ai/letta-code</code>
           </div>
-          <button type="button" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ ...btn("var(--loki-accent)"), justifySelf: "start", opacity: busy ? 0.5 : 1 }}>
+          <Button size="sm" tone="brass" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ justifySelf: "start" }}>
             {busy ? "starting…" : "retry the install"}
-          </button>
+          </Button>
         </div>
       )}
       {!status?.error && status?.installing && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>Node 22 comes from nodejs.org if the Mac has none; Letta Code from registry.npmjs.org. A few minutes.</div>}
     </div>
   );
 }
-
-const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "7px 10px", fontSize: 13.5, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" };
 
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active: boolean; children: React.ReactNode }) {
   return (
@@ -194,7 +190,8 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** A labelled line of the form: the label column matches Settings' facts. */
+function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "start", fontSize: 12 }}>
       <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 9 }}>{label}</span>

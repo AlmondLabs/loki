@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Chip, Meta, Popover, Row } from "../ui";
 
 /**
  * The four permission modes the app-server knows, per conversation. Set with runtime_start { mode }
@@ -24,16 +25,11 @@ export function ModeChip({ mode, onClick, busy }: { mode: PermissionMode | null;
   const info = modeInfo(mode);
   const loud = info.id === "unrestricted";
   return (
-    <button
-      onClick={onClick}
-      title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
-      aria-label="permission mode"
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", border: `1px solid ${loud ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: 999, background: loud ? "var(--loki-brass-soft)" : "transparent", color: loud ? "var(--loki-accent)" : "var(--loki-muted)", fontFamily: "var(--loki-mono)", fontSize: 10.5, cursor: "pointer", whiteSpace: "nowrap", opacity: busy ? 0.6 : 1 }}
-    >
+    <Chip brass={loud} onClick={onClick} title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`} aria-label="permission mode" aria-busy={busy || undefined}>
       <Shield mode={info.id} />
       {busy ? "changing…" : info.short}
       <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
-    </button>
+    </Chip>
   );
 }
 
@@ -58,11 +54,13 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left" }: { 
   }, [open, current]);
   if (!open) return null;
   return (
-    <div
+    <Popover
       ref={ref}
       role="menu"
       aria-label="permission mode"
-      onPointerDown={(e) => e.stopPropagation()}
+      anchor={anchor}
+      width={300}
+      style={{ padding: 4 }}
       onKeyDown={(e) => {
         const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? [])];
         const i = items.indexOf(document.activeElement as HTMLElement);
@@ -73,17 +71,9 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left" }: { 
         e.preventDefault();
         e.stopPropagation();
       }}
-      style={{ position: "absolute", top: 30, [anchor]: 8, width: 300, zIndex: 20, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-float)", padding: 4 }}
     >
       {MODES.map((m) => (
-        <button
-          key={m.id}
-          role="menuitemradio"
-          aria-checked={m.id === (current ?? "unrestricted")}
-          onClick={() => onPick(m.id)}
-          className="loki-menu-row"
-          style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8, alignItems: "center", width: "100%", textAlign: "left", padding: "7px 8px", border: "none", borderRadius: 6, background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}
-        >
+        <Row key={m.id} dense role="menuitemradio" aria-checked={m.id === (current ?? "unrestricted")} onClick={() => onPick(m.id)} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8 }}>
           <span style={{ color: m.id === "unrestricted" ? "var(--loki-accent)" : "var(--loki-muted)", display: "grid", placeItems: "center" }}>
             <Shield mode={m.id} />
           </span>
@@ -92,9 +82,11 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left" }: { 
             <span style={{ fontSize: 10.5, color: "var(--loki-muted)", lineHeight: 1.4 }}>{m.description}</span>
           </span>
           <span style={{ fontSize: 10.5, color: "var(--loki-accent)", fontFamily: "var(--loki-mono)" }}>{m.id === (current ?? "unrestricted") ? "current" : ""}</span>
-        </button>
+        </Row>
       ))}
-      <div style={{ padding: "5px 8px 3px", fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>applies to this conversation · esc</div>
-    </div>
+      <div style={{ padding: "5px 8px 3px" }}>
+        <Meta>applies to this conversation · esc</Meta>
+      </div>
+    </Popover>
   );
 }

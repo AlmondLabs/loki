@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { needsReload, shouldAutoReload } from "./model";
+import { Button } from "../ui";
 import { SAFE } from "./ui";
 
 /** The build id index.html was served with; undefined on an index.html from before builds were stamped. */
@@ -63,12 +64,10 @@ export function UpdateBar({ servedBuild, withTabBar }: { servedBuild: string | n
 
   if (!needsReload(servedBuild, current) && !needsReload(health, current)) return null;
   return (
-    <button
-      type="button"
-      onClick={() => location.reload()}
-      style={{ flex: "0 0 auto", display: "block", width: "100%", minHeight: 36, padding: `8px calc(12px + ${SAFE.right}) ${withTabBar ? "8px" : `calc(8px + ${SAFE.bottom})`} calc(12px + ${SAFE.left})`, border: "none", borderTop: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-accent)", fontFamily: "var(--loki-mono)", fontSize: 12, letterSpacing: "0.06em", textAlign: "center", cursor: "pointer", WebkitTapHighlightColor: "transparent" }}
-    >
-      loki updated · tap to reload
-    </button>
+    <div style={{ flex: "0 0 auto", padding: `6px calc(12px + ${SAFE.right}) ${withTabBar ? "6px" : `calc(6px + ${SAFE.bottom})`} calc(12px + ${SAFE.left})`, borderTop: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}>
+      <Button block size="touch" tone="brass" onClick={() => location.reload()}>
+        loki updated · tap to reload
+      </Button>
+    </div>
   );
 }

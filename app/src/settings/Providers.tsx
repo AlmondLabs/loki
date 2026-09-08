@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
-import { btn } from "../chat/ui";
+import { Button, Chip, Dot, Field, Row } from "../ui";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, needsTerminal, sortProviders } from "./provider-model";
 
 /**
@@ -42,7 +42,8 @@ export function Providers({
   return (
     <div style={{ display: "grid", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <input
+        <Field
+          size="sm"
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -51,7 +52,7 @@ export function Providers({
           autoComplete="off"
           data-1p-ignore
           data-form-type="other"
-          style={{ flex: 1, padding: "6px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }}
+          style={{ flex: 1 }}
         />
         <span style={{ fontSize: 12, color: "var(--loki-muted)", whiteSpace: "nowrap" }}>{connectedCount === 0 ? "none connected" : `${connectedCount} connected`}</span>
       </div>
@@ -62,9 +63,9 @@ export function Providers({
         {shown.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "6px 8px" }}>nothing matches</div>}
       </div>
       {!more && !filter && sorted.length > shown.length && (
-        <button type="button" onClick={() => setMore(true)} style={{ ...btn(), justifySelf: "start" }}>
+        <Button size="sm" onClick={() => setMore(true)} style={{ justifySelf: "start" }}>
           {sorted.length - shown.length} more providers
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -102,9 +103,9 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
 
   return (
     <div style={{ border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`, borderRadius: 8, background: open ? "var(--loki-panel)" : "transparent" }}>
-      <button type="button" onClick={onToggle} aria-expanded={open} style={{ display: "grid", gridTemplateColumns: "8px 1fr auto", gap: 10, alignItems: "center", width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", borderRadius: 8 }}>
-        <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: connected ? "var(--loki-positive)" : "var(--loki-border)" }} />
-        <span style={{ display: "grid", gap: 1, minWidth: 0 }}>
+      <Row onClick={onToggle} aria-expanded={open}>
+        <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
+        <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: 13.5 }}>
             {p.display_name}
             {connected && <span className="loki-label" style={{ marginLeft: 8, fontSize: 9.5, color: "var(--loki-positive)" }}>connected</span>}
@@ -112,7 +113,7 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
           {p.description && !open && <span style={{ fontSize: 12, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</span>}
         </span>
         <span style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>{p.id}</span>
-      </button>
+      </Row>
       {open && (
         <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
           {p.description && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</div>}
@@ -126,9 +127,9 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
               {p.auth_methods && p.auth_methods.length > 1 && (
                 <div role="radiogroup" aria-label="how to sign in" style={{ display: "inline-flex", gap: 4 }}>
                   {p.auth_methods.map((m) => (
-                    <button key={m.id} type="button" role="radio" aria-checked={authMethodId === m.id} onClick={() => setMethod(m.id)} className="loki-label" style={{ padding: "4px 8px", fontSize: 9.5, border: `1px solid ${authMethodId === m.id ? "var(--loki-accent)" : "var(--loki-border)"}`, background: authMethodId === m.id ? "var(--loki-brass-soft)" : "transparent", color: authMethodId === m.id ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer" }}>
+                    <Chip key={m.id} label role="radio" aria-checked={authMethodId === m.id} active={authMethodId === m.id} onClick={() => setMethod(m.id)}>
                       {m.label}
-                    </button>
+                    </Chip>
                   ))}
                 </div>
               )}
@@ -138,7 +139,9 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
                     {f.label}
                     {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
                   </span>
-                  <input
+                  <Field
+                    size="sm"
+                    mono
                     type={f.secret ? "password" : "text"}
                     value={values[f.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
@@ -148,18 +151,17 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
                     spellCheck={false}
                     data-1p-ignore
                     data-form-type="other"
-                    style={{ padding: "6px 10px", fontSize: 12, fontFamily: "var(--loki-mono)", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }}
                   />
                 </label>
               ))}
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button type="button" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)} style={{ ...btn("var(--loki-accent)"), opacity: busy || !canConnect(fields, values) ? 0.5 : 1 }}>
+                <Button size="sm" tone="brass" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
                   {busy ? "checking…" : connected ? "replace the key" : "connect"}
-                </button>
+                </Button>
                 {connected && (
-                  <button type="button" onClick={() => void disconnect()} disabled={busy} style={btn()}>
+                  <Button size="sm" onClick={() => void disconnect()} disabled={busy}>
                     disconnect
-                  </button>
+                  </Button>
                 )}
                 {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
               </div>

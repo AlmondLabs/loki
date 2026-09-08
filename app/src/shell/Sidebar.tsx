@@ -1,5 +1,6 @@
 import { SEGMENTS, type Segment } from "./shortcuts";
 import { LAYER } from "../kit/layers";
+import { Dot } from "../ui";
 
 export const SIDEBAR_WIDTH = 48;
 
@@ -79,7 +80,7 @@ export function Sidebar({
               {isInbox && waiting > 0 && <Badge n={waiting} tone="accent" />}
               {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
               {/* The listener is on: the page is reachable from the Wi‑Fi, which is worth a brass dot (D11). */}
-              {s.id === "settings" && lanOn && <span aria-hidden style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: 3, background: "var(--loki-accent)", border: "1px solid var(--loki-panel)" }} />}
+              {s.id === "settings" && lanOn && <Dot aria-hidden halo color="var(--loki-accent)" style={{ position: "absolute", top: 3, right: 3 }} />}
             </button>
             <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
               {s.label}

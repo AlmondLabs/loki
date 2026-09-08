@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Chip, Dot, Field, Meta, Popover, Row } from "../ui";
 
 export interface ModelEntry {
   id: string;
@@ -42,6 +43,8 @@ export function ModelPicker({
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  /** The listbox's id; each option is `${listId}-opt-${index}` so the input can point at the highlighted one. */
+  const listId = useId();
 
   useEffect(() => {
     if (open) {
@@ -70,14 +73,10 @@ export function ModelPicker({
   if (!open) return null;
 
   return (
-    <div
-      role="dialog"
-      aria-label="choose a model"
-      onPointerDown={(e) => e.stopPropagation()}
-      style={{ position: "absolute", top: 30, [anchor]: 8, width: 360, maxWidth: "calc(100% - 16px)", zIndex: 20, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-float)", overflow: "hidden" }}
-    >
-      <input
+    <Popover role="dialog" aria-label="choose a model" anchor={anchor} width={360}>
+      <Field
         ref={inputRef}
+        bare
         type="search"
         name="model-search"
         autoComplete="off"
@@ -108,50 +107,48 @@ export function ModelPicker({
         }}
         placeholder={loading ? "loading models…" : "model… (provider/name)"}
         aria-label="filter models"
-        style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", fontSize: 13.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none" }}
+        role="combobox"
+        aria-expanded={true}
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-activedescendant={rows.length > 0 ? `${listId}-opt-${index}` : undefined}
       />
-      <div ref={listRef} role="listbox" style={{ maxHeight: 320, overflowY: "auto", padding: 4 }}>
+      <div ref={listRef} id={listId} role="listbox" aria-label="models" style={{ maxHeight: 320, overflowY: "auto", padding: 4 }}>
         {rows.map(({ e, group }, i) => {
           const prevGroup = i > 0 ? rows[i - 1].group : null;
           return (
-            <div key={e.handle}>
-              {group !== prevGroup && group && <div className="loki-label" style={{ fontSize: 9.5, padding: "6px 8px 2px" }}>{group}</div>}
-              <div
-                role="option"
-                data-index={i}
-                aria-selected={i === index}
-                onMouseEnter={() => setIndex(i)}
-                onClick={() => onPick(e.handle)}
-                style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "5px 8px", borderRadius: 6, cursor: "pointer", background: i === index ? "var(--loki-accent-soft)" : "transparent" }}
-              >
+            <div key={e.handle} role="presentation">
+              {group !== prevGroup && group && <div role="presentation" className="loki-label" style={{ fontSize: 9.5, padding: "6px 8px 2px" }}>{group}</div>}
+              <Row dense id={`${listId}-opt-${i}`} role="option" tabIndex={-1} data-index={i} aria-selected={i === index} onMouseEnter={() => setIndex(i)} onClick={() => onPick(e.handle)} style={{ alignItems: "baseline", gap: 8 }}>
                 <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: e.handle === current ? "var(--loki-accent)" : "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shortModel(e.handle)}</span>
                 <span style={{ fontSize: 10.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap" }}>
                   {e.handle === current ? "current" : e.isDefault ? "default" : e.isFeatured ? "featured" : e.label !== shortModel(e.handle) ? e.label : ""}
                 </span>
-              </div>
+              </Row>
             </div>
           );
         })}
-        {entries && rows.length === 0 && <div style={{ padding: 10, fontSize: 12, color: "var(--loki-muted)" }}>no model matches</div>}
+        {entries && rows.length === 0 && <div role="status" style={{ padding: 10, fontSize: 12, color: "var(--loki-muted)" }}>no model matches</div>}
       </div>
-      <div style={{ padding: "5px 10px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>↑↓ move · ↵ switch this conversation · esc</div>
-    </div>
+      <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
+        <Meta>↑↓ move · ↵ switch this conversation · esc</Meta>
+      </div>
+    </Popover>
   );
 }
 
 /** The chip that opens the picker: the short model name, quiet until hovered. */
 export function ModelChip({ model, onClick, busy }: { model: string | null; onClick: () => void; busy?: boolean }) {
   return (
-    <button
+    <Chip
       onClick={onClick}
       title={model ? `model: ${model} — click to change for this conversation` : "choose a model for this conversation"}
       aria-label="model"
-      className="loki-model-chip"
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", border: "1px solid var(--loki-border)", borderRadius: 999, background: "transparent", color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", fontSize: 10.5, cursor: "pointer", maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: busy ? 0.6 : 1 }}
+      aria-busy={busy || undefined} style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}
     >
-      <span aria-hidden style={{ width: 5, height: 5, borderRadius: 3, background: "var(--loki-muted)" }} />
+      <Dot size={5} color="var(--loki-muted)" aria-hidden />
       {busy ? "switching…" : shortModel(model)}
       <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
-    </button>
+    </Chip>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
+import { Toast } from "../ui";
 import { scopeFor } from "../../../packages/core/src/desk-core.ts";
 import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
 import { makeTransport } from "../attention/transport";
@@ -575,11 +576,7 @@ export function Shell() {
       </div>
 
       <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
-      {boardNotice && (
-        <div role="status" style={{ position: "absolute", left: "50%", bottom: 22, transform: "translateX(-50%)", padding: "8px 14px", borderRadius: 999, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", color: "var(--loki-fg)", fontSize: 12, boxShadow: "var(--loki-shadow-float)", zIndex: LAYER.toast, maxWidth: "70%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {boardNotice}
-        </div>
-      )}
+      {boardNotice && <Toast>{boardNotice}</Toast>}
 
       <NewDesk
         open={newDesk.open}

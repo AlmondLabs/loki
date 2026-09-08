@@ -3,7 +3,8 @@ import { modBase } from "../desk/env";
 import type { Me } from "./Pair";
 import { routeOf } from "./model";
 import { currentBuild } from "./UpdateBar";
-import { GUTTER, Scroll, TopBar, tap } from "./ui";
+import { Button, Dot, Title } from "../ui";
+import { GUTTER, Scroll, TopBar } from "./ui";
 
 /**
  * Settings on the phone: three short sections in the desktop's Section / Fact voice, stacked. What
@@ -55,20 +56,20 @@ export function Settings({
             <div role="alertdialog" aria-label="unpair this phone" style={{ display: "grid", gap: 10, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
               <span>This phone forgets the Mac and the Mac forgets it. Pairing again takes a fresh code from Settings › phone on the Mac.</span>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" onClick={() => setConfirm(false)} disabled={busy} style={{ ...tap(), flex: 1 }}>
+                <Button size="touch" onClick={() => setConfirm(false)} disabled={busy} style={{ flex: 1 }}>
                   keep
-                </button>
-                <button type="button" onClick={() => void unpair()} disabled={busy} style={{ ...tap("var(--loki-negative)"), flex: 1, borderColor: "var(--loki-negative)" }}>
+                </Button>
+                <Button size="touch" tone="negative" onClick={() => void unpair()} disabled={busy} style={{ flex: 1 }}>
                   {busy ? "unpairing…" : "unpair"}
-                </button>
+                </Button>
               </div>
               {error && <div role="alert" style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</div>}
             </div>
           ) : (
             <div>
-              <button type="button" onClick={() => setConfirm(true)} style={{ ...tap("var(--loki-negative)"), marginTop: 4 }}>
+              <Button size="touch" tone="negative" onClick={() => setConfirm(true)} style={{ marginTop: 4 }}>
                 unpair this phone
-              </button>
+              </Button>
             </div>
           )}
         </Section>
@@ -81,9 +82,9 @@ export function Settings({
           <Fact label="app-server" value={<Link state={appServerLink} />} />
           <Fact label="build" value={currentBuild() ?? "unstamped"} mono />
           <div>
-            <button type="button" onClick={() => location.reload()} style={{ ...tap(), marginTop: 4 }} title="a home-screen app has no reload button; this is it">
+            <Button size="touch" onClick={() => location.reload()} style={{ marginTop: 4 }} title="a home-screen app has no reload button; this is it">
               reload the app
-            </button>
+            </Button>
           </div>
         </Section>
 
@@ -101,7 +102,7 @@ function Link({ state }: { state: "off" | "connecting" | "open" | "closed" }) {
   const word = state === "open" ? "linked" : state === "closed" ? "reconnecting" : state === "connecting" ? "connecting" : "none found";
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color }}>
-      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: color, flex: "0 0 auto" }} />
+      <Dot aria-hidden color={color} />
       {word}
     </span>
   );
@@ -112,7 +113,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   return (
     <section style={{ display: "grid", gap: 10 }}>
       <div>
-        <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)" }}>{title}</div>
+        <Title>{title}</Title>
         {hint && <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 3, lineHeight: 1.45 }}>{hint}</div>}
       </div>
       <div style={{ display: "grid", gap: 8, borderLeft: "1px solid var(--loki-border)", paddingLeft: 14 }}>{children}</div>

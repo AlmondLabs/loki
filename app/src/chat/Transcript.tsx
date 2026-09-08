@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { TranscriptRow } from "../../../packages/core/src/attention/transcript.ts";
+import { Button } from "../ui";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -85,9 +86,9 @@ const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued }: 
         )}
       </div>
       {m.queued && (
-        <button type="button" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4, background: "transparent", border: "none", padding: 0, color: "var(--loki-accent)", fontFamily: "var(--loki-mono)", fontSize: 10.5, letterSpacing: "0.06em", cursor: onCancelQueued ? "pointer" : "default" }}>
+        <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4 }}>
           queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
-        </button>
+        </Button>
       )}
     </div>
   );

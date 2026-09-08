@@ -2,11 +2,12 @@ import { forwardRef, useEffect, useRef, useState, type CSSProperties } from "rea
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
+import { Dot, IconButton, TextArea } from "../ui";
 
 /**
  * Message box shared by the chat panel and the Catch Up reply: Enter sends,
  * Shift+Enter inserts a newline, grows with its content up to ~6 lines.
- * The mic (or ⌘M while focused) dictates into the same box; recognition
+ * The mic (or ⌘D while focused) dictates into the same box; recognition
  * stops by itself after a pause, then Enter sends as usual.
  */
 export const ChatInput = forwardRef<
@@ -82,8 +83,13 @@ export const ChatInput = forwardRef<
   useEffect(() => {
     const el = inner.current;
     if (!el) return;
+    // Empty: one line (36px, md, like the send button beside it) even when the placeholder would wrap.
+    if (!value) {
+      el.style.height = "";
+      return;
+    }
     el.style.height = "0px";
-    el.style.height = `${Math.min(el.scrollHeight, 6 * 21 + 20)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 6 * 20 + 16)}px`;
   }, [value]);
 
   const listening = dictation.listening;
@@ -107,7 +113,7 @@ export const ChatInput = forwardRef<
         </div>
       )}
       <div style={{ position: "relative", display: "flex", minWidth: 0 }}>
-      <textarea
+      <TextArea
         ref={setRef}
         value={value}
         rows={1}
@@ -168,50 +174,30 @@ export const ChatInput = forwardRef<
         }}
         style={{
           flex: 1,
-          resize: "none",
-          overflowY: "auto",
-          lineHeight: "21px",
-          background: "var(--loki-well)",
-          border: `1px solid ${listening ? "var(--loki-accent)" : "var(--loki-border)"}`,
-          borderRadius: 8,
-          padding: dictation.supported ? "9px 40px 9px 12px" : "9px 12px",
-          fontSize: 13.5,
-          fontFamily: "var(--loki-font)",
-          color: "var(--loki-fg)",
-          outline: "none",
-          transition: "border-color 160ms ease-out",
+          lineHeight: "20px",
+          padding: dictation.supported ? "7px 40px 7px 12px" : "7px 12px",
+          // Listening: the box's edge turns brass until the recogniser stops.
+          ...(listening ? { borderColor: "var(--loki-accent)" } : null),
           ...style,
         }}
       />
       {dictation.supported && (
-        <button
-          type="button"
+        <IconButton
+          size={28}
+          tone={listening || dictation.pending ? "brass" : "quiet"}
           onClick={startDictation}
           disabled={disabled}
-          aria-label={listening ? "stop dictating" : "dictate"}
+          label={listening ? "stop dictating" : "dictate"}
           aria-pressed={listening}
-          title={listening ? "stop dictating" : "dictate (⌘M)"}
-          style={{
-            position: "absolute",
-            right: 6,
-            bottom: 6,
-            width: 28,
-            height: 28,
-            display: "grid",
-            placeItems: "center",
-            border: "none",
-            borderRadius: 6,
-            background: listening ? "var(--loki-brass-soft)" : "transparent",
-            color: listening || dictation.pending ? "var(--loki-accent)" : "var(--loki-muted)",
-            cursor: disabled ? "default" : "pointer",
-          }}
+          title={listening ? "stop dictating" : "dictate (⌘D)"}
+          style={{ position: "absolute", right: 6, bottom: 6 }}
         >
           <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
             <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
             <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
           </svg>
-          {listening && <span className="loki-pulse" aria-hidden style={{ position: "absolute", top: 3, right: 3, width: 6, height: 6, borderRadius: 3, background: "var(--loki-accent)" }} />}
-        </button>
+          {listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
+        </IconButton>
       )}
       </div>
       {dictation.error && (

@@ -7,7 +7,8 @@ import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
 import { Mark, agentChips, archivedDesks, liveDesks } from "../shell/DeskTree";
 import { navigate } from "./router";
-import { Chip, FIELD, GUTTER, Meta, SAFE, Scroll, TopBar, tap } from "./ui";
+import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../ui";
+import { GUTTER, SAFE, Scroll, TopBar } from "./ui";
 
 /**
  * Home is the desks tree on one column: every live conversation of every agent, pinned first then by
@@ -66,16 +67,17 @@ export function Home({
         title="Desks"
         sub={sub}
         right={
-          <button type="button" onClick={() => setSheet(true)} aria-label="new conversation" title="a new conversation" style={{ ...tap("var(--loki-fg)"), minHeight: 36, minWidth: 36, padding: "4px 10px", fontSize: 22, lineHeight: 1 }}>
+          <IconButton label="new conversation" title="a new conversation" size={40} tone="paper" onClick={() => setSheet(true)} style={{ fontSize: 22, lineHeight: 1 }}>
             +
-          </button>
+          </IconButton>
         }
       />
       {banner}
 
       <div style={{ flex: "0 0 auto", padding: `10px ${GUTTER.right} 0 ${GUTTER.left}`, display: "grid", gap: 8 }}>
-        <input
+        <Field
           type="search"
+          size="touch"
           name="desk-filter"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -88,14 +90,13 @@ export function Home({
           enterKeyHint="search"
           data-1p-ignore
           data-form-type="other"
-          style={{ ...FIELD, minHeight: 40, padding: "8px 12px" }}
         />
         <div role="group" aria-label="agent" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none", borderBottom: "1px solid var(--loki-border)" }}>
-          <Chip active={agentFilter === null} onClick={() => setAgentFilter(null)}>
+          <Chip touch active={agentFilter === null} aria-pressed={agentFilter === null} onClick={() => setAgentFilter(null)}>
             all <span style={{ opacity: 0.7 }}>{desks.filter((d) => d.status === "live" && d.scope !== "shared").length}</span>
           </Chip>
           {chips.map((c) => (
-            <Chip key={c.id} active={agentFilter === c.id} onClick={() => setAgentFilter(agentFilter === c.id ? null : c.id)}>
+            <Chip key={c.id} touch active={agentFilter === c.id} aria-pressed={agentFilter === c.id} onClick={() => setAgentFilter(agentFilter === c.id ? null : c.id)}>
               <AgentFace name={c.name} src={avatarUrl(c.id)} size={16} />
               {c.name ?? "agent"} <span style={{ opacity: 0.7 }}>{c.count}</span>
             </Chip>
@@ -106,22 +107,24 @@ export function Home({
       <Scroll style={{ padding: `4px ${GUTTER.right} 24px ${GUTTER.left}` }}>
         <div role="list" aria-label="desks">
           {live.map((d) => (
-            <Row key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => open(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
+            <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => open(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
           ))}
         </div>
         {live.length === 0 && desks.length > 0 && <div style={{ padding: "24px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>no desks match</div>}
         {desks.length === 0 && <div style={{ padding: "24px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>reading the desks…</div>}
         {archive.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <button type="button" onClick={() => setShowArchive((v) => !v)} aria-expanded={showArchive || !!q} className="loki-label" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 40, padding: "4px 4px", border: "none", borderTop: "1px solid var(--loki-border)", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", fontSize: 9.5, textAlign: "left" }}>
-              <span aria-hidden style={{ display: "inline-block", transform: showArchive || q ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
-              archived
-              <span style={{ fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", textTransform: "none" }}>· {archive.length}</span>
-            </button>
+          <div style={{ marginTop: 14, borderTop: "1px solid var(--loki-border)" }}>
+            <Row touch onClick={() => setShowArchive((v) => !v)} aria-expanded={showArchive || !!q} style={{ gap: 8 }}>
+              <span className="loki-label" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 9.5 }}>
+                <span aria-hidden style={{ display: "inline-block", transform: showArchive || q ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
+                archived
+              </span>
+              <Meta>· {archive.length}</Meta>
+            </Row>
             {(showArchive || q) && (
               <div role="list" aria-label="archived desks">
                 {archive.map((d) => (
-                  <Row key={d.scope} desk={d} mark={undefined} showFace={!agentFilter} onOpen={() => open(d)} onPin={null} />
+                  <DeskRow key={d.scope} desk={d} mark={undefined} showFace={!agentFilter} onOpen={() => open(d)} onPin={null} />
                 ))}
               </div>
             )}
@@ -135,7 +138,7 @@ export function Home({
 }
 
 /** One desk: the mark, the face, the title over agent and time, the pin. 56px tall; a long press pins too. */
-function Row({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
+function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
   const startHold = () => {
@@ -151,9 +154,9 @@ function Row({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; ma
     hold.current = null;
   };
   return (
-    <div role="listitem" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "6px 4px", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
-      <button
-        type="button"
+    <div role="listitem" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "6px 4px 6px 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
+      <Row
+        touch
         onClick={() => {
           if (held.current) {
             held.current = false;
@@ -167,7 +170,7 @@ function Row({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; ma
         onPointerLeave={endHold}
         onContextMenu={(e) => e.preventDefault()}
         aria-label={`${d.title ?? (d.status === "live" ? "new desk" : d.scope)}, ${d.agentName ?? "agent"}${mark ? `, ${mark.status}` : ""}`}
-        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, padding: 0, border: "none", background: "transparent", color: "var(--loki-fg)", textAlign: "left", cursor: "pointer", WebkitTapHighlightColor: "transparent", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}
+        style={{ flex: 1, minWidth: 0, touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}
       >
         <Mark item={mark} status={d.status} size={8} />
         {showFace && <AgentFace name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={20} />}
@@ -179,11 +182,11 @@ function Row({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; ma
             {d.status !== "live" ? ` · ${d.status}` : ""}
           </Meta>
         </span>
-      </button>
+      </Row>
       {onPin && (
-        <button type="button" onClick={onPin} aria-label={d.pinned ? "unpin" : "pin"} aria-pressed={!!d.pinned} title={d.pinned ? "unpin" : "pin to the top"} style={{ width: 40, height: 40, display: "grid", placeItems: "center", border: "none", borderRadius: 8, background: "transparent", color: d.pinned ? "var(--loki-fg)" : "var(--loki-muted)", opacity: d.pinned ? 1 : 0.55, cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}>
+        <IconButton label={d.pinned ? "unpin" : "pin"} size={40} onClick={onPin} aria-pressed={!!d.pinned} title={d.pinned ? "unpin" : "pin to the top"}>
           <Pin filled={!!d.pinned} />
-        </button>
+        </IconButton>
       )}
     </div>
   );
@@ -234,40 +237,33 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
   };
   const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
   return (
-    <div
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", display: "flex", flexDirection: "column", justifyContent: "flex-end", zIndex: 10 }}
-    >
-      <div role="dialog" aria-label="new conversation" className="loki-sheet" style={{ background: "var(--loki-panel)", borderTop: "1px solid var(--loki-border)", borderRadius: "12px 12px 0 0", padding: `14px ${GUTTER.right} calc(14px + ${SAFE.bottom}) ${GUTTER.left}`, display: "grid", gap: 14, boxShadow: "var(--loki-shadow-sheet)" }}>
-        <div>
-          <div className="loki-label" style={{ fontSize: 9.5 }}>new conversation</div>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", marginTop: 4 }}>{agentName ? `with ${agentName}` : "with an agent"}</div>
-        </div>
-        <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {agents.map((a) => (
-            <Chip key={a.id} active={a.id === agentId} onClick={() => setAgentId(a.id)}>
-              <AgentFace name={a.name} src={avatarUrl(a.id)} size={16} />
-              {a.name ?? "agent"}
-            </Chip>
-          ))}
-          {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Letta Code running on the Mac?</span>}
-        </div>
-        <input name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="name · optional" aria-label="conversation name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} style={FIELD} />
-        <div style={{ fontSize: 12, lineHeight: 1.5, color: folder ? "var(--loki-muted)" : "var(--loki-negative)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", overflowWrap: "anywhere" }}>
-          {recent === null ? "asking the Mac for folders…" : folder ? `in ${short}` : `${agentName ?? "this agent"} has no recent folder on the Mac; start its first desk there`}
-        </div>
-        {error && <div role="alert" style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</div>}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" onClick={onClose} style={{ ...tap(), minHeight: 44, flex: 1 }}>
-            cancel
-          </button>
-          <button type="button" onClick={() => void start()} disabled={!canStart} style={{ ...tap("var(--loki-fg)"), minHeight: 44, flex: 2, borderColor: canStart ? "var(--loki-fg)" : "var(--loki-border)", opacity: canStart ? 1 : 0.5 }}>
-            {busy ? "starting…" : "start"}
-          </button>
-        </div>
+    <Sheet label="new conversation" onClose={onClose} placement="bottom" style={{ padding: `14px ${GUTTER.right} calc(14px + ${SAFE.bottom}) ${GUTTER.left}`, display: "grid", gap: 14 }}>
+      <div>
+        <div className="loki-label" style={{ fontSize: 9.5 }}>new conversation</div>
+        <Title style={{ marginTop: 4 }}>{agentName ? `with ${agentName}` : "with an agent"}</Title>
       </div>
-    </div>
+      <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {agents.map((a) => (
+          <Chip key={a.id} touch active={a.id === agentId} aria-pressed={a.id === agentId} onClick={() => setAgentId(a.id)}>
+            <AgentFace name={a.name} src={avatarUrl(a.id)} size={16} />
+            {a.name ?? "agent"}
+          </Chip>
+        ))}
+        {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Letta Code running on the Mac?</span>}
+      </div>
+      <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="name · optional" aria-label="conversation name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
+      <div style={{ fontSize: 12, lineHeight: 1.5, color: folder ? "var(--loki-muted)" : "var(--loki-negative)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", overflowWrap: "anywhere" }}>
+        {recent === null ? "asking the Mac for folders…" : folder ? `in ${short}` : `${agentName ?? "this agent"} has no recent folder on the Mac; start its first desk there`}
+      </div>
+      {error && <div role="alert" style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8 }}>
+        <Button size="touch" onClick={onClose} style={{ flex: 1 }}>
+          cancel
+        </Button>
+        <Button size="touch" tone="brass" onClick={() => void start()} disabled={!canStart} style={{ flex: 2 }}>
+          {busy ? "starting…" : "start"}
+        </Button>
+      </div>
+    </Sheet>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
-import { btn } from "./ui";
+import { Button, Chip, Dot, Field } from "../ui";
 
 /**
  * The agent asked (AskUserQuestion). Compact by design — the thread above is
@@ -59,22 +59,19 @@ export function QuestionCard({ question, onAnswer }: { question: PendingQuestion
               {q.options.map((o) => {
                 const on = sel.includes(o.label);
                 return (
-                  <button
-                    key={o.label}
-                    role={q.multiSelect ? "checkbox" : "radio"}
-                    aria-checked={on}
-                    onClick={() => toggle(q, o.label)}
-                    onMouseEnter={() => setPeek(o.label)}
-                    onFocus={() => setPeek(o.label)}
-                    style={{ ...btn(on ? "var(--loki-fg)" : "var(--loki-muted)"), padding: "4px 10px", fontSize: 12, borderRadius: 999, borderColor: on ? "var(--loki-accent)" : "var(--loki-border)", background: on ? "var(--loki-brass-soft)" : "transparent", gap: 6 }}
-                  >
-                    <span aria-hidden style={{ width: 8, height: 8, borderRadius: q.multiSelect ? 2 : 4, border: `1px solid ${on ? "var(--loki-accent)" : "var(--loki-muted)"}`, background: on ? "var(--loki-accent)" : "transparent" }} />
+                  <Chip key={o.label} role={q.multiSelect ? "checkbox" : "radio"} aria-checked={on} active={on} onClick={() => toggle(q, o.label)} onMouseEnter={() => setPeek(o.label)} onFocus={() => setPeek(o.label)}>
+                    {q.multiSelect ? (
+                      <span aria-hidden style={{ width: 8, height: 8, borderRadius: 1, border: `1px solid ${on ? "var(--loki-accent)" : "var(--loki-muted)"}`, background: on ? "var(--loki-accent)" : "transparent" }} />
+                    ) : (
+                      <Dot size={8} color={on ? "var(--loki-accent)" : "var(--loki-muted)"} ring={!on} aria-hidden />
+                    )}
                     {o.label}
-                  </button>
+                  </Chip>
                 );
               })}
               {many && (
-                <input
+                <Field
+                  size="sm"
                   value={other[q.question] ?? ""}
                   onChange={(e) => setOther((o) => ({ ...o, [q.question]: e.target.value }))}
                   onKeyDown={(e) => {
@@ -87,15 +84,15 @@ export function QuestionCard({ question, onAnswer }: { question: PendingQuestion
                   placeholder="or your own…"
                   aria-label={`other answer: ${q.question}`}
                   autoComplete="off"
-                  style={{ flex: "1 1 140px", minWidth: 120, padding: "4px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 999, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-font)" }}
+                  style={{ flex: "1 1 140px", minWidth: 120 }}
                 />
               )}
               {qi === question.questions.length - 1 && (
                 <>
                   <span style={{ flex: 1 }} />
-                  <button onClick={submit} disabled={!complete} style={{ ...btn("var(--loki-accent)"), padding: "4px 12px", fontSize: 12, opacity: complete ? 1 : 0.5 }} title={complete ? "send these answers" : many ? "answer every question" : "pick one, or type below"}>
+                  <Button size="sm" tone="brass" onClick={submit} disabled={!complete} title={complete ? "send these answers" : many ? "answer every question" : "pick one, or type below"}>
                     answer
-                  </button>
+                  </Button>
                 </>
               )}
             </div>

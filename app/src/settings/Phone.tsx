@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { btn } from "../chat/ui";
+import { Button, Chip, Dot, Row as PickRow } from "../ui";
 import { countdown, lastSeen, pairUrlFor, viaLabel, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 
 /** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
@@ -57,9 +57,9 @@ export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolea
             <PairPlate code={lastCode} status={status} onNew={phone.beginPair} />
           ) : (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-              <button type="button" onClick={phone.beginPair} style={btn("var(--loki-accent)")}>
+              <Button size="sm" tone="brass" onClick={phone.beginPair}>
                 pair a phone
-              </button>
+              </Button>
               <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>a code that lives ten minutes</span>
             </span>
           )}
@@ -79,14 +79,14 @@ export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolea
                 <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
                   {via && (
-                    <span className="loki-label" title="the route this phone's last request came in by" style={{ fontSize: 9.5, padding: "2px 7px", border: "1px solid var(--loki-border)", borderRadius: 999, color: "var(--loki-muted)", whiteSpace: "nowrap" }}>
+                    <Chip static label title="the route this phone's last request came in by">
                       via {via}
-                    </span>
+                    </Chip>
                   )}
                   <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{lastSeen(d.lastSeenAt)}</span>
-                  <button type="button" onClick={() => phone.forget(d.id)} style={{ ...btn("var(--loki-negative)"), padding: "3px 8px", fontSize: 10.5 }} title="this phone has to pair again">
+                  <Button size="sm" tone="negative" onClick={() => phone.forget(d.id)} title="this phone has to pair again">
                     forget
-                  </button>
+                  </Button>
                 </div>
               );
             })}
@@ -95,7 +95,7 @@ export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolea
       </Row>
 
       {on && (
-        <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--loki-accent)", borderLeft: "2px solid var(--loki-accent)", paddingLeft: 10 }}>
+        <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--loki-accent)" }}>
           Anyone on the lit route can open the page; only a paired phone can act. {status.via === "lan" ? "Plain http on this Wi‑Fi: on a network you do not trust, use Tailscale." : "The tailnet is yours alone; Funnel is never used."}
         </div>
       )}
@@ -143,26 +143,27 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
   );
 }
 
-/** One route: a dot, the name, the address a phone uses, and a word on where it works. Lit is brass: it is what the QR carries. */
+/** One route: a dot, the name, the address a phone uses, and a word on where it works. The lit one (the header tint) is what the QR carries; its dot is brass. */
 function RouteRow({ via, lit, disabled = false, address, hint, onPick }: { via: LanVia; lit: boolean; disabled?: boolean; address: string | null; hint: string; onPick: (via: LanVia) => void }) {
   return (
-    <button
-      type="button"
+    <PickRow
       role="radio"
       aria-checked={lit}
       aria-disabled={disabled || undefined}
+      selected={lit}
+      flush
       onClick={() => !disabled && onPick(via)}
-      style={{ display: "grid", gridTemplateColumns: "14px 1fr", columnGap: 10, alignItems: "start", textAlign: "left", padding: "8px 12px", background: lit ? "var(--loki-brass-soft)" : "transparent", border: "none", borderTop: via === "lan" ? "1px solid var(--loki-border)" : "none", cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.6 : 1, color: "inherit", font: "inherit" }}
+      style={{ padding: "8px 12px", cursor: disabled ? "default" : undefined, opacity: disabled ? 0.5 : 1 }}
     >
-      <span aria-hidden style={{ width: 10, height: 10, marginTop: 5, borderRadius: 999, border: `1px solid ${lit ? "var(--loki-accent)" : "var(--loki-border)"}`, background: lit ? "var(--loki-accent)" : "transparent" }} />
-      <span style={{ display: "grid", gap: 1, minWidth: 0 }}>
+      <Dot aria-hidden size={10} color={lit ? "var(--loki-accent)" : "var(--loki-border)"} ring={!lit} style={{ marginTop: 5 }} />
+      <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
         <span style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
           <span style={{ fontSize: 13.5, color: lit ? "var(--loki-fg)" : "var(--loki-muted)" }}>{ROUTE_NAME[via]}</span>
           <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{hint}</span>
         </span>
         {address && <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, color: lit ? "var(--loki-fg)" : "var(--loki-muted)", overflowWrap: "anywhere" }}>{address}</span>}
       </span>
-    </button>
+    </PickRow>
   );
 }
 
@@ -196,9 +197,9 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
         </div>
         <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>Scan with the phone's camera, then Add to Home Screen. The new icon asks for this code once.</div>
         <div>
-          <button type="button" onClick={onNew} style={btn(expired ? "var(--loki-accent)" : undefined)}>
+          <Button size="sm" tone={expired ? "brass" : "quiet"} onClick={onNew}>
             new code
-          </button>
+          </Button>
         </div>
       </div>
     </div>

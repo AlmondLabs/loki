@@ -7,7 +7,7 @@ import type { MemorySkillInfo, RefreshOutcome } from "../../../mod/skill-sources
 import { PERSONALITIES, type Personality } from "../../../packages/core/src/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
-import { btn, kbd } from "../chat/ui";
+import { Button, Chip, Empty, Field, NavButton, Row, TextArea, Title } from "../ui";
 import type { Task } from "../board/model";
 import { ago } from "../board/model";
 import { stripFrontmatter } from "../phone/model";
@@ -47,9 +47,6 @@ export interface AgentsWrite {
  * and where it is working (desks, tasks). Memory is read-only here: to change a fact you hand the
  * request to the agent in its own chat.
  */
-/** A small action in a section head: the head's own label style, clickable. */
-const headBtn: React.CSSProperties = { background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "inherit", font: "inherit" };
-
 export function Agents({
   agents,
   api,
@@ -239,9 +236,13 @@ export function Agents({
 
   if (!agents.length && !creating) {
     return (
-      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", gap: 12, alignContent: "center", color: "var(--loki-muted)", fontSize: 13.5 }}>
-        <span>No agents yet.</span>
-        <button onClick={() => setCreating(true)} style={btn("var(--loki-accent)")}>new agent</button>
+      <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
+        <Empty title="No agents yet.">
+          <p>An agent keeps its own memory, desks and skills here.</p>
+          <div style={{ marginTop: 12 }}>
+            <Button tone="brass" onClick={() => setCreating(true)}>new agent</Button>
+          </div>
+        </Empty>
       </div>
     );
   }
@@ -256,13 +257,13 @@ export function Agents({
             role="tab"
             aria-selected={a.id === selected}
             onClick={() => setSelected(a.id)}
-            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px 10px", border: "none", borderBottom: `2px solid ${a.id === selected ? "var(--loki-accent)" : "transparent"}`, background: "transparent", color: a.id === selected ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-display)", fontSize: 15 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px 10px", border: "none", borderBottom: `2px solid ${a.id === selected ? "var(--loki-accent)" : "transparent"}`, background: "transparent", color: a.id === selected ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-font)", fontSize: 13.5 }}
           >
             <AgentFace name={a.name} src={avatar(a.id)} size={22} />
             {a.name}
           </button>
         ))}
-        <button role="tab" aria-selected={creating} onClick={() => setCreating(true)} title="a new agent" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px 10px", border: "none", borderBottom: `2px solid ${creating ? "var(--loki-accent)" : "transparent"}`, background: "transparent", color: creating ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-display)", fontSize: 15 }}>
+        <button role="tab" aria-selected={creating} onClick={() => setCreating(true)} title="a new agent" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px 10px", border: "none", borderBottom: `2px solid ${creating ? "var(--loki-accent)" : "transparent"}`, background: "transparent", color: creating ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-font)", fontSize: 13.5 }}>
           + new
         </button>
         <span style={{ flex: 1 }} />
@@ -271,22 +272,32 @@ export function Agents({
 
       {creating && <NewAgent models={models} onLoadModels={() => void listModels().then((m) => setModels(m.map((e) => e.handle)))} onCreate={created} onCancel={() => setCreating(false)} canCancel={agents.length > 0} />}
 
-      {!creating && selected && d === undefined && <Empty text="reading the agent…" />}
-      {!creating && selected && d === null && <Empty text="This agent has no local record on this machine (a remote or hidden agent)." />}
+      {!creating && selected && d === undefined && (
+        <div style={{ flex: 1, display: "grid", placeItems: "center" }}>
+          <Empty title="reading the agent…" />
+        </div>
+      )}
+      {!creating && selected && d === null && (
+        <div style={{ flex: 1, display: "grid", placeItems: "center" }}>
+          <Empty title="No local record">
+            <p>This agent has no local record on this machine (a remote or hidden agent).</p>
+          </Empty>
+        </div>
+      )}
       {!creating && selected && d && (
         <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "150px 1fr" }}>
           {/* Pages down the left, the way Settings has them; the page is remembered for the window. */}
           <nav aria-label="agent pages" style={{ display: "grid", alignContent: "start", gap: 2, padding: "18px 12px 18px 20px", borderRight: "1px solid var(--loki-border)" }}>
             {AGENT_PAGES.map((p) => (
-              <button key={p} type="button" onClick={() => pick(p)} aria-current={page === p ? "page" : undefined} style={{ textAlign: "left", background: page === p ? "var(--loki-panel)" : "transparent", border: "1px solid", borderColor: page === p ? "var(--loki-border)" : "transparent", borderRadius: 8, padding: "6px 10px", color: page === p ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-display)", fontSize: 15 }}>
+              <NavButton key={p} current={page === p} onClick={() => pick(p)}>
                 {p}
-              </button>
+              </NavButton>
             ))}
           </nav>
 
           <div style={{ minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "auto minmax(0, 1fr)" }}>
             <div style={{ padding: "18px 28px 10px", display: "flex", alignItems: "baseline", gap: 12, borderBottom: "1px solid var(--loki-border)" }}>
-              <span style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>{page}</span>
+              <Title page>{page}</Title>
               <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{AGENT_PAGE_HINT[page]}</span>
             </div>
 
@@ -302,15 +313,15 @@ export function Agents({
                     {myDesks.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no live desks</div>}
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
                       {myDesks.map((x) => (
-                        <button key={x.scope} onClick={() => onOpenDesk(selected, x.conversationId ?? "default")} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", textAlign: "left", padding: "5px 8px", border: "none", borderRadius: 6, background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                        <Row dense key={x.scope} onClick={() => onOpenDesk(selected, x.conversationId ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
                           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
-                        </button>
+                        </Row>
                       ))}
                     </div>
                     <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
-                      <button onClick={() => onOpenDesk(selected, "default")} style={btn("var(--loki-accent)")}>main chat</button>
-                      <button onClick={onShowDesks} style={btn()}>the desk tree <kbd style={kbd}>⌘K</kbd></button>
+                      <Button tone="brass" onClick={() => onOpenDesk(selected, "default")}>main chat</Button>
+                      <Button onClick={onShowDesks} kbd="⌘K">the desk tree</Button>
                     </div>
                   </section>
 
@@ -320,7 +331,7 @@ export function Agents({
                     </Head>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
                       <span>{myTasks.length === 0 ? "nothing assigned" : `${myTasks.length} assigned on the board`}</span>
-                      <button onClick={onShowBoard} style={btn()}>board <kbd style={kbd}>⌘3</kbd></button>
+                      <Button onClick={onShowBoard} kbd="⌘3">board</Button>
                     </div>
                   </section>
 
@@ -332,12 +343,12 @@ export function Agents({
                           {myTasks.length ? ` ${myTasks.length} open task${myTasks.length === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
                         </span>
                         <div style={{ display: "flex", gap: 8 }}>
-                          <button onClick={() => void remove()} style={btn("var(--loki-negative)")}>delete {d.agent.name}</button>
-                          <button onClick={() => setConfirmDelete(false)} style={btn()}>keep</button>
+                          <Button tone="negative" onClick={() => void remove()}>delete {d.agent.name}</Button>
+                          <Button onClick={() => setConfirmDelete(false)}>keep</Button>
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setConfirmDelete(true)} style={{ ...btn(), color: "var(--loki-muted)", fontSize: 10.5 }}>delete this agent…</button>
+                      <Button tone="negative" onClick={() => setConfirmDelete(true)}>delete this agent…</Button>
                     )}
                   </div>
                 </div>
@@ -355,14 +366,14 @@ export function Agents({
                     <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{filePath}</span>
                     {loadingView && <span>loading…</span>}
                     <span style={{ flex: 1 }} />
-                    <button onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)} style={btn("var(--loki-accent)")} title="opens the agent's main chat with the request started">
+                    <Button size="sm" tone="brass" onClick={() => onAskToUpdate(selected, `In your memory file \`${filePath}\`, please update: `)} title="opens the agent's main chat with the request started">
                       ask {d.agent.name} to update this
-                    </button>
+                    </Button>
                   </div>
                   {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here (binary, too large, or gone)</div>}
                   {content !== null && (
                     <div className="loki-md" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
-                      <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
+                      <Markdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</Markdown>
                     </div>
                   )}
                 </div>
@@ -378,12 +389,12 @@ export function Agents({
                     {log.map((c) => {
                       const on = c.sha === shownSha;
                       return (
-                        <button key={c.sha} onClick={() => setSha(c.sha)} style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "2px 10px", alignItems: "baseline", textAlign: "left", padding: "6px 8px", border: "none", borderRadius: 6, background: on ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                        <Row dense key={c.sha} selected={on} onClick={() => setSha(c.sha)} style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "2px 10px", alignItems: "baseline", fontSize: 13.5 }}>
                           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>{ago(c.at)}</span>
                           <span style={{ lineHeight: 1.4 }}>{c.message}</span>
                           <span />
                           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
-                        </button>
+                        </Row>
                       );
                     })}
                   </div>
@@ -408,8 +419,8 @@ export function Agents({
                   <Head>
                     skills
                     <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
-                      <button className="loki-label" onClick={() => setAdding(adding === "write" ? null : "write")} aria-pressed={adding === "write"} style={{ ...headBtn, color: adding === "write" ? "var(--loki-accent)" : undefined }}>write</button>
-                      <button className="loki-label" onClick={() => setAdding(adding === "install" ? null : "install")} aria-pressed={adding === "install"} style={{ ...headBtn, color: adding === "install" ? "var(--loki-accent)" : undefined }}>install</button>
+                      <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>write</Chip>
+                      <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>install</Chip>
                     </span>
                   </Head>
                   {adding && <SkillAdd key={adding} mode={adding} onWrite={addSkill} onInstall={installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
@@ -424,14 +435,14 @@ export function Agents({
                           {list.map((x) => {
                             const on = shownSkill?.name === x.name;
                             return (
-                              <button key={x.name} onClick={() => setSkillName(x.name)} title={x.description ?? x.name} style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: on ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
+                              <Row dense key={x.name} selected={on} onClick={() => setSkillName(x.name)} title={x.description ?? x.name} style={{ justifyContent: "space-between", gap: 8, fontSize: 13.5 }}>
                                 <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--loki-mono)" }}>{x.name}</span>
                                 {origin === "other" && (
                                   <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: x.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 1 auto", minWidth: 0, maxWidth: "50%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={x.source ? `from ${x.source.label}` : "source unknown"}>
                                     {x.source ? x.source.label : "source?"}
                                   </span>
                                 )}
-                              </button>
+                              </Row>
                             );
                           })}
                         </div>
@@ -449,13 +460,13 @@ export function Agents({
                         {loadingView && <span>loading…</span>}
                         <span style={{ flex: 1 }} />
                         {viewSkill.origin === "other" && (
-                          <button onClick={() => void refreshSkill(viewSkill).then((err) => err && flash(err))} disabled={refreshing === viewSkill.name} title={viewSkill.source ? `pull the latest from ${viewSkill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"} style={{ ...btn("var(--loki-accent)"), opacity: refreshing === viewSkill.name ? 0.5 : 1 }}>
+                          <Button tone="brass" onClick={() => void refreshSkill(viewSkill).then((err) => err && flash(err))} disabled={refreshing === viewSkill.name} title={viewSkill.source ? `pull the latest from ${viewSkill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"}>
                             {refreshing === viewSkill.name ? "refreshing…" : "refresh"}
-                          </button>
+                          </Button>
                         )}
-                        <button onClick={() => void removeSkill(viewSkill)} title={`remove ${viewSkill.name} from ${d.agent.name}'s memory`} style={btn()}>
+                        <Button tone="negative" onClick={() => void removeSkill(viewSkill)} title={`remove ${viewSkill.name} from ${d.agent.name}'s memory`}>
                           remove
-                        </button>
+                        </Button>
                       </div>
                       <div style={{ display: "grid", gap: 4, marginBottom: 14 }}>
                         <div style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", color: viewSkill.origin === "other" && !viewSkill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
@@ -500,32 +511,31 @@ function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { mod
     setBusy(false);
     if (err) setError(err);
   };
-  const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "7px 10px", fontSize: 13.5, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" };
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }} onKeyDown={(e) => e.key === "Enter" && void submit()}>
       <div style={{ maxWidth: 560, display: "grid", gap: 12 }}>
-        <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)" }}>a new agent</div>
-        <Row label="name"><input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" style={field} /></Row>
-        <Row label="description"><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" style={field} /></Row>
-        <Row label="personality">
+        <Title>a new agent</Title>
+        <Labelled label="name"><Field autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" /></Labelled>
+        <Labelled label="description"><Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" /></Labelled>
+        <Labelled label="personality">
           <div role="radiogroup" style={{ display: "grid", gap: 4, width: "100%" }}>
             {PERSONALITIES.map((p) => (
-              <button key={p.id} type="button" role="radio" aria-checked={personality === p.id} onClick={() => setPersonality(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, textAlign: "left", padding: "6px 10px", border: `1px solid ${personality === p.id ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: 6, background: personality === p.id ? "var(--loki-brass-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}>
-                <span style={{ fontSize: 13.5, color: personality === p.id ? "var(--loki-accent)" : "var(--loki-fg)" }}>{p.label}</span>
+              <Row dense key={p.id} role="radio" aria-checked={personality === p.id} selected={personality === p.id} onClick={() => setPersonality(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10 }}>
+                <span style={{ fontSize: 13.5 }}>{p.label}</span>
                 <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</span>
-              </button>
+              </Row>
             ))}
           </div>
-        </Row>
-        <Row label="model">
-          <input list="loki-new-agent-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models?.length ? "the harness default, or pick one" : "the harness default"} autoComplete="off" data-form-type="other" style={{ ...field, fontFamily: "var(--loki-mono)" }} />
+        </Labelled>
+        <Labelled label="model">
+          <Field mono list="loki-new-agent-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models?.length ? "the harness default, or pick one" : "the harness default"} autoComplete="off" data-form-type="other" />
           <datalist id="loki-new-agent-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
-        </Row>
+        </Labelled>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
           <span style={{ flex: 1 }} />
-          {canCancel && <button onClick={onCancel} style={btn()}>cancel</button>}
-          <button onClick={() => void submit()} disabled={busy || !name.trim()} style={{ ...btn("var(--loki-accent)"), opacity: busy || !name.trim() ? 0.5 : 1 }}>{busy ? "creating…" : "create"} <kbd style={kbd}>↵</kbd></button>
+          {canCancel && <Button onClick={onCancel}>cancel</Button>}
+          <Button tone="brass" onClick={() => void submit()} disabled={busy || !name.trim()} kbd="↵">{busy ? "creating…" : "create"}</Button>
         </div>
       </div>
     </div>
@@ -549,25 +559,24 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
     if (err) return setError(err);
     onClose();
   };
-  const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "6px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" };
   return (
     <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
       {mode === "write" ? (
         <>
-          <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="skill name (becomes skills/<name>/SKILL.md)" autoComplete="off" data-form-type="other" style={{ ...field, fontFamily: "var(--loki-mono)" }} />
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={`# When to use\n\nWhat ${agentName} should do, step by step. The first line becomes the description.`} style={{ ...field, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }} />
+          <Field size="sm" mono autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="skill name (becomes skills/<name>/SKILL.md)" autoComplete="off" data-form-type="other" />
+          <TextArea size="sm" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={`# When to use\n\nWhat ${agentName} should do, step by step. The first line becomes the description.`} style={{ lineHeight: 1.5 }} />
         </>
       ) : (
         <>
-          <input autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · official/finance/stocks · clawhub/<slug> · a GitHub or SKILL.md URL" autoComplete="off" data-form-type="other" style={{ ...field, fontFamily: "var(--loki-mono)" }} />
+          <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · official/finance/stocks · clawhub/<slug> · a GitHub or SKILL.md URL" autoComplete="off" data-form-type="other" />
           <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>runs <code style={{ fontFamily: "var(--loki-mono)" }}>letta install</code> for {agentName}; can take a minute</span>
         </>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
-        <button onClick={onClose} style={btn()}>cancel</button>
-        <button onClick={() => void go()} disabled={busy} style={{ ...btn("var(--loki-accent)"), opacity: busy ? 0.5 : 1 }}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</button>
+        <Button onClick={onClose}>cancel</Button>
+        <Button tone="brass" onClick={() => void go()} disabled={busy}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</Button>
       </div>
     </div>
   );
@@ -590,12 +599,12 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
   return (
     <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
       <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
-      <input autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)} placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder" autoComplete="off" data-form-type="other" style={{ width: "100%", boxSizing: "border-box", padding: "6px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-mono)" }} />
+      <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)} placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder" autoComplete="off" data-form-type="other" />
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
-        <button onClick={onCancel} style={btn()}>cancel</button>
-        <button onClick={() => void go()} disabled={busy || !source.trim()} style={{ ...btn("var(--loki-accent)"), opacity: busy || !source.trim() ? 0.5 : 1 }}>{busy ? "refreshing…" : "refresh"}</button>
+        <Button onClick={onCancel}>cancel</Button>
+        <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>{busy ? "refreshing…" : "refresh"}</Button>
       </div>
     </div>
   );
@@ -611,33 +620,34 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
     setModel(d.agent.model ?? "");
   }, [d]);
   const settings = d.agent.modelSettings;
-  const bits = [settings.effort ? `effort ${String(settings.effort)}` : null, settings.thinking ? "thinking" : null, settings.context_window_limit ? `${Math.round(Number(settings.context_window_limit) / 1000)}k context` : null].filter(Boolean);
-  const field: React.CSSProperties = { background: "transparent", border: "1px solid transparent", borderRadius: 6, color: "var(--loki-fg)", padding: "2px 6px", margin: "0 -6px", font: "inherit", outline: "none", width: "100%", boxSizing: "content-box" };
+  const bits = [settings.effort ? `effort ${String(settings.effort)}` : null, settings.thinking ? "thinking" : null, settings.context_window_limit ? `${contextSize(Number(settings.context_window_limit))} context` : null].filter(Boolean);
   return (
     <section style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 14, alignItems: "start" }}>
       <AgentFace name={d.agent.name} src={avatar} size={64} />
       <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
-        <input
+        <Field
+          inline
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => name.trim() && name.trim() !== d.agent.name && void onSave({ name: name.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           aria-label="agent name"
-          className="loki-field"
-          style={{ ...field, fontFamily: "var(--loki-display)", fontSize: 22 }}
+          style={{ fontFamily: "var(--loki-display)", fontSize: 22 }}
         />
-        <input
+        <Field
+          inline
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() => description.trim() !== (d.agent.description ?? "") && void onSave({ description: description.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           placeholder="a line about this agent"
           aria-label="agent description"
-          className="loki-field"
-          style={{ ...field, fontSize: 13.5, color: "var(--loki-muted)" }}
+          style={{ fontSize: 13.5, color: "var(--loki-muted)" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", flexWrap: "wrap" }}>
-          <input
+          <Field
+            inline
+            mono
             list="loki-models"
             value={model}
             onFocus={onLoadModels}
@@ -645,8 +655,7 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
             onBlur={() => model.trim() && model.trim() !== (d.agent.model ?? "") && void onSave({ model: model.trim() })}
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             aria-label="model"
-            className="loki-field"
-            style={{ ...field, width: 240, fontSize: 12, fontFamily: "var(--loki-mono)", color: "var(--loki-fg)" }}
+            style={{ width: 240, fontSize: 12 }}
           />
           <datalist id="loki-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
           {bits.map((b) => (
@@ -676,10 +685,10 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
         <div key={g || "root"} style={{ minWidth: 0 }}>
           {g && <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{g}</div>}
           {fs.map((f) => (
-            <button key={f.path} onClick={() => onPick(f.path)} title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: current === f.path ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 12 }}>
+            <Row dense key={f.path} selected={current === f.path} onClick={() => onPick(f.path)} title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`} style={{ justifyContent: "space-between", gap: 8, fontSize: 12 }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g ? f.path.slice(g.length + 1) : f.path}</span>
               <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{ago(f.modifiedAt)}</span>
-            </button>
+            </Row>
           ))}
         </div>
       ))}
@@ -711,8 +720,8 @@ function Head({ children }: { children: React.ReactNode }) {
   );
 }
 
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+/** A labelled line in the new-agent form: the label in the head's voice, the control beside it. */
+function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px" }}>
       <span className="loki-label" style={{ fontSize: 9.5, width: 44 }}>{label}</span>
@@ -721,10 +730,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-function Empty({ text }: { text: string }) {
-  return (
-    <div style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--loki-muted)", fontSize: 13.5 }}>
-      {text}
-    </div>
-  );
+/** A context window as people say it: 200k, 1M. */
+function contextSize(tokens: number): string {
+  return tokens >= 1_000_000 ? `${Math.round(tokens / 100_000) / 10}M` : `${Math.round(tokens / 1000)}k`;
 }

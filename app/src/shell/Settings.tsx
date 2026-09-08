@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys } from "./keymap";
-import { btn } from "../chat/ui";
+import { Button, Chip, Dot, NavButton, Title } from "../ui";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../packages/core/src/compat.ts";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
@@ -117,10 +117,10 @@ export function Settings({
       {/* One page at a time: the list on the left, its sections on the right. The page is remembered for the window. */}
       <nav aria-label="settings pages" style={{ display: "grid", alignContent: "start", gap: 2, paddingTop: 4 }}>
         {PAGES.map((p) => (
-          <button key={p.id} type="button" onClick={() => pick(p.id)} aria-current={page === p.id ? "page" : undefined} style={{ textAlign: "left", background: page === p.id ? "var(--loki-panel)" : "transparent", border: "1px solid", borderColor: page === p.id ? "var(--loki-border)" : "transparent", borderRadius: 8, padding: "8px 12px", cursor: "pointer", color: page === p.id ? "var(--loki-fg)" : "var(--loki-muted)", fontFamily: "var(--loki-display)", fontSize: 15 }}>
+          <NavButton key={p.id} onClick={() => pick(p.id)} current={page === p.id}>
             {p.id}
-            {p.id === "phone" && phone.status?.enabled ? <span aria-label="on" style={{ display: "inline-block", width: 6, height: 6, borderRadius: 3, background: "var(--loki-accent)", marginLeft: 8, verticalAlign: "middle" }} /> : null}
-          </button>
+            {p.id === "phone" && phone.status?.enabled ? <Dot aria-label="on" color="var(--loki-accent)" style={{ marginLeft: 8, verticalAlign: "middle" }} /> : null}
+          </NavButton>
         ))}
       </nav>
       <div style={{ display: "grid", gap: 28, alignContent: "start", minWidth: 0 }}>
@@ -138,7 +138,7 @@ export function Settings({
             </Section>
             <Section title="requirements" hint="what loki needs on this machine, and where it found it">
               <Fact label="letta code" value={lettaVersion ? <span>harness reports {lettaVersion}{compatible === false ? <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}, whose harness reports {TESTED_APP_SERVER_REPORT} — if something is off, this is the first suspect</Note> : <Note>as the tested release ({TESTED_LETTA_CODE}) does</Note>}</span> : tools ? (tools.letta ? "harness not linked yet" : <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note>) : "—"} />
-              <Fact label="letta cli" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.private ? <Note>installed by loki, under its own folder</Note> : null}</span> : bootstrap.installing ? <Note tone="warn">installing a private copy… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <button type="button" onClick={() => void onInstallLetta()} style={{ ...btn(), marginLeft: 8, padding: "2px 8px", fontSize: 10.5 }}>install</button> <Note>or: npm install -g @letta-ai/letta-code</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note> : "—"} mono />
+              <Fact label="letta cli" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.private ? <Note>installed by loki, under its own folder</Note> : null}</span> : bootstrap.installing ? <Note tone="warn">installing a private copy… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <Button size="sm" onClick={() => void onInstallLetta()} style={{ marginLeft: 8 }}>install</Button> <Note>or: npm install -g @letta-ai/letta-code</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note> : "—"} mono />
               <Fact label="bd (beads)" value={tools ? tools.bd ?? <Note tone="warn">not found — brew install beads (the board needs it; everything else works without)</Note> : "—"} mono />
               <Fact label="system" value="macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript" />
             </Section>
@@ -230,9 +230,9 @@ function Choice<T extends string>({ options, value, onPick, labels = {} }: { opt
   return (
     <span style={{ display: "inline-flex", gap: 6 }}>
       {options.map((o) => (
-        <button key={o} onClick={() => onPick(o)} aria-pressed={value === o} className="loki-label" style={{ padding: "4px 10px", border: `1px solid ${value === o ? "var(--loki-accent)" : "var(--loki-border)"}`, background: value === o ? "var(--loki-brass-soft)" : "transparent", color: value === o ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer", fontSize: 10.5 }}>
+        <Chip key={o} label active={value === o} onClick={() => onPick(o)} aria-pressed={value === o}>
           {labels[o] ?? o}
-        </button>
+        </Chip>
       ))}
     </span>
   );
@@ -242,7 +242,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   return (
     <section style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "6px 24px", alignItems: "start" }}>
       <div style={{ paddingTop: 2 }}>
-        <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)" }}>{title}</div>
+        <Title>{title}</Title>
         {hint && <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 4, lineHeight: 1.45 }}>{hint}</div>}
       </div>
       <div style={{ display: "grid", gap: 6, borderLeft: "1px solid var(--loki-border)", paddingLeft: 20 }}>{children}</div>
@@ -254,7 +254,7 @@ function Fact({ label, value, mono = false }: { label: string; value: React.Reac
   return (
     <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "baseline", fontSize: 13.5, lineHeight: 1.5 }}>
       <span className="loki-label" style={{ fontSize: 9.5 }}>{label}</span>
-      <span style={{ color: "var(--loki-fg)", fontFamily: mono ? "var(--loki-mono)" : undefined, fontSize: mono ? 12 : 13, overflowWrap: "anywhere" }}>{value}</span>
+      <span style={{ color: "var(--loki-fg)", fontFamily: mono ? "var(--loki-mono)" : undefined, fontSize: mono ? 12 : 13.5, overflowWrap: "anywhere" }}>{value}</span>
     </div>
   );
 }
@@ -272,7 +272,7 @@ function Status({ s }: { s: string }) {
   const color = s === "open" ? "var(--loki-positive)" : s === "connecting" ? "var(--loki-accent)" : "var(--loki-negative)";
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color, fontFamily: "var(--loki-label)", fontSize: 12, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-      <span style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
+      <Dot color={color} />
       {s}
     </span>
   );

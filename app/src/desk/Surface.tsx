@@ -10,6 +10,8 @@ import { Viewport } from "./Viewport";
 import { WidgetFrame } from "./WidgetFrame";
 import { ModuleWidget, WidgetError } from "./ModuleWidget";
 import { registerActions } from "../shell/keymap";
+import { glide } from "../kit/motion";
+import { Chip, Empty } from "../ui";
 
 function WidgetBody({
   w,
@@ -152,7 +154,7 @@ export function Surface({
     const api = viewportRef.current;
     if (!delta || !api) return;
     const { positionX, positionY, scale: s } = api.instance.state;
-    api.setTransform(positionX + delta, positionY, s, 220, "easeOut");
+    api.setTransform(positionX + delta, positionY, s, glide(220), "easeOut");
   }, [inset]);
 
   // Each desk starts at 1:1 with the sheet's origin at the chat's edge, so a layout that
@@ -179,7 +181,7 @@ export function Surface({
     if (!api) return;
     const st = stage();
     const b = boundsOf(els);
-    api.setTransform(st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s, ms, "easeOut");
+    api.setTransform(st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s, glide(ms), "easeOut");
   };
   const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);
 
@@ -205,7 +207,7 @@ export function Surface({
     const st = stage();
     const cx = st.left + st.w / 2;
     const cy = st.h / 2;
-    api.setTransform(cx - (cx - positionX) * k, cy - (cy - positionY) * k, next, 180, "easeOut");
+    api.setTransform(cx - (cx - positionX) * k, cy - (cy - positionY) * k, next, glide(180), "easeOut");
   };
   /** Back to 1:1 around the stage centre (⌘⇧0). */
   const resetZoom = () => {
@@ -216,7 +218,7 @@ export function Surface({
     const cx = st.left + st.w / 2;
     const cy = st.h / 2;
     // keep the canvas point under the centre where it is
-    api.setTransform(cx - (cx - positionX) / s, cy - (cy - positionY) / s, 1, 500, "easeOut");
+    api.setTransform(cx - (cx - positionX) / s, cy - (cy - positionY) / s, 1, glide(500), "easeOut");
   };
   const fitAllRef = useRef(fitAll);
   fitAllRef.current = fitAll;
@@ -322,22 +324,9 @@ export function Surface({
         >
           <span className="loki-label" style={{ marginRight: 4 }}>minimised</span>
           {closed.map((entry) => (
-            <button
-              key={entry.id}
-              onClick={() => gesture({ kind: "open", id: entry.id })}
-              title={`restore ${entry.title}`}
-              style={{
-                fontSize: 12,
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: "1px solid var(--loki-border)",
-                background: "var(--loki-panel)",
-                color: "var(--loki-fg)",
-                cursor: "pointer",
-              }}
-            >
+            <Chip key={entry.id} onClick={() => gesture({ kind: "open", id: entry.id })} title={`restore ${entry.title}`} float>
               {entry.title}
-            </button>
+            </Chip>
           ))}
         </div>
       )}
@@ -379,11 +368,10 @@ export function Surface({
 
       {ownCount === 0 && connection === "open" && !chatOpen && (
         <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
-          <div style={{ textAlign: "center", color: "var(--loki-muted)", maxWidth: 460 }}>
-            <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)", lineHeight: 1.25 }}>Nothing on this desk yet.</div>
-            <div style={{ fontSize: 13.5, marginTop: 10, lineHeight: 1.6 }}>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</div>
+          <Empty title="Nothing on this desk yet.">
+            <p>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</p>
             <div className="loki-label" style={{ marginTop: 14, fontSize: 10.5 }}>widgets are files · ~/.letta/loki/widgets/{scope}/</div>
-          </div>
+          </Empty>
         </div>
       )}
     </div>

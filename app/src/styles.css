@@ -2,6 +2,7 @@
 /* The agent's widget files live outside the repo; the loki:desks Vite plugin fills in the path. */
 @source "__LOKI_WIDGETS_DIR__";
 @import "./kit/tokens.css";
+@import "./ui/ui.css";
 
 /* Tailwind utilities that resolve to the loki tokens: bg-loki-panel, text-loki-muted, … */
 @theme inline {

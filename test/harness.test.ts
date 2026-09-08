@@ -14,3 +14,17 @@ describe("harness markup", () => {
     expect(decodeEntities("a &lt;b&gt; &amp;&quot;")).toBe('a <b> &"');
   });
 });
+
+describe("the mod's desk block and a loaded skill are events, not the user's words", () => {
+  test("desk activity becomes one event with the gestures as detail; older 'loci' builds are read too", () => {
+    const text = 'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.letta/loki/widgets/local-conv-1/; call desk_state for the full picture.\n</loci-desk>';
+    expect(extractHarnessEvents(text)).toEqual([{ text: "desk activity", summary: "2 gestures on local-conv-1", detail: 'moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\nclosed "loci" (shared/welcome) — the file still exists' }]);
+    expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
+    expect(stripHarnessMarkup('<loki-desk desk="d">\n- x\n</loki-desk>').trim()).toBe("");
+  });
+  test("a skill body becomes a 'skill loaded' event named after the skill", () => {
+    const text = 'summarise this\n<skill_content name="unslop">\n# Unslop\n\nEdit text to remove AI patterns.\n</skill_content>';
+    expect(extractHarnessEvents(text)).toEqual([{ text: "skill loaded", summary: "unslop", detail: "# Unslop\n\nEdit text to remove AI patterns." }]);
+    expect(stripHarnessMarkup(text).trim()).toBe("summarise this");
+  });
+});

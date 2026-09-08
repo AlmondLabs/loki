@@ -1,0 +1,276 @@
+/* loki app primitives — the one vocabulary for chrome.
+   Every control here has default, hover, focus (kit/tokens.css), active and disabled states in CSS, so a
+   component never re-invents them inline. Sizes: sm 28 · md 36 · touch 44 (the phone's floor). Radii:
+   6 field · 8 button, row · 12 sheet, popover · 999 chip, toast. Tones: quiet (muted) · paper (fg) ·
+   brass (needs the human) · positive · negative. Widgets keep their own kit (kit/index.tsx); this file is
+   for the shell, the chat, the inbox, the board, the agents pages, settings and the phone. */
+
+/* ---- Button -------------------------------------------------------------------------------------- */
+.loki-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--loki-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+.loki-btn:hover:not(:disabled) { background: var(--loki-panel-header); }
+.loki-btn:active:not(:disabled) { background: var(--loki-accent-soft); }
+.loki-btn:disabled { opacity: 0.5; cursor: default; }
+.loki-btn[aria-pressed="true"], .loki-btn[aria-current], .loki-btn[aria-selected="true"], .loki-btn[aria-expanded="true"] { color: var(--loki-fg); }
+.loki-btn--sm { min-height: 28px; padding: 0 12px; font-size: 12px; }
+.loki-btn--md { min-height: 36px; padding: 0 14px; font-size: 13.5px; }
+.loki-btn--touch { min-height: 44px; padding: 0 14px; font-size: 13.5px; }
+.loki-btn--paper { color: var(--loki-fg); }
+.loki-btn--brass { color: var(--loki-accent); }
+.loki-btn--positive { color: var(--loki-positive); }
+.loki-btn--negative { color: var(--loki-negative); }
+.loki-btn--brass[aria-pressed="true"], .loki-btn--brass[aria-current] { border-color: var(--loki-accent); background: var(--loki-brass-soft); color: var(--loki-accent); }
+/* No hairline: header actions, inline links-that-act. */
+.loki-btn--bare { border-color: transparent; }
+/* Destroys something: oxblood only once the pointer commits to it. */
+.loki-btn--danger:hover:not(:disabled) { color: var(--loki-negative); }
+/* A square glyph button; the size is set inline (24, 28, 36, 40). */
+.loki-btn--icon { padding: 0; border-radius: 6px; font-size: 12px; }
+/* Fills its row; the label sits left. */
+.loki-btn--block { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; }
+.loki-btn--block.loki-btn--center { justify-content: center; text-align: center; }
+/* Pages down the left of Settings and Agents: the reading face, the row radius, the panel when current. */
+.loki-nav {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.loki-nav:hover { background: var(--loki-panel-header); color: var(--loki-fg); }
+.loki-nav[aria-current] { background: var(--loki-panel); border-color: var(--loki-border); color: var(--loki-fg); }
+
+/* ---- Chip ---------------------------------------------------------------------------------------- */
+.loki-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-height: 24px;
+  padding: 2px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex: 0 0 auto;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+.loki-chip:hover:not(:disabled):not(.loki-chip--static) { border-color: var(--loki-muted); color: var(--loki-fg); }
+.loki-chip:disabled { opacity: 0.5; cursor: default; }
+/* Chosen: paper. A filter or a choice never spends brass. */
+.loki-chip--active { border-color: var(--loki-fg); background: var(--loki-panel-header); color: var(--loki-fg); }
+/* Brass: the one that needs you (an open permission mode, the agent filter you picked in the tree). */
+.loki-chip--brass { border-color: var(--loki-accent); background: var(--loki-brass-soft); color: var(--loki-accent); }
+/* A status badge in its own colour: set --chip-tone inline. */
+.loki-chip--tone { color: var(--chip-tone); border-color: var(--chip-tone); }
+/* Reads only: a tag, a badge. */
+.loki-chip--static { cursor: default; }
+.loki-chip--touch { min-height: 32px; padding: 4px 12px; }
+/* A tag inside a meta line: as tall as the line. */
+.loki-chip--tag { min-height: 0; padding: 1px 6px; font-size: 9.5px; }
+/* Floating over the sheet or the transcript: opaque, with the low shadow. */
+.loki-chip--float { background: var(--loki-panel); box-shadow: var(--loki-shadow-low); }
+/* Mid-change ("switching…"): quiet and waiting, never dimmed text. */
+.loki-chip[aria-busy="true"] { color: var(--loki-muted); border-color: var(--loki-border); cursor: progress; }
+/* Condensed caps instead of mono: the tree's agent chips, Settings' choices. */
+.loki-chip--label { font-family: var(--loki-label); font-size: 9.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; }
+
+/* ---- Field --------------------------------------------------------------------------------------- */
+/* A field and the button beside it share a size (sm with sm, md with md, touch with touch). */
+.loki-field {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
+  padding: 7px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: 6px;
+  background: var(--loki-well);
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  line-height: 1.4;
+  transition: border-color 120ms ease-out;
+}
+.loki-field::placeholder { color: var(--loki-muted); opacity: 1; }
+.loki-field:hover:not(:disabled) { border-color: var(--loki-muted); }
+.loki-field:disabled { opacity: 0.5; }
+.loki-field[aria-invalid="true"] { border-color: var(--loki-negative); }
+.loki-field--sm { min-height: 28px; padding: 5px 10px; font-size: 12px; }
+/* 15px so iOS does not zoom in on focus; 44 tall for a thumb. */
+.loki-field--touch { min-height: 44px; padding: 10px 12px; font-size: 15px; }
+/* The first line of a sheet (search, a title): no box, a hairline below. */
+.loki-field--bare { min-height: 0; padding: 13px 16px; border: none; border-bottom: 1px solid var(--loki-border); border-radius: 0; background: transparent; }
+.loki-field--bare:hover:not(:disabled) { border-color: var(--loki-border); }
+/* A larger first line: the task's title. */
+.loki-field--title { font-size: 15px; }
+/* Text that is secretly editable (an agent's name on its profile): shows its box on hover and focus. */
+.loki-field--inline { min-height: 0; padding: 2px 6px; margin: 0 -6px; width: calc(100% + 12px); border-color: transparent; background: transparent; font: inherit; line-height: inherit; }
+.loki-field--inline:hover:not(:disabled), .loki-field--inline:focus { border-color: var(--loki-border); background: var(--loki-well); }
+.loki-field--mono { font-family: var(--loki-mono); }
+textarea.loki-field { resize: none; overflow-y: auto; }
+
+/* ---- Row ----------------------------------------------------------------------------------------- */
+/* A pickable line in a list: hover and selection are the header tint, never brass. */
+.loki-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 120ms ease-out;
+}
+.loki-row:hover, .loki-row[aria-selected="true"], .loki-row[aria-checked="true"], .loki-row[data-selected] { background: var(--loki-panel-header); }
+.loki-row[aria-current] { background: var(--loki-accent-soft); }
+.loki-row--dense { padding: 5px 8px; border-radius: 6px; }
+.loki-row--touch { min-height: 44px; }
+/* Rows inside one bordered group: square, hairlines between, two-line content top-aligned. */
+.loki-row--flush { border-radius: 0; align-items: flex-start; }
+.loki-row--flush + .loki-row--flush { border-top-color: var(--loki-border); }
+
+/* ---- Sheet, popover, toast ------------------------------------------------------------------------ */
+.loki-veil {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  background: var(--loki-veil);
+  display: grid;
+  place-items: start center;
+  padding-top: var(--sheet-top, 6vh);
+  animation: loki-veil 160ms ease-out both;
+}
+.loki-veil--scroll { overflow-y: auto; }
+.loki-veil--scroll > .loki-sheet-card { max-height: none; overflow: visible; margin-bottom: 40px; }
+.loki-veil--bottom { display: flex; flex-direction: column; justify-content: flex-end; padding-top: 0; }
+.loki-sheet-card {
+  box-sizing: border-box;
+  max-width: calc(100% - 48px);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: 12px;
+  box-shadow: var(--loki-shadow-sheet);
+  overflow: hidden;
+}
+.loki-sheet-card--bottom { width: 100%; max-width: none; max-height: 92vh; border-radius: 12px 12px 0 0; border-width: 1px 0 0; }
+.loki-popover {
+  position: absolute;
+  top: 30px;
+  z-index: 20;
+  box-sizing: border-box;
+  max-width: calc(100% - 16px);
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: 12px;
+  box-shadow: var(--loki-shadow-float);
+  overflow: hidden;
+}
+.loki-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  max-width: 70%;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.loki-banner {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--loki-panel-header);
+  border-bottom: 1px solid var(--loki-border);
+  color: var(--loki-muted);
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+/* ---- Text ---------------------------------------------------------------------------------------- */
+.loki-kbd {
+  font-family: var(--loki-mono);
+  font-size: 9.5px;
+  color: var(--loki-muted);
+  margin-left: 6px;
+  border: 1px solid var(--loki-border);
+  border-radius: 4px;
+  padding: 0 4px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.loki-meta {
+  font-family: var(--loki-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--loki-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.loki-meta--brass { color: var(--loki-accent); }
+.loki-meta--wrap { white-space: normal; overflow: visible; }
+.loki-title { font-family: var(--loki-display); font-size: 17px; color: var(--loki-fg); }
+.loki-title--page { font-size: 22px; }
+.loki-empty { text-align: center; color: var(--loki-muted); max-width: 460px; margin: 0 auto; }
+.loki-empty--card { max-width: none; background: var(--loki-panel); border: 1px solid var(--loki-border); border-radius: 12px; padding: 36px 28px; }
+.loki-empty > .loki-title { font-size: 22px; line-height: 1.25; }
+.loki-empty > p { font-size: 13.5px; margin: 10px 0 0; line-height: 1.6; }
+.loki-empty > .loki-btn { margin-top: 14px; }
+
+/* ---- Dot ----------------------------------------------------------------------------------------- */
+.loki-dot { display: inline-block; flex: 0 0 auto; box-sizing: border-box; border-radius: 50%; }
+/* Lifted off whatever it sits on (a rail icon) by a panel-coloured ring. */
+.loki-dot--halo { outline: 1px solid var(--loki-panel); }

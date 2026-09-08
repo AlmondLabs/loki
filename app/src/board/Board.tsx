@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AgentChip } from "../desk/AgentChip";
 import type { DeskSummary } from "../desk/useDesk";
-import { btn, kbd } from "../chat/ui";
+import { Button, Chip, Field } from "../ui";
 import { PRIORITY_LABEL, ago, columnsOf, filterTasks, type ColumnId, type Task } from "./model";
 import { registerActions, typingIn } from "../shell/keymap";
 
@@ -9,6 +9,10 @@ import { registerActions, typingIn } from "../shell/keymap";
  * The board: four columns of tasks for later. Select (X, click, ⇧-click for a range), then ⏎ assigns
  * the selection to a desk and ⌘⏎ dispatches it (assign, then post the tasks so the agent starts now).
  * D closes as done, B toggles blocked, N or + files a new task without an agent, / filters.
+ *
+ * Each column is a listbox; the cursor card is the one Tab stop (roving tabindex) and the arrows,
+ * space and shift-arrows work on the focused card too, so the board reads and works from a keyboard
+ * or a screen reader. The keymap's plain keys keep firing: a focused card is not a text box.
  */
 export function Board({
   tasks,
@@ -40,6 +44,9 @@ export function Board({
   const [cursor, setCursor] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  /** Set by a keyboard move: the next render focuses the cursor card. Data changes never steal focus. */
+  const focusCursor = useRef(false);
 
   const columns = useMemo(() => columnsOf(filterTasks(tasks ?? [], query)), [tasks, query]);
   const all = useMemo(() => columns.flatMap((c) => c.tasks), [columns]);
@@ -53,6 +60,16 @@ export function Board({
     if (!cursor && all[0]) setCursor(all[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [byId]);
+
+  // The cursor moved by keyboard: focus follows it, and the column scrolls just enough to show it.
+  useEffect(() => {
+    if (!focusCursor.current || !cursor) return;
+    focusCursor.current = false;
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(cursor)}"]`);
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: "nearest" });
+  }, [cursor]);
 
   /** The tasks an action applies to: the selection, else the task under the cursor. */
   const targets = (): string[] => (selected.size ? [...selected] : cursor ? [cursor] : []);
@@ -78,23 +95,76 @@ export function Board({
     setCursor(id);
   };
 
-  const move = (dir: "up" | "down" | "left" | "right") => {
-    if (!cursor) return setCursor(all[0]?.id ?? null);
+  type Dir = "up" | "down" | "left" | "right";
+
+  /** The card the cursor would land on, or null when there is nowhere to go. */
+  const nextOf = (dir: Dir): string | null => {
+    if (!cursor) return all[0]?.id ?? null;
     const ci = columns.findIndex((c) => c.tasks.some((t) => t.id === cursor));
-    if (ci < 0) return;
+    if (ci < 0) return null;
     const col = columns[ci];
     const i = col.tasks.findIndex((t) => t.id === cursor);
     if (dir === "up" || dir === "down") {
       const next = col.tasks[Math.max(0, Math.min(col.tasks.length - 1, i + (dir === "down" ? 1 : -1)))];
-      if (next) setCursor(next.id);
-      return;
+      return next && next.id !== cursor ? next.id : null;
     }
     // Sideways: the nearest non-empty column, same row or the last one there.
     let j = ci;
     do j += dir === "right" ? 1 : -1;
     while (j >= 0 && j < columns.length && columns[j].tasks.length === 0);
     const target = columns[j];
-    if (target) setCursor(target.tasks[Math.min(i, target.tasks.length - 1)].id);
+    return target ? target.tasks[Math.min(i, target.tasks.length - 1)].id : null;
+  };
+
+  const move = (dir: Dir) => {
+    const next = nextOf(dir);
+    if (!next) return;
+    focusCursor.current = true;
+    setCursor(next);
+  };
+
+  /**
+   * Shift-arrow: move and select what was passed over. Within a column the anchor stays put, so the
+   * range is anchor…cursor as in a shift-click; across columns the card landed on joins the selection.
+   */
+  const extend = (dir: Dir) => {
+    const next = nextOf(dir);
+    if (!next || !cursor) return;
+    const col = columns.find((c) => c.tasks.some((t) => t.id === next));
+    const from = anchor && col?.tasks.some((t) => t.id === anchor) ? anchor : cursor;
+    setSelected((s) => {
+      const nextSel = new Set(s);
+      if (col?.tasks.some((t) => t.id === from)) {
+        const ids = col.tasks.map((t) => t.id);
+        const [a, b] = [ids.indexOf(from), ids.indexOf(next)].sort((x, y) => x - y);
+        for (const x of ids.slice(a, b + 1)) nextSel.add(x);
+      } else nextSel.add(next);
+      return nextSel;
+    });
+    setAnchor(from);
+    focusCursor.current = true;
+    setCursor(next);
+  };
+
+  /**
+   * Keys on a focused card. Handled keys stop here so the shell's keymap does not move the cursor a
+   * second time; everything else (X, ⏎, ⌫, /, the chords) bubbles to the keymap as before.
+   */
+  const onCardKey = (e: React.KeyboardEvent) => {
+    const dir: Dir | null = e.key === "ArrowUp" ? "up" : e.key === "ArrowDown" ? "down" : e.key === "ArrowLeft" ? "left" : e.key === "ArrowRight" ? "right" : null;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (dir) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) extend(dir);
+      else move(dir);
+      return;
+    }
+    if (e.key === " " && cursor) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle(cursor, e.shiftKey);
+    }
   };
 
   // The board's actions, by keymap id. Nothing here has focus by default, so plain keys work; the shell dispatches.
@@ -155,7 +225,7 @@ export function Board({
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 24px 10px", borderBottom: "1px solid var(--loki-border)" }}>
-        <input
+        <Field
           ref={filterRef}
           type="search"
           name="board-filter"
@@ -167,7 +237,7 @@ export function Board({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="filter tasks…  /"
           aria-label="filter tasks"
-          style={{ width: 280, padding: "7px 10px", fontSize: 13.5, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none" }}
+          style={{ width: 280 }}
         />
         <span className="loki-label" style={{ fontSize: 9.5 }}>
           {tasks === null ? (loading ? "loading the board…" : "") : `${openCount} open`}
@@ -175,24 +245,43 @@ export function Board({
         </span>
         {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
-        <button onClick={onNew} style={btn("var(--loki-accent)")} title="file a task yourself (⌘T)">
-          + task <kbd style={kbd}>⌘T</kbd>
-        </button>
+        <Button size="md" tone="brass" kbd="⌘T" onClick={onNew} title="file a task yourself (⌘T)">
+          + task
+        </Button>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(220px, 1fr))", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
+      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(220px, 1fr))", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
         {columns.map((col) => (
           <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
             <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", fontSize: 9.5, color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
               <span>{col.label}</span>
               <span style={{ fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{col.tasks.length || ""}</span>
             </header>
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "grid", alignContent: "start", gap: 8, paddingBottom: 8 }}>
-              {col.tasks.map((t) => (
-                <TaskCard key={t.id} task={t} column={col.id} selected={selected.has(t.id)} focused={cursor === t.id} assignedTitle={t.metadata.assignedDesk ? deskTitle.get(t.metadata.assignedDesk) ?? t.metadata.assignedDesk : null} onClick={(e) => toggle(t.id, e.shiftKey)} />
-              ))}
-              {col.tasks.length === 0 && tasks !== null && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "10px 6px" }}>{col.id === "open" && !query ? "nothing waiting — ask an agent to park something, or press ⌘T" : "—"}</div>}
-            </div>
+            {col.tasks.length > 0 ? (
+              <div role="listbox" aria-label={col.label} aria-multiselectable="true" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "grid", alignContent: "start", gap: 8, paddingBottom: 8 }}>
+                {col.tasks.map((t) => (
+                  <TaskCard
+                    key={t.id}
+                    task={t}
+                    column={col.id}
+                    selected={selected.has(t.id)}
+                    focused={cursor === t.id}
+                    // Roving tabindex: the cursor card is the Tab stop; before there is one, the first card is.
+                    tabIndex={cursor ? (cursor === t.id ? 0 : -1) : t.id === all[0]?.id ? 0 : -1}
+                    assignedTitle={t.metadata.assignedDesk ? deskTitle.get(t.metadata.assignedDesk) ?? t.metadata.assignedDesk : null}
+                    onClick={(e) => toggle(t.id, e.shiftKey)}
+                    onFocus={() => cursor !== t.id && setCursor(t.id)}
+                    onKeyDown={onCardKey}
+                  />
+                ))}
+              </div>
+            ) : (
+              tasks !== null && (
+                <p role="status" style={{ margin: 0, fontSize: 12, color: "var(--loki-muted)", padding: "10px 6px" }}>
+                  {emptyLine(col.id, query)}
+                </p>
+              )
+            )}
           </section>
         ))}
       </div>
@@ -201,10 +290,10 @@ export function Board({
         {sel.length > 0 ? (
           <>
             <span style={{ color: "var(--loki-fg)" }}>{sel.length} selected</span>
-            <button onClick={() => onAssign(sel, false)} style={btn("var(--loki-fg)")}>assign to a desk <kbd style={kbd}>↵</kbd></button>
-            <button onClick={() => onAssign(sel, true)} style={btn("var(--loki-accent)")}>dispatch now <kbd style={kbd}>⌘↵</kbd></button>
-            <button onClick={() => onClose(sel)} style={btn("var(--loki-positive)")}>done <kbd style={kbd}>⌫</kbd></button>
-            <button onClick={() => setSelected(new Set())} style={btn()}>clear <kbd style={kbd}>esc</kbd></button>
+            <Button size="sm" tone="paper" kbd="↵" onClick={() => onAssign(sel, false)}>assign to a desk</Button>
+            <Button size="sm" tone="brass" kbd="⌘↵" onClick={() => onAssign(sel, true)}>dispatch now</Button>
+            <Button size="sm" tone="positive" kbd="⌫" onClick={() => onClose(sel)}>done</Button>
+            <Button size="sm" kbd="esc" onClick={() => setSelected(new Set())}>clear</Button>
           </>
         ) : (
           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, letterSpacing: "0.06em" }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
@@ -214,44 +303,89 @@ export function Board({
   );
 }
 
-function TaskCard({ task: t, column, selected, focused, assignedTitle, onClick }: { task: Task; column: ColumnId; selected: boolean; focused: boolean; assignedTitle: string | null; onClick: (e: React.MouseEvent) => void }) {
+/** What an empty column says for itself. */
+function emptyLine(id: ColumnId, query: string): string {
+  if (query.trim()) return "no matches";
+  switch (id) {
+    case "open":
+      return "nothing waiting — ask an agent to park something, or press ⌘T";
+    case "in_progress":
+      return "nothing in progress";
+    case "blocked":
+      return "nothing blocked";
+    case "done":
+      return "nothing done in 7 days";
+  }
+}
+
+function TaskCard({
+  task: t,
+  column,
+  selected,
+  focused,
+  tabIndex,
+  assignedTitle,
+  onClick,
+  onFocus,
+  onKeyDown,
+}: {
+  task: Task;
+  column: ColumnId;
+  selected: boolean;
+  focused: boolean;
+  tabIndex: 0 | -1;
+  assignedTitle: string | null;
+  onClick: (e: React.MouseEvent) => void;
+  onFocus: () => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+}) {
   const urgent = t.priority <= 1 && column !== "done";
+  const uid = useId();
+  const showDesc = !!t.description && column !== "done";
+  const showAssigned = !!assignedTitle && column !== "done";
+  // The name is the title; the rest of the card describes it.
+  const describedBy = [showDesc && `${uid}-desc`, `${uid}-meta`, showAssigned && `${uid}-to`].filter(Boolean).join(" ");
   return (
     <div
       role="option"
       aria-selected={selected}
+      aria-label={t.title}
+      aria-describedby={describedBy}
+      tabIndex={tabIndex}
+      data-task-id={t.id}
       data-focused={focused || undefined}
       onClick={onClick}
+      onFocus={onFocus}
+      onKeyDown={onKeyDown}
       style={{
         background: selected ? "var(--loki-accent-soft)" : "var(--loki-panel)",
         border: `1px solid ${focused ? "var(--loki-accent)" : selected ? "var(--loki-accent-soft)" : "var(--loki-border)"}`,
         borderRadius: 12,
         padding: "10px 12px",
         cursor: "pointer",
-        opacity: column === "done" ? 0.6 : 1,
         display: "grid",
         gap: 6,
       }}
     >
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
-        <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
+        <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
       </div>
-      {t.description && column !== "done" && <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
+      {showDesc && <div id={`${uid}-desc`} style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
+      <div id={`${uid}-meta`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
         <span style={{ color: urgent ? "var(--loki-accent)" : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
         <span>{t.id}</span>
-        {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9} /> : t.metadata.by === "you" ? <span>you</span> : null}
+        {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}
         {t.labels.map((l) => (
-          <span key={l} style={{ padding: "1px 6px", border: "1px solid var(--loki-border)", borderRadius: 999 }}>{l}</span>
+          <Chip key={l} static tag>{l}</Chip>
         ))}
         <span style={{ marginLeft: "auto" }}>{ago(column === "done" ? t.closedAt : t.updatedAt)}</span>
       </div>
-      {assignedTitle && column !== "done" && (
-        <div style={{ fontSize: 10.5, color: "var(--loki-accent)", display: "flex", alignItems: "center", gap: 6 }}>
+      {showAssigned && (
+        <div id={`${uid}-to`} style={{ fontSize: 10.5, color: "var(--loki-accent)", display: "flex", alignItems: "center", gap: 6 }}>
           <span aria-hidden>→</span>
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{assignedTitle}</span>
-          {t.assignee && <AgentChip name={t.assignee} size={9} />}
+          {t.assignee && <AgentChip name={t.assignee} size={9.5} />}
         </div>
       )}
     </div>

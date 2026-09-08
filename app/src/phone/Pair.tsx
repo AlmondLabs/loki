@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { CODE_LENGTH, codeFromUrl, deviceName, normalizeCode } from "./model";
-import { SAFE, tap } from "./ui";
+import { Button, Field } from "../ui";
+import { SAFE } from "./ui";
 
 export interface Me {
   deviceId: string;
@@ -74,8 +75,10 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
         >
           <label style={{ display: "grid", gap: 6 }}>
             <span className="loki-label" style={{ fontSize: 9.5 }}>pairing code</span>
-            <input
+            <Field
               ref={inputRef}
+              size="touch"
+              mono
               value={code}
               onChange={(e) => onChange(e.target.value)}
               disabled={busy}
@@ -88,7 +91,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
               placeholder="ABC234"
               aria-label="six-character pairing code"
               aria-invalid={!!error}
-              style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", fontFamily: "var(--loki-mono)", fontSize: 28, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "center", background: "var(--loki-well)", border: `1px solid ${error ? "var(--loki-negative)" : "var(--loki-border)"}`, borderRadius: 12, color: "var(--loki-fg)", outline: "none" }}
+              style={{ fontSize: 28, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "center" }}
             />
           </label>
           {error && (
@@ -96,9 +99,9 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
               {error}
             </div>
           )}
-          <button type="submit" disabled={busy || code.length !== CODE_LENGTH} style={{ ...tap("var(--loki-accent)"), minHeight: 48, fontSize: 15, borderColor: code.length === CODE_LENGTH ? "var(--loki-accent)" : "var(--loki-border)", opacity: busy || code.length !== CODE_LENGTH ? 0.6 : 1 }}>
+          <Button type="submit" size="touch" tone="brass" disabled={busy || code.length !== CODE_LENGTH}>
             {busy ? "pairing…" : "Pair"}
-          </button>
+          </Button>
         </form>
         <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--loki-muted)" }}>Same Wi‑Fi as the Mac, and the Mac awake. Nothing is installed; this page is served by loki itself.</p>
       </div>

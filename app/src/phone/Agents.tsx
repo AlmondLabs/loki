@@ -5,7 +5,8 @@ import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
 import { liveDeskCount, liveDesksLabel } from "./model";
 import { navigate } from "./router";
-import { Meta, Scroll, TopBar } from "./ui";
+import { Meta, Row } from "../ui";
+import { Scroll, TopBar } from "./ui";
 
 /** What the phone reads about agents: the mod's `agent_get`, `memory_read`, `memory_log`, `memory_diff`. */
 export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
@@ -71,7 +72,7 @@ function AgentRow({ agent, api, live }: { agent: { id: string; name: string }; a
   const model = d?.agent.model ?? null;
   return (
     <div role="listitem" style={{ borderBottom: "1px solid var(--loki-border)" }}>
-      <button type="button" onClick={() => navigate({ kind: "agent", agentId: agent.id })} style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 12, padding: `12px calc(12px + env(safe-area-inset-right, 0px)) 12px calc(12px + env(safe-area-inset-left, 0px))`, border: "none", background: "transparent", color: "var(--loki-fg)", textAlign: "left", cursor: "pointer", WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}>
+      <Row touch onClick={() => navigate({ kind: "agent", agentId: agent.id })} style={{ alignItems: "flex-start", gap: 12, padding: `12px calc(12px + env(safe-area-inset-right, 0px)) 12px calc(12px + env(safe-area-inset-left, 0px))`, touchAction: "manipulation" }}>
         <AgentFace name={agent.name} src={avatarUrl(agent.id)} size={28} />
         <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 4 }}>
           <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)" }}>{d?.agent.name ?? agent.name}</span>
@@ -83,7 +84,7 @@ function AgentRow({ agent, api, live }: { agent: { id: string; name: string }; a
           </Meta>
         </span>
         <Chevron />
-      </button>
+      </Row>
     </div>
   );
 }

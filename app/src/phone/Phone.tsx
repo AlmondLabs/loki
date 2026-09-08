@@ -16,7 +16,8 @@ import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
 import { lastSeen } from "./model";
 import { back, formatRoute, navigate, replace, tabOf, useRoute, type Tab } from "./router";
-import { Banner, PhoneStyles, SAFE, tap } from "./ui";
+import { Banner, Button } from "../ui";
+import { PhoneStyles, SAFE } from "./ui";
 
 /**
  * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
@@ -49,9 +50,9 @@ export function Phone() {
       <Splash>
         <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>The Mac did not answer.</div>
         <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</div>
-        <button type="button" onClick={() => void check()} style={{ ...tap("var(--loki-fg)"), marginTop: 18 }}>
+        <Button size="touch" tone="paper" onClick={() => void check()} style={{ marginTop: 18 }}>
           try again
-        </button>
+        </Button>
       </Splash>
     );
   if (gate.kind === "unpaired") return <Pair onPaired={(me) => setGate({ kind: "paired", me })} />;

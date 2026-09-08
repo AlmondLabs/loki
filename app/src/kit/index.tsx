@@ -18,7 +18,7 @@ import {
 /**
  * loki widget kit v1. Every component takes the widget's `data` and an
  * `onSet(path, value)` writer that patches the shared desk store (tier 0).
- * Display components ignore onSet. See docs/kit.md for the authoring API.
+ * Display components ignore onSet. See skills/loki/SKILL.md for the authoring API.
  */
 export interface KitProps {
   data: Record<string, unknown>;

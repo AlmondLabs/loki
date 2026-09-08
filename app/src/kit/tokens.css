@@ -14,7 +14,7 @@
   --loki-accent-soft: #262c39;
   --loki-brass-soft: rgba(201, 164, 92, 0.1);
   --loki-positive: #6fb3a4;
-  --loki-negative: #c0665b;
+  --loki-negative: #cf7266; /* 4.97:1 on panel, 4.62:1 on panel-header — the old #c0665b was 4.20:1 */
   --loki-grid: #2c3240;
   /* Wells (inputs), the agent's bubble, veils and glows — the few surfaces that are not panel or bg. */
   --loki-well: #0f1218;
@@ -29,8 +29,8 @@
   --loki-shadow-low: 0 6px 20px rgba(0, 0, 0, 0.4);
   /*
    * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
-   *   9.5 micro (labels, kbd, rail)   10.5 meta (mono details)   12 small   13.5 body   15 row title
-   *   17 card title   22 display   28 hero
+   *   9.5 micro (labels, kbd, rail)   10.5 meta (mono details)   11 label (.loki-label)   12 small
+   *   13.5 body   15 row title   17 card title   22 display   28 hero
    * Radii: 6 control · 8 row · 12 card / sheet · 999 pill (circles use half their size).
    * Tracking: 0.06em for mono meta, 0.14em for condensed labels (.loki-label).
    */
@@ -52,14 +52,22 @@
   color: var(--loki-muted);
 }
 
-.loki-cell:hover,
-.loki-plate:hover {
-  background: var(--loki-panel-header) !important;
-}
-.loki-cell:focus-visible,
-.loki-plate:focus-visible {
+/* Focus is a brass hairline everywhere, inset so it sits on the control's own border. Links get a
+   small offset since they have no box. Nothing turns the outline off: a bare field inside a sheet is
+   still focusable and still shows its ring. */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
   outline: 1px solid var(--loki-accent);
   outline-offset: -1px;
+}
+a:focus-visible {
+  outline: 1px solid var(--loki-accent);
+  outline-offset: 2px;
 }
 .loki-pulse {
   animation: loki-pulse 1.2s ease-in-out infinite;
@@ -105,22 +113,26 @@
 .loki-tree-row:hover .loki-tree-actions, .loki-tree-row[aria-selected="true"] .loki-tree-actions { display: inline-flex !important; }
 /* Rail buttons. */
 .loki-rail:hover { background: var(--loki-panel-header) !important; color: var(--loki-fg) !important; }
-.loki-rail:focus-visible { outline: 1px solid var(--loki-accent); outline-offset: -1px; }
 @keyframes loki-card-next { from { opacity: 0; transform: translateX(28px) scale(0.99); } to { opacity: 1; transform: none; } }
 @keyframes loki-card-back { from { opacity: 0; transform: translateX(-28px) scale(0.99); } to { opacity: 1; transform: none; } }
 
 
+/* Reduced motion: no durations and no delays — a delayed zero-length settle would leave a frame at its
+   from-keyframe (invisible) until the delay ran out. JS-driven camera glides read prefersReducedMotion()
+   from kit/motion.ts. */
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
     animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
   }
 }
 
 .loki-widget-body {
   font-family: var(--loki-font);
   color: var(--loki-fg);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.45;
 }
 

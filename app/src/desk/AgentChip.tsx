@@ -25,7 +25,7 @@ export function agentHue(name: string): number {
   return h % 360;
 }
 
-export function AgentChip({ name, size = 11 }: { name: string | null | undefined; size?: number }) {
+export function AgentChip({ name, size = 10.5 }: { name: string | null | undefined; size?: number }) {
   if (!name) return null;
   const hue = agentHue(name);
   return (

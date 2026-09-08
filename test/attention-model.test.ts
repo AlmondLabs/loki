@@ -199,3 +199,19 @@ describe("one marker per tool call", () => {
     expect(l.tail.filter((r) => r.role === "tool").length).toBe(2);
   });
 });
+
+describe("harness machinery in a live user message", () => {
+  test("the desk block and a loaded skill become event rows; the user's own words stay a user row", () => {
+    const l = emptyLive();
+    const rt = { agent_id: "a", conversation_id: "c" };
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: 'build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>' } });
+    expect(l.tail).toEqual([
+      { role: "event", text: "desk activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
+      { role: "user", text: "build it" },
+    ]);
+    // a message that is only machinery changes the tail but is not the user speaking
+    const r = applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } });
+    expect(r).toEqual({ changed: true, userSpoke: false });
+    expect(l.tail[2]).toEqual({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
+  });
+});

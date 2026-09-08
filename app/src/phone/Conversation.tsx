@@ -7,7 +7,8 @@ import { Transcript, type TranscriptRow } from "../chat/Transcript";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { Pin } from "./Home";
-import { BackButton, SAFE, TopBar, tap } from "./ui";
+import { Button, IconButton, TextArea } from "../ui";
+import { BackButton, SAFE, TopBar } from "./ui";
 
 /** The conversation a card opened; kept apart from the item so the screen survives the card clearing. */
 export interface Thread {
@@ -126,14 +127,14 @@ export function Conversation({
         right={
           <>
             {waiting && !view.pending && (
-              <button type="button" onClick={() => onSeen(rt)} style={{ ...tap("var(--loki-fg)"), minHeight: 34, padding: "4px 10px", fontSize: 12 }}>
+              <Button size="touch" tone="paper" onClick={() => onSeen(rt)}>
                 seen
-              </button>
+              </Button>
             )}
             {pinned !== null && onPin && (
-              <button type="button" onClick={() => onPin(!pinned)} aria-label={pinned ? "unpin" : "pin"} aria-pressed={pinned} title={pinned ? "unpin" : "pin to the top"} style={{ width: 40, height: 40, display: "grid", placeItems: "center", border: "none", borderRadius: 8, background: "transparent", color: pinned ? "var(--loki-fg)" : "var(--loki-muted)", opacity: pinned ? 1 : 0.55, cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent" }}>
+              <IconButton label={pinned ? "unpin" : "pin"} size={40} onClick={() => onPin(!pinned)} aria-pressed={pinned} title={pinned ? "unpin" : "pin to the top"}>
                 <Pin filled={pinned} />
-              </button>
+              </IconButton>
             )}
           </>
         }
@@ -152,12 +153,12 @@ export function Conversation({
           approval={view.pending}
           actions={
             <>
-              <button type="button" onClick={() => onDecide(rt, view.pending!.requestId, "allow")} style={tap("var(--loki-positive)")}>
+              <Button size="touch" tone="brass" onClick={() => onDecide(rt, view.pending!.requestId, "allow")}>
                 approve
-              </button>
-              <button type="button" onClick={() => onDecide(rt, view.pending!.requestId, "deny")} style={tap("var(--loki-negative)")}>
+              </Button>
+              <Button size="touch" tone="negative" onClick={() => onDecide(rt, view.pending!.requestId, "deny")}>
                 deny
-              </button>
+              </Button>
             </>
           }
         />
@@ -171,8 +172,9 @@ export function Conversation({
         }}
         style={{ flex: "0 0 auto", display: "flex", gap: 8, alignItems: "flex-end", padding: `10px calc(10px + ${SAFE.right}) calc(10px + ${SAFE.bottom}) calc(10px + ${SAFE.left})`, borderTop: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}
       >
-        <textarea
+        <TextArea
           ref={boxRef}
+          size="touch"
           value={draft}
           rows={1}
           name="message"
@@ -190,11 +192,11 @@ export function Conversation({
               send();
             }
           }}
-          style={{ flex: 1, minWidth: 0, resize: "none", overflowY: "auto", lineHeight: "21px", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 8, padding: "9px 12px", fontSize: 15, fontFamily: "var(--loki-font)", color: "var(--loki-fg)", outline: "none" }}
+          style={{ flex: 1, minWidth: 0, lineHeight: "21px" }}
         />
-        <button type="submit" disabled={!draft.trim()} style={{ ...tap("var(--loki-accent)"), opacity: draft.trim() ? 1 : 0.5 }}>
+        <Button type="submit" size="touch" tone="brass" disabled={!draft.trim()}>
           send
-        </button>
+        </Button>
       </form>
     </>
   );

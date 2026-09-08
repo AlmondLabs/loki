@@ -9,7 +9,8 @@ export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
-    .replace(/<loki-desk[^>]*>[\s\S]*?<\/loki-desk>/g, "")
+    .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
+    .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
     .replace(/<channel-notification[^>]*>[\s\S]*?<\/channel-notification>/g, "")
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
     .replace(/^\s*Full transcript available at: \S+\s*$/gm, "")
@@ -35,9 +36,26 @@ export interface HarnessEvent {
   detail: string | null;
 }
 
-/** Pull the harness-injected events (task notifications, compaction notes) out of a user message. */
+/**
+ * Pull the harness-injected events out of a user message: task notifications, compaction notes, the
+ * desk-activity block the mod appends, and skill bodies the harness loads. Each becomes a quiet event
+ * row instead of words in the user's bubble.
+ */
 export function extractHarnessEvents(text: string): HarnessEvent[] {
   const out: HarnessEvent[] = [];
+  for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
+    const desk = m[1] ?? null;
+    const lines = m[2].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
+    out.push({
+      text: "desk activity",
+      summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
+      detail: lines.length ? lines.join("\n") : null,
+    });
+  }
+  for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
+    const body = m[2].trim();
+    out.push({ text: "skill loaded", summary: m[1] ?? null, detail: body || null });
+  }
   for (const m of text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)) {
     const body = m[1];
     const tag = (name: string) => body.match(new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`))?.[1]?.trim() ?? null;

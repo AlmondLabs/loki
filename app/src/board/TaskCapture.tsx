@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
-import { btn, kbd } from "../chat/ui";
+import { Button, Chip, Field, Sheet, TextArea } from "../ui";
 import { PRIORITY_LABEL } from "./model";
 
 /**
@@ -60,71 +60,67 @@ export function TaskCapture({
   };
 
   return (
-    <div
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        if (e.target === e.currentTarget) onClose();
-      }}
-      style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", display: "grid", placeItems: "start center", paddingTop: "14vh", zIndex: LAYER.modal + 1 }}
-    >
-      <div role="dialog" aria-label="new task" onKeyDown={onKey} style={{ width: 560, maxWidth: "92vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-sheet)", overflow: "hidden" }}>
-        <input
-          ref={titleRef}
+    // The card's onKey owns Escape (and Enter), so the sheet's own Escape is off; the veil click still closes.
+    <Sheet label="new task" onClose={onClose} width={560} top="14vh" zIndex={LAYER.capture} escape={false} cardProps={{ onKeyDown: onKey }}>
+      <Field
+        bare
+        large
+        ref={titleRef}
+        type="search"
+        name="task-title"
+        autoComplete="off"
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="task for later… (one line, imperative)"
+        aria-label="task title"
+      />
+      <TextArea
+        bare
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="why, and where to look (optional · ⇧↵ for a new line)"
+        aria-label="task description"
+        rows={3}
+        style={{ lineHeight: 1.5 }}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px" }}>
+        <Field
+          size="sm"
           type="search"
-          name="task-title"
+          name="task-labels"
           autoComplete="off"
           data-1p-ignore
           data-lpignore="true"
           data-form-type="other"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="task for later… (one line, imperative)"
-          aria-label="task title"
-          style={{ width: "100%", boxSizing: "border-box", padding: "13px 16px", fontSize: 15, fontFamily: "var(--loki-display)", background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none" }}
+          value={labels}
+          onChange={(e) => setLabels(e.target.value)}
+          placeholder="labels, comma separated"
+          aria-label="labels"
+          style={{ flex: 1 }}
         />
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="why, and where to look (optional · shift+enter for a new line)"
-          aria-label="task description"
-          rows={3}
-          style={{ width: "100%", boxSizing: "border-box", padding: "10px 16px", fontSize: 13.5, lineHeight: 1.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none", resize: "none", fontFamily: "inherit" }}
-        />
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px" }}>
-          <input
-            type="search"
-            name="task-labels"
-            autoComplete="off"
-            data-1p-ignore
-            data-lpignore="true"
-            data-form-type="other"
-            value={labels}
-            onChange={(e) => setLabels(e.target.value)}
-            placeholder="labels, comma separated"
-            aria-label="labels"
-            style={{ flex: 1, padding: "6px 10px", fontSize: 12, background: "var(--loki-bg)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }}
-          />
-          <span style={{ display: "inline-flex", gap: 4 }} role="radiogroup" aria-label="priority">
-            {PRIORITY_LABEL.map((p, i) => (
-              <button key={p} type="button" role="radio" aria-checked={priority === i} onClick={() => setPriority(i)} className="loki-label" style={{ padding: "4px 7px", fontSize: 9.5, border: `1px solid ${priority === i ? "var(--loki-accent)" : "var(--loki-border)"}`, background: priority === i ? "var(--loki-brass-soft)" : "transparent", color: priority === i ? "var(--loki-accent)" : "var(--loki-muted)", cursor: "pointer" }}>
-                {p}
-              </button>
-            ))}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px", fontSize: 10.5, color: "var(--loki-muted)" }}>
-          <span>
-            filed by you{context.desk ? ` · from ${context.desk === "shared" ? "the shared desk" : `desk ${context.desk}`}` : ""}
-            {context.agentName ? ` · ${context.agentName}'s thread` : ""}
-          </span>
-          {error && <span style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
-          <span style={{ flex: 1 }} />
-          <button type="button" onClick={onClose} style={btn()}>cancel <kbd style={kbd}>esc</kbd></button>
-          <button type="button" onClick={() => void submit()} disabled={!title.trim() || busy} style={{ ...btn("var(--loki-accent)"), opacity: title.trim() && !busy ? 1 : 0.5 }}>
-            {busy ? "filing…" : "file"} <kbd style={kbd}>↵</kbd>
-          </button>
-        </div>
+        <span style={{ display: "inline-flex", gap: 4 }} role="radiogroup" aria-label="priority">
+          {PRIORITY_LABEL.map((p, i) => (
+            <Chip key={p} label role="radio" aria-checked={priority === i} active={priority === i} onClick={() => setPriority(i)}>
+              {p}
+            </Chip>
+          ))}
+        </span>
       </div>
-    </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px", fontSize: 10.5, color: "var(--loki-muted)" }}>
+        <span>
+          filed by you{context.desk ? ` · from ${context.desk === "shared" ? "the shared desk" : `desk ${context.desk}`}` : ""}
+          {context.agentName ? ` · ${context.agentName}'s thread` : ""}
+        </span>
+        {error && <span style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        <span style={{ flex: 1 }} />
+        <Button size="sm" kbd="esc" onClick={onClose}>cancel</Button>
+        <Button size="sm" tone="brass" kbd="↵" onClick={() => void submit()} disabled={!title.trim() || busy}>
+          {busy ? "filing…" : "file"}
+        </Button>
+      </div>
+    </Sheet>
   );
 }

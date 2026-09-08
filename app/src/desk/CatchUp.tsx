@@ -9,7 +9,7 @@ import type { ImageAttachment } from "../../../packages/core/src/attention/conte
 import { ApprovalCard } from "../chat/ApprovalCard";
 import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";
-import { btn, kbd } from "../chat/ui";
+import { Button, Chip, Empty, Meta, Title } from "../ui";
 import { registerActions } from "../shell/keymap";
 import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../chat/PermissionMode";
@@ -305,8 +305,7 @@ export function CatchUp({
         )}
 
         {!current ? (
-          <div style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "36px 28px", textAlign: "center" }}>
-            <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>You're caught up.</div>
+          <Empty card title="You're caught up.">
             <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>
               {items.filter((i) => i.status === "running").length > 0
                 ? `${items.filter((i) => i.status === "running").length} still running`
@@ -331,7 +330,7 @@ export function CatchUp({
             )}
             <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 6 }}>anything new lands here while this stays open</div>
             <div style={{ marginTop: 18, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
-          </div>
+          </Empty>
         ) : (
           <div
             key={idOf(current)}
@@ -350,14 +349,14 @@ export function CatchUp({
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)" }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.title ?? current.id}</div>
-                <div style={{ fontSize: 10.5, color: "var(--loki-muted)", marginTop: 4, fontFamily: "var(--loki-mono)", display: "flex", alignItems: "center", gap: 10 }}>
+                <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.title ?? current.id}</Title>
+                <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10 }}>
                   <AgentFace name={current.agentName} src={avatarUrl(current.agentId)} size={18} />
                   <AgentChip name={current.agentName} />
-                  <span>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</span>
-                  {cameBack && <span style={{ color: "var(--loki-accent)" }}>back · new since you moved on</span>}
-                  {timesAround > 1 && <span style={{ color: "var(--loki-accent)" }}>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</span>}
-                  {current.snooze && <span style={{ color: "var(--loki-muted)" }}>snoozed · due in {formatIn(current.snooze.until)}</span>}
+                  <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
+                  {cameBack && <Meta brass>back · new since you moved on</Meta>}
+                  {timesAround > 1 && <Meta brass>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
+                  {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}
                   {onPickMode && modeFor && (
                     <span style={{ position: "relative", display: "inline-flex" }}>
                       <ModeChip mode={isPermissionMode(thread?.mode) ? thread.mode : isPermissionMode(modeFor(current.agentId, current.id)) ? (modeFor(current.agentId, current.id) as PermissionMode) : null} busy={changingMode} onClick={() => setModeMenu((v) => !v)} />
@@ -399,9 +398,7 @@ export function CatchUp({
                   )}
                 </div>
               </div>
-              <span style={{ fontSize: 10.5, letterSpacing: "0.06em", color: badge?.color, border: `1px solid ${badge?.color}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap" }}>
-                {flash ?? badge?.label}
-              </span>
+              <Chip tone={BADGE[current.status].color}>{flash ?? badge?.label}</Chip>
             </div>
 
             <CardThread rows={history} status={thread?.status} error={current.status === "failed" ? current.error : null} />
@@ -420,21 +417,21 @@ export function CatchUp({
                 onEscape={() => (draft.trim() ? replyRef.current?.blur() : onClose())} // esc: keep a draft and hand keys back, or close an untouched deck
                 onFocus={() => setTyping(true)}
                 onBlur={() => setTyping(false)}
-                placeholder={current.pendingApproval ? "reply, or approve / deny below…" : current.pendingQuestion ? (current.pendingQuestion.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…") : "reply… (enter to send · shift+enter new line)"}
+                placeholder={current.pendingApproval ? "reply, or approve / deny below…" : current.pendingQuestion ? (current.pendingQuestion.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…") : "reply… (enter to send · ⇧↵ new line)"}
               />
-              <button onClick={sendReply} disabled={!draft.trim() && !images.length} style={{ ...btn("var(--loki-accent)"), opacity: draft.trim() || images.length ? 1 : 0.5 }}>send</button>
+              <Button size="md" tone="brass" onClick={sendReply} disabled={!draft.trim() && !images.length}>send</Button>
             </div>
             <div style={{ display: "flex", gap: 8, padding: "0 12px 12px", alignItems: "center", flexWrap: "wrap" }}>
               {current.pendingApproval && (
                 <>
-                  <button onClick={() => approve("allow")} style={btn("var(--loki-positive)")}>approve <kbd style={kbd}>{typing ? "⌘↵" : "A"}</kbd></button>
-                  <button onClick={() => approve("deny")} style={btn("var(--loki-negative)")}>deny <kbd style={kbd}>{typing ? "⌘⇧D" : "D"}</kbd></button>
+                  <Button size="sm" tone="positive" onClick={() => approve("allow")} kbd={typing ? "⌘↵" : "A"}>approve</Button>
+                  <Button size="sm" tone="negative" onClick={() => approve("deny")} kbd={typing ? "⌘⇧D" : "D"}>deny</Button>
                 </>
               )}
-              <button onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} style={btn()}>open desk <kbd style={kbd}>{typing ? "⌘O" : "O"}</kbd></button>
+              <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={typing ? "⌘O" : "O"}>open desk</Button>
               <span style={{ flex: 1 }} />
-              <button onClick={() => advance("unread")} style={btn()} title="not now — comes back later, later each time">← later <kbd style={kbd}>{typing ? "⌘[" : "←"}</kbd></button>
-              <button onClick={() => advance("seen")} style={btn("var(--loki-fg)")}>next → <kbd style={kbd}>{typing ? "⌘]" : "→"}</kbd></button>
+              <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={typing ? "⌘[" : "←"}>← later</Button>
+              <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={typing ? "⌘]" : "→"}>next →</Button>
             </div>
           </div>
         )}

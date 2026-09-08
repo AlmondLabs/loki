@@ -1,4 +1,4 @@
-import { looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
+import { extractHarnessEvents, looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
 import type { ImageAttachment } from "./content.ts";
 
@@ -46,8 +46,11 @@ export interface Digest {
 }
 
 export interface LiveRow {
-  role: "user" | "assistant" | "tool";
+  /** event: harness machinery folded into a user message (desk activity, a loaded skill, a task result). */
+  role: "user" | "assistant" | "tool" | "event";
   text: string;
+  summary?: string | null;
+  detail?: string | null;
   images?: string[];
   /** Typed while the turn ran: shown in the transcript, sent when the turn ends. */
   queued?: boolean;
@@ -225,8 +228,12 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         return { changed: true, userSpoke: false };
       }
       if (mt === "user_message") {
-        const text = stripHarnessMarkup(messageText(d?.content)).trim();
-        if (!text) return { changed: false, userSpoke: false };
+        const raw = messageText(d?.content);
+        // Harness machinery in the message (desk activity, a loaded skill, a task result) is its own quiet row.
+        const events = extractHarnessEvents(raw);
+        for (const ev of events) l.tail.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
+        const text = stripHarnessMarkup(raw).trim();
+        if (!text) return { changed: events.length > 0, userSpoke: false };
         settle(l);
         const own = l.ownSends.indexOf(text);
         if (own >= 0) l.ownSends.splice(own, 1); // shown when it was sent

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LAYER } from "../kit/layers";
-import { AgentChip } from "./AgentChip";
-import { btn } from "../chat/ui";
+import { AgentFace } from "./AgentChip";
+import { avatarUrl } from "./env";
+import { Button, Chip, Field, Row, Sheet } from "../ui";
 
 export interface FolderApi {
   recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;
@@ -126,139 +126,137 @@ export function NewDesk({
 
   if (!open) return null;
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-  const field: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "9px 12px", fontSize: 13.5, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-font)" };
 
   return (
-    <div
-      onPointerDown={(e) => {
-        e.stopPropagation();
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="loki-veil"
-      style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "grid", placeItems: "start center", paddingTop: 72, zIndex: LAYER.modal }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          if (listOpen) setListOpen(false);
-          else onClose();
-        } else if (e.key === "Enter" && !listOpen) {
-          e.preventDefault();
-          void start();
-        }
+    // Escape is the card's: it closes the folder list first, then the sheet.
+    <Sheet
+      label="new desk"
+      onClose={onClose}
+      width={560}
+      top="72px"
+      escape={false}
+      cardProps={{
+        onKeyDown: (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            if (listOpen) setListOpen(false);
+            else onClose();
+          } else if (e.key === "Enter" && !listOpen) {
+            e.preventDefault();
+            void start();
+          }
+        },
       }}
     >
-      <div role="dialog" aria-label="new desk" style={{ width: 560, maxWidth: "94vw", background: "var(--loki-panel)", border: "1px solid var(--loki-border)", boxShadow: "var(--loki-shadow-sheet)", animation: "loki-card-next 200ms ease-out" }}>
-        <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
-          <div className="loki-label">new desk</div>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", marginTop: 4 }}>a fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
-        </div>
-
-        <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
-          <div>
-            <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>agent</div>
-            <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {agents.map((a) => (
-                <button
-                  key={a.id}
-                  role="radio"
-                  aria-checked={a.id === agentId}
-                  onClick={() => setAgentId(a.id)}
-                  style={{ ...btn(a.id === agentId ? "var(--loki-fg)" : "var(--loki-muted)"), padding: "5px 10px", borderColor: a.id === agentId ? "var(--loki-accent)" : "var(--loki-border)", background: a.id === agentId ? "var(--loki-brass-soft)" : "transparent" }}
-                >
-                  <AgentChip name={a.name} />
-                </button>
-              ))}
-              {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
-            </div>
-          </div>
-
-          <div style={{ position: "relative" }}>
-            <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
-              <span>folder</span>
-              <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
-                {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
-              </span>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                ref={folderRef}
-                value={folder}
-                onChange={(e) => {
-                  setFolder(e.target.value);
-                  setFolderTouched(true);
-                  setListOpen(true);
-                  setHi(0);
-                }}
-                onFocus={() => setListOpen(true)}
-                onBlur={() => setTimeout(() => setListOpen(false), 120)}
-                onKeyDown={(e) => {
-                  if (!listOpen || !options.length) return;
-                  if (e.key === "ArrowDown") (e.preventDefault(), setHi((i) => Math.min(options.length - 1, i + 1)));
-                  else if (e.key === "ArrowUp") (e.preventDefault(), setHi((i) => Math.max(0, i - 1)));
-                  else if (e.key === "Enter" || e.key === "Tab") {
-                    e.preventDefault();
-                    setFolder(options[hi].path);
-                    setFolderTouched(true);
-                    setListOpen(false);
-                  }
-                }}
-                placeholder="~/Documents/…"
-                aria-label="folder"
-                autoComplete="off"
-                spellCheck={false}
-                style={{ ...field, fontFamily: "var(--loki-mono)", fontSize: 12, borderColor: status && !status.ok ? "var(--loki-negative)" : "var(--loki-border)" }}
-              />
-              <button onClick={() => void browse()} disabled={busy !== false} style={btn()} title="choose a folder in Finder">
-                {busy === "picking" ? "choosing…" : "browse…"}
-              </button>
-            </div>
-            {listOpen && options.length > 0 && (
-              <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
-                {options.map((o, i) => {
-                  const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
-                  const first = i === 0 || options[i - 1].group !== o.group;
-                  return (
-                    <div key={o.path}>
-                      {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
-                      <div
-                        role="option"
-                        aria-selected={i === hi}
-                        onMouseEnter={() => setHi(i)}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setFolder(o.path);
-                          setFolderTouched(true);
-                          setListOpen(false);
-                        }}
-                        style={{ padding: "7px 10px", cursor: "pointer", background: i === hi ? "var(--loki-accent-soft)" : "transparent" }}
-                      >
-                        <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
-                        <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
-            <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this desk is about" aria-label="desk name" autoComplete="off" style={field} />
-          </div>
-
-          {error && <div style={{ color: "var(--loki-negative)", fontSize: 12, fontFamily: "var(--loki-mono)" }}>{error}</div>}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
-          <span className="loki-label" style={{ fontSize: 10.5 }}>enter start · esc close</span>
-          <span style={{ flex: 1 }} />
-          <button onClick={onClose} style={btn()}>cancel</button>
-          <button onClick={() => void start()} disabled={!canStart} style={{ ...btn("var(--loki-accent)"), opacity: canStart ? 1 : 0.5 }}>
-            {busy === "creating" ? "starting…" : "start"}
-          </button>
-        </div>
+      <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
+        <div className="loki-label">new desk</div>
+        <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", marginTop: 4 }}>a fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
       </div>
-    </div>
+
+      <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
+        <div>
+          <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>agent</div>
+          <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {agents.map((a) => (
+              <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} brass={a.id === agentId} onClick={() => setAgentId(a.id)}>
+                <AgentFace name={a.name} src={avatarUrl(a.id)} size={14} />
+                {a.name}
+              </Chip>
+            ))}
+            {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
+          </div>
+        </div>
+
+        <div style={{ position: "relative" }}>
+          <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+            <span>folder</span>
+            <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
+              {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Field
+              ref={folderRef}
+              mono
+              size="sm"
+              value={folder}
+              onChange={(e) => {
+                setFolder(e.target.value);
+                setFolderTouched(true);
+                setListOpen(true);
+                setHi(0);
+              }}
+              onFocus={() => setListOpen(true)}
+              onBlur={() => setTimeout(() => setListOpen(false), 120)}
+              onKeyDown={(e) => {
+                if (!listOpen || !options.length) return;
+                if (e.key === "ArrowDown") (e.preventDefault(), setHi((i) => Math.min(options.length - 1, i + 1)));
+                else if (e.key === "ArrowUp") (e.preventDefault(), setHi((i) => Math.max(0, i - 1)));
+                else if (e.key === "Enter" || e.key === "Tab") {
+                  e.preventDefault();
+                  setFolder(options[hi].path);
+                  setFolderTouched(true);
+                  setListOpen(false);
+                }
+              }}
+              placeholder="~/Documents/…"
+              aria-label="folder"
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={status ? !status.ok : undefined}
+            />
+            <Button size="sm" onClick={() => void browse()} disabled={busy !== false} title="choose a folder in Finder">
+              {busy === "picking" ? "choosing…" : "browse…"}
+            </Button>
+          </div>
+          {listOpen && options.length > 0 && (
+            <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+              {options.map((o, i) => {
+                const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
+                const first = i === 0 || options[i - 1].group !== o.group;
+                return (
+                  <div key={o.path}>
+                    {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
+                    <Row
+                      dense
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={i === hi}
+                      onMouseEnter={() => setHi(i)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setFolder(o.path);
+                        setFolderTouched(true);
+                        setListOpen(false);
+                      }}
+                      style={{ display: "grid", gap: 0 }}
+                    >
+                      <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
+                      <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
+                    </Row>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
+          <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this desk is about" aria-label="desk name" autoComplete="off" />
+        </div>
+
+        {error && <div style={{ color: "var(--loki-negative)", fontSize: 12, fontFamily: "var(--loki-mono)" }}>{error}</div>}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
+        <span className="loki-label" style={{ fontSize: 10.5 }}>enter start · esc close</span>
+        <span style={{ flex: 1 }} />
+        <Button size="sm" onClick={onClose}>cancel</Button>
+        <Button size="sm" tone="brass" onClick={() => void start()} disabled={!canStart}>
+          {busy === "creating" ? "starting…" : "start"}
+        </Button>
+      </div>
+    </Sheet>
   );
 }

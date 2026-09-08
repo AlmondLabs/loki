@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
+import { Button } from "../ui";
 
 /**
- * The phone's few shared pieces: a top bar that clears the notch, the
- * "Mac unreachable" banner, and one tap-sized button style. Everything is the
- * desk's tokens and type scale; brass is spent only on what waits for you.
+ * The phone's few shared pieces: a top bar that clears the notch, the scrolling surface under it,
+ * the section heading, the back chevron. Controls (buttons, chips, fields, rows, the sheet, the
+ * banner) are the app's primitives in ui/; brass is spent only on what waits for you.
  */
 
 /** The notch and the home indicator: iOS reports them as env() insets once the viewport is `viewport-fit=cover`. */
@@ -38,37 +39,6 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
   );
 }
 
-/** The Mac is not answering: the sockets are closed and reconnecting by themselves. */
-export function Banner({ children }: { children: ReactNode }) {
-  return (
-    <div role="status" style={{ flex: "0 0 auto", padding: "8px 14px", background: "var(--loki-panel-header)", borderBottom: "1px solid var(--loki-border)", borderLeft: "3px solid var(--loki-negative)", fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>
-      {children}
-    </div>
-  );
-}
-
-/** A finger-sized button: 40px tall, the row radius, coloured text on a hairline. */
-export function tap(color = "var(--loki-muted)", extra: CSSProperties = {}): CSSProperties {
-  return {
-    minHeight: 40,
-    padding: "8px 14px",
-    borderRadius: 8,
-    border: "1px solid var(--loki-border)",
-    background: "transparent",
-    color,
-    fontSize: 13.5,
-    fontFamily: "var(--loki-font)",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    cursor: "pointer",
-    WebkitTapHighlightColor: "transparent",
-    touchAction: "manipulation",
-    ...extra,
-  };
-}
-
 /**
  * The desktop's transcript caps a bubble at 78% of the column — a reading measure for a wide sheet.
  * On a phone the column is the measure: bubbles span the card, 13.5 on 1.45. The bubble's width is an
@@ -100,22 +70,6 @@ export function Scroll({ children, style }: { children: ReactNode; style?: CSSPr
   );
 }
 
-/** A filter pill: paper when it is the one chosen, muted otherwise. Brass is not spent on a filter. */
-export function Chip({ active, onClick, children, label }: { active: boolean; onClick: () => void; children: ReactNode; label?: string }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      aria-label={label}
-      onClick={onClick}
-      className="loki-label"
-      style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 32, padding: "4px 12px", border: `1px solid ${active ? "var(--loki-fg)" : "var(--loki-border)"}`, borderRadius: 999, background: active ? "var(--loki-panel-header)" : "transparent", color: active ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", fontSize: 10.5, whiteSpace: "nowrap", textTransform: "none", letterSpacing: "0.06em", WebkitTapHighlightColor: "transparent", flex: "0 0 auto" }}
-    >
-      {children}
-    </button>
-  );
-}
-
 /** A section heading in the condensed caps, with room for a count or a note on the right. */
 export function Heading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   return (
@@ -126,22 +80,14 @@ export function Heading({ children, aside }: { children: ReactNode; aside?: Reac
   );
 }
 
-/** Mono meta: agent name, time, model — 10.5, tracked. */
-export function Meta({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...style }}>{children}</span>;
-}
-
-/** A text field on the phone: the well, the row radius, 15px so iOS does not zoom in on focus. */
-export const FIELD: CSSProperties = { width: "100%", boxSizing: "border-box", minHeight: 44, padding: "10px 12px", fontSize: 15, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 8, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-font)" };
-
 /** The back chevron for the top bar. */
 export function BackButton({ onClick, label = "inbox" }: { onClick: () => void; label?: string }) {
   return (
-    <button type="button" onClick={onClick} aria-label={`back to ${label}`} style={{ ...tap("var(--loki-fg)"), border: "none", padding: "8px 10px 8px 4px" }}>
+    <Button bare size="touch" tone="paper" onClick={onClick} aria-label={`back to ${label}`} style={{ paddingLeft: 4, paddingRight: 10 }}>
       <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M12.5 4 6.5 10l6 6" />
       </svg>
-      <span style={{ fontSize: 13.5 }}>{label}</span>
-    </button>
+      {label}
+    </Button>
   );
 }

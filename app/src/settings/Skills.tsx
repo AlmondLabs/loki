@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { GlobalSkill } from "../../../mod/skills.ts";
-import { btn } from "../chat/ui";
+import { Button, Field } from "../ui";
 
 /** Settings › skills: the folder every agent reads, and the two things you do to it. */
 export interface GlobalSkillsApi {
@@ -33,7 +33,7 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
           <div key={g.name} className="loki-tree-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0 3px 8px", borderRadius: 6 }} title={g.description ?? g.path}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
             <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>{g.source ?? (g.isLink ? "link" : "copy")}</span>
-            <button onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))} style={{ ...btn(), padding: "2px 7px", fontSize: 10.5 }}>disable</button>
+            <Button size="sm" onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))}>disable</Button>
           </div>
         ))}
       </div>
@@ -60,8 +60,8 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
   return (
     <div style={{ display: "grid", gap: 4 }}>
       <div style={{ display: "flex", gap: 6 }}>
-        <input value={path} onChange={(e) => setPath(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="enable a folder: /path/to/skill (holding a SKILL.md)" autoComplete="off" data-form-type="other" style={{ flex: 1, padding: "5px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-mono)" }} />
-        <button onClick={() => void go()} disabled={busy || !path.trim()} style={{ ...btn(), opacity: busy || !path.trim() ? 0.5 : 1 }}>{busy ? "enabling…" : "enable"}</button>
+        <Field size="sm" mono value={path} onChange={(e) => setPath(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="enable a folder: /path/to/skill (holding a SKILL.md)" autoComplete="off" data-form-type="other" style={{ flex: 1 }} />
+        <Button size="sm" onClick={() => void go()} disabled={busy || !path.trim()}>{busy ? "enabling…" : "enable"}</Button>
       </div>
       {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
     </div>

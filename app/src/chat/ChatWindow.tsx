@@ -7,7 +7,7 @@ import { QuestionCard } from "./QuestionCard";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 import { ApprovalCard } from "./ApprovalCard";
 import { Transcript, type TranscriptRow } from "./Transcript";
-import { btn } from "./ui";
+import { Button, Chip, Field, IconButton } from "../ui";
 import { ModelChip, ModelPicker, type ModelEntry } from "./ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./PermissionMode";
 
@@ -275,39 +275,25 @@ export function ChatWindow({
         <ModelPicker open={pickerOpen} current={model} entries={models} loading={!models} onPick={(h) => void pickModel(h)} onClose={() => setPickerOpen(false)} />
         <span style={{ display: "flex", gap: 2, alignItems: "center" }}>
           {onToggleWidth && placement !== "center" && (
-            <button
-              onClick={onToggleWidth}
-              aria-label={width === "wide" ? "narrow chat" : "wide chat"}
-              title={width === "wide" ? "narrow (⌘⇧/)" : "wide (⌘⇧/)"}
-              style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", display: "grid", placeItems: "center", width: 24, height: 24, borderRadius: 6 }}
-            >
+            <IconButton size={24} onClick={onToggleWidth} label={width === "wide" ? "narrow chat" : "wide chat"}>
               {width === "wide" ? (
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M6.5 2.5v11" /></svg>
               ) : (
                 <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M10.5 2.5v11" /></svg>
               )}
-            </button>
+            </IconButton>
           )}
-        <button
-          onClick={onClose}
-          aria-label="close chat"
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "var(--loki-muted)",
-            cursor: "pointer",
-            fontSize: 13.5,
-          }}
-        >
-          ×
-        </button>
+          <IconButton size={24} onClick={onClose} label="close chat" style={{ fontSize: 13.5 }}>
+            ×
+          </IconButton>
         </span>
       </div>
 
       {findOpen && (
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderBottom: "1px solid var(--loki-border)", background: "var(--loki-panel-header)" }}>
-          <input
+          <Field
             ref={findRef}
+            size="sm"
             type="search"
             name="find-in-transcript"
             autoComplete="off"
@@ -328,11 +314,11 @@ export function ChatWindow({
             }}
             placeholder="find in transcript… (↵ next · ⇧↵ previous · esc)"
             aria-label="find in transcript"
-            style={{ flex: 1, padding: "5px 8px", fontSize: 12, background: "var(--loki-bg)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none" }}
+            style={{ flex: 1 }}
           />
-          <button onClick={() => findNext(true)} aria-label="previous match" style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer" }}>↑</button>
-          <button onClick={() => findNext(false)} aria-label="next match" style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer" }}>↓</button>
-          <button onClick={() => setFindOpen(false)} aria-label="close find" style={{ border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer" }}>×</button>
+          <IconButton size={24} onClick={() => findNext(true)} label="previous match">↑</IconButton>
+          <IconButton size={24} onClick={() => findNext(false)} label="next match">↓</IconButton>
+          <IconButton size={24} onClick={() => setFindOpen(false)} label="close find">×</IconButton>
         </div>
       )}
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 16px", position: "relative", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
@@ -358,21 +344,17 @@ export function ChatWindow({
           actions={
             onApprove && (
               <>
-                <button onClick={() => onApprove("allow")} style={btn("var(--loki-positive)")}>approve</button>
-                <button onClick={() => onApprove("deny")} style={btn("var(--loki-negative)")}>deny</button>
+                <Button size="sm" tone="positive" onClick={() => onApprove("allow")}>approve</Button>
+                <Button size="sm" tone="negative" onClick={() => onApprove("deny")}>deny</Button>
               </>
             )
           }
         />
       )}
       {unpinned && (
-        <button
-          onClick={jumpToLatest}
-          aria-label="jump to latest"
-          style={{ position: "absolute", bottom: 84, left: "50%", transform: "translateX(-50%)", padding: "4px 10px", borderRadius: 999, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-muted)", fontSize: 10.5, fontFamily: "var(--loki-mono)", cursor: "pointer", boxShadow: "var(--loki-shadow-low)" }}
-        >
+        <Chip float onClick={jumpToLatest} aria-label="jump to latest" style={{ position: "absolute", bottom: 84, left: "50%", transform: "translateX(-50%)" }}>
           ↓ latest
-        </button>
+        </Chip>
       )}
 
       <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
@@ -384,16 +366,17 @@ export function ChatWindow({
           onEscape={() => inputRef.current?.blur()}
           images={images}
           onImages={setImages}
-          placeholder={question ? (question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…") : status === "idle" ? `message ${agentName ?? "the agent"}… (shift+enter for a new line)` : `message ${agentName ?? "the agent"}… it goes when this turn ends`}
+          placeholder={question ? (question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…") : status === "idle" ? `message ${agentName ?? "the agent"}… (⇧↵ for a new line)` : `message ${agentName ?? "the agent"}… it goes when this turn ends`}
         />
-        <button
+        <Button
+          size="md"
+          tone={draft.trim() || images.length ? "brass" : "quiet"}
           onClick={submit}
           disabled={!draft.trim() && !images.length}
           title={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
-          style={{ ...btn(draft.trim() || images.length ? "var(--loki-accent)" : "var(--loki-muted)"), cursor: draft.trim() || images.length ? "pointer" : "default", opacity: draft.trim() || images.length ? 1 : 0.6 }}
         >
           {status === "idle" ? "send" : "queue"}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -419,7 +402,7 @@ export function ChatBubble({ open, onToggle, alert = false, side = "left" }: { o
         fontSize: 17,
         cursor: "pointer",
         boxShadow: "var(--loki-shadow-panel)",
-        zIndex: LAYER.panel + 1,
+        zIndex: LAYER.bubble,
       }}
     >
       {open ? "×" : "✳"}
