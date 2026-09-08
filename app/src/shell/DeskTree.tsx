@@ -32,6 +32,57 @@ export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: s
   return desks.filter((d) => d.status === "live" && d.scope !== "shared" && deskMatches(d, agentFilter, q)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
 }
 
+export type SectionId = "waiting" | "pinned" | "recent" | "rest";
+export interface Section {
+  id: SectionId;
+  label: string;
+  desks: DeskSummary[];
+}
+
+/**
+ * The switcher's order when nothing is typed. Waiting on you first (an approval or a question — the
+ * brass dots), then pinned, then the desks you visited most recently in the order you visited them,
+ * then everything else by last message. Every desk appears once. With a query the list is flat and
+ * liveDesks() decides; sections would only hide matches.
+ */
+export function sectionDesks(desks: DeskSummary[], agentFilter: string | null, items: AttentionItem[], visited: string[]): Section[] {
+  const live = liveDesks(desks, agentFilter, "");
+  const waits = new Set(items.filter((i) => i.status === "approval" || i.status === "question").map((i) => `${i.agentId}/${i.id}`));
+  const placed = new Set<string>();
+  const take = (pick: (d: DeskSummary) => boolean, list: DeskSummary[] = live): DeskSummary[] => {
+    const out: DeskSummary[] = [];
+    for (const d of list) {
+      if (placed.has(d.scope) || !pick(d)) continue;
+      placed.add(d.scope);
+      out.push(d);
+    }
+    return out;
+  };
+  const waiting = take((d) => waits.has(`${d.agentId}/${d.conversationId}`));
+  const pinned = take((d) => !!d.pinned);
+  const byScope = new Map(live.map((d) => [d.scope, d]));
+  const recent = take(() => true, [...new Set(visited)].map((sc) => byScope.get(sc)).filter((d): d is DeskSummary => !!d && !placed.has(d.scope)).slice(0, 8));
+  const rest = take(() => true);
+  const sections: Section[] = [
+    { id: "waiting", label: "waiting on you", desks: waiting },
+    { id: "pinned", label: "pinned", desks: pinned },
+    { id: "recent", label: "recent", desks: recent },
+    { id: "rest", label: recent.length || pinned.length || waiting.length ? "everything else" : "desks", desks: rest },
+  ];
+  return sections.filter((sec) => sec.desks.length > 0);
+}
+
+/**
+ * Where the highlight starts: the desk you were on before this one, so ⌘K then ↵ goes back; else the
+ * current desk; else the top. `visited` is most recent first and its head is the current desk.
+ */
+export function initialIndex(rowScopes: Array<string | null>, visited: string[], current: string): number {
+  const previous = visited.find((sc) => sc !== current);
+  const back = previous ? rowScopes.indexOf(previous) : -1;
+  if (back >= 0) return back;
+  return Math.max(0, rowScopes.indexOf(current));
+}
+
 /** The folded group at the bottom: archived and deleted, in the mod's order. */
 export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
   return desks.filter((d) => d.status !== "live" && deskMatches(d, agentFilter, q));
@@ -57,10 +108,12 @@ export function deskMark(item: AttentionItem | undefined, status: DeskSummary["s
 }
 
 /**
- * The desks tree: one centred list, every desk of every agent, pinned first then by recency, with the
- * agent's face on each row. A chip row under the search filters to one agent (click, or Tab / ⇧Tab).
- * Type to filter, ↑↓ move, ↵ open, ⌘P pin, ⌘E archive, esc close. Archived and deleted conversations
- * sit under a folded "archive" group at the bottom. Each desk carries the same attention mark the inbox gives it.
+ * The desks tree, which is also the quick switcher. Nothing typed: sections — waiting on you, pinned,
+ * recent (in the order you visited), everything else — and the highlight starts on the desk you were on
+ * before this one, so ⌘K ↵ goes back. Type to filter into one flat list. ↑↓ move, ↵ open, ⇧↵ open with
+ * the chat focused, Tab / ⇧Tab cycle the agent chips, ⌘P pin, ⌘E archive, esc close. Archived and
+ * deleted conversations sit under a folded "archive" group at the bottom. Each desk carries the same
+ * attention mark the inbox gives it.
  */
 export function DeskTree({
   open,
@@ -75,6 +128,8 @@ export function DeskTree({
   onPickDesk,
   onPin,
   onArchive,
+  visited = [],
+  onSwitchChat,
 }: {
   open: boolean;
   onClose: () => void;
@@ -92,6 +147,10 @@ export function DeskTree({
   /** Pin / unpin and archive / restore a desk's conversation (hover buttons, ⌘P and ⌘E while filtering). */
   onPin?: (desk: DeskSummary, pinned: boolean) => void;
   onArchive?: (desk: DeskSummary, archived: boolean) => void;
+  /** Desk scopes in the order you visited them, most recent first (the shell keeps it); orders "recent" and picks the row to start on. */
+  visited?: string[];
+  /** ⇧↵: switch and put the cursor in the chat. */
+  onSwitchChat?: (scope: Scope) => void;
 }) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -115,20 +174,23 @@ export function DeskTree({
   const q = query.trim().toLowerCase();
   const live = useMemo(() => liveDesks(desks, agentFilter, q), [desks, q, agentFilter]);
   const archive = useMemo(() => archivedDesks(desks, agentFilter, q), [desks, q, agentFilter]);
+  /** Nothing typed: the sectioned order. Typing: one flat list of matches. */
+  const sections = useMemo<Section[]>(() => (q ? [{ id: "rest", label: "", desks: live }] : sectionDesks(desks, agentFilter, items, visited)), [q, live, desks, agentFilter, items, visited]);
+  const ordered = useMemo(() => sections.flatMap((sec) => sec.desks), [sections]);
 
   /** Every row the arrows can land on, in display order. */
   const rows = useMemo<Row[]>(() => {
-    const out: Row[] = live.map((d) => ({ kind: "desk", desk: d }));
+    const out: Row[] = ordered.map((d) => ({ kind: "desk", desk: d }));
     if (onNew) out.push({ kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" });
     if (showArchive || q) for (const d of archive) out.push({ kind: "desk", desk: d });
     return out;
-  }, [live, archive, q, query, showArchive, onNew, agentFilter]);
+  }, [ordered, live, archive, q, query, showArchive, onNew, agentFilter]);
 
   useEffect(() => {
     if (open) {
       setQuery("");
       setAgentFilter(null);
-      setIndex(Math.max(0, rows.findIndex((r) => r.kind === "desk" && r.desk.scope === current)));
+      setIndex(initialIndex(rows.map((r) => (r.kind === "desk" ? r.desk.scope : null)), visited, current));
       setTimeout(() => inputRef.current?.focus(), 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,11 +206,12 @@ export function DeskTree({
 
   if (!open) return null;
 
-  const choose = (row: Row | undefined) => {
+  const choose = (row: Row | undefined, chat = false) => {
     if (!row) return;
     onClose();
     if (row.kind === "new") onNew?.(row.agentId, row.name);
     else if (onPickDesk) onPickDesk(row.desk);
+    else if (chat && onSwitchChat) onSwitchChat(row.desk.scope);
     else if (row.desk.scope !== current) onSwitch(row.desk.scope);
   };
   const cycleAgent = (dir: 1 | -1) => {
@@ -206,11 +269,11 @@ export function DeskTree({
               cycleAgent(e.shiftKey ? -1 : 1);
             } else if (e.key === "Enter") {
               e.preventDefault();
-              choose(rows[index]);
+              choose(rows[index], e.shiftKey);
             } else if (e.key === "Escape") {
+              // One Escape closes; clearing a chip first surprised more than it helped.
               e.preventDefault();
-              if (agentFilter) setAgentFilter(null);
-              else onClose();
+              onClose();
             } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "p" && onPin) {
               e.preventDefault();
               const r = rows[index];
@@ -240,8 +303,13 @@ export function DeskTree({
         </div>
 
         <div ref={listRef} role="listbox" aria-label="desks" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 10px" }}>
-          {live.map((d) => (
-            <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} showFace={!agentFilter} index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />
+          {sections.map((sec) => (
+            <div key={sec.id}>
+              {sec.label && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 3px", color: sec.id === "waiting" ? "var(--loki-accent)" : undefined }}>{sec.label}</div>}
+              {sec.desks.map((d) => (
+                <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} showFace={!agentFilter} index={rowIndex()} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />
+              ))}
+            </div>
           ))}
           {onNew && (
             <NewRow
@@ -279,7 +347,7 @@ export function DeskTree({
           {rows.length === 0 && <div style={{ padding: 14, fontSize: 12, color: "var(--loki-muted)" }}>no desks match</div>}
         </div>
         <div style={{ padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
-          {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
+          {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onSwitchChat ? " · ⇧↵ chat" : ""}${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
         </div>
       </div>
     </div>
@@ -303,11 +371,11 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
 function when(iso: string | null): string {
   if (!iso) return "";
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 1) return "now";
-  if (mins < 60) return `${mins}m`;
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
   const h = Math.round(mins / 60);
-  if (h < 48) return `${h}h`;
-  return `${Math.round(h / 24)}d`;
+  if (h < 48) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
 }
 
 /** The dot before a desk: brass when it waits on you, hollow when it finished unread, a faint ring while it runs. */
@@ -342,7 +410,6 @@ function DeskRow({ desk: d, mark, here, showFace, index, selected, onHover, onCh
       </span>
       {/* Hover actions take the place of the timestamp so the row never widens. */}
       <span className="loki-tree-meta" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
-        {d.widgets > 0 ? `${d.widgets} · ` : ""}
         {when(d.lastActive)}
       </span>
       {(canPin || canArchive) && (

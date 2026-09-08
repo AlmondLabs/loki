@@ -220,6 +220,23 @@ export function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
 
+  /** Desk scopes in visit order, most recent first: the switcher's "recent" and its starting row. Kept for the window. */
+  const [visited, setVisited] = useState<string[]>(() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem("loki.visited") ?? "[]") as unknown;
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 50) : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    setVisited((v) => {
+      const next = [desk.scope, ...v.filter((sc) => sc !== desk.scope)].slice(0, 50);
+      sessionStorage.setItem("loki.visited", JSON.stringify(next));
+      return next;
+    });
+  }, [desk.scope]);
+
   const openTree = useCallback(() => {
     desk.desks.request();
     setTreeOpen(true);
@@ -530,6 +547,13 @@ export function Shell() {
               desk.desks.switchTo(scope);
               setSegment("desk");
             }}
+            onSwitchChat={(scope) => {
+              desk.desks.switchTo(scope);
+              setSegment("desk");
+              setChatOpen(true);
+              setFocusChat((n) => n + 1);
+            }}
+            visited={visited}
             onNew={attention.available ? (agentId, name) => setNewDesk({ open: true, name, agentId }) : undefined}
             onPin={(d, pinned) => {
               if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
