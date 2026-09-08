@@ -95,21 +95,28 @@ export function AgentPage({ agentId, name, desks, api, banner, onBack }: { agent
               </div>
             </section>
 
-            <section>
-              <Heading aside={d.skills.length ? String(d.skills.length) : undefined}>skills</Heading>
-              {d.skills.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 4px" }}>none in memory</div>}
-              <div style={{ display: "grid", gap: 2 }}>
-                {d.skills.map((s) => (
-                  <button key={s.name} type="button" onClick={() => navigate(file(s.path))} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 4px", border: "none", borderRadius: 8, background: "transparent", color: "var(--loki-fg)", cursor: "pointer", textAlign: "left", WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}>
-                    <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 2 }}>
-                      <span style={{ fontSize: 13.5, fontFamily: "var(--loki-mono)" }}>{s.name}</span>
-                      {s.description && <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>{s.description}</span>}
-                    </span>
-                    <Chevron />
-                  </button>
-                ))}
-              </div>
-            </section>
+            {/* Two lists, as on the desktop: the agent's own skills, then the ones installed from elsewhere. Read-only here; refresh is a desktop action. */}
+            {(["self", "other"] as const).map((origin) => {
+              const list = d.skills.filter((s) => (s.origin ?? "self") === origin);
+              if (origin === "other" && list.length === 0) return null;
+              return (
+                <section key={origin}>
+                  <Heading aside={list.length ? String(list.length) : undefined}>{origin === "self" ? "skills · self" : "skills · other"}</Heading>
+                  {list.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 4px" }}>none in memory</div>}
+                  <div style={{ display: "grid", gap: 2 }}>
+                    {list.map((s) => (
+                      <button key={s.name} type="button" onClick={() => navigate(file(s.path))} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 4px", border: "none", borderRadius: 8, background: "transparent", color: "var(--loki-fg)", cursor: "pointer", textAlign: "left", WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}>
+                        <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 2 }}>
+                          <span style={{ fontSize: 13.5, fontFamily: "var(--loki-mono)" }}>{s.name}</span>
+                          {s.description && <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>{s.description}</span>}
+                        </span>
+                        <Chevron />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
 
             <section>
               <Heading>learned recently</Heading>

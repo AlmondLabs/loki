@@ -62,12 +62,15 @@ rail of five segments sits on the left, and one view fills the rest:
   the waiting count, the same number the tray title and dock badge show.
 - **Board** (⌘3): tasks for later, see below.
 - **Agents** (⌘4): one page per agent — its face, name, description and model (editable), its memory as a
-  browsable tree with the git history of what it learned (click a commit for the diff), its skills, and where it
-  is working. Memory is read-only here; "ask ira to update this" opens the agent's chat with the request started.
-  **+ new** creates an agent (name, description, one of Letta's personalities, model); "delete this agent…" asks
-  once, naming the desks that go with it. **Skills**: remove one from the agent's memory, write one in place
-  (a name and the markdown; it lands as `skills/<name>/SKILL.md`), or install from a source the CLI knows
-  (`owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL). **Global skills** lists
+  browsable tree with the git history of what it learned (click a commit for the diff), its skills in two lists, and where it
+  is working. **Skills · self** are the ones the agent (or you) wrote; add one here (a name and the markdown; it lands as
+  `skills/<name>/SKILL.md`) or install from a source the CLI knows (`owner/repo/path`, `official/<path>`, `clawhub/<slug>`,
+  a GitHub or SKILL.md URL). **Skills · other** came from somewhere else, and each says where — a checkout linked into
+  `~/.letta/skills`, a repo the `skills` CLI recorded, a source you typed once — and whether the agent has edited its copy.
+  **Refresh** pulls the latest from there and compares: an untouched copy is replaced and committed; a copy the agent
+  edited is not overwritten — upstream is staged and the agent's main chat opens with a request to reconcile, keeping what
+  it learned and taking what upstream improved; a copy that matches is reported current. A skill nobody recorded a source
+  for asks for one the first time. **Global skills** lists
   `~/.letta/skills`, which every agent reads, with disable and "enable a folder".
 - **Settings** (⌘5, ⌘,): six pages down the left, one showing at a time, the last one remembered for the
   window. **letta**: which harness the app is on, how it reaches the mod, requirements and install status.

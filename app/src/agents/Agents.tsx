@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../../../mod/agents.ts";
 import type { GlobalSkill } from "../../../mod/skills.ts";
+import type { MemorySkillInfo, RefreshOutcome } from "../../../mod/skill-sources.ts";
 import { PERSONALITIES, type Personality } from "../../../packages/core/src/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
@@ -13,7 +14,7 @@ import { ago } from "../board/model";
 export interface AgentDetails {
   agent: LocalAgent;
   files: MemoryFile[];
-  skills: MemorySkill[];
+  skills: MemorySkillInfo[];
   hasProfile: boolean;
   lastCommit: MemoryCommit | null;
 }
@@ -26,6 +27,8 @@ export interface AgentsApi {
   globalSkills: () => Promise<GlobalSkill[]>;
   /** `letta install <source> --agent <id>` through the mod; an error message or null. */
   installSkill: (agentId: string, source: string, force?: boolean) => Promise<string | null>;
+  /** Fetch an installed skill's upstream and replace, stage for the agent to reconcile, or report it current (mod/skill-sources.ts). */
+  refreshSkill: (agentId: string, name: string, source?: string) => Promise<RefreshOutcome | { error: string }>;
 }
 
 /** Writes through the app-server; each resolves to an error message or null. */
@@ -182,6 +185,33 @@ export function Agents({
     void load(selected);
     return null;
   };
+  /**
+   * Refresh an installed skill from where it came from. Current: say so. Untouched and changed upstream:
+   * the mod replaced it. Edited by the agent: the mod staged upstream and the agent is asked, in its main
+   * chat, to reconcile — the request is prefilled, you send it. No known source: ask for one, once.
+   */
+  const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [needsSource, setNeedsSource] = useState<string | null>(null);
+  const refreshSkill = async (skill: MemorySkillInfo, source?: string): Promise<string | null> => {
+    if (!selected || !d) return "no agent selected";
+    if (!source && !skill.source) {
+      setNeedsSource(skill.name);
+      return null;
+    }
+    setRefreshing(skill.name);
+    const r = await api.refreshSkill(selected, skill.name, source);
+    setRefreshing(null);
+    if ("error" in r) return r.error;
+    setNeedsSource(null);
+    if (r.outcome === "current") flash(`${skill.name} is current (${r.label})`);
+    else if (r.outcome === "replaced") flash(`${skill.name} refreshed from ${r.label}: ${r.changed.length} file${r.changed.length === 1 ? "" : "s"}`);
+    else {
+      flash(`${skill.name}: upstream changed and so did ${d.agent.name}'s copy — asking ${d.agent.name} to reconcile`);
+      onAskToUpdate(selected, r.prompt);
+    }
+    void load(selected);
+    return null;
+  };
 
   if (!agents.length && !creating) {
     return (
@@ -244,22 +274,43 @@ export function Agents({
               <Tree files={d.files.filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")} current={view?.kind === "file" ? view.path : null} onPick={(p) => setView({ kind: "file", path: p })} />
             </section>
 
-            <section>
-              <Head>skills <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{d.skills.length || ""}</span></Head>
-              {d.skills.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>none in memory</div>}
-              <div style={{ display: "grid", gap: 4 }}>
-                {d.skills.map((s) => (
-                  <div key={s.name} className="loki-tree-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", borderRadius: 6, background: view?.kind === "file" && view.path === s.path ? "var(--loki-accent-soft)" : "transparent" }}>
-                    <button onClick={() => setView({ kind: "file", path: s.path })} style={{ display: "grid", gap: 2, textAlign: "left", padding: "6px 8px", border: "none", background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", minWidth: 0 }}>
-                      <span style={{ fontSize: 13.5, fontFamily: "var(--loki-mono)" }}>{s.name}</span>
-                      {s.description && <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>{s.description}</span>}
-                    </button>
-                    <button onClick={() => void removeSkill(s)} title={`remove ${s.name} from ${d.agent.name}'s memory`} aria-label={`remove ${s.name}`} style={{ ...btn(), padding: "3px 7px", margin: "5px 6px 0 0", fontSize: 10.5 }}>remove</button>
+            {/* Two lists. Self: the agent (or you) wrote it; nothing to pull. Other: installed from somewhere, and that somewhere may have moved — refresh. */}
+            {(["self", "other"] as const).map((origin) => {
+              const list = d.skills.filter((s) => (s.origin ?? "self") === origin);
+              return (
+                <section key={origin}>
+                  <Head>
+                    skills · {origin} <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{list.length || ""}</span>
+                  </Head>
+                  {list.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{origin === "self" ? `nothing ${d.agent.name} wrote yet` : "nothing installed"}</div>}
+                  <div style={{ display: "grid", gap: 4 }}>
+                    {list.map((s) => (
+                      <div key={s.name} className="loki-tree-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", borderRadius: 6, background: view?.kind === "file" && view.path === s.path ? "var(--loki-accent-soft)" : "transparent" }}>
+                        <button onClick={() => setView({ kind: "file", path: s.path })} style={{ display: "grid", gap: 2, textAlign: "left", padding: "6px 8px", border: "none", background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", minWidth: 0 }}>
+                          <span style={{ fontSize: 13.5, fontFamily: "var(--loki-mono)" }}>{s.name}</span>
+                          {origin === "other" && <span style={{ fontSize: 10.5, color: s.source ? "var(--loki-muted)" : "var(--loki-accent)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{s.source ? `from ${s.source.label}` : "source unknown"}{s.edited ? ` · edited by ${d.agent.name}` : ""}</span>}
+                          {s.description && <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>{s.description}</span>}
+                        </button>
+                        <span style={{ display: "inline-flex", gap: 4, margin: "5px 6px 0 0" }}>
+                          {origin === "other" && (
+                            <button onClick={() => void refreshSkill(s).then((err) => err && flash(err))} disabled={refreshing === s.name} title={s.source ? `pull the latest from ${s.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"} aria-label={`refresh ${s.name}`} style={{ ...btn(s.source ? "var(--loki-accent)" : undefined), padding: "3px 7px", fontSize: 10.5, opacity: refreshing === s.name ? 0.5 : 1 }}>
+                              {refreshing === s.name ? "refreshing…" : "refresh"}
+                            </button>
+                          )}
+                          <button onClick={() => void removeSkill(s)} title={`remove ${s.name} from ${d.agent.name}'s memory`} aria-label={`remove ${s.name}`} style={{ ...btn(), padding: "3px 7px", fontSize: 10.5 }}>remove</button>
+                        </span>
+                        {needsSource === s.name && (
+                          <div style={{ gridColumn: "1 / -1", padding: "0 8px 8px" }}>
+                            <SourceAsk name={s.name} onGo={(src) => refreshSkill(s, src)} onCancel={() => setNeedsSource(null)} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <SkillAdd onWrite={addSkill} onInstall={installSkill} agentName={d.agent.name} />
-            </section>
+                  {origin === "self" && <SkillAdd onWrite={addSkill} onInstall={installSkill} agentName={d.agent.name} />}
+                </section>
+              );
+            })}
 
             <section>
               <Head>global skills <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{globalSkills?.length || ""}</span></Head>
@@ -442,6 +493,33 @@ function SkillAdd({ onWrite, onInstall, agentName }: { onWrite: (name: string, m
 }
 
 /** Enable a global skill from a folder path. */
+/** Where an installed skill came from, asked once: a GitHub URL or owner/repo/path, or a folder on this Mac. The mod remembers the answer. */
+function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: string) => Promise<string | null>; onCancel: () => void }) {
+  const [source, setSource] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = async () => {
+    if (busy || !source.trim()) return;
+    setBusy(true);
+    setError(null);
+    const err = await onGo(source.trim());
+    setBusy(false);
+    if (err) setError(err);
+  };
+  return (
+    <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
+      <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
+      <input autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)} placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder" autoComplete="off" data-form-type="other" style={{ width: "100%", boxSizing: "border-box", padding: "6px 10px", fontSize: 12, background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, color: "var(--loki-fg)", outline: "none", fontFamily: "var(--loki-mono)" }} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        <span style={{ flex: 1 }} />
+        <button onClick={onCancel} style={btn()}>cancel</button>
+        <button onClick={() => void go()} disabled={busy || !source.trim()} style={{ ...btn("var(--loki-accent)"), opacity: busy || !source.trim() ? 0.5 : 1 }}>{busy ? "refreshing…" : "refresh"}</button>
+      </div>
+    </div>
+  );
+}
+
 function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> }) {
   const [open, setOpen] = useState(false);
   const [path, setPath] = useState("");

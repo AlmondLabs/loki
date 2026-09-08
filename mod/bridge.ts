@@ -37,6 +37,8 @@ import { isLanVia } from "./lan.ts";
  *    memory_diff { requestId, agentId, sha }  reply: memory_diff { requestId, agentId, sha, diff }; errors: agent_error
  *    skills_global { requestId }             reply: skills_global { requestId, skills } (~/.letta/skills, mod/skills.ts)
  *    skill_install { requestId, agentId, source, force? }  reply: skill_installed { requestId, agentId, output }; errors: agent_error
+ *    skill_refresh { requestId, agentId, name, source? }   reply: skill_refreshed { requestId, agentId, name, outcome: "current" | "replaced" | "reconcile", label, changed?, upstreamPath?, prompt? }
+ *                                            (source, when given, is remembered for this agent's skill; errors: agent_error, e.g. "no known source")
  *  HTTP: GET /agents/<agentId>/profile.png?t=<token>  the agent's face from its memory filesystem
  *    folders_get { requestId }                              reply: folders { requestId, byAgent, byConversation }
  *    folder_complete { requestId, prefix }                  reply: folder_matches { requestId, matches }
@@ -133,6 +135,10 @@ export interface BridgeDeps {
     /** Skills outside memory (mod/skills.ts). */
     globalSkills?: () => import("./skills.ts").GlobalSkill[];
     install?: (agentId: string, source: string, force: boolean) => Promise<string>;
+    /** Memory skills with origin (self/other), edited, and source (mod/skill-sources.ts); agent_get prefers this over `skills`. */
+    skillsInfo?: (agentId: string) => Promise<import("./skill-sources.ts").MemorySkillInfo[]>;
+    /** Fetch an other skill's upstream and replace, stage for reconciliation, or report current. */
+    refreshSkill?: (agentId: string, name: string, spec?: string) => Promise<import("./skill-sources.ts").RefreshOutcome>;
   };
   /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
@@ -386,6 +392,17 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           client.send({ type: "skills_global", requestId: msg.requestId, skills: ag?.globalSkills?.() ?? [] });
           return;
         }
+        case "skill_refresh": {
+          const requestId = msg.requestId;
+          const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
+          const ag = deps.agents;
+          if (!ag?.refreshSkill) return fail(new Error("skill refresh is not available in this mod"));
+          if (!isAgentId(msg.agentId) || typeof msg.name !== "string") return fail(new Error("agentId and name required"));
+          const agentId = msg.agentId;
+          const name = msg.name;
+          ag.refreshSkill(agentId, name, typeof msg.source === "string" ? msg.source : undefined).then((r) => client.send({ type: "skill_refreshed", requestId, agentId, name, ...r }), fail);
+          return;
+        }
         case "skill_install": {
           const requestId = msg.requestId;
           const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
@@ -412,7 +429,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
             void ag
               .log(agentId, { limit: 1 })
               .catch(() => [])
-              .then((last) => client.send({ type: "agent", requestId, agent, files: ag.tree(agentId), skills: ag.skills(agentId), hasProfile: ag.hasProfile(agentId), lastCommit: last[0] ?? null }));
+              .then(async (last) => client.send({ type: "agent", requestId, agent, files: ag.tree(agentId), skills: await (ag.skillsInfo ? ag.skillsInfo(agentId).catch(() => ag.skills(agentId)) : ag.skills(agentId)), hasProfile: ag.hasProfile(agentId), lastCommit: last[0] ?? null }));
           } else if (msg.type === "memory_read") {
             if (typeof msg.path !== "string") return fail(new Error("path required"));
             client.send({ type: "memory_file", requestId, agentId, path: msg.path, content: ag.read(agentId, msg.path) });

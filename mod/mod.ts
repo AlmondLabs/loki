@@ -15,6 +15,7 @@ import { SeenStore } from "./seen.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
+import { SkillSources } from "./skill-sources.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName } from "../packages/core/src/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
@@ -203,6 +204,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // Paired phones and the codes that pair them (mod/devices.ts, mod/pairing.ts); the listener itself follows the bridge.
   const devices = new DeviceStore(paths.devices);
   const codes = new PairingCodes();
+  // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
+  const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
   const bridge = createBridge({
     store,
     widgets,
@@ -237,6 +240,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
       get: (id) => readLocalAgent(id),
       tree: (id) => memoryTree(id),
       skills: (id) => memorySkills(id),
+      skillsInfo: (id) => skillSources.annotate(id, memorySkills(id)),
+      refreshSkill: (id, name, spec) => skillSources.refresh(id, name, spec),
       hasProfile: (id) => profilePath(id) !== null,
       read: (id, path) => readMemoryFile(id, path),
       log: (id, opts) => memoryLog(id, opts),

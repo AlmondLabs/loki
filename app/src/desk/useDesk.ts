@@ -6,6 +6,7 @@ import { inTauri, modWsBase } from "./env";
 import type { Task } from "../board/model";
 import type { AgentDetails } from "../agents/Agents";
 import type { GlobalSkill } from "../../../mod/skills.ts";
+import type { RefreshOutcome } from "../../../mod/skill-sources.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
 import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -386,6 +387,9 @@ export function useDesk() {
     /** `letta install <source> --agent <id>` through the mod; resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>
       request("skill_install", { agentId, source, force }, 130_000).then((m) => (m && m.type === "skill_installed" ? null : m && m.type === "agent_error" ? String(m.message ?? "install failed") : "install timed out")),
+    /** Refresh an installed skill from its upstream (mod/skill-sources.ts); the outcome, or `{ error }`. */
+    refreshSkill: (agentId: string, name: string, source?: string) =>
+      request("skill_refresh", { agentId, name, source }, 130_000).then((m): RefreshOutcome | { error: string } => (m && m.type === "skill_refreshed" ? (m as unknown as RefreshOutcome) : { error: m && m.type === "agent_error" ? String(m.message ?? "refresh failed") : "refresh timed out" })),
   };
 
   const attention = {
