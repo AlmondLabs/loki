@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { Scope } from "../packages/core/src/desk-core.ts";
 import { SHARED_SCOPE, scopeFor } from "../packages/core/src/desk-core.ts";
 import type { ConversationHandle, ConversationOpenEvent, EventContext, LettaMod, TurnStartEvent } from "./letta-types.ts";
-import { DEFAULT_MOD_PORT, paths } from "./paths.ts";
+import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
@@ -25,6 +25,7 @@ import { createBridge, scopeOfId } from "./bridge.ts";
 import { DeviceStore } from "./devices.ts";
 import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
+import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 
@@ -220,7 +221,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
     folderFor,
     lan: {
       status: () => lan!.status(),
+      refresh: () => lan!.refresh(),
       setEnabled: (enabled) => lan!.setEnabled(enabled),
+      setVia: (via) => lan!.setVia(via),
+      setServe: (enabled) => lan!.setServe(enabled),
       pairBegin: () => {
         const { code, expiresAt } = codes.mint();
         log("lan:pair-code", { expiresAt });
@@ -270,7 +274,12 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   // --- phones ----------------------------------------------------------
   // A second listener on the LAN, off by default; state/lan.json remembers the switch across /reload.
+  // Tailscale, when installed, is the way off the Wi‑Fi (Addendum 3): the QR prefers the tailnet name or
+  // the https front `tailscale serve` puts on this port; the CLI is only read, never installed.
+  const lanPort = Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
   lan = new LanListener({
+    port: lanPort,
+    tailscale: new Tailscale({ port: lanPort }),
     stateFile: paths.lan,
     devices,
     codes,

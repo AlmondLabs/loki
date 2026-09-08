@@ -9,6 +9,7 @@ import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
 import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
 import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
+import type { Tailscale, TailscaleStatus } from "./tailscale.ts";
 import { log } from "./log.ts";
 
 /**
@@ -36,7 +37,14 @@ export interface LanStatus {
   appServed: boolean;
   /** A bind error (EADDRINUSE …) or a missing network; null when all is well. */
   error: string | null;
+  /** Which route the QR encodes: the tailnet (Addendum 3) or the Wi‑Fi. Persisted when the user chose; else tailscale iff it runs. */
+  via: LanVia;
+  /** The tailnet's view of the Mac (mod/tailscale.ts); null when the listener was built without Tailscale. */
+  tailscale: TailscaleStatus | null;
 }
+
+export type LanVia = "tailscale" | "lan";
+export const isLanVia = (v: unknown): v is LanVia => v === "tailscale" || v === "lan";
 
 export type LanChange = "status" | "devices";
 
@@ -63,6 +71,10 @@ export interface LanOptions {
   host?: () => string | null;
   /** How often to look for a new canvas build while listening (default 5 s). */
   buildPollMs?: number;
+  /** The tailnet reader; omit and status().tailscale is null (tests that do not care). */
+  tailscale?: Tailscale | null;
+  /** How often to re-read Tailscale while listening (default 60 s). */
+  tailscalePollMs?: number;
 }
 
 export const DEVICE_COOKIE = "loki_device";
@@ -75,6 +87,12 @@ export class LanListener {
   private dist: string | null;
   private serveStatic: StaticHandler;
   private enabledFlag: boolean;
+  /** The user's route choice, or undefined for the default (tailscale iff running). */
+  private viaSetting: LanVia | undefined;
+  private readonly tailscale: Tailscale | null;
+  /** The Tailscale status the last refresh() saw, to notice a change worth broadcasting. */
+  private lastTailscale: TailscaleStatus | null = null;
+  private tailscalePoll: ReturnType<typeof setInterval> | null = null;
   /** Wrong pairing codes per remote address: ten in ten minutes and that address waits ten minutes. */
   private readonly attempts = new Attempts();
   private server: Server | null = null;
@@ -91,7 +109,10 @@ export class LanListener {
     this.configuredPort = opts.port ?? Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT);
     this.dist = opts.appDist === undefined ? resolveAppDist() : opts.appDist;
     this.serveStatic = createStaticApp(this.dist);
-    this.enabledFlag = readEnabled(opts.stateFile);
+    const state = readState(opts.stateFile);
+    this.enabledFlag = state.enabled;
+    this.viaSetting = state.via;
+    this.tailscale = opts.tailscale ?? null;
     opts.devices.onSeen = () => this.opts.onChange?.("devices", this.status());
   }
 
@@ -100,9 +121,11 @@ export class LanListener {
     return this.enabledFlag;
   }
 
+  /** Synchronous: the Tailscale part is whatever the last refresh() (or the cache) said. */
   status(): LanStatus {
     const addresses = lanAddresses(this.opts.interfaces);
     const listening = this.server !== null;
+    const tailscale = this.tailscale?.cached() ?? null;
     return {
       enabled: this.enabledFlag,
       address: addresses[0] ?? null,
@@ -111,21 +134,77 @@ export class LanListener {
       port: this.boundPort ?? this.configuredPort,
       appServed: this.dist !== null,
       error: this.bindError ?? (listening && addresses.length === 0 ? "no network interface with an IPv4 address" : null),
+      via: this.viaSetting ?? (tailscale?.running ? "tailscale" : "lan"),
+      tailscale,
     };
   }
 
-  /** The QR's payload: the page redeems `code` on load (D4'). */
-  /** The name first: a phone bookmark made from it keeps working when the Mac gets a new address on another Wi‑Fi. */
+  /** Ask Tailscale again (cached inside its ttl), then status(). Broadcasts when the tailnet's answer changed. */
+  async refresh(): Promise<LanStatus> {
+    if (this.tailscale) {
+      const next = await this.tailscale.status();
+      const prev = this.lastTailscale;
+      this.lastTailscale = next;
+      if (prev && (prev.running !== next.running || prev.name !== next.name || prev.serveUrl !== next.serveUrl)) {
+        log("lan:tailscale", { running: next.running, name: next.name, serveUrl: next.serveUrl, error: next.error });
+        this.opts.onChange?.("status", this.status());
+      }
+    }
+    return this.status();
+  }
+
+  /**
+   * The QR's payload: the page redeems `code` on load (D4'). Off the Wi‑Fi first (Addendum 3): the https front
+   * from `tailscale serve`, else the MagicDNS name; on the Wi‑Fi the Bonjour name, which survives a new address
+   * on another network; else the address.
+   */
   pairUrl(code: string): string {
     const s = this.status();
-    return `http://${s.host ?? s.address ?? "127.0.0.1"}:${s.port}/?code=${encodeURIComponent(code)}`;
+    return `${this.origin(s)}/?code=${encodeURIComponent(code)}`;
+  }
+
+  private origin(s: LanStatus): string {
+    const ts = s.tailscale;
+    if (s.via === "tailscale" && ts) {
+      if (ts.serveUrl) return ts.serveUrl;
+      if (ts.running && ts.name) return `http://${ts.name}:${s.port}`;
+    }
+    return `http://${s.host ?? s.address ?? "127.0.0.1"}:${s.port}`;
   }
 
   /** Persist first, then bind or close. Resolves with the status either way. */
   setEnabled(enabled: boolean): Promise<LanStatus> {
     this.enabledFlag = enabled;
-    writeEnabled(this.opts.stateFile, enabled);
+    writeState(this.opts.stateFile, { enabled, via: this.viaSetting });
     return enabled ? this.start() : this.stop();
+  }
+
+  /** The user's route choice, persisted; every tab hears the new status. */
+  setVia(via: LanVia): LanStatus {
+    this.viaSetting = via;
+    writeState(this.opts.stateFile, { enabled: this.enabledFlag, via });
+    const status = this.status();
+    this.opts.onChange?.("status", status);
+    return status;
+  }
+
+  /** Turn `tailscale serve` on or off for this listener; a CLI complaint shows in status().tailscale.error. */
+  async setServe(enabled: boolean): Promise<LanStatus> {
+    if (!this.tailscale) return this.status();
+    this.lastTailscale = await this.tailscale.setServe(enabled);
+    const status = this.status();
+    this.opts.onChange?.("status", status);
+    return status;
+  }
+
+  /** Origins the cross-site check accepts besides the request's own Host: the tailnet name and the Bonjour name. */
+  private allowedHosts(): string[] {
+    const s = this.status();
+    const out: string[] = [];
+    const name = s.tailscale?.name;
+    if (name) out.push(name, `${name}:443`, `${name}:${s.port}`);
+    if (s.host) out.push(s.host, `${s.host}:${s.port}`);
+    return out;
   }
 
   /** Bind. Failures land in status().error, never here. */
@@ -150,6 +229,11 @@ export class LanListener {
       // Phones cannot reload themselves from a menu: watch the build and tell them when it changes.
       this.announcedBuild = buildIdOf(this.dist);
       this.buildPoll = setInterval(() => this.checkBuild(), this.opts.buildPollMs ?? 5000);
+      // The tailnet can come and go (sign-out, laptop lid): read it now, then once a minute.
+      if (this.tailscale) {
+        await this.refresh();
+        this.tailscalePoll = setInterval(() => void this.refresh(), this.opts.tailscalePollMs ?? 60_000);
+      }
     });
   }
 
@@ -167,6 +251,8 @@ export class LanListener {
       const server = this.server;
       if (this.buildPoll) clearInterval(this.buildPoll);
       this.buildPoll = null;
+      if (this.tailscalePoll) clearInterval(this.tailscalePoll);
+      this.tailscalePoll = null;
       this.ws?.close();
       this.ws = null;
       this.server = null;
@@ -227,7 +313,7 @@ export class LanListener {
           return void json(res, 200, { ok: true, build: buildIdOf(this.dist), ...(this.opts.health?.() ?? {}) });
         case "/pair": {
           if (req.method !== "POST") return void json(res, 405, { error: "POST" });
-          const refused = crossSite(req);
+          const refused = crossSite(req, this.allowedHosts());
           if (refused) return void json(res, refused.status, { error: refused.error });
           return void this.pair(req, res);
         }
@@ -239,7 +325,7 @@ export class LanListener {
         }
         case "/unpair": {
           if (req.method !== "POST") return void json(res, 405, { error: "POST" });
-          const refused = crossSite(req);
+          const refused = crossSite(req, this.allowedHosts());
           if (refused) return void json(res, refused.status, { error: refused.error });
           const who = this.authorize(req, url);
           if (who.deviceId) {
@@ -294,19 +380,27 @@ export class LanListener {
  * cross-site no-cors POST. So: the body must be declared JSON (a form or text/plain post cannot be),
  * and when the browser names an Origin it must be this listener's own. Fetches from the served page
  * are same-origin; a QR-reading camera app never posts. Codes can also be guessed: see Attempts.
+ * Behind `tailscale serve` the request arrives from loopback with the tailnet's Host (or it in
+ * X-Forwarded-Host), so an Origin matching either, or one of `allowedHosts` (the tailnet name, the
+ * Bonjour name), is also the listener's own.
  */
-export function crossSite(req: IncomingMessage): { status: number; error: string } | null {
+export function crossSite(req: IncomingMessage, allowedHosts: string[] = []): { status: number; error: string } | null {
   const type = String(req.headers["content-type"] ?? "").toLowerCase();
   if (!type.startsWith("application/json")) return { status: 415, error: "send application/json" };
   const origin = req.headers.origin;
   if (typeof origin === "string" && origin !== "null") {
     let host: string;
     try {
-      host = new URL(origin).host;
+      host = new URL(origin).host.toLowerCase();
     } catch {
       return { status: 403, error: "bad origin" };
     }
-    if (host !== req.headers.host) return { status: 403, error: "cross-site request refused" };
+    const ok = new Set<string>();
+    if (typeof req.headers.host === "string") ok.add(req.headers.host.toLowerCase());
+    const forwarded = req.headers["x-forwarded-host"];
+    for (const h of (Array.isArray(forwarded) ? forwarded : [forwarded ?? ""]).flatMap((v) => v.split(","))) if (h.trim()) ok.add(h.trim().toLowerCase());
+    for (const h of allowedHosts) ok.add(h.toLowerCase());
+    if (!ok.has(host)) return { status: 403, error: "cross-site request refused" };
   }
   return null;
 }
@@ -432,20 +526,26 @@ function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null>
   });
 }
 
-function readEnabled(file: string): boolean {
+/** state/lan.json: `{ enabled, via? }`. Files from before Addendum 3 have no `via`: the default applies. */
+interface LanState {
+  enabled: boolean;
+  via?: LanVia;
+}
+
+function readState(file: string): LanState {
   try {
-    const parsed = JSON.parse(readFileSync(file, "utf8")) as { enabled?: unknown };
-    return parsed?.enabled === true;
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as { enabled?: unknown; via?: unknown } | null;
+    return { enabled: parsed?.enabled === true, via: isLanVia(parsed?.via) ? parsed.via : undefined };
   } catch {
-    return false;
+    return { enabled: false };
   }
 }
 
-function writeEnabled(file: string, enabled: boolean): void {
+function writeState(file: string, state: LanState): void {
   try {
     mkdirSync(dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify({ enabled }, null, 2) + "\n");
+    writeFileSync(tmp, JSON.stringify(state.via ? state : { enabled: state.enabled }, null, 2) + "\n");
     renameSync(tmp, file);
   } catch (err) {
     log("lan:state-write-failed", err instanceof Error ? err.message : String(err));

@@ -6,6 +6,7 @@ import type { GestureLog } from "./gestures.ts";
 import { describeGesture } from "./gestures.ts";
 import type { Client, WsHandlers } from "./server.ts";
 import { isAgentId } from "./agents.ts";
+import { isLanVia } from "./lan.ts";
 
 /**
  * WS protocol v2 (socket-free so it is testable):
@@ -46,12 +47,16 @@ import { isAgentId } from "./agents.ts";
  *    list_desks    {}
  *    pin_set       { agentId, conversationId, pinned }   → broadcast desks (pins live in ~/.letta/pinned-conversations.json)
  *  The phone listener (mod/lan.ts), controlled from Settings:
- *    lan_get {}                    reply: lan_status { enabled, address, addresses, port, appServed, error }
+ *    lan_get {}                    reply: lan_status { enabled, address, addresses, host, port, appServed, error, via, tailscale }
+ *                                  (re-reads Tailscale first; tailscale = { installed, running, ip, name, serveUrl, error } | null)
  *    lan_set { enabled }           reply: lan_status (persisted to state/lan.json first, then bind/close); also broadcast
- *    pair_begin {}                 reply: pair_code { code, url, expiresAt }   (url = http://<address>:<port>/?code=<code>)
+ *    lan_via_set { via }           via: "tailscale" | "lan"; persisted; reply lan_status; also broadcast
+ *    lan_serve_set { enabled }     `tailscale serve --bg --https=443 http://127.0.0.1:<port>` or off; reply lan_status
+ *                                  (a CLI complaint lands in tailscale.error, never in an error frame)
+ *    pair_begin {}                 reply: pair_code { code, url, expiresAt }   (url = <serveUrl | http://<tailnet name>:<port> | http://<host>:<port>>/?code=<code>)
  *    devices_list {}               reply: devices { devices: [{ id, name, createdAt, lastSeenAt }] }
  *    device_forget { id }          broadcast devices (that device's sockets close)
- *    (lan_status is broadcast on enable/disable/bind error; devices on pair/forget/seen)
+ *    (lan_status is broadcast on enable/disable/bind error/via change/serve change/a tailnet change; devices on pair/forget/seen)
  */
 
 /** live: conversation exists. archived: Letta archived it. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
@@ -137,7 +142,13 @@ export interface BridgeDeps {
   /** The phone listener (mod/lan.ts) and its paired devices, for Settings › phone. */
   lan?: {
     status: () => import("./lan.ts").LanStatus;
+    /** status() after asking Tailscale again (what lan_get answers with). */
+    refresh: () => Promise<import("./lan.ts").LanStatus>;
     setEnabled: (enabled: boolean) => Promise<import("./lan.ts").LanStatus>;
+    /** Which route the QR encodes; persisted. */
+    setVia: (via: import("./lan.ts").LanVia) => import("./lan.ts").LanStatus;
+    /** `tailscale serve` on or off for the listener. */
+    setServe: (enabled: boolean) => Promise<import("./lan.ts").LanStatus>;
     /** Mint a pairing code and the URL the QR carries. */
     pairBegin: () => { code: string; url: string; expiresAt: string };
     devices: () => import("./devices.ts").DeviceSummary[];
@@ -427,15 +438,31 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         }
         case "lan_get":
         case "lan_set":
+        case "lan_via_set":
+        case "lan_serve_set":
         case "pair_begin":
         case "devices_list":
         case "device_forget": {
           const lan = deps.lan;
           if (!lan) return client.send({ type: "error", message: "the phone listener is not available in this mod" });
-          if (msg.type === "lan_get") return client.send({ type: "lan_status", ...lan.status() });
+          const reply = (status: import("./lan.ts").LanStatus) => client.send({ type: "lan_status", ...status });
+          if (msg.type === "lan_get") {
+            // Settings just opened: ask Tailscale again (cached inside its ttl) before answering.
+            void lan.refresh().then(reply);
+            return;
+          }
           if (msg.type === "lan_set") {
             // Persisted first, then bound or closed; the listener's own onChange broadcasts to every tab.
-            void lan.setEnabled(msg.enabled === true).then((status) => client.send({ type: "lan_status", ...status }));
+            void lan.setEnabled(msg.enabled === true).then(reply);
+            return;
+          }
+          if (msg.type === "lan_via_set") {
+            if (!isLanVia(msg.via)) return client.send({ type: "error", message: "via must be \"tailscale\" or \"lan\"" });
+            return reply(lan.setVia(msg.via));
+          }
+          if (msg.type === "lan_serve_set") {
+            // The CLI's complaint, if any, rides in tailscale.error: Settings shows it beside the switch.
+            void lan.setServe(msg.enabled === true).then(reply);
             return;
           }
           if (msg.type === "pair_begin") return client.send({ type: "pair_code", ...lan.pairBegin() });
