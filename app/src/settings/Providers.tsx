@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
 import { Button, Chip, Dot, Field, Row } from "../ui";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, needsTerminal, sortProviders } from "./provider-model";
@@ -78,27 +78,35 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Each field's input is `${fieldId}-${key}`, so its label can name it. */
+  const fieldId = useId();
   const { authMethodId, fields } = fieldsFor(p, method);
 
   const connect = async () => {
     if (busy || !canConnect(fields, values)) return;
     setBusy(true);
     setError(null);
-    const err = await onConnect(p.id, fieldValues(fields, values), authMethodId ?? undefined);
-    setBusy(false);
-    if (err) return setError(err);
-    setValues({});
-    onChanged?.();
-    onToggle();
+    try {
+      const err = await onConnect(p.id, fieldValues(fields, values), authMethodId ?? undefined);
+      if (err) return setError(err);
+      setValues({});
+      onChanged?.();
+      onToggle();
+    } finally {
+      setBusy(false);
+    }
   };
   const disconnect = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
-    const err = await onDisconnect(p.id);
-    setBusy(false);
-    if (err) return setError(err);
-    onChanged?.();
+    try {
+      const err = await onDisconnect(p.id);
+      if (err) return setError(err);
+      onChanged?.();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -134,12 +142,13 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
                 </div>
               )}
               {fields.map((f) => (
-                <label key={f.key} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: 12 }}>
+                <label key={f.key} htmlFor={`${fieldId}-${f.key}`} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: 12 }}>
                   <span style={{ color: "var(--loki-muted)" }}>
                     {f.label}
                     {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
                   </span>
                   <Field
+                    id={`${fieldId}-${f.key}`}
                     size="sm"
                     mono
                     type={f.secret ? "password" : "text"}

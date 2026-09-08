@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LAN_BOOT_SCRIPT, bootScript, buildIdOf, createStaticApp, resolveAppDist } from "../mod/static.ts";
+import { LAN_BOOT_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
 
 const INDEX = `<!doctype html><html><head><meta charset="utf-8"><title>loki</title></head><body><div id="root"></div></body></html>`;
 
@@ -63,6 +63,22 @@ describe("static app", () => {
       expect(html).toContain('<div id="root">');
     }
     expect(LAN_BOOT_SCRIPT).toBe("<script>window.__LOKI__={lan:true}</script>");
+  });
+
+  test("the boot script cannot be broken out of: `</script>` and friends survive as JavaScript escapes", () => {
+    const hostile = '</script><script>alert(1)</script>&\u2028\u2029';
+    const script = bootScript(hostile);
+    // One script element, opened and closed exactly once: nothing inside it reads as markup.
+    expect(script.match(/<\/?script>/g)).toEqual(["<script>", "</script>"]);
+    expect(script.startsWith("<script>window.__LOKI__={lan:true,build:")).toBe(true);
+    expect(script).not.toContain("&");
+    // What the browser evaluates is the original string, character for character.
+    const json = jsonForScript(hostile);
+    expect(JSON.parse(json)).toBe(hostile);
+    expect(new Function(`return ${json}`)()).toBe(hostile);
+    expect(jsonForScript({ a: "<b>&c" })).toBe('{"a":"\\u003cb\\u003e\\u0026c"}');
+    // A plain hex build id is untouched.
+    expect(bootScript("abc123def456")).toBe('<script>window.__LOKI__={lan:true,build:"abc123def456"}</script>');
   });
 
   test("assets are served with their content type and immutable caching", async () => {

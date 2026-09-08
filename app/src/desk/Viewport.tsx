@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, type ReactNode } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, type ReactNode } from "react";
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 
 /**
@@ -28,9 +28,15 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
   const host = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
 
+  // The wheel listeners below are attached once; they reach the latest onScale through this ref.
+  const onScaleRef = useRef(onScale);
+  useEffect(() => {
+    onScaleRef.current = onScale;
+  });
+
   /** Keep the dot grid locked to the canvas: same translation, spacing scaled, thinned when zoomed out. */
-  const paintGrid = (x: number, y: number, scale: number) => {
-    onScale?.(scale);
+  const paintGrid = useCallback((x: number, y: number, scale: number) => {
+    onScaleRef.current?.(scale);
     const el = grid.current;
     if (!el) return;
     let step = GRID_STEP * scale;
@@ -43,7 +49,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
     el.style.backgroundSize = `${step}px ${step}px`;
     el.style.backgroundPosition = `${x}px ${y}px`;
     el.style.opacity = String(opacity);
-  };
+  }, []);
 
   useEffect(() => {
     const el = host.current;
@@ -125,7 +131,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
       el.removeEventListener("gesturechange", onGestureChange);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [paintGrid]);
 
   return (
     <div ref={host} style={{ position: "relative", width: "100%", height: "100%", overscrollBehavior: "none", touchAction: "none" }}>

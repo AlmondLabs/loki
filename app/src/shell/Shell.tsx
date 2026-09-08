@@ -116,6 +116,10 @@ export function Shell() {
     if (catchUp.status === "open" && catchUp.agentsLoaded && catchUp.agents.length === 0 && catchUp.providers === null) void catchUp.loadProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catchUp.status, catchUp.agentsLoaded, catchUp.agents.length, catchUp.providers === null]);
+  // The first agent's form offers the model list; ask for it as soon as that step shows (Welcome's "skip" asks too).
+  useEffect(() => {
+    if (welcome === "agent") loadModels();
+  }, [welcome, loadModels]);
   const pickModel = async (scope: string, rt: { agent_id: string; conversation_id: string }, handle: string) => {
     const err = await catchUp.updateModel(rt, handle);
     if (err) return notice(`model: ${err}`);
@@ -140,12 +144,15 @@ export function Shell() {
   const refreshTasks = useCallback(async () => {
     if (desk.connection !== "open") return;
     setTasksLoading(true);
-    const r = await desk.board.list(true);
-    setTasksLoading(false);
-    if (r.ok) {
-      setTasks(r.tasks);
-      setTasksError(null);
-    } else setTasksError(r.message);
+    try {
+      const r = await desk.board.list(true);
+      if (r.ok) {
+        setTasks(r.tasks);
+        setTasksError(null);
+      } else setTasksError(r.message);
+    } finally {
+      setTasksLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
   // Refresh when the mod says the board changed, when the segment opens, and slowly while it shows (Dolt has no file to watch).
@@ -231,12 +238,11 @@ export function Shell() {
     }
   });
   useEffect(() => {
-    setVisited((v) => {
-      const next = [desk.scope, ...v.filter((sc) => sc !== desk.scope)].slice(0, 50);
-      sessionStorage.setItem("loki.visited", JSON.stringify(next));
-      return next;
-    });
+    setVisited((v) => [desk.scope, ...v.filter((sc) => sc !== desk.scope)].slice(0, 50));
   }, [desk.scope]);
+  useEffect(() => {
+    sessionStorage.setItem("loki.visited", JSON.stringify(visited));
+  }, [visited]);
 
   const openTree = useCallback(() => {
     desk.desks.request();
@@ -317,7 +323,9 @@ export function Shell() {
   // Views register their own (the sheet's zoom, the deck's decisions, the board's moves). The single
   // key handler below and the native menu both dispatch through the registry.
   const keysRef = useRef({ segment, treeOpen, chatOpen, moveChat, stepDesk });
-  keysRef.current = { segment, treeOpen, chatOpen, moveChat, stepDesk };
+  useEffect(() => {
+    keysRef.current = { segment, treeOpen, chatOpen, moveChat, stepDesk };
+  });
   useEffect(
     () =>
       registerActions({

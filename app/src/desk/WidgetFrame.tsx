@@ -53,7 +53,9 @@ export function WidgetFrame({
   // The measurement observer reads these live, so a resize in progress (or just committed) never lets a
   // trailing content measurement overwrite the width the human just pinned.
   const sizedRef = useRef(sized);
-  sizedRef.current = sized;
+  useEffect(() => {
+    sizedRef.current = sized;
+  });
 
   // Keyboard nudges: the next position/size waiting to be committed, and the timer that commits them.
   // Committing through `gesture` (the drag's release path) keeps undo honest: the mod collapses commits

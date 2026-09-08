@@ -4,6 +4,9 @@ import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 import { Dot, IconButton, TextArea } from "../ui";
 
+/** "what was typed" + "what was heard", one space between, no trailing space carried over. */
+const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
+
 /**
  * Message box shared by the chat panel and the Catch Up reply: Enter sends,
  * Shift+Enter inserts a newline, grows with its content up to ~6 lines.
@@ -45,7 +48,6 @@ export const ChatInput = forwardRef<
   const interimRef = useRef("");
   /** Enter was pressed while listening: the message is gone, so late results from the recogniser must not refill the box. */
   const discarding = useRef(false);
-  const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
   const dictation = useDictation({
     onInterim: (text) => {
       if (discarding.current) return;

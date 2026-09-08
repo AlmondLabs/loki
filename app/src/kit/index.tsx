@@ -81,6 +81,7 @@ export function SliderControl({ data, onSet }: KitProps) {
       <input
         className="loki-slider"
         type="range"
+        aria-label={String(data.label ?? "value")}
         min={Number(data.min ?? 0)}
         max={Number(data.max ?? 100)}
         step={Number(data.step ?? 1)}

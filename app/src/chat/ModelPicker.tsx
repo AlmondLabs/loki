@@ -22,23 +22,22 @@ export function shortModel(handle: string | null | undefined): string {
  * marked, featured and default models first. Enter picks, Esc closes. The change applies to this
  * conversation (the app-server keeps a model per conversation; the main chat's model is the agent's).
  */
-export function ModelPicker({
-  open,
-  current,
-  entries,
-  loading,
-  onPick,
-  onClose,
-  anchor = "left",
-}: {
-  open: boolean;
+export function ModelPicker({ open, ...props }: ModelPickerProps & { open: boolean }) {
+  // Closed: nothing mounted, so each opening starts with an empty filter and the caret in the box.
+  if (!open) return null;
+  return <ModelPickerOpen {...props} />;
+}
+
+interface ModelPickerProps {
   current: string | null;
   entries: ModelEntry[] | null;
   loading: boolean;
   onPick: (handle: string) => void;
   onClose: () => void;
   anchor?: "left" | "right";
-}) {
+}
+
+function ModelPickerOpen({ current, entries, loading, onPick, onClose, anchor = "left" }: ModelPickerProps) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -47,12 +46,9 @@ export function ModelPicker({
   const listId = useId();
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-  }, [open]);
+    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, []);
 
   // Pinned first (current, default, featured), then everything else grouped by provider.
   const rows = useMemo(() => {
@@ -69,8 +65,6 @@ export function ModelPicker({
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
   }, [index]);
-
-  if (!open) return null;
 
   return (
     <Popover role="dialog" aria-label="choose a model" anchor={anchor} width={360}>

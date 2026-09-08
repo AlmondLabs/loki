@@ -9,7 +9,7 @@ import { AgentPage, FilePage } from "./Agent";
 import { Agents } from "./Agents";
 import { Conversation, type Thread } from "./Conversation";
 import { Home } from "./Home";
-import { Inbox } from "./Inbox";
+import { Inbox, useDeck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { Settings } from "./Settings";
 import { TabBar } from "./TabBar";
@@ -27,6 +27,9 @@ import { PhoneStyles, SAFE } from "./ui";
  * full-screen pages over them: a conversation, an agent, a memory file. Routes live in the hash.
  */
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
+
+/** An inbox card, opened: its conversation, full screen. */
+const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
 
 export function Phone() {
   const [gate, setGate] = useState<Gate>({ kind: "checking" });
@@ -121,13 +124,19 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     document.title = waiting > 0 ? `(${waiting}) loki` : "loki";
   }, [waiting]);
 
-  const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
     if (!item.pendingApproval) catchUp.later(item); // approvals never snooze
   };
   const banner = unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked.current)}</Banner> : null;
 
+  // The deck's pass (what was swiped, what is on top) lives here, beside the data: the top card's
+  // thread is fetched once when it arrives, and live rows stream in on top.
+  const deck = useDeck(catchUp.items);
+  useEffect(() => {
+    if (deck.current) void catchUp.loadHistory(deck.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deck.currentId]);
 
   // The conversation on screen, from the route: its title and agent from the desks list, the inbox, or the agent list.
   const conv = route.kind === "conversation" ? route : null;
@@ -189,7 +198,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         available={attention.available}
         banner={banner}
         conversation={catchUp.conversation}
-        onLoad={(item) => void catchUp.loadHistory(item)}
+        deck={deck}
         onOpen={openItem}
         onApprove={catchUp.approve}
         onSeen={catchUp.seen}

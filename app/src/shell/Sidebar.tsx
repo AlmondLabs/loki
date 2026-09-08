@@ -121,8 +121,10 @@ function Badge({ n, tone }: { n: number; tone: "accent" | "quiet" }) {
   );
 }
 
+/** Every rail icon: an 18px 20-unit box, hairline strokes. */
+const common = { width: 18, height: 18, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
 function Icon({ id }: { id: Segment }) {
-  const common = { width: 18, height: 18, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (id === "desk") {
     // a sheet with two plates on it
     return (

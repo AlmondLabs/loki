@@ -52,10 +52,13 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
     if (busy || !path.trim()) return;
     setBusy(true);
     setError(null);
-    const err = await onAdd(path.trim().replace(/^~(?=\/|$)/, "$HOME"));
-    setBusy(false);
-    if (err) return setError(err);
-    setPath("");
+    try {
+      const err = await onAdd(path.trim().replace(/^~(?=\/|$)/, "$HOME"));
+      if (err) return setError(err);
+      setPath("");
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div style={{ display: "grid", gap: 4 }}>

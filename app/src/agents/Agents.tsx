@@ -78,10 +78,9 @@ export function Agents({
   onShowDesks: () => void;
   onShowBoard: () => void;
 }) {
-  const [selected, setSelected] = useState<string | null>(initialAgentId ?? agents[0]?.id ?? null);
-  useEffect(() => {
-    if (!selected && agents[0]) setSelected(agents[0].id);
-  }, [agents, selected]);
+  /** The tab the user picked; with nothing picked (the list not here yet, or the picked agent just deleted) the first agent shows. */
+  const [picked, setPicked] = useState<string | null>(initialAgentId ?? agents[0]?.id ?? null);
+  const selected = picked ?? agents[0]?.id ?? null;
   const [details, setDetails] = useState<Record<string, AgentDetails | null | undefined>>({});
   const [commits, setCommits] = useState<Record<string, MemoryCommit[]>>({});
   /** The page down the left, remembered for the window; and what each page has picked. */
@@ -96,6 +95,15 @@ export function Agents({
   const [filePath, setFilePath] = useState("system/persona.md");
   const [sha, setSha] = useState<string | null>(null);
   const [skillName, setSkillName] = useState<string | null>(null);
+  /** Switch tabs: the memory, changes and skills pages start over for the new agent. */
+  const setSelected = (id: string | null) => {
+    if (id !== selected) {
+      setFilePath("system/persona.md");
+      setSha(null);
+      setSkillName(null);
+    }
+    setPicked(id);
+  };
   const dNow = selected ? details[selected] : undefined;
   const logNow = selected ? commits[selected] ?? [] : [];
   const shownSkill = dNow ? dNow.skills.find((x) => x.name === skillName) ?? dNow.skills[0] ?? null : null;
@@ -114,11 +122,7 @@ export function Agents({
     setCommits((x) => ({ ...x, [id]: log }));
   };
   useEffect(() => {
-    if (!selected) return;
-    setFilePath("system/persona.md");
-    setSha(null);
-    setSkillName(null);
-    if (details[selected] === undefined) void load(selected);
+    if (selected && details[selected] === undefined) void load(selected);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
   useEffect(() => {
@@ -220,8 +224,12 @@ export function Agents({
       return null;
     }
     setRefreshing(skill.name);
-    const r = await api.refreshSkill(selected, skill.name, source);
-    setRefreshing(null);
+    let r: Awaited<ReturnType<AgentsApi["refreshSkill"]>>;
+    try {
+      r = await api.refreshSkill(selected, skill.name, source);
+    } finally {
+      setRefreshing(null);
+    }
     if ("error" in r) return r.error;
     setNeedsSource(null);
     if (r.outcome === "current") flash(`${skill.name} is current (${r.label})`);
@@ -507,9 +515,12 @@ function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { mod
     if (busy || !name.trim()) return;
     setBusy(true);
     setError(null);
-    const err = await onCreate({ personality, name: name.trim(), description: description.trim() || undefined, model: model.trim() || undefined });
-    setBusy(false);
-    if (err) setError(err);
+    try {
+      const err = await onCreate({ personality, name: name.trim(), description: description.trim() || undefined, model: model.trim() || undefined });
+      if (err) setError(err);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }} onKeyDown={(e) => e.key === "Enter" && void submit()}>
@@ -554,8 +565,12 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
     if (busy) return;
     setBusy(true);
     setError(null);
-    const err = mode === "write" ? (slug && text.trim() ? await onWrite(slug, `---\nname: ${slug}\ndescription: ${text.trim().split("\n")[0].replace(/^#+\s*/, "").slice(0, 120)}\n---\n\n${text.trim()}\n`) : "a name and some text") : source.trim() ? await onInstall(source) : "a source";
-    setBusy(false);
+    let err: string | null;
+    try {
+      err = mode === "write" ? (slug && text.trim() ? await onWrite(slug, `---\nname: ${slug}\ndescription: ${text.trim().split("\n")[0].replace(/^#+\s*/, "").slice(0, 120)}\n---\n\n${text.trim()}\n`) : "a name and some text") : source.trim() ? await onInstall(source) : "a source";
+    } finally {
+      setBusy(false);
+    }
     if (err) return setError(err);
     onClose();
   };
@@ -592,9 +607,12 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     if (busy || !source.trim()) return;
     setBusy(true);
     setError(null);
-    const err = await onGo(source.trim());
-    setBusy(false);
-    if (err) setError(err);
+    try {
+      const err = await onGo(source.trim());
+      if (err) setError(err);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>

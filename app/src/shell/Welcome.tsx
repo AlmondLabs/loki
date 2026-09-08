@@ -33,6 +33,7 @@ export function Welcome({
   onDisconnect: (providerId: string) => Promise<string | null>;
   onModelsChanged: () => void;
   models: string[] | null;
+  /** Fetch the model list; the "skip for now" / "next" button calls it, the shell does when it opens on the agent step. */
   onLoadModels: () => void;
   onCreate: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<{ id: string } | { error: string }>;
   onDone: (agentId: string) => void;
@@ -48,11 +49,9 @@ export function Welcome({
   const lettaStep = step === "letta";
   const showAgent = !lettaStep && (step === "agent" || skipProvider);
   useEffect(() => {
-    if (showAgent) {
-      onLoadModels();
-      setTimeout(() => nameRef.current?.focus(), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!showAgent) return;
+    const t = setTimeout(() => nameRef.current?.focus(), 0);
+    return () => clearTimeout(t);
   }, [showAgent]);
   const connected = providers?.some(isConnected) ?? false;
 
@@ -60,10 +59,13 @@ export function Welcome({
     if (busy || !name.trim()) return;
     setBusy(true);
     setError(null);
-    const r = await onCreate({ personality, name: name.trim(), description: description.trim() || undefined, model: model.trim() || undefined });
-    setBusy(false);
-    if ("error" in r) return setError(r.error);
-    onDone(r.id);
+    try {
+      const r = await onCreate({ personality, name: name.trim(), description: description.trim() || undefined, model: model.trim() || undefined });
+      if ("error" in r) return setError(r.error);
+      onDone(r.id);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -93,7 +95,8 @@ export function Welcome({
             <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--loki-muted)" }}>
               <span>Keys are checked with the provider and kept by Letta on this Mac; loki never sees them again.</span>
               <span style={{ flex: 1 }} />
-              <Button size="sm" onClick={() => setSkipProvider(true)}>
+              {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
+              <Button size="sm" onClick={() => (setSkipProvider(true), onLoadModels())}>
                 {connected ? "next" : "skip for now"}
               </Button>
             </div>

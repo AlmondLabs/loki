@@ -107,6 +107,8 @@ export function deskMark(item: AttentionItem | undefined, status: DeskSummary["s
   return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };
 }
 
+const NO_VISITS: string[] = [];
+
 /**
  * The desks tree, which is also the quick switcher. Nothing typed: sections — waiting on you, pinned,
  * recent (in the order you visited), everything else — and the highlight starts on the desk you were on
@@ -115,23 +117,15 @@ export function deskMark(item: AttentionItem | undefined, status: DeskSummary["s
  * deleted conversations sit under a folded "archive" group at the bottom. Each desk carries the same
  * attention mark the inbox gives it.
  */
-export function DeskTree({
-  open,
-  onClose,
-  desks,
-  agents,
-  items,
-  current,
-  onSwitch,
-  onNew,
-  heading,
-  onPickDesk,
-  onPin,
-  onArchive,
-  visited = [],
-  onSwitchChat,
-}: {
-  open: boolean;
+export function DeskTree({ open, visited = NO_VISITS, ...props }: TreeProps & { open: boolean }) {
+  /** The archive group's fold; it outlives the sheet, unlike the filter, so it stays with the wrapper. */
+  const [showArchive, setShowArchive] = useState(false);
+  // The sheet mounts on ⌘K with a blank filter and the highlight on the last desk, and goes away with it.
+  if (!open) return null;
+  return <TreeSheet {...props} visited={visited} showArchive={showArchive} onToggleArchive={() => setShowArchive((v) => !v)} />;
+}
+
+interface TreeProps {
   onClose: () => void;
   desks: DeskSummary[];
   /** Agents the app-server knows; an agent with no desk yet still gets a chip. */
@@ -151,12 +145,27 @@ export function DeskTree({
   visited?: string[];
   /** ⇧↵: switch and put the cursor in the chat. */
   onSwitchChat?: (scope: Scope) => void;
-}) {
+}
+
+/** Every row the arrows can land on, in display order: the desks, "new desk", then the archive when it shows. */
+function buildRows(ordered: DeskSummary[], archive: DeskSummary[], newRow: Row | null, showArchive: boolean): Row[] {
+  const out: Row[] = ordered.map((d) => ({ kind: "desk", desk: d }));
+  if (newRow) out.push(newRow);
+  if (showArchive) for (const d of archive) out.push({ kind: "desk", desk: d });
+  return out;
+}
+
+const plural = (n: number) => `${n} desk${n === 1 ? "" : "s"}`;
+
+function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, heading, onPickDesk, onPin, onArchive, visited, onSwitchChat, showArchive, onToggleArchive }: Omit<TreeProps, "visited"> & { visited: string[]; showArchive: boolean; onToggleArchive: () => void }) {
   const [query, setQuery] = useState("");
-  const [index, setIndex] = useState(0);
-  const [showArchive, setShowArchive] = useState(false);
   /** null: every agent. */
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
+  /** Where the highlight starts: the rows as they are with nothing typed, and initialIndex() picks the way back. */
+  const [index, setIndex] = useState(() => {
+    const start = buildRows(sectionDesks(desks, null, items, visited).flatMap((sec) => sec.desks), archivedDesks(desks, null, ""), onNew ? { kind: "new", agentId: null, name: "" } : null, showArchive);
+    return initialIndex(start.map((r) => (r.kind === "desk" ? r.desk.scope : null)), visited, current);
+  });
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const keyboardMove = useRef(false);
@@ -181,23 +190,12 @@ export function DeskTree({
   const sections = useMemo<Section[]>(() => (q ? [{ id: "rest", label: "", desks: live }] : sectionDesks(desks, agentFilter, items, visited)), [q, live, desks, agentFilter, items, visited]);
   const ordered = useMemo(() => sections.flatMap((sec) => sec.desks), [sections]);
 
-  /** Every row the arrows can land on, in display order. */
-  const rows = useMemo<Row[]>(() => {
-    const out: Row[] = ordered.map((d) => ({ kind: "desk", desk: d }));
-    if (onNew) out.push({ kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" });
-    if (showArchive || q) for (const d of archive) out.push({ kind: "desk", desk: d });
-    return out;
-  }, [ordered, live, archive, q, query, showArchive, onNew, agentFilter]);
+  const rows = useMemo<Row[]>(() => buildRows(ordered, archive, onNew ? { kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" } : null, showArchive || !!q), [ordered, live, archive, q, query, showArchive, onNew, agentFilter]);
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setAgentFilter(null);
-      setIndex(initialIndex(rows.map((r) => (r.kind === "desk" ? r.desk.scope : null)), visited, current));
-      setTimeout(() => inputRef.current?.focus(), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     if (index >= rows.length) setIndex(Math.max(0, rows.length - 1));
   }, [rows.length, index]);
@@ -206,8 +204,6 @@ export function DeskTree({
     keyboardMove.current = false;
     listRef.current?.querySelector<HTMLElement>(`[role="option"][data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
   }, [index]);
-
-  if (!open) return null;
 
   const choose = (row: Row | undefined, chat = false) => {
     if (!row) return;
@@ -227,7 +223,6 @@ export function DeskTree({
   let cursor = 0;
   const rowIndex = () => cursor++;
   const pickName = (agentId: string | null) => chips.find((c) => c.id === agentId)?.name ?? null;
-  const plural = (n: number) => `${n} desk${n === 1 ? "" : "s"}`;
   /** What the hidden live region says: the agent filter (Tab changes it silently otherwise) and, while typing, how many desks match. */
   const filterWord = agentFilter ? `${pickName(agentFilter) ?? "agent"} · ${plural(chips.find((c) => c.id === agentFilter)?.count ?? 0)}` : "all agents";
   const statusWord = q ? `${filterWord} · ${plural(live.length + archive.length)} match` : filterWord;
@@ -339,7 +334,7 @@ export function DeskTree({
         {archive.length > 0 && (
           <div role="group" aria-label="archive" style={{ marginTop: 10 }}>
             <button
-              onClick={() => setShowArchive((v) => !v)}
+              onClick={onToggleArchive}
               className="loki-label"
               aria-expanded={showArchive || !!q}
               style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "4px 8px", border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", fontSize: 9.5, textAlign: "left" }}
@@ -376,13 +371,15 @@ export function Mark({ item, status, size = 7 }: { item: AttentionItem | undefin
   return <Dot aria-label={title || undefined} title={title || undefined} pulse={pulse} size={size} color={border} ring={color === "transparent"} />;
 }
 
+/** A hover action's click stays on the button: the row underneath would otherwise open the desk. */
+const act = (fn: () => void) => (e: React.MouseEvent) => {
+  e.stopPropagation();
+  fn();
+};
+
 function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onHover, onChoose, onPin, onArchive }: { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; optionId: (i: number) => string; selected: number; onHover: (i: number) => void; onChoose: () => void; onPin?: (desk: DeskSummary, pinned: boolean) => void; onArchive?: (desk: DeskSummary, archived: boolean) => void }) {
   const canArchive = !!onArchive && !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
   const canPin = !!onPin && !!d.agentId && !!d.conversationId && d.status === "live";
-  const act = (fn: () => void) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    fn();
-  };
   return (
     <div
       id={optionId(index)}

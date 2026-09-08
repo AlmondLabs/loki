@@ -32,6 +32,9 @@ function WidgetBody({
   return <Kit data={data} onSet={onSet} />;
 }
 
+/** The mounted frames for these widget ids (a frame's element id is `widget-<desk>--<name>`). */
+const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);
+
 /** Bounds of a set of widget elements in canvas units (offset* are untransformed content coordinates). */
 function boundsOf(els: HTMLElement[]) {
   const left = Math.min(...els.map((e) => e.offsetLeft));
@@ -88,7 +91,8 @@ export function Surface({
   modeMenuTick?: number;
 }) {
   const { scope, title, status, agentName, agentId, conversationId, connection, visible, closed, ownCount, loaded, attention, gesture, measure, arrange, trash, reportWidgetError, cameraTarget } = desk;
-  const [deskFolder, setDeskFolder] = useState<string | null>(null);
+  /** The conversation's working folder, sent along with each message; only the send handler reads it. */
+  const deskFolder = useRef<string | null>(null);
 
   // An empty desk is a conversation, not a canvas: the chat opens by itself (the shell centres it).
   const autoOpened = useRef(new Set<string>());
@@ -112,8 +116,15 @@ export function Surface({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, conversationId, catchUp.status]);
   useEffect(() => {
-    if (!deskRuntime) return setDeskFolder(null);
-    void attention.folders.recent().then((r) => setDeskFolder(r.byConversation[conversationDirName(deskRuntime.conversation_id, deskRuntime.agent_id)] ?? null));
+    deskFolder.current = null;
+    if (!deskRuntime) return;
+    let stale = false; // an answer for the previous conversation must not land on this one
+    void attention.folders.recent().then((r) => {
+      if (!stale) deskFolder.current = r.byConversation[conversationDirName(deskRuntime.conversation_id, deskRuntime.agent_id)] ?? null;
+    });
+    return () => {
+      stale = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, conversationId, connection]);
   useEffect(() => {
@@ -145,7 +156,9 @@ export function Surface({
   const inset = chatPlacement === "left" ? sideWidth : 0;
   const insetRight = chatPlacement === "right" ? sideWidth : 0;
   const insetRef = useRef({ left: inset, right: insetRight });
-  insetRef.current = { left: inset, right: insetRight };
+  useEffect(() => {
+    insetRef.current = { left: inset, right: insetRight };
+  });
   // Slide the sheet with the chat on the left: open → content moves right by the chat's width, close → back.
   const prevInset = useRef(inset);
   useEffect(() => {
@@ -183,8 +196,6 @@ export function Surface({
     const b = boundsOf(els);
     api.setTransform(st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s, glide(ms), "easeOut");
   };
-  const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);
-
   // Widgets the camera is pointing at glow for a few seconds, so the eye finds them.
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
 
@@ -220,10 +231,13 @@ export function Surface({
     // keep the canvas point under the centre where it is
     api.setTransform(cx - (cx - positionX) / s, cy - (cy - positionY) / s, 1, glide(500), "easeOut");
   };
+  // The keymap actions above were registered once; they call through these to the latest closures.
   const fitAllRef = useRef(fitAll);
-  fitAllRef.current = fitAll;
   const resetZoomRef = useRef(resetZoom);
-  resetZoomRef.current = resetZoom;
+  useEffect(() => {
+    fitAllRef.current = fitAll;
+    resetZoomRef.current = resetZoom;
+  });
 
   /** Focus: bring the widget to the front and zoom so it fills a good part of the stage. */
   const focusWidget = (id: string) => {
@@ -359,7 +373,7 @@ export function Surface({
           onApprove={(behavior) => {
             if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
           }}
-          onSend={(text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder, desk: title })}
+          onSend={(text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title })}
           onCancelQueued={(text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text)}
           onClose={() => onChatOpen(false)}
         />

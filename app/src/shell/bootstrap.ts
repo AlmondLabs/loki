@@ -22,8 +22,7 @@ export function useBootstrap(): { status: BootstrapStatus | null; install: () =>
     let off: (() => void) | null = null;
     let cancelled = false;
     void (async () => {
-      const { invoke } = await import("@tauri-apps/api/core");
-      const { listen } = await import("@tauri-apps/api/event");
+      const [{ invoke }, { listen }] = await Promise.all([import("@tauri-apps/api/core"), import("@tauri-apps/api/event")]);
       const refresh = () => void invoke<BootstrapStatus>("bootstrap_status").then((s) => !cancelled && setStatus(s)).catch(() => {});
       refresh();
       off = await listen("loki:bootstrap", refresh);

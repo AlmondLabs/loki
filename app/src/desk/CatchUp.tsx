@@ -76,29 +76,15 @@ function ago(iso: string | null): string {
   return `${Math.round(h / 24)}d`;
 }
 
-export function CatchUp({
-  open,
-  onClose,
-  items,
-  onSeen,
-  onUnread,
-  onLater,
-  onUnsnooze,
-  snoozes,
-  onApprove,
-  onAnswer,
-  onReply,
-  onOpenDesk,
-  conversation,
-  loadHistory,
-  modelFor,
-  models = null,
-  onLoadModels,
-  onPickModel,
-  modeFor,
-  onPickMode,
-}: {
-  open: boolean;
+export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
+  /** S: bring deferred cards back into this pass, in a quieter style. Remembered across passes. */
+  const [showSnoozed, setShowSnoozed] = useState(false);
+  // Closed: nothing mounted, so each opening is a fresh pass — the queue is built from what waits right now.
+  if (!open) return null;
+  return <CatchUpDeck {...props} showSnoozed={showSnoozed} setShowSnoozed={setShowSnoozed} />;
+}
+
+interface CatchUpProps {
   onClose: () => void;
   items: AttentionItem[];
   /** "Later" with backoff, and its undo. */
@@ -123,20 +109,42 @@ export function CatchUp({
   /** The permission mode of a card's conversation, and its setter. */
   modeFor?: (agentId: string, conversationId: string) => string | null;
   onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
-}) {
+}
+
+function CatchUpDeck({
+  onClose,
+  items,
+  onSeen,
+  onUnread,
+  onLater,
+  onUnsnooze,
+  snoozes,
+  onApprove,
+  onAnswer,
+  onReply,
+  onOpenDesk,
+  conversation,
+  loadHistory,
+  modelFor,
+  models = null,
+  onLoadModels,
+  onPickModel,
+  modeFor,
+  onPickMode,
+  showSnoozed,
+  setShowSnoozed,
+}: CatchUpProps & { showSnoozed: boolean; setShowSnoozed: (update: (v: boolean) => boolean) => void }) {
   const [modelPicker, setModelPicker] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [modeMenu, setModeMenu] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
   // The current card never moves under your hands, but the queue stays live: new items join at the end,
   // items resolved elsewhere drop out, decided ones fall out. The count in the header follows.
-  const [queue, setQueue] = useState<AttentionItem[]>([]);
+  const [queue, setQueue] = useState<AttentionItem[]>(() => catchUpQueue(items, showSnoozed));
   const [decided, setDecided] = useState<Decision[]>([]);
   // The reply box is always there and takes focus with each card. While you are in it,
   // letters type; the deck's single-key shortcuts return when you press Esc (or click out).
   const [typingRaw, setTyping] = useState(false);
-  /** S: bring deferred cards back into this pass, in a quieter style. */
-  const [showSnoozed, setShowSnoozed] = useState(false);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
@@ -147,21 +155,11 @@ export function CatchUp({
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const live = useMemo(() => new Map(items.map((i) => [idOf(i), i])), [items]);
 
-  useEffect(() => {
-    if (!open) return;
-    setQueue(catchUpQueue(items, showSnoozed));
-    setDecided([]);
-    setReplies(0);
-    setDraft("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
   // Live merge while open.
   useEffect(() => {
-    if (!open) return;
     setQueue((q) => mergeQueue(q, items, decided, showSnoozed));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, open, showSnoozed]);
+  }, [items, showSnoozed]);
 
   const total = queue.length + decided.length;
   /** Live: what is actually waiting right now, whatever this pass has decided. */
@@ -177,9 +175,9 @@ export function CatchUp({
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
   useEffect(() => {
-    if (open && current) loadHistory(current);
+    if (current) loadHistory(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, current?.agentId, current?.id]);
+  }, [current?.agentId, current?.id]);
 
   const advance = (action: "seen" | "unread", via: Decision["via"] = action === "seen" ? "next" : "later") => {
     if (!current) return;
@@ -232,7 +230,6 @@ export function CatchUp({
   // The deck's actions, by keymap id (the shell's key handler and the menu dispatch to them). The keymap
   // decides which keys reach here while the reply box has focus: ⌘] ⌘[ ⌘↵ ⌘⌫ ⌘O ⌘S do, plain letters do not.
   useEffect(() => {
-    if (!open) return;
     return registerActions({
       "inbox.next": () => advance("seen"),
       "inbox.later": () => advance("unread"),
@@ -252,10 +249,9 @@ export function CatchUp({
       "inbox.snoozed": () => setShowSnoozed((v) => !v),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, typing, current, decided, draft]);
+  }, [typing, current, decided, draft]);
   // Esc with the box idle closes the deck (the box handles its own Esc: keep a draft, or close when empty).
   useEffect(() => {
-    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       // A layer over the inbox (the desks tree, a dialog) owns Esc while it is up: it closes, the inbox stays.
       if (e.key === "Escape" && !typing && !document.querySelector('[role="dialog"]')) onClose();
@@ -263,18 +259,20 @@ export function CatchUp({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, typing]);
+  }, [typing]);
 
   // Each card arrives with the reply box focused, so you can just type — except approvals,
   // where the decision is the point: A and D must work at once, so the box waits for R or a click.
   useEffect(() => {
-    if (!open || !current) return;
-    if (current.pendingApproval || current.pendingQuestion) replyRef.current?.blur();
-    else setTimeout(() => replyRef.current?.focus(), 0); // after the keystroke that brought this card has finished
+    if (!current) return;
+    if (current.pendingApproval || current.pendingQuestion) {
+      replyRef.current?.blur();
+      return;
+    }
+    const t = setTimeout(() => replyRef.current?.focus(), 0); // after the keystroke that brought this card has finished
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
-
-  if (!open) return null;
+  }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
 
   const badge = current ? BADGE[current.status] : null;
   const position = total - queue.length + 1;

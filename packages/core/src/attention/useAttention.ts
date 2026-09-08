@@ -51,7 +51,6 @@ export function useAttention(opts: UseAttentionOptions) {
   /** Conversations the list knows about; an event from an unknown one means the list is stale (a new desk, an empty conversation that just got its first turn). */
   const knownRef = useRef(new Set<string>());
   const reloadRef = useRef<(() => void) | null>(null);
-  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastReload = useRef(0);
 
   const bump = useCallback(() => {
@@ -73,6 +72,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const sock = new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
     sock.onStatus = setStatus;
     socketRef.current = sock;
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null; // a list refresh waiting on this socket
     const off = sock.on((ev: ServerEvent) => {
       const conv = ev.runtime?.conversation_id ?? (typeof ev.conversation_id === "string" ? ev.conversation_id : null);
       const agent = ev.runtime?.agent_id ?? (typeof ev.agent_id === "string" ? ev.agent_id : null);
@@ -98,10 +98,10 @@ export function useAttention(opts: UseAttentionOptions) {
           void sock.sendUserMessage(rt, next.text, next.images, next.context).catch((err) => console.warn("loki: queued send", err));
         }
       }
-      if (changed && !knownRef.current.has(key) && !reloadTimer.current && Date.now() - lastReload.current > 10_000) {
+      if (changed && !knownRef.current.has(key) && !reloadTimer && Date.now() - lastReload.current > 10_000) {
         // not in the list yet: refresh it soon so the conversation can become a card
-        reloadTimer.current = setTimeout(() => {
-          reloadTimer.current = null;
+        reloadTimer = setTimeout(() => {
+          reloadTimer = null;
           reloadRef.current?.();
         }, 1500);
       }
@@ -119,8 +119,8 @@ export function useAttention(opts: UseAttentionOptions) {
           setAgents([...names].map(([id, name]) => ({ id, name })));
           setAgentsLoaded(true);
         }
-        const records: Array<Record<string, unknown>> = [];
-        for (const id of names.keys()) records.push(...(await sock.listConversations(id, 100)));
+        // One list per agent, all in flight at once: requests carry their own id over the socket, and toConversations sorts.
+        const records = (await Promise.all([...names.keys()].map((id) => sock.listConversations(id, 100)))).flat();
         const convs = toConversations(records, names);
         if (cancelled) return;
         lastReload.current = Date.now();
@@ -149,12 +149,22 @@ export function useAttention(opts: UseAttentionOptions) {
     return () => {
       cancelled = true;
       clearInterval(refresh);
+      if (reloadTimer) clearTimeout(reloadTimer);
       off();
       sock.close();
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.enabled, opts.tunnelUrl]);
+
+  // The pending tick, if any, has nothing to render into after unmount.
+  useEffect(
+    () => () => {
+      if (notifyTimer.current) clearTimeout(notifyTimer.current);
+      notifyTimer.current = null;
+    },
+    [],
+  );
 
   // Snoozes expire on their own; re-evaluate twice a minute so cards come due without any event.
   const [now, setNow] = useState(() => Date.now());

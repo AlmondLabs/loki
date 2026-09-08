@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
 import { Button, Chip, Dot, Field } from "../ui";
 
@@ -10,14 +10,15 @@ import { Button, Chip, Dot, Field } from "../ui";
  * when there are several; with one question the host's message box is the
  * "in your own words" path.
  */
-export function QuestionCard({ question, onAnswer }: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void }) {
+export function QuestionCard(props: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void }) {
+  // A new request is a new card: picks and typed answers start empty with it.
+  return <QuestionCardFor key={props.question.requestId} {...props} />;
+}
+
+function QuestionCardFor({ question, onAnswer }: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void }) {
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
   const [peek, setPeek] = useState<string | null>(null); // hovered option label, for its description
-  useEffect(() => {
-    setPicked({});
-    setOther({});
-  }, [question.requestId]);
 
   const many = question.questions.length > 1;
   const answerFor = (q: PendingQuestion["questions"][number]): string | string[] | null => {

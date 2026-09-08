@@ -26,9 +26,18 @@ export function buildIdOf(dist: string | null): string | null {
   }
 }
 
+/**
+ * JSON that is safe to inline in a `<script>`: the HTML parser ends the script at the first `</script>`
+ * whatever the JavaScript around it says, so `<`, `>` and `&` become JavaScript escapes (entities are not
+ * decoded inside a script), and U+2028/2029, line terminators to old engines, go the same way.
+ */
+export function jsonForScript(value: unknown): string {
+  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 /** The boot script with the build stamped in. */
 export function bootScript(build: string | null): string {
-  return build ? `<script>window.__LOKI__={lan:true,build:${JSON.stringify(build)}}</script>` : LAN_BOOT_SCRIPT;
+  return build ? `<script>window.__LOKI__={lan:true,build:${jsonForScript(build)}}</script>` : LAN_BOOT_SCRIPT;
 }
 
 const TYPES: Record<string, string> = {

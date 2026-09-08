@@ -94,7 +94,9 @@ export function ChatWindow({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    if (focusTick > 0) setTimeout(() => inputRef.current?.focus(), 0);
+    if (focusTick <= 0) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(t);
   }, [focusTick]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -125,14 +127,14 @@ export function ChatWindow({
     setSwitching(false);
   };
   useEffect(() => {
-    if (prefill && prefill.tick > 0) {
-      setDraft(prefill.text);
-      setTimeout(() => {
-        const el = inputRef.current;
-        el?.focus();
-        el?.setSelectionRange(el.value.length, el.value.length);
-      }, 0);
-    }
+    if (!prefill || prefill.tick <= 0) return;
+    setDraft(prefill.text);
+    const t = setTimeout(() => {
+      const el = inputRef.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.tick]);
   // Find in the transcript: the browser's own text search, scoped by starting from the transcript and
@@ -141,10 +143,10 @@ export function ChatWindow({
   const [findQuery, setFindQuery] = useState("");
   const findRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (findTick > 0) {
-      setFindOpen(true);
-      setTimeout(() => findRef.current?.select(), 0);
-    }
+    if (findTick <= 0) return;
+    setFindOpen(true);
+    const t = setTimeout(() => findRef.current?.select(), 0);
+    return () => clearTimeout(t);
   }, [findTick]);
   const findNext = (backwards = false) => {
     const q = findQuery.trim();

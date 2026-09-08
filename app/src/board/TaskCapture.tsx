@@ -7,18 +7,20 @@ import { PRIORITY_LABEL } from "./model";
  * ⌘J anywhere: file a task yourself, no agent turn. A title, an optional description
  * and labels, a priority. Enter files it and closes; ⇧Enter is a newline in the description.
  */
-export function TaskCapture({
-  open,
-  onClose,
-  onCreate,
-  context,
-}: {
-  open: boolean;
+export function TaskCapture({ open, ...props }: CaptureProps & { open: boolean }) {
+  // The form mounts with the sheet and goes with it, so every ⌘J starts blank with the title focused.
+  if (!open) return null;
+  return <CaptureForm {...props} />;
+}
+
+interface CaptureProps {
   onClose: () => void;
   onCreate: (t: { title: string; description?: string; labels?: string[]; priority: number }) => Promise<string | null>;
   /** Where the note is being taken; shown so you know what it will be stamped with. */
   context: { desk: string | null; agentName: string | null };
-}) {
+}
+
+function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [labels, setLabels] = useState("");
@@ -28,25 +30,21 @@ export function TaskCapture({
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    setTitle("");
-    setDescription("");
-    setLabels("");
-    setPriority(2);
-    setError(null);
-    setTimeout(() => titleRef.current?.focus(), 0);
-  }, [open]);
-
-  if (!open) return null;
+    const t = setTimeout(() => titleRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const submit = async () => {
     if (!title.trim() || busy) return;
     setBusy(true);
     setError(null);
-    const err = await onCreate({ title: title.trim(), description: description.trim() || undefined, labels: labels.split(",").map((l) => l.trim()).filter(Boolean), priority });
-    setBusy(false);
-    if (err) setError(err);
-    else onClose();
+    try {
+      const err = await onCreate({ title: title.trim(), description: description.trim() || undefined, labels: labels.split(",").map((l) => l.trim()).filter(Boolean), priority });
+      if (err) setError(err);
+      else onClose();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onKey = (e: React.KeyboardEvent) => {

@@ -81,19 +81,37 @@ export function Settings({
   /** ~/.letta/skills, which every agent reads (Settings › skills). */
   globalSkills: GlobalSkillsApi;
 }) {
-  const [appServerUrl, setAppServerUrl] = useState<string | null>(null);
+  // The app-server's address: in the shell the Rust side knows it (asked again when the tunnel changes, as the
+  // harness may have been adopted meanwhile); a browser tab reaches it through the mod's tunnel.
+  const [shellUrl, setShellUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!inTauri) return setAppServerUrl(tunnelUrl);
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke<string>("appserver_url")).then(setAppServerUrl).catch(() => setAppServerUrl(null));
+    if (!inTauri) return;
+    let cancelled = false;
+    void import("@tauri-apps/api/core")
+      .then(({ invoke }) => invoke<string>("appserver_url"))
+      .then((url) => !cancelled && setShellUrl(url))
+      .catch(() => !cancelled && setShellUrl(null));
+    return () => {
+      cancelled = true;
+    };
   }, [tunnelUrl]);
+  const appServerUrl = inTauri ? shellUrl : tunnelUrl;
   const [install, setInstall] = useState<InstallReport | null>(null);
   const [tools, setTools] = useState<Tools | null>(null);
   useEffect(() => {
     if (!inTauri) return;
-    void import("@tauri-apps/api/core").then(async ({ invoke }) => {
-      setInstall(await invoke<InstallReport>("install_status").catch(() => null));
-      setTools(await invoke<Tools>("tool_status").catch(() => null));
-    });
+    let cancelled = false;
+    void import("@tauri-apps/api/core")
+      .then(async ({ invoke }) => {
+        const [report, found] = await Promise.all([invoke<InstallReport>("install_status").catch(() => null), invoke<Tools>("tool_status").catch(() => null)]);
+        if (cancelled) return;
+        setInstall(report);
+        setTools(found);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const compatible = lettaCompatible(lettaVersion);
   // Never print the token: a browser tab's tunnel URL carries it as a query.

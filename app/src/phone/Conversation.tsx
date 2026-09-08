@@ -77,14 +77,14 @@ export function Conversation({
   }, [thread.agentId, thread.conversationId]);
 
   useEffect(() => {
-    if (prefill && prefill.tick > 0) {
-      setDraft(prefill.text);
-      setTimeout(() => {
-        const el = boxRef.current;
-        el?.focus();
-        el?.setSelectionRange(el.value.length, el.value.length);
-      }, 0);
-    }
+    if (!prefill || prefill.tick <= 0) return;
+    setDraft(prefill.text);
+    const t = setTimeout(() => {
+      const el = boxRef.current;
+      el?.focus();
+      el?.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.tick]);
 

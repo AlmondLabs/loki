@@ -101,12 +101,27 @@ export function useDesk() {
   /** Latest measured size per widget that could not be sent yet (frames measure before the socket opens). */
   const pendingMeasures = useRef(new Map<string, Size>());
 
+  /** Show another desk in this tab: URL param + reconnect. */
+  const switchDesk = useCallback(
+    (next: Scope) => {
+      if (!next || next === scope) return;
+      rememberDesk(next);
+      const url = new URL(location.href);
+      url.searchParams.set("desk", next);
+      history.replaceState(null, "", url);
+      setScope(next); // the connection effect re-runs on the new desk
+    },
+    [scope],
+  );
+
   useEffect(() => {
     let disposed = false;
     let retryMs = 500;
+    let retry: ReturnType<typeof setTimeout> | null = null;
     const token = readSession().token;
 
     const connect = () => {
+      if (disposed) return;
       const proto = location.protocol === "https:" ? "wss" : "ws";
       const ws = new WebSocket(`${modWsBase()}/ws?t=${token}&desk=${encodeURIComponent(scope)}`);
       wsRef.current = ws;
@@ -226,7 +241,7 @@ export function useDesk() {
       ws.onclose = () => {
         setConnection("closed");
         if (!disposed) {
-          setTimeout(connect, retryMs);
+          retry = setTimeout(connect, retryMs);
           retryMs = Math.min(retryMs * 2, 8000);
         }
       };
@@ -235,9 +250,10 @@ export function useDesk() {
     connect();
     return () => {
       disposed = true;
+      if (retry) clearTimeout(retry); // a reconnect scheduled for the old desk must not open a socket after the switch
       wsRef.current?.close();
     };
-  }, [scope]);
+  }, [scope, switchDesk]);
 
   // Vite compile errors for widget files → tell the mod, so the agent hears about them.
   useEffect(() => {
@@ -255,16 +271,6 @@ export function useDesk() {
     return () => hot.off("vite:error", onError);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /** Show another desk in this tab: URL param + reconnect. */
-  const switchDesk = (next: Scope) => {
-    if (!next || next === scope) return;
-    rememberDesk(next);
-    const url = new URL(location.href);
-    url.searchParams.set("desk", next);
-    history.replaceState(null, "", url);
-    setScope(next); // the connection effect re-runs on the new desk
-  };
 
   const requestDesks = () => {
     send({ type: "list_desks" });
@@ -307,7 +313,9 @@ export function useDesk() {
   /** Inverse gestures, newest last; ⌘Z on the sheet pops one. Local to this window. */
   const undoStack = useRef<Gesture[]>([]);
   const desksRef = useRef(desks);
-  desksRef.current = desks;
+  useEffect(() => {
+    desksRef.current = desks;
+  });
   const inverseOf = (g: Gesture): Gesture | null => {
     const s = scopeOfId(g.id);
     const l = desksRef.current[s]?.layout[g.id];

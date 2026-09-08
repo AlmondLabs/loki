@@ -1,0 +1,20 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "rules": {
+    "react-doctor/only-export-components": "off",
+    "react-doctor/js-combine-iterations": "off",
+    "react-doctor/js-set-map-lookups": "off",
+    "react-doctor/js-flatmap-filter": "off",
+    "react-doctor/prefer-useReducer": "off",
+    "react-doctor/no-fetch-in-effect": "off",
+    "react-doctor/prefer-html-dialog": "off"
+  },
+  "ignore": {
+    "files": [
+      ".loki-build/**",
+      "src-tauri/target/**",
+      "src-tauri/resources/**",
+      "app/dist/**"
+    ]
+  }
+}

@@ -14,17 +14,13 @@ export interface FolderApi {
  * "New desk": a fresh conversation under an agent, in a folder. Agent first,
  * folder second (defaults follow the agent), name optional. Enter starts.
  */
-export function NewDesk({
-  open,
-  onClose,
-  agents,
-  defaultAgentId,
-  defaultFolder,
-  initialName = "",
-  folders,
-  onCreate,
-}: {
-  open: boolean;
+export function NewDesk({ open, ...props }: NewDeskProps & { open: boolean }) {
+  // Closed: nothing mounted, so each opening starts from the desk you are on (agent, folder, name).
+  if (!open) return null;
+  return <NewDeskSheet {...props} />;
+}
+
+interface NewDeskProps {
   onClose: () => void;
   agents: Array<{ id: string; name: string }>;
   defaultAgentId: string | null;
@@ -33,11 +29,13 @@ export function NewDesk({
   initialName?: string;
   folders: FolderApi;
   onCreate: (agentId: string, folder: string, name: string) => Promise<void>;
-}) {
-  const [agentId, setAgentId] = useState<string | null>(null);
-  const [folder, setFolder] = useState("");
+}
+
+function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialName = "", folders, onCreate }: NewDeskProps) {
+  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
+  const [folder, setFolder] = useState(defaultFolder ?? "");
   const [folderTouched, setFolderTouched] = useState(false);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [recent, setRecent] = useState<Record<string, string[]>>({});
   const [matches, setMatches] = useState<string[]>([]);
   const [status, setStatus] = useState<{ ok: boolean; branch: string | null; reason?: string } | null>(null);
@@ -48,33 +46,31 @@ export function NewDesk({
   const folderRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // Open: reset to the desk you are on.
+  // Open: every agent's recent folders, and the caret in the first field still to fill.
   useEffect(() => {
-    if (!open) return;
-    setAgentId(defaultAgentId ?? agents[0]?.id ?? null);
-    setFolder(defaultFolder ?? "");
-    setFolderTouched(false);
-    setName(initialName);
-    setError(null);
-    setBusy(false);
-    setListOpen(false);
-    void folders.recent().then((r) => setRecent(r.byAgent));
-    setTimeout(() => (initialName ? folderRef : nameRef).current?.focus(), 0);
+    let gone = false;
+    void folders.recent().then((r) => {
+      if (!gone) setRecent(r.byAgent);
+    });
+    const t = setTimeout(() => (initialName ? folderRef : nameRef).current?.focus(), 0);
+    return () => {
+      gone = true;
+      clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, []);
 
   // The folder follows the agent until you edit it.
   useEffect(() => {
-    if (!open || folderTouched || !agentId) return;
+    if (folderTouched || !agentId) return;
     const first = recent[agentId]?.[0];
     if (first) setFolder(first);
     else if (defaultFolder) setFolder(defaultFolder);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, recent, open]);
+  }, [agentId, recent]);
 
   // Validate (and complete) as you type, debounced.
   useEffect(() => {
-    if (!open) return;
     const f = folder.trim();
     if (!f) {
       setStatus(null);
@@ -87,7 +83,7 @@ export function NewDesk({
     }, 160);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folder, open]);
+  }, [folder]);
 
   const options = useMemo(() => {
     // typed completions first; then this agent's recent folders; then everyone else's
@@ -124,7 +120,6 @@ export function NewDesk({
     }
   };
 
-  if (!open) return null;
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
 
   return (

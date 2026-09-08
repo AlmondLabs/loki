@@ -55,11 +55,11 @@ export function Agents({ agents, loaded, desks, api, sub, banner }: { agents: Ar
       <TopBar title="Agents" sub={sub} />
       {banner}
       <Scroll style={{ padding: 0 }}>
-        <div role="list" aria-label="agents">
+        <ul aria-label="agents" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {agents.map((a) => (
             <AgentRow key={a.id} agent={a} api={api} live={liveDeskCount(desks, a.id)} />
           ))}
-        </div>
+        </ul>
         {agents.length === 0 && <div style={{ padding: "32px 16px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>{loaded ? "No agents yet. Make one in loki on the Mac." : "asking the Mac…"}</div>}
       </Scroll>
     </div>
@@ -71,7 +71,7 @@ function AgentRow({ agent, api, live }: { agent: { id: string; name: string }; a
   const description = d?.agent.description ?? null;
   const model = d?.agent.model ?? null;
   return (
-    <div role="listitem" style={{ borderBottom: "1px solid var(--loki-border)" }}>
+    <li style={{ borderBottom: "1px solid var(--loki-border)" }}>
       <Row touch onClick={() => navigate({ kind: "agent", agentId: agent.id })} style={{ alignItems: "flex-start", gap: 12, padding: `12px calc(12px + env(safe-area-inset-right, 0px)) 12px calc(12px + env(safe-area-inset-left, 0px))`, touchAction: "manipulation" }}>
         <AgentFace name={agent.name} src={avatarUrl(agent.id)} size={28} />
         <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 4 }}>
@@ -85,7 +85,7 @@ function AgentRow({ agent, api, live }: { agent: { id: string; name: string }; a
         </span>
         <Chevron />
       </Row>
-    </div>
+    </li>
   );
 }
 

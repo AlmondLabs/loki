@@ -47,8 +47,11 @@ export function useDictation({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rec = useRef<Recognition | null>(null);
+  // The recogniser's callbacks are wired once per start(); they read the latest handlers through this ref.
   const handlers = useRef({ onInterim, onFinal });
-  handlers.current = { onInterim, onFinal };
+  useEffect(() => {
+    handlers.current = { onInterim, onFinal };
+  });
 
   const stop = useCallback(() => {
     rec.current?.stop();

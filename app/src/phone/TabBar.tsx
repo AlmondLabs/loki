@@ -42,8 +42,9 @@ export function TabBar({ active, waiting }: { active: Tab | null; waiting: numbe
 }
 
 /** Icons in the rail's line: 20-unit box, 1.4 stroke, round joins. */
+const common = { width: 20, height: 20, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
 function Icon({ tab }: { tab: Tab }) {
-  const common = { width: 20, height: 20, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (tab === "home") {
     // the sheet with two plates: the desks
     return (

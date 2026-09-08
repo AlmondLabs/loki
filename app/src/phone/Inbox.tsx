@@ -64,6 +64,57 @@ export interface CardView {
 /** Space under the top card where the stack shows through: two hints, six pixels each. */
 const PEEK = 12;
 
+/**
+ * What a pass remembers: the cards swiped (until the seen marker or the snooze lands) and the one on
+ * top, kept there while the list re-sorts beneath. The parent holds it — it also owns the transcripts,
+ * and fetches the top card's when it changes — and hands it to the Inbox, which swipes.
+ */
+export interface Deck {
+  /** The queue minus the dismissed, the pinned card first. */
+  visible: AttentionItem[];
+  current: AttentionItem | undefined;
+  currentId: string | null;
+  /** A card swiped off: hidden until its marker lands; the next one comes up. */
+  dismiss: (item: AttentionItem) => void;
+  /** The swipe taken back: the card returns on top. */
+  restore: (item: AttentionItem) => void;
+}
+
+export function useDeck(items: AttentionItem[]): Deck {
+  const [dismissed, setDismissed] = useState<Dismissed>(() => new Map());
+  /** The card on top stays on top while the list re-sorts under it. */
+  const [topId, setTopId] = useState<string | null>(null);
+  const queue = useMemo(() => catchUpQueue(items), [items]);
+  const visible = useMemo(() => toFront(visibleQueue(queue, dismissed), topId), [queue, dismissed, topId]);
+  const current: AttentionItem | undefined = visible[0];
+  const currentId = current ? idOf(current) : null;
+
+  // Pin whatever is on top; drop dismissals the live list has outgrown.
+  useEffect(() => {
+    if (currentId !== topId) setTopId(currentId);
+  }, [currentId, topId]);
+  useEffect(() => {
+    setDismissed((d) => {
+      const next = pruneDismissed(d, items);
+      return next.size === d.size ? d : next;
+    });
+  }, [items]);
+
+  return {
+    visible,
+    current,
+    currentId,
+    dismiss: (item) => {
+      setDismissed((d) => dismiss(d, item));
+      setTopId(null);
+    },
+    restore: (item) => {
+      setDismissed((d) => restore(d, item));
+      setTopId(idOf(item));
+    },
+  };
+}
+
 export function Inbox({
   items,
   loaded,
@@ -71,7 +122,7 @@ export function Inbox({
   hidden = false,
   banner,
   conversation,
-  onLoad,
+  deck,
   onOpen,
   onApprove,
   onSeen,
@@ -90,8 +141,8 @@ export function Inbox({
   banner?: ReactNode;
   /** The live thread behind a card; `rows` is undefined until loaded. */
   conversation: (agentId: string, conversationId: string) => CardView;
-  /** Fetch a card's transcript once it is on top. */
-  onLoad: (item: AttentionItem) => void;
+  /** The pass, from `useDeck` in the parent. */
+  deck: Deck;
   onOpen: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onSeen: (item: AttentionItem) => void;
@@ -101,10 +152,7 @@ export function Inbox({
   onUndo: (item: AttentionItem, via: Swipe) => void;
 }) {
   const reduced = useReducedMotion();
-  const [dismissed, setDismissed] = useState<Dismissed>(() => new Map());
   const [pass, setPass] = useState<PassSummary>(EMPTY_PASS);
-  /** The card on top stays on top while the list re-sorts under it. */
-  const [topId, setTopId] = useState<string | null>(null);
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
   const [leaving, setLeaving] = useState<{ item: AttentionItem; dir: 1 | -1 } | null>(null);
   const [undo, setUndo] = useState<{ item: AttentionItem; via: Swipe } | null>(null);
@@ -116,29 +164,9 @@ export function Inbox({
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refuseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const queue = useMemo(() => catchUpQueue(items), [items]);
   const snoozed = snoozedItems(items);
   const running = items.filter((i) => i.status === "running").length;
-  const visible = useMemo(() => toFront(visibleQueue(queue, dismissed), topId), [queue, dismissed, topId]);
-  const current: AttentionItem | undefined = visible[0];
-  const currentId = current ? idOf(current) : null;
-
-  // Pin whatever is on top; drop dismissals the live list has outgrown.
-  useEffect(() => {
-    if (currentId !== topId) setTopId(currentId);
-  }, [currentId, topId]);
-  useEffect(() => {
-    setDismissed((d) => {
-      const next = pruneDismissed(d, items);
-      return next.size === d.size ? d : next;
-    });
-  }, [items]);
-
-  // The top card's thread, fetched once when it arrives; live rows stream in on top.
-  useEffect(() => {
-    if (current) onLoad(current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentId]);
+  const { visible, current } = deck;
 
   // The card's width decides the commit distance and the lean.
   useEffect(() => {
@@ -159,9 +187,8 @@ export function Inbox({
   );
 
   const commit = (item: AttentionItem, via: Via) => {
-    setDismissed((d) => dismiss(d, item));
+    deck.dismiss(item);
     setPass((p) => tally(p, via));
-    setTopId(null);
     setDrag(null);
     if (via === "seen") onSeen(item);
     else if (via === "later") onLater(item);
@@ -179,9 +206,8 @@ export function Inbox({
   const undoLast = () => {
     if (!undo) return;
     if (undoTimer.current) clearTimeout(undoTimer.current);
-    setDismissed((d) => restore(d, undo.item));
+    deck.restore(undo.item);
     setPass((p) => tally(p, undo.via, -1));
-    setTopId(idOf(undo.item));
     setLeaving(null);
     onUndo(undo.item, undo.via);
     setUndo(null);

@@ -10,6 +10,14 @@ import { navigate } from "./router";
 import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../ui";
 import { GUTTER, SAFE, Scroll, TopBar } from "./ui";
 
+/** A desk's conversation, full screen; the shared sheet has none on a phone. */
+function openDesk(d: DeskSummary) {
+  if (d.agentId && d.conversationId) navigate({ kind: "conversation", agentId: d.agentId, conversationId: d.conversationId, prefill: null });
+}
+
+/** A list drawn as rows: no bullets, no indent (Tailwind's preflight resets these too; stated here so the phone does not depend on it). */
+const PLAIN_LIST = { listStyle: "none", margin: 0, padding: 0 } as const;
+
 /**
  * Home is the desks tree on one column: every live conversation of every agent, pinned first then by
  * recency, each with its face, title, agent and time, and the same attention dot the desktop tree
@@ -57,10 +65,6 @@ export function Home({
   const live = useMemo(() => liveDesks(desks, agentFilter, q), [desks, agentFilter, q]);
   // The shared sheet has no conversation to open on a phone, so it stays out of the archive fold here.
   const archive = useMemo(() => archivedDesks(desks, agentFilter, q).filter((d) => d.agentId && d.conversationId), [desks, agentFilter, q]);
-  const open = (d: DeskSummary) => {
-    if (d.agentId && d.conversationId) navigate({ kind: "conversation", agentId: d.agentId, conversationId: d.conversationId, prefill: null });
-  };
-
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
       <TopBar
@@ -105,11 +109,11 @@ export function Home({
       </div>
 
       <Scroll style={{ padding: `4px ${GUTTER.right} 24px ${GUTTER.left}` }}>
-        <div role="list" aria-label="desks">
+        <ul aria-label="desks" style={PLAIN_LIST}>
           {live.map((d) => (
-            <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => open(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
+            <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => openDesk(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
           ))}
-        </div>
+        </ul>
         {live.length === 0 && desks.length > 0 && <div style={{ padding: "24px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>no desks match</div>}
         {desks.length === 0 && <div style={{ padding: "24px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>reading the desks…</div>}
         {archive.length > 0 && (
@@ -122,11 +126,11 @@ export function Home({
               <Meta>· {archive.length}</Meta>
             </Row>
             {(showArchive || q) && (
-              <div role="list" aria-label="archived desks">
+              <ul aria-label="archived desks" style={PLAIN_LIST}>
                 {archive.map((d) => (
-                  <DeskRow key={d.scope} desk={d} mark={undefined} showFace={!agentFilter} onOpen={() => open(d)} onPin={null} />
+                  <DeskRow key={d.scope} desk={d} mark={undefined} showFace={!agentFilter} onOpen={() => openDesk(d)} onPin={null} />
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         )}
@@ -154,7 +158,7 @@ function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary
     hold.current = null;
   };
   return (
-    <div role="listitem" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "6px 4px 6px 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
+    <li style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "6px 4px 6px 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
       <Row
         touch
         onClick={() => {
@@ -188,7 +192,7 @@ function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary
           <Pin filled={!!d.pinned} />
         </IconButton>
       )}
-    </div>
+    </li>
   );
 }
 

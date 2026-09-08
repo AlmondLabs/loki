@@ -40,8 +40,8 @@ export function Board({
   active: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
+  const [cursorRaw, setCursor] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -53,13 +53,10 @@ export function Board({
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all]);
   const deskTitle = useMemo(() => new Map(desks.map((d) => [d.scope, d.title ?? d.scope])), [desks]);
 
-  // Selection and cursor follow the data: a task that left the board leaves both.
-  useEffect(() => {
-    setSelected((s) => new Set([...s].filter((id) => byId.has(id))));
-    if (cursor && !byId.has(cursor)) setCursor(all[0]?.id ?? null);
-    if (!cursor && all[0]) setCursor(all[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [byId]);
+  // Selection and cursor follow the data, read against it at render: a task that left the board leaves both,
+  // and the cursor lands on the first card when it has nowhere else to be.
+  const cursor = cursorRaw && byId.has(cursorRaw) ? cursorRaw : (all[0]?.id ?? null);
+  const selected = useMemo(() => ([...selectedRaw].every((id) => byId.has(id)) ? selectedRaw : new Set([...selectedRaw].filter((id) => byId.has(id)))), [selectedRaw, byId]);
 
   // The cursor moved by keyboard: focus follows it, and the column scrolls just enough to show it.
   useEffect(() => {

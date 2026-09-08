@@ -40,6 +40,7 @@ export function ModuleWidget({
   useEffect(() => {
     let alive = true;
     let attempt = 0;
+    let retry: ReturnType<typeof setTimeout> | null = null;
 
     // The mod's manifest and Vite's HMR race by a few hundred ms. A failed ES import is cached by
     // URL, so after the glob loader rejects we fall back to a hash-busted direct import, and retry.
@@ -80,7 +81,7 @@ export function ModuleWidget({
         .catch((err) => {
           if (!alive) return;
           if (attempt++ < 3) {
-            setTimeout(tryLoad, 400);
+            retry = setTimeout(tryLoad, 400);
             return;
           }
           const msg = err instanceof Error ? err.message : String(err);
@@ -91,6 +92,7 @@ export function ModuleWidget({
     tryLoad();
     return () => {
       alive = false;
+      if (retry) clearTimeout(retry);
     };
   }, [entry.id, entry.file, entry.hash, onError]);
 

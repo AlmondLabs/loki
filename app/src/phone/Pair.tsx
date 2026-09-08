@@ -15,8 +15,8 @@ export interface Me {
  * from "/" with no query, so the field is always there. Six characters typed is the tap.
  */
 export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
-  const fromUrl = useRef(codeFromUrl(location.href));
-  const [code, setCode] = useState(fromUrl.current ?? "");
+  /** The field starts with the code the QR put in the address; the mount effect below redeems it. */
+  const [code, setCode] = useState(() => codeFromUrl(location.href) ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +46,8 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
     }
   };
   useEffect(() => {
-    if (fromUrl.current) void submit(fromUrl.current);
+    const fromUrl = codeFromUrl(location.href);
+    if (fromUrl) void submit(fromUrl);
     else inputRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -73,9 +74,10 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
           }}
           style={{ display: "grid", gap: 12 }}
         >
-          <label style={{ display: "grid", gap: 6 }}>
+          <label htmlFor="pair-code" style={{ display: "grid", gap: 6 }}>
             <span className="loki-label" style={{ fontSize: 9.5 }}>pairing code</span>
             <Field
+              id="pair-code"
               ref={inputRef}
               size="touch"
               mono
