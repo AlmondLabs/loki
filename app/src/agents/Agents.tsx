@@ -291,7 +291,7 @@ export function Agents({
             </div>
 
             {page === "profile" && (
-              <div style={{ minHeight: 0, overflowY: "auto", padding: "22px 28px 32px" }}>
+              <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "22px 28px 32px" }}>
                 <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
                   <Identity d={d} avatar={avatar(selected)} models={models} onLoadModels={() => void listModels().then((m) => setModels(m.map((e) => e.handle)))} onSave={save} />
 
@@ -300,7 +300,7 @@ export function Agents({
                       desks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
                     </Head>
                     {myDesks.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no live desks</div>}
-                    <div style={{ display: "grid", gap: 2 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
                       {myDesks.map((x) => (
                         <button key={x.scope} onClick={() => onOpenDesk(selected, x.conversationId ?? "default")} style={{ display: "flex", justifyContent: "space-between", gap: 10, width: "100%", textAlign: "left", padding: "5px 8px", border: "none", borderRadius: 6, background: "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 13.5 }}>
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
@@ -346,11 +346,11 @@ export function Agents({
 
             {page === "memory" && (
               <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
-                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
+                <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
                   <Head>files{d.lastCommit ? <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>last change {ago(d.lastCommit.at)}</span> : null}</Head>
                   <Tree files={d.files.filter((f) => !f.path.startsWith("skills/") && f.path !== "profile.png")} current={filePath} onPick={setFilePath} />
                 </div>
-                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 28px 24px" }}>
+                <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 28px 24px" }}>
                   <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 12 }}>
                     <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{filePath}</span>
                     {loadingView && <span>loading…</span>}
@@ -361,7 +361,7 @@ export function Agents({
                   </div>
                   {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here (binary, too large, or gone)</div>}
                   {content !== null && (
-                    <div className="loki-chat" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760 }}>
+                    <div className="loki-md" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
                       <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
                     </div>
                   )}
@@ -371,10 +371,10 @@ export function Agents({
 
             {page === "changes" && (
               <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(320px, 440px) 1fr" }}>
-                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
+                <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
                   <Head>commits <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{log.length ? `last ${log.length}` : ""}</span></Head>
                   {log.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no memory commits yet</div>}
-                  <div style={{ display: "grid", gap: 2 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
                     {log.map((c) => {
                       const on = c.sha === shownSha;
                       return (
@@ -388,7 +388,7 @@ export function Agents({
                     })}
                   </div>
                 </div>
-                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 28px 24px" }}>
+                <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 28px 24px" }}>
                   {shownSha && (
                     <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 12 }}>
                       <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>commit {shownSha.slice(0, 8)}</span>
@@ -404,7 +404,7 @@ export function Agents({
 
             {page === "skills" && (
               <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
-                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
+                <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>
                   <Head>
                     skills
                     <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
@@ -414,12 +414,12 @@ export function Agents({
                   </Head>
                   {adding && <SkillAdd key={adding} mode={adding} onWrite={addSkill} onInstall={installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
                   {d.skills.length === 0 && !adding && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none in memory</div>}
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 10 }}>
                     {(["self", "other"] as const).map((origin) => {
                       const list = d.skills.filter((x) => (x.origin ?? "self") === origin);
                       if (list.length === 0) return null;
                       return (
-                        <div key={origin}>
+                        <div key={origin} style={{ minWidth: 0 }}>
                           <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{origin} · {list.length}</div>
                           {list.map((x) => {
                             const on = shownSkill?.name === x.name;
@@ -440,7 +440,7 @@ export function Agents({
                   </div>
                   <div style={{ fontSize: 10.5, color: "var(--loki-muted)", padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
                 </div>
-                <div style={{ minHeight: 0, overflowY: "auto", padding: "14px 28px 24px" }}>
+                <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 28px 24px" }}>
                   {!viewSkill && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>}
                   {viewSkill && (
                     <>
@@ -467,7 +467,7 @@ export function Agents({
                       </div>
                       {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here</div>}
                       {content !== null && (
-                        <div className="loki-chat" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760 }}>
+                        <div className="loki-md" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
                           <Markdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</Markdown>
                         </div>
                       )}
@@ -671,9 +671,9 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
     return [...m.entries()];
   }, [files]);
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 8 }}>
       {groups.map(([g, fs]) => (
-        <div key={g || "root"}>
+        <div key={g || "root"} style={{ minWidth: 0 }}>
           {g && <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{g}</div>}
           {fs.map((f) => (
             <button key={f.path} onClick={() => onPick(f.path)} title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, width: "100%", textAlign: "left", padding: "4px 8px", border: "none", borderRadius: 6, background: current === f.path ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit", fontSize: 12 }}>
