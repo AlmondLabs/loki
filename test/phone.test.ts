@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lastSeen, normalizeCode } from "../app/src/phone/model.ts";
+import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
+import { deskMark } from "../app/src/shell/DeskTree.tsx";
+import type { AttentionItem } from "../packages/core/src/attention/model.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../packages/core/src/pairing-code.ts";
 
 /**
@@ -99,5 +101,103 @@ describe("countdown", () => {
   });
   test("past → expired", () => {
     expect(countdown(new Date(now - 1000).toISOString(), now)).toBe("expired");
+  });
+});
+
+describe("agents on the phone", () => {
+  const desks = [
+    { agentId: "a1", status: "live" },
+    { agentId: "a1", status: "live" },
+    { agentId: "a1", status: "archived" },
+    { agentId: "a2", status: "live" },
+    { agentId: null, status: "live" },
+  ];
+  test("live desks per agent", () => {
+    expect(liveDeskCount(desks, "a1")).toBe(2);
+    expect(liveDeskCount(desks, "a2")).toBe(1);
+    expect(liveDeskCount(desks, "a3")).toBe(0);
+  });
+  test("the label", () => {
+    expect(liveDesksLabel(0)).toBe("no desks live");
+    expect(liveDesksLabel(1)).toBe("1 desk live");
+    expect(liveDesksLabel(3)).toBe("3 desks live");
+  });
+  test("memory folders: system first, root last, skills and the face left out", () => {
+    const at = "2026-09-07T12:00:00Z";
+    const folders = memoryFolders([
+      { path: "reference/notes.md", bytes: 10, modifiedAt: at },
+      { path: "profile.png", bytes: 999, modifiedAt: at },
+      { path: "skills/loki/SKILL.md", bytes: 5, modifiedAt: at },
+      { path: "system/persona.md", bytes: 20, modifiedAt: at },
+      { path: "system/human.md", bytes: 30, modifiedAt: at },
+      { path: "README.md", bytes: 1, modifiedAt: at },
+      { path: "reference/deep/more.md", bytes: 2, modifiedAt: at },
+    ]);
+    expect(folders.map((f) => f.name)).toEqual(["system", "reference", ""]);
+    expect(folders[0].files.map((f) => f.name)).toEqual(["persona.md", "human.md"]);
+    expect(folders[1].files.map((f) => f.name)).toEqual(["notes.md", "deep/more.md"]);
+    expect(folders[2].files.map((f) => f.name)).toEqual(["README.md"]);
+    expect(folders[1].files[0].path).toBe("reference/notes.md");
+  });
+});
+
+describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)", () => {
+  const item = (over: Partial<AttentionItem>): AttentionItem =>
+    ({ id: "c", agentId: "a", agentName: "ira", title: "t", status: "done", unread: false, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a", conversation_id: "c" }, ...over }) as AttentionItem;
+  test("waits on you: brass, filled", () => {
+    const m = deskMark(item({ status: "approval" }), "live");
+    expect(m.kind).toBe("waits");
+    expect(m.color).toBe("var(--loki-accent)");
+    expect(m.border).toBe("var(--loki-accent)");
+    expect(deskMark(item({ status: "question" }), "live").kind).toBe("waits");
+  });
+  test("finished unread: a brass ring", () => {
+    const m = deskMark(item({ status: "done", unread: true }), "live");
+    expect(m.kind).toBe("finished");
+    expect(m.color).toBe("transparent");
+    expect(m.border).toBe("var(--loki-accent)");
+  });
+  test("finished and read, or snoozed: nothing", () => {
+    expect(deskMark(item({ status: "done", unread: false }), "live").kind).toBe("none");
+    expect(deskMark(item({ status: "done", unread: true, snooze: { until: "2026-09-08T00:00:00Z" } as unknown as AttentionItem["snooze"] }), "live").kind).toBe("none");
+  });
+  test("running: a muted ring that pulses", () => {
+    const m = deskMark(item({ status: "running" }), "live");
+    expect(m.kind).toBe("running");
+    expect(m.border).toBe("var(--loki-muted)");
+    expect(m.pulse).toBe(true);
+  });
+  test("failed: oxblood", () => {
+    expect(deskMark(item({ status: "failed" }), "live").kind).toBe("failed");
+  });
+  test("no item: nothing; archived and deleted override the item", () => {
+    expect(deskMark(undefined, "live").kind).toBe("none");
+    expect(deskMark(item({ status: "approval" }), "archived").kind).toBe("archived");
+    expect(deskMark(item({ status: "approval" }), "deleted").kind).toBe("deleted");
+  });
+});
+
+describe("memory file frontmatter", () => {
+  test("the YAML block at the top goes; the body stays", () => {
+    expect(stripFrontmatter("---\ndescription: who I am\n---\n\n# Persona\n\nText.")).toBe("\n# Persona\n\nText.");
+    expect(stripFrontmatter("# No frontmatter\n\n---\n\nrule above")).toBe("# No frontmatter\n\n---\n\nrule above");
+    expect(stripFrontmatter("")).toBe("");
+  });
+});
+
+describe("reloading a newer canvas", () => {
+  test("a different served build needs a reload; unknown on either side does not", () => {
+    expect(needsReload("abc123def456", "abc123def456")).toBe(false);
+    expect(needsReload("abc123def456", "0123456789ab")).toBe(true);
+    expect(needsReload(null, "abc")).toBe(false);
+    expect(needsReload("abc", null)).toBe(false);
+    expect(needsReload("abc", undefined)).toBe(false);
+  });
+  test("auto-reload only after a long time in the background, and only on a change", () => {
+    expect(shouldAutoReload(AUTO_RELOAD_HIDDEN_MS + 1, true)).toBe(true);
+    expect(shouldAutoReload(AUTO_RELOAD_HIDDEN_MS, true)).toBe(false);
+    expect(shouldAutoReload(5_000, true)).toBe(false);
+    expect(shouldAutoReload(120_000, false)).toBe(false);
+    expect(shouldAutoReload(NaN, true)).toBe(false);
   });
 });

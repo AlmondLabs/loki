@@ -82,6 +82,64 @@ export function lastSeen(iso: string | null | undefined, now: number = Date.now(
   return unit(Math.floor(hours / 24), "day");
 }
 
+/** How many live desks an agent has — the "n desks live" under its row. */
+export function liveDeskCount(desks: Array<{ agentId: string | null; status: string }>, agentId: string): number {
+  return desks.filter((d) => d.agentId === agentId && d.status === "live").length;
+}
+
+/** "3 desks live", "1 desk live", "no desks live". */
+export function liveDesksLabel(n: number): string {
+  return n === 0 ? "no desks live" : `${n} desk${n === 1 ? "" : "s"} live`;
+}
+
+export interface MemoryFolder {
+  /** "" for files at the root. */
+  name: string;
+  files: Array<{ path: string; name: string; bytes: number; modifiedAt: string }>;
+}
+
+/**
+ * The memory tree the way the desktop groups it: by first folder, `system` first, the root's files
+ * last; skills and the face are the agent's other views and stay out. `name` is the path inside the folder.
+ */
+export function memoryFolders(files: Array<{ path: string; bytes: number; modifiedAt: string }>): MemoryFolder[] {
+  const m = new Map<string, MemoryFolder>();
+  for (const f of files) {
+    if (f.path.startsWith("skills/") || f.path === "profile.png") continue;
+    const i = f.path.indexOf("/");
+    const g = i >= 0 ? f.path.slice(0, i) : "";
+    if (!m.has(g)) m.set(g, { name: g, files: [] });
+    m.get(g)!.files.push({ path: f.path, name: g ? f.path.slice(g.length + 1) : f.path, bytes: f.bytes, modifiedAt: f.modifiedAt });
+  }
+  const rank = (g: string) => (g === "system" ? 0 : g === "" ? 2 : 1);
+  return [...m.values()].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
+}
+
+/**
+ * A memory file's YAML frontmatter (`---` … `---` at the very top) is metadata for the agent, not
+ * reading: markdown would draw its first line as a heading over a rule. The phone shows the body.
+ */
+export function stripFrontmatter(md: string): string {
+  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(md);
+  return m ? md.slice(m[0].length) : md;
+}
+
+/**
+ * The Mac serves a newer canvas than the one this page loaded: `served` is what /health or the mod's
+ * `app_build` frame says, `current` what index.html injected as `__LOKI__.build`. Unknown on either
+ * side means nothing to compare.
+ */
+export function needsReload(served: string | null | undefined, current: string | null | undefined): boolean {
+  return !!served && !!current && served !== current;
+}
+
+/** Hidden for longer than this and back to a changed build: reload without asking — nothing is mid-flight. */
+export const AUTO_RELOAD_HIDDEN_MS = 30_000;
+
+export function shouldAutoReload(hiddenMs: number, changed: boolean): boolean {
+  return changed && Number.isFinite(hiddenMs) && hiddenMs > AUTO_RELOAD_HIDDEN_MS;
+}
+
 /** "9:58" until `iso`, or "expired". */
 export function countdown(iso: string, now: number = Date.now()): string {
   const s = Math.floor((new Date(iso).getTime() - now) / 1000);

@@ -122,8 +122,8 @@ describe("lean and reveal", () => {
   });
   test("the stack behind: 0.96 / 8px / dimmer, then 0.92 / 16px / dimmer still", () => {
     expect(stackPose(0)).toEqual({ scale: 1, offsetY: 0, opacity: 1 });
-    expect(stackPose(1)).toEqual({ scale: 0.96, offsetY: 8, opacity: 0.7 });
-    expect(stackPose(2)).toEqual({ scale: 0.92, offsetY: 16, opacity: 0.45 });
+    expect(stackPose(1)).toEqual({ scale: 0.97, offsetY: 6, opacity: 0.7 });
+    expect(stackPose(2)).toEqual({ scale: 0.94, offsetY: 12, opacity: 0.45 });
     expect(stackPose(5)).toEqual(stackPose(2));
   });
 });

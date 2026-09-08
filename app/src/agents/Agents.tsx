@@ -559,7 +559,7 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
 }
 
 /** A unified diff, coloured by line; the header lines (message, date, stat) stay muted. */
-function Diff({ text }: { text: string }) {
+export function Diff({ text }: { text: string }) {
   return (
     <pre style={{ margin: 0, fontFamily: "var(--loki-mono)", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
       {text.split("\n").map((line, i) => {

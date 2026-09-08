@@ -76,6 +76,8 @@ export function useDesk() {
   const [lanStatus, setLanStatus] = useState<LanStatus | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
+  /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
+  const [servedBuild, setServedBuild] = useState<string | null>(null);
   /** Pending request/reply exchanges with the mod, by requestId. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
@@ -161,6 +163,9 @@ export function useDesk() {
             break;
           case "devices":
             setDevices(Array.isArray(msg.devices) ? (msg.devices as PairedDevice[]) : []);
+            break;
+          case "app_build":
+            if (typeof msg.build === "string") setServedBuild(msg.build);
             break;
           case "agent":
           case "memory_file":
@@ -492,6 +497,7 @@ export function useDesk() {
     },
     attention,
     phone,
+    servedBuild,
     board,
     tasksVersion,
     undo,

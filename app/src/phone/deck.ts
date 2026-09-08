@@ -76,11 +76,11 @@ export function velocityOf(samples: { x: number; t: number }[], window = 60): nu
   return dt > 0 ? (last.x - ref.x) / dt : 0;
 }
 
-/** Where the card behind the top one sits: a touch smaller, a touch lower, dimmer. */
+/** Where the card behind the top one sits: a touch smaller, a touch lower, dimmer. Two hints, twelve pixels in all. */
 export function stackPose(index: number): { scale: number; offsetY: number; opacity: number } {
   if (index <= 0) return { scale: 1, offsetY: 0, opacity: 1 };
-  if (index === 1) return { scale: 0.96, offsetY: 8, opacity: 0.7 };
-  return { scale: 0.92, offsetY: 16, opacity: 0.45 };
+  if (index === 1) return { scale: 0.97, offsetY: 6, opacity: 0.7 };
+  return { scale: 0.94, offsetY: 12, opacity: 0.45 };
 }
 
 /** What this pass has done, for the "n of N" and the end screen. */

@@ -60,15 +60,14 @@ export interface CardView {
   status: "idle" | "thinking" | "streaming";
 }
 
-/** Space under the top card where the stack shows through. */
-const PEEK = 16;
+/** Space under the top card where the stack shows through: two hints, six pixels each. */
+const PEEK = 12;
 
 export function Inbox({
   items,
   loaded,
   available,
   hidden = false,
-  sub,
   banner,
   conversation,
   onLoad,
@@ -86,8 +85,7 @@ export function Inbox({
   available: boolean;
   /** A conversation is open on top: keep the pass (counts, dismissed cards) but draw nothing. */
   hidden?: boolean;
-  /** The connection line under the title. */
-  sub?: ReactNode;
+  /** "Mac unreachable": the only place the link state shows here; the header is one row. */
   banner?: ReactNode;
   /** The live thread behind a card; `rows` is undefined until loaded. */
   conversation: (agentId: string, conversationId: string) => CardView;
@@ -269,7 +267,7 @@ export function Inbox({
     <div style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
       <TopBar
         title="Catch Up"
-        sub={sub}
+        height={44}
         right={
           total > 0 ? (
             <span aria-live="polite" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
@@ -310,7 +308,7 @@ export function Inbox({
         </div>
       ) : (
         <>
-          <div ref={deckRef} style={{ flex: 1, minHeight: 0, position: "relative", margin: `12px calc(12px + ${SAFE.right}) 0 calc(12px + ${SAFE.left})` }}>
+          <div ref={deckRef} style={{ flex: 1, minHeight: 0, position: "relative", margin: `8px calc(10px + ${SAFE.right}) 8px calc(10px + ${SAFE.left})` }}>
             {/* The reveal, between the stack and the top card: seen on the left as the card goes right, later on the right. */}
             <div aria-hidden style={{ position: "absolute", inset: `0 0 ${PEEK}px`, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", pointerEvents: "none" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--loki-positive)", fontFamily: "var(--loki-mono)", fontSize: 15, letterSpacing: "0.06em", opacity: seenReveal, transform: `scale(${0.9 + seenReveal * 0.1})` }}>
@@ -345,7 +343,9 @@ export function Inbox({
                       onApprove(item, item.pendingApproval.requestId, behavior);
                       commit(item, behavior === "allow" ? "approve" : "deny");
                     }}
-                    onAnswer={() => onOpen(item)}
+                    onOpen={() => onOpen(item)}
+                    onLater={() => commit(item, "later")}
+                    onSeen={() => commit(item, "seen")}
                   />
                 );
               }
@@ -354,26 +354,11 @@ export function Inbox({
             })}
           </div>
 
-          <div style={{ display: "flex", gap: 8, padding: `10px calc(12px + ${SAFE.right}) calc(10px + ${SAFE.bottom}) calc(12px + ${SAFE.left})` }}>
-            {!approval && (
-              <button type="button" onClick={() => commit(current, "later")} title="comes back later, later each time" style={{ ...tap(), minHeight: 44, flex: 1 }}>
-                <Clock /> later
-              </button>
-            )}
-            <button type="button" onClick={() => onOpen(current)} style={{ ...tap("var(--loki-fg)"), minHeight: 44, flex: 1 }}>
-              open
-            </button>
-            {!approval && (
-              <button type="button" onClick={() => commit(current, "seen")} style={{ ...tap("var(--loki-positive)"), minHeight: 44, flex: 1 }}>
-                <Check /> seen
-              </button>
-            )}
-          </div>
         </>
       )}
 
       {undo && (
-        <div style={{ position: "absolute", left: 0, right: 0, bottom: `calc(76px + ${SAFE.bottom})`, display: "flex", justifyContent: "center", zIndex: 8, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: 0, right: 0, bottom: 20, display: "flex", justifyContent: "center", zIndex: 8, pointerEvents: "none" }}>
           <button type="button" onClick={undoLast} className="loki-sheet" style={{ ...tap("var(--loki-accent)"), pointerEvents: "auto", background: "var(--loki-panel)", borderRadius: 999, padding: "10px 18px", boxShadow: "var(--loki-shadow-low)" }}>
             undo {undo.via === "seen" ? "seen" : "later"}
           </button>
@@ -405,13 +390,13 @@ function Head({ item }: { item: AttentionItem }) {
   const badge = BADGE[item.status];
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "12px 14px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "10px 12px 0" }}>
         <AgentFace name={item.agentName} src={avatarUrl(item.agentId)} size={20} />
         <AgentChip name={item.agentName} />
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 10.5, letterSpacing: "0.06em", color: badge.color, border: `1px solid ${badge.color}`, borderRadius: 999, padding: "2px 9px", whiteSpace: "nowrap" }}>{badge.label}</span>
       </div>
-      <div style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", margin: "8px 14px 0", paddingBottom: 10, borderBottom: "1px solid var(--loki-border)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{item.title ?? item.id}</div>
+      <div style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", margin: "6px 12px 0", paddingBottom: 8, borderBottom: "1px solid var(--loki-border)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{item.title ?? item.id}</div>
     </>
   );
 }
@@ -427,6 +412,9 @@ interface CardHandlers {
   onClick: (e: React.MouseEvent<HTMLElement>) => void;
 }
 
+/** A footer action: 36px, small type, the row radius. */
+const act = (color?: string): CSSProperties => ({ ...tap(color), minHeight: 36, padding: "4px 12px", fontSize: 12 });
+
 function Card({
   item,
   role,
@@ -436,7 +424,9 @@ function Card({
   style,
   handlers,
   onApprove,
-  onAnswer,
+  onOpen,
+  onLater,
+  onSeen,
 }: {
   item: AttentionItem;
   role: Role;
@@ -447,7 +437,9 @@ function Card({
   style: CSSProperties;
   handlers?: CardHandlers;
   onApprove?: (behavior: "allow" | "deny") => void;
-  onAnswer?: () => void;
+  onOpen?: () => void;
+  onLater?: () => void;
+  onSeen?: () => void;
 }) {
   const badge = BADGE[item.status];
   const at = item.status === "approval" ? (item.pendingApproval?.at ?? item.lastMessageAt) : item.pendingQuestion ? item.pendingQuestion.at : item.lastMessageAt;
@@ -466,34 +458,47 @@ function Card({
     >
       <Head item={item} />
       {role === "shell" && <div style={{ flex: 1 }} />}
-      {role !== "shell" && view && <CardThread rows={view.rows} status={view.status} error={item.status === "failed" ? item.error : null} style={{ padding: "10px 14px" }} />}
-      {role !== "shell" && item.pendingApproval && (
-        <ApprovalCard
-          approval={item.pendingApproval}
-          actions={
-            <>
-              <button type="button" onClick={() => onApprove?.("allow")} style={{ ...tap("var(--loki-positive)"), flex: 1, minHeight: 44 }}>
-                approve
-              </button>
-              <button type="button" onClick={() => onApprove?.("deny")} style={{ ...tap("var(--loki-negative)"), flex: 1, minHeight: 44 }}>
-                deny
-              </button>
-            </>
-          }
-        />
-      )}
-      {role !== "shell" && asks && !item.pendingApproval && (
-        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--loki-accent)", background: "var(--loki-brass-soft)" }}>
-          <div className="loki-label" style={{ color: "var(--loki-accent)", marginBottom: 6 }}>
-            asked you
-          </div>
-          {item.pendingQuestion && <div style={{ fontSize: 13.5, lineHeight: 1.45, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{item.pendingQuestion.questions.map((q) => q.question).join("\n")}</div>}
-          <button type="button" onClick={onAnswer} style={{ ...tap("var(--loki-accent)"), marginTop: item.pendingQuestion ? 10 : 0, minHeight: 44, width: "100%" }}>
-            answer
-          </button>
+      {/* The thread spans the card: the phone's column is the reading measure (PhoneStyles lifts the desktop's 78% cap). */}
+      {role !== "shell" && view && (
+        <div className="loki-phone-thread" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardThread rows={view.rows} status={view.status} error={item.status === "failed" ? item.error : null} style={{ padding: "8px 12px" }} />
         </div>
       )}
-      {role !== "shell" && <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", padding: "8px 14px 12px", borderTop: blocked ? "none" : "1px solid var(--loki-border)" }}>{when}</div>}
+      {role !== "shell" && item.pendingApproval && <ApprovalCard approval={item.pendingApproval} />}
+      {/* One footer row: when, then what you can do about it. Approvals decide here; questions answer in the thread. */}
+      {role !== "shell" && (
+        <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 6, minHeight: 40, padding: "4px 8px 4px 12px", borderTop: "1px solid var(--loki-border)" }}>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{when}</span>
+          {item.pendingApproval ? (
+            <>
+              <button type="button" onClick={() => onApprove?.("deny")} style={act("var(--loki-negative)")}>
+                deny
+              </button>
+              <button type="button" onClick={() => onApprove?.("allow")} style={{ ...act("var(--loki-positive)"), borderColor: "var(--loki-positive)" }}>
+                approve
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={onLater} title="comes back later, later each time" style={act()}>
+                <Clock /> later
+              </button>
+              {asks ? (
+                <button type="button" onClick={onOpen} style={{ ...act("var(--loki-accent)"), borderColor: "var(--loki-accent)" }}>
+                  answer
+                </button>
+              ) : (
+                <button type="button" onClick={onOpen} style={act("var(--loki-fg)")}>
+                  open
+                </button>
+              )}
+              <button type="button" onClick={onSeen} style={act("var(--loki-positive)")}>
+                <Check /> seen
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {/* Cards behind the top one are dimmed by an opaque veil, not opacity, so the stack does not show through itself. */}
       {veil > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", opacity: veil, pointerEvents: "none" }} />}
     </article>

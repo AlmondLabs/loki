@@ -10,6 +10,52 @@ export const TREE_WIDTH = 560;
 
 type Row = { kind: "desk"; desk: DeskSummary } | { kind: "new"; agentId: string | null; name: string };
 
+/** One chip per agent: the agents the server lists, plus any agent only the desks know, with its live desk count. */
+export function agentChips(agents: Array<{ id: string; name: string }>, desks: DeskSummary[]): Array<{ id: string; name: string | null; count: number }> {
+  const byId = new Map<string, { id: string; name: string | null; count: number }>();
+  for (const a of agents) byId.set(a.id, { id: a.id, name: a.name, count: 0 });
+  for (const d of desks) {
+    if (d.status !== "live" || !d.agentId) continue;
+    if (!byId.has(d.agentId)) byId.set(d.agentId, { id: d.agentId, name: d.agentName, count: 0 });
+    byId.get(d.agentId)!.count++;
+  }
+  return [...byId.values()];
+}
+
+/** The filter: one agent (or null for all) and a lowercased query against title, scope and agent name. */
+export function deskMatches(d: DeskSummary, agentFilter: string | null, q: string): boolean {
+  return (!agentFilter || d.agentId === agentFilter) && (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q));
+}
+
+/** The tree's main list: live desks (the shared sheet aside), pinned first, then by recency. */
+export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
+  return desks.filter((d) => d.status === "live" && d.scope !== "shared" && deskMatches(d, agentFilter, q)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
+}
+
+/** The folded group at the bottom: archived and deleted, in the mod's order. */
+export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
+  return desks.filter((d) => d.status !== "live" && deskMatches(d, agentFilter, q));
+}
+
+export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
+
+/**
+ * The dot before a desk, as colours and words: brass filled when it waits on you (an approval or a
+ * question), oxblood when it failed, a brass ring when it finished unread, a faint pulsing ring while
+ * it runs; archived and deleted desks get a muted or oxblood ring. Pure, so the phone shares it.
+ */
+export function deskMark(item: AttentionItem | undefined, status: DeskSummary["status"]): { kind: MarkKind; color: string; border: string; title: string; pulse: boolean } {
+  if (status === "deleted") return { kind: "deleted", color: "transparent", border: "var(--loki-negative)", title: "conversation deleted", pulse: false };
+  if (status === "archived") return { kind: "archived", color: "transparent", border: "var(--loki-muted)", title: "archived", pulse: false };
+  if (item) {
+    if (item.status === "approval" || item.status === "question") return { kind: "waits", color: "var(--loki-accent)", border: "var(--loki-accent)", title: item.status === "approval" ? "needs approval" : "asked you", pulse: false };
+    if (item.status === "failed") return { kind: "failed", color: "var(--loki-negative)", border: "var(--loki-negative)", title: "failed", pulse: false };
+    if (item.status === "done" && item.unread && !item.snooze) return { kind: "finished", color: "transparent", border: "var(--loki-accent)", title: "finished, unread", pulse: false };
+    if (item.status === "running") return { kind: "running", color: "transparent", border: "var(--loki-muted)", title: "running", pulse: true };
+  }
+  return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };
+}
+
 /**
  * The desks tree: one centred list, every desk of every agent, pinned first then by recency, with the
  * agent's face on each row. A chip row under the search filters to one agent (click, or Tab / ⇧Tab).
@@ -63,25 +109,12 @@ export function DeskTree({
   }, [items]);
 
   /** Chips: the agents the server lists, plus any agent only the desks know. */
-  const chips = useMemo(() => {
-    const byId = new Map<string, { id: string; name: string | null; count: number }>();
-    for (const a of agents) byId.set(a.id, { id: a.id, name: a.name, count: 0 });
-    for (const d of desks) {
-      if (d.status !== "live" || !d.agentId) continue;
-      if (!byId.has(d.agentId)) byId.set(d.agentId, { id: d.agentId, name: d.agentName, count: 0 });
-      byId.get(d.agentId)!.count++;
-    }
-    return [...byId.values()];
-  }, [agents, desks]);
+  const chips = useMemo(() => agentChips(agents, desks), [agents, desks]);
   const liveCount = useMemo(() => desks.filter((d) => d.status === "live").length, [desks]);
 
   const q = query.trim().toLowerCase();
-  const matches = (d: DeskSummary) =>
-    (!agentFilter || d.agentId === agentFilter) && (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const live = useMemo(() => desks.filter((d) => d.status === "live" && d.scope !== "shared" && matches(d)).sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? "")), [desks, q, agentFilter]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const archive = useMemo(() => desks.filter((d) => d.status !== "live" && matches(d)), [desks, q, agentFilter]);
+  const live = useMemo(() => liveDesks(desks, agentFilter, q), [desks, q, agentFilter]);
+  const archive = useMemo(() => archivedDesks(desks, agentFilter, q), [desks, q, agentFilter]);
 
   /** Every row the arrows can land on, in display order. */
   const rows = useMemo<Row[]>(() => {
@@ -278,34 +311,9 @@ function when(iso: string | null): string {
 }
 
 /** The dot before a desk: brass when it waits on you, hollow when it finished unread, a faint ring while it runs. */
-function Mark({ item, status }: { item: AttentionItem | undefined; status: DeskSummary["status"] }) {
-  let color = "transparent";
-  let border = "transparent";
-  let title = "";
-  let pulse = false;
-  if (status === "deleted") {
-    border = "var(--loki-negative)";
-    title = "conversation deleted";
-  } else if (status === "archived") {
-    border = "var(--loki-muted)";
-    title = "archived";
-  } else if (item) {
-    if (item.status === "approval" || item.status === "question") {
-      color = border = "var(--loki-accent)";
-      title = item.status === "approval" ? "needs approval" : "asked you";
-    } else if (item.status === "failed") {
-      color = border = "var(--loki-negative)";
-      title = "failed";
-    } else if (item.status === "done" && item.unread && !item.snooze) {
-      border = "var(--loki-accent)";
-      title = "finished, unread";
-    } else if (item.status === "running") {
-      border = "var(--loki-muted)";
-      title = "running";
-      pulse = true;
-    }
-  }
-  return <span aria-label={title || undefined} title={title || undefined} style={{ width: 7, height: 7, borderRadius: 4, background: color, border: `1px solid ${border}`, boxSizing: "border-box", flex: "0 0 auto", animation: pulse ? "loki-pulse 1.6s ease-in-out infinite" : undefined }} />;
+export function Mark({ item, status, size = 7 }: { item: AttentionItem | undefined; status: DeskSummary["status"]; size?: number }) {
+  const { color, border, title, pulse } = deskMark(item, status);
+  return <span aria-label={title || undefined} title={title || undefined} style={{ width: size, height: size, borderRadius: "50%", background: color, border: `1px solid ${border}`, boxSizing: "border-box", flex: "0 0 auto", animation: pulse ? "loki-pulse 1.6s ease-in-out infinite" : undefined }} />;
 }
 
 function DeskRow({ desk: d, mark, here, showFace, index, selected, onHover, onChoose, onPin, onArchive }: { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; selected: number; onHover: (i: number) => void; onChoose: () => void; onPin?: (desk: DeskSummary, pinned: boolean) => void; onArchive?: (desk: DeskSummary, archived: boolean) => void }) {
