@@ -197,7 +197,7 @@ describe("bridge: a paired phone's authority", () => {
     };
     const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan, listDesks: () => [] });
     const phone = { ...client("shared"), deviceId: "d1" };
-    for (const type of ["pair_begin", "device_forget", "lan_set", "lan_get", "devices_list", "gesture", "arrange", "trash", "pin_set", "folder_pick", "skill_install", "agent_get", "task_create", "tasks_list"]) {
+    for (const type of ["pair_begin", "device_forget", "lan_set", "lan_get", "devices_list", "gesture", "arrange", "trash", "folder_pick", "folder_check", "skill_install", "skills_global", "task_create", "tasks_list", "widget_status", "measure"]) {
       phone.sent.length = 0;
       bridge.onMessage(phone, { type, requestId: "r1", id: "d2", enabled: false });
       expect(phone.sent).toEqual([{ type: "error", requestId: "r1", message: `${type} is not available on the phone` }]);

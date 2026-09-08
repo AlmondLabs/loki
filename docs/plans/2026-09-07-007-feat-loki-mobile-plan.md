@@ -385,3 +385,25 @@ Pairing codes: alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, six characters, in m
   smoke as U6 but in Safari and from the Home Screen icon.
 - **U4 and U6 (Expo) are dropped.** `mobile/`, `scripts/spike-serve.mjs` and the `mobile` workspace
   entry were removed after the spike.
+
+## Addendum 2 (2026-09-08): the phone grows a bottom bar
+
+Deepak: "Let's continue building the mobile surface. Just like slack, give me a Home, Inbox,
+Agents, Settings bottom nav bar. Design those surfaces." Earlier the same evening the inbox became a
+Slack Catch Up deck (swipe right seen, left later, tap open; approvals refuse to swipe; undo pill;
+"You're caught up").
+
+- **Bar.** Four tabs (Home, Inbox, Agents, Settings), 56px plus the safe inset, icons with condensed
+  caps as on the rail; active tab in paper, brass only on the Inbox count. Hidden inside a conversation
+  or an agent page. Hash routes (`#/home`, `#/inbox`, `#/agents/<id>`, `#/c/<agent>/<conversation>`)
+  so the home-screen app has history and swipe-back.
+- **Home** is the desks tree: pinned first then recency, one row per conversation with face, title,
+  time and the tree's attention dot; agent chips filter; a filter field; archive folded; **+** starts a
+  chat with an agent in its most recent folder (`folders_get` + the app-server's conversation create).
+- **Agents** is read-only: rows (face, name, description, model, live desks), a page with identity,
+  memory tree and file viewer, skills, recent commits; "ask <agent> to update this" opens its chat.
+- **Settings**: this phone (name, paired since, unpair), the Mac (host, port, Letta Code version,
+  link state), and where the rest lives.
+- **Mod.** `PHONE_FRAMES` gains the reads a phone needs: `pin_set`, `folders_get`, `agent_get`,
+  `memory_read`, `memory_log`, `memory_diff`. Writes to agents, skills, the board and pairing stay
+  desktop-only.

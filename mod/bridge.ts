@@ -175,8 +175,13 @@ const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFin
 const isPoint = (v: unknown): boolean =>
   typeof v === "object" && v !== null && isNum((v as Record<string, unknown>).x) && isNum((v as Record<string, unknown>).y);
 
-/** The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`. */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get"]);
+/**
+ * The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`.
+ * Reads and the user's own markers: desks, transcripts, seen/snooze, pins, recent folders, and the
+ * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
+ * skills, or the pairing and device frames.
+ */
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
