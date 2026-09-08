@@ -69,11 +69,12 @@ rail of five segments sits on the left, and one view fills the rest:
   (a name and the markdown; it lands as `skills/<name>/SKILL.md`), or install from a source the CLI knows
   (`owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL). **Global skills** lists
   `~/.letta/skills`, which every agent reads, with disable and "enable a folder".
-- **Settings** (⌘5, ⌘,): **providers** (the harness's catalogue, connected first; a row opens into the fields it
-  needs, keys are checked with the provider before Letta keeps them; OAuth ones say which `letta connect` to run),
-  requirements and install status, **phone** (put the inbox on your phone over the Wi‑Fi: a switch, a pairing
-  QR and code, the paired phones; see below), which harness the app is on, how it reaches the mod, where the
-  files live, chat width, and the complete keymap.
+- **Settings** (⌘5, ⌘,): six pages down the left, one showing at a time, the last one remembered for the
+  window. **letta**: which harness the app is on, how it reaches the mod, requirements and install status.
+  **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
+  with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
+  switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
+  everything lives. **keys**: the complete keymap.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
