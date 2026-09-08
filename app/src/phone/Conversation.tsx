@@ -6,6 +6,7 @@ import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
+import { Pin } from "./Home";
 import { BackButton, SAFE, TopBar, tap } from "./ui";
 
 /** The conversation a card opened; kept apart from the item so the screen survives the card clearing. */
@@ -34,6 +35,10 @@ export function Conversation({
   view,
   waiting,
   banner,
+  backLabel = "inbox",
+  prefill = null,
+  pinned = null,
+  onPin,
   onBack,
   onLoad,
   onDecide,
@@ -46,6 +51,13 @@ export function Conversation({
   /** The card is still actionable: offer "seen" in the bar. */
   waiting: boolean;
   banner?: ReactNode;
+  /** Where back goes, as a word. */
+  backLabel?: string;
+  /** Text the host wants in the reply box (an "ask the agent to…" from the agent's page); a new tick replaces the draft, as the desktop chat does. */
+  prefill?: { text: string; tick: number } | null;
+  /** The desk's pin state, when the mod knows this conversation as a desk; null hides the glyph. */
+  pinned?: boolean | null;
+  onPin?: (pinned: boolean) => void;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
@@ -62,6 +74,18 @@ export function Conversation({
     onLoad(rt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread.agentId, thread.conversationId]);
+
+  useEffect(() => {
+    if (prefill && prefill.tick > 0) {
+      setDraft(prefill.text);
+      setTimeout(() => {
+        const el = boxRef.current;
+        el?.focus();
+        el?.setSelectionRange(el.value.length, el.value.length);
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.tick]);
 
   // Newest at the bottom, kept in view as rows stream in.
   useEffect(() => {
@@ -89,7 +113,7 @@ export function Conversation({
   return (
     <>
       <TopBar
-        left={<BackButton onClick={onBack} />}
+        left={<BackButton onClick={onBack} label={backLabel} />}
         title={thread.title ?? thread.conversationId}
         sub={
           <>
@@ -100,15 +124,22 @@ export function Conversation({
           </>
         }
         right={
-          waiting && !view.pending ? (
-            <button type="button" onClick={() => onSeen(rt)} style={{ ...tap("var(--loki-fg)"), minHeight: 34, padding: "4px 10px", fontSize: 12 }}>
-              seen
-            </button>
-          ) : null
+          <>
+            {waiting && !view.pending && (
+              <button type="button" onClick={() => onSeen(rt)} style={{ ...tap("var(--loki-fg)"), minHeight: 34, padding: "4px 10px", fontSize: 12 }}>
+                seen
+              </button>
+            )}
+            {pinned !== null && onPin && (
+              <button type="button" onClick={() => onPin(!pinned)} aria-label={pinned ? "unpin" : "pin"} aria-pressed={pinned} title={pinned ? "unpin" : "pin to the top"} style={{ width: 40, height: 40, display: "grid", placeItems: "center", border: "none", borderRadius: 8, background: "transparent", color: pinned ? "var(--loki-fg)" : "var(--loki-muted)", opacity: pinned ? 1 : 0.55, cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent" }}>
+                <Pin filled={pinned} />
+              </button>
+            )}
+          </>
         }
       />
       {banner}
-      <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) 12px calc(12px + ${SAFE.left})`, fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
+      <div ref={scrollRef} className="loki-phone-thread" style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) 12px calc(12px + ${SAFE.left})`, fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
         {!view.rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {view.rows && view.rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>no transcript on disk</div>}
         {view.rows && <Transcript rows={view.rows} streaming={view.status === "streaming"} dim={false} />}

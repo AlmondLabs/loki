@@ -9,7 +9,7 @@
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
-    __LOKI__?: { token?: string; modPort?: number; desk?: string | null; lan?: boolean };
+    __LOKI__?: { token?: string; modPort?: number; desk?: string | null; lan?: boolean; build?: string };
   }
 }
 
