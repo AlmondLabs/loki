@@ -286,11 +286,11 @@ export function DeskTree({
           }}
           placeholder={agentFilter ? `find a desk of ${pickName(agentFilter) ?? "this agent"}…` : "find a desk…"}
           aria-label="find a desk"
-          style={{ width: "100%", boxSizing: "border-box", padding: "13px 16px", fontSize: 13.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none" }}
+          style={{ flex: "0 0 auto", width: "100%", boxSizing: "border-box", padding: "13px 16px", fontSize: 13.5, background: "transparent", border: "none", borderBottom: "1px solid var(--loki-border)", color: "var(--loki-fg)", outline: "none" }}
         />
 
         {/* agent filter */}
-        <div role="tablist" aria-label="agent" style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto" }}>
+        <div role="tablist" aria-label="agent" style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto", flex: "0 0 auto" }}>
           <Chip active={agentFilter === null} onClick={() => (setAgentFilter(null), setIndex(0))}>
             all <span style={{ opacity: 0.7 }}>{liveCount}</span>
           </Chip>
@@ -346,7 +346,7 @@ export function DeskTree({
           )}
           {rows.length === 0 && <div style={{ padding: 14, fontSize: 12, color: "var(--loki-muted)" }}>no desks match</div>}
         </div>
-        <div style={{ padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
+        <div style={{ flex: "0 0 auto", padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
           {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onSwitchChat ? " · ⇧↵ chat" : ""}${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
         </div>
       </div>
