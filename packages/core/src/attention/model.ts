@@ -1,5 +1,6 @@
 import { looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
+import type { ImageAttachment } from "./content.ts";
 
 /**
  * Attention model: which conversations are waiting on the user, and why.
@@ -48,6 +49,15 @@ export interface LiveRow {
   role: "user" | "assistant" | "tool";
   text: string;
   images?: string[];
+  /** Typed while the turn ran: shown in the transcript, sent when the turn ends. */
+  queued?: boolean;
+}
+
+/** A message typed mid-turn, waiting for the conversation to go idle. */
+export interface QueuedSend {
+  text: string;
+  images: ImageAttachment[];
+  context?: string;
 }
 
 export interface Live {
@@ -68,6 +78,8 @@ export interface Live {
   /** Turns the agent has completed since this tab connected — a turn is new content even when it ended in a tool call. */
   turns: number;
   inTurn: boolean;
+  /** Messages typed while a turn ran, in order; one goes out at each turn end. */
+  queued: QueuedSend[];
   /** From update_device_status: the permission mode the harness applies to this conversation right now. */
   mode?: string;
 }
@@ -95,7 +107,7 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
 const TEXT_LIMIT = 700;
 
 export function emptyLive(): Live {
-  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false };
+  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
 }
 
 /**
@@ -135,6 +147,28 @@ export function digest(messages: Array<Record<string, unknown>>): Digest {
     }
   }
   return { lastRole, lastAssistantText };
+}
+
+/**
+ * The next queued message, once the turn has ended: removed from the queue and its transcript row
+ * un-flagged, so the caller can send it. Null while the turn runs or when nothing waits.
+ */
+export function takeQueued(l: Live): QueuedSend | null {
+  if (l.inTurn || l.queued.length === 0) return null;
+  const next = l.queued.shift()!;
+  const row = l.tail.find((r) => r.queued && r.role === "user" && r.text === next.text);
+  if (row) delete row.queued;
+  return next;
+}
+
+/** Drop a queued message (the user thought better of it); true when one matched. */
+export function cancelQueued(l: Live, text: string): boolean {
+  const i = l.queued.findIndex((q) => q.text === text);
+  if (i < 0) return false;
+  l.queued.splice(i, 1);
+  const r = l.tail.findIndex((row) => row.queued && row.role === "user" && row.text === text);
+  if (r >= 0) l.tail.splice(r, 1);
+  return true;
 }
 
 /** Fold one live event into a conversation's live state. Returns true if anything changed. */

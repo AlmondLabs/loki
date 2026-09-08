@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type ConversationInfo } from "../packages/core/src/attention/model.ts";
+import { applyEvent, buildItems, cancelQueued, chatStatusOf, digest, emptyLive, keyOf, takeQueued, toConversations, type ConversationInfo } from "../packages/core/src/attention/model.ts";
 import { toTranscript } from "../packages/core/src/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
@@ -155,6 +155,33 @@ describe("a turn that ends in a tool call still counts as new", () => {
     expect(l.turns).toBe(2);
     const items = buildItems([{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }], new Map(), new Map([[keyOf("a", "c"), l]]), {});
     expect(items[0].turns).toBe(2);
+  });
+});
+
+describe("messages typed mid-turn", () => {
+  const rt = { agent_id: "a", conversation_id: "c" };
+  test("nothing leaves while the turn runs; one goes at each turn end, and its row stops being queued", () => {
+    const l = emptyLive();
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "SENDING_API_REQUEST" } });
+    l.queued.push({ text: "first", images: [] }, { text: "second", images: [] });
+    l.tail.push({ role: "user", text: "first", queued: true }, { role: "user", text: "second", queued: true });
+    expect(takeQueued(l)).toBeNull();
+    applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
+    expect(takeQueued(l)).toEqual({ text: "first", images: [] });
+    expect(l.tail.map((r) => [r.text, r.queued === true])).toEqual([["first", false], ["second", true]]);
+    expect(l.queued.map((q) => q.text)).toEqual(["second"]);
+    expect(takeQueued(l)).toEqual({ text: "second", images: [] }); // the caller marks inTurn again before the next; here the turn is over
+    expect(takeQueued(l)).toBeNull();
+  });
+  test("cancel drops the message and its row; an unknown text changes nothing", () => {
+    const l = emptyLive();
+    l.inTurn = true;
+    l.queued.push({ text: "oops", images: [] });
+    l.tail.push({ role: "user", text: "kept" }, { role: "user", text: "oops", queued: true });
+    expect(cancelQueued(l, "nope")).toBe(false);
+    expect(cancelQueued(l, "oops")).toBe(true);
+    expect(l.queued).toEqual([]);
+    expect(l.tail.map((r) => r.text)).toEqual(["kept"]);
   });
 });
 

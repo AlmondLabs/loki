@@ -49,9 +49,12 @@ export function ChatWindow({
   question = null,
   onAnswer,
   onSend,
+  onCancelQueued,
   onClose,
 }: {
   messages: ChatMessage[];
+  /** Take back a message typed mid-turn before it went out. */
+  onCancelQueued?: (text: string) => void;
   status: ChatStatus;
   error: string | null;
   /** The agent on the other side. */
@@ -201,7 +204,7 @@ export function ChatWindow({
 
   const submit = () => {
     const text = draft.trim();
-    if ((!text && !images.length) || status !== "idle") return;
+    if (!text && !images.length) return;
     setDraft("");
     setImages([]);
     // A typed reply while one question is open is the answer to it.
@@ -338,7 +341,7 @@ export function ChatWindow({
             same conversation, different room — everything here lands in {agentName ? `${agentName}'s` : "the"} transcript
           </div>
         )}
-        <Transcript rows={messages} streaming={status === "streaming"} />
+        <Transcript rows={messages} streaming={status === "streaming"} onCancelQueued={onCancelQueued ? (row) => onCancelQueued(row.text) : undefined} />
         {status === "thinking" && !approval && !question && (
           <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 8px" }}>
             thinking…
@@ -381,14 +384,15 @@ export function ChatWindow({
           onEscape={() => inputRef.current?.blur()}
           images={images}
           onImages={setImages}
-          placeholder={question ? (question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…") : status === "idle" ? `message ${agentName ?? "the agent"}… (shift+enter for a new line)` : "waiting…"}
+          placeholder={question ? (question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…") : status === "idle" ? `message ${agentName ?? "the agent"}… (shift+enter for a new line)` : `message ${agentName ?? "the agent"}… it goes when this turn ends`}
         />
         <button
           onClick={submit}
-          disabled={status !== "idle" || (!draft.trim() && !images.length)}
-          style={{ ...btn(status === "idle" && (draft.trim() || images.length) ? "var(--loki-accent)" : "var(--loki-muted)"), cursor: status === "idle" ? "pointer" : "default", opacity: status === "idle" && (draft.trim() || images.length) ? 1 : 0.6 }}
+          disabled={!draft.trim() && !images.length}
+          title={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
+          style={{ ...btn(draft.trim() || images.length ? "var(--loki-accent)" : "var(--loki-muted)"), cursor: draft.trim() || images.length ? "pointer" : "default", opacity: draft.trim() || images.length ? 1 : 0.6 }}
         >
-          send
+          {status === "idle" ? "send" : "queue"}
         </button>
       </div>
     </div>

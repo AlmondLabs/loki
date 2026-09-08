@@ -9,4 +9,6 @@ export interface TranscriptRow {
   detail?: string | null;
   /** Data URLs of images sent with a user message (live rows only; history shows a marker). */
   images?: string[];
+  /** A user message typed mid-turn that has not gone out yet. */
+  queued?: boolean;
 }

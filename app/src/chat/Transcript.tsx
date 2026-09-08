@@ -12,17 +12,17 @@ export type { TranscriptRow };
  * the message box made typing lag. A row re-renders only when its own text,
  * its last-ness, or the streaming cursor changes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean }) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
   return (
     <>
       {rows.map((m, i) => (
-        <Row key={i} row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} />
+        <Row key={i} row={m} last={i === rows.length - 1} streaming={streaming} dim={dim}  onCancelQueued={onCancelQueued} />
       ))}
     </>
   );
 });
 
-const Row = memo(function Row({ row: m, last, streaming, dim }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean }) {
+const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
   if (m.role === "tool") {
     return (
       <div data-row="tool" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", margin: "2px 0 2px 14px", overflowWrap: "anywhere" }}>
@@ -46,7 +46,7 @@ const Row = memo(function Row({ row: m, last, streaming, dim }: { row: Transcrip
     );
   }
   return (
-    <div data-row={m.role} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
       <div
         style={{
           maxWidth: "78%",
@@ -55,7 +55,9 @@ const Row = memo(function Row({ row: m, last, streaming, dim }: { row: Transcrip
           padding: "9px 13px",
           borderRadius: 12,
           background: m.role === "user" ? "var(--loki-accent-soft)" : "var(--loki-bubble)",
-          opacity: !dim || last || m.role === "user" ? 1 : 0.85,
+          // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.
+          border: m.queued ? "1px dashed var(--loki-accent)" : undefined,
+          opacity: m.queued ? 0.7 : !dim || last || m.role === "user" ? 1 : 0.85,
           color: "var(--loki-fg)",
         }}
       >
@@ -82,6 +84,11 @@ const Row = memo(function Row({ row: m, last, streaming, dim }: { row: Transcrip
           </>
         )}
       </div>
+      {m.queued && (
+        <button type="button" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4, background: "transparent", border: "none", padding: 0, color: "var(--loki-accent)", fontFamily: "var(--loki-mono)", fontSize: 10.5, letterSpacing: "0.06em", cursor: onCancelQueued ? "pointer" : "default" }}>
+          queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
+        </button>
+      )}
     </div>
   );
 });

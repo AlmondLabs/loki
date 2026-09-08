@@ -371,6 +371,7 @@ export function Surface({
             if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
           }}
           onSend={(text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder, desk: title })}
+          onCancelQueued={(text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text)}
           onClose={() => onChatOpen(false)}
         />
       )}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { ConnectProvider, Personality } from "./protocol.ts";
-import { applyEvent, buildItems, chatStatusOf, digest, emptyLive, keyOf, toConversations, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, buildItems, cancelQueued as dropQueued, chatStatusOf, digest, emptyLive, keyOf, takeQueued, toConversations, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
@@ -83,9 +83,21 @@ export function useAttention(opts: UseAttentionOptions) {
         l = emptyLive();
         liveRef.current.set(key, l);
       }
+      const wasInTurn = l.inTurn;
       const { changed, userSpoke } = applyEvent(l, ev);
       if (userSpoke) opts.markSeen(agent, conv);
       if (changed) bump();
+      // The turn just ended and something was typed during it: it goes out now, one per turn end.
+      if (wasInTurn && !l.inTurn) {
+        const next = takeQueued(l);
+        if (next && ev.runtime) {
+          const rt = ev.runtime;
+          if (next.text.trim()) l.ownSends.push(next.text);
+          l.inTurn = true; // until the server says so, so a second queued message waits its turn
+          bump();
+          void sock.sendUserMessage(rt, next.text, next.images, next.context).catch((err) => console.warn("loki: queued send", err));
+        }
+      }
       if (changed && !knownRef.current.has(key) && !reloadTimer.current && Date.now() - lastReload.current > 10_000) {
         // not in the list yet: refresh it soon so the conversation can become a card
         reloadTimer.current = setTimeout(() => {
@@ -253,14 +265,26 @@ export function useAttention(opts: UseAttentionOptions) {
       l = emptyLive();
       liveRef.current.set(key, l);
     }
+    const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
+    // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
+    if (l.inTurn) {
+      l.queued.push({ text, images, context });
+      l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, queued: true });
+      bump();
+      return;
+    }
     l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined });
     if (text.trim()) l.ownSends.push(text);
     l.lastRole = "user";
     bump();
-    const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
     void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, text, images, context)).catch((err) => console.warn("loki: send", err));
     opts.markSeen(rt.agent_id, rt.conversation_id);
   }, [opts, subscribe, bump]);
+  /** Take back a message typed mid-turn before it went out. */
+  const cancelQueued = useCallback((rt: Runtime, text: string) => {
+    const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+    if (l && dropQueued(l, text)) bump();
+  }, [bump]);
   const reply = useCallback((item: AttentionItem, text: string, images: ImageAttachment[] = []) => send(item.runtime, text, images, { desk: item.title }), [send]);
 
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
@@ -441,6 +465,7 @@ export function useAttention(opts: UseAttentionOptions) {
     answer,
     reply,
     send,
+    cancelQueued,
     seen: (item: AttentionItem) => opts.markSeen(item.agentId, item.id),
     unread: (item: AttentionItem) => opts.unmarkSeen(item.agentId, item.id),
     /** "Later": defer with backoff; the deferral is void if the card moves on. */
