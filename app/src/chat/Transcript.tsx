@@ -1,9 +1,9 @@
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { TranscriptRow } from "../../../packages/core/src/attention/transcript.ts";
-import { Button } from "../ui";
+import { Button, IconButton } from "../ui";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -58,6 +58,7 @@ function EventRow({ row: m }: { row: TranscriptRow }) {
 function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
   return (
     <div data-row={m.role} data-queued={m.queued ? "true" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
+      <div className="loki-bubble" data-role={m.role}>
       <div
         style={{
           maxWidth: "78%",
@@ -74,12 +75,46 @@ function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: Transcr
       >
         {m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}
       </div>
+      {m.text && !(last && streaming) && <CopyMarkdown text={m.text} />}
+      </div>
       {m.queued && (
         <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4 }}>
           queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
         </Button>
       )}
     </div>
+  );
+}
+
+/** The bubble's text as it was written — markdown, not the rendering — onto the clipboard. Says "copied" for a beat. */
+function CopyMarkdown({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1400);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      // the clipboard refused (no permission in this context): the label stays, nothing else to say
+    }
+  };
+  return (
+    <IconButton size={24} className="loki-bubble-copy" label={copied ? "copied" : "copy as markdown"} data-copied={copied ? "true" : undefined} onClick={() => void copy()}>
+      {copied ? (
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3 8.5l3 3 7-7" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" aria-hidden>
+          <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+          <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+        </svg>
+      )}
+    </IconButton>
   );
 }
 

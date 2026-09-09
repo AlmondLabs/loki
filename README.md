@@ -240,7 +240,8 @@ run — loki's own (`/model`, `/mode`, `/inbox`, `/desks`) and the harness's (`/
 advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
 Harness commands go over the app-server socket as `execute_command`, the path Desktop and the channels use, and
 land in the transcript as one quiet row: the command line, then its outcome. `packages/core/src/attention/commands.ts`
-is the table.
+is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
+message on the clipboard as the markdown it was written in, not the rendering.
 
 Every desk, tree group, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
 conversation, so multi-agent setups stay legible.

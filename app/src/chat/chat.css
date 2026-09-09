@@ -34,3 +34,12 @@
 .loki-md th, .loki-md td { border: 1px solid var(--loki-border); padding: 4px 8px; text-align: left; }
 .loki-md th { color: var(--loki-muted); font-weight: 500; }
 .loki-md strong { color: var(--loki-fg); }
+
+/* Copy as markdown: a glyph under the bubble, at its outer corner (the agent's on the left, yours on the right), shown
+   when the row is hovered or holds focus, and kept visible for a beat after it copied. Its row is always there, so
+   nothing shifts on hover. The stylesheet zeroes the fade under reduced motion. */
+.loki-bubble { display: flex; flex-direction: column; align-items: flex-start; width: 100%; }
+.loki-bubble[data-role="user"] { align-items: flex-end; }
+.loki-bubble-copy { opacity: 0; transition: opacity 120ms ease-out; flex: none; margin: 0 6px -8px; } /* rides into the next row's top margin: 16px of rhythm, not 24 */
+.loki-bubble:hover .loki-bubble-copy, .loki-bubble:focus-within .loki-bubble-copy, .loki-bubble-copy[data-copied="true"] { opacity: 1; }
+@media (hover: none) { .loki-bubble-copy { opacity: 0.55; } }
