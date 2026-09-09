@@ -173,26 +173,20 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         animation: `${actions.dir === "back" ? "loki-card-back" : "loki-card-next"} 200ms ease-out`,
       }}
     >
-      <CardHeader
-        current={current}
-        threadMode={thread?.mode}
-        cameBack={cameBackIn(decided, current)}
-        timesAround={timesAround}
-        priorSnooze={priorSnooze}
-        flash={actions.flash}
-        chips={chips}
-        modelFor={deck.modelFor}
-        models={deck.models ?? null}
-        onLoadModels={deck.onLoadModels}
-        onPickModel={deck.onPickModel}
-        modeFor={deck.modeFor}
-        onPickMode={deck.onPickMode}
-      />
+      <CardHeader current={current} cameBack={cameBackIn(decided, current)} timesAround={timesAround} priorSnooze={priorSnooze} flash={actions.flash} />
       <CardThread rows={thread?.rows} status={thread?.status} error={current.status === "failed" ? current.error : null} />
       {current.status === "approval" && current.pendingApproval && <ApprovalCard approval={current.pendingApproval} />}
       {current.pendingQuestion && <QuestionCard question={current.pendingQuestion} onAnswer={(answers) => deck.onAnswer(current, current.pendingQuestion!.requestId, answers)} />}
       <ReplyBox current={current} replyRef={replyRef} draft={actions.draft} setDraft={actions.setDraft} images={actions.images} setImages={actions.setImages} sendReply={actions.sendReply} setTyping={setTyping} onClose={deck.onClose} />
-      <CardFooter current={current} typing={typing} approve={actions.approve} advance={actions.advance} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />
+      <CardFooter
+        current={current}
+        typing={typing}
+        approve={actions.approve}
+        advance={actions.advance}
+        onOpenDesk={deck.onOpenDesk}
+        onClose={deck.onClose}
+        controls={{ threadMode: thread?.mode, chips, modelFor: deck.modelFor, models: deck.models ?? null, onLoadModels: deck.onLoadModels, onPickModel: deck.onPickModel, modeFor: deck.modeFor, onPickMode: deck.onPickMode }}
+      />
     </div>
   );
 }

@@ -86,7 +86,7 @@ export function passSummary(decided: Decision[], replies: number): string {
   ].join(" · ");
 }
 
-/** The open/busy flags of the two header chips. They belong to the deck, not the card, so a switch in flight survives a move. */
+/** The open/busy flags of the two chips in the card's last row. They belong to the deck, not the card, so a switch in flight survives a move. */
 export function useChipState() {
   const [modelPicker, setModelPicker] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -96,13 +96,9 @@ export function useChipState() {
 }
 export type ChipState = ReturnType<typeof useChipState>;
 
-export interface CardHeaderProps {
-  current: AttentionItem;
+/** The conversation's switchers on a card: its mode and model, whether each can be changed, and the chips' state. */
+export interface ChipControls {
   threadMode: string | null | undefined;
-  cameBack: boolean;
-  timesAround: number;
-  priorSnooze: Snooze | undefined;
-  flash: string | null;
   chips: ChipState;
   modelFor?: (agentId: string, conversationId: string) => string | null;
   models: ModelEntry[] | null;
@@ -112,8 +108,16 @@ export interface CardHeaderProps {
   onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
 }
 
-/** Title, who and when, the deferral history, the mode and model chips, and the status badge. */
-export function CardHeader({ current, threadMode, cameBack, timesAround, priorSnooze, flash, chips, modelFor, models, onLoadModels, onPickModel, modeFor, onPickMode }: CardHeaderProps) {
+export interface CardHeaderProps {
+  current: AttentionItem;
+  cameBack: boolean;
+  timesAround: number;
+  priorSnooze: Snooze | undefined;
+  flash: string | null;
+}
+
+/** Title, who and when, the deferral history, and the status badge. The mode and model chips sit in the card's last row. */
+export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash }: CardHeaderProps) {
   const badge = BADGE[current.status];
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)" }}>
@@ -126,8 +130,6 @@ export function CardHeader({ current, threadMode, cameBack, timesAround, priorSn
           {cameBack && <Meta brass>back · new since you moved on</Meta>}
           {timesAround > 1 && <Meta brass>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
           {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}
-          {onPickMode && modeFor && <ModeChips current={current} threadMode={threadMode} chips={chips} modeFor={modeFor} onPickMode={onPickMode} />}
-          {onPickModel && modelFor && <ModelChips current={current} chips={chips} modelFor={modelFor} models={models} onLoadModels={onLoadModels} onPickModel={onPickModel} />}
         </div>
       </div>
       <Chip tone={badge.color}>{flash ?? badge.label}</Chip>
@@ -135,15 +137,16 @@ export function CardHeader({ current, threadMode, cameBack, timesAround, priorSn
   );
 }
 
-/** The permission-mode chip and its menu for the card's conversation; the live thread's mode wins over the record's. */
+/** The permission-mode chip and its menu (opening upward) for the card's conversation; the live thread's mode wins over the record's. */
 function ModeChips({ current, threadMode, chips, modeFor, onPickMode }: { current: AttentionItem; threadMode: string | null | undefined; chips: ChipState; modeFor: (agentId: string, conversationId: string) => string | null; onPickMode: (item: AttentionItem, mode: PermissionMode) => Promise<void> }) {
   const recorded = modeFor(current.agentId, current.id);
   const mode = isPermissionMode(threadMode) ? threadMode : isPermissionMode(recorded) ? (recorded as PermissionMode) : null;
   return (
-    <span style={{ position: "relative", display: "inline-flex" }}>
+    <>
       <ModeChip mode={mode} busy={chips.changingMode} onClick={() => chips.setModeMenu((v) => !v)} />
       <ModeMenu
         open={chips.modeMenu}
+        side="above"
         current={mode}
         onClose={() => chips.setModeMenu(false)}
         onPick={(m) => {
@@ -152,14 +155,14 @@ function ModeChips({ current, threadMode, chips, modeFor, onPickMode }: { curren
           void onPickMode(current, m).finally(() => chips.setChangingMode(false));
         }}
       />
-    </span>
+    </>
   );
 }
 
-/** The model chip and its picker for the card's conversation. */
+/** The model chip and its picker (opening upward) for the card's conversation. */
 function ModelChips({ current, chips, modelFor, models, onLoadModels, onPickModel }: { current: AttentionItem; chips: ChipState; modelFor: (agentId: string, conversationId: string) => string | null; models: ModelEntry[] | null; onLoadModels?: () => void; onPickModel: (item: AttentionItem, handle: string) => Promise<void> }) {
   return (
-    <span style={{ position: "relative", display: "inline-flex" }}>
+    <>
       <ModelChip
         model={modelFor(current.agentId, current.id)}
         busy={chips.switching}
@@ -170,6 +173,7 @@ function ModelChips({ current, chips, modelFor, models, onLoadModels, onPickMode
       />
       <ModelPicker
         open={chips.modelPicker}
+        side="above"
         current={modelFor(current.agentId, current.id)}
         entries={models}
         loading={!models}
@@ -180,7 +184,7 @@ function ModelChips({ current, chips, modelFor, models, onLoadModels, onPickMode
           void onPickModel(current, h).finally(() => chips.setSwitching(false));
         }}
       />
-    </span>
+    </>
   );
 }
 
@@ -211,10 +215,17 @@ function replyPlaceholder(current: AttentionItem): string {
   return "reply… (enter to send · ⇧↵ new line)";
 }
 
-/** The card's actions. The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type. */
-export function CardFooter({ current, typing, approve, advance, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; approve: (behavior: "allow" | "deny") => void; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
+/**
+ * The card's last row: the conversation's model and mode chips on the left (their popovers open upward,
+ * as in the desk chat), then the actions. The kbd hints switch grammar: letters when nothing has focus,
+ * ⌘ chords while you type.
+ */
+export function CardFooter({ current, typing, approve, advance, onOpenDesk, onClose, controls }: { current: AttentionItem; typing: boolean; approve: (behavior: "allow" | "deny") => void; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void; controls: ChipControls }) {
+  const { threadMode, chips, modelFor, models, onLoadModels, onPickModel, modeFor, onPickMode } = controls;
   return (
-    <div style={{ display: "flex", gap: 8, padding: "0 12px 12px", alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ position: "relative", display: "flex", gap: 8, padding: "0 12px 12px", alignItems: "center", flexWrap: "wrap" }}>
+      {onPickModel && modelFor && <ModelChips current={current} chips={chips} modelFor={modelFor} models={models} onLoadModels={onLoadModels} onPickModel={onPickModel} />}
+      {onPickMode && modeFor && <ModeChips current={current} threadMode={threadMode} chips={chips} modeFor={modeFor} onPickMode={onPickMode} />}
       {current.pendingApproval && (
         <>
           <Button size="sm" tone="positive" onClick={() => approve("allow")} kbd={typing ? "⌘↵" : "A"}>approve</Button>

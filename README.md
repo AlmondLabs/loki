@@ -51,7 +51,7 @@ rail of five segments sits on the left, and one view fills the rest:
   ⌘F finds in the transcript; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget move).
   Under the chat's message box sit two chips for the conversation: its **permission mode** (strict, standard, accept
   edits, unrestricted; ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply
-  per conversation through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips.
+  per conversation through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips in their actions row.
   A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part, and
   opening or closing a left chat slides the sheet so nothing ends up under it. An empty desk opens the chat
   centred until its first widget lands. Clicking the desk icon again (or ⌘K) opens the **desks tree**: one centred list of every
