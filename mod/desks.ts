@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, readdirSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -261,4 +261,70 @@ function textParts(content: unknown): string {
     else if (type === "image") out += (out ? "\n" : "") + "[image]";
   }
   return out;
+}
+
+/** What the inbox decides on without the app-server: who spoke last, and the assistant's last words. */
+export interface LocalDigest {
+  lastRole: "user" | "assistant" | null;
+  lastAssistantText: string | null;
+}
+
+/** One open conversation as the inbox lists it: the record from disk plus its digest. */
+export interface InboxRow extends LocalDigest {
+  id: string;
+  agentId: string;
+  agentName: string | null;
+  title: string | null;
+  lastMessageAt: string | null;
+  archived: false;
+}
+
+const DIGEST_TAIL_BYTES = 256 * 1024;
+const DIGEST_TEXT_LIMIT = 700;
+
+/**
+ * The tail of a conversation's local log, read as the inbox reads it: the last human or assistant
+ * message with text decides `lastRole` (harness markup in a user message does not count as the user
+ * speaking), and the assistant's last text is kept for the card. Only the end of the file is read,
+ * so a long main chat costs the same as a short one.
+ */
+export function digestLocalConversation(conversationId: string, agentId?: string | null, backendDir = join(homedir(), ".letta", "lc-local-backend")): LocalDigest {
+  const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
+  const none: LocalDigest = { lastRole: null, lastAssistantText: null };
+  let tail: string;
+  try {
+    const size = statSync(path).size;
+    const start = Math.max(0, size - DIGEST_TAIL_BYTES);
+    const buf = Buffer.alloc(size - start);
+    const fd = openSync(path, "r");
+    try {
+      readSync(fd, buf, 0, buf.length, start);
+    } finally {
+      closeSync(fd);
+    }
+    tail = buf.toString("utf8");
+  } catch {
+    return none;
+  }
+  const lines = tail.split("\n");
+  if (lines.length && tail.length === DIGEST_TAIL_BYTES) lines.shift(); // a line cut in half at the window's edge
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (!line.trim()) continue;
+    let entry: { type?: string; message?: { role?: string; content?: unknown } };
+    try {
+      entry = JSON.parse(line) as typeof entry;
+    } catch {
+      continue;
+    }
+    if (entry.type !== "message" || !entry.message) continue;
+    const role = entry.message.role;
+    if (role === "user") {
+      if (stripHarnessMarkup(textParts(entry.message.content)).trim()) return { lastRole: "user", lastAssistantText: null };
+    } else if (role === "assistant") {
+      const text = textParts(entry.message.content).trim();
+      if (text) return { lastRole: "assistant", lastAssistantText: text.slice(-DIGEST_TEXT_LIMIT) };
+    }
+  }
+  return none;
 }

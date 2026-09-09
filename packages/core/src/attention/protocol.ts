@@ -287,6 +287,17 @@ export class AppServerSocket {
     if (res.success === false) throw new Error(String(res.error ?? "conversation update refused"));
   }
 
+  /**
+   * execute_command: a slash command run by the harness for this conversation (/reload, /compact, …),
+   * the path Letta Desktop and the channels use. The harness streams slash_command_start / _end for
+   * the transcript and answers here with the output; some commands take a while, hence the long wait.
+   */
+  async executeCommand(rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> {
+    const a = args?.trim();
+    const res = await this.request("execute_command", { command_id: commandId, runtime: rt, ...(a ? { args: a } : {}) }, 180_000);
+    return { success: res.success !== false, output: typeof res.output === "string" ? res.output : "" };
+  }
+
   async updateModel(rt: Runtime, handle: string, reasoningEffort?: string | null): Promise<string> {
     const payload: Record<string, unknown> = { model_handle: handle };
     if (reasoningEffort !== undefined) payload.reasoning_effort = reasoningEffort;
@@ -298,11 +309,6 @@ export class AppServerSocket {
   async listAgents(): Promise<Array<{ id: string; name?: string; hidden?: boolean }>> {
     const res = await this.request("agent_list", { query: {} });
     return (res.agents as Array<{ id: string; name?: string; hidden?: boolean }>) ?? [];
-  }
-
-  async listConversations(agentId: string, limit = 100): Promise<Array<Record<string, unknown>>> {
-    const res = await this.request("conversation_list", { query: { agent_id: agentId, limit } });
-    return (res.conversations as Array<Record<string, unknown>>) ?? [];
   }
 
   /** Newest-first from the server; returned oldest-first for reading. */

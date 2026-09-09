@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties } from "react";
 import { LAYER } from "../kit/layers";
 import "./chat.css";
 import type { PendingApproval, PendingQuestion } from "../../../packages/core/src/attention/model.ts";
+import type { SlashCommand } from "../../../packages/core/src/attention/commands.ts";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 import { Transcript, type TranscriptRow } from "./Transcript";
 import { Chip } from "../ui";
@@ -55,6 +56,8 @@ export function ChatWindow({
   question = null,
   onAnswer,
   onSend,
+  commands,
+  onCommand,
   onCancelQueued,
   onClose,
 }: {
@@ -93,11 +96,14 @@ export function ChatWindow({
   question?: PendingQuestion | null;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
   onSend: (text: string, images?: ImageAttachment[]) => void;
+  /** Slash commands the box offers (see packages/core/src/attention/commands.ts) and their runner. */
+  commands?: SlashCommand[];
+  onCommand?: (id: string, args: string) => void;
   onClose: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer, onSend });
+  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer, onSend, commands, onCommand });
   const { findOpen, setFindOpen, findRef } = useChatTicks({ focusTick, findTick, inputRef });
   useEffect(() => {
     if (!prefill || prefill.tick <= 0) return;
@@ -162,7 +168,19 @@ export function ChatWindow({
         </Chip>
       )}
 
-      <Composer inputRef={inputRef} draft={draft} onDraft={setDraft} images={images} onImages={setImages} onSubmit={submit} status={status} agentName={agentName} question={question} />
+      <Composer
+        inputRef={inputRef}
+        draft={draft}
+        onDraft={setDraft}
+        images={images}
+        onImages={setImages}
+        onSubmit={submit}
+        status={status}
+        agentName={agentName}
+        question={question}
+        commands={commands}
+        onCommand={onCommand}
+      />
     </div>
   );
 }

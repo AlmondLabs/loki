@@ -57,8 +57,15 @@ export function Shell() {
     setSnooze: attention.setSnooze,
     clearSnooze: attention.clearSnooze,
     loadLocalHistory: attention.loadHistory,
+    listConversations: attention.listInbox,
   });
   const { message: boardNotice, notice } = useNotice();
+  // The inbox lists what is open on disk; when the tree archives or restores a conversation, re-read it now rather than at the next minute.
+  const archivedKey = desk.desks.list.filter((d) => d.status === "archived").map((d) => d.scope).sort().join("\n");
+  const reloadInbox = catchUp.reload;
+  useEffect(() => {
+    reloadInbox();
+  }, [archivedKey, reloadInbox]);
 
   const [segment, setSegmentRaw] = useState<Segment>(savedSegment);
   const setSegment = useCallback((s: Segment) => {

@@ -75,7 +75,7 @@ on, a third on the local network, guarded by a per-device cookie:
 
 | port | server | speaks |
 | --- | --- | --- |
-| 41600 | the app-server (Letta Code) | agent and conversation lists, runtime subscriptions, streaming, approvals |
+| 41600 | the app-server (Letta Code) | the agent list, runtime subscriptions, streaming, approvals (the inbox's conversation list is the mod's, from disk) |
 | 41414 | loki's mod, loopback | desk state, gestures, the board, agents, pins, folders, agent faces, and the app-server tunnel |
 | 41415 | loki's mod, LAN (off by default) | the canvas build as a single-page app, `/pair` `/me` `/unpair`, and the same `/ws`, `/appserver` and face routes for paired phones |
 

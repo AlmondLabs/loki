@@ -1,36 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, cancelQueued, chatStatusOf, digest, emptyLive, keyOf, takeQueued, toConversations, type ConversationInfo } from "../packages/core/src/attention/model.ts";
+import { applyEvent, buildItems, cancelQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type ConversationInfo } from "../packages/core/src/attention/model.ts";
 import { toTranscript } from "../packages/core/src/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
 
 describe("attention model (browser)", () => {
-  test("toConversations drops archived and stale, titles main chats by agent name", () => {
-    const now = new Date("2026-09-05T10:00:00Z").getTime();
-    const convs = toConversations(
-      [
-        { id: "c1", agent_id: "a1", summary: "Sleep", last_message_at: "2026-09-05T08:00:00Z", archived: false },
-        { id: "default", agent_id: "a1", summary: null, last_message_at: "2026-09-05T09:00:00Z", archived: false },
-        { id: "c-old", agent_id: "a1", summary: "Old", last_message_at: "2026-08-01T00:00:00Z", archived: false },
-        { id: "c-arch", agent_id: "a1", summary: "Arch", last_message_at: "2026-09-05T09:30:00Z", archived: true },
-      ],
-      new Map([["a1", "ira"]]),
-      7,
-      now,
-    );
-    expect(convs.map((c) => `${c.id}:${c.title}`)).toEqual(["default:ira · main chat", "c1:Sleep"]);
-    expect(convs.every((c) => c.agentName === "ira")).toBe(true);
-  });
-
-  test("digest reads the last human/assistant roles; harness-injected user text does not count as the user speaking", () => {
-    const d = digest([
-      msg("user_message", { content: "go" }),
-      msg("assistant_message", { content: [{ type: "text", text: "Which one?" }] }),
-      msg("user_message", { content: "<task-notification><task-id>t</task-id></task-notification>" }),
-    ]);
-    expect(d).toEqual({ lastRole: "assistant", lastAssistantText: "Which one?" });
-  });
-
   test("buildItems classifies approval / question / done / running / idle and sorts", () => {
     const convs: ConversationInfo[] = [
       { id: "done", agentId: "a", agentName: "ira", title: "Done", lastMessageAt: "2026-09-05T08:00:00Z", archived: false },

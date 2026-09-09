@@ -10,7 +10,7 @@ import { watchWidgets } from "./widgets-fs.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript, type InboxRow } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
@@ -187,6 +187,25 @@ export default function activate(letta: LettaMod): (() => void) | void {
       }),
     );
   };
+  /**
+   * The inbox's list, straight from disk: every open conversation of the user's own agents, main
+   * chats included, however old — a conversation leaves the inbox by being archived, not by going
+   * quiet. Hidden conversations (the app-server's one-off side threads) stay out, as in the tree.
+   */
+  const listInbox = (): InboxRow[] => {
+    const ownAgents = new Set(desks.all().map((d) => d.agent_id));
+    const names = new Map<string, string | null>();
+    const out: InboxRow[] = [];
+    for (const c of listLocalConversations()) {
+      if (c.hidden || c.archived) continue;
+      if (!(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
+      if (isSubagent(c.agentId)) continue;
+      if (!names.has(c.agentId)) names.set(c.agentId, lookupLocalAgentName(c.agentId));
+      const info = lookupLocalConversation(c.conversationId, c.agentId);
+      out.push({ id: c.conversationId, agentId: c.agentId, agentName: names.get(c.agentId) ?? null, title: info?.title ?? null, lastMessageAt: c.lastMessageAt, archived: false, ...digestLocalConversation(c.conversationId, c.agentId) });
+    }
+    return out.sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+  };
   const deleteWidgetFile = (id: string): string | null => {
     const entry = widgets.get(id);
     if (!entry) return null;
@@ -212,6 +231,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     gestures,
     broadcast,
     listDesks,
+    listInbox,
     deskInfo,
     deleteWidgetFile,
     seen,

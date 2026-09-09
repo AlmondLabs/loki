@@ -128,28 +128,47 @@ function settle(l: Live): void {
   l.streamingText = "";
 }
 
+const RUNNING = "running…";
+
+/** A slash command has started: one quiet row with the command line, marked running until its end arrives. */
+export function beginCommand(l: Live, input: string): void {
+  settle(l);
+  l.tail.push({ role: "event", text: input, summary: RUNNING });
+}
+
+/**
+ * A slash command finished: the running row (or a fresh one, if the start was never seen) gets the
+ * outcome — a one-line output inline, a longer one behind the disclosure, "failed" when it did not work.
+ */
+export function finishCommand(l: Live, input: string, success: boolean, output: string): void {
+  const text = output.trim();
+  const lines = text.split("\n");
+  const oneLine = lines.length === 1 && text.length <= 90;
+  const summary = !success ? "failed" : oneLine ? text || "done" : "done";
+  const detail = !oneLine && text ? text : !success && text && !oneLine ? text : null;
+  let row: LiveRow | undefined;
+  for (let i = l.tail.length - 1; i >= 0; i--) {
+    const r = l.tail[i];
+    if (r.role === "event" && r.text === input && r.summary === RUNNING) {
+      row = r;
+      break;
+    }
+  }
+  if (row) {
+    row.summary = summary;
+    row.detail = detail;
+  } else l.tail.push({ role: "event", text: input, summary, detail });
+}
+
+/** True while a slash command's row is still waiting for its end. */
+export function commandRunning(l: Live, input: string): boolean {
+  return l.tail.some((r) => r.role === "event" && r.text === input && r.summary === RUNNING);
+}
+
 /** "idle" | "thinking" | "streaming" — what a chat box should show for this conversation. */
 export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "streaming" {
   if (!l?.loop || l.loop === "WAITING_ON_INPUT" || l.loop === "WAITING_ON_APPROVAL") return "idle";
   return l.streamingText ? "streaming" : "thinking";
-}
-
-/** Digest a conversation's messages (oldest first). */
-export function digest(messages: Array<Record<string, unknown>>): Digest {
-  let lastRole: Digest["lastRole"] = null;
-  let lastAssistantText: string | null = null;
-  for (const m of messages) {
-    if (m.message_type === "user_message") {
-      if (stripHarnessMarkup(messageText(m.content)).trim()) lastRole = "user";
-    } else if (m.message_type === "assistant_message") {
-      const t = messageText(m.content).trim();
-      if (t) {
-        lastRole = "assistant";
-        lastAssistantText = t.slice(-TEXT_LIMIT);
-      }
-    }
-  }
-  return { lastRole, lastAssistantText };
 }
 
 /**
@@ -260,6 +279,13 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         l.error = String((d as { message?: string })?.message ?? "the turn failed");
         return { changed: true, userSpoke: false };
       }
+      if (mt === "slash_command_start" || mt === "slash_command_end") {
+        const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
+        const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;
+        if (mt === "slash_command_start") beginCommand(l, input);
+        else finishCommand(l, input, c.success !== false, typeof c.output === "string" ? c.output : "");
+        return { changed: true, userSpoke: false };
+      }
       if (mt === "stop_reason") {
         settle(l);
         return { changed: true, userSpoke: false };
@@ -323,21 +349,4 @@ export function buildItems(
     });
   }
   return out.sort((a, b) => RANK[a.status] - RANK[b.status] || (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
-}
-
-/** Protocol conversation records → ConversationInfo, dropping archived and stale ones. */
-export function toConversations(records: Array<Record<string, unknown>>, agentNames: Map<string, string>, windowDays = 7, now = Date.now()): ConversationInfo[] {
-  const cutoff = now - windowDays * 86_400_000;
-  const out: ConversationInfo[] = [];
-  for (const r of records) {
-    const id = typeof r.id === "string" ? r.id : null;
-    const agentId = typeof r.agent_id === "string" ? r.agent_id : null;
-    if (!id || !agentId || r.archived === true) continue;
-    const last = typeof r.last_message_at === "string" ? r.last_message_at : null;
-    if (!last || new Date(last).getTime() < cutoff) continue;
-    const summary = typeof r.summary === "string" && r.summary.trim() ? r.summary.trim() : null;
-    const agentName = agentNames.get(agentId) ?? null;
-    out.push({ id, agentId, agentName, title: summary ?? (id === "default" ? `${agentName ?? "agent"} · main chat` : null), lastMessageAt: last, archived: false });
-  }
-  return out.sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
 }

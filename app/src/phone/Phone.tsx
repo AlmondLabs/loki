@@ -134,6 +134,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     setSnooze: attention.setSnooze,
     clearSnooze: attention.clearSnooze,
     loadLocalHistory: attention.loadHistory,
+    listConversations: attention.listInbox,
   });
   const route = useRoute();
   const lastTab = useLastTab(route);

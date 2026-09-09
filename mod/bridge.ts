@@ -1,4 +1,5 @@
 import type { Gesture, Scope } from "../packages/core/src/desk-core.ts";
+import type { InboxRow } from "./desks.ts";
 import { SHARED_SCOPE, mergeData, scopeFor } from "../packages/core/src/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
@@ -26,6 +27,7 @@ import { isLanVia } from "./lan.ts";
  *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, snooze, appServer }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages }
+ *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
  *    tasks_list { requestId, all? }                          reply: tasks { requestId, tasks }
  *    task_create { requestId, title, description?, labels?, priority?, desk?, agentId?, agentName?, conversationId? }  reply: task_created { requestId, task }
  *    task_assign { requestId, ids, conversationId, desk, agentId?, agentName?, start? }  reply: tasks_updated { requestId, tasks }
@@ -106,6 +108,8 @@ export interface BridgeDeps {
   gestures: GestureLog;
   /** Every desk the mod knows about, for the switcher. */
   listDesks?: () => DeskSummary[];
+  /** Every open conversation of the user's own agents, with its digest, for the inbox (mod/desks.ts). */
+  listInbox?: () => InboxRow[];
   /** Title and status of a desk's conversation. */
   deskInfo?: (scope: Scope) => DeskInfo;
   /** Delete a widget's file from disk. Returns the removed path, or null. */
@@ -198,7 +202,7 @@ const isPoint = (v: unknown): boolean =>
  * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
  * skills, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
@@ -445,6 +449,10 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
               .then((diff) => client.send({ type: "memory_diff", requestId, agentId, sha: msg.sha, diff }))
               .catch(fail);
           }
+          return;
+        }
+        case "inbox_list": {
+          client.send({ type: "inbox", requestId: msg.requestId, conversations: deps.listInbox?.() ?? [] });
           return;
         }
         case "history_get": {

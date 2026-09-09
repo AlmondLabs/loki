@@ -174,7 +174,9 @@ export function useDeskSocket() {
           case "folder_status":
           case "folder_picked":
           case "skills_global":
-          case "skill_installed": {
+          case "skill_installed":
+          case "skill_refreshed":
+          case "inbox": {
             const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
             if (w) {
               waiters.current.delete(msg.requestId as string);

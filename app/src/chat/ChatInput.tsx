@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties } from "react";
+import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
@@ -19,6 +19,8 @@ export const ChatInput = forwardRef<
     value: string;
     onChange: (v: string) => void;
     onSubmit: () => void;
+    /** First look at a key; return true to claim it (the command palette takes arrows, tab, enter, esc while open). */
+    onKeyDown?: (e: KeyboardEvent<HTMLTextAreaElement>) => boolean;
     onEscape?: () => void;
     onFocus?: () => void;
     onBlur?: () => void;
@@ -28,8 +30,11 @@ export const ChatInput = forwardRef<
     placeholder?: string;
     disabled?: boolean;
     style?: CSSProperties;
+    "aria-controls"?: string;
+    "aria-activedescendant"?: string;
+    "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, style }, ref) {
+>(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, style, ...aria }, ref) {
   const addBlobs = async (blobs: Blob[]) => {
     if (!onImages || !blobs.length) return;
     const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
@@ -154,7 +159,9 @@ export const ChatInput = forwardRef<
             void addBlobs(blobs);
           }
         }}
+        {...aria}
         onKeyDown={(e) => {
+          if (onKeyDown?.(e)) return;
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
             if (listening || dictation.pending) {

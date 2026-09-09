@@ -10,6 +10,7 @@ import type { AgentDetails } from "../agents/Agents";
 import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { RefreshOutcome } from "../../../mod/skill-sources.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
+import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
 import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
@@ -225,6 +226,8 @@ export function useDesk() {
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
     setSnooze: (agentId: string, conversationId: string, rec: Snooze) => send({ type: "snooze_set", agentId, conversationId, ...rec }),
+    /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
+    listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((m) => ((m?.conversations as InboxConversation[] | undefined) ?? [])),
     /** The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame). */
     loadHistory: (agentId: string, conversationId: string): Promise<TranscriptRow[]> =>
       request("history_get", { agentId, conversationId }, 4000).then((m) => ((m?.messages as TranscriptRow[] | undefined) ?? [])),

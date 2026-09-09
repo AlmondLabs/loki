@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeskRegistry, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript } from "../mod/desks.ts";
+import { DeskRegistry, digestLocalConversation, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript } from "../mod/desks.ts";
 import { conversationDirName } from "../packages/core/src/desk-core.ts";
 
 describe("desk registry", () => {
@@ -130,6 +130,47 @@ describe("DeskRegistry: one scope per conversation", () => {
     expect(reg.all().map((d) => d.scope).sort()).toEqual(["default-agent-1", "local-conv-9"]);
     expect(Object.keys(JSON.parse(r(file, "utf8"))).sort()).toEqual(["default-agent-1", "local-conv-9"]);
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("digestLocalConversation", () => {
+  const write = (backend: string, id: string, lines: unknown[]) => {
+    const dir = join(backend, "conversations", conversationDirName(id));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => (typeof l === "string" ? l : JSON.stringify(l))).join("\n") + "\n");
+  };
+  test("the last human or assistant text decides who spoke last; harness-injected user text does not count", () => {
+    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
+    try {
+      write(backend, "c-asked", [
+        { type: "message", message: { role: "user", content: "go" } },
+        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "Which one?" }, { type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } },
+        { type: "message", message: { role: "toolResult", content: [{ type: "text", text: "ok" }] } },
+        { type: "message", message: { role: "user", content: "<task-notification><task-id>t</task-id></task-notification>" } },
+        "not json",
+      ]);
+      expect(digestLocalConversation("c-asked", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Which one?" });
+      write(backend, "c-replied", [
+        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "Done." }] } },
+        { type: "message", message: { role: "user", content: [{ type: "text", text: "<system-reminder>env</system-reminder>\nthanks" }] } },
+      ]);
+      expect(digestLocalConversation("c-replied", null, backend)).toEqual({ lastRole: "user", lastAssistantText: null });
+      write(backend, "c-tools-only", [{ type: "message", message: { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } }]);
+      expect(digestLocalConversation("c-tools-only", null, backend)).toEqual({ lastRole: null, lastAssistantText: null });
+      expect(digestLocalConversation("missing", null, backend)).toEqual({ lastRole: null, lastAssistantText: null });
+    } finally {
+      rmSync(backend, { recursive: true, force: true });
+    }
+  });
+  test("reads only the end of a long log, and never starts on a line cut in half", () => {
+    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
+    try {
+      const filler = { type: "message", message: { role: "assistant", content: [{ type: "text", text: "x".repeat(4000) }] } };
+      write(backend, "c-long", [...Array.from({ length: 200 }, () => filler), { type: "message", message: { role: "user", content: "last word" } }]);
+      expect(digestLocalConversation("c-long", null, backend)).toEqual({ lastRole: "user", lastAssistantText: null });
+    } finally {
+      rmSync(backend, { recursive: true, force: true });
+    }
   });
 });
 

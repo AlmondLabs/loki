@@ -13,6 +13,8 @@ import { useCamera } from "./useCamera";
 import { useChatInset } from "./useChatInset";
 import { useDeskChat, type DeskChatModel } from "./useDeskChat";
 import { Chip, Empty } from "../ui";
+import { LOKI_COMMANDS } from "../../../packages/core/src/attention/commands.ts";
+import { runAction } from "../shell/keymap";
 
 function WidgetBody({
   w,
@@ -225,6 +227,13 @@ function DeskChat({
         if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
       }}
       onSend={(text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title })}
+      commands={catchUp.commands}
+      onCommand={(id, args) => {
+        // loki's own commands are keymap actions; everything else is the harness's, run for this conversation.
+        const local = LOKI_COMMANDS.find((c) => c.id === id);
+        if (local?.action) runAction(local.action);
+        else if (deskRuntime) void catchUp.execute(deskRuntime, id, args);
+      }}
       onCancelQueued={(text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text)}
       onClose={() => onChatOpen(false)}
     />

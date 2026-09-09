@@ -140,6 +140,8 @@ Only the things a mod can do:
 - finds Letta's app-server and tunnels the browser to it (`/appserver`); the browser owns every conversation
   view from there — the desk chat and Catch Up cards are one model (`packages/core/src/attention`), streaming token by token
   whether a turn was typed in Desktop or in the canvas
+- lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
+  however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
   and keeps the seen / snooze markers Catch Up needs
 - adopts or spawns the Vite dev server, detached so it survives `/reload`
@@ -225,9 +227,20 @@ recognition is available, so treat it like any other cloud dictation.
 The app knows which conversations are waiting on you. The inbox icon on the rail shows the count; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
 tool calls as muted markers): approvals first (approve/deny inline), then questions, failures, and finished work. → or ⌘] marks seen, ← or ⌘[ keeps unread, A or ⌘↵ approves, D or ⌘⇧D denies, O or ⌘O opens that desk with its chat focused, S or ⌘S shows snoozed, Z undoes (the ⌘ forms work while typing a reply), Esc returns to the desk.
-Catch Up runs in the browser: it speaks Letta's app-server protocol (agent and conversation lists, message history,
-runtime subscriptions, approvals) through the mod's `/appserver` tunnel, which exists because the app-server refuses
-browser origins. The mod contributes only the tunnel and the seen markers in `~/.letta/loki/state/attention.json`.
+Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents read from the local
+backend on disk (`inbox_list`), main chats included, with who spoke last taken from the tail of each log — nothing is
+windowed by age or capped by count, so a conversation only leaves the inbox when it is archived (main chats are
+never archived; they leave by being seen). The live half — runtime subscriptions, streaming, approvals, answers —
+speaks Letta's app-server protocol through the mod's `/appserver` tunnel, which exists because the app-server
+refuses browser origins. The seen and snooze markers live in `~/.letta/loki/state/attention.json`.
+
+Slash commands work in the message box as they do in Letta Desktop: type `/` and a palette lists what the box can
+run — loki's own (`/model`, `/mode`, `/inbox`, `/desks`) and the harness's (`/reload`, `/compact`, `/clear`,
+`/remember`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
+advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
+Harness commands go over the app-server socket as `execute_command`, the path Desktop and the channels use, and
+land in the transcript as one quiet row: the command line, then its outcome. `packages/core/src/attention/commands.ts`
+is the table.
 
 Every desk, tree group, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
 conversation, so multi-agent setups stay legible.

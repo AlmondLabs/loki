@@ -2,18 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { ConnectProvider, Personality } from "./protocol.ts";
-import { applyEvent, buildItems, cancelQueued as dropQueued, chatStatusOf, digest, emptyLive, keyOf, takeQueued, toConversations, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
 import { stampOf } from "./queue.ts";
+import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
 
 /**
- * Catch Up, client-side: talks to Letta's app-server through the mod's
- * tunnel, subscribes to recent conversations, folds live events with a
- * per-conversation digest, and reads seen markers the mod keeps on disk.
+ * Catch Up, client-side: the list of open conversations and who spoke last in each come from the
+ * mod's disk scan (every open conversation, main chats included, however old); the app-server,
+ * through the mod's tunnel, supplies the live half — approvals, questions, streaming — for the
+ * most recent ones, and the seen markers are the mod's too.
  */
 export interface UseAttentionOptions {
   /** The mod says whether an app-server was discovered. */
@@ -29,6 +31,9 @@ export interface UseAttentionOptions {
   clearSnooze: (agentId: string, conversationId: string) => void;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
   loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null }>>;
+  /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
+  listConversations: () => Promise<Array<ConversationInfo & Digest>>;
+  /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
   subscribeLimit?: number;
 }
 
@@ -41,7 +46,7 @@ export function useAttention(opts: UseAttentionOptions) {
   const [tick, setTick] = useState(0); // bumps when live state changes (live map is mutable by design)
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
   /** From the harness's app_server_info reply: which Letta Code this is. */
-  const [server, setServer] = useState<{ version: string | null; protocol: number | null } | null>(null);
+  const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[] } | null>(null);
   /** Loaded transcripts by key; live rows (Live.tail) are appended on top when read. */
   const [histories, setHistories] = useState<Record<string, TranscriptRow[]>>({});
   const loading = useRef(new Set<string>());
@@ -52,6 +57,9 @@ export function useAttention(opts: UseAttentionOptions) {
   const knownRef = useRef(new Set<string>());
   const reloadRef = useRef<(() => void) | null>(null);
   const lastReload = useRef(0);
+
+  /** Re-read the list now (the tree archived or restored something); otherwise it refreshes each minute. Stable, so effects can depend on it. */
+  const reload = useCallback(() => reloadRef.current?.(), []);
 
   const bump = useCallback(() => {
     if (notifyTimer.current) return;
@@ -111,7 +119,11 @@ export function useAttention(opts: UseAttentionOptions) {
     const load = async () => {
       try {
         void sock.request("app_server_info").then((info) => {
-          if (!cancelled) setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null });
+          if (!cancelled) {
+            const ids = Array.isArray(info.supported_commands) ? (info.supported_commands as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
+            const mods = Array.isArray(info.mod_commands) ? (info.mod_commands as Array<{ id: string; description?: string; args?: string }>) : undefined;
+            setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null, advertised: fromAdvertised(ids, mods) });
+          }
         }).catch(() => {});
         const agents = await sock.listAgents();
         const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
@@ -119,25 +131,23 @@ export function useAttention(opts: UseAttentionOptions) {
           setAgents([...names].map(([id, name]) => ({ id, name })));
           setAgentsLoaded(true);
         }
-        // One list per agent, all in flight at once: requests carry their own id over the socket, and toConversations sorts.
-        const records = (await Promise.all([...names.keys()].map((id) => sock.listConversations(id, 100)))).flat();
-        const convs = toConversations(records, names);
+        // The list and the digests are the mod's, read from disk in one answer: nothing is windowed or capped here.
+        const rows = await opts.listConversations();
         if (cancelled) return;
+        const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
         lastReload.current = Date.now();
         knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
         setConversations(convs);
-        const recent = convs.slice(0, opts.subscribeLimit ?? 30);
-        const next = new Map<string, Digest>();
-        for (const c of recent) {
+        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText }])));
+        // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
+        for (const c of convs.slice(0, opts.subscribeLimit ?? 30)) {
           const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
           try {
             if (!sock.isSubscribed(rt)) await sock.runtimeStart(rt);
-            next.set(keyOf(c.agentId, c.id), digest(await sock.listMessages(rt, 12)));
           } catch {
-            // a conversation we cannot reach is left out of the digest; it still lists
+            // a conversation we cannot reach still lists; it just has no live half
           }
           if (cancelled) return;
-          setDigests(new Map(next)); // progressive: items firm up as digests arrive
         }
       } catch (err) {
         console.warn("loki catch up:", err);
@@ -297,6 +307,42 @@ export function useAttention(opts: UseAttentionOptions) {
   }, [bump]);
   const reply = useCallback((item: AttentionItem, text: string, images: ImageAttachment[] = []) => send(item.runtime, text, images, { desk: item.title }), [send]);
 
+  /**
+   * A slash command for the harness (/reload, /compact …): execute_command, the path Desktop uses. The
+   * transcript row comes from the harness's slash_command_start / _end deltas when the conversation is
+   * subscribed; the answer here fills the row in when those never arrived, or when the call failed.
+   */
+  const execute = useCallback(async (rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> => {
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    let l = liveRef.current.get(key);
+    if (!l) {
+      l = emptyLive();
+      liveRef.current.set(key, l);
+    }
+    const input = commandInput(commandId, args);
+    const sock = socketRef.current;
+    if (!sock) {
+      finishCommand(l, input, false, "not connected to the app-server");
+      bump();
+      return { success: false, output: "not connected to the app-server" };
+    }
+    if (!sock.isSubscribed(rt)) beginCommand(l, input); // no deltas will come for this one; show the running row ourselves
+    bump();
+    try {
+      const res = await sock.executeCommand(rt, commandId, args);
+      if (commandRunning(l, input)) finishCommand(l, input, res.success, res.output);
+      bump();
+      return res;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // /reload restarts the mod, and the mod is this link: the answer is lost with it, which is the success case.
+      const reloaded = commandId === "reload" && /link closed/i.test(message);
+      finishCommand(l, input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message);
+      bump();
+      return { success: reloaded, output: reloaded ? "reloaded" : message };
+    }
+  }, [bump]);
+
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
     const sock = socketRef.current;
     if (!sock) return "not connected to the app-server";
@@ -449,6 +495,9 @@ export function useAttention(opts: UseAttentionOptions) {
   return {
     status,
     server,
+    /** Every slash command the box offers: loki's, the harness's, and whatever else this harness advertised. */
+    commands: useMemo(() => allCommands(server?.advertised), [server?.advertised]),
+    execute,
     agents,
     agentsLoaded,
     providers,
@@ -476,6 +525,7 @@ export function useAttention(opts: UseAttentionOptions) {
     reply,
     send,
     cancelQueued,
+    reload,
     seen: (item: AttentionItem) => opts.markSeen(item.agentId, item.id),
     unread: (item: AttentionItem) => opts.unmarkSeen(item.agentId, item.id),
     /** "Later": defer with backoff; the deferral is void if the card moves on. */
