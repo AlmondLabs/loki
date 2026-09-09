@@ -81,17 +81,21 @@ export function Shell() {
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
   // Models: fetched once from the app-server when a picker first opens; switches go per conversation.
-  const [models, setModels] = useState<import("../chat/ModelPicker").ModelEntry[] | null>(null);
-  const modelsLoading = useRef(false);
+  // The model list belongs to one harness: it is kept with the link's identity (open, and which Letta Code), so a
+  // reconnect — an update restarting the harness — or a different version reads as no list and the next open refetches.
+  const harnessKey = `${catchUp.status === "open"}:${catchUp.server?.version ?? ""}`;
+  const [models, setModels] = useState<{ key: string; list: import("../chat/ModelPicker").ModelEntry[] } | null>(null);
+  const modelList = models && models.key === harnessKey ? models.list : null;
+  const modelsLoading = useRef<string | null>(null);
   const loadModels = useCallback(() => {
-    if (models || modelsLoading.current) return;
-    modelsLoading.current = true;
+    if (modelList || modelsLoading.current === harnessKey) return;
+    modelsLoading.current = harnessKey;
     void catchUp.listModels().then((m) => {
-      setModels(m);
-      modelsLoading.current = false;
+      setModels({ key: harnessKey, list: m });
+      if (modelsLoading.current === harnessKey) modelsLoading.current = null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models]);
+  }, [modelList, harnessKey]);
   const boot = useBootstrap();
   const welcome = welcomeFor(boot.status, catchUp);
   useEffect(() => {
@@ -248,7 +252,7 @@ export function Shell() {
               focusChat={focusChat}
               findChat={findChat}
               chatPrefill={chatPrefill}
-              models={models}
+              models={modelList}
               onLoadModels={loadModels}
               onPickModel={pickModel}
               modelPickerTick={modelPickerTick}
@@ -257,7 +261,7 @@ export function Shell() {
             />
           </div>
 
-          {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={models} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} />}
+          {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={modelList} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} />}
 
           {segment === "board" && (
             <BoardView
@@ -289,7 +293,7 @@ export function Shell() {
 
           {segment === "settings" && <SettingsView desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
 
-          {welcome && segment !== "settings" && <WelcomeView step={welcome} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} models={models} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
+          {welcome && segment !== "settings" && <WelcomeView step={welcome} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} models={modelList} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
 
           <PickerTree picker={picker} onClose={() => setPicker(null)} desk={desk} catchUp={catchUp} onAssign={board.assignTo} pendingAssign={pendingAssign} onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })} />
 
