@@ -14,7 +14,7 @@ import type { networkInterfaces } from "node:os";
 import { SERVE_41415, STATUS_RUNNING } from "./fixtures/tailscale.ts";
 
 const DESKTOP = "0123456789abcdef0123456789abcdef";
-const TAILNET = "deepaks-macbook-pro.tail1234.ts.net";
+const TAILNET = "my-macbook-pro.tail1234.ts.net";
 
 /** A Tailscale whose CLI is recorded output: running (or stopped), with or without the https front on `port`. */
 function fakeTailscale(opts: { running?: boolean; serve?: boolean; port?: number } = {}) {
@@ -312,11 +312,11 @@ describe("LAN listener", () => {
   });
 
   test("no Tailscale given: via is lan, tailscale is null, and the old QR and state file are unchanged", async () => {
-    const f = fixture({ port: 41415, host: () => "deepaks-macbook-pro.local" });
+    const f = fixture({ port: 41415, host: () => "my-macbook-pro.local" });
     try {
       expect(f.lan.status()).toMatchObject({ via: "lan", tailscale: null });
       expect(await f.lan.refresh()).toMatchObject({ via: "lan", tailscale: null });
-      expect(f.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      expect(f.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
     } finally {
       f.cleanup();
     }
@@ -324,15 +324,15 @@ describe("LAN listener", () => {
 
   test("pairUrl prefers the https front, then the tailnet name, then the Bonjour name, then the address", async () => {
     const en0 = { en0: [{ address: "192.168.1.3", netmask: "255.255.255.0", family: "IPv4" as const, mac: "0", internal: false, cidr: "192.168.1.3/24" }] };
-    const served = fixture({ port: 41415, tailscale: fakeTailscale({ serve: true }), host: () => "deepaks-macbook-pro.local", interfaces: () => en0 });
-    const named = fixture({ port: 41415, tailscale: fakeTailscale(), host: () => "deepaks-macbook-pro.local", interfaces: () => en0 });
-    const stopped = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => "deepaks-macbook-pro.local", interfaces: () => en0 });
+    const served = fixture({ port: 41415, tailscale: fakeTailscale({ serve: true }), host: () => "my-macbook-pro.local", interfaces: () => en0 });
+    const named = fixture({ port: 41415, tailscale: fakeTailscale(), host: () => "my-macbook-pro.local", interfaces: () => en0 });
+    const stopped = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => "my-macbook-pro.local", interfaces: () => en0 });
     const noName = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => en0 });
     const nothing = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => ({}) });
     try {
       // before the first refresh the cache only knows the binary exists: the Wi‑Fi route
       expect(served.lan.status().tailscale).toEqual({ installed: true, running: false, ip: null, name: null, serveUrl: null, error: null });
-      expect(served.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      expect(served.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
 
       const s = await served.lan.refresh();
       expect(s.via).toBe("tailscale");
@@ -343,17 +343,17 @@ describe("LAN listener", () => {
       expect(named.lan.pairUrl("ABC234")).toBe(`http://${TAILNET}:41415/?code=ABC234`);
       // the user's choice of the Wi‑Fi wins over a running tailnet
       expect(named.lan.setVia("lan").via).toBe("lan");
-      expect(named.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      expect(named.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
       expect(named.lan.setVia("tailscale").via).toBe("tailscale");
       expect(named.lan.pairUrl("ABC234")).toBe(`http://${TAILNET}:41415/?code=ABC234`);
 
       const st = await stopped.lan.refresh();
       expect(st.via).toBe("lan");
       expect(st.tailscale).toMatchObject({ running: false, name: TAILNET });
-      expect(stopped.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      expect(stopped.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
       // asking for the tailnet while it is stopped falls through to the Wi‑Fi rather than a dead name
       stopped.lan.setVia("tailscale");
-      expect(stopped.lan.pairUrl("ABC234")).toBe("http://deepaks-macbook-pro.local:41415/?code=ABC234");
+      expect(stopped.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
 
       await noName.lan.refresh();
       expect(noName.lan.pairUrl("ABC234")).toBe("http://192.168.1.3:41415/?code=ABC234");
@@ -428,9 +428,9 @@ describe("LAN listener", () => {
     const req = (remoteAddress: string, headers: Record<string, string> = {}) => ({ headers, socket: { remoteAddress } });
     expect(requestVia(req("100.74.177.93"))).toBe("tailscale");
     expect(requestVia(req("::ffff:100.101.102.103"))).toBe("tailscale");
-    expect(requestVia(req("127.0.0.1", { "x-forwarded-for": "100.74.177.93", host: "deepaks-macbook-pro.tail1234.ts.net" }))).toBe("tailscale");
-    expect(requestVia(req("127.0.0.1", { host: "deepaks-macbook-pro.tail1234.ts.net:443" }))).toBe("tailscale");
-    expect(requestVia(req("192.168.1.20", { host: "deepaks-macbook-pro.local:41415" }))).toBe("lan");
+    expect(requestVia(req("127.0.0.1", { "x-forwarded-for": "100.74.177.93", host: "my-macbook-pro.tail1234.ts.net" }))).toBe("tailscale");
+    expect(requestVia(req("127.0.0.1", { host: "my-macbook-pro.tail1234.ts.net:443" }))).toBe("tailscale");
+    expect(requestVia(req("192.168.1.20", { host: "my-macbook-pro.local:41415" }))).toBe("lan");
     expect(requestVia(req("::ffff:172.20.0.7"))).toBe("lan");
     expect(requestVia(req("127.0.0.1"))).toBe("lan");
     // A 100.x address is only the tailnet inside CGNAT space (100.64–100.127); 100.1.x is somebody's real network.
@@ -454,14 +454,14 @@ describe("LAN listener", () => {
 
   test("cross-site: an Origin matching the Host, X-Forwarded-Host or an allowed host passes; a stranger is refused", () => {
     const req = (headers: Record<string, string>) => ({ headers: { "content-type": "application/json", ...headers } }) as unknown as IncomingMessage;
-    const allowed = [TAILNET, `${TAILNET}:443`, "deepaks-macbook-pro.local"];
+    const allowed = [TAILNET, `${TAILNET}:443`, "my-macbook-pro.local"];
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}` }), allowed)).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}` }))).toMatchObject({ status: 403 });
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "https://evil.example" }), allowed)).toMatchObject({ status: 403, error: "cross-site request refused" });
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}.evil.example` }), allowed)).toMatchObject({ status: 403 });
     expect(crossSite(req({ host: "127.0.0.1:41415", "x-forwarded-host": TAILNET, origin: `https://${TAILNET}` }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", "x-forwarded-host": `${TAILNET}, 127.0.0.1:41415`, origin: `https://${TAILNET}` }))).toBeNull();
-    expect(crossSite(req({ host: "Deepaks-MacBook-Pro.local:41415", origin: "http://deepaks-macbook-pro.local:41415" }))).toBeNull();
+    expect(crossSite(req({ host: "My-MacBook-Pro.local:41415", origin: "http://my-macbook-pro.local:41415" }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "http://127.0.0.1:41415" }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "null" }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "not a url" }), allowed)).toMatchObject({ status: 403, error: "bad origin" });

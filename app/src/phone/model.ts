@@ -22,7 +22,7 @@ export interface TailscaleStatus {
   running: boolean;
   /** The 100.x address, when running. */
   ip: string | null;
-  /** The MagicDNS name without its trailing dot, e.g. deepaks-macbook-pro.tail1234.ts.net. */
+  /** The MagicDNS name without its trailing dot, e.g. my-macbook-pro.tail1234.ts.net. */
   name: string | null;
   /** `https://<name>` while `tailscale serve` fronts the listener; null when it does not. */
   serveUrl: string | null;

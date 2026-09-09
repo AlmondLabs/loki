@@ -28,7 +28,7 @@ describe("pairing URL", () => {
   test("the phone's alphabet is the mod's, so a typed code matches a minted one", () => {
     expect(CODE_ALPHABET).toBe(PAIRING_ALPHABET);
     expect(CODE_LENGTH).toBe(PAIRING_LENGTH);
-    expect(codeFromUrl("http://deepaks-macbook-pro.local:41415/?code=Q7K2M9")).toBe("Q7K2M9");
+    expect(codeFromUrl("http://my-macbook-pro.local:41415/?code=Q7K2M9")).toBe("Q7K2M9");
   });
 });
 
@@ -106,11 +106,11 @@ describe("countdown", () => {
 
 describe("the route the phone is on (Phone › Settings)", () => {
   test("a .ts.net host is the tailnet; https says serve is in front", () => {
-    expect(routeOf("deepaks-macbook-pro.tail1234.ts.net:41415", "http:")).toBe("via Tailscale");
-    expect(routeOf("deepaks-macbook-pro.tail1234.ts.net", "https:")).toBe("via Tailscale · https");
+    expect(routeOf("my-macbook-pro.tail1234.ts.net:41415", "http:")).toBe("via Tailscale");
+    expect(routeOf("my-macbook-pro.tail1234.ts.net", "https:")).toBe("via Tailscale · https");
   });
   test(".local is Bonjour on this Wi‑Fi", () => {
-    expect(routeOf("deepaks-macbook-pro.local:41415", "http:")).toBe("via this Wi‑Fi (Bonjour)");
+    expect(routeOf("my-macbook-pro.local:41415", "http:")).toBe("via this Wi‑Fi (Bonjour)");
   });
   test("an address is this Wi‑Fi too", () => {
     expect(routeOf("172.20.0.90:41415", "http:")).toBe("via this Wi‑Fi (address)");
@@ -123,37 +123,37 @@ describe("the route the phone is on (Phone › Settings)", () => {
 });
 
 describe("lan_status with the route fields (addendum 3)", () => {
-  const base = { type: "lan_status", enabled: true, address: "172.20.0.90", addresses: ["172.20.0.90"], host: "deepaks-macbook-pro.local", port: 41415, appServed: true, error: null };
-  const running = { installed: true, running: true, ip: "100.101.102.103", name: "deepaks-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
+  const base = { type: "lan_status", enabled: true, address: "172.20.0.90", addresses: ["172.20.0.90"], host: "my-macbook-pro.local", port: 41415, appServed: true, error: null };
+  const running = { installed: true, running: true, ip: "100.101.102.103", name: "my-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
   test("an older mod sends neither field: no Tailscale, the Wi‑Fi route", () => {
     const s = lanStatusFromFrame(base);
     expect(s.tailscale).toBeNull();
     expect(s.via).toBe("lan");
-    expect(s.host).toBe("deepaks-macbook-pro.local");
-    expect(pairOrigin(s)).toBe("http://deepaks-macbook-pro.local:41415");
+    expect(s.host).toBe("my-macbook-pro.local");
+    expect(pairOrigin(s)).toBe("http://my-macbook-pro.local:41415");
   });
   test("tailscale running and chosen: the QR carries the tailnet name, or the https front", () => {
     const s = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running });
     expect(s.via).toBe("tailscale");
-    expect(s.tailscale?.name).toBe("deepaks-macbook-pro.tail1234.ts.net");
-    expect(pairOrigin(s)).toBe("http://deepaks-macbook-pro.tail1234.ts.net:41415");
-    const served = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, serveUrl: "https://deepaks-macbook-pro.tail1234.ts.net" } });
-    expect(pairOrigin(served)).toBe("https://deepaks-macbook-pro.tail1234.ts.net");
+    expect(s.tailscale?.name).toBe("my-macbook-pro.tail1234.ts.net");
+    expect(pairOrigin(s)).toBe("http://my-macbook-pro.tail1234.ts.net:41415");
+    const served = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, serveUrl: "https://my-macbook-pro.tail1234.ts.net" } });
+    expect(pairOrigin(served)).toBe("https://my-macbook-pro.tail1234.ts.net");
   });
   test("via tailscale while it is not running falls back to the Wi‑Fi", () => {
     const s = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, running: false, ip: null, name: null } });
     expect(s.via).toBe("lan");
     expect(s.tailscale?.installed).toBe(true);
-    expect(pairOrigin(s)).toBe("http://deepaks-macbook-pro.local:41415");
+    expect(pairOrigin(s)).toBe("http://my-macbook-pro.local:41415");
   });
   test("this Wi‑Fi chosen with Tailscale running: the QR carries the Bonjour name", () => {
-    expect(pairOrigin(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }))).toBe("http://deepaks-macbook-pro.local:41415");
+    expect(pairOrigin(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }))).toBe("http://my-macbook-pro.local:41415");
   });
   test("the QR follows the route while a code lives: same code, the other origin", () => {
     // The mod built pair_code.url at minting; Settings rebuilds it from the current status, so switching
     // the route never leaves a Tailscale pill over a .local QR.
-    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }), "K9HF6D")).toBe("http://deepaks-macbook-pro.local:41415/?code=K9HF6D");
-    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running }), "K9HF6D")).toBe("http://deepaks-macbook-pro.tail1234.ts.net:41415/?code=K9HF6D");
+    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "lan", tailscale: running }), "K9HF6D")).toBe("http://my-macbook-pro.local:41415/?code=K9HF6D");
+    expect(pairUrlFor(lanStatusFromFrame({ ...base, via: "tailscale", tailscale: running }), "K9HF6D")).toBe("http://my-macbook-pro.tail1234.ts.net:41415/?code=K9HF6D");
     expect(pairUrlFor(lanStatusFromFrame({ enabled: true }), "K9HF6D")).toBeNull();
   });
   test("a phone's route reads as a word, or nothing when the mod never recorded one", () => {

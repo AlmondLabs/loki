@@ -14,8 +14,8 @@ export const STATUS_RUNNING = JSON.stringify({
   Self: {
     ID: "nABCDEF1234",
     PublicKey: "nodekey:0000",
-    HostName: "Deepaks-MacBook-Pro",
-    DNSName: "Deepaks-MacBook-Pro.tail1234.ts.net.",
+    HostName: "My-MacBook-Pro",
+    DNSName: "My-MacBook-Pro.tail1234.ts.net.",
     OS: "macOS",
     UserID: 1234,
     TailscaleIPs: ["100.101.102.103", "fd7a:115c:a1e0::1"],
@@ -23,12 +23,12 @@ export const STATUS_RUNNING = JSON.stringify({
     InNetworkMap: true,
   },
   MagicDNSSuffix: "tail1234.ts.net",
-  CurrentTailnet: { Name: "deepak@example.com", MagicDNSSuffix: "tail1234.ts.net", MagicDNSEnabled: true },
+  CurrentTailnet: { Name: "someone@example.com", MagicDNSSuffix: "tail1234.ts.net", MagicDNSEnabled: true },
   Peer: {},
 });
 
 /** `tailscale status --json` after `tailscale down`: the node keeps its name and address. */
-export const STATUS_STOPPED = JSON.stringify({ BackendState: "Stopped", Self: { DNSName: "Deepaks-MacBook-Pro.tail1234.ts.net.", TailscaleIPs: ["100.101.102.103"] } });
+export const STATUS_STOPPED = JSON.stringify({ BackendState: "Stopped", Self: { DNSName: "My-MacBook-Pro.tail1234.ts.net.", TailscaleIPs: ["100.101.102.103"] } });
 
 /** `tailscale serve status --json` after `serve --bg --https=443 http://127.0.0.1:41415`. */
-export const SERVE_41415 = JSON.stringify({ TCP: { "443": { HTTPS: true } }, Web: { "deepaks-macbook-pro.tail1234.ts.net:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:41415" } } } } });
+export const SERVE_41415 = JSON.stringify({ TCP: { "443": { HTTPS: true } }, Web: { "my-macbook-pro.tail1234.ts.net:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:41415" } } } } });

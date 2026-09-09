@@ -96,7 +96,7 @@ inbox: the same cards as Catch Up in the same order — approvals, questions, fa
 approve / deny / answer / seen / later, and a tap opens the conversation with the transcript, the approval or
 question card, and a reply box. No desks, board or agents on the phone.
 
-The QR and the bookmark carry the Mac's Bonjour name (`deepaks-macbook-pro.local:41415`, from System Settings
+The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
 when the Mac gets a new address. The phone talks to the Mac directly over the local network (port 41415), so
 both must be on the same Wi‑Fi and the Mac must be awake with loki running; some office networks isolate
@@ -109,7 +109,7 @@ before switching it on somewhere you do not trust the network.
 **Phone, anywhere.** Install [Tailscale](https://tailscale.com/download) on the Mac and on the phone and sign in to
 the same account. Settings › phone then shows two routes under "route", Tailscale and this Wi‑Fi, each with the
 address a phone uses for it; the lit one is what the QR carries, and switching it redraws the QR at once. Over
-Tailscale (`deepaks-macbook-pro.tail1234.ts.net`) the phone reaches the Mac from any network — the office, mobile
+Tailscale (`my-macbook-pro.tail1234.ts.net`) the phone reaches the Mac from any network — the office, mobile
 data, a café — without a thought about which Wi‑Fi either is on. Each paired phone in the list says which route its
 last request came in by ("via Tailscale", "via Wi‑Fi"), so there is never a question of which way you are connected.
 The small "https on the tailnet" switch runs `tailscale serve` in front of the listener so the phone gets an

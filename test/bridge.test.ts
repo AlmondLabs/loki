@@ -230,8 +230,8 @@ describe("bridge: a paired phone's authority", () => {
 });
 
 describe("bridge phone frames", () => {
-  const tailscale: TailscaleStatus = { installed: true, running: true, ip: "100.101.102.103", name: "deepaks-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
-  const status: LanStatus = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], host: "deepaks-macbook-pro.local", port: 41415, appServed: true, error: null, via: "tailscale", tailscale };
+  const tailscale: TailscaleStatus = { installed: true, running: true, ip: "100.101.102.103", name: "my-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
+  const status: LanStatus = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], host: "my-macbook-pro.local", port: 41415, appServed: true, error: null, via: "tailscale", tailscale };
   function lanDeps() {
     const calls: unknown[] = [];
     let enabled = false;

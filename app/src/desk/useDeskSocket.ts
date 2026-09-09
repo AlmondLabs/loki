@@ -17,7 +17,7 @@ const NO_YANK_MS = 2000;
  */
 export const PHONE_DEMO = import.meta.env.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).get("phoneDemo") === "tailscale";
 export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
-  const name = "deepaks-macbook-pro.tail1234.ts.net";
+  const name = "my-macbook-pro.tail1234.ts.net";
   const on = serve ?? !!s.tailscale?.serveUrl;
   return { ...s, tailscale: { installed: true, running: true, ip: "100.101.102.103", name, serveUrl: on ? `https://${name}` : null, error: null } };
 }

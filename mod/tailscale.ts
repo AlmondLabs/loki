@@ -18,7 +18,7 @@ export interface TailscaleStatus {
   running: boolean;
   /** The 100.x address, or null. */
   ip: string | null;
-  /** The MagicDNS name, lower-cased, no trailing dot: `deepaks-macbook-pro.tail1234.ts.net`. */
+  /** The MagicDNS name, lower-cased, no trailing dot: `my-macbook-pro.tail1234.ts.net`. */
   name: string | null;
   /** `https://<name>` when `tailscale serve` proxies 443 to the listener; else null. */
   serveUrl: string | null;
