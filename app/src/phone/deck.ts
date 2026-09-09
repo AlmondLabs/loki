@@ -159,3 +159,20 @@ export function toFront(queue: AttentionItem[], id: string | null): AttentionIte
   if (i <= 0) return queue;
   return [queue[i], ...queue.slice(0, i), ...queue.slice(i + 1)];
 }
+
+/** Where a card is in the deck: on top (live, draggable), behind (a shell: frame and head only), or flying off. */
+export type Role = "top" | "shell" | "leaving";
+
+/**
+ * The cards drawn: the one flying off (if any) over the top three of the stack. One keyed list, so a
+ * card keeps its DOM node as it goes shell → top → leaving and its transform transitions between poses.
+ */
+export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | null): { item: AttentionItem; role: Role; index: number }[] {
+  return [
+    ...(leaving ? [{ item: leaving, role: "leaving" as Role, index: -1 }] : []),
+    ...visible
+      .slice(0, 3)
+      .filter((i) => !leaving || idOf(i) !== idOf(leaving))
+      .map((item, index) => ({ item, role: (index === 0 ? "top" : "shell") as Role, index })),
+  ];
+}

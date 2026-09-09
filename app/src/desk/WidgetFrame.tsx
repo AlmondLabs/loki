@@ -1,15 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { Gesture, Position, Size, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
+import { useEffect, useRef, type ReactNode } from "react";
+import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
 import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../packages/core/src/desk-core.ts";
 import { Dot, IconButton } from "../ui";
-
-/** Keyboard nudge in canvas px: arrows move or (with Alt) resize by a step; Shift takes the long step. */
-const NUDGE_STEP = 8;
-const NUDGE_STEP_LONG = 32;
-/** Keyboard nudges commit at the drag's cadence: at most one gesture per this many ms, with a trailing commit. */
-const NUDGE_COMMIT_MS = 50;
-/** The live region speaks once a burst of nudges has settled. */
-const ANNOUNCE_MS = 300;
+import { useFrameKeyboard } from "./useFrameKeyboard";
 
 /**
  * Standard widget chrome: drag by the title bar, close, focus-to-front, an
@@ -57,19 +50,7 @@ export function WidgetFrame({
     sizedRef.current = sized;
   });
 
-  // Keyboard nudges: the next position/size waiting to be committed, and the timer that commits them.
-  // Committing through `gesture` (the drag's release path) keeps undo honest: the mod collapses commits
-  // that land within its burst window into one step, so ⌘Z undoes a press, or a held key, at a time.
-  const nudgeRef = useRef<{ position: Position | null; size: Size | null; timer: ReturnType<typeof setTimeout> | null }>({ position: null, size: null, timer: null });
-  const [announcement, setAnnouncement] = useState("");
-  const announceRef = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({ text: "", timer: null });
-  useEffect(
-    () => () => {
-      if (nudgeRef.current.timer) clearTimeout(nudgeRef.current.timer);
-      if (announceRef.current.timer) clearTimeout(announceRef.current.timer);
-    },
-    [],
-  );
+  const { onKeyDown, announcement } = useFrameKeyboard({ entry, layout, sized, gesture, onFocus, frameRef, lastSent });
 
   // Report the rendered size (canvas units: offsetWidth/Height ignore the viewport transform).
   useEffect(() => {
@@ -101,6 +82,16 @@ export function WidgetFrame({
 
   // While dragging, move the frame directly (every pointer event, no React re-render) and
   // send throttled moves for other tabs; the final position is committed on release.
+  const onDragStart = (e: React.PointerEvent) => {
+    e.preventDefault();
+    try {
+      (e.target as Element).setPointerCapture(e.pointerId);
+    } catch {
+      // synthetic or already-released pointer; dragging still works within the element
+    }
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: layout.position.x, origY: layout.position.y };
+    if (frameRef.current) frameRef.current.style.willChange = "transform"; // only while dragging
+  };
   const onDragMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d) return;
@@ -125,6 +116,18 @@ export function WidgetFrame({
   };
 
   // The resize handle at the bottom-right: drag to pin a width and height; the content then scrolls inside.
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    try {
+      (e.target as Element).setPointerCapture(e.pointerId);
+    } catch {
+      // fine without capture
+    }
+    const w = frameRef.current?.offsetWidth ?? layout.size?.w ?? 280;
+    const h = frameRef.current?.offsetHeight ?? layout.size?.h ?? 160;
+    resizeRef.current = { startX: e.clientX, startY: e.clientY, origW: w, origH: h };
+  };
   const onResizeMove = (e: React.PointerEvent) => {
     const r = resizeRef.current;
     if (!r) return;
@@ -145,80 +148,6 @@ export function WidgetFrame({
     const w = Math.round(Math.max(RESIZE_MIN.w, r.origW + (e.clientX - r.startX) / scale));
     const h = Math.round(Math.max(RESIZE_MIN.h, r.origH + (e.clientY - r.startY) / scale));
     gesture({ kind: "resize", id: entry.id, size: { w, h } });
-  };
-
-  const commitNudge = () => {
-    const n = nudgeRef.current;
-    n.timer = null;
-    lastSent.current = performance.now();
-    if (n.position) {
-      const position = n.position;
-      n.position = null;
-      gesture({ kind: "move", id: entry.id, position });
-    }
-    if (n.size) {
-      const size = n.size;
-      n.size = null;
-      gesture({ kind: "resize", id: entry.id, size });
-    }
-  };
-  const scheduleNudge = () => {
-    const n = nudgeRef.current;
-    if (n.timer) return; // the pending commit picks up the latest values
-    n.timer = setTimeout(commitNudge, Math.max(0, NUDGE_COMMIT_MS - (performance.now() - lastSent.current)));
-  };
-  const announce = (text: string) => {
-    const a = announceRef.current;
-    a.text = text;
-    if (a.timer) clearTimeout(a.timer);
-    a.timer = setTimeout(() => {
-      a.timer = null;
-      setAnnouncement(a.text);
-    }, ANNOUNCE_MS);
-  };
-
-  // Keys on the frame or its title bar. The body belongs to the widget (an agent's own inputs), so
-  // nothing here fires for a target inside it; Enter and Escape act only on the frame itself, so the
-  // control buttons keep their native Enter.
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    const onFrame = target === e.currentTarget;
-    if (!onFrame && target.closest(".loki-frame-body")) return;
-    if (e.key === "Enter") {
-      if (!onFrame) return;
-      e.preventDefault();
-      e.stopPropagation();
-      onFocus?.(entry.id);
-      return;
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      if (onFrame) frameRef.current?.blur();
-      else frameRef.current?.focus(); // step out of a control back to the frame
-      return;
-    }
-    if (e.metaKey || e.ctrlKey) return; // ⌘← / ⌘→ place the chat; leave chords to the keymap
-    const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-    const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
-    if (!dx && !dy) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const step = e.shiftKey ? NUDGE_STEP_LONG : NUDGE_STEP;
-    const n = nudgeRef.current;
-    if (e.altKey) {
-      const el = frameRef.current;
-      const base = n.size ?? (sized && layout.size ? layout.size : { w: el?.offsetWidth ?? RESIZE_MIN.w, h: el?.offsetHeight ?? RESIZE_MIN.h });
-      const size = { w: Math.round(Math.max(RESIZE_MIN.w, base.w + dx * step)), h: Math.round(Math.max(RESIZE_MIN.h, base.h + dy * step)) };
-      n.size = size;
-      announce(`resized to ${size.w}×${size.h}`);
-    } else {
-      const base = n.position ?? layout.position;
-      const position = { x: Math.round(base.x + dx * step), y: Math.round(base.y + dy * step) };
-      n.position = position;
-      announce(`moved to ${position.x}, ${position.y}`);
-    }
-    scheduleNudge();
   };
 
   return (
@@ -258,87 +187,97 @@ export function WidgetFrame({
         flexDirection: "column",
       }}
     >
-      <div
-        onPointerDown={(e) => {
-          e.preventDefault();
-          try {
-            (e.target as Element).setPointerCapture(e.pointerId);
-          } catch {
-            // synthetic or already-released pointer; dragging still works within the element
-          }
-          dragRef.current = { startX: e.clientX, startY: e.clientY, origX: layout.position.x, origY: layout.position.y };
-          if (frameRef.current) frameRef.current.style.willChange = "transform"; // only while dragging
-        }}
-        onPointerMove={onDragMove}
-        onPointerUp={onDragEnd}
-        onPointerCancel={onDragEnd}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          padding: "8px 12px",
-          cursor: "grab",
-          background: "var(--loki-panel-header)",
-          borderBottom: "1px solid var(--loki-border)",
-          touchAction: "none",
-        }}
-      >
-        <span style={{ fontFamily: "var(--loki-label)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
-          {entry.error && <Dot size={7} color="var(--loki-negative)" title={entry.error} />}
-          {entry.title}
-        </span>
-        <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
-          <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
-            {/* target */}
-            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="8" cy="8" r="4.5" />
-              <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" />
-            </svg>
-          </FrameButton>
-          <FrameButton label={`minimise ${entry.title}`} title="minimise to tray" onClick={() => gesture({ kind: "close", id: entry.id })}>
-            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M3 11.5h10" />
-            </svg>
-          </FrameButton>
-          <FrameButton label={`trash ${entry.title}`} title="delete the widget file" onClick={() => onTrash?.(entry.id)}>
-            <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.5h6.6l.7-8.5M6.5 7v4M9.5 7v4" />
-            </svg>
-          </FrameButton>
-        </span>
-      </div>
+      <FrameTitleBar entry={entry} gesture={gesture} onFocus={onFocus} onTrash={onTrash} onDragStart={onDragStart} onDragMove={onDragMove} onDragEnd={onDragEnd} />
       <div className="loki-frame-body" style={{ padding: 12, minHeight: 0, ...(sized ? { flex: 1, overflow: "auto" } : { overflowX: "auto" }) }}>{children}</div>
       {/* Where a keyboard nudge left the frame, for screen readers; sr-only keeps it out of sight and out of the layout. */}
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}
       </span>
-      <div
-        className="loki-frame-resize"
-        aria-hidden
-        title="drag to resize"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          try {
-            (e.target as Element).setPointerCapture(e.pointerId);
-          } catch {
-            // fine without capture
-          }
-          const w = frameRef.current?.offsetWidth ?? layout.size?.w ?? 280;
-          const h = frameRef.current?.offsetHeight ?? layout.size?.h ?? 160;
-          resizeRef.current = { startX: e.clientX, startY: e.clientY, origW: w, origH: h };
-        }}
-        onPointerMove={onResizeMove}
-        onPointerUp={onResizeEnd}
-        onPointerCancel={onResizeEnd}
-        style={{ position: "absolute", right: 0, bottom: 0, width: 16, height: 16, cursor: "nwse-resize", touchAction: "none", zIndex: 1 }}
-      >
-        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="var(--loki-muted)" strokeWidth="1.2" style={{ position: "absolute", right: 1, bottom: 1 }}>
-          <path d="M11 15L15 11M7.5 15L15 7.5" />
-        </svg>
-      </div>
+      <ResizeGrip onResizeStart={onResizeStart} onResizeMove={onResizeMove} onResizeEnd={onResizeEnd} />
+    </div>
+  );
+}
+
+/** The drag handle: the title with its error dot on the left, the widget's file name and the three controls on the right. */
+function FrameTitleBar({
+  entry,
+  gesture,
+  onFocus,
+  onTrash,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+}: {
+  entry: WidgetManifestEntry;
+  gesture: (g: Gesture) => void;
+  onFocus?: (id: string) => void;
+  onTrash?: (id: string) => void;
+  onDragStart: (e: React.PointerEvent) => void;
+  onDragMove: (e: React.PointerEvent) => void;
+  onDragEnd: (e: React.PointerEvent) => void;
+}) {
+  return (
+    <div
+      onPointerDown={onDragStart}
+      onPointerMove={onDragMove}
+      onPointerUp={onDragEnd}
+      onPointerCancel={onDragEnd}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        padding: "8px 12px",
+        cursor: "grab",
+        background: "var(--loki-panel-header)",
+        borderBottom: "1px solid var(--loki-border)",
+        touchAction: "none",
+      }}
+    >
+      <span style={{ fontFamily: "var(--loki-label)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
+        {entry.error && <Dot size={7} color="var(--loki-negative)" title={entry.error} />}
+        {entry.title}
+      </span>
+      <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
+        <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
+        <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
+          {/* target */}
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="8" cy="8" r="4.5" />
+            <path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15" />
+          </svg>
+        </FrameButton>
+        <FrameButton label={`minimise ${entry.title}`} title="minimise to tray" onClick={() => gesture({ kind: "close", id: entry.id })}>
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 11.5h10" />
+          </svg>
+        </FrameButton>
+        <FrameButton label={`trash ${entry.title}`} title="delete the widget file" onClick={() => onTrash?.(entry.id)}>
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 8.5h6.6l.7-8.5M6.5 7v4M9.5 7v4" />
+          </svg>
+        </FrameButton>
+      </span>
+    </div>
+  );
+}
+
+/** The corner handle that pins a width and height. */
+function ResizeGrip({ onResizeStart, onResizeMove, onResizeEnd }: { onResizeStart: (e: React.PointerEvent) => void; onResizeMove: (e: React.PointerEvent) => void; onResizeEnd: (e: React.PointerEvent) => void }) {
+  return (
+    <div
+      className="loki-frame-resize"
+      aria-hidden
+      title="drag to resize"
+      onPointerDown={onResizeStart}
+      onPointerMove={onResizeMove}
+      onPointerUp={onResizeEnd}
+      onPointerCancel={onResizeEnd}
+      style={{ position: "absolute", right: 0, bottom: 0, width: 16, height: 16, cursor: "nwse-resize", touchAction: "none", zIndex: 1 }}
+    >
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="var(--loki-muted)" strokeWidth="1.2" style={{ position: "absolute", right: 1, bottom: 1 }}>
+        <path d="M11 15L15 11M7.5 15L15 7.5" />
+      </svg>
     </div>
   );
 }

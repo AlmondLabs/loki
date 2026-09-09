@@ -336,7 +336,6 @@ function TaskCard({
   onFocus: () => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
 }) {
-  const urgent = t.priority <= 1 && column !== "done";
   const uid = useId();
   const showDesc = !!t.description && column !== "done";
   const showAssigned = !!assignedTitle && column !== "done";
@@ -364,27 +363,47 @@ function TaskCard({
         gap: 6,
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-        <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
-        <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
-      </div>
+      <TaskTitle task={t} column={column} selected={selected} />
       {showDesc && <div id={`${uid}-desc`} style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
-      <div id={`${uid}-meta`} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
-        <span style={{ color: urgent ? "var(--loki-accent)" : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
-        <span>{t.id}</span>
-        {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}
-        {t.labels.map((l) => (
-          <Chip key={l} static tag>{l}</Chip>
-        ))}
-        <span style={{ marginLeft: "auto" }}>{ago(column === "done" ? t.closedAt : t.updatedAt)}</span>
-      </div>
-      {showAssigned && (
-        <div id={`${uid}-to`} style={{ fontSize: 10.5, color: "var(--loki-accent)", display: "flex", alignItems: "center", gap: 6 }}>
-          <span aria-hidden>→</span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{assignedTitle}</span>
-          {t.assignee && <AgentChip name={t.assignee} size={9.5} />}
-        </div>
-      )}
+      <TaskMeta id={`${uid}-meta`} task={t} column={column} />
+      {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle!} />}
+    </div>
+  );
+}
+
+/** The card's first row: the selection box and the title, struck through once the task is done. */
+function TaskTitle({ task: t, column, selected }: { task: Task; column: ColumnId; selected: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
+      <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
+    </div>
+  );
+}
+
+/** The meta line: priority (brass when urgent), id, who filed it, labels, and when it last moved. */
+function TaskMeta({ id, task: t, column }: { id: string; task: Task; column: ColumnId }) {
+  const urgent = t.priority <= 1 && column !== "done";
+  return (
+    <div id={id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
+      <span style={{ color: urgent ? "var(--loki-accent)" : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
+      <span>{t.id}</span>
+      {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}
+      {t.labels.map((l) => (
+        <Chip key={l} static tag>{l}</Chip>
+      ))}
+      <span style={{ marginLeft: "auto" }}>{ago(column === "done" ? t.closedAt : t.updatedAt)}</span>
+    </div>
+  );
+}
+
+/** Where the task is going: the desk's title and, when known, the agent that has it. */
+function AssignedLine({ id, task: t, title }: { id: string; task: Task; title: string }) {
+  return (
+    <div id={id} style={{ fontSize: 10.5, color: "var(--loki-accent)", display: "flex", alignItems: "center", gap: 6 }}>
+      <span aria-hidden>→</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+      {t.assignee && <AgentChip name={t.assignee} size={9.5} />}
     </div>
   );
 }

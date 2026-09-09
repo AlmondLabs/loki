@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Button, Chip, Dot, Row as PickRow } from "../ui";
-import { countdown, lastSeen, pairUrlFor, viaLabel, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
+import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus, type TailscaleStatus } from "../phone/model";
 
 /** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
 export interface PhoneApi {
@@ -111,8 +111,6 @@ export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolea
 function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via: LanVia) => void; onServe: (enabled: boolean) => void }) {
   const ts = status.tailscale;
   const running = !!ts?.running;
-  const wifi = status.host ? `${status.host}:${status.port}${status.address ? ` · ${status.address}` : ""}` : status.address ? `${status.address}:${status.port}` : `port ${status.port}, no network`;
-  const tailnet = ts?.serveUrl ? ts.serveUrl.replace(/^https:\/\//, "") + " · https" : ts?.name ? `${ts.name}:${status.port}` : ts?.ip ? `${ts.ip}:${status.port}` : null;
   return (
     <div style={{ display: "grid", gap: 6 }}>
       <div role="radiogroup" aria-label="route" style={{ display: "grid", border: "1px solid var(--loki-border)", borderRadius: 8, overflow: "hidden" }}>
@@ -121,25 +119,35 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
             via="tailscale"
             lit={status.via === "tailscale"}
             disabled={!running}
-            address={running ? tailnet : null}
+            address={running ? tailnetAddress(status) : null}
             hint={running ? "any network" : "installed, not connected: open Tailscale and sign in"}
             onPick={onVia}
           />
         )}
-        <RouteRow via="lan" lit={status.via === "lan"} address={wifi} hint="the same Wi‑Fi only" onPick={onVia} />
+        <RouteRow via="lan" lit={status.via === "lan"} address={wifiAddress(status)} hint="the same Wi‑Fi only" onPick={onVia} />
       </div>
-      {running && status.via === "tailscale" && (
-        <div style={{ display: "grid", gap: 2, paddingLeft: 2 }}>
-          <Switch on={!!ts?.serveUrl} onToggle={() => onServe(!ts?.serveUrl)} label="https on the tailnet" small />
-          {ts?.error && <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>{ts.error}</div>}
-        </div>
-      )}
-      {!ts?.installed && !running && (
-        <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>
-          Tailscale is not on this Mac. With it on the Mac and the phone, signed in to one account, this works from any network — <span style={{ fontFamily: "var(--loki-mono)" }}>tailscale.com/download</span>
-        </span>
-      )}
+      {running && status.via === "tailscale" && <ServeSwitch ts={ts!} onServe={onServe} />}
+      {!ts?.installed && !running && <NoTailscale />}
     </div>
+  );
+}
+
+/** Under a lit Tailscale row: the `tailscale serve` switch, and the mod's error when serve would not start. */
+function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: boolean) => void }) {
+  return (
+    <div style={{ display: "grid", gap: 2, paddingLeft: 2 }}>
+      <Switch on={!!ts.serveUrl} onToggle={() => onServe(!ts.serveUrl)} label="https on the tailnet" small />
+      {ts.error && <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", overflowWrap: "anywhere" }}>{ts.error}</div>}
+    </div>
+  );
+}
+
+/** The line under the route rows when Tailscale is not installed: what it would give, and where to get it. */
+function NoTailscale() {
+  return (
+    <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>
+      Tailscale is not on this Mac. With it on the Mac and the phone, signed in to one account, this works from any network — <span style={{ fontFamily: "var(--loki-mono)" }}>tailscale.com/download</span>
+    </span>
   );
 }
 

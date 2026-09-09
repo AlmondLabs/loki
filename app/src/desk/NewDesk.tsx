@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../ui";
@@ -31,6 +31,21 @@ interface NewDeskProps {
   onCreate: (agentId: string, folder: string, name: string) => Promise<void>;
 }
 
+type FolderStatus = { ok: boolean; branch: string | null; reason?: string } | null;
+type FolderOption = { path: string; group: "match" | "mine" | "others" };
+
+/** The folder list's rows: typed completions first; then this agent's recent folders; then everyone else's. */
+function folderOptions(recent: Record<string, string[]>, matches: string[], agentId: string | null, folderTouched: boolean): FolderOption[] {
+  const mine = agentId ? recent[agentId] ?? [] : [];
+  const others = Object.entries(recent).filter(([a]) => a !== agentId).flatMap(([, l]) => l);
+  const seen = new Set<string>();
+  const list: FolderOption[] = [];
+  for (const p of folderTouched ? matches : []) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "match" }));
+  for (const p of mine) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "mine" }));
+  for (const p of others) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "others" }));
+  return list.slice(0, 14);
+}
+
 function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialName = "", folders, onCreate }: NewDeskProps) {
   const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
   const [folder, setFolder] = useState(defaultFolder ?? "");
@@ -38,11 +53,10 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
   const [name, setName] = useState(initialName);
   const [recent, setRecent] = useState<Record<string, string[]>>({});
   const [matches, setMatches] = useState<string[]>([]);
-  const [status, setStatus] = useState<{ ok: boolean; branch: string | null; reason?: string } | null>(null);
+  const [status, setStatus] = useState<FolderStatus>(null);
   const [busy, setBusy] = useState<false | "creating" | "picking">(false);
   const [error, setError] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
-  const [hi, setHi] = useState(0);
   const folderRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -85,17 +99,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder]);
 
-  const options = useMemo(() => {
-    // typed completions first; then this agent's recent folders; then everyone else's
-    const mine = agentId ? recent[agentId] ?? [] : [];
-    const others = Object.entries(recent).filter(([a]) => a !== agentId).flatMap(([, l]) => l);
-    const seen = new Set<string>();
-    const list: Array<{ path: string; group: "match" | "mine" | "others" }> = [];
-    for (const p of folderTouched ? matches : []) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "match" }));
-    for (const p of mine) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "mine" }));
-    for (const p of others) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "others" }));
-    return list.slice(0, 14);
-  }, [recent, matches, agentId, folderTouched]);
+  const options = useMemo(() => folderOptions(recent, matches, agentId, folderTouched), [recent, matches, agentId, folderTouched]);
 
   const canStart = !!agentId && !!folder.trim() && status?.ok === true && !busy;
   const start = async () => {
@@ -118,6 +122,12 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
       setFolderTouched(true);
       setListOpen(false);
     }
+  };
+  /** A folder chosen from the list (or Finder) is yours: it stops following the agent and the list closes. */
+  const chooseFolder = (path: string) => {
+    setFolder(path);
+    setFolderTouched(true);
+    setListOpen(false);
   };
 
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
@@ -149,92 +159,25 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
       </div>
 
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
-        <div>
-          <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>agent</div>
-          <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {agents.map((a) => (
-              <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} brass={a.id === agentId} onClick={() => setAgentId(a.id)}>
-                <AgentFace name={a.name} src={avatarUrl(a.id)} size={14} />
-                {a.name}
-              </Chip>
-            ))}
-            {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
-          </div>
-        </div>
+        <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
 
-        <div style={{ position: "relative" }}>
-          <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
-            <span>folder</span>
-            <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
-              {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
-            </span>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Field
-              ref={folderRef}
-              mono
-              size="sm"
-              value={folder}
-              onChange={(e) => {
-                setFolder(e.target.value);
-                setFolderTouched(true);
-                setListOpen(true);
-                setHi(0);
-              }}
-              onFocus={() => setListOpen(true)}
-              onBlur={() => setTimeout(() => setListOpen(false), 120)}
-              onKeyDown={(e) => {
-                if (!listOpen || !options.length) return;
-                if (e.key === "ArrowDown") (e.preventDefault(), setHi((i) => Math.min(options.length - 1, i + 1)));
-                else if (e.key === "ArrowUp") (e.preventDefault(), setHi((i) => Math.max(0, i - 1)));
-                else if (e.key === "Enter" || e.key === "Tab") {
-                  e.preventDefault();
-                  setFolder(options[hi].path);
-                  setFolderTouched(true);
-                  setListOpen(false);
-                }
-              }}
-              placeholder="~/Documents/…"
-              aria-label="folder"
-              autoComplete="off"
-              spellCheck={false}
-              aria-invalid={status ? !status.ok : undefined}
-            />
-            <Button size="sm" onClick={() => void browse()} disabled={busy !== false} title="choose a folder in Finder">
-              {busy === "picking" ? "choosing…" : "browse…"}
-            </Button>
-          </div>
-          {listOpen && options.length > 0 && (
-            <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
-              {options.map((o, i) => {
-                const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
-                const first = i === 0 || options[i - 1].group !== o.group;
-                return (
-                  <div key={o.path}>
-                    {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
-                    <Row
-                      dense
-                      role="option"
-                      tabIndex={-1}
-                      aria-selected={i === hi}
-                      onMouseEnter={() => setHi(i)}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setFolder(o.path);
-                        setFolderTouched(true);
-                        setListOpen(false);
-                      }}
-                      style={{ display: "grid", gap: 0 }}
-                    >
-                      <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
-                      <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
-                    </Row>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <FolderPicker
+          inputRef={folderRef}
+          folder={folder}
+          onType={(value) => {
+            setFolder(value);
+            setFolderTouched(true);
+            setListOpen(true);
+          }}
+          onChoose={chooseFolder}
+          status={status}
+          options={options}
+          listOpen={listOpen}
+          setListOpen={setListOpen}
+          busy={busy}
+          onBrowse={() => void browse()}
+          agentName={agentName}
+        />
 
         <div>
           <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
@@ -244,14 +187,151 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
         {error && <div style={{ color: "var(--loki-negative)", fontSize: 12, fontFamily: "var(--loki-mono)" }}>{error}</div>}
       </div>
 
-      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
-        <span className="loki-label" style={{ fontSize: 10.5 }}>enter start · esc close</span>
-        <span style={{ flex: 1 }} />
-        <Button size="sm" onClick={onClose}>cancel</Button>
-        <Button size="sm" tone="brass" onClick={() => void start()} disabled={!canStart}>
-          {busy === "creating" ? "starting…" : "start"}
+      <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
+    </Sheet>
+  );
+}
+
+/** The agent row: one radio chip per agent, the chosen one in brass. */
+function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"]; agentId: string | null; onPick: (id: string) => void }) {
+  return (
+    <div>
+      <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>agent</div>
+      <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {agents.map((a) => (
+          <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} brass={a.id === agentId} onClick={() => onPick(a.id)}>
+            <AgentFace name={a.name} src={avatarUrl(a.id)} size={14} />
+            {a.name}
+          </Chip>
+        ))}
+        {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
+      </div>
+    </div>
+  );
+}
+
+/** The folder's verdict beside its label: the branch when it is a repo, "folder ok" otherwise, the reason when it is not. */
+function FolderVerdict({ status }: { status: FolderStatus }) {
+  return (
+    <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
+      {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
+    </span>
+  );
+}
+
+/**
+ * The folder field with its Finder button and the completion list under it. The list's highlight
+ * lives here; the parent keeps whether the list is open, since the sheet's Escape closes it first.
+ */
+function FolderPicker({
+  inputRef,
+  folder,
+  onType,
+  onChoose,
+  status,
+  options,
+  listOpen,
+  setListOpen,
+  busy,
+  onBrowse,
+  agentName,
+}: {
+  inputRef: RefObject<HTMLInputElement | null>;
+  folder: string;
+  onType: (value: string) => void;
+  onChoose: (path: string) => void;
+  status: FolderStatus;
+  options: FolderOption[];
+  listOpen: boolean;
+  setListOpen: (open: boolean) => void;
+  busy: false | "creating" | "picking";
+  onBrowse: () => void;
+  agentName: string | null;
+}) {
+  const [hi, setHi] = useState(0);
+  return (
+    <div style={{ position: "relative" }}>
+      <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+        <span>folder</span>
+        <FolderVerdict status={status} />
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <Field
+          ref={inputRef}
+          mono
+          size="sm"
+          value={folder}
+          onChange={(e) => {
+            onType(e.target.value);
+            setHi(0);
+          }}
+          onFocus={() => setListOpen(true)}
+          onBlur={() => setTimeout(() => setListOpen(false), 120)}
+          onKeyDown={(e) => {
+            if (!listOpen || !options.length) return;
+            if (e.key === "ArrowDown") (e.preventDefault(), setHi((i) => Math.min(options.length - 1, i + 1)));
+            else if (e.key === "ArrowUp") (e.preventDefault(), setHi((i) => Math.max(0, i - 1)));
+            else if (e.key === "Enter" || e.key === "Tab") {
+              e.preventDefault();
+              onChoose(options[hi].path);
+            }
+          }}
+          placeholder="~/Documents/…"
+          aria-label="folder"
+          autoComplete="off"
+          spellCheck={false}
+          aria-invalid={status ? !status.ok : undefined}
+        />
+        <Button size="sm" onClick={onBrowse} disabled={busy !== false} title="choose a folder in Finder">
+          {busy === "picking" ? "choosing…" : "browse…"}
         </Button>
       </div>
-    </Sheet>
+      {listOpen && options.length > 0 && <FolderList options={options} hi={hi} onHover={setHi} onChoose={onChoose} agentName={agentName} />}
+    </div>
+  );
+}
+
+/** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
+function FolderList({ options, hi, onHover, onChoose, agentName }: { options: FolderOption[]; hi: number; onHover: (i: number) => void; onChoose: (path: string) => void; agentName: string | null }) {
+  return (
+    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+      {options.map((o, i) => {
+        const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
+        const first = i === 0 || options[i - 1].group !== o.group;
+        return (
+          <div key={o.path}>
+            {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
+            <Row
+              dense
+              role="option"
+              tabIndex={-1}
+              aria-selected={i === hi}
+              onMouseEnter={() => onHover(i)}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChoose(o.path);
+              }}
+              style={{ display: "grid", gap: 0 }}
+            >
+              <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
+              <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
+            </Row>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function NewDeskFooter({ canStart, busy, onClose, onStart }: { canStart: boolean; busy: false | "creating" | "picking"; onClose: () => void; onStart: () => void }) {
+  return (
+    <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
+      <span className="loki-label" style={{ fontSize: 10.5 }}>enter start · esc close</span>
+      <span style={{ flex: 1 }} />
+      <Button size="sm" onClick={onClose}>cancel</Button>
+      <Button size="sm" tone="brass" onClick={onStart} disabled={!canStart}>
+        {busy === "creating" ? "starting…" : "start"}
+      </Button>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
 import { catchUpQueue } from "../../../packages/core/src/attention/queue.ts";
 import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
@@ -9,13 +9,13 @@ import { AgentPage, FilePage } from "./Agent";
 import { Agents } from "./Agents";
 import { Conversation, type Thread } from "./Conversation";
 import { Home } from "./Home";
-import { Inbox, useDeck } from "./Inbox";
+import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { Settings } from "./Settings";
 import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
-import { lastSeen } from "./model";
-import { back, formatRoute, navigate, replace, tabOf, useRoute, type Tab } from "./router";
+import { agentNameOf, lastSeen, threadFor } from "./model";
+import { back, formatRoute, navigate, replace, tabOf, useRoute, type Route, type Tab } from "./router";
 import { Banner, Button } from "../ui";
 import { PhoneStyles, SAFE } from "./ui";
 
@@ -27,6 +27,10 @@ import { PhoneStyles, SAFE } from "./ui";
  * full-screen pages over them: a conversation, an agent, a memory file. Routes live in the hash.
  */
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
+
+type DeskApi = ReturnType<typeof useDesk>;
+type CatchUp = ReturnType<typeof useAttention>;
+type ConversationRoute = Extract<Route, { kind: "conversation" }>;
 
 /** An inbox card, opened: its conversation, full screen. */
 const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
@@ -62,6 +66,60 @@ export function Phone() {
   return <Paired me={gate.me} onUnpaired={() => setGate({ kind: "unpaired" })} />;
 }
 
+/** The tab under the page you are on; where a conversation's back goes when the app opened on it. */
+function useLastTab(route: Route) {
+  const lastTab = useRef<Tab>(tabOf(route) ?? "home");
+  useEffect(() => {
+    const t = tabOf(route);
+    if (t) lastTab.current = t;
+  }, [route]);
+  return lastTab;
+}
+
+/**
+ * "Mac unreachable, last seen …": both sockets reconnect by themselves; this only says so. Owns the
+ * time of the last moment both were up and a half-minute tick so the words age; the banner is null
+ * while the link is fine.
+ */
+function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): ReactNode {
+  const linked = desk.connection === "open" && (catchUp.status === "open" || !available);
+  const lastLinked = useRef<string | null>(null);
+  const [, setTickNow] = useState(0);
+  useEffect(() => {
+    if (linked) lastLinked.current = new Date().toISOString();
+  }, [linked]);
+  useEffect(() => {
+    const t = setInterval(() => setTickNow((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const unreachable = desk.connection === "closed" || catchUp.status === "closed";
+  return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked.current)}</Banner> : null;
+}
+
+/** A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair. */
+function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => void) {
+  useEffect(() => {
+    if (connection !== "closed") return;
+    void fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" })
+      .then((r) => {
+        if (r.status === 401) onUnpaired();
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connection]);
+}
+
+/** A `?prefill=` in the route starts the reply box once, then leaves the address so a reload does not repeat it. */
+function usePrefill(conv: ConversationRoute | null) {
+  const prefillKey = conv?.prefill ? formatRoute(conv) : null;
+  const prefill = useMemo(() => (conv?.prefill ? { text: conv.prefill, tick: Date.now() } : null), [prefillKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (conv?.prefill) replace({ ...conv, prefill: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillKey]);
+  return prefill;
+}
+
 function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const desk = useDesk();
   const { attention } = desk;
@@ -78,12 +136,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     loadLocalHistory: attention.loadHistory,
   });
   const route = useRoute();
-  /** The tab under the page you are on; where a conversation's back goes when the app opened on it. */
-  const lastTab = useRef<Tab>(tabOf(route) ?? "home");
-  useEffect(() => {
-    const t = tabOf(route);
-    if (t) lastTab.current = t;
-  }, [route]);
+  const lastTab = useLastTab(route);
 
   // A pairing QR opened while already paired: the code is not needed, drop it from the address (the route stays).
   useEffect(() => {
@@ -96,39 +149,13 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
 
-  // "Mac unreachable, last seen …": both sockets reconnect by themselves; this only says so.
-  const linked = desk.connection === "open" && (catchUp.status === "open" || !attention.available);
-  const lastLinked = useRef<string | null>(null);
-  const [, setTickNow] = useState(0);
-  useEffect(() => {
-    if (linked) lastLinked.current = new Date().toISOString();
-  }, [linked]);
-  useEffect(() => {
-    const t = setInterval(() => setTickNow((n) => n + 1), 30_000);
-    return () => clearInterval(t);
-  }, []);
-  const unreachable = desk.connection === "closed" || catchUp.status === "closed";
-  // A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair.
-  useEffect(() => {
-    if (desk.connection !== "closed") return;
-    void fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" })
-      .then((r) => {
-        if (r.status === 401) onUnpaired();
-      })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [desk.connection]);
+  const banner = useLinkBanner(desk, catchUp, attention.available);
+  useUnpairWatch(desk.connection, onUnpaired);
 
   const waiting = catchUpQueue(catchUp.items).length;
   useEffect(() => {
     document.title = waiting > 0 ? `(${waiting}) loki` : "loki";
   }, [waiting]);
-
-  const later = (item: AttentionItem) => {
-    catchUp.unread(item);
-    if (!item.pendingApproval) catchUp.later(item); // approvals never snooze
-  };
-  const banner = unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked.current)}</Banner> : null;
 
   // The deck's pass (what was swiped, what is on top) lives here, beside the data: the top card's
   // thread is fetched once when it arrives, and live rows stream in on top.
@@ -140,24 +167,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 
   // The conversation on screen, from the route: its title and agent from the desks list, the inbox, or the agent list.
   const conv = route.kind === "conversation" ? route : null;
-  const convDesk = conv ? desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId) : undefined;
-  const convItem = conv ? catchUp.items.find((i) => i.agentId === conv.agentId && i.id === conv.conversationId) : undefined;
-  const agentNameOf = (id: string) => catchUp.agents.find((a) => a.id === id)?.name ?? desk.desks.list.find((d) => d.agentId === id)?.agentName ?? null;
-  const thread: Thread | null = conv
-    ? {
-        agentId: conv.agentId,
-        conversationId: conv.conversationId,
-        title: convDesk?.title ?? convItem?.title ?? (conv.conversationId === "default" ? `${agentNameOf(conv.agentId) ?? "agent"} · main chat` : null),
-        agentName: convDesk?.agentName ?? convItem?.agentName ?? agentNameOf(conv.agentId),
-      }
-    : null;
-  // A `?prefill=` in the route starts the reply box once, then leaves the address so a reload does not repeat it.
-  const prefillKey = conv?.prefill ? formatRoute(conv) : null;
-  const prefill = useMemo(() => (conv?.prefill ? { text: conv.prefill, tick: Date.now() } : null), [prefillKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (conv?.prefill) replace({ ...conv, prefill: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillKey]);
+  const prefill = usePrefill(conv);
 
   const recentFolders = useCallback(() => attention.folders.recent().then((r) => r.byAgent), []); // eslint-disable-line react-hooks/exhaustive-deps
   const onTab = route.kind === "tab";
@@ -166,31 +176,55 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)", color: "var(--loki-fg)", fontFamily: "var(--loki-font)" }}>
       <PhoneStyles />
-      {thread && (
-        <Conversation
-          thread={thread}
-          view={catchUp.conversation(thread.agentId, thread.conversationId)}
-          waiting={catchUp.items.some((i) => i.agentId === thread.agentId && i.id === thread.conversationId && catchUpQueue([i]).length > 0)}
-          banner={banner}
-          backLabel={lastTab.current}
-          prefill={prefill}
-          pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
-          onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
-          onBack={() => back({ kind: "tab", tab: lastTab.current })}
-          onLoad={(rt) => void catchUp.loadThread(rt)}
-          onDecide={catchUp.decide}
-          onAnswer={catchUp.answer}
-          onSend={(rt, text, deskTitle) => catchUp.send(rt, text, [], { desk: deskTitle })}
-          onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
-        />
-      )}
-      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} onBack={() => back({ kind: "tab", tab: "agents" })} />}
-      {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(route.agentId)} api={desk.agents} banner={banner} onBack={() => back({ kind: "agent", agentId: route.agentId })} />}
+      {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} lastTab={lastTab} prefill={prefill} />}
+      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} onBack={() => back({ kind: "tab", tab: "agents" })} />}
+      {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={() => back({ kind: "agent", agentId: route.agentId })} />}
 
+      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} banner={banner} recentFolders={recentFolders} onUnpaired={onUnpaired} />
+
+      <UpdateBar servedBuild={desk.servedBuild} withTabBar={onTab} />
+      {onTab && <TabBar active={tab} waiting={waiting} />}
+    </div>
+  );
+}
+
+/** The conversation the route names, full screen over the tabs, wired to the tunnel and the mod's desk list. */
+function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; banner: ReactNode; lastTab: RefObject<Tab>; prefill: { text: string; tick: number } | null }) {
+  const { attention } = desk;
+  const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
+  const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
+  return (
+    <Conversation
+      thread={thread}
+      view={catchUp.conversation(thread.agentId, thread.conversationId)}
+      waiting={catchUp.items.some((i) => i.agentId === thread.agentId && i.id === thread.conversationId && catchUpQueue([i]).length > 0)}
+      banner={banner}
+      backLabel={lastTab.current}
+      prefill={prefill}
+      pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
+      onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
+      onBack={() => back({ kind: "tab", tab: lastTab.current })}
+      onLoad={(rt) => void catchUp.loadThread(rt)}
+      onDecide={catchUp.decide}
+      onAnswer={catchUp.answer}
+      onSend={(rt, text, deskTitle) => catchUp.send(rt, text, [], { desk: deskTitle })}
+      onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
+    />
+  );
+}
+
+/** The four tabs. Home, Agents and Settings mount on their tab; the deck stays mounted under the other tabs and pages so the pass (n of N, dismissed cards) survives the round trip. */
+function Screen({ tab, me, desk, catchUp, deck, banner, recentFolders, onUnpaired }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onUnpaired: () => void }) {
+  const { attention } = desk;
+  const later = (item: AttentionItem) => {
+    catchUp.unread(item);
+    if (!item.pendingApproval) catchUp.later(item); // approvals never snooze
+  };
+  return (
+    <>
       {tab === "home" && (
         <Home desks={desk.desks.list} agents={catchUp.agents} items={catchUp.items} banner={banner} onRefresh={desk.desks.request} onPin={desk.desks.pin} recentFolders={recentFolders} onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))} />
       )}
-      {/* The deck stays mounted under the other tabs and pages so the pass (n of N, dismissed cards) survives the round trip. */}
       <Inbox
         hidden={tab !== "inbox"}
         items={catchUp.items}
@@ -208,10 +242,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       />
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
       {tab === "settings" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
-
-      <UpdateBar servedBuild={desk.servedBuild} withTabBar={onTab} />
-      {onTab && <TabBar active={tab} waiting={waiting} />}
-    </div>
+    </>
   );
 }
 

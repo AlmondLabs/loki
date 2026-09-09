@@ -157,6 +157,34 @@ function buildRows(ordered: DeskSummary[], archive: DeskSummary[], newRow: Row |
 
 const plural = (n: number) => `${n} desk${n === 1 ? "" : "s"}`;
 
+type Chip = { id: string; name: string | null; count: number };
+
+/** What the hidden live region says: the agent filter (Tab changes it silently otherwise) and, while typing, how many desks match. */
+export function statusLine(agentFilter: string | null, chips: Chip[], q: string, matching: number): string {
+  const chip = chips.find((c) => c.id === agentFilter);
+  const filterWord = agentFilter ? `${chip?.name ?? "agent"} · ${plural(chip?.count ?? 0)}` : "all agents";
+  return q ? `${filterWord} · ${plural(matching)} match` : filterWord;
+}
+
+export type TreeKeyAction = "down" | "up" | "agent-next" | "agent-prev" | "choose" | "choose-chat" | "close" | "pin" | "archive";
+
+/**
+ * The filter box's keys as actions: ↑↓ move, Tab / ⇧Tab cycle the agent chips, ↵ opens, ⇧↵ opens with the
+ * chat focused, Escape closes (one Escape; clearing a chip first surprised more than it helped), ⌘P pins
+ * and ⌘E archives when the sheet has those handlers. Null for anything else, which the input keeps.
+ */
+export function treeKey(e: Pick<KeyboardEvent, "key" | "shiftKey" | "metaKey" | "ctrlKey">, can: { pin: boolean; archive: boolean }): TreeKeyAction | null {
+  if (e.key === "ArrowDown") return "down";
+  if (e.key === "ArrowUp") return "up";
+  if (e.key === "Tab") return e.shiftKey ? "agent-prev" : "agent-next";
+  if (e.key === "Enter") return e.shiftKey ? "choose-chat" : "choose";
+  if (e.key === "Escape") return "close";
+  const cmd = (e.metaKey || e.ctrlKey) && !e.shiftKey;
+  if (cmd && e.key.toLowerCase() === "p" && can.pin) return "pin";
+  if (cmd && e.key.toLowerCase() === "e" && can.archive) return "archive";
+  return null;
+}
+
 function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, heading, onPickDesk, onPin, onArchive, visited, onSwitchChat, showArchive, onToggleArchive }: Omit<TreeProps, "visited"> & { visited: string[]; showArchive: boolean; onToggleArchive: () => void }) {
   const [query, setQuery] = useState("");
   /** null: every agent. */
@@ -220,12 +248,34 @@ function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, he
     setIndex(0);
   };
 
+  const pickAgent = (id: string | null) => {
+    setAgentFilter(id);
+    setIndex(0);
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    const action = treeKey(e, { pin: !!onPin, archive: !!onArchive });
+    if (!action) return;
+    e.preventDefault();
+    const r = rows[index];
+    if (action === "down" || action === "up") {
+      keyboardMove.current = true;
+      setIndex((i) => (action === "down" ? Math.min(rows.length - 1, i + 1) : Math.max(0, i - 1)));
+    } else if (action === "agent-next" || action === "agent-prev") cycleAgent(action === "agent-next" ? 1 : -1);
+    else if (action === "choose" || action === "choose-chat") choose(r, action === "choose-chat");
+    else if (action === "close") onClose();
+    else if (action === "pin") {
+      if (r?.kind === "desk") onPin!(r.desk, !r.desk.pinned);
+    } else if (action === "archive") {
+      if (r?.kind === "desk" && r.desk.conversationId && r.desk.conversationId !== "default") onArchive!(r.desk, r.desk.status !== "archived");
+    }
+  };
+
   let cursor = 0;
   const rowIndex = () => cursor++;
   const pickName = (agentId: string | null) => chips.find((c) => c.id === agentId)?.name ?? null;
-  /** What the hidden live region says: the agent filter (Tab changes it silently otherwise) and, while typing, how many desks match. */
-  const filterWord = agentFilter ? `${pickName(agentFilter) ?? "agent"} · ${plural(chips.find((c) => c.id === agentFilter)?.count ?? 0)}` : "all agents";
-  const statusWord = q ? `${filterWord} · ${plural(live.length + archive.length)} match` : filterWord;
+  const statusWord = statusLine(agentFilter, chips, q, live.length + archive.length);
+  /** The "new desk" row files the typed name when nothing matches it. */
+  const newName = q && live.length === 0 ? query.trim() : "";
 
   return (
     // Escape is the input's (below) and the shell's (window-level, when nothing is typing); the sheet stays out of it.
@@ -246,35 +296,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, he
           setQuery(e.target.value);
           setIndex(0);
         }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            keyboardMove.current = true;
-            setIndex((i) => Math.min(rows.length - 1, i + 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            keyboardMove.current = true;
-            setIndex((i) => Math.max(0, i - 1));
-          } else if (e.key === "Tab") {
-            e.preventDefault();
-            cycleAgent(e.shiftKey ? -1 : 1);
-          } else if (e.key === "Enter") {
-            e.preventDefault();
-            choose(rows[index], e.shiftKey);
-          } else if (e.key === "Escape") {
-            // One Escape closes; clearing a chip first surprised more than it helped.
-            e.preventDefault();
-            onClose();
-          } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "p" && onPin) {
-            e.preventDefault();
-            const r = rows[index];
-            if (r?.kind === "desk") onPin(r.desk, !r.desk.pinned);
-          } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "e" && onArchive) {
-            e.preventDefault();
-            const r = rows[index];
-            if (r?.kind === "desk" && r.desk.conversationId && r.desk.conversationId !== "default") onArchive(r.desk, r.desk.status !== "archived");
-          }
-        }}
+        onKeyDown={onKey}
         placeholder={agentFilter ? `find a desk of ${pickName(agentFilter) ?? "this agent"}…` : "find a desk…"}
         aria-label="find a desk"
         role="combobox"
@@ -289,18 +311,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, he
         {statusWord}
       </span>
 
-      {/* agent filter */}
-      <div role="group" aria-label="filter by agent" style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto", flex: "0 0 auto" }}>
-        <Chip label aria-pressed={agentFilter === null} brass={agentFilter === null} onClick={() => (setAgentFilter(null), setIndex(0))}>
-          all <span style={{ opacity: 0.7 }}>{liveCount}</span>
-        </Chip>
-        {chips.map((c) => (
-          <Chip key={c.id} label aria-pressed={agentFilter === c.id} brass={agentFilter === c.id} onClick={() => (setAgentFilter(agentFilter === c.id ? null : c.id), setIndex(0))}>
-            <AgentFace name={c.name} src={avatarUrl(c.id)} size={14} />
-            {c.name ?? "agent"} <span style={{ opacity: 0.7 }}>{c.count}</span>
-          </Chip>
-        ))}
-      </div>
+      <AgentChips chips={chips} liveCount={liveCount} agentFilter={agentFilter} onPick={pickAgent} />
 
       <div ref={listRef} id={listId} role="listbox" aria-label="desks" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 10px" }}>
         {sections.map((sec) => (
@@ -318,40 +329,74 @@ function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, he
             optionId={optionId}
             selected={index}
             onHover={setIndex}
-            onChoose={() => choose({ kind: "new", agentId: agentFilter, name: q && live.length === 0 ? query.trim() : "" })}
-            label={
-              q && live.length === 0 ? (
-                <>
-                  create desk <span style={{ fontFamily: "var(--loki-display)" }}>“{query.trim()}”</span>
-                  {agentFilter ? ` with ${pickName(agentFilter)}` : ""}
-                </>
-              ) : (
-                `new desk${agentFilter ? ` with ${pickName(agentFilter)}` : "…"}`
-              )
-            }
+            onChoose={() => choose({ kind: "new", agentId: agentFilter, name: newName })}
+            label={<NewRowLabel name={newName} agentFilter={agentFilter} agentName={pickName(agentFilter)} />}
           />
         )}
-        {archive.length > 0 && (
-          <div role="group" aria-label="archive" style={{ marginTop: 10 }}>
-            <button
-              onClick={onToggleArchive}
-              className="loki-label"
-              aria-expanded={showArchive || !!q}
-              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "4px 8px", border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", fontSize: 9.5, textAlign: "left" }}
-            >
-              <span style={{ display: "inline-block", transform: showArchive || q ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
-              archive
-              <span style={{ marginLeft: "auto", fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{archive.length}</span>
-            </button>
-            {(showArchive || q) && archive.map((d) => <DeskRow key={d.scope} desk={d} mark={undefined} here={d.scope === current} showFace={!agentFilter} index={rowIndex()} optionId={optionId} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />)}
-          </div>
-        )}
+        {archive.length > 0 && <ArchiveGroup archive={archive} open={showArchive || !!q} onToggle={onToggleArchive} startIndex={cursor} current={current} showFace={!agentFilter} optionId={optionId} selected={index} onHover={setIndex} onChoose={(d) => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />}
         {rows.length === 0 && <div role="status" style={{ padding: 14, fontSize: 12, color: "var(--loki-muted)" }}>no desks match</div>}
       </div>
-      <div style={{ flex: "0 0 auto", padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
-        {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onSwitchChat ? " · ⇧↵ chat" : ""}${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
-      </div>
+      <TreeFooter onPickDesk={onPickDesk} onSwitchChat={onSwitchChat} onPin={onPin} onArchive={onArchive} />
     </Sheet>
+  );
+}
+
+/** The agent filter: "all" with the live count, then one chip per agent; a chip pressed again clears it. */
+function AgentChips({ chips, liveCount, agentFilter, onPick }: { chips: Chip[]; liveCount: number; agentFilter: string | null; onPick: (id: string | null) => void }) {
+  return (
+    <div role="group" aria-label="filter by agent" style={{ display: "flex", gap: 6, padding: "8px 12px", borderBottom: "1px solid var(--loki-border)", overflowX: "auto", flex: "0 0 auto" }}>
+      <Chip label aria-pressed={agentFilter === null} brass={agentFilter === null} onClick={() => onPick(null)}>
+        all <span style={{ opacity: 0.7 }}>{liveCount}</span>
+      </Chip>
+      {chips.map((c) => (
+        <Chip key={c.id} label aria-pressed={agentFilter === c.id} brass={agentFilter === c.id} onClick={() => onPick(agentFilter === c.id ? null : c.id)}>
+          <AgentFace name={c.name} src={avatarUrl(c.id)} size={14} />
+          {c.name ?? "agent"} <span style={{ opacity: 0.7 }}>{c.count}</span>
+        </Chip>
+      ))}
+    </div>
+  );
+}
+
+/** The "new desk" row's words: the typed name in quotes when nothing matches it, else plain; the agent when one is filtered. */
+function NewRowLabel({ name, agentFilter, agentName }: { name: string; agentFilter: string | null; agentName: string | null }) {
+  return name ? (
+    <>
+      create desk <span style={{ fontFamily: "var(--loki-display)" }}>“{name}”</span>
+      {agentFilter ? ` with ${agentName}` : ""}
+    </>
+  ) : (
+    `new desk${agentFilter ? ` with ${agentName}` : "…"}`
+  );
+}
+
+type RowHandlers = { optionId: (i: number) => string; selected: number; onHover: (i: number) => void; onPin?: (desk: DeskSummary, pinned: boolean) => void; onArchive?: (desk: DeskSummary, archived: boolean) => void };
+
+/** The folded group at the bottom: archived and deleted conversations. Its rows take the indices after the live ones, from `startIndex`. */
+function ArchiveGroup({ archive, open, onToggle, startIndex, current, showFace, onChoose, ...row }: RowHandlers & { archive: DeskSummary[]; open: boolean; onToggle: () => void; startIndex: number; current: Scope; showFace: boolean; onChoose: (d: DeskSummary) => void }) {
+  return (
+    <div role="group" aria-label="archive" style={{ marginTop: 10 }}>
+      <button
+        onClick={onToggle}
+        className="loki-label"
+        aria-expanded={open}
+        style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "4px 8px", border: "none", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", fontSize: 9.5, textAlign: "left" }}
+      >
+        <span style={{ display: "inline-block", transform: open ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
+        archive
+        <span style={{ marginLeft: "auto", fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{archive.length}</span>
+      </button>
+      {open && archive.map((d, i) => <DeskRow key={d.scope} desk={d} mark={undefined} here={d.scope === current} showFace={showFace} index={startIndex + i} onChoose={() => onChoose(d)} {...row} />)}
+    </div>
+  );
+}
+
+/** The key legend along the bottom; it names only what this sheet can do. */
+function TreeFooter({ onPickDesk, onSwitchChat, onPin, onArchive }: Pick<TreeProps, "onPickDesk" | "onSwitchChat" | "onPin" | "onArchive">) {
+  return (
+    <div style={{ flex: "0 0 auto", padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
+      {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onSwitchChat ? " · ⇧↵ chat" : ""}${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
+    </div>
   );
 }
 
@@ -377,9 +422,14 @@ const act = (fn: () => void) => (e: React.MouseEvent) => {
   fn();
 };
 
-function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onHover, onChoose, onPin, onArchive }: { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; optionId: (i: number) => string; selected: number; onHover: (i: number) => void; onChoose: () => void; onPin?: (desk: DeskSummary, pinned: boolean) => void; onArchive?: (desk: DeskSummary, archived: boolean) => void }) {
-  const canArchive = !!onArchive && !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
-  const canPin = !!onPin && !!d.agentId && !!d.conversationId && d.status === "live";
+/** A conversation can be archived unless it is the agent's default or already deleted. */
+const canArchiveDesk = (d: DeskSummary, onArchive: RowHandlers["onArchive"]) => !!onArchive && !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+/** A live desk with an agent and a conversation can be pinned. */
+const canPinDesk = (d: DeskSummary, onPin: RowHandlers["onPin"]) => !!onPin && !!d.agentId && !!d.conversationId && d.status === "live";
+
+function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onHover, onChoose, onPin, onArchive }: RowHandlers & { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; onChoose: () => void }) {
+  const canArchive = canArchiveDesk(d, onArchive);
+  const canPin = canPinDesk(d, onPin);
   return (
     <div
       id={optionId(index)}
@@ -402,21 +452,26 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
       <span className="loki-tree-meta" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
         {when(d.lastActive)}
       </span>
-      {(canPin || canArchive) && (
-        <span className="loki-tree-actions" style={{ display: "none", gap: 2 }}>
-          {canPin && (
-            <IconButton size={24} tone={d.pinned ? "brass" : "quiet"} onClick={act(() => onPin!(d, !d.pinned))} title={d.pinned ? "unpin (⌘P)" : "pin to the top (⌘P)"} label={d.pinned ? "unpin" : "pin"}>
-              ⌖
-            </IconButton>
-          )}
-          {canArchive && (
-            <IconButton size={24} onClick={act(() => onArchive!(d, d.status !== "archived"))} title={d.status === "archived" ? "restore from the archive (⌘E)" : "archive (⌘E)"} label={d.status === "archived" ? "restore" : "archive"}>
-              {d.status === "archived" ? "↶" : "⊟"}
-            </IconButton>
-          )}
-        </span>
-      )}
+      {(canPin || canArchive) && <RowActions desk={d} canPin={canPin} canArchive={canArchive} onPin={onPin} onArchive={onArchive} />}
     </div>
+  );
+}
+
+/** The hover actions: pin and archive, as the row allows. */
+function RowActions({ desk: d, canPin, canArchive, onPin, onArchive }: Pick<RowHandlers, "onPin" | "onArchive"> & { desk: DeskSummary; canPin: boolean; canArchive: boolean }) {
+  return (
+    <span className="loki-tree-actions" style={{ display: "none", gap: 2 }}>
+      {canPin && (
+        <IconButton size={24} tone={d.pinned ? "brass" : "quiet"} onClick={act(() => onPin!(d, !d.pinned))} title={d.pinned ? "unpin (⌘P)" : "pin to the top (⌘P)"} label={d.pinned ? "unpin" : "pin"}>
+          ⌖
+        </IconButton>
+      )}
+      {canArchive && (
+        <IconButton size={24} onClick={act(() => onArchive!(d, d.status !== "archived"))} title={d.status === "archived" ? "restore from the archive (⌘E)" : "archive (⌘E)"} label={d.status === "archived" ? "restore" : "archive"}>
+          {d.status === "archived" ? "↶" : "⊟"}
+        </IconButton>
+      )}
+    </span>
   );
 }
 

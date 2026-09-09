@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect } from "../packages/core/src/desk-core.ts";
+import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect, type WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
 
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -139,5 +139,30 @@ describe("frame sizing", () => {
     st = applyMeasure(st, "s/b", { w: 420, h: 260 });
     expect(st.layout["s/b"].size).toEqual({ w: 420, h: 260 });
     expect(st.layout["s/b"].sized).toBeUndefined();
+  });
+});
+
+describe("deskView (app/src/desk/view.ts)", () => {
+  test("shared widgets come first, hidden ones go to the tray, unplaced ones cascade, and own/loaded read the desk's own scope", async () => {
+    const { deskView } = await import("../app/src/desk/view.ts");
+    const { autoPlace } = await import("../packages/core/src/desk-core.ts");
+    const entry = (id: string): WidgetManifestEntry => ({ id, scope: id.split("/")[0], name: id.split("/")[1], kind: "json", file: `${id}.json`, title: id, data: {}, hash: "", updatedAt: 0 });
+    const widgets = { shared: [entry("shared/a"), entry("shared/b")], d: [entry("d/x"), entry("d/y")] };
+    const desks = {
+      shared: { ...emptyDesk("shared"), layout: { "shared/b": { position: { x: 1, y: 2 }, z: 3, hidden: true } } },
+      d: { ...emptyDesk("d"), layout: { "d/x": { position: { x: 5, y: 6 }, z: 1 } }, overlay: { "d/x": { k: 1 } } },
+    };
+    const v = deskView("d", desks, widgets);
+    expect(v.visible.map((w) => w.entry.id)).toEqual(["shared/a", "d/x", "d/y"]);
+    expect(v.closed.map((e) => e.id)).toEqual(["shared/b"]);
+    expect(v.visible[0].layout).toEqual({ position: autoPlace(0), z: 0 }); // no layout yet: the cascade
+    expect(v.visible[1].layout.position).toEqual({ x: 5, y: 6 });
+    expect(v.visible[1].overlay).toEqual({ k: 1 });
+    expect(v.visible[2].layout).toEqual({ position: autoPlace(1), z: 0 });
+    expect(v.ownCount).toBe(2); // shared ones do not count
+    expect(v.loaded).toBe(true);
+    // the shared desk shows only its own widgets, and a desk with no frame yet is not loaded
+    expect(deskView("shared", desks, widgets).visible.map((w) => w.entry.id)).toEqual(["shared/a"]);
+    expect(deskView("other", desks, widgets)).toMatchObject({ ownCount: 0, loaded: false });
   });
 });

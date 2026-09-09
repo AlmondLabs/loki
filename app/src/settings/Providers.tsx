@@ -71,15 +71,19 @@ export function Providers({
   );
 }
 
-function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: { p: ConnectProvider; open: boolean; onToggle: () => void; onConnect: Parameters<typeof Providers>[0]["onConnect"]; onDisconnect: Parameters<typeof Providers>[0]["onDisconnect"]; onChanged?: () => void }) {
-  const connected = isConnected(p);
-  const terminal = needsTerminal(p);
+type ConnectFn = Parameters<typeof Providers>[0]["onConnect"];
+type DisconnectFn = Parameters<typeof Providers>[0]["onDisconnect"];
+
+/**
+ * One row's connect state: the auth method picked, the field values typed, the busy flag and the
+ * last error, with connect and disconnect on top. It lives in the row, not the form, so a half-typed
+ * key survives folding the row shut.
+ */
+function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconnect: DisconnectFn, onChanged: (() => void) | undefined, onToggle: () => void) {
   const [method, setMethod] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Each field's input is `${fieldId}-${key}`, so its label can name it. */
-  const fieldId = useId();
   const { authMethodId, fields } = fieldsFor(p, method);
 
   const connect = async () => {
@@ -108,6 +112,15 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
       setBusy(false);
     }
   };
+  return { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect };
+}
+
+type ConnectState = ReturnType<typeof useProviderConnect>;
+
+function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: { p: ConnectProvider; open: boolean; onToggle: () => void; onConnect: ConnectFn; onDisconnect: DisconnectFn; onChanged?: () => void }) {
+  const connected = isConnected(p);
+  const terminal = needsTerminal(p);
+  const state = useProviderConnect(p, onConnect, onDisconnect, onChanged, onToggle);
 
   return (
     <div style={{ border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`, borderRadius: 8, background: open ? "var(--loki-panel)" : "transparent" }}>
@@ -125,59 +138,72 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
       {open && (
         <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
           {p.description && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</div>}
-          {terminal ? (
-            <div style={{ fontSize: 12, color: "var(--loki-fg)", display: "grid", gap: 6 }}>
-              <span>This one signs in through the browser. Connect it from a terminal, then come back:</span>
-              <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12, padding: "6px 10px", background: "var(--loki-well)", borderRadius: 6, justifySelf: "start" }}>letta connect {p.id}</code>
-            </div>
-          ) : (
-            <>
-              {p.auth_methods && p.auth_methods.length > 1 && (
-                <div role="radiogroup" aria-label="how to sign in" style={{ display: "inline-flex", gap: 4 }}>
-                  {p.auth_methods.map((m) => (
-                    <Chip key={m.id} label role="radio" aria-checked={authMethodId === m.id} active={authMethodId === m.id} onClick={() => setMethod(m.id)}>
-                      {m.label}
-                    </Chip>
-                  ))}
-                </div>
-              )}
-              {fields.map((f) => (
-                <label key={f.key} htmlFor={`${fieldId}-${f.key}`} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: 12 }}>
-                  <span style={{ color: "var(--loki-muted)" }}>
-                    {f.label}
-                    {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
-                  </span>
-                  <Field
-                    id={`${fieldId}-${f.key}`}
-                    size="sm"
-                    mono
-                    type={f.secret ? "password" : "text"}
-                    value={values[f.key] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                    onKeyDown={(e) => e.key === "Enter" && void connect()}
-                    placeholder={f.placeholder ?? (f.secret ? "pasted here, checked with the provider, then kept by Letta" : "")}
-                    autoComplete="off"
-                    spellCheck={false}
-                    data-1p-ignore
-                    data-form-type="other"
-                  />
-                </label>
-              ))}
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <Button size="sm" tone="brass" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
-                  {busy ? "checking…" : connected ? "replace the key" : "connect"}
-                </Button>
-                {connected && (
-                  <Button size="sm" onClick={() => void disconnect()} disabled={busy}>
-                    disconnect
-                  </Button>
-                )}
-                {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
-              </div>
-            </>
-          )}
+          {terminal ? <TerminalNote id={p.id} /> : <ConnectForm p={p} connected={connected} state={state} />}
         </div>
       )}
     </div>
+  );
+}
+
+/** An OAuth provider: the app cannot open the browser flow, so it says which command does. */
+function TerminalNote({ id }: { id: string }) {
+  return (
+    <div style={{ fontSize: 12, color: "var(--loki-fg)", display: "grid", gap: 6 }}>
+      <span>This one signs in through the browser. Connect it from a terminal, then come back:</span>
+      <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12, padding: "6px 10px", background: "var(--loki-well)", borderRadius: 6, justifySelf: "start" }}>letta connect {id}</code>
+    </div>
+  );
+}
+
+/** The open row's form: a method picker when the provider has more than one, the harness's fields, connect / disconnect, the error. */
+function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: boolean; state: ConnectState }) {
+  const { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect } = state;
+  /** Each field's input is `${fieldId}-${key}`, so its label can name it. */
+  const fieldId = useId();
+  return (
+    <>
+      {p.auth_methods && p.auth_methods.length > 1 && (
+        <div role="radiogroup" aria-label="how to sign in" style={{ display: "inline-flex", gap: 4 }}>
+          {p.auth_methods.map((m) => (
+            <Chip key={m.id} label role="radio" aria-checked={authMethodId === m.id} active={authMethodId === m.id} onClick={() => setMethod(m.id)}>
+              {m.label}
+            </Chip>
+          ))}
+        </div>
+      )}
+      {fields.map((f) => (
+        <label key={f.key} htmlFor={`${fieldId}-${f.key}`} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: 12 }}>
+          <span style={{ color: "var(--loki-muted)" }}>
+            {f.label}
+            {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
+          </span>
+          <Field
+            id={`${fieldId}-${f.key}`}
+            size="sm"
+            mono
+            type={f.secret ? "password" : "text"}
+            value={values[f.key] ?? ""}
+            onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
+            onKeyDown={(e) => e.key === "Enter" && void connect()}
+            placeholder={f.placeholder ?? (f.secret ? "pasted here, checked with the provider, then kept by Letta" : "")}
+            autoComplete="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-form-type="other"
+          />
+        </label>
+      ))}
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <Button size="sm" tone="brass" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
+          {busy ? "checking…" : connected ? "replace the key" : "connect"}
+        </Button>
+        {connected && (
+          <Button size="sm" onClick={() => void disconnect()} disabled={busy}>
+            disconnect
+          </Button>
+        )}
+        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+      </div>
+    </>
   );
 }

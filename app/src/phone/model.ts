@@ -89,6 +89,24 @@ export function routeOf(host: string, protocol: string): string {
   return hostname ? `via ${hostname}${secure}` : "unknown";
 }
 
+/**
+ * The address a phone uses on this Wi‑Fi, as Settings › route prints it: the Bonjour name with the
+ * port, then the raw address after a dot; the raw address alone when there is no name; a note on the
+ * port when there is no network at all.
+ */
+export function wifiAddress(s: PhoneLanStatus): string {
+  return s.host ? `${s.host}:${s.port}${s.address ? ` · ${s.address}` : ""}` : s.address ? `${s.address}:${s.port}` : `port ${s.port}, no network`;
+}
+
+/**
+ * The address a phone uses over the tailnet, in the mod's order: the https front (scheme dropped, marked
+ * `· https`), the MagicDNS name with the port, the tailnet IP with the port. Null with no Tailscale status.
+ */
+export function tailnetAddress(s: PhoneLanStatus): string | null {
+  const ts = s.tailscale;
+  return ts?.serveUrl ? ts.serveUrl.replace(/^https:\/\//, "") + " · https" : ts?.name ? `${ts.name}:${s.port}` : ts?.ip ? `${ts.ip}:${s.port}` : null;
+}
+
 /** A fresh pairing code (`pair_code`). */
 export interface PairCode {
   code: string;
@@ -174,6 +192,43 @@ export function lastSeen(iso: string | null | undefined, now: number = Date.now(
   return unit(Math.floor(hours / 24), "day");
 }
 
+/** An agent's name: the app-server's list first, then any desk of its; null when neither knows it. */
+export function agentNameOf(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; agentName: string | null }>, id: string): string | null {
+  return agents.find((a) => a.id === id)?.name ?? desks.find((d) => d.agentId === id)?.agentName ?? null;
+}
+
+/**
+ * The conversation on screen, named: its title and agent come from the desks list first, then the
+ * inbox item, then the agent list; the main chat is "<agent> · main chat" when nothing else names it.
+ */
+export function threadFor(
+  conv: { agentId: string; conversationId: string },
+  desks: Array<{ agentId: string | null; conversationId: string | null; title: string | null; agentName: string | null }>,
+  items: Array<{ agentId: string; id: string; title: string | null; agentName: string | null }>,
+  agents: Array<{ id: string; name: string }>,
+): { agentId: string; conversationId: string; title: string | null; agentName: string | null } {
+  const convDesk = desks.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
+  const convItem = items.find((i) => i.agentId === conv.agentId && i.id === conv.conversationId);
+  return {
+    agentId: conv.agentId,
+    conversationId: conv.conversationId,
+    title: convDesk?.title ?? convItem?.title ?? (conv.conversationId === "default" ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat` : null),
+    agentName: convDesk?.agentName ?? convItem?.agentName ?? agentNameOf(agents, desks, conv.agentId),
+  };
+}
+
+/**
+ * The card footer's first word: for a card waiting on you (an approval, or a question — structured or the
+ * last message read as one) how long it has waited; otherwise how long since the last message.
+ */
+export function waitingSince(item: { status: string; lastMessageAt: string | null; pendingApproval: { at: string | null } | null; pendingQuestion: { at: string } | null }, now: number = Date.now()): string {
+  const at = item.status === "approval" ? (item.pendingApproval?.at ?? item.lastMessageAt) : item.pendingQuestion ? item.pendingQuestion.at : item.lastMessageAt;
+  const since = lastSeen(at, now);
+  const asks = !!item.pendingQuestion || item.status === "question";
+  const blocked = !!item.pendingApproval || asks;
+  return blocked ? (since === "just now" ? "waiting under a minute" : `waiting ${since.replace(" ago", "")}`) : since;
+}
+
 /** How many live desks an agent has — the "n desks live" under its row. */
 export function liveDeskCount(desks: Array<{ agentId: string | null; status: string }>, agentId: string): number {
   return desks.filter((d) => d.agentId === agentId && d.status === "live").length;
@@ -182,6 +237,14 @@ export function liveDeskCount(desks: Array<{ agentId: string | null; status: str
 /** "3 desks live", "1 desk live", "no desks live". */
 export function liveDesksLabel(n: number): string {
   return n === 0 ? "no desks live" : `${n} desk${n === 1 ? "" : "s"} live`;
+}
+
+/**
+ * The model line under an agent's name: the model, then whatever of effort, thinking and the context
+ * window the harness set; empty when it runs on the harness default.
+ */
+export function modelBits(model: string | null | undefined, settings: Record<string, unknown>): string[] {
+  return [model ?? null, settings.effort ? `effort ${String(settings.effort)}` : null, settings.thinking ? "thinking" : null, settings.context_window_limit ? `${Math.round(Number(settings.context_window_limit) / 1000)}k context` : null].filter(Boolean) as string[];
 }
 
 export interface MemoryFolder {

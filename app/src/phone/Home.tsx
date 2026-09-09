@@ -141,51 +141,60 @@ export function Home({
   );
 }
 
-/** One desk: the mark, the face, the title over agent and time, the pin. 56px tall; a long press pins too. */
-function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
+/** What a desk row is called: its title, or "new desk" while it is live and untitled, or its scope once archived. */
+function deskName(d: DeskSummary): string {
+  return d.title ?? (d.status === "live" ? "new desk" : d.scope);
+}
+
+/**
+ * A long press: `onHold` fires after 550ms with the finger still down, and the tap that ends that press
+ * is swallowed so the row does not also open. Owns the timer and the "held" flag; hands back the row's
+ * pointer handlers and a wrapper for its click.
+ */
+function useHold(onHold: (() => void) | null) {
   const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
-  const startHold = () => {
-    if (!onPin) return;
+  const start = () => {
+    if (!onHold) return;
     held.current = false;
     hold.current = setTimeout(() => {
       held.current = true;
-      onPin();
+      onHold();
     }, 550);
   };
-  const endHold = () => {
+  const end = () => {
     if (hold.current) clearTimeout(hold.current);
     hold.current = null;
   };
+  const tap = (fn: () => void) => () => {
+    if (held.current) {
+      held.current = false;
+      return;
+    }
+    fn();
+  };
+  return { start, end, tap };
+}
+
+/** One desk: the mark, the face, the title over agent and time, the pin. 56px tall; a long press pins too. */
+function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
+  const hold = useHold(onPin);
   return (
     <li style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "6px 4px 6px 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
       <Row
         touch
-        onClick={() => {
-          if (held.current) {
-            held.current = false;
-            return;
-          }
-          onOpen();
-        }}
-        onPointerDown={startHold}
-        onPointerUp={endHold}
-        onPointerCancel={endHold}
-        onPointerLeave={endHold}
+        onClick={hold.tap(onOpen)}
+        onPointerDown={hold.start}
+        onPointerUp={hold.end}
+        onPointerCancel={hold.end}
+        onPointerLeave={hold.end}
         onContextMenu={(e) => e.preventDefault()}
-        aria-label={`${d.title ?? (d.status === "live" ? "new desk" : d.scope)}, ${d.agentName ?? "agent"}${mark ? `, ${mark.status}` : ""}`}
+        aria-label={`${deskName(d)}, ${d.agentName ?? "agent"}${mark ? `, ${mark.status}` : ""}`}
         style={{ flex: 1, minWidth: 0, touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}
       >
         <Mark item={mark} status={d.status} size={8} />
         {showFace && <AgentFace name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={20} />}
-        <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 3 }}>
-          <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title ?? (d.status === "live" ? "new desk" : d.scope)}</span>
-          <Meta>
-            {d.agentName ?? "agent"}
-            {d.lastActive ? ` · ${ago(d.lastActive)}` : ""}
-            {d.status !== "live" ? ` · ${d.status}` : ""}
-          </Meta>
-        </span>
+        <DeskTitle desk={d} />
       </Row>
       {onPin && (
         <IconButton label={d.pinned ? "unpin" : "pin"} size={40} onClick={onPin} aria-pressed={!!d.pinned} title={d.pinned ? "unpin" : "pin to the top"}>
@@ -193,6 +202,20 @@ function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary
         </IconButton>
       )}
     </li>
+  );
+}
+
+/** The row's text: the title on one line, then agent, time and (when not live) status underneath. */
+function DeskTitle({ desk: d }: { desk: DeskSummary }) {
+  return (
+    <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 3 }}>
+      <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deskName(d)}</span>
+      <Meta>
+        {d.agentName ?? "agent"}
+        {d.lastActive ? ` · ${ago(d.lastActive)}` : ""}
+        {d.status !== "live" ? ` · ${d.status}` : ""}
+      </Meta>
+    </span>
   );
 }
 
@@ -206,16 +229,14 @@ export function Pin({ filled, size = 16 }: { filled: boolean; size?: number }) {
   );
 }
 
-/**
- * The plus: pick an agent, name it if you like, start. The folder is the agent's most recent one on
- * the Mac; when it has none, the sheet says so and start stays off — choosing a folder is the Mac's job.
- */
-function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: { agents: Array<{ id: string; name: string | null }>; defaultAgentId: string | null; recentFolders: () => Promise<Record<string, string[]>>; onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>; onClose: () => void }) {
-  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
-  const [name, setName] = useState("");
+/** The agent's most recent folder on the Mac, once the list has arrived; null before, and when it has none. */
+function folderFor(recent: Record<string, string[]> | null, agentId: string | null): string | null {
+  return agentId && recent ? recent[agentId]?.[0] ?? null : null;
+}
+
+/** `folders_get`, once: the folders each agent worked in, most recent first; null until the Mac answers. */
+function useRecentFolders(recentFolders: () => Promise<Record<string, string[]>>) {
   const [recent, setRecent] = useState<Record<string, string[]> | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
     void recentFolders().then((r) => live && setRecent(r));
@@ -223,8 +244,21 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
       live = false;
     };
   }, [recentFolders]);
+  return recent;
+}
+
+/**
+ * The sheet's draft: the agent picked, the optional name, the folder that follows the agent, the busy
+ * flag and the error from the last try. `start` creates the conversation, closes the sheet and opens it.
+ */
+function useNewDesk(agents: Array<{ id: string; name: string | null }>, defaultAgentId: string | null, recentFolders: () => Promise<Record<string, string[]>>, onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>, onClose: () => void) {
+  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
+  const [name, setName] = useState("");
+  const recent = useRecentFolders(recentFolders);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-  const folder = agentId && recent ? recent[agentId]?.[0] ?? null : null;
+  const folder = folderFor(recent, agentId);
   const canStart = !!agentId && !!folder && !busy;
   const start = async () => {
     if (!canStart || !agentId || !folder) return;
@@ -239,26 +273,24 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
       setBusy(false);
     }
   };
-  const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
+  return { agentId, setAgentId, name, setName, recent, agentName, folder, busy, error, canStart, start };
+}
+
+/**
+ * The plus: pick an agent, name it if you like, start. The folder is the agent's most recent one on
+ * the Mac; when it has none, the sheet says so and start stays off — choosing a folder is the Mac's job.
+ */
+function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: { agents: Array<{ id: string; name: string | null }>; defaultAgentId: string | null; recentFolders: () => Promise<Record<string, string[]>>; onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>; onClose: () => void }) {
+  const { agentId, setAgentId, name, setName, recent, agentName, folder, busy, error, canStart, start } = useNewDesk(agents, defaultAgentId, recentFolders, onCreate, onClose);
   return (
     <Sheet label="new conversation" onClose={onClose} placement="bottom" style={{ padding: `14px ${GUTTER.right} calc(14px + ${SAFE.bottom}) ${GUTTER.left}`, display: "grid", gap: 14 }}>
       <div>
         <div className="loki-label" style={{ fontSize: 9.5 }}>new conversation</div>
         <Title style={{ marginTop: 4 }}>{agentName ? `with ${agentName}` : "with an agent"}</Title>
       </div>
-      <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {agents.map((a) => (
-          <Chip key={a.id} touch active={a.id === agentId} aria-pressed={a.id === agentId} onClick={() => setAgentId(a.id)}>
-            <AgentFace name={a.name} src={avatarUrl(a.id)} size={16} />
-            {a.name ?? "agent"}
-          </Chip>
-        ))}
-        {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Letta Code running on the Mac?</span>}
-      </div>
+      <AgentPicker agents={agents} agentId={agentId} onPick={setAgentId} />
       <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="name · optional" aria-label="conversation name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
-      <div style={{ fontSize: 12, lineHeight: 1.5, color: folder ? "var(--loki-muted)" : "var(--loki-negative)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", overflowWrap: "anywhere" }}>
-        {recent === null ? "asking the Mac for folders…" : folder ? `in ${short}` : `${agentName ?? "this agent"} has no recent folder on the Mac; start its first desk there`}
-      </div>
+      <FolderLine recent={recent} folder={folder} agentName={agentName} />
       {error && <div role="alert" style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
         <Button size="touch" onClick={onClose} style={{ flex: 1 }}>
@@ -269,5 +301,30 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
         </Button>
       </div>
     </Sheet>
+  );
+}
+
+/** The agent chips, one lit; a line instead when the harness has no agents yet. */
+function AgentPicker({ agents, agentId, onPick }: { agents: Array<{ id: string; name: string | null }>; agentId: string | null; onPick: (id: string) => void }) {
+  return (
+    <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {agents.map((a) => (
+        <Chip key={a.id} touch active={a.id === agentId} aria-pressed={a.id === agentId} onClick={() => onPick(a.id)}>
+          <AgentFace name={a.name} src={avatarUrl(a.id)} size={16} />
+          {a.name ?? "agent"}
+        </Chip>
+      ))}
+      {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Letta Code running on the Mac?</span>}
+    </div>
+  );
+}
+
+/** Where the desk will start: waiting on the Mac, the folder (home shortened to ~), or why there is none. */
+function FolderLine({ recent, folder, agentName }: { recent: Record<string, string[]> | null; folder: string | null; agentName: string | null }) {
+  const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
+  return (
+    <div style={{ fontSize: 12, lineHeight: 1.5, color: folder ? "var(--loki-muted)" : "var(--loki-negative)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", overflowWrap: "anywhere" }}>
+      {recent === null ? "asking the Mac for folders…" : folder ? `in ${short}` : `${agentName ?? "this agent"} has no recent folder on the Mac; start its first desk there`}
+    </div>
   );
 }

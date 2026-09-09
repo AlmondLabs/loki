@@ -23,29 +23,39 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
   );
 });
 
+/** One row, by role. This is the memo boundary; the three shapes below are plain functions rendered inside it. */
 const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
-  if (m.role === "tool") {
-    return (
-      <div data-row="tool" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", margin: "2px 0 2px 14px", overflowWrap: "anywhere" }}>
-        · {m.text}
-      </div>
-    );
-  }
-  if (m.role === "event") {
-    return (
-      <details data-row="event" style={{ margin: "8px 0", fontSize: 12, color: "var(--loki-muted)" }}>
-        <summary style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>
-          ⟳ {m.text}
-          {m.summary && <span style={{ color: "var(--loki-fg)", opacity: 0.75, marginLeft: 8, fontFamily: "var(--loki-font)", letterSpacing: 0 }}>{m.summary}</span>}
-        </summary>
-        {m.detail && (
-          <pre style={{ margin: "6px 0 0 14px", padding: "8px 10px", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 220, overflow: "auto", color: "var(--loki-fg)" }}>
-            {m.detail}
-          </pre>
-        )}
-      </details>
-    );
-  }
+  if (m.role === "tool") return <ToolRow row={m} />;
+  if (m.role === "event") return <EventRow row={m} />;
+  return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} />;
+});
+
+function ToolRow({ row: m }: { row: TranscriptRow }) {
+  return (
+    <div data-row="tool" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", margin: "2px 0 2px 14px", overflowWrap: "anywhere" }}>
+      · {m.text}
+    </div>
+  );
+}
+
+function EventRow({ row: m }: { row: TranscriptRow }) {
+  return (
+    <details data-row="event" style={{ margin: "8px 0", fontSize: 12, color: "var(--loki-muted)" }}>
+      <summary style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>
+        ⟳ {m.text}
+        {m.summary && <span style={{ color: "var(--loki-fg)", opacity: 0.75, marginLeft: 8, fontFamily: "var(--loki-font)", letterSpacing: 0 }}>{m.summary}</span>}
+      </summary>
+      {m.detail && (
+        <pre style={{ margin: "6px 0 0 14px", padding: "8px 10px", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 220, overflow: "auto", color: "var(--loki-fg)" }}>
+          {m.detail}
+        </pre>
+      )}
+    </details>
+  );
+}
+
+/** A user or assistant message: the bubble, and under a queued one the take-back button. */
+function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
   return (
     <div data-row={m.role} data-queued={m.queued ? "true" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
       <div
@@ -62,28 +72,7 @@ const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued }: 
           color: "var(--loki-fg)",
         }}
       >
-        {m.role === "assistant" ? (
-          <div className="loki-md">
-            <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
-            {last && streaming && <span style={{ opacity: 0.6 }}>▍</span>}
-          </div>
-        ) : (
-          <>
-            {m.images && m.images.length > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 8 : 0 }}>
-                {m.images.map((src, k) => (
-                  <img key={k} src={src} alt="" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 6, border: "1px solid var(--loki-border)", display: "block" }} />
-                ))}
-              </div>
-            )}
-            {/* Your own words get the same markdown as the agent's: pasted prompts and skill text are full of it. */}
-            {m.text && (
-              <div className="loki-md">
-                <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
-              </div>
-            )}
-          </>
-        )}
+        {m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}
       </div>
       {m.queued && (
         <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} style={{ marginTop: 4 }}>
@@ -92,4 +81,33 @@ const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued }: 
       )}
     </div>
   );
-});
+}
+
+function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
+  return (
+    <div className="loki-md">
+      <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
+      {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
+    </div>
+  );
+}
+
+function UserBody({ row: m }: { row: TranscriptRow }) {
+  return (
+    <>
+      {m.images && m.images.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 8 : 0 }}>
+          {m.images.map((src, k) => (
+            <img key={k} src={src} alt="" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 6, border: "1px solid var(--loki-border)", display: "block" }} />
+          ))}
+        </div>
+      )}
+      {/* Your own words get the same markdown as the agent's: pasted prompts and skill text are full of it. */}
+      {m.text && (
+        <div className="loki-md">
+          <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
+        </div>
+      )}
+    </>
+  );
+}
