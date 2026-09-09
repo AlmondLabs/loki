@@ -35,9 +35,10 @@ interface ModelPickerProps {
   onPick: (handle: string) => void;
   onClose: () => void;
   anchor?: "left" | "right";
+  side?: "below" | "above";
 }
 
-function ModelPickerOpen({ current, entries, loading, onPick, onClose, anchor = "left" }: ModelPickerProps) {
+function ModelPickerOpen({ current, entries, loading, onPick, onClose, anchor = "left", side }: ModelPickerProps) {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -67,7 +68,7 @@ function ModelPickerOpen({ current, entries, loading, onPick, onClose, anchor = 
   }, [index]);
 
   return (
-    <Popover role="dialog" aria-label="choose a model" anchor={anchor} width={360}>
+    <Popover role="dialog" aria-label="choose a model" anchor={anchor} side={side} width={360}>
       <Field
         ref={inputRef}
         bare

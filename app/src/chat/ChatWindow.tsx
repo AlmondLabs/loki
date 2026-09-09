@@ -30,7 +30,8 @@ export type ChatWidth = "narrow" | "wide";
 export const CHAT_WIDTHS: Record<ChatWidth, number> = { narrow: 400, wide: 640 };
 export type ChatPlacement = "left" | "center" | "right";
 export const CHAT_PLACEMENTS: ChatPlacement[] = ["left", "center", "right"];
-export const CHAT_CENTER_WIDTH = 760;
+/** The centred chat has the inbox card's footprint (CatchUp.tsx): the same width and the same insets. */
+export const CHAT_CENTER_WIDTH = 1100;
 
 export function ChatWindow({
   messages,
@@ -133,19 +134,7 @@ export function ChatWindow({
       data-attentive={attentive ? "true" : "false"}
       style={panelStyle(placement, width, attentive)}
     >
-      <ChatHeader
-        status={status}
-        model={model}
-        models={models}
-        mode={mode}
-        hasModelPicker={!!onPickModel}
-        hasModeMenu={!!onPickMode}
-        controls={controls}
-        width={width}
-        placement={placement}
-        onToggleWidth={onToggleWidth}
-        onClose={onClose}
-      />
+      <ChatHeader width={width} placement={placement} onToggleWidth={onToggleWidth} onClose={onClose} />
 
       {findOpen && (
         <FindBar
@@ -163,7 +152,7 @@ export function ChatWindow({
       </div>
       <AttentionStrip question={question} onAnswer={onAnswer} approval={approval} onApprove={onApprove} />
       {unpinned && (
-        <Chip float onClick={jumpToLatest} aria-label="jump to latest" style={{ position: "absolute", bottom: 84, left: "50%", transform: "translateX(-50%)" }}>
+        <Chip float onClick={jumpToLatest} aria-label="jump to latest" style={{ position: "absolute", bottom: 112, left: "50%", transform: "translateX(-50%)" }}>
           ↓ latest
         </Chip>
       )}
@@ -180,6 +169,12 @@ export function ChatWindow({
         question={question}
         commands={commands}
         onCommand={onCommand}
+        model={model}
+        models={models}
+        mode={mode}
+        hasModelPicker={!!onPickModel}
+        hasModeMenu={!!onPickMode}
+        controls={controls}
       />
     </div>
   );
@@ -193,7 +188,7 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
   return {
     position: "absolute",
     ...(placement === "center"
-      ? { top: 12, bottom: 12, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border)", borderRadius: 12 }
+      ? { top: 20, bottom: 16, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border)", borderRadius: 12 }
       : placement === "right"
         ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border)" }
         : { top: 0, left: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderRight: "1px solid var(--loki-border)" }),

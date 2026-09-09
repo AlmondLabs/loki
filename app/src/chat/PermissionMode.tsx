@@ -44,7 +44,7 @@ function Shield({ mode }: { mode: PermissionMode }) {
 }
 
 /** The menu: four rows with a line each; ↑↓ / Enter / Esc, or click. */
-export function ModeMenu({ open, current, onPick, onClose, anchor = "left" }: { open: boolean; current: PermissionMode | null; onPick: (m: PermissionMode) => void; onClose: () => void; anchor?: "left" | "right" }) {
+export function ModeMenu({ open, current, onPick, onClose, anchor = "left", side }: { open: boolean; current: PermissionMode | null; onPick: (m: PermissionMode) => void; onClose: () => void; anchor?: "left" | "right"; side?: "below" | "above" }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -59,6 +59,7 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left" }: { 
       role="menu"
       aria-label="permission mode"
       anchor={anchor}
+      side={side}
       width={300}
       style={{ padding: 4 }}
       onKeyDown={(e) => {

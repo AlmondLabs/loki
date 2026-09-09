@@ -5,12 +5,17 @@ import { matchCommands, slashQuery, type SlashCommand } from "../../../packages/
 import { Button } from "../ui";
 import { ChatInput } from "./ChatInput";
 import { SlashPalette } from "./SlashPalette";
+import { ModelChip, ModelPicker, type ModelEntry } from "./ModelPicker";
+import { ModeChip, ModeMenu, isPermissionMode } from "./PermissionMode";
+import type { ModelAndMode } from "./useModelAndMode";
 import type { ChatStatus } from "./ChatWindow";
 
 /**
- * The footer row: the message box and the send button, which reads "queue" while the agent is
- * mid-turn. A draft that starts with "/" opens the command palette above the box (see SlashPalette);
- * the box keeps focus and this component routes its arrow, tab, enter and escape keys.
+ * The footer: the message box, and under it the conversation's switchers (model, permission mode, each
+ * with its popover opening upward), the status word and the send button, which reads "queue" while
+ * the agent is mid-turn. The chips only appear when the host can act on them. A draft that starts
+ * with "/" opens the command palette above the box (see SlashPalette); the box keeps focus and this
+ * component routes its arrow, tab, enter and escape keys.
  */
 export function Composer({
   inputRef,
@@ -24,6 +29,12 @@ export function Composer({
   question,
   commands = [],
   onCommand,
+  model = null,
+  models = null,
+  mode = null,
+  hasModelPicker = false,
+  hasModeMenu = false,
+  controls,
 }: {
   inputRef: RefObject<HTMLTextAreaElement | null>;
   draft: string;
@@ -38,7 +49,15 @@ export function Composer({
   commands?: SlashCommand[];
   /** Run one (from the palette, before the draft has caught up). */
   onCommand?: (id: string, args: string) => void;
+  /** The conversation's model and mode, whether each can be changed here, and the switchers' state. */
+  model?: string | null;
+  models?: ModelEntry[] | null;
+  mode?: string | null;
+  hasModelPicker?: boolean;
+  hasModeMenu?: boolean;
+  controls?: ModelAndMode;
 }) {
+  const currentMode = isPermissionMode(mode) ? mode : null;
   const hasContent = !!draft.trim() || images.length > 0;
   const query = slashQuery(draft);
   const [index, setIndex] = useState(0);
@@ -90,7 +109,7 @@ export function Composer({
   };
 
   return (
-    <div style={{ position: "relative", display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8, padding: "12px 12px 10px", borderTop: "1px solid var(--loki-border)" }}>
       {open && <SlashPalette matches={matches} index={index} listId={listId} onHover={setIndex} onPick={pick} />}
       <ChatInput
         ref={inputRef}
@@ -106,17 +125,31 @@ export function Composer({
         aria-activedescendant={open && matches[index] ? `${listId}-opt-${index}` : undefined}
         aria-expanded={open || undefined}
       />
-      <Button
-        size="md"
-        tone={hasContent ? "brass" : "quiet"}
-        onClick={onSubmit}
-        disabled={!hasContent}
-        title={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
-      >
-        {status === "idle" ? "send" : "queue"}
-      </Button>
+      {/* The chips on the left with their popovers hung above this row; the status word and send on the right. */}
+      <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        {controls && hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
+        {controls && hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
+        {controls && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
+        {controls && <ModelPicker open={controls.pickerOpen} side="above" current={model} entries={models} loading={!models} onPick={(h) => void controls.pickModel(h)} onClose={controls.closePicker} />}
+        <span className="loki-label" style={{ marginLeft: "auto", fontSize: 9.5, color: "var(--loki-muted)", opacity: 0.7, whiteSpace: "nowrap" }}>{statusWord(status)}</span>
+        <Button
+          size="md"
+          tone={hasContent ? "brass" : "quiet"}
+          onClick={onSubmit}
+          disabled={!hasContent}
+          title={status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
+        >
+          {status === "idle" ? "send" : "queue"}
+        </Button>
+      </div>
     </div>
   );
+}
+
+function statusWord(status: ChatStatus): string {
+  if (status === "thinking") return "thinking…";
+  if (status === "streaming") return "replying…";
+  return "";
 }
 
 /** What the empty box says: answer the open question, or message the agent, with a note when it will queue. */

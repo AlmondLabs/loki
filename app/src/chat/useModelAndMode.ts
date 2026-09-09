@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { PermissionMode } from "./PermissionMode";
 
 /**
- * The two header switchers: the model picker and the permission-mode menu. Owns whether each is
+ * The two switchers under the message box: the model picker and the permission-mode menu. Owns whether each is
  * open, the busy flag while a change is in flight, and the host ticks (⌘⇧M, ⌘⇧P) that open them.
  * Picking closes the popover first, then awaits the host.
  */

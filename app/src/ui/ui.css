@@ -208,6 +208,7 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   box-shadow: var(--loki-shadow-float);
   overflow: hidden;
 }
+.loki-popover--above { top: auto; bottom: calc(100% + 6px); }
 .loki-toast {
   position: absolute;
   left: 50%;

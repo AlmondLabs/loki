@@ -49,7 +49,7 @@ rail of five segments sits on the left, and one view fills the rest:
 - **Desk** (⌘1): the sheet edge to edge, the chat stacked over it on the left, centred and wider, or on the
   right (⌘← and ⌘→ move it, ⌥⌘ from inside a text box, ⌘/ toggles it, ⌘W closes it, ⌘L focuses the message box,
   ⌘F finds in the transcript; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget move).
-  The chat's header carries two chips for the conversation: its **permission mode** (strict, standard, accept
+  Under the chat's message box sit two chips for the conversation: its **permission mode** (strict, standard, accept
   edits, unrestricted; ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply
   per conversation through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips.
   A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part, and

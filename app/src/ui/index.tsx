@@ -217,15 +217,17 @@ export function Sheet({ label, onClose, width = 560, top, placement = "top", scr
 export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
   /** Which edge of the anchor it hangs from. */
   anchor?: "left" | "right";
+  /** Below the anchor line (the default) or above it, for chips along a panel's bottom. */
+  side?: "below" | "above";
   width?: number;
 }
 
-/** A small panel hung from a header line: the model picker, the mode menu. Stacks inside its component. */
-export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover({ anchor = "left", width = 320, className, style, onPointerDown, ...rest }, ref) {
+/** A small panel hung from a line of chips: the model picker, the mode menu. Stacks inside its component. */
+export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover({ anchor = "left", side = "below", width = 320, className, style, onPointerDown, ...rest }, ref) {
   return (
     <div
       ref={ref}
-      className={cx("loki-popover", className)}
+      className={cx("loki-popover", side === "above" && "loki-popover--above", className)}
       style={{ [anchor]: 8, width, ...style }}
       onPointerDown={(e) => {
         e.stopPropagation();
