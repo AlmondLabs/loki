@@ -1,10 +1,15 @@
-//! Letta Code on this machine: found, or installed.
+//! loki's own copy of Letta Code: found under ~/.letta/loki/runtime, or installed there.
 //!
-//! Discovery first: the user's own `letta` (PATH and the usual install directories). When there is
-//! none, loki installs a private copy under its data directory — its own Node if the machine has
-//! no Node 22, then `npm install -g --prefix <data>/runtime/letta @letta-ai/letta-code@<pinned>`.
-//! Nothing outside that directory is written; the user's shell, Homebrew and npm are untouched.
-//! Downloads: nodejs.org (tarball, checked against SHASUMS256.txt) and registry.npmjs.org.
+//! Release builds run only that copy — never a `letta` the user installed, so nothing loki does can
+//! touch theirs and nothing they do can change what loki runs. When it is missing, loki installs it:
+//! its own Node if the machine has no Node 22, then `npm install -g --prefix <data>/runtime/letta
+//! @letta-ai/letta-code@<pinned>`. Nothing outside that directory is written; the user's shell,
+//! Homebrew and npm are untouched. Downloads: nodejs.org (tarball, checked against SHASUMS256.txt)
+//! and registry.npmjs.org. Development builds behave the same; LOKI_LETTA_BIN names a binary outright
+//! (a Letta Code checkout, say) and is the only way to run anything else.
+//!
+//! Updating is manual (Settings › letta): `latest_version` asks the registry, `install_version` reinstalls
+//! the copy at `latest`. The harness never updates itself (harness.rs sets DISABLE_AUTOUPDATER).
 
 use serde::Serialize;
 use std::io::{BufRead, BufReader};
@@ -13,6 +18,7 @@ use std::process::{Command, Stdio};
 
 /// The Letta Code release loki was tested with (packages/core/src/compat.ts carries the same number).
 pub const LETTA_CODE_VERSION: &str = "0.31.12";
+pub const PACKAGE: &str = "@letta-ai/letta-code";
 /// letta-code's engines.node.
 pub const NODE_MIN: (u32, u32, u32) = (22, 19, 0);
 const NODE_DIST: &str = "https://nodejs.org/dist/latest-v22.x/";
@@ -23,7 +29,7 @@ pub struct Runtime {
     pub letta: PathBuf,
     /// A directory holding `node` (and `npm`) to prepend to PATH: the `letta` shim is `#!/usr/bin/env node`.
     pub node_bin_dir: Option<PathBuf>,
-    /// Installed by loki under its data directory.
+    /// loki's own copy, under ~/.letta/loki/runtime.
     pub private: bool,
 }
 
@@ -85,9 +91,14 @@ pub fn find_node(home: &Path, data: &Path) -> Option<PathBuf> {
     candidates.into_iter().filter(|p| p.is_file()).find(|p| node_version(p).map(|v| v >= NODE_MIN).unwrap_or(false))
 }
 
-/// The user's own Letta Code first, then loki's private copy.
+/// The one binary a build may run besides loki's own copy: whatever LOKI_LETTA_BIN names, explicitly.
+fn foreign_letta() -> Option<PathBuf> {
+    std::env::var_os("LOKI_LETTA_BIN").map(PathBuf::from).filter(|p| p.is_file())
+}
+
+/// The Letta Code loki runs: its own copy under `data`/runtime, in every build — or the binary LOKI_LETTA_BIN names.
 pub fn find_letta(home: &Path, data: &Path) -> Option<Runtime> {
-    if let Some(letta) = crate::install::find_program("letta", home) {
+    if let Some(letta) = foreign_letta() {
         return Some(Runtime { letta, node_bin_dir: find_node(home, data).and_then(|n| n.parent().map(Path::to_path_buf)), private: false });
     }
     let p = private_letta(data);
@@ -117,6 +128,29 @@ pub fn pick_tarball(shasums: &str, arch: &str) -> Option<(String, String)> {
 pub struct Progress {
     pub stage: &'static str,
     pub message: String,
+}
+
+/// PATH for running `letta` or a package manager: the runtime's Node first, then the app's own.
+fn path_for(rt: &Runtime) -> String {
+    let base = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into());
+    match &rt.node_bin_dir {
+        Some(d) => format!("{}:{base}", d.display()),
+        None => base,
+    }
+}
+
+/// What `letta --version` prints, as a bare "0.31.12"; None when it will not run.
+pub fn letta_version(rt: &Runtime) -> Option<String> {
+    let out = Command::new(&rt.letta).arg("--version").env("PATH", path_for(rt)).env("DISABLE_AUTOUPDATER", "1").stdin(Stdio::null()).output().ok()?;
+    if !out.status.success() { return None; }
+    String::from_utf8_lossy(&out.stdout).split_whitespace().next().map(|v| v.trim_start_matches('v').to_string())
+}
+
+/// The newest release on npm: the registry's `latest` tag.
+pub fn latest_version() -> Result<String, String> {
+    let body = run(Command::new("/usr/bin/curl").args(["-fsSL", "--max-time", "10", &format!("https://registry.npmjs.org/{PACKAGE}/latest")]), "asking registry.npmjs.org")?;
+    let v: serde_json::Value = serde_json::from_str(&body).map_err(|e| format!("registry reply: {e}"))?;
+    v.get("version").and_then(|x| x.as_str()).map(str::to_string).ok_or_else(|| "registry reply had no version".to_string())
 }
 
 fn run(cmd: &mut Command, what: &str) -> Result<String, String> {
@@ -156,33 +190,15 @@ fn download_node(data: &Path, report: &dyn Fn(Progress)) -> Result<PathBuf, Stri
     Ok(bin)
 }
 
-/// Install Letta Code privately. Blocking; minutes. `report` gets one line per step and per npm line.
+/// Install Letta Code privately at the tested release. Blocking; minutes. `report` gets one line per step and per npm line.
 pub fn install(data: &Path, home: &Path, report: &dyn Fn(Progress)) -> Result<Runtime, String> {
-    let node_bin_dir = match find_node(home, data) {
-        Some(n) => {
-            report(Progress { stage: "node", message: format!("using Node at {}", n.display()) });
-            n.parent().map(Path::to_path_buf).ok_or("node has no parent directory")?
-        }
-        None => download_node(data, report)?,
-    };
-    let prefix = runtime_root(data).join("letta");
-    std::fs::create_dir_all(&prefix).map_err(|e| e.to_string())?;
-    let path = format!("{}:{}", node_bin_dir.display(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()));
-    report(Progress { stage: "letta", message: format!("npm install @letta-ai/letta-code@{LETTA_CODE_VERSION} (a few minutes)") });
-    let npm = node_bin_dir.join("npm");
-    let mut child = Command::new(&npm)
-        .args(["install", "-g", "--prefix"])
-        .arg(&prefix)
-        .arg(format!("@letta-ai/letta-code@{LETTA_CODE_VERSION}"))
-        .args(["--no-fund", "--no-audit", "--loglevel", "info"])
-        .env("PATH", &path)
-        .env("CI", "1")
-        .env("npm_config_update_notifier", "false")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("could not run npm: {e}"))?;
+    install_version(data, home, LETTA_CODE_VERSION, report)
+}
+
+/// Run a package manager to completion, its stderr lines to `report` as they come (npm talks on stderr;
+/// the last stdout line is reported at the end for the ones that do not).
+fn stream(cmd: &mut Command, stage: &'static str, report: &dyn Fn(Progress)) -> Result<(), String> {
+    let mut child = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|e| format!("could not run {}: {e}", cmd.get_program().to_string_lossy()))?;
     let stdout = child.stdout.take();
     let out_thread = std::thread::spawn(move || {
         let mut lines = vec![];
@@ -200,14 +216,47 @@ pub fn install(data: &Path, home: &Path, report: &dyn Fn(Progress)) -> Result<Ru
             // npm's info lines: "npm info run sharp@… postinstall", "npm http fetch GET 200 …" — keep the readable ones.
             if t.is_empty() || t.starts_with("npm http") || t.starts_with("npm timing") || t.starts_with("npm verbose") { continue; }
             last = t.to_string();
-            report(Progress { stage: "letta", message: t.trim_start_matches("npm ").to_string() });
+            report(Progress { stage, message: t.trim_start_matches("npm ").to_string() });
         }
     }
     let status = child.wait().map_err(|e| e.to_string())?;
-    let _ = out_thread.join();
-    if !status.success() {
-        return Err(format!("npm install failed: {last}"));
+    let out = out_thread.join().unwrap_or_default();
+    if let Some(l) = out.iter().rev().find(|l| !l.trim().is_empty()) {
+        report(Progress { stage, message: l.trim().to_string() });
+        if last.is_empty() { last = l.trim().to_string(); }
     }
+    if !status.success() {
+        return Err(format!("{} failed: {last}", cmd.get_program().to_string_lossy()));
+    }
+    Ok(())
+}
+
+/// Install (or reinstall) Letta Code privately at `version` — a number or "latest".
+pub fn install_version(data: &Path, home: &Path, version: &str, report: &dyn Fn(Progress)) -> Result<Runtime, String> {
+    let node_bin_dir = match find_node(home, data) {
+        Some(n) => {
+            report(Progress { stage: "node", message: format!("using Node at {}", n.display()) });
+            n.parent().map(Path::to_path_buf).ok_or("node has no parent directory")?
+        }
+        None => download_node(data, report)?,
+    };
+    let prefix = runtime_root(data).join("letta");
+    std::fs::create_dir_all(&prefix).map_err(|e| e.to_string())?;
+    let path = format!("{}:{}", node_bin_dir.display(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()));
+    report(Progress { stage: "letta", message: format!("npm install {PACKAGE}@{version} (a few minutes)") });
+    let npm = node_bin_dir.join("npm");
+    stream(
+        Command::new(&npm)
+            .args(["install", "-g", "--prefix"])
+            .arg(&prefix)
+            .arg(format!("{PACKAGE}@{version}"))
+            .args(["--no-fund", "--no-audit", "--loglevel", "info"])
+            .env("PATH", &path)
+            .env("CI", "1")
+            .env("npm_config_update_notifier", "false"),
+        "letta",
+        report,
+    )?;
     let letta = prefix.join("bin").join("letta");
     if !letta.is_file() {
         return Err("npm finished but bin/letta is missing".into());
@@ -223,14 +272,26 @@ pub struct Status {
     pub letta: Option<String>,
     pub node: Option<String>,
     pub private: bool,
+    /// An install or update is running (`log` has its lines).
     pub installing: bool,
     pub error: Option<String>,
     pub log: Vec<String>,
+    /// `letta --version`, once Settings asked (check_letta_update).
+    pub version: Option<String>,
+    /// The newest release on npm, once asked.
+    pub latest: Option<String>,
+    /// loki started this harness and can restart it — the update button's precondition.
+    pub managed: bool,
 }
 
 impl Status {
     pub fn from_runtime(rt: &Runtime) -> Status {
         Status { letta: Some(rt.letta.display().to_string()), node: rt.node_bin_dir.as_ref().map(|d| d.join("node").display().to_string()), private: rt.private, ..Status::default() }
+    }
+    /// The runtime these paths describe, for running `letta` again.
+    pub fn runtime(&self) -> Option<Runtime> {
+        let letta = PathBuf::from(self.letta.as_ref()?);
+        Some(Runtime { letta, node_bin_dir: self.node.as_ref().map(PathBuf::from).and_then(|n| n.parent().map(Path::to_path_buf)), private: self.private })
     }
 }
 
@@ -247,6 +308,15 @@ mod tests {
         assert_eq!(parse_version("nope"), None);
         assert!(parse_version("v22.19.0").unwrap() >= NODE_MIN);
         assert!(parse_version("v20.19.0").unwrap() < NODE_MIN);
+    }
+
+    #[test]
+    fn status_round_trips_to_a_runtime() {
+        let rt = Runtime { letta: PathBuf::from("/x/letta/bin/letta"), node_bin_dir: Some(PathBuf::from("/x/node/bin")), private: true };
+        let back = Status::from_runtime(&rt).runtime().unwrap();
+        assert_eq!(back.letta, rt.letta);
+        assert_eq!(back.node_bin_dir, rt.node_bin_dir);
+        assert!(back.private);
     }
 
     #[test]
@@ -298,8 +368,9 @@ mod tests {
         std::fs::create_dir_all(p.parent().unwrap()).unwrap();
         std::fs::write(&p, "#!/bin/sh\n").unwrap();
         let found = find_letta(&home, &data).unwrap();
-        // A developer's own letta on PATH wins; otherwise the private copy is used.
-        assert!(found.letta == p || !found.private);
+        // The private copy, whatever is on PATH (only LOKI_LETTA_BIN could say otherwise).
+        assert!(found.letta == p || std::env::var_os("LOKI_LETTA_BIN").is_some());
+        assert!(found.private || std::env::var_os("LOKI_LETTA_BIN").is_some());
         assert_eq!(runtime_root(&data), data.join("runtime"));
         let _ = std::fs::remove_dir_all(&root);
     }

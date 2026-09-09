@@ -14,12 +14,14 @@ widgets that belong to no conversation.
 
 - **macOS 13 or later.** The shell finds Letta Desktop with `lsof`, picks folders with the Finder, and
   uses the native title bar, dock badge and a global shortcut. Nothing else is supported today.
-- **Letta Code.** If it is already on the Mac (or Letta Desktop is running) loki uses that. If not, the
-  first launch installs a private copy under `~/Library/Application Support/dev.deepak.loki/runtime/`:
-  Node 22 from nodejs.org (checked against its published checksum) when the Mac has none, then
-  `@letta-ai/letta-code` at the release loki was tested with, from registry.npmjs.org. Nothing else on
-  the machine is touched, and a `letta` you install yourself later takes precedence. Settings shows which
-  one is in use and the harness's version next to the tested one.
+- **Letta Code.** loki runs its own copy, installed on first launch under `~/.letta/loki/runtime/`: Node 22
+  from nodejs.org (checked against its published checksum) when the Mac has none, then `@letta-ai/letta-code`
+  at the release loki was tested with, from registry.npmjs.org. A `letta` you installed yourself is never
+  used or touched, and nothing you do to it changes what loki runs. (If Letta Desktop is running, loki talks
+  to Desktop's harness instead — never two harnesses on one backend.) Settings shows the copy in use and the
+  harness's version next to the tested one. Letta Code never updates itself under loki (the harness runs with
+  its self-updater off): the only update the app ever offers on its own is loki's. Settings › letta has
+  **check** (asks npm for the newest release) and **update** (reinstalls loki's copy at it and restarts the harness).
 - **beads** (`brew install beads`) for the board. Optional; everything else works without it.
 
 ## Install
@@ -28,7 +30,7 @@ widgets that belong to no conversation.
    or Letta installed first. Until the app is signed,
    macOS will refuse to open it the first time: right-click → Open, or run
    `xattr -dr com.apple.quarantine /Applications/loki.app`.
-2. Open loki. On first launch it copies its mod to `~/Library/Application Support/dev.deepak.loki/mod/`,
+2. Open loki. On first launch it copies its mod to `~/.letta/loki/mod/`,
    writes the shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill at
    `~/.agents/skills/loki/`. Settings → install shows what happened.
 3. If Letta Desktop (or a `letta` session) was already running, `/reload` in Letta Code so the harness
@@ -39,7 +41,8 @@ widgets that belong to no conversation.
 5. Ask your agent to put something on the desk.
 
 Updates are a new `.dmg`; the app re-installs its mod on launch when the bundle changed. It never overwrites
-a shim or skill it did not write, so a checkout wired up for development (below) keeps working.
+a shim or skill it did not write, so a checkout wired up for development (below) keeps working. Letta Code is
+updated only from Settings › letta, never on its own (see Requirements).
 
 ## The window
 

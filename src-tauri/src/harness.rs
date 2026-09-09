@@ -1,6 +1,8 @@
 //! Our own harness, when Desktop is not running one: `letta server --listen …`
 //! with a fixed address and the loki token as the capability token. Killed when
-//! the app quits (never two harnesses on one backend).
+//! the app quits (never two harnesses on one backend). Started with Letta Code's
+//! self-updater off: the user only ever updates loki; Letta moves when they press
+//! "update" in Settings (lib.rs `update_letta`), which restarts this child.
 
 use crate::bootstrap::Runtime;
 use std::path::Path;
@@ -30,7 +32,7 @@ pub fn ensure_backend_mode(rt: &Runtime, home: &Path) {
     let chosen = std::fs::read_to_string(&settings).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).map(|v| v.get("preferredBackendMode").and_then(|m| m.as_str()).is_some()).unwrap_or(false);
     if chosen { return; }
     eprintln!("loki: no backend mode chosen yet — running `letta backend local`");
-    match Command::new(&rt.letta).args(["backend", "local"]).env("PATH", path_with(rt.node_bin_dir.as_deref())).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status() {
+    match Command::new(&rt.letta).args(["backend", "local"]).env("PATH", path_with(rt.node_bin_dir.as_deref())).env("DISABLE_AUTOUPDATER", "1").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status() {
         Ok(s) if s.success() => {}
         Ok(s) => eprintln!("loki: `letta backend local` exited with {s}"),
         Err(e) => eprintln!("loki: could not run `letta backend local`: {e}"),
@@ -46,6 +48,9 @@ impl Harness {
             .args(["server", "--listen", LISTEN_URL, "--ws-auth", "capability-token", "--ws-token-file"])
             .arg(token_file)
             .env("PATH", path_with(rt.node_bin_dir.as_deref()))
+            // Letta Code checks npm at startup and replaces itself in the background; under loki that is
+            // never wanted — the harness would change under a session, and loki's private copy has its own prefix.
+            .env("DISABLE_AUTOUPDATER", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
             .stderr(Stdio::from(log))

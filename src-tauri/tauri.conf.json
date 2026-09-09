@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "loki",
   "version": "0.3.0",
-  "identifier": "dev.deepak.loki",
+  "identifier": "app.loki.desktop",
   "build": {
     "frontendDist": "../app/dist",
     "beforeDevCommand": "bun run build:mod",
