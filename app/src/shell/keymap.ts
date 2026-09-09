@@ -118,6 +118,15 @@ export function formatKeys(spec: string): string {
 }
 
 /** Does this keyboard event match the spec? `cmd` accepts ⌘ or Ctrl, never both meanings at once. */
+/**
+ * Every binding whose chord this event is, whatever its scope: what the native menu bar might also fire for
+ * the same keystroke. ⌘] is both "next card" (inbox) and "next desk" (anywhere); the key handler runs the
+ * one for the showing segment, and the menu's echo — which carries the *other* id — must be dropped too.
+ */
+export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP): string[] {
+  return map.filter((b) => b.keys.some((k) => matches(e, k))).map((b) => b.id);
+}
+
 export function matches(e: KeyboardEvent, spec: string): boolean {
   const parts = spec.split("+");
   const key = parts[parts.length - 1];

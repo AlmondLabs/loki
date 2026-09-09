@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { inTauri } from "../desk/env";
-import { menuSpec, registerActions, resolve, runAction, typingIn, type Segment } from "./keymap";
+import { chordIds, menuSpec, registerActions, resolve, runAction, typingIn, type Segment } from "./keymap";
 
 /**
  * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
@@ -17,7 +17,8 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
   });
   useEffect(() => registerActions(Object.fromEntries(Object.keys(ref.current.actions).map((id) => [id, () => ref.current.actions[id]()]))), []);
 
-  const lastKeyFired = useRef<{ id: string; at: number } | null>(null);
+  /** The chord the key handler just acted on: every id it could mean, so the menu's echo is dropped whichever id it carries. */
+  const lastKeyFired = useRef<{ ids: Set<string>; at: number } | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { segment, treeOpen } = ref.current.view;
@@ -39,7 +40,7 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
       if (treeOpen && b.id !== "tree.toggle" && !b.id.startsWith("segment.")) return;
       if (runAction(b.id)) {
         e.preventDefault();
-        lastKeyFired.current = { id: b.id, at: Date.now() };
+        lastKeyFired.current = { ids: new Set(chordIds(e)), at: Date.now() };
       }
     };
     window.addEventListener("keydown", onKey);
@@ -47,7 +48,9 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
   }, []);
 
   // The native menu bar is built from the same keymap. Its clicks arrive as loki:menu with the binding id;
-  // when macOS also fires an accelerator we already handled, the id arrives twice within a beat — drop the echo.
+  // when macOS also fires an accelerator for a chord we already handled, the echo arrives within a beat — drop
+  // it, even when the menu's item for that chord is a different binding (⌘] is "next desk" in the Desk menu
+  // and "next card" in the inbox; the key handler already ran the right one).
   useEffect(() => {
     if (!inTauri) return;
     let off: (() => void) | null = null;
@@ -56,7 +59,7 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
       off = await listen<string>("loki:menu", (ev) => {
         const id = ev.payload === "app.settings" ? "segment.settings" : ev.payload;
         const last = lastKeyFired.current;
-        if (last && last.id === id && Date.now() - last.at < 250) return;
+        if (last && last.ids.has(id) && Date.now() - last.at < 250) return;
         if (!runAction(id)) console.warn("loki: menu item without an action", id);
       });
     });

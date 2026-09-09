@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { KEYMAP, conflicts, formatKeys, matches, menuSpec, resolve, tauriAccelerator } from "../app/src/shell/keymap.ts";
+import { KEYMAP, conflicts, formatKeys, matches, menuSpec, resolve, tauriAccelerator, chordIds } from "../app/src/shell/keymap.ts";
 
 const ev = (key: string, mods: Partial<{ meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }> = {}, typing = false) =>
   ({ key, metaKey: !!mods.meta, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift, altKey: !!mods.alt, target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" } }) as unknown as KeyboardEvent;
@@ -80,5 +80,9 @@ describe("keymap: presentation", () => {
     expect(undo.accelerator).toBeNull(); // ⌘Z is the text's while typing; the menu must not steal it
     const approve = inbox.items.find((i) => "id" in i && i.id === "inbox.approve") as { accelerator: string | null };
     expect(approve.accelerator).toBe("CmdOrCtrl+Enter");
+  });
+  test("a chord names every binding it could mean, so the menu's echo of the other one is dropped", () => {
+    expect(chordIds(ev("]", { meta: true })).sort()).toEqual(["desk.next", "inbox.next"]);
+    expect(chordIds(ev("k", { meta: true }))).toEqual(["tree.toggle"]);
   });
 });
