@@ -341,3 +341,58 @@ describe("bridge phone frames", () => {
     expect(c.sent[0]).toMatchObject({ type: "error" });
   });
 });
+
+describe("recall frames", () => {
+  test("list, grade, edit, reject, restore, settings and export round-trip through the bridge; the phone may read and review", async () => {
+    const { RecallStore } = await import("../mod/recall.ts");
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "loki-recall-b-"));
+    try {
+      const store = new RecallStore(dir);
+      store.add({ id: "k1", front: "Q1?", back: "A1", tags: ["t"], source: { agentId: "a", agentName: "ira", conversationId: "c", title: null, at: null }, createdAt: "2026-09-10T08:00:00Z", updatedAt: "2026-09-10T08:00:00Z", updatedBy: "recall", previous: [] });
+      const broadcasts: Array<Record<string, unknown>> = [];
+      const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), recall: { store, run: async () => ({ note: "ran" }) } });
+      const c = client("c1");
+      bridge.onMessage(c, { type: "recall_list", requestId: "r1" });
+      const list = c.sent.pop()!;
+      expect(list.type).toBe("recall");
+      expect((list.cards as unknown[]).length).toBe(1);
+      expect((list.worker as { dailyCap: number }).dailyCap).toBe(10);
+      bridge.onMessage(c, { type: "recall_grade", requestId: "r2", id: "k1", grade: 3 });
+      const graded = c.sent.pop()!;
+      expect(graded.type).toBe("recall_card");
+      expect((graded.card as { schedule: { reps: number } }).schedule.reps).toBe(1);
+      expect(broadcasts.at(-1)).toEqual({ type: "recall_changed" });
+      bridge.onMessage(c, { type: "recall_grade", requestId: "r3", id: "k1", grade: 9 });
+      expect(c.sent.pop()!.type).toBe("recall_error");
+      bridge.onMessage(c, { type: "recall_edit", requestId: "r4", id: "k1", back: "A1 better" });
+      expect((c.sent.pop()!.card as { card: { back: string; updatedBy: string } }).card).toMatchObject({ back: "A1 better", updatedBy: "you" });
+      bridge.onMessage(c, { type: "recall_reject", requestId: "r5", id: "k1" });
+      expect(c.sent.pop()!.card).toBeNull();
+      expect(store.cards()).toEqual([]);
+      bridge.onMessage(c, { type: "recall_restore", requestId: "r6", id: "k1" });
+      expect((c.sent.pop()!.card as { card: { id: string } }).card.id).toBe("k1");
+      bridge.onMessage(c, { type: "recall_settings", requestId: "r7", dailyCap: 3, model: "anthropic/claude-haiku-4-5", enabled: false });
+      expect((c.sent.pop()!.worker as { dailyCap: number; model: string; enabled: boolean })).toMatchObject({ dailyCap: 3, model: "anthropic/claude-haiku-4-5", enabled: false });
+      bridge.onMessage(c, { type: "recall_export", requestId: "r8" });
+      expect(c.sent.pop()!.tsv).toBe("Q1?\tA1 better\tt\n");
+      bridge.onMessage(c, { type: "recall_run", requestId: "r9" });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(c.sent.pop()).toMatchObject({ type: "recall_ran", note: "ran" });
+      // a phone may review but not change the worker's settings
+      const phone = { ...client("p"), deviceId: "d1" } as Client & { sent: Array<Record<string, unknown>> };
+      bridge.onMessage(phone, { type: "recall_grade", requestId: "p1", id: "k1", grade: 4 });
+      expect(phone.sent.pop()!.type).toBe("recall_card");
+      bridge.onMessage(phone, { type: "recall_settings", requestId: "p2", enabled: true });
+      expect(phone.sent.pop()!.type).toBe("error");
+      // no store wired: a clear error
+      const bare = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
+      bare.onMessage(c, { type: "recall_list", requestId: "x" });
+      expect(c.sent.pop()).toMatchObject({ type: "recall_error" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

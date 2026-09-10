@@ -4,6 +4,8 @@ import { CatchUp as Inbox } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Board } from "../board/Board";
 import { Agents } from "../agents/Agents";
+import { Recall } from "../recall/Recall";
+import type { Recall as RecallModel } from "./useRecall";
 import { avatarUrl } from "../desk/env";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
@@ -23,6 +25,11 @@ import type { CatchUp, Desk, Runtime } from "./types";
 type OpenDesk = (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void;
 type PickModel = (scope: string, rt: Runtime, handle: string) => Promise<void>;
 type PickMode = (scope: string, rt: Runtime, mode: string) => Promise<void>;
+
+/** Recall: the review deck, the card list and the deleted pile, over the mod's files. */
+export function RecallView({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: OpenDesk }) {
+  return <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} />;
+}
 
 /** The inbox: every conversation's cards, with the model and mode pickers per conversation. */
 export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, onPickMode, onOpenDesk, onClose }: { desk: Desk; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; onPickModel: PickModel; onPickMode: PickMode; onOpenDesk: OpenDesk; onClose: () => void }) {

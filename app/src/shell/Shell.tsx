@@ -17,8 +17,9 @@ import { useVisitedDesks } from "./useVisitedDesks";
 import { useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
+import { useRecall } from "./useRecall";
 import { useShellKeys } from "./useShellKeys";
-import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker } from "./views";
+import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
 import type { CatchUp, Runtime } from "./types";
 
 const SEGMENT_KEY = "loki.segment";
@@ -26,7 +27,7 @@ const SEGMENT_KEY = "loki.segment";
 /** The segment survives a reload of the same window; a refresh mid-pass reopens the inbox. */
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
-  return s === "inbox" || s === "settings" || s === "board" || s === "agents" ? s : "desk";
+  return s === "inbox" || s === "settings" || s === "board" || s === "agents" || s === "recall" ? s : "desk";
 }
 
 /** First launch: nothing to talk to yet. Only while the harness has answered and lists no agents. */
@@ -151,6 +152,7 @@ export function Shell() {
 
   // --- the board -------------------------------------------------------
   const board = useBoard(desk, segment, notice, { send: catchUp.send, openDesk });
+  const recall = useRecall(desk, segment, notice);
   const [picker, setPicker] = useState<Picker | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const pendingAssign = useRef<Picker | null>(null);
@@ -186,7 +188,7 @@ export function Shell() {
   useEffect(() => {
     sessionStorage.setItem(SEGMENT_KEY, segment);
   }, [segment]);
-  useWindowTitle(desk, segment, waiting, board.openTasks);
+  useWindowTitle(desk, segment, waiting, board.openTasks, recall.due);
 
   // The desks list feeds the tree and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
   // status too, so the rail's brass dot is right before Settings is ever opened.
@@ -205,6 +207,7 @@ export function Shell() {
       "segment.desk": () => (setSegment("desk"), setTreeOpen(false)),
       "segment.inbox": () => (setSegment("inbox"), setTreeOpen(false)),
       "segment.board": () => (setSegment("board"), setTreeOpen(false)),
+      "segment.recall": () => (setSegment("recall"), setTreeOpen(false)),
       "segment.agents": () => (setSegment("agents"), setTreeOpen(false)),
       "segment.settings": () => (setSegment("settings"), setTreeOpen(false)),
       "tree.toggle": () => (treeOpen ? setTreeOpen(false) : openTree()),
@@ -236,7 +239,7 @@ export function Shell() {
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
-        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} lanOn={desk.phone.status?.enabled === true} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} />
 
         <div style={{ position: "absolute", top: 0, left: SIDEBAR_WIDTH, right: 0, bottom: 0 }}>
           {/* The sheet stays mounted behind the other views so the desk link and camera keep their state. */}
@@ -275,6 +278,8 @@ export function Shell() {
               active={segment === "board" && !picker && !captureOpen}
             />
           )}
+
+          {segment === "recall" && <RecallView recall={recall} active={segment === "recall" && !picker && !captureOpen && !treeOpen} onOpenDesk={openDesk} />}
 
           {segment === "agents" && (
             <AgentsView

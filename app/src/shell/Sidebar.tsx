@@ -5,7 +5,7 @@ import { Dot } from "../ui";
 export const SIDEBAR_WIDTH = 48;
 
 /**
- * The rail under the title bar: five segments and nothing else. The inbox icon carries
+ * The rail under the title bar: six segments and nothing else. The inbox icon carries
  * the waiting count — the same number the tray title and the dock badge show — and ticks
  * when it grows. The desk icon is also the tree's toggle, so it reads pressed while the
  * tree is out.
@@ -17,6 +17,7 @@ export function Sidebar({
   tick,
   treeOpen,
   openTasks = 0,
+  dueCards = 0,
   lanOn = false,
 }: {
   segment: Segment;
@@ -26,6 +27,8 @@ export function Sidebar({
   treeOpen: boolean;
   /** Open tasks on the board, shown quietly under its icon. */
   openTasks?: number;
+  /** Cards due in Recall, the same quiet way. */
+  dueCards?: number;
   /** The mod is reachable on the Wi‑Fi (Settings › phone): a brass dot on the settings icon while it is. */
   lanOn?: boolean;
 }) {
@@ -57,7 +60,7 @@ export function Sidebar({
           <span key={s.id} style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" ? "auto" : 0 }}>
             <button
               onClick={() => onSelect(s.id)}
-              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
+              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "recall" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
               aria-pressed={active}
               title={`${s.label} (${s.key})`}
               className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
@@ -79,6 +82,7 @@ export function Sidebar({
               {/* Badges like the Dock's: brass when something needs you (inbox), quiet for a count you chose to keep (board). */}
               {isInbox && waiting > 0 && <Badge n={waiting} tone="accent" />}
               {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
+              {s.id === "recall" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
               {/* The listener is on: the page is reachable from the Wi‑Fi, which is worth a brass dot (D11). */}
               {s.id === "settings" && lanOn && <Dot aria-hidden halo color="var(--loki-accent)" style={{ position: "absolute", top: 3, right: 3 }} />}
             </button>
@@ -152,6 +156,16 @@ function Icon({ id }: { id: Segment }) {
         <rect x="2.5" y="3.5" width="4" height="13" rx="0.8" />
         <rect x="8" y="3.5" width="4" height="8" rx="0.8" />
         <rect x="13.5" y="3.5" width="4" height="10.5" rx="0.8" />
+      </svg>
+    );
+  }
+  if (id === "recall") {
+    // two cards, one behind the other
+    return (
+      <svg {...common} aria-hidden>
+        <rect x="4.5" y="2.5" width="12" height="9" rx="1.2" />
+        <path d="M2.5 7.5v8a2 2 0 0 0 2 2h9.5" />
+        <path d="M8 6.5h5M8 8.75h3" />
       </svg>
     );
   }

@@ -10,7 +10,7 @@ const roundTrip = (r: Route) => expect(parseRoute(formatRoute(r))).toEqual(r);
 
 describe("tabs", () => {
   test("each tab formats and parses", () => {
-    for (const tab of ["home", "inbox", "agents", "settings"] as const) {
+    for (const tab of ["home", "inbox", "recall", "agents", "settings"] as const) {
       expect(formatRoute({ kind: "tab", tab })).toBe(`#/${tab}`);
       roundTrip({ kind: "tab", tab });
     }

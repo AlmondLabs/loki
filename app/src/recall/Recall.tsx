@@ -1,0 +1,188 @@
+import { useEffect, useMemo, useState } from "react";
+import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
+import { reviewQueue, type CardWithSchedule } from "../../../packages/core/src/recall/model.ts";
+import { Button, Chip, Empty, Meta, Title } from "../ui";
+import { registerActions } from "../shell/keymap";
+import type { Recall as RecallModel } from "../shell/useRecall";
+import { CardEditor, CardList, PreviousText, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
+
+/**
+ * Recall: the cards the worker wrote, one at a time. The front, then the answer on space, then one of two
+ * answers — again, or got it — that schedules the next sight of it. No composer, no commands: the only ways to shape what gets
+ * written are to delete a card (X — it joins the pile the worker reads as "not this") or to edit it.
+ * New cards come first with a mark, so the first look at a card is also the chance to throw it out.
+ * Beside the deck: every card with search, and the deleted pile with restore.
+ */
+type View = "review" | "all" | "deleted";
+const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
+
+export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void }) {
+  const { snap } = recall;
+  const [view, setView] = useState<View>("review");
+  const [revealed, setRevealed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [showPrevious, setShowPrevious] = useState(false);
+  /** Cards graded this sitting: they leave the queue at once, whatever their new due time says. */
+  const [passed, setPassed] = useState<Set<string>>(() => new Set());
+  const [currentId, setCurrentId] = useState<string | null>(null);
+
+  const cards = snap?.cards ?? [];
+  const queue = useMemo(() => reviewQueue(cards).filter((c) => !passed.has(c.card.id)), [cards, passed]);
+  // The card under your hands stays put while the list refreshes; the next one comes from the queue.
+  const current = queue.find((c) => c.card.id === currentId) ?? queue[0];
+  useEffect(() => {
+    if (current?.card.id !== currentId) {
+      setCurrentId(current?.card.id ?? null);
+      setRevealed(false);
+      setEditing(false);
+      setShowPrevious(false);
+    }
+  }, [current?.card.id, currentId]);
+
+  const advance = () => {
+    if (!current) return;
+    setPassed((p) => new Set(p).add(current.card.id));
+  };
+  const grade = (g: Grade) => {
+    if (!current || !revealed) return;
+    void recall.grade(current.card.id, g);
+    advance();
+  };
+  const remove = () => {
+    if (!current) return;
+    void recall.remove(current.card.id);
+    advance();
+  };
+  const open = () => {
+    const s = current?.card.source;
+    if (s?.agentId && s.conversationId) onOpenDesk(s.agentId, s.conversationId);
+  };
+
+  useEffect(() => {
+    if (!active || view !== "review") return;
+    return registerActions({
+      // space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a
+      // pass through the deck is → → → with ← for the ones that slipped.
+      "recall.reveal": () => (revealed ? grade(3) : current && setRevealed(true)),
+      "recall.again": () => (revealed ? grade(1) : current && setRevealed(true)),
+      "recall.good": () => (revealed ? grade(3) : current && setRevealed(true)),
+      "recall.delete": remove,
+      "recall.undo": () => void recall.undo(),
+      "recall.edit": () => current && setEditing(true),
+      "recall.open": open,
+      "recall.refresh": () => void recall.refresh(),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, view, current?.card.id, revealed]);
+
+  const total = queue.length + passed.size;
+  const nextDue = cards.filter((c) => !passed.has(c.card.id) && !queue.includes(c)).map((c) => new Date(c.schedule.due).getTime()).sort()[0];
+
+  return (
+    <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+      {/* The deck sits in the middle of the view (a little above it, where the eye rests); the lists start at the top. */}
+      <div style={{ width: 760, maxWidth: "100%", margin: view === "review" ? "auto" : "0 auto", paddingBottom: view === "review" ? "8vh" : 0, display: "flex", flexDirection: "column", gap: 16 }}>
+        <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          <Title page>recall</Title>
+          <Meta>
+            {recall.due} due · {cards.length} card{cards.length === 1 ? "" : "s"}
+            {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
+          </Meta>
+          <span style={{ flex: 1 }} />
+          <span role="tablist" aria-label="recall views" style={{ display: "inline-flex", gap: 4 }}>
+            {(["review", "all", "deleted"] as View[]).map((v) => (
+              <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => setView(v)}>
+                {v === "all" ? "all cards" : v}
+              </Chip>
+            ))}
+          </span>
+        </header>
+
+        {recall.error && <Meta brass wrap>{recall.error}</Meta>}
+
+        {view === "review" && (
+          <>
+            {!snap ? (
+              <Meta>loading…</Meta>
+            ) : cards.length === 0 ? (
+              <Empty card title="Nothing to recall yet.">
+                Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.
+                {snap.worker.lastRunAt ? ` The worker last ran ${describeGap(Date.now() - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.` : " The worker has not run yet."}
+              </Empty>
+            ) : !current ? (
+              <Empty card title={passed.size ? "Done for now." : "Nothing due."}>
+                {passed.size ? `${passed.size} card${passed.size === 1 ? "" : "s"} this sitting. ` : ""}
+                {nextDue ? `The next one is due in ${describeGap(nextDue - Date.now())}.` : ""}
+              </Empty>
+            ) : (
+              <Deck c={current} position={passed.size + 1} total={total} revealed={revealed} editing={editing} showPrevious={showPrevious} onReveal={() => setRevealed(true)} onGrade={grade} onDelete={remove} onEdit={() => setEditing(true)} onOpen={open} onTogglePrevious={() => setShowPrevious((v) => !v)} onSave={(text) => { void recall.edit(current.card.id, text); setEditing(false); }} onCancel={() => setEditing(false)} />
+            )}
+            {current && <RecallKeys revealed={revealed} />}
+          </>
+        )}
+
+        {view === "all" && snap && (
+          <>
+            <CardList cards={cards} onEdit={(id, text) => void recall.edit(id, text)} onDelete={(id) => void recall.remove(id)} />
+            <WorkerStrip worker={snap.worker} running={recall.running} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} onExport={() => void recall.exportCards()} cardCount={cards.length} />
+          </>
+        )}
+
+        {view === "deleted" && snap && <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />}
+      </div>
+    </div>
+  );
+}
+
+/** One card: its source, the front, the answer once shown, and the grades. */
+function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, onGrade, onDelete, onEdit, onOpen, onTogglePrevious, onSave, onCancel }: { c: CardWithSchedule; position: number; total: number; revealed: boolean; editing: boolean; showPrevious: boolean; onReveal: () => void; onGrade: (g: Grade) => void; onDelete: () => void; onEdit: () => void; onOpen: () => void; onTogglePrevious: () => void; onSave: (text: { front: string; back: string }) => void; onCancel: () => void }) {
+  const gaps = previews(c.schedule);
+  const canOpen = !!(c.card.source.agentId && c.card.source.conversationId);
+  return (
+    <section aria-label={`card ${position} of ${total}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-sheet)", padding: "18px 24px 16px", display: "grid", gap: 16, animation: "loki-card-next 200ms ease-out" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <SourceLine c={c} />
+        <span style={{ flex: 1 }} />
+        <Meta>
+          {position} of {total}
+        </Meta>
+      </div>
+      {editing ? (
+        <CardEditor c={c} onSave={onSave} onCancel={onCancel} />
+      ) : (
+        <>
+          <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, lineHeight: 1.3, color: "var(--loki-fg)", whiteSpace: "pre-wrap", textWrap: "balance" as never, padding: "10px 0" }}>{c.card.front}</div>
+          {revealed ? (
+            <div style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 14, fontSize: 15, lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{c.card.back}</div>
+          ) : (
+            <div style={{ display: "flex", justifyContent: "center", padding: "6px 0 2px" }}>
+              <Button size="md" tone="paper" onClick={onReveal} kbd="space">show the answer</Button>
+            </div>
+          )}
+          {c.card.previous.length > 0 && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <span>
+                <Button size="sm" bare onClick={onTogglePrevious} aria-expanded={showPrevious}>{showPrevious ? "hide the earlier wording" : "what it said before"}</Button>
+              </span>
+              {showPrevious && <PreviousText c={c} />}
+            </div>
+          )}
+        </>
+      )}
+      {revealed && !editing && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
+          {ANSWERS.map(({ grade, label, key }) => (
+            <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`next in ${gaps[grade]}`} style={{ justifyContent: "center" }}>
+              {label} <span style={{ fontSize: 10.5, opacity: 0.75, fontFamily: "var(--loki-mono)" }}>{gaps[grade]}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
+        <Button size="sm" onClick={onDelete} kbd="X" title="delete — it joins the pile the worker reads as 'not this'">delete</Button>
+        <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>edit</Button>
+        {canOpen && <Button size="sm" onClick={onOpen} kbd="O">open the desk</Button>}
+      </div>
+    </section>
+  );
+}

@@ -12,6 +12,8 @@ import { Home } from "./Home";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { Settings } from "./Settings";
+import { Recall as RecallTab } from "./Recall";
+import { useRecall } from "../shell/useRecall";
 import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
 import { agentNameOf, lastSeen, threadFor } from "./model";
@@ -161,6 +163,13 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // The deck's pass (what was swiped, what is on top) lives here, beside the data: the top card's
   // thread is fetched once when it arrives, and live rows stream in on top.
   const deck = useDeck(catchUp.items);
+  const [recallNote, setRecallNote] = useState<string | null>(null);
+  const recall = useRecall(desk, route.kind === "tab" && route.tab === "recall" ? "recall" : "desk", (m) => setRecallNote(m));
+  useEffect(() => {
+    if (!recallNote) return;
+    const t = setTimeout(() => setRecallNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [recallNote]);
   useEffect(() => {
     if (deck.current) void catchUp.loadHistory(deck.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -181,10 +190,10 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} onBack={() => back({ kind: "tab", tab: "agents" })} />}
       {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={() => back({ kind: "agent", agentId: route.agentId })} />}
 
-      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} banner={banner} recentFolders={recentFolders} onUnpaired={onUnpaired} />
+      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} recall={recall} recallNote={recallNote} banner={banner} recentFolders={recentFolders} onUnpaired={onUnpaired} />
 
       <UpdateBar servedBuild={desk.servedBuild} withTabBar={onTab} />
-      {onTab && <TabBar active={tab} waiting={waiting} />}
+      {onTab && <TabBar active={tab} waiting={waiting} due={recall.due} />}
     </div>
   );
 }
@@ -215,7 +224,7 @@ function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { c
 }
 
 /** The four tabs. Home, Agents and Settings mount on their tab; the deck stays mounted under the other tabs and pages so the pass (n of N, dismissed cards) survives the round trip. */
-function Screen({ tab, me, desk, catchUp, deck, banner, recentFolders, onUnpaired }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onUnpaired: () => void }) {
+function Screen({ tab, me, desk, catchUp, deck, recall, recallNote, banner, recentFolders, onUnpaired }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; recall: ReturnType<typeof useRecall>; recallNote: string | null; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onUnpaired: () => void }) {
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -241,6 +250,7 @@ function Screen({ tab, me, desk, catchUp, deck, banner, recentFolders, onUnpaire
         onUnsnooze={catchUp.unsnooze}
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
+      {tab === "recall" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} />}
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
       {tab === "settings" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
     </>

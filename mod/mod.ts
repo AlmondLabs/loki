@@ -12,6 +12,8 @@ import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
 import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript, type InboxRow } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
+import { RecallStore } from "./recall.ts";
+import { QUIET_MS, RecallWorker, askViaAppServer } from "./recall-worker.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -163,8 +165,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
     // Every conversation of the user's own agents, seen by loki or not (subagents' one-off chats stay out).
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));
     for (const c of listLocalConversations()) {
-      // A deleted agent leaves its memory repo behind: its record must still exist too.
-      if (c.hidden || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
+      // A deleted agent leaves its memory repo behind: its record must still exist too. Hidden conversations stay
+      // out, except the recall worker's: those are desks you can open to read what it asked and what the agent said.
+      if ((c.hidden && !recall.owns(c.conversationId)) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
       scopes.add(desks.remember(c.conversationId, c.agentId));
     }
     return sortDesks(
@@ -225,6 +228,15 @@ export default function activate(letta: LettaMod): (() => void) | void {
   const codes = new PairingCodes();
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
+  // --- recall -----------------------------------------------------------
+  // Cards written in the background from conversations that have gone quiet, asked of the agent through the
+  // harness in a hidden conversation of its own; the person meets them only in the Recall section (mod/recall-worker.ts).
+  const recallStore = new RecallStore();
+  const recall = new RecallWorker({ store: recallStore, listInbox, ask: askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
+  const recallTick = () => void recall.tick().then((r) => log("recall:tick", r)).catch((err) => log("recall:tick-error", err instanceof Error ? err.message : String(err)));
+  const recallFirst = setTimeout(recallTick, 90_000); // once the harness and the app-server link have settled
+  const recallTimer = setInterval(recallTick, QUIET_MS);
+
   const bridge = createBridge({
     store,
     widgets,
@@ -232,6 +244,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     broadcast,
     listDesks,
     listInbox,
+    recall: { store: recallStore, run: () => recall.tick() },
     deskInfo,
     deleteWidgetFile,
     seen,
@@ -338,6 +351,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     log("event:conversation_open", { id: (event as ConversationOpenEvent | undefined)?.conversationId ?? ctx?.conversation?.id ?? null });
     if (ctx?.conversation?.id) activeConversation = ctx.conversation;
     const id = (event as ConversationOpenEvent | undefined)?.conversationId ?? ctx?.conversation?.id ?? null;
+    if (id && recall.owns(id)) return; // the recall worker's own conversation: no desk follows it
     const next = scopeFor(id);
     if (next !== activeScope) {
       activeScope = next;
@@ -351,6 +365,12 @@ export default function activate(letta: LettaMod): (() => void) | void {
     const convId = ev?.conversationId ?? ctx?.conversation?.id ?? null;
     // Letta's own helper agents get no desk: their turn still runs, it just is not furnished or listed.
     if (ev?.agentId && isSubagent(ev.agentId)) return;
+    // The recall worker's conversation is a desk you can open, but its turns are the worker's: no context rides
+    // along, the tab does not follow it, and it is never marked seen.
+    if (convId && recall.owns(convId)) {
+      desks.remember(convId, ev?.agentId ?? null);
+      return;
+    }
     const scope = convId ? desks.remember(convId, ev?.agentId ?? null) : SHARED_SCOPE;
     activeScope = scope;
     // The return path: everything the user did on this desk (and the shared desk) rides along.
@@ -419,6 +439,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
     widgets.close();
     if (titleTimer) clearTimeout(titleTimer);
     clearInterval(tasksTimer);
+    clearTimeout(recallFirst);
+    clearInterval(recallTimer);
   };
   letta.signal?.addEventListener("abort", shutdown, { once: true });
 

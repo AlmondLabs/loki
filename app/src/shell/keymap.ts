@@ -7,7 +7,7 @@
  * elsewhere. `typing` says whether a binding fires while a text box has focus: plain letters never
  * do; chords may, except the ones the text itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→, ⌘A, ⌘C, ⌘V, ⌘X are the text's).
  */
-export type Segment = "desk" | "inbox" | "board" | "agents" | "settings";
+export type Segment = "desk" | "inbox" | "board" | "recall" | "agents" | "settings";
 export type Where = "anywhere" | Segment | "chat" | "global";
 
 export interface Binding {
@@ -27,7 +27,7 @@ export interface Binding {
   note?: string;
 }
 
-export const MENUS = ["Desk", "Chat", "Inbox", "Board", "View"] as const;
+export const MENUS = ["Desk", "Chat", "Inbox", "Board", "Recall", "View"] as const;
 
 export const KEYMAP: Binding[] = [
   // --- anywhere ------------------------------------------------------
@@ -35,7 +35,8 @@ export const KEYMAP: Binding[] = [
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Inbox", typing: true, menu: "View/segments" },
   { id: "segment.board", keys: ["cmd+3"], where: "anywhere", label: "Board", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
-  { id: "segment.settings", keys: ["cmd+5", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
+  { id: "segment.recall", keys: ["cmd+5"], where: "anywhere", label: "Recall", typing: true, menu: "View/segments" },
+  { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   { id: "tree.toggle", keys: ["cmd+k"], where: "anywhere", label: "Desks Tree", typing: true, menu: "Desk" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
@@ -89,6 +90,16 @@ export const KEYMAP: Binding[] = [
   { id: "board.filter", keys: ["/"], where: "board", label: "filter" },
   { id: "board.refresh", keys: ["cmd+r"], where: "board", label: "Refresh Board", typing: true, menu: "Board" },
   { id: "board.clear", keys: ["escape"], where: "board", label: "clear the selection", note: "handled by the board" },
+
+  // --- recall: one card at a time; the two answers only once the answer shows -----------------------
+  { id: "recall.reveal", keys: ["space", "enter", "down"], where: "recall", label: "show the answer (then: got it)" },
+  { id: "recall.again", keys: ["left", "1"], where: "recall", label: "again (shows the answer first)" },
+  { id: "recall.good", keys: ["right", "2"], where: "recall", label: "got it (shows the answer first)" },
+  { id: "recall.delete", keys: ["x", "backspace"], where: "recall", label: "Delete Card (the worker learns from it)", menu: "Recall", menuAccel: false },
+  { id: "recall.undo", keys: ["z"], where: "recall", label: "Undo Delete", menu: "Recall", menuAccel: false },
+  { id: "recall.edit", keys: ["e"], where: "recall", label: "Edit Card", menu: "Recall", menuAccel: false },
+  { id: "recall.open", keys: ["cmd+o", "o"], where: "recall", label: "Open the Source Desk", typing: true, menu: "Recall/go" },
+  { id: "recall.refresh", keys: ["cmd+r"], where: "recall", label: "Refresh Recall", typing: true, menu: "Recall/go" },
 
   // --- global --------------------------------------------------------
   { id: "global.inbox", keys: ["alt+space"], where: "global", label: "bring loki up on the inbox", note: "the OS" },
@@ -257,7 +268,7 @@ export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
 }
 
 /** Rows for Settings, grouped by scope in display order. */
-export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "global"];
+export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "recall", "global"];
 
 // --- the action registry: views register what their ids do; the shell dispatches ----------------
 type Action = () => void;

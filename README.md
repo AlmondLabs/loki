@@ -76,7 +76,7 @@ rail of five segments sits on the left, and one view fills the rest:
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
-- **Settings** (⌘5, ⌘,): seven pages down the left, one showing at a time, the last one remembered for the
+- **Settings** (⌘6, ⌘,): seven pages down the left, one showing at a time, the last one remembered for the
   window. **letta**: which harness the app is on, how it reaches the mod, requirements and install status.
   **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
@@ -145,6 +145,9 @@ Only the things a mod can do:
   whether a turn was typed in Desktop or in the canvas
 - lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
   however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
+- keeps the recall cards (`recall_*`) and runs the worker that writes them: every ten minutes it reads the new
+  stretch of any conversation quiet for ten minutes, asks its agent in a hidden "recall" conversation, and writes
+  cards up to the day's cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
   and keeps the seen / snooze markers Catch Up needs
 - adopts or spawns the Vite dev server, detached so it survives `/reload`
@@ -245,6 +248,27 @@ Harness commands go over the app-server socket as `execute_command`, the path De
 land in the transcript as one quiet row: the command line, then its outcome. `packages/core/src/attention/commands.ts`
 is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
 message on the clipboard as the markdown it was written in, not the rendering.
+
+### Recall (⌘5)
+
+Spaced-repetition cards, for keeping what the conversations taught you. Nothing about them happens in
+chat: a worker in the mod watches for conversations that have gone quiet, hands the new stretch of
+transcript to the agent in a hidden conversation of its own (cleared each time), and writes whatever
+comes back — one fact per card, a question that stands alone, an answer in a line or two — up to a daily
+cap (ten by default). You meet the cards only here: the front, space for the answer, then one of two answers — ← again or → got it
+(space stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
+the scheduler modern Anki uses.
+New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
+card (X) is the signal.** Deleted cards move to a pile the worker reads before writing, as examples of what
+not to write, so a rejected card never comes back reworded; a card deleted after many failed reviews reads
+as "badly written", one deleted unseen as "not wanted". Cards you keep failing are offered back to the worker
+for a rewrite. E edits in place, O opens the desk it came from, Z undoes a delete. "all cards" lists every
+card with search and holds the worker's knobs — on/off, cards a day, the model it asks, run now — and an
+export in Anki's plain-text import format. Everything is files: `~/.letta/loki/recall/{cards,schedule,rejected}/<id>.json`,
+content and review history kept apart so the worker's edits never touch your schedule. The worker's own
+conversation with each agent — one per agent, named "recall" — is a desk in the tree (⌘K), so you can read what
+it asked and what came back; it stays out of the inbox, and its context is cleared before each question while
+the transcript on disk keeps everything.
 
 Every desk, tree group, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
 conversation, so multi-agent setups stay legible.

@@ -11,6 +11,8 @@ import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { RefreshOutcome } from "../../../mod/skill-sources.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
 import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
+import type { CardWithSchedule, RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
+import type { Grade } from "../../../packages/core/src/recall/fsrs.ts";
 import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
@@ -52,6 +54,9 @@ const scopeOfId = (id: string): Scope => id.slice(0, Math.max(0, id.indexOf("/")
  * mod over WebSocket. Gestures apply optimistically with the same pure
  * reducer the mod uses, then go up the wire.
  */
+/** A `recall` reply frame as the snapshot the view holds, or null for anything else. */
+const recallSnapshot = (m: Record<string, unknown> | null): RecallSnapshot | null => (m && m.type === "recall" ? ({ cards: m.cards, rejected: m.rejected, worker: m.worker } as RecallSnapshot) : null);
+
 export function useDesk() {
   const {
     scope,
@@ -76,6 +81,7 @@ export function useDesk() {
     seenMap,
     snoozeMap,
     tasksVersion,
+    recallVersion,
     lanStatus,
     setLanStatus,
     devices,
@@ -200,6 +206,27 @@ export function useDesk() {
     assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) => boardCall("task_assign", { ids, ...target, start }),
     close: (ids: string[], reason?: string) => boardCall("task_close", { ids, reason }),
     setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => boardCall("task_status", { ids, status }),
+  };
+
+  /** Recall, through the mod (mod/recall.ts): the cards, a review, a delete and its undo, the worker's knobs. */
+  const recallCall = (type: string, payload: Record<string, unknown>): Promise<{ ok: true; card: CardWithSchedule | null } | { ok: false; message: string }> =>
+    request(type, payload, 15_000).then((m) => {
+      if (!m) return { ok: false, message: "no answer from the mod" };
+      if (m.type === "recall_error") return { ok: false, message: String(m.message ?? "recall refused") };
+      return { ok: true, card: (m.card as CardWithSchedule | null) ?? null };
+    });
+  const recall = {
+    list: () => request("recall_list", {}, 15_000).then(recallSnapshot),
+    grade: (id: string, grade: Grade) => recallCall("recall_grade", { id, grade }),
+    edit: (id: string, text: { front?: string; back?: string; tags?: string[] }) => recallCall("recall_edit", { id, ...text }),
+    reject: (id: string) => recallCall("recall_reject", { id }),
+    restore: (id: string) => recallCall("recall_restore", { id }),
+    forget: (id: string) => recallCall("recall_forget", { id }),
+    settings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
+    /** Run the worker now; resolves to its one-line note (or the error). */
+    run: () => request("recall_run", {}, 240_000).then((m) => (m && m.type === "recall_ran" ? String(m.note) : m && m.type === "recall_error" ? String(m.message) : "no answer from the mod")),
+    /** Anki's plain-text import format, or null. */
+    export: () => request("recall_export", {}, 15_000).then((m) => (m && m.type === "recall_export" ? String(m.tsv) : null)),
   };
 
   /** The Agents page, through the mod: the local record and the memory filesystem (read-only). */
@@ -329,6 +356,8 @@ export function useDesk() {
     servedBuild,
     board,
     tasksVersion,
+    recall,
+    recallVersion,
     undo,
     agents,
     gesture,

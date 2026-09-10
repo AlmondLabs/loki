@@ -216,26 +216,50 @@ export function readLocalTranscript(
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   if (!existsSync(path)) return [];
   const out: LocalTranscriptMessage[] = [];
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    if (!line.trim()) continue;
-    let entry: { type?: string; message?: { role?: string; content?: unknown } };
-    try {
-      entry = JSON.parse(line) as typeof entry;
-    } catch {
-      continue;
-    }
-    if (entry.type !== "message" || !entry.message) continue;
-    const role = entry.message.role;
-    if (role !== "user" && role !== "assistant") continue;
-    const raw = textParts(entry.message.content);
-    if (role === "user") {
-      for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
-    }
-    const text = (role === "user" ? stripHarnessMarkup(raw) : raw).trim();
-    if (text) out.push({ role, text });
-    if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t });
-  }
+  for (const line of readFileSync(path, "utf8").split("\n")) out.push(...transcriptRows(line));
   return out.length > limit ? out.slice(out.length - limit) : out;
+}
+
+/**
+ * The transcript from line `fromLine` of the log on (a cursor the recall worker keeps per conversation),
+ * and the line count to continue from. Same rows as readLocalTranscript.
+ */
+export function readLocalTranscriptSince(
+  conversationId: string,
+  agentId: string | null | undefined,
+  fromLine: number,
+  backendDir = join(homedir(), ".letta", "lc-local-backend"),
+): { rows: LocalTranscriptMessage[]; lines: number } {
+  const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
+  if (!existsSync(path)) return { rows: [], lines: 0 };
+  const all = readFileSync(path, "utf8").split("\n");
+  const lines = all[all.length - 1] === "" ? all.length - 1 : all.length; // the trailing newline is not a line
+  const rows: LocalTranscriptMessage[] = [];
+  for (const line of all.slice(Math.max(0, fromLine), lines)) rows.push(...transcriptRows(line));
+  return { rows, lines };
+}
+
+/** One log line → its transcript rows: user and assistant text, harness notices as events, tool calls as markers. */
+function transcriptRows(line: string): LocalTranscriptMessage[] {
+  if (!line.trim()) return [];
+  let entry: { type?: string; message?: { role?: string; content?: unknown } };
+  try {
+    entry = JSON.parse(line) as typeof entry;
+  } catch {
+    return [];
+  }
+  if (entry.type !== "message" || !entry.message) return [];
+  const role = entry.message.role;
+  if (role !== "user" && role !== "assistant") return [];
+  const out: LocalTranscriptMessage[] = [];
+  const raw = textParts(entry.message.content);
+  if (role === "user") {
+    for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
+  }
+  const text = (role === "user" ? stripHarnessMarkup(raw) : raw).trim();
+  if (text) out.push({ role, text });
+  if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t });
+  return out;
 }
 
 function toolCalls(content: unknown): string[] {

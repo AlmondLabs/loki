@@ -49,6 +49,8 @@ export function useDeskSocket() {
   const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
   /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
   const [tasksVersion, setTasksVersion] = useState(0);
+  /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
+  const [recallVersion, setRecallVersion] = useState(0);
   /** The LAN listener (Settings › phone): its status, the paired phones, and the last pairing code minted here. */
   const [lanStatus, setLanStatus] = useState<PhoneLanStatus | null>(null);
   const [devices, setDevices] = useState<PairedDevice[] | null>(null);
@@ -144,6 +146,9 @@ export function useDeskSocket() {
           case "tasks_changed":
             setTasksVersion((v) => v + 1);
             break;
+          case "recall_changed":
+            setRecallVersion((v) => v + 1);
+            break;
           case "lan_status": {
             const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame(msg), via: "tailscale" }) : lanStatusFromFrame(msg);
             setLanStatus(st);
@@ -176,7 +181,12 @@ export function useDeskSocket() {
           case "skills_global":
           case "skill_installed":
           case "skill_refreshed":
-          case "inbox": {
+          case "inbox":
+          case "recall":
+          case "recall_card":
+          case "recall_ran":
+          case "recall_export":
+          case "recall_error": {
             const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
             if (w) {
               waiters.current.delete(msg.requestId as string);
@@ -258,6 +268,7 @@ export function useDeskSocket() {
     seenMap,
     snoozeMap,
     tasksVersion,
+    recallVersion,
     lanStatus,
     setLanStatus,
     devices,

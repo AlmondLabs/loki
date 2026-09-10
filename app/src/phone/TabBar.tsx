@@ -2,24 +2,24 @@ import { SAFE } from "./ui";
 import { TABS, navigate, type Tab } from "./router";
 
 /**
- * The bottom bar, the way Slack's phone app has one: four tabs, icons in the rail's line, condensed
+ * The bottom bar, the way Slack's phone app has one: five tabs, icons in the rail's line, condensed
  * caps beneath. The active tab is paper; brass appears only on the inbox count, which is the same
  * number the desktop rail and the dock badge show. 52px plus the home indicator.
  */
 export const TAB_BAR_HEIGHT = 52;
 
-export function TabBar({ active, waiting }: { active: Tab | null; waiting: number }) {
+export function TabBar({ active, waiting, due = 0 }: { active: Tab | null; waiting: number; due?: number }) {
   return (
     <nav aria-label="tabs" style={{ flex: "0 0 auto", display: "flex", alignItems: "stretch", height: `calc(${TAB_BAR_HEIGHT}px + ${SAFE.bottom})`, paddingBottom: SAFE.bottom, paddingLeft: SAFE.left, paddingRight: SAFE.right, boxSizing: "border-box", background: "var(--loki-panel)", borderTop: "1px solid var(--loki-border)" }}>
       {TABS.map((t) => {
         const on = t === active;
-        const n = t === "inbox" ? waiting : 0;
+        const n = t === "inbox" ? waiting : t === "recall" ? due : 0;
         return (
           <button
             key={t}
             type="button"
             onClick={() => navigate({ kind: "tab", tab: t })}
-            aria-label={n > 0 ? `${t}, ${n} waiting` : t}
+            aria-label={n > 0 ? `${t}, ${n} ${t === "recall" ? "due" : "waiting"}` : t}
             aria-current={on ? "page" : undefined}
             style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, border: "none", background: "transparent", color: on ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
           >
@@ -62,6 +62,16 @@ function Icon({ tab }: { tab: Tab }) {
         <path d="M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5" />
         <path d="M3 11.5h4l1.2 2h3.6l1.2-2h4" />
         <path d="M5.5 11.5 7 4.5h6l1.5 7" />
+      </svg>
+    );
+  }
+  if (tab === "recall") {
+    // two cards, one behind the other
+    return (
+      <svg {...common} aria-hidden>
+        <rect x="4.5" y="2.5" width="12" height="9" rx="1.2" />
+        <path d="M2.5 7.5v8a2 2 0 0 0 2 2h9.5" />
+        <path d="M8 6.5h5M8 8.75h3" />
       </svg>
     );
   }

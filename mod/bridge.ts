@@ -1,5 +1,6 @@
 import type { Gesture, Scope } from "../packages/core/src/desk-core.ts";
 import type { InboxRow } from "./desks.ts";
+import { toAnkiTsv } from "../packages/core/src/recall/model.ts";
 import { SHARED_SCOPE, mergeData, scopeFor } from "../packages/core/src/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
@@ -28,6 +29,12 @@ import { isLanVia } from "./lan.ts";
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages }
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
+ *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
+ *    recall_grade { requestId, id, grade 1-4 } / recall_edit { requestId, id, front?, back?, tags? }   reply: recall_card { requestId, card }
+ *    recall_reject { requestId, id } / recall_restore { requestId, id } / recall_forget { requestId, id }   reply: recall_card { requestId, card|null }
+ *    recall_settings { requestId, enabled?, model?, dailyCap? }   reply: recall { … };  recall_run { requestId }  reply: recall_ran { requestId, note }
+ *    recall_export { requestId }             reply: recall_export { requestId, tsv };  errors: recall_error { requestId, message }
+ *    (every change also broadcasts recall_changed {} so other tabs and phones refetch)
  *    tasks_list { requestId, all? }                          reply: tasks { requestId, tasks }
  *    task_create { requestId, title, description?, labels?, priority?, desk?, agentId?, agentName?, conversationId? }  reply: task_created { requestId, task }
  *    task_assign { requestId, ids, conversationId, desk, agentId?, agentName?, start? }  reply: tasks_updated { requestId, tasks }
@@ -146,6 +153,8 @@ export interface BridgeDeps {
   };
   /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
+  /** Recall (mod/recall.ts, mod/recall-worker.ts): the cards on disk and a way to run the worker now. */
+  recall?: { store: import("./recall.ts").RecallStore; run: () => Promise<{ note: string }> };
   /** The board (mod/tasks.ts) and the folder a conversation works in, for the task stamp. */
   tasks?: import("./tasks.ts").TaskBoard;
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
@@ -202,7 +211,7 @@ const isPoint = (v: unknown): boolean =>
  * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
  * skills, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
@@ -343,6 +352,77 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const requestId = msg.requestId;
           void (folders?.pick(typeof msg.defaultPath === "string" ? msg.defaultPath : undefined) ?? Promise.resolve(null)).then((path) => client.send({ type: "folder_picked", requestId, path }));
           return;
+        }
+        case "recall_list":
+        case "recall_grade":
+        case "recall_edit":
+        case "recall_reject":
+        case "recall_restore":
+        case "recall_forget":
+        case "recall_settings":
+        case "recall_run":
+        case "recall_export": {
+          const requestId = msg.requestId;
+          const recall = deps.recall;
+          const fail = (message: string) => client.send({ type: "recall_error", requestId, message });
+          if (!recall) return fail("recall is not available in this mod");
+          const { store } = recall;
+          const snapshot = () => ({ type: "recall", requestId, cards: store.cards(), rejected: store.rejected(), worker: store.status() });
+          const id = typeof msg.id === "string" ? msg.id : "";
+          const changed = (card: unknown) => {
+            client.send({ type: "recall_card", requestId, card });
+            deps.broadcast({ type: "recall_changed" });
+          };
+          try {
+            switch (msg.type) {
+              case "recall_list":
+                return client.send(snapshot());
+              case "recall_grade": {
+                const grade = msg.grade;
+                if (grade !== 1 && grade !== 2 && grade !== 3 && grade !== 4) return fail("a grade is 1 (again) to 4 (easy)");
+                if (!store.grade(id, grade)) return fail("no such card");
+                return changed(store.card(id));
+              }
+              case "recall_edit": {
+                const card = store.edit(id, { front: typeof msg.front === "string" ? msg.front : undefined, back: typeof msg.back === "string" ? msg.back : undefined, tags: Array.isArray(msg.tags) ? (msg.tags as unknown[]).filter((t): t is string => typeof t === "string") : undefined }, "you");
+                if (!card) return fail("no such card");
+                return changed(store.card(id));
+              }
+              case "recall_reject":
+                if (!store.reject(id)) return fail("no such card");
+                return changed(null);
+              case "recall_restore": {
+                const card = store.restore(id);
+                if (!card) return fail("nothing to restore");
+                return changed(store.card(id));
+              }
+              case "recall_forget":
+                store.forget(id);
+                return changed(null);
+              case "recall_settings": {
+                const update: Record<string, unknown> = {};
+                if (typeof msg.enabled === "boolean") update.enabled = msg.enabled;
+                if (msg.model === null || typeof msg.model === "string") update.model = msg.model || null;
+                if (typeof msg.dailyCap === "number" && msg.dailyCap >= 0) update.dailyCap = Math.round(msg.dailyCap);
+                store.saveWorker(update);
+                deps.broadcast({ type: "recall_changed" });
+                return client.send(snapshot());
+              }
+              case "recall_run":
+                void recall
+                  .run()
+                  .then((r) => {
+                    client.send({ type: "recall_ran", requestId, note: r.note });
+                    deps.broadcast({ type: "recall_changed" });
+                  })
+                  .catch((err) => fail(err instanceof Error ? err.message : String(err)));
+                return;
+              default:
+                return client.send({ type: "recall_export", requestId, tsv: toAnkiTsv(store.cards()) });
+            }
+          } catch (err) {
+            return fail(err instanceof Error ? err.message : String(err));
+          }
         }
         case "tasks_list":
         case "task_create":
