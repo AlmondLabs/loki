@@ -13,7 +13,9 @@ import { dirname, join, relative } from "node:path";
  */
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const modPort = process.env.LOKI_PORT ?? "41414";
-const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string };
+const { version, repository } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string; repository?: string };
+/** "owner/name": what the app asks GitHub about for newer releases (Settings › letta). */
+const repo = (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
 /** The agent's widget files: user data outside the repo (the mod passes the same path). */
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".letta", "loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
@@ -72,7 +74,7 @@ export default defineConfig({
     tailwindcss(),
   ],
   clearScreen: false,
-  define: { __LOKI_WIDGETS_DIR__: JSON.stringify(widgetsDir), __LOKI_VERSION__: JSON.stringify(version) },
+  define: { __LOKI_WIDGETS_DIR__: JSON.stringify(widgetsDir), __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify(repo) },
   resolve: {
     // Authored widgets import the kit by this name; keep it stable in docs.
     alias: { "@loki/kit": here("./src/kit/index.tsx"), "@desks": widgetsDir },

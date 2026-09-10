@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Button, Chip, Dot, Row as PickRow } from "../ui";
+import { Button, Chip, Dot, Row as PickRow, Switch } from "../ui";
 import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus, type TailscaleStatus } from "../phone/model";
 
 /** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
@@ -214,16 +214,6 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
   );
 }
 
-function Switch({ on, onToggle, label, small = false }: { on: boolean; onToggle: () => void; label: string; small?: boolean }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: on ? "var(--loki-fg)" : "var(--loki-muted)", fontSize: small ? 12 : 13.5 }}>
-      <span aria-hidden style={{ width: 28, height: 16, borderRadius: 999, background: on ? "var(--loki-accent)" : "var(--loki-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
-        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 12, height: 12, borderRadius: 6, background: on ? "var(--loki-bg)" : "var(--loki-muted)", transition: "left 160ms ease-out" }} />
-      </span>
-      {label}
-    </button>
-  );
-}
 
 /** A labelled row in the style of Settings' facts (the label column matches). */
 function Row({ label, children }: { label: string; children: React.ReactNode }) {

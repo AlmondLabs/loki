@@ -33,8 +33,15 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The one global shortcut: ⌥Space brings the inbox up from anywhere on the Mac.
+fn catch_up_shortcut() -> Shortcut {
+    Shortcut::new(Some(Modifiers::ALT), Code::Space)
+}
+
+/// Install the plugin and register ⌥Space. The page can release it or take it again (`set_global_shortcut`),
+/// since ⌥Space is also Raycast's, Alfred's and the input-source switcher's on many Macs.
 pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
-    let catch_up = Shortcut::new(Some(Modifiers::ALT), Code::Space);
+    let catch_up = catch_up_shortcut();
     app.plugin(
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(move |app, shortcut, event| {
@@ -46,6 +53,21 @@ pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
             .build(),
     )?;
     app.global_shortcut().register(catch_up).map_err(|e| tauri::Error::Anyhow(e.into()))?;
+    Ok(())
+}
+
+/// Settings › keys: hold or release ⌥Space. Registering again after a release is how the user reclaims it
+/// from another app; the error names what went wrong so Settings can show it.
+#[tauri::command]
+pub fn set_global_shortcut(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let catch_up = catch_up_shortcut();
+    let gs = app.global_shortcut();
+    if gs.is_registered(catch_up) {
+        gs.unregister(catch_up).map_err(|e| e.to_string())?;
+    }
+    if enabled {
+        gs.register(catch_up).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 

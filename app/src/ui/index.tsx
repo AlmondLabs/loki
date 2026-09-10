@@ -282,3 +282,15 @@ export function Banner({ tone = "var(--loki-negative)", children, className, ...
 export function Toast({ children, className, style, ...rest }: HTMLAttributes<HTMLDivElement>) {
   return <div role="status" className={cx("loki-toast", className)} style={{ zIndex: LAYER.toast, boxShadow: "var(--loki-shadow-float)", ...style }} {...rest}>{children}</div>;
 }
+
+/** An on/off switch with its label: Settings › phone (the listener), Settings › keys (⌥Space). */
+export function Switch({ on, onToggle, label, small = false }: { on: boolean; onToggle: () => void; label: string; small?: boolean }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: on ? "var(--loki-fg)" : "var(--loki-muted)", fontSize: small ? 12 : 13.5 }}>
+      <span aria-hidden style={{ width: 28, height: 16, borderRadius: 999, background: on ? "var(--loki-accent)" : "var(--loki-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
+        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 12, height: 12, borderRadius: 6, background: on ? "var(--loki-bg)" : "var(--loki-muted)", transition: "left 160ms ease-out" }} />
+      </span>
+      {label}
+    </button>
+  );
+}

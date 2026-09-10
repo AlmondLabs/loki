@@ -18,6 +18,8 @@ import { useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
 import { useRecall } from "./useRecall";
+import { useLokiUpdate } from "./useLokiUpdate";
+import { useGlobalShortcut } from "./useGlobalShortcut";
 import { useShellKeys } from "./useShellKeys";
 import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
 import type { CatchUp, Runtime } from "./types";
@@ -153,6 +155,8 @@ export function Shell() {
   // --- the board -------------------------------------------------------
   const board = useBoard(desk, segment, notice, { send: catchUp.send, openDesk });
   const recall = useRecall(desk, segment, notice);
+  const update = useLokiUpdate();
+  const shortcut = useGlobalShortcut();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const pendingAssign = useRef<Picker | null>(null);
@@ -239,7 +243,7 @@ export function Shell() {
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
-        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} />
 
         <div style={{ position: "absolute", top: 0, left: SIDEBAR_WIDTH, right: 0, bottom: 0 }}>
           {/* The sheet stays mounted behind the other views so the desk link and camera keep their state. */}
@@ -296,7 +300,7 @@ export function Shell() {
             />
           )}
 
-          {segment === "settings" && <SettingsView desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
+          {segment === "settings" && <SettingsView update={update} shortcut={shortcut} desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
 
           {welcome && segment !== "settings" && <WelcomeView step={welcome} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} models={modelList} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
 

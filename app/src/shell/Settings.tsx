@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys } from "./keymap";
-import { Button, Chip, Dot, NavButton, Title } from "../ui";
+import { Button, Chip, Dot, NavButton, Switch, Title } from "../ui";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../packages/core/src/compat.ts";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
@@ -10,6 +10,8 @@ import { Phone, type PhoneApi } from "../settings/Phone";
 import { Skills, type GlobalSkillsApi } from "../settings/Skills";
 import type { BootstrapStatus } from "./bootstrap";
 import { useHarnessFacts, type InstallReport, type Tools } from "./useHarnessFacts";
+import type { LokiUpdate } from "./useLokiUpdate";
+import type { GlobalShortcut } from "./useGlobalShortcut";
 
 const HOME = "~/.letta/loki";
 
@@ -56,6 +58,8 @@ export function Settings({
   onUpdateLetta,
   phone,
   globalSkills,
+  update,
+  shortcut,
 }: {
   appServerStatus: AppServerStatus;
   tunnelUrl: string | null;
@@ -81,6 +85,10 @@ export function Settings({
   phone: PhoneApi;
   /** ~/.letta/skills, which every agent reads (Settings › skills). */
   globalSkills: GlobalSkillsApi;
+  /** Newer loki releases, from GitHub (Settings › letta). */
+  update: LokiUpdate;
+  /** ⌥Space, held or released (Settings › keys). */
+  shortcut: GlobalShortcut;
 }) {
   const harness = useHarnessFacts(tunnelUrl);
   const [page, setPage] = useState<SettingsPage>(() => {
@@ -105,13 +113,13 @@ export function Settings({
         ))}
       </nav>
       <div style={{ display: "grid", gap: 28, alignContent: "start", minWidth: 0 }}>
-        {page === "letta" && <LettaPage harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} />}
+        {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} />}
         {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
         {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
         {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
         {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} />}
         {page === "files" && <FilesPage />}
-        {page === "keys" && <KeysPage />}
+        {page === "keys" && <KeysPage shortcut={shortcut} />}
           <div className="loki-label" style={{ fontSize: 9.5, textAlign: "center", paddingTop: 12 }}>
             loki {__LOKI_VERSION__} · {inTauri ? "tauri shell" : "browser tab"}
           </div>
@@ -122,11 +130,14 @@ export function Settings({
 }
 
 /** Settings › letta: the harness, the mod, what loki needs on this machine, and what launch installed. */
-function LettaPage({ harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta }: { harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null> }) {
+function LettaPage({ update, harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null> }) {
   // Never print the token: a browser tab's tunnel URL carries it as a query.
   const shownUrl = harness.appServerUrl ? harness.appServerUrl.replace(/\?.*$/, "") : null;
   return (
     <>
+      <Section title="loki" hint="this app; the only update it ever offers on its own">
+        <LokiVersionFact update={update} />
+      </Section>
       <Section title="harness" hint="the Letta process loki talks to; the mod runs inside it">
         <Fact label="app-server" value={shownUrl ?? "—"} mono />
         <Fact label="who runs it" value={describeRunner(harness.appServerUrl)} />
@@ -147,6 +158,21 @@ function LettaPage({ harness, appServerStatus, modConnection, deskCount, lettaVe
       {inTauri && <InstallSection install={harness.install} />}
     </>
   );
+}
+
+/** The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path. */
+function LokiVersionFact({ update }: { update: LokiUpdate }) {
+  const value = update.newer ? (
+    <span>
+      {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
+      <Note>brew upgrade --cask loki, or the .dmg on the release page</Note>
+    </span>
+  ) : update.latest ? (
+    <span>{update.current}<Note>the newest release</Note></span>
+  ) : (
+    <span>{update.current}{update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}</span>
+  );
+  return <Fact label="version" value={value} />;
 }
 
 /** The Letta Code the harness reports, against the release loki was tested with. */
@@ -274,9 +300,22 @@ function FilesPage() {
   );
 }
 
-function KeysPage() {
+function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   return (
     <Section title="keys" hint="⌘ here is ctrl on other systems">
+      <Fact
+        label="⌥Space"
+        value={
+          shortcut.available ? (
+            <span style={{ display: "inline-grid", gap: 4 }}>
+              <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
+              {shortcut.error ? <Note tone="warn">macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ⌥Space; free it there and switch this off and on</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
+            </span>
+          ) : (
+            "the app only — a browser tab cannot hold a system-wide key"
+          )
+        }
+      />
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
         <tbody>
           {WHERE_ORDER.flatMap((where) => KEYMAP.filter((b) => b.where === where)).map((b, i, rows) => (

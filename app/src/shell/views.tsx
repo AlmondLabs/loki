@@ -14,6 +14,8 @@ import { DeskTree } from "./DeskTree";
 import { Settings } from "./Settings";
 import { Welcome } from "./Welcome";
 import type { BootstrapStatus } from "./bootstrap";
+import type { LokiUpdate } from "./useLokiUpdate";
+import type { GlobalShortcut } from "./useGlobalShortcut";
 import type { AssignTarget, useBoard } from "./useBoard";
 import type { CatchUp, Desk, Runtime } from "./types";
 
@@ -86,9 +88,9 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
 }
 
 /** Settings: the harness and mod facts come from the two models; the chat preferences from useChatLayout. */
-export function SettingsView({ desk, catchUp, boot, onInstallLetta, onCheckLetta, onUpdateLetta, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged }: { desk: Desk; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
+export function SettingsView({ desk, catchUp, boot, onInstallLetta, onCheckLetta, onUpdateLetta, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut }: { update: LokiUpdate; shortcut: GlobalShortcut; desk: Desk; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
   const { attention } = desk;
-  return <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} />;
+  return <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} />;
 }
 
 /** First launch, over the empty desk: the provider, the first agent, its desk. */

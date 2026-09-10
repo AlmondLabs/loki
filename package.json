@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "license": "Apache-2.0",
+  "repository": "github:skilp4d/loki",
   "type": "module",
   "workspaces": [
     "packages/*"
