@@ -12,12 +12,32 @@ to publish.
 3. `bun test && bun run typecheck && cargo test --manifest-path src-tauri/Cargo.toml`.
 4. Commit, then `git tag v0.3.0 && git push origin main --tags`.
 5. Wait for the workflow, open the draft release, check the notes, publish.
+6. Publishing triggers `.github/workflows/cask.yml`, which reads the `.dmg`'s checksum, renders the Homebrew
+   cask and pushes it to the tap (below). `brew upgrade --cask loki` then picks the release up. The rendered
+   `loki.rb` is also attached to the release.
+
+## Homebrew tap (one-time setup)
+
+The app is not signed (next section), so Homebrew is the recommended install: `brew install --cask
+--no-quarantine <owner>/loki/loki`. The `--no-quarantine` is what spares people the "damaged" dialog —
+Homebrew quarantines cask downloads by default, exactly like a browser would.
+
+1. Create an empty public repository named **`homebrew-loki`** under the same owner as this repo (Homebrew
+   resolves `<owner>/loki` to it). No files needed; the workflow adds `Casks/loki.rb`.
+2. Create a token that can push to it: GitHub → Settings → Developer settings → Fine-grained tokens, repository
+   access `homebrew-loki` only, permission *Contents: read and write*.
+3. Add it to this repository's secrets as **`TAP_TOKEN`**.
+
+Without the secret the cask job renders the file and attaches it to the release, then fails at the push with a
+message naming the secret; copy the file into the tap by hand and nothing else is lost. `scripts/cask.ts` is
+the template (`bun scripts/cask.ts <owner> <version> <sha256>`), covered by `test/cask.test.ts`.
 
 ## Signing (one-time setup)
 
-Without signing, macOS blocks the downloaded app as "damaged" or from an unidentified developer; people
-must right-click → Open, or run `xattr -dr com.apple.quarantine /Applications/loki.app`. Signing needs an
-Apple Developer Program membership (paid, yearly).
+Without signing, macOS blocks the downloaded app as "damaged"; people must run
+`xattr -dr com.apple.quarantine /Applications/loki.app`, allow it in System Settings › Privacy & Security, or
+install through Homebrew with `--no-quarantine` (right-click → Open no longer helps on macOS 14 and later).
+Signing needs an Apple Developer Program membership (paid, yearly).
 
 1. In Xcode or developer.apple.com, create a **Developer ID Application** certificate and export it with
    its private key as a `.p12` with a password.
@@ -57,7 +77,8 @@ cd src-tauri/target/release/bundle/macos
 ## What ships
 
 - `loki.app` with the React canvas built in and the mod bundled as one file under `Contents/Resources`.
-- On first launch the app copies the mod to `~/Library/Application Support/<identifier>/mod/` and writes
+- On first launch the app copies the mod to `~/.letta/loki/mod/` and writes
   the shim `~/.letta/mods/loki.ts` and the skill `~/.agents/skills/loki/` (both marked as managed; a
   developer's own shim or symlink is never overwritten). Settings → install shows what happened.
-- Nothing is sent anywhere: no telemetry, no update check. Updates are a new `.dmg`.
+- Nothing is sent anywhere: no telemetry, no update check. Updates are a new release: `brew upgrade --cask loki`,
+  or the next `.dmg`.

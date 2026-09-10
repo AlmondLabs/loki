@@ -26,23 +26,44 @@ widgets that belong to no conversation.
 
 ## Install
 
-1. Download the `.dmg` from the latest release and drag loki to Applications. You do not need Node, npm
-   or Letta installed first. Until the app is signed,
-   macOS will refuse to open it the first time: right-click → Open, or run
-   `xattr -dr com.apple.quarantine /Applications/loki.app`.
-2. Open loki. On first launch it copies its mod to `~/.letta/loki/mod/`,
-   writes the shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill at
-   `~/.agents/skills/loki/`. Settings → install shows what happened.
-3. If Letta Desktop (or a `letta` session) was already running, `/reload` in Letta Code so the harness
+**Homebrew**, the recommended way:
+
+```bash
+brew install --cask --no-quarantine skilp4d/loki/loki
+```
+
+`--no-quarantine` matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned
+download as "damaged"; Homebrew quarantines cask downloads like a browser would unless told not to. Upgrades
+are `brew upgrade --cask loki`; the cask follows each release.
+
+**The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
+Open is not enough for an unsigned app on macOS 14 and later):
+
+```bash
+xattr -dr com.apple.quarantine /Applications/loki.app
+```
+
+Or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security.
+
+**From source**: Bun and Rust, then `bun run desktop:build` (see [Development](#development)). A build made on your
+own Mac never carries the flag.
+
+Whichever way, you do not need Node, npm or Letta installed first. Then:
+
+1. Open loki. On first launch it installs its private copy of Letta Code (Requirements), copies its mod to
+   `~/.letta/loki/mod/`, writes the shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill
+   at `~/.agents/skills/loki/`. Settings → install shows what happened.
+2. If Letta Desktop (or a `letta` session) was already running, `/reload` in Letta Code so the harness
    picks the mod up. If nothing was running, loki starts its own harness and the mod is already in it.
-4. The first launch shows **Welcome** over the empty desk: connect a model provider (paste a key; Letta
+3. The first launch shows **Welcome** over the empty desk: connect a model provider (paste a key; Letta
    checks it with the provider and keeps it, loki never sees it again), then name your first agent and
    pick one of Letta's personalities. You land on its desk with the chat open.
-5. Ask your agent to put something on the desk.
+4. Ask your agent to put something on the desk.
 
-Updates are a new `.dmg`; the app re-installs its mod on launch when the bundle changed. It never overwrites
-a shim or skill it did not write, so a checkout wired up for development (below) keeps working. Letta Code is
-updated only from Settings › letta, never on its own (see Requirements).
+Updates are a new release (`brew upgrade --cask loki`, or the next `.dmg`); the app re-installs its mod on launch
+when the bundle changed. It never overwrites a shim or skill it did not write, so a checkout wired up for
+development (below) keeps working. Letta Code is updated only from Settings › letta, never on its own (see
+Requirements).
 
 ## The window
 
