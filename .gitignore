@@ -6,3 +6,9 @@ app/dist
 .letta/
 src-tauri/resources/
 .claude/worktrees/
+
+# react-doctor's installer drops a copy of its skill for every AI tool it detects; the tool itself is in CI and the hook, the skill copies are not the repo's.
+.agents/skills/react-doctor/
+.claude/skills/react-doctor/
+.continue/
+.qwen/
