@@ -1,7 +1,7 @@
 # When a release is published (release.yml leaves a draft; you press publish), read the .dmg's checksum,
 # render Casks/loki.rb with scripts/cask.ts and push it to the tap repo <owner>/homebrew-loki, so
 # `brew install --cask --no-quarantine <owner>/loki/loki` and `brew upgrade` follow the release.
-# Needs the TAP_TOKEN secret (a token that can push to homebrew-loki); see RELEASING.md.
+# Needs the TAP_TOKEN secret (a token that can push to homebrew-loki); see docs/RELEASING.md.
 name: cask
 on:
   release:
@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$TAP_TOKEN" ]; then
-            echo "::error::TAP_TOKEN secret is missing — the cask was rendered (see the release assets) but not pushed to ${OWNER}/homebrew-loki. RELEASING.md explains the token."
+            echo "::error::TAP_TOKEN secret is missing — the cask was rendered (see the release assets) but not pushed to ${OWNER}/homebrew-loki. docs/RELEASING.md explains the token."
             exit 1
           fi
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/${OWNER}/homebrew-loki.git" tap

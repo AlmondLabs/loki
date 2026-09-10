@@ -1,6 +1,6 @@
 # Tag a version (`git tag v0.3.0 && git push --tags`) and this builds the macOS app, signs and
 # notarizes it when the Apple secrets are present, and attaches the .dmg to a draft release.
-# See RELEASING.md for the secrets and the steps around it.
+# See docs/RELEASING.md for the secrets and the steps around it.
 name: release
 on:
   push:

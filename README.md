@@ -128,7 +128,7 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Settings › phone too) is the way around that; when it is not, the phone says "Mac unreachable, last seen …" and
 reconnects by itself. Each paired phone is listed in Settings › phone with when it was last seen; "forget"
-locks it out. The rail shows a brass dot on the settings icon while the switch is on. Read [SECURITY.md](SECURITY.md)
+locks it out. The rail shows a brass dot on the settings icon while the switch is on. Read [docs/SECURITY.md](docs/SECURITY.md)
 before switching it on somewhere you do not trust the network.
 
 **Phone, anywhere.** Install [Tailscale](https://tailscale.com/download) on the Mac and on the phone and sign in to
@@ -149,7 +149,10 @@ mod/            Letta mod, plain TypeScript; boot.ts bundles it fresh on each /r
 core/           desk-core (types + the pure gesture reducer both halves use), attention, recall — portable, no browser globals
 app/            Vite + React canvas
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
+src-tauri/      the macOS shell (Rust): installs Letta Code, runs the harness, hosts the canvas
+scripts/        build-mod (the bundle the app ships), harness (run the mod without Letta), cask (Homebrew)
 test/           bun tests
+docs/           architecture, design direction, dated plans; CONTRIBUTING, SECURITY and RELEASING
 ```
 
 How these fit into Letta's own layers — the model, the Letta server, the harness, and loki — is in
@@ -356,12 +359,12 @@ Letta: `bun scripts/harness.ts`.
 `docs/architecture.md` explains Letta's four-responsibility execution model — model, Letta server,
 harness, loki — which are processes, and the journey of a message. `docs/plans/` is the design history,
 one dated plan per feature; `docs/design.md` is the visual direction
-and the token contract. See CONTRIBUTING.md, SECURITY.md and RELEASING.md.
+and the token contract. See `docs/CONTRIBUTING.md`, `docs/SECURITY.md` and `docs/RELEASING.md`.
 
 ## Hard rules
 
 - No real money amounts on screen, in the repo, or in recordings. Ever.
-- Widget code runs with the page's full trust. This is your machine and your agent; it is not a sandbox (SECURITY.md).
+- Widget code runs with the page's full trust. This is your machine and your agent; it is not a sandbox (docs/SECURITY.md).
 
 ## Licence
 
