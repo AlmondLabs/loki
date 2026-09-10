@@ -45,7 +45,9 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/ws": "^8.18.0",
+    "babel-plugin-react-compiler": "^1.0.0",
     "react-doctor": "^0.9.13",
+    "react-scan": "^0.5.7",
     "typescript": "^5.8.0"
   }
 }

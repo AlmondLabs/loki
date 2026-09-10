@@ -333,6 +333,12 @@ bun run desktop:dev                               # the Tauri window against it
 bun run desktop:build                             # the .app and .dmg (bundles app/dist and the mod)
 ```
 
+The app is built with the React Compiler (`app/vite.config.ts`): callbacks and JSX are memoised for you, so a
+memo boundary such as the transcript's rows holds without hand-written `useCallback`. `LOKI_COMPILER_LOG=1 bun run
+build:app` lists the functions it declined to compile and why. In development, `?scan` on the dev URL loads React
+Scan, which outlines every component that re-rendered without its output changing — the quickest way to see a
+keystroke re-rendering something it should not.
+
 Env: `LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
 `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1` (make a
 dev build install its mod), `LOKI_NO_INSTALL=1` (stop a release build from doing so).

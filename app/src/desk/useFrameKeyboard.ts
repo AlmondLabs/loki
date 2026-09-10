@@ -13,7 +13,7 @@ const ANNOUNCE_MS = 300;
 /**
  * The frame's keyboard: arrows nudge, Alt+arrows resize, Enter frames it in the camera, Escape lets go.
  * Owns the pending nudge and the timer that commits it, plus the live-region text and the timer that
- * settles it. `lastSent` is shared with the drag's throttle so a nudge after a drag keeps the cadence.
+ * settles it. `lastSentRef` is shared with the drag's throttle so a nudge after a drag keeps the cadence.
  */
 export function useFrameKeyboard({
   entry,
@@ -22,7 +22,7 @@ export function useFrameKeyboard({
   gesture,
   onFocus,
   frameRef,
-  lastSent,
+  lastSentRef,
 }: {
   entry: WidgetManifestEntry;
   layout: WidgetLayout;
@@ -30,7 +30,7 @@ export function useFrameKeyboard({
   gesture: (g: Gesture) => void;
   onFocus?: (id: string) => void;
   frameRef: RefObject<HTMLDivElement | null>;
-  lastSent: RefObject<number>;
+  lastSentRef: RefObject<number>;
 }) {
   // Keyboard nudges: the next position/size waiting to be committed, and the timer that commits them.
   // Committing through `gesture` (the drag's release path) keeps undo honest: the mod collapses commits
@@ -49,7 +49,7 @@ export function useFrameKeyboard({
   const commitNudge = () => {
     const n = nudgeRef.current;
     n.timer = null;
-    lastSent.current = performance.now();
+    lastSentRef.current = performance.now();
     if (n.position) {
       const position = n.position;
       n.position = null;
@@ -64,7 +64,7 @@ export function useFrameKeyboard({
   const scheduleNudge = () => {
     const n = nudgeRef.current;
     if (n.timer) return; // the pending commit picks up the latest values
-    n.timer = setTimeout(commitNudge, Math.max(0, NUDGE_COMMIT_MS - (performance.now() - lastSent.current)));
+    n.timer = setTimeout(commitNudge, Math.max(0, NUDGE_COMMIT_MS - (performance.now() - lastSentRef.current)));
   };
   const announce = (text: string) => {
     const a = announceRef.current;

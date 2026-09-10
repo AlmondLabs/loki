@@ -18,6 +18,28 @@ const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".letta", "loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
 
+function compilerOptions() {
+  const base = {
+    // The compiler skips any function carrying an eslint suppression for these rules. This repo runs no
+    // ESLint; its `exhaustive-deps` suppressions mark effects that deliberately run on a tick or a key, which
+    // the compiler handles as written (deps arrays are kept verbatim). Only rules-of-hooks still opts out.
+    eslintSuppressionRules: ["react-hooks/rules-of-hooks"],
+  };
+  if (!process.env.LOKI_COMPILER_LOG) return base;
+  return {
+    ...base,
+    logger: {
+      logEvent(filename: string, event: { kind: string; fnLoc?: { start?: { line: number } } | null; detail?: { reason?: string; description?: string | null } | { options?: { reason?: string } } }) {
+        if (event.kind !== "CompileError") return;
+        const d = event.detail as { reason?: string; description?: string | null; options?: { reason?: string; description?: string | null } } | undefined;
+        const reason = d?.reason ?? d?.options?.reason ?? "";
+        const description = d?.description ?? d?.options?.description ?? "";
+        console.error(`react-compiler skipped ${relative(here(".."), filename)}:${event.fnLoc?.start?.line ?? "?"} — ${reason}${description ? ` (${description})` : ""}`);
+      },
+    },
+  };
+}
+
 export default defineConfig({
   root: here("."),
   // The Tauri shell loads the built app from here (frontendDist in src-tauri/tauri.conf.json).
@@ -43,7 +65,10 @@ export default defineConfig({
         server.watcher.add(widgetsDir);
       },
     },
-    react(),
+    // React Compiler: callbacks, JSX and derived values are memoised at build time, so a prop that is a fresh
+    // closure on every render no longer defeats a memo further down (the transcript once re-parsed a whole
+    // thread's markdown per keystroke that way). LOKI_COMPILER_LOG=1 lists what it declined to compile and why.
+    react({ babel: { plugins: [["babel-plugin-react-compiler", compilerOptions()]] } }),
     tailwindcss(),
   ],
   clearScreen: false,

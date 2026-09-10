@@ -85,17 +85,17 @@ function useLastTab(route: Route) {
  */
 function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): ReactNode {
   const linked = desk.connection === "open" && (catchUp.status === "open" || !available);
-  const lastLinked = useRef<string | null>(null);
+  const [lastLinked, setLastLinked] = useState<string | null>(null);
   const [, setTickNow] = useState(0);
   useEffect(() => {
-    if (linked) lastLinked.current = new Date().toISOString();
+    if (linked) setLastLinked(new Date().toISOString());
   }, [linked]);
   useEffect(() => {
     const t = setInterval(() => setTickNow((n) => n + 1), 30_000);
     return () => clearInterval(t);
   }, []);
   const unreachable = desk.connection === "closed" || catchUp.status === "closed";
-  return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked.current)}</Banner> : null;
+  return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked)}</Banner> : null;
 }
 
 /** A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair. */

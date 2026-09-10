@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import type { Desk } from "./types";
 
@@ -26,13 +26,14 @@ export function useChatLayout(desk: Pick<Desk, "loaded" | "connection" | "ownCou
     setChatPlacementRaw(p);
     localStorage.setItem(CHAT_PLACEMENT_KEY, p);
   }, []);
-  const movedOnEmpty = useRef(new Set<string>());
+  /** Empty desks whose chat the user moved away from the centre; state, not a ref, because render reads it. */
+  const [movedOnEmpty, setMovedOnEmpty] = useState<ReadonlySet<string>>(() => new Set());
   const emptyDesk = desk.loaded && desk.connection === "open" && desk.ownCount === 0;
-  const effectivePlacement: ChatPlacement = emptyDesk && !movedOnEmpty.current.has(desk.scope) ? "center" : chatPlacement;
+  const effectivePlacement: ChatPlacement = emptyDesk && !movedOnEmpty.has(desk.scope) ? "center" : chatPlacement;
   const moveChat = (dir: 1 | -1) => {
     const i = CHAT_PLACEMENTS.indexOf(effectivePlacement);
     const next = CHAT_PLACEMENTS[Math.min(CHAT_PLACEMENTS.length - 1, Math.max(0, i + dir))];
-    if (emptyDesk) movedOnEmpty.current.add(desk.scope);
+    if (emptyDesk) setMovedOnEmpty((moved) => new Set(moved).add(desk.scope));
     setChatPlacement(next);
     setChatOpen(true);
   };

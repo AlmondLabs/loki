@@ -50,7 +50,7 @@ export function WidgetFrame({
     sizedRef.current = sized;
   });
 
-  const { onKeyDown, announcement } = useFrameKeyboard({ entry, layout, sized, gesture, onFocus, frameRef, lastSent });
+  const { onKeyDown, announcement } = useFrameKeyboard({ entry, layout, sized, gesture, onFocus, frameRef, lastSentRef: lastSent });
 
   // Report the rendered size (canvas units: offsetWidth/Height ignore the viewport transform).
   useEffect(() => {
