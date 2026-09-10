@@ -97,11 +97,12 @@ rail of six segments sits on the left, and one view fills the rest:
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
-- **Settings** (⌘6, ⌘,): seven pages down the left, one showing at a time, the last one remembered for the
+- **Settings** (⌘6, ⌘,): eight pages down the left, one showing at a time, the last one remembered for the
   window. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six hours; `brew upgrade --cask loki` is the way up), which harness the app is on, how it reaches the mod, requirements and install status.
   **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
+  **recall**: the card writer's switch (off until you turn it on), cards a day, the model it asks, run now. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
@@ -272,7 +273,9 @@ message on the clipboard as the markdown it was written in, not the rendering.
 
 ### Recall (⌘5)
 
-Spaced-repetition cards, for keeping what the conversations taught you. Nothing about them happens in
+Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
+writer spends your provider budget in the background, so the section's first visit explains what it does and
+offers the switch (Settings › recall has it too, with the knobs). Nothing about the cards happens in
 chat: a worker in the mod watches for conversations that have gone quiet, hands the new stretch of
 transcript to the agent in a hidden conversation of its own (cleared each time), and writes whatever
 comes back — one fact per card, a question that stands alone, an answer in a line or two — up to a daily

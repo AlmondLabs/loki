@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { describeGap, isDue, isNew } from "../../../packages/core/src/recall/fsrs.ts";
 import { updatedSinceReview, type CardWithSchedule, type Rejected, type WorkerStatus } from "../../../packages/core/src/recall/model.ts";
-import { Button, Chip, Empty, Field, Meta, Row, TextArea } from "../ui";
+import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../ui";
 import { ago } from "../desk/CatchUpParts";
 
 /** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */
@@ -165,6 +165,76 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
     <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
       {revealed ? "← again · → got it (space too) · X delete · E edit · O open the desk · Z undo · esc back" : "space or → show the answer · X delete · E edit · O open the desk · Z undo · esc back"}
+    </div>
+  );
+}
+
+/**
+ * The section before the writer has ever been on: what it does, what it costs, and the switch. Off by
+ * default because it spends the user's model budget in the background; nothing is written until they say so.
+ */
+export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
+  return (
+    <section aria-label="about recall" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
+      <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
+      <p style={{ margin: 0 }}>
+        Recall is a writer that runs in the background. Every ten minutes it looks for conversations that have gone quiet, hands the new
+        stretch of transcript to that agent in a hidden conversation of its own, and keeps whatever comes back as cards: one fact each, a
+        question that stands alone, an answer in a line or two. You meet them here, on a schedule that spaces the ones you know and
+        brings back the ones you miss. Deleting a card is the feedback — the writer reads the pile of deleted ones before writing again.
+      </p>
+      <p style={{ margin: 0, color: "var(--loki-muted)" }}>
+        It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at
+        all while no conversation has new text. The hidden conversations sit in the desks tree as "recall" desks, so you can read what it was asked.
+        Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/recall/</code>. It is off until you turn it on,
+        and Settings › recall turns it off again.
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        {onEnable ? (
+          <Button tone="brass" onClick={onEnable}>turn the writer on</Button>
+        ) : (
+          <Meta>turn it on from the Mac: Recall, or Settings › recall</Meta>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** Settings › recall: the writer's switch and knobs, in Settings' fact grid. */
+export function RecallSettings({ worker, onSettings, onRun, running }: { worker: WorkerStatus; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => void; onRun: () => void; running: boolean }) {
+  const [model, setModel] = useState(worker.model ?? "");
+  const [cap, setCap] = useState(String(worker.dailyCap));
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <Line label="writer">
+        <span style={{ display: "inline-grid", gap: 4 }}>
+          <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? "on — reads quiet conversations every ten minutes and writes cards" : "off — no conversation is read, nothing is written"} />
+          <Meta wrap>each run asks the agent's model, so it spends a little of your provider budget; off by default for that reason</Meta>
+        </span>
+      </Line>
+      <Line label="cards a day">
+        <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
+      </Line>
+      <Line label="model">
+        <Field size="sm" mono value={model} onChange={(e) => setModel(e.target.value)} onBlur={() => onSettings({ model: model.trim() || null })} placeholder="the agent's own" style={{ width: 280 }} aria-label="the model the writer asks" />
+      </Line>
+      <Line label="last run">
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Meta wrap>{worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {worker.writtenToday} of {worker.dailyCap} written today</Meta>
+          <Button size="sm" onClick={onRun} disabled={running || !worker.enabled} title="read the quiet conversations now instead of waiting for the timer">{running ? "running…" : "run now"}</Button>
+        </span>
+      </Line>
+      <Line label="files"><Meta>~/.letta/loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
+    </div>
+  );
+}
+
+/** A labelled line in Settings' fact grid (the label column matches Settings' own). */
+function Line({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
+      <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 4 }}>{label}</span>
+      <span style={{ minWidth: 0 }}>{children}</span>
     </div>
   );
 }

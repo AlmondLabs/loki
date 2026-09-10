@@ -23,7 +23,7 @@ describe("recall store", () => {
   test("a fresh dir has no cards, no rejections and default worker settings", () => {
     expect(store.cards()).toEqual([]);
     expect(store.rejected()).toEqual([]);
-    expect(store.status(T0)).toEqual({ enabled: true, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, writtenToday: 0 });
+    expect(store.status(T0)).toEqual({ enabled: false, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, writtenToday: 0 });
   });
   test("add writes a card file and a fresh schedule; cards come back oldest first", () => {
     store.add(card("b", { createdAt: "2026-09-10T10:00:00Z" }));
@@ -81,7 +81,7 @@ describe("recall store", () => {
     store.saveWorker({ dailyCap: 4, model: "anthropic/claude-haiku-4-5", cursors: { "a/c": 12 } });
     const w = store.worker();
     expect(w.dailyCap).toBe(4);
-    expect(w.enabled).toBe(true);
+    expect(w.enabled).toBe(false); // off until the user switches it on
     expect(w.cursors["a/c"]).toBe(12);
   });
   test("a corrupt card file is skipped, a card without a schedule file gets a fresh one", () => {

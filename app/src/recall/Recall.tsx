@@ -5,7 +5,7 @@ import { Button, Chip, Empty, Meta, Title } from "../ui";
 import { useNow } from "../ui/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
-import { CardEditor, CardList, PreviousText, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
+import { CardEditor, CardList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
 import { useDeckPass } from "./useDeckPass";
 
 /**
@@ -86,8 +86,15 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
         </header>
 
         {recall.error && <Meta brass wrap>{recall.error}</Meta>}
+        {snap && !snap.worker.enabled && cards.length > 0 && (
+          <Meta wrap>
+            the writer is off — these are the cards so far, no new ones are coming ·{" "}
+            <Button bare size="sm" tone="brass" onClick={() => void recall.settings({ enabled: true })}>turn it on</Button>
+          </Meta>
+        )}
 
-        {view === "review" && (
+        {view === "review" && snap && !snap.worker.enabled && cards.length === 0 && <RecallIntro worker={snap.worker} onEnable={() => void recall.settings({ enabled: true })} />}
+        {view === "review" && !(snap && !snap.worker.enabled && cards.length === 0) && (
           <ReviewBody snap={snap} pass={pass}>
             {current && (
               <Deck

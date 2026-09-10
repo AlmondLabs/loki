@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,11 @@ import { RecallStore } from "../mod/recall.ts";
 import { MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript } from "../mod/recall-worker.ts";
 import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
 import { review } from "../packages/core/src/recall/fsrs.ts";
+
+// Whole file runs in ~120 ms alone, yet "rejected cards are quoted…" crossed bun's 5 s default twice on a
+// loaded machine (a Vite build and a browser beside the suite) — the flaky test the launch review could not
+// name. Twenty seconds keeps a real hang visible without failing on a busy runner.
+setDefaultTimeout(20_000);
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const row = (id: string, over: Partial<InboxRow> = {}): InboxRow => ({ id, agentId: "a1", agentName: "ira", title: `desk ${id}`, lastMessageAt: new Date(T0 - QUIET_MS - 1000).toISOString(), archived: false, lastRole: "assistant", lastAssistantText: null, ...over });
@@ -16,6 +21,7 @@ let store: RecallStore;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "loki-recall-w-"));
   store = new RecallStore(dir);
+  store.saveWorker({ enabled: true }); // off by default; these tests are about a writer that is on
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

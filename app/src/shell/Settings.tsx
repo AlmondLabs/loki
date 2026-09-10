@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys } from "./keymap";
 import { Button, Chip, Dot, NavButton, Switch, Title } from "../ui";
@@ -12,12 +12,14 @@ import type { BootstrapStatus } from "./bootstrap";
 import { useHarnessFacts, type InstallReport, type Tools } from "./useHarnessFacts";
 import type { LokiUpdate } from "./useLokiUpdate";
 import type { GlobalShortcut } from "./useGlobalShortcut";
+import type { Recall as RecallModel } from "./useRecall";
+import { RecallSettings } from "../recall/RecallParts";
 
 const HOME = "~/.letta/loki";
 
 /** The pages down the left. "letta" gathers what loki runs on: harness, mod, requirements, install. */
-export type SettingsPage = "letta" | "providers" | "phone" | "skills" | "chat" | "files" | "keys";
-export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+export type SettingsPage = "letta" | "providers" | "phone" | "skills" | "recall" | "chat" | "files" | "keys";
+export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "recall" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
 const PAGE_KEY = "loki.settingsPage";
 export function isSettingsPage(v: unknown): v is SettingsPage {
   return PAGES.some((p) => p.id === v);
@@ -60,6 +62,7 @@ export function Settings({
   globalSkills,
   update,
   shortcut,
+  recall,
 }: {
   appServerStatus: AppServerStatus;
   tunnelUrl: string | null;
@@ -89,6 +92,8 @@ export function Settings({
   update: LokiUpdate;
   /** ⌥Space, held or released (Settings › keys). */
   shortcut: GlobalShortcut;
+  /** The card writer's switch and knobs (Settings › recall). */
+  recall: RecallModel;
 }) {
   const harness = useHarnessFacts(tunnelUrl);
   const [page, setPage] = useState<SettingsPage>(() => {
@@ -117,6 +122,7 @@ export function Settings({
         {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
         {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
         {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
+        {page === "recall" && <RecallPage recall={recall} />}
         {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} />}
         {page === "files" && <FilesPage />}
         {page === "keys" && <KeysPage shortcut={shortcut} />}
@@ -270,6 +276,19 @@ function SkillsPage({ globalSkills }: { globalSkills: GlobalSkillsApi }) {
   return (
     <Section title="skills" hint="~/.letta/skills — every agent reads these; an agent's own skills are on its page">
       <Skills api={globalSkills} />
+    </Section>
+  );
+}
+
+function RecallPage({ recall }: { recall: RecallModel }) {
+  const { snap } = recall;
+  // Settings may open before Recall ever did: ask for the snapshot once.
+  useEffect(() => {
+    if (!snap) void recall.refresh();
+  }, [snap, recall]);
+  return (
+    <Section title="recall" hint="flashcards written in the background from conversations that have gone quiet; the writer is off until you switch it on">
+      {snap ? <RecallSettings worker={snap.worker} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} running={recall.running} /> : <Fact label="writer" value={recall.error ?? "loading…"} />}
     </Section>
   );
 }

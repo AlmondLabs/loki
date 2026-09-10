@@ -27,7 +27,7 @@ interface WorkerFile {
   /** Per agent: the hidden conversation the worker asks its questions in. */
   recallConversations?: Record<string, string>;
 }
-const WORKER_DEFAULTS: WorkerFile = { enabled: true, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, recallConversations: {} };
+const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, recallConversations: {} };
 
 function readJson<T>(path: string): T | null {
   try {
