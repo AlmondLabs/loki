@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
 import type { CardWithSchedule, RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
-import { Button, Chip, Empty, Meta, Title } from "../ui";
-import { useNow } from "../ui/useNow";
+import { Button, Chip, Empty, Meta, Title } from "../components";
+import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { CardEditor, CardList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";

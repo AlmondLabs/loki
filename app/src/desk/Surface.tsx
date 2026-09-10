@@ -12,7 +12,7 @@ import { ModuleWidget, WidgetError } from "./ModuleWidget";
 import { useCamera } from "./useCamera";
 import { useChatInset } from "./useChatInset";
 import { useDeskChat, type DeskChatModel } from "./useDeskChat";
-import { Chip, Empty } from "../ui";
+import { Chip, Empty } from "../components";
 import { LOKI_COMMANDS } from "../../../packages/core/src/attention/commands.ts";
 import { runAction } from "../shell/keymap";
 

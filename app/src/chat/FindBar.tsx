@@ -1,5 +1,5 @@
 import { useState, type RefObject } from "react";
-import { Field, IconButton } from "../ui";
+import { Field, IconButton } from "../components";
 
 /**
  * Find in the transcript, on the browser's own text search (window.find) so matches are wherever

@@ -36,9 +36,9 @@ and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, lay
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, and that `index.html` and
 the manifest carry `--loki-bg`.
 
-## Primitives (`app/src/ui/`, 2026-09-08)
+## Primitives (`app/src/components/`, 2026-09-08)
 
-The chrome is built from one vocabulary, with every state in `ui/ui.css` and never inline: **Button** (tone
+The chrome is built from one vocabulary, with every state in `components/components.css` and never inline: **Button** (tone
 quiet · paper · brass · positive · negative; size sm 28 · md 36 · touch 44; bare, block, kbd), **IconButton**
 (24 · 28 · 36 · 40; danger goes oxblood on hover), **NavButton** (a page down the left; the reading face, not
 the serif), **Chip** (active is paper, brass only for what needs the human, tone for a status badge, static,

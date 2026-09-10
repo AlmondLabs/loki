@@ -6,7 +6,7 @@ import type { AttentionItem } from "../../../packages/core/src/attention/model.t
 import { catchUpQueue, idOf, type Decision } from "../../../packages/core/src/attention/queue.ts";
 import { formatIn, ordinal, type Snooze } from "../../../packages/core/src/attention/snooze.ts";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
-import { Button, Chip, Empty, Meta, Title } from "../ui";
+import { Button, Chip, Empty, Meta, Title } from "../components";
 import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../chat/PermissionMode";
 import type { AttentionStatus } from "../../../packages/core/src/attention/model.ts";

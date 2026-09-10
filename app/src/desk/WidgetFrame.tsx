@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
 import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../packages/core/src/desk-core.ts";
-import { Dot, IconButton } from "../ui";
+import { Dot, IconButton } from "../components";
 import { useFrameKeyboard } from "./useFrameKeyboard";
 
 /**

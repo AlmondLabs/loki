@@ -33,7 +33,7 @@ export type Ask = (agentId: string, prompt: string, model: string | null) => Pro
 
 export interface WorkerDeps {
   store: RecallStore;
-  /** Every open conversation of the person's agents, newest first (mod/mod.ts listInbox). */
+  /** Every open conversation of the person's agents, newest first (mod/index.ts listInbox). */
   listInbox: () => InboxRow[];
   ask: Ask;
   /** Transcript rows from a log line on; injectable for tests. */

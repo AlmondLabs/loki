@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Chip, Meta, Popover, Row } from "../ui";
+import { Chip, Meta, Popover, Row } from "../components";
 
 /**
  * The four permission modes the app-server knows, per conversation. Set with runtime_start { mode }

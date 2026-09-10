@@ -3,7 +3,7 @@ import { modBase } from "../desk/env";
 import type { Me } from "./Pair";
 import { routeOf } from "./model";
 import { currentBuild } from "./UpdateBar";
-import { Button, Dot, Title } from "../ui";
+import { Button, Dot, Title } from "../components";
 import { GUTTER, Scroll, TopBar } from "./ui";
 
 /**

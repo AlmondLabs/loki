@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Chip, Dot, Field, Meta, Popover, Row } from "../ui";
+import { Chip, Dot, Field, Meta, Popover, Row } from "../components";
 
 export interface ModelEntry {
   id: string;

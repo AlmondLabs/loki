@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useRef, useState, type CSSProperties, type Keybo
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
-import { Dot, IconButton, TextArea } from "../ui";
+import { Dot, IconButton, TextArea } from "../components";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);

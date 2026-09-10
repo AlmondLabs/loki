@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { GlobalSkill } from "../../../mod/skills.ts";
-import { Button, Field } from "../ui";
+import { Button, Field } from "../components";
 
 /** Settings › skills: the folder every agent reads, and the two things you do to it. */
 export interface GlobalSkillsApi {

@@ -5,7 +5,7 @@ import type { PendingApproval, PendingQuestion } from "../../../packages/core/sr
 import type { SlashCommand } from "../../../packages/core/src/attention/commands.ts";
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 import { Transcript, type TranscriptRow } from "./Transcript";
-import { Chip } from "../ui";
+import { Chip } from "../components";
 import type { ModelEntry } from "./ModelPicker";
 import type { PermissionMode } from "./PermissionMode";
 import { ChatHeader } from "./ChatHeader";

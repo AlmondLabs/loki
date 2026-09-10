@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
-import { Button, Field, Row } from "../ui";
+import { Button, Field, Row } from "../components";
 import type { Task } from "../board/model";
 import { ago } from "../board/model";
 import { Head } from "./bits";

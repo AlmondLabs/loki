@@ -18,7 +18,7 @@ import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
 import { agentNameOf, lastSeen, threadFor } from "./model";
 import { back, formatRoute, navigate, replace, tabOf, useRoute, type Route, type Tab } from "./router";
-import { Banner, Button } from "../ui";
+import { Banner, Button } from "../components";
 import { PhoneStyles, SAFE } from "./ui";
 
 /**

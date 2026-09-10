@@ -4,7 +4,7 @@ import { LAYER } from "../kit/layers";
 
 /**
  * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces.
- * States (hover, focus, active, disabled, pressed, current) live in ui/ui.css; a call site chooses a size
+ * States (hover, focus, active, disabled, pressed, current) live in components/components.css; a call site chooses a size
  * and a tone and never restyles a state. `className` and `style` are the escape hatch for a one-off, and
  * a one-off that repeats becomes a modifier here. Widgets on the sheet keep their own kit (kit/index.tsx).
  */

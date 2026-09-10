@@ -11,7 +11,7 @@ import type { ModelEntry } from "../chat/ModelPicker";
 import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
 import type { DeskSummary } from "../desk/useDesk";
 import { DeskTree } from "./DeskTree";
-import { Settings } from "./Settings";
+import { Settings } from "../settings/Settings";
 import { Welcome } from "./Welcome";
 import type { BootstrapStatus } from "./bootstrap";
 import type { LokiUpdate } from "./useLokiUpdate";

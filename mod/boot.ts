@@ -19,7 +19,7 @@ export default async function activate(letta: unknown): Promise<unknown> {
   const outfile = join(outDir, `mod-${Date.now()}.mjs`);
 
   await esbuild.build({
-    entryPoints: [join(root, "mod", "mod.ts")],
+    entryPoints: [join(root, "mod", "index.ts")],
     outfile,
     bundle: true,
     platform: "node",

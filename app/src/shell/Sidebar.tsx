@@ -1,6 +1,6 @@
 import { SEGMENTS, type Segment } from "./shortcuts";
 import { LAYER } from "../kit/layers";
-import { Dot } from "../ui";
+import { Dot } from "../components";
 
 export const SIDEBAR_WIDTH = 48;
 

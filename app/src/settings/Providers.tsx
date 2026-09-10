@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
-import { Button, Chip, Dot, Field, Row } from "../ui";
+import { Button, Chip, Dot, Field, Row } from "../components";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, needsTerminal, sortProviders } from "./provider-model";
 
 /**

@@ -41,7 +41,7 @@ import { initLog, log } from "./log.ts";
  * user did on the desk, and tunnels the browser to Letta's app-server.
  *
  * Loaded straight from source (Node strips types): ~/.letta/mods/loki.ts is a
- * shim that dynamic-imports mod/mod.ts with a cache-busting query.
+ * shim that dynamic-imports mod/index.ts with a cache-busting query.
  */
 
 function loadOrCreateToken(): string {

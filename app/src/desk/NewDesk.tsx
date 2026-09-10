@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
-import { Button, Chip, Field, Row, Sheet } from "../ui";
+import { Button, Chip, Field, Row, Sheet } from "../components";
 
 export interface FolderApi {
   recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;

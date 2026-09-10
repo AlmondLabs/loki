@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
-import { KEYMAP, WHERE_ORDER, formatKeys } from "./keymap";
-import { Button, Chip, Dot, NavButton, Switch, Title } from "../ui";
+import { KEYMAP, WHERE_ORDER, formatKeys } from "../shell/keymap";
+import { Button, Chip, Dot, NavButton, Switch, Title } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../packages/core/src/compat.ts";
 import type { ConnectProvider } from "../../../packages/core/src/attention/protocol.ts";
-import { Providers } from "../settings/Providers";
-import { Phone, type PhoneApi } from "../settings/Phone";
-import { Skills, type GlobalSkillsApi } from "../settings/Skills";
-import type { BootstrapStatus } from "./bootstrap";
-import { useHarnessFacts, type InstallReport, type Tools } from "./useHarnessFacts";
-import type { LokiUpdate } from "./useLokiUpdate";
-import type { GlobalShortcut } from "./useGlobalShortcut";
-import type { Recall as RecallModel } from "./useRecall";
+import { Providers } from "./Providers";
+import { Phone, type PhoneApi } from "./Phone";
+import { Skills, type GlobalSkillsApi } from "./Skills";
+import type { BootstrapStatus } from "../shell/bootstrap";
+import { useHarnessFacts, type InstallReport, type Tools } from "../shell/useHarnessFacts";
+import type { LokiUpdate } from "../shell/useLokiUpdate";
+import type { GlobalShortcut } from "../shell/useGlobalShortcut";
+import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallSettings } from "../recall/RecallParts";
 
 const HOME = "~/.letta/loki";

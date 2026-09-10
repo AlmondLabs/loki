@@ -9,7 +9,7 @@ import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { BADGE, CardThread } from "../desk/CatchUp";
 import { waitingSince } from "./model";
-import { Button, Chip, Empty, Meta, Row } from "../ui";
+import { Button, Chip, Empty, Meta, Row } from "../components";
 import { SAFE, TopBar } from "./ui";
 import {
   DRAG_SLOP,

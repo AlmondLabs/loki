@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Chip, Dot, Field, IconButton, Sheet } from "../ui";
+import { Chip, Dot, Field, IconButton, Sheet } from "../components";
 import type { Scope } from "../../../packages/core/src/desk-core.ts";
 import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
 import type { DeskSummary } from "../desk/useDesk";

@@ -10,7 +10,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { Chevron, useAgentDetails, type PhoneAgentsApi } from "./Agents";
 import { lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, modelBits, stripFrontmatter, type MemoryFolder } from "./model";
 import { navigate, type Route } from "./router";
-import { Button, Meta, Row, Title } from "../ui";
+import { Button, Meta, Row, Title } from "../components";
 import { BackButton, GUTTER, Heading, Scroll, TopBar } from "./ui";
 
 /**

@@ -11,7 +11,7 @@ install without a dev machine, and no build anyone could download.
   `package.json`, `Cargo.toml`.
 - **Identifier stays `dev.deepak.loki`.** Changing it later resets the app data directory; do it
   before the first signed build if at all (RELEASING.md).
-- **The app installs its own mod.** `scripts/build-mod.mjs` bundles `mod/mod.ts` into one file
+- **The app installs its own mod.** `scripts/build-mod.mjs` bundles `mod/index.ts` into one file
   (`ws` inside, `esbuild` optional) under `src-tauri/resources/`, which Tauri ships in
   `Contents/Resources`. On launch (`src-tauri/src/install.rs`) the bundle is copied to the app data
   directory and `~/.letta/mods/loki.ts` is written pointing at it, plus the skill at

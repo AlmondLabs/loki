@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AgentChip } from "../desk/AgentChip";
 import type { DeskSummary } from "../desk/useDesk";
-import { Button, Chip, Field } from "../ui";
+import { Button, Chip, Field } from "../components";
 import { PRIORITY_LABEL, ago, columnsOf, filterTasks, type ColumnId, type Task } from "./model";
 import { registerActions, typingIn } from "../shell/keymap";
 

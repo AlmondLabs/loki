@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PERSONALITIES, type Personality } from "../../../packages/core/src/attention/protocol.ts";
-import { Button, Field, Row, Title } from "../ui";
+import { Button, Field, Row, Title } from "../components";
 
 /** The form for a new agent: name, description, one of Letta's personality presets, a model. */
 export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { models: string[] | null; onLoadModels: () => void; onCreate: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<string | null>; onCancel: () => void; canCancel: boolean }) {

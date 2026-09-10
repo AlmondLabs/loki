@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { MemorySkillInfo } from "../../../mod/skill-sources.ts";
-import { Button, Chip, Field, Row, TextArea } from "../ui";
+import { Button, Chip, Field, Row, TextArea } from "../components";
 import { Head, ListPane, Pane, Prose } from "./bits";
 import type { AgentDetails } from "./types";
 import type { AgentStore } from "./useAgentDetails";

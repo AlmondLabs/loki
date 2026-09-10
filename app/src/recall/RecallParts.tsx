@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { describeGap, isDue, isNew } from "../../../packages/core/src/recall/fsrs.ts";
 import { updatedSinceReview, type CardWithSchedule, type Rejected, type WorkerStatus } from "../../../packages/core/src/recall/model.ts";
-import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../ui";
+import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
 import { ago } from "../desk/CatchUpParts";
 
 /** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */

@@ -7,7 +7,7 @@ import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
 import { Mark, agentChips, archivedDesks, liveDesks } from "../shell/DeskTree";
 import { navigate } from "./router";
-import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../ui";
+import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../components";
 import { GUTTER, SAFE, Scroll, TopBar } from "./ui";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */

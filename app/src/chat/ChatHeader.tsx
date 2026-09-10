@@ -1,4 +1,4 @@
-import { IconButton } from "../ui";
+import { IconButton } from "../components";
 import type { ChatPlacement, ChatWidth } from "./ChatWindow";
 
 /**

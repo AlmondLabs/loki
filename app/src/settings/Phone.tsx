@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { Button, Chip, Dot, Row as PickRow, Switch } from "../ui";
+import { Button, Chip, Dot, Row as PickRow, Switch } from "../components";
 import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus, type TailscaleStatus } from "../phone/model";
 
 /** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */

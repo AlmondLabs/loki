@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
-import { Button, Chip, Field, Sheet, TextArea } from "../ui";
+import { Button, Chip, Field, Sheet, TextArea } from "../components";
 import { PRIORITY_LABEL } from "./model";
 
 /**

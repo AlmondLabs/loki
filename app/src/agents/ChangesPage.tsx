@@ -1,5 +1,5 @@
 import type { MemoryCommit } from "../../../mod/agents.ts";
-import { Row } from "../ui";
+import { Row } from "../components";
 import { ago } from "../board/model";
 import { Head, ListPane, Pane } from "./bits";
 import type { ReadingState } from "./useReading";

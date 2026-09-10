@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Personality } from "../../../packages/core/src/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
-import { Button, Empty, NavButton, Title } from "../ui";
+import { Button, Empty, NavButton, Title } from "../components";
 import type { Task } from "../board/model";
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, DEFAULT_AGENT_PAGE, isAgentPage, type AgentPage } from "./pages";
 import { firstAgentId, readingFor, shownShaOf, shownSkillOf } from "./reading";

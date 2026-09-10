@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from "
 import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
 import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
 import { matchCommands, slashQuery, type SlashCommand } from "../../../packages/core/src/attention/commands.ts";
-import { Button } from "../ui";
+import { Button } from "../components";
 import { ChatInput } from "./ChatInput";
 import { SlashPalette } from "./SlashPalette";
 import { ModelChip, ModelPicker, type ModelEntry } from "./ModelPicker";

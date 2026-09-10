@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { CODE_LENGTH, codeFromUrl, deviceName, normalizeCode } from "./model";
-import { Button, Field } from "../ui";
+import { Button, Field } from "../components";
 import { SAFE } from "./ui";
 
 export interface Me {

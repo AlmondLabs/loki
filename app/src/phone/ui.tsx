@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Button } from "../ui";
+import { Button } from "../components";
 
 /**
  * The phone's few shared pieces: a top bar that clears the notch, the scrolling surface under it,

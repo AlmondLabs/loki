@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Button, Field, Sheet, Title } from "../ui";
+import { Button, Field, Sheet, Title } from "../components";
 import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../packages/core/src/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";

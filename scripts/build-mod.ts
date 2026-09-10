@@ -12,7 +12,7 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/mod`, { recursive: true });
 
 await build({
-  entryPoints: [here("../mod/mod.ts")],
+  entryPoints: [here("../mod/index.ts")],
   outfile: `${out}/mod/loki-mod.mjs`,
   bundle: true,
   platform: "node",

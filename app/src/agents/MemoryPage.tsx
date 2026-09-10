@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { MemoryFile } from "../../../mod/agents.ts";
-import { Button, Row } from "../ui";
+import { Button, Row } from "../components";
 import { ago } from "../board/model";
 import { Head, ListPane, Pane, Prose } from "./bits";
 import type { AgentDetails } from "./types";

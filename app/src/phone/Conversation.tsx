@@ -7,7 +7,7 @@ import { Transcript, type TranscriptRow } from "../chat/Transcript";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { Pin } from "./Home";
-import { Button, IconButton, TextArea } from "../ui";
+import { Button, IconButton, TextArea } from "../components";
 import { BackButton, SAFE, TopBar } from "./ui";
 
 /** The conversation a card opened; kept apart from the item so the screen survives the card clearing. */

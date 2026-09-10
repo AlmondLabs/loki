@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Toast } from "../ui";
+import { Toast } from "../components";
 import { scopeFor } from "../../../packages/core/src/desk-core.ts";
 import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
 import { makeTransport } from "./transport";

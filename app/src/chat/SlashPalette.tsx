@@ -1,5 +1,5 @@
 import type { SlashCommand } from "../../../packages/core/src/attention/commands.ts";
-import { Meta, Popover, Row } from "../ui";
+import { Meta, Popover, Row } from "../components";
 
 /**
  * The commands the box can run, hung above it while a "/name" is being typed: the name, its argument

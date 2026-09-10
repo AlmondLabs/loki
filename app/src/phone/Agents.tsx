@@ -5,7 +5,7 @@ import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
 import { liveDeskCount, liveDesksLabel } from "./model";
 import { navigate } from "./router";
-import { Meta, Row } from "../ui";
+import { Meta, Row } from "../components";
 import { Scroll, TopBar } from "./ui";
 
 /** What the phone reads about agents: the mod's `agent_get`, `memory_read`, `memory_log`, `memory_diff`. */
