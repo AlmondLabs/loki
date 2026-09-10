@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { createServer } from "node:net";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,6 +12,10 @@ import type { Client, WsHandlers } from "../mod/server.ts";
 import type { IncomingMessage } from "node:http";
 import type { networkInterfaces } from "node:os";
 import { SERVE_41415, STATUS_RUNNING } from "./fixtures/tailscale.ts";
+
+// These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
+// of them has crossed bun's 5 s default. Twenty seconds still catches a hang.
+setDefaultTimeout(20_000);
 
 const DESKTOP = "0123456789abcdef0123456789abcdef";
 const TAILNET = "my-macbook-pro.tail1234.ts.net";
