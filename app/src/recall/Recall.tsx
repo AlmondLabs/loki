@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
-import { reviewQueue, type CardWithSchedule } from "../../../packages/core/src/recall/model.ts";
+import type { CardWithSchedule, RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
 import { Button, Chip, Empty, Meta, Title } from "../ui";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { CardEditor, CardList, PreviousText, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
+import { useDeckPass } from "./useDeckPass";
 
 /**
  * Recall: the cards the worker wrote, one at a time. The front, then the answer on space, then one of two
- * answers — again, or got it — that schedules the next sight of it. No composer, no commands: the only ways to shape what gets
- * written are to delete a card (X — it joins the pile the worker reads as "not this") or to edit it.
- * New cards come first with a mark, so the first look at a card is also the chance to throw it out.
- * Beside the deck: every card with search, and the deleted pile with restore.
+ * answers — again, or got it — that schedules the next sight of it. No composer, no commands: the only ways
+ * to shape what gets written are to delete a card (X — it joins the pile the worker reads as "not this")
+ * or to edit it. New cards come first with a mark, so the first look at a card is also the chance to throw
+ * it out. Beside the deck: every card with search, and the deleted pile with restore.
  */
 type View = "review" | "all" | "deleted";
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
@@ -19,64 +20,49 @@ const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "n
 export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void }) {
   const { snap } = recall;
   const [view, setView] = useState<View>("review");
-  const [revealed, setRevealed] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [showPrevious, setShowPrevious] = useState(false);
-  /** Cards graded this sitting: they leave the queue at once, whatever their new due time says. */
-  const [passed, setPassed] = useState<Set<string>>(() => new Set());
-  const [currentId, setCurrentId] = useState<string | null>(null);
-
   const cards = snap?.cards ?? [];
-  const queue = useMemo(() => reviewQueue(cards).filter((c) => !passed.has(c.card.id)), [cards, passed]);
-  // The card under your hands stays put while the list refreshes; the next one comes from the queue.
-  const current = queue.find((c) => c.card.id === currentId) ?? queue[0];
-  useEffect(() => {
-    if (current?.card.id !== currentId) {
-      setCurrentId(current?.card.id ?? null);
-      setRevealed(false);
-      setEditing(false);
-      setShowPrevious(false);
-    }
-  }, [current?.card.id, currentId]);
+  const pass = useDeckPass(cards);
+  const { current, revealed } = pass;
+  /** Per-card UI state, by id, so it leaves with the card. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [previousId, setPreviousId] = useState<string | null>(null);
+  const editing = !!current && editingId === current.card.id;
 
-  const advance = () => {
-    if (!current) return;
-    setPassed((p) => new Set(p).add(current.card.id));
-  };
   const grade = (g: Grade) => {
     if (!current || !revealed) return;
     void recall.grade(current.card.id, g);
-    advance();
+    pass.advance();
   };
   const remove = () => {
     if (!current) return;
     void recall.remove(current.card.id);
-    advance();
+    pass.advance();
   };
   const open = () => {
     const s = current?.card.source;
     if (s?.agentId && s.conversationId) onOpenDesk(s.agentId, s.conversationId);
   };
-
+  // Space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a pass
+  // through the deck is → → → with ← for the ones that slipped.
+  const answer = (g: Grade) => (revealed ? grade(g) : pass.reveal());
+  const keys = useRef({ reveal: () => {}, again: () => {}, good: () => {}, remove: () => {}, edit: () => {}, open: () => {} });
+  useEffect(() => {
+    keys.current = { reveal: () => answer(3), again: () => answer(1), good: () => answer(3), remove, edit: () => current && setEditingId(current.card.id), open };
+  });
+  // The deck's keys, registered once per showing; the handlers above are read at press time.
   useEffect(() => {
     if (!active || view !== "review") return;
     return registerActions({
-      // space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a
-      // pass through the deck is → → → with ← for the ones that slipped.
-      "recall.reveal": () => (revealed ? grade(3) : current && setRevealed(true)),
-      "recall.again": () => (revealed ? grade(1) : current && setRevealed(true)),
-      "recall.good": () => (revealed ? grade(3) : current && setRevealed(true)),
-      "recall.delete": remove,
+      "recall.reveal": () => keys.current.reveal(),
+      "recall.again": () => keys.current.again(),
+      "recall.good": () => keys.current.good(),
+      "recall.delete": () => keys.current.remove(),
+      "recall.edit": () => keys.current.edit(),
+      "recall.open": () => keys.current.open(),
       "recall.undo": () => void recall.undo(),
-      "recall.edit": () => current && setEditing(true),
-      "recall.open": open,
       "recall.refresh": () => void recall.refresh(),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, view, current?.card.id, revealed]);
-
-  const total = queue.length + passed.size;
-  const nextDue = cards.filter((c) => !passed.has(c.card.id) && !queue.includes(c)).map((c) => new Date(c.schedule.due).getTime()).sort()[0];
+  }, [active, view, recall]);
 
   return (
     <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
@@ -101,24 +87,29 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
         {recall.error && <Meta brass wrap>{recall.error}</Meta>}
 
         {view === "review" && (
-          <>
-            {!snap ? (
-              <Meta>loading…</Meta>
-            ) : cards.length === 0 ? (
-              <Empty card title="Nothing to recall yet.">
-                Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.
-                {snap.worker.lastRunAt ? ` The worker last ran ${describeGap(Date.now() - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.` : " The worker has not run yet."}
-              </Empty>
-            ) : !current ? (
-              <Empty card title={passed.size ? "Done for now." : "Nothing due."}>
-                {passed.size ? `${passed.size} card${passed.size === 1 ? "" : "s"} this sitting. ` : ""}
-                {nextDue ? `The next one is due in ${describeGap(nextDue - Date.now())}.` : ""}
-              </Empty>
-            ) : (
-              <Deck c={current} position={passed.size + 1} total={total} revealed={revealed} editing={editing} showPrevious={showPrevious} onReveal={() => setRevealed(true)} onGrade={grade} onDelete={remove} onEdit={() => setEditing(true)} onOpen={open} onTogglePrevious={() => setShowPrevious((v) => !v)} onSave={(text) => { void recall.edit(current.card.id, text); setEditing(false); }} onCancel={() => setEditing(false)} />
+          <ReviewBody snap={snap} pass={pass}>
+            {current && (
+              <Deck
+                c={current}
+                position={pass.passed.size + 1}
+                total={pass.total}
+                revealed={revealed}
+                editing={editing}
+                showPrevious={previousId === current.card.id}
+                onReveal={pass.reveal}
+                onGrade={grade}
+                onDelete={remove}
+                onEdit={() => setEditingId(current.card.id)}
+                onOpen={open}
+                onTogglePrevious={() => setPreviousId((p) => (p === current.card.id ? null : current.card.id))}
+                onSave={(text) => {
+                  void recall.edit(current.card.id, text);
+                  setEditingId(null);
+                }}
+                onCancel={() => setEditingId(null)}
+              />
             )}
-            {current && <RecallKeys revealed={revealed} />}
-          </>
+          </ReviewBody>
         )}
 
         {view === "all" && snap && (
@@ -134,7 +125,30 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
   );
 }
 
-/** One card: its source, the front, the answer once shown, and the grades. */
+/** What the review view shows around the card: loading, no cards at all, nothing due, or the deck with its key legend. */
+function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pass: ReturnType<typeof useDeckPass>; children: React.ReactNode }) {
+  if (!snap) return <Meta>loading…</Meta>;
+  if (snap.cards.length === 0) {
+    const ran = snap.worker.lastRunAt ? ` The worker last ran ${describeGap(Date.now() - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.` : " The worker has not run yet.";
+    return <Empty card title="Nothing to recall yet.">Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.{ran}</Empty>;
+  }
+  if (!pass.current) {
+    return (
+      <Empty card title={pass.passed.size ? "Done for now." : "Nothing due."}>
+        {pass.passed.size ? `${pass.passed.size} card${pass.passed.size === 1 ? "" : "s"} this sitting. ` : ""}
+        {pass.nextDue ? `The next one is due in ${describeGap(pass.nextDue - Date.now())}.` : ""}
+      </Empty>
+    );
+  }
+  return (
+    <>
+      {children}
+      <RecallKeys revealed={pass.revealed} />
+    </>
+  );
+}
+
+/** One card: its source, the front, the answer once shown, and the two answers. */
 function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, onGrade, onDelete, onEdit, onOpen, onTogglePrevious, onSave, onCancel }: { c: CardWithSchedule; position: number; total: number; revealed: boolean; editing: boolean; showPrevious: boolean; onReveal: () => void; onGrade: (g: Grade) => void; onDelete: () => void; onEdit: () => void; onOpen: () => void; onTogglePrevious: () => void; onSave: (text: { front: string; back: string }) => void; onCancel: () => void }) {
   const gaps = previews(c.schedule);
   const canOpen = !!(c.card.source.agentId && c.card.source.conversationId);

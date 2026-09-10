@@ -70,9 +70,9 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
     <div style={{ display: "grid", gap: 8 }}>
       <Field value={q} onChange={(e) => setQ(e.target.value)} placeholder={`search ${cards.length} card${cards.length === 1 ? "" : "s"}…`} aria-label="search cards" />
       {sorted.length === 0 && <Empty title={needle ? "No card matches." : "No cards yet."}>{needle ? "Try fewer words." : "The worker writes them from your conversations as they go quiet."}</Empty>}
-      <div role="list" style={{ display: "grid", gap: 4 }}>
+      <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
         {sorted.map((c) => (
-          <div key={c.card.id} role="listitem" style={{ border: "1px solid var(--loki-border)", borderRadius: 8, padding: open === c.card.id ? 14 : 0 }}>
+          <li key={c.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: 8, padding: open === c.card.id ? 14 : 0 }}>
             {open === c.card.id ? (
               <div style={{ display: "grid", gap: 10 }}>
                 <SourceLine c={c} />
@@ -100,9 +100,9 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
                 <Meta brass={isDue(c.schedule)}>{dueWord(c)}</Meta>
               </Row>
             )}
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
@@ -111,10 +111,11 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
 export function RejectedList({ rejected, onRestore, onForget }: { rejected: Rejected[]; onRestore: (id: string) => void; onForget: (id: string) => void }) {
   if (!rejected.length) return <Empty title="Nothing deleted.">Deleting a card puts it here, where the worker reads it as an example of what not to write.</Empty>;
   return (
-    <div role="list" style={{ display: "grid", gap: 4 }}>
+    <div style={{ display: "grid", gap: 4 }}>
       <Meta wrap>These teach the worker: a card deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back reworded.</Meta>
+      <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
       {rejected.map((r) => (
-        <div key={r.card.id} role="listitem" style={{ border: "1px solid var(--loki-border)", borderRadius: 8, padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
+        <li key={r.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: 8, padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
           <span style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.card.front}</div>
             <div style={{ fontSize: 12, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{r.card.back}</div>
@@ -124,8 +125,9 @@ export function RejectedList({ rejected, onRestore, onForget }: { rejected: Reje
             <Button size="sm" onClick={() => onRestore(r.card.id)}>restore</Button>
             <Button size="sm" tone="quiet" onClick={() => onForget(r.card.id)} title="drop it from the pile too — the worker stops seeing it">forget</Button>
           </span>
-        </div>
+        </li>
       ))}
+      </ul>
     </div>
   );
 }
