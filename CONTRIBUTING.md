@@ -31,7 +31,7 @@ CI runs the same three. `test/tokens.test.ts` fails when an inline style leaves 
 
 ## Where things are
 
-- `mod/` the Letta mod. Plain TypeScript, no build step in development; `scripts/build-mod.mjs` bundles it
+- `mod/` the Letta mod. Plain TypeScript, no build step in development; `scripts/build-mod.ts` bundles it
   for the app.
 - `packages/core/` (`@loki/core`) types, the pure gesture reducer, harness parsing and the attention model all three clients use; no browser or Tauri imports.
 - `app/` the React canvas and shell. Every shortcut lives in `app/src/shell/keymap.ts`.

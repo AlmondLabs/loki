@@ -6,7 +6,7 @@ import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const here = (p) => fileURLToPath(new URL(p, import.meta.url));
+const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const out = here("../src-tauri/resources");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/mod`, { recursive: true });

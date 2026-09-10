@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "test": "bun test",
     "build:app": "vite build --config app/vite.config.ts",
-    "build:mod": "node scripts/build-mod.mjs",
+    "build:mod": "bun scripts/build-mod.ts",
     "tauri": "tauri",
     "desktop:dev": "tauri dev --config '{\"build\":{\"devUrl\":\"http://127.0.0.1:5173\"}}'",
     "desktop:build": "tauri build",

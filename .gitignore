@@ -12,3 +12,4 @@ src-tauri/resources/
 .claude/skills/react-doctor/
 .continue/
 .qwen/
+package-lock.json

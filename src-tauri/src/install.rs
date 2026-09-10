@@ -1,7 +1,7 @@
 //! First launch: the mod and the agent's skill go where Letta looks for them.
 //!
 //! The app ships the mod as one bundled file (src-tauri/resources/mod/loki-mod.mjs, built by
-//! scripts/build-mod.mjs). On launch it is copied to ~/.letta/loki/mod (loki's home, `data` below) and a
+//! scripts/build-mod.ts). On launch it is copied to ~/.letta/loki/mod (loki's home, `data` below) and a
 //! shim in ~/.letta/mods/loki.ts points at it. A shim the app did not write (a developer's, pointing at a
 //! checkout) is left alone. The same goes for the skill in ~/.agents/skills/loki.
 //!

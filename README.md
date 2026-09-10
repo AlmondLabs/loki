@@ -351,7 +351,7 @@ Env: `LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/lok
 `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1` (make a
 dev build install its mod), `LOKI_NO_INSTALL=1` (stop a release build from doing so).
 Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log`. Harness for running the mod without
-Letta: `node scripts/harness.mjs`.
+Letta: `bun scripts/harness.ts`.
 
 `docs/architecture.md` explains Letta's four-responsibility execution model — model, Letta server,
 harness, loki — which are processes, and the journey of a message. `docs/plans/` is the design history,

@@ -1,30 +1,33 @@
-// Run the loki mod outside Letta for smoke testing: node scripts/harness.mjs
+// Run the loki mod outside Letta for smoke testing: bun scripts/harness.ts
 // Control:  POST :41500/tool {name,args} | /event {name,event} | /quit
 import { pathToFileURL } from "node:url";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 
+type Handler = (...args: unknown[]) => unknown;
+type Tool = { name: string; run: (ctx: { args: Record<string, unknown>; conversation: unknown }) => unknown };
+type Command = { id: string };
 
 const modUrl = pathToFileURL(new URL("../mod/boot.ts", import.meta.url).pathname); // same path Letta takes
 modUrl.searchParams.set("v", String(Date.now()));
 const mod = await import(modUrl.href);
 
-const tools = new Map();
-const commands = new Map();
-const events = new Map();
+const tools = new Map<string, Tool>();
+const commands = new Map<string, Command>();
+const events = new Map<string, Handler[]>();
 const letta = {
   capabilities: { commands: true, tools: true, events: { turns: true, lifecycle: true } },
-  tools: { register: (t) => (tools.set(t.name, t), () => tools.delete(t.name)) },
-  commands: { register: (c) => (commands.set(c.id, c), () => commands.delete(c.id)) },
+  tools: { register: (t: Tool) => (tools.set(t.name, t), () => tools.delete(t.name)) },
+  commands: { register: (c: Command) => (commands.set(c.id, c), () => commands.delete(c.id)) },
   events: {
-    on: (name, h) => {
+    on: (name: string, h: Handler) => {
       if (!events.has(name)) events.set(name, []);
-      events.get(name).push(h);
+      events.get(name)!.push(h);
       return () => {};
     },
   },
-  diagnostics: { report: (d) => console.error("[diag]", d.severity, d.message) },
+  diagnostics: { report: (d: { severity: string; message: string }) => console.error("[diag]", d.severity, d.message) },
 };
-const dispose = await mod.default(letta); // boot.ts activate is async
+const dispose: (() => void) | undefined = await mod.default(letta); // boot.ts activate is async
 
 const conv = {
   id: process.env.HARNESS_CONV ?? "conv-harness-1",
@@ -35,20 +38,27 @@ const conv = {
   getHistory: async () => [],
 };
 
-const text = (req) => new Promise((r) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => r(b)); });
+const text = (req: IncomingMessage) =>
+  new Promise<string>((r) => {
+    let b = "";
+    req.on("data", (c) => (b += c));
+    req.on("end", () => r(b));
+  });
 
 createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://x");
   const body = await text(req);
   try {
-    let out;
+    let out: unknown;
     if (url.pathname === "/tool") {
       const { name, args } = JSON.parse(body || "{}");
-      out = await tools.get(name).run({ args: args ?? {}, conversation: conv });
+      const tool = tools.get(name);
+      if (!tool) throw new Error(`no tool named ${name}`);
+      out = await tool.run({ args: args ?? {}, conversation: conv });
     } else if (url.pathname === "/event") {
       const { name, event } = JSON.parse(body || "{}");
       const ev = { conversationId: conv.id, ...(event ?? {}) };
-      const results = [];
+      const results: unknown[] = [];
       for (const h of events.get(name) ?? []) results.push(await h(ev, { conversation: conv }));
       out = { results, event: ev };
     } else if (url.pathname === "/quit") {
@@ -61,6 +71,6 @@ createServer(async (req, res) => {
     res.end(typeof out === "string" ? out : JSON.stringify(out, null, 2));
   } catch (e) {
     res.writeHead(500);
-    res.end(String(e?.stack ?? e));
+    res.end(String((e as Error)?.stack ?? e));
   }
 }).listen(41500, "127.0.0.1", () => console.error("harness: control on http://127.0.0.1:41500  (/tool /event /quit)"));
