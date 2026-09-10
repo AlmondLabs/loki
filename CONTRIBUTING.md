@@ -5,7 +5,7 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup), and Letta Code (`npm i -g @letta-ai/letta-code`).
+macOS 13+, [Bun](https://bun.sh) and Rust (stable, via rustup). Letta Code is not a prerequisite: the shell installs its own copy under `~/.letta/loki/runtime/` on first launch, and `LOKI_LETTA_BIN` points a dev build at a checkout instead.
 
 ```bash
 bun install

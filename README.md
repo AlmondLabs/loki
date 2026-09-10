@@ -68,7 +68,7 @@ Requirements).
 ## The window
 
 The native title bar carries the desk's name (or "Inbox · n waiting", "Board · n open", "Agents", "Settings"), a
-rail of five segments sits on the left, and one view fills the rest:
+rail of six segments sits on the left, and one view fills the rest:
 
 - **Desk** (⌘1): the sheet edge to edge, the chat stacked over it on the left, centred and wider, or on the
   right (⌘← and ⌘→ move it, ⌥⌘ from inside a text box, ⌘/ toggles it, ⌘W closes it, ⌘L focuses the message box,
@@ -98,11 +98,11 @@ rail of five segments sits on the left, and one view fills the rest:
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
 - **Settings** (⌘6, ⌘,): seven pages down the left, one showing at a time, the last one remembered for the
-  window. **letta**: which harness the app is on, how it reaches the mod, requirements and install status.
+  window. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six hours; `brew upgrade --cask loki` is the way up), which harness the app is on, how it reaches the mod, requirements and install status.
   **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
-  everything lives. **keys**: the complete keymap.
+  everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
@@ -145,7 +145,7 @@ changed, so it pairs once more:
 
 ```text
 mod/            Letta mod, plain TypeScript; boot.ts bundles it fresh on each /reload (no manual build)
-shared/         desk-core: types + the pure gesture reducer both halves use
+packages/core/   desk-core (types + the pure gesture reducer both halves use), attention, recall — portable, no browser globals
 app/            Vite + React canvas
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
 test/           bun tests
