@@ -40,9 +40,16 @@ function folderOptions(recent: Record<string, string[]>, matches: string[], agen
   const others = Object.entries(recent).filter(([a]) => a !== agentId).flatMap(([, l]) => l);
   const seen = new Set<string>();
   const list: FolderOption[] = [];
-  for (const p of folderTouched ? matches : []) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "match" }));
-  for (const p of mine) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "mine" }));
-  for (const p of others) if (!seen.has(p)) (seen.add(p), list.push({ path: p, group: "others" }));
+  const take = (paths: string[], group: FolderOption["group"]) => {
+    for (const p of paths) {
+      if (seen.has(p)) continue;
+      seen.add(p);
+      list.push({ path: p, group });
+    }
+  };
+  take(folderTouched ? matches : [], "match");
+  take(mine, "mine");
+  take(others, "others");
   return list.slice(0, 14);
 }
 
@@ -269,9 +276,13 @@ function FolderPicker({
           onBlur={() => setTimeout(() => setListOpen(false), 120)}
           onKeyDown={(e) => {
             if (!listOpen || !options.length) return;
-            if (e.key === "ArrowDown") (e.preventDefault(), setHi((i) => Math.min(options.length - 1, i + 1)));
-            else if (e.key === "ArrowUp") (e.preventDefault(), setHi((i) => Math.max(0, i - 1)));
-            else if (e.key === "Enter" || e.key === "Tab") {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setHi((i) => Math.min(options.length - 1, i + 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setHi((i) => Math.max(0, i - 1));
+            } else if (e.key === "Enter" || e.key === "Tab") {
               e.preventDefault();
               onChoose(options[hi].path);
             }

@@ -28,9 +28,10 @@ async function servedBuildNow(): Promise<string | null> {
 export function UpdateBar({ servedBuild, withTabBar }: { servedBuild: string | null; withTabBar: boolean }) {
   const current = currentBuild();
   const [health, setHealth] = useState<string | null>(null);
-  const hiddenAt = useRef<number | null>(document.visibilityState === "hidden" ? Date.now() : null);
+  const hiddenAt = useRef<number | null>(null);
 
   useEffect(() => {
+    hiddenAt.current = document.visibilityState === "hidden" ? Date.now() : null;
     let timer: number | null = null;
     const start = () => {
       if (timer === null) timer = window.setInterval(() => void servedBuildNow().then((b) => b && setHealth(b)), 60_000);

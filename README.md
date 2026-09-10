@@ -327,6 +327,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 ```bash
 bun test                                          # mod, shared, app logic, design tokens
 bun run typecheck                                 # tsc
+bun run lint                                      # eslint: typescript-eslint + the React hooks / compiler rules
 cargo test --manifest-path src-tauri/Cargo.toml   # the shell
 bun run dev                                       # Vite on 127.0.0.1:5173
 bun run desktop:dev                               # the Tauri window against it
@@ -335,7 +336,11 @@ bun run desktop:build                             # the .app and .dmg (bundles a
 
 The app is built with the React Compiler (`app/vite.config.ts`): callbacks and JSX are memoised for you, so a
 memo boundary such as the transcript's rows holds without hand-written `useCallback`. `LOKI_COMPILER_LOG=1 bun run
-build:app` lists the functions it declined to compile and why. In development, `?scan` on the dev URL loads React
+build:app` lists the functions it declined to compile and why. The compiler skips a function that breaks a rule of
+React silently; `bun run lint` (`eslint.config.mjs`) reports the same conditions as errors — refs read during
+render, the clock or other impure calls in render, mutation of props — plus TypeScript's recommended set. Nothing
+stylistic: there is no formatter, on purpose. `set-state-in-effect` is a warning while the effects that copy a
+prop into state are unlearned file by file. In development, `?scan` on the dev URL loads React
 Scan, which outlines every component that re-rendered without its output changing — the quickest way to see a
 keystroke re-rendering something it should not.
 

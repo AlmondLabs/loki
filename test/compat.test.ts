@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../packages/core/src/compat.ts";
 
 test("compatibility compares major.minor of what the harness reports", () => {
@@ -11,7 +12,7 @@ test("compatibility compares major.minor of what the harness reports", () => {
 });
 
 test("the shell pins the same Letta Code release it installs", () => {
-  const rs = require("node:fs").readFileSync(new URL("../src-tauri/src/bootstrap.rs", import.meta.url), "utf8") as string;
+  const rs = readFileSync(new URL("../src-tauri/src/bootstrap.rs", import.meta.url), "utf8");
   const pinned = rs.match(/pub const LETTA_CODE_VERSION: &str = "([^"]+)"/)?.[1];
   expect(pinned).toBe(TESTED_LETTA_CODE);
 });

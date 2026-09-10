@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useNow } from "../ui/useNow";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
 import type { CardWithSchedule } from "../../../packages/core/src/recall/model.ts";
 import type { Recall as RecallModel } from "../shell/useRecall";
@@ -47,8 +48,9 @@ export function Recall({ recall, banner }: { recall: RecallModel; banner: ReactN
 
 /** No card to show: none written yet, none due, or the sitting is done. */
 function Rest({ cards, passed, nextDue }: { cards: number; passed: number; nextDue: number | undefined }) {
+  const now = useNow();
   if (cards === 0) return <Empty card title="Nothing to recall yet.">Cards are written in the background from conversations that have gone quiet.</Empty>;
-  return <Empty card title={passed ? "Done for now." : "Nothing due."}>{nextDue ? `The next one is due in ${describeGap(nextDue - Date.now())}.` : ""}</Empty>;
+  return <Empty card title={passed ? "Done for now." : "Nothing due."}>{nextDue ? `The next one is due in ${describeGap(nextDue - now)}.` : ""}</Empty>;
 }
 
 function PhoneCard({ c, position, total, revealed, onReveal, onAnswer, onDelete, onUndo }: { c: CardWithSchedule; position: number; total: number; revealed: boolean; onReveal: () => void; onAnswer: (g: Grade) => void; onDelete: () => void; onUndo: () => void }) {

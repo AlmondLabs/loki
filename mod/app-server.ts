@@ -1,5 +1,4 @@
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { WebSocket } from "ws";
 import { readFileSync } from "node:fs";
 import { log } from "./log.ts";
@@ -143,8 +142,6 @@ export async function discoverAppServer(opts: { exclude?: number[]; explicitUrl?
   }
   return null;
 }
-
-type Pending = { resolve: (v: AppServerEvent) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> };
 
 /**
  * Minimal protocol client: request/response correlation by request_id,

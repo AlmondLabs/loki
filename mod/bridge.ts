@@ -1,7 +1,7 @@
 import type { Gesture, Scope } from "../packages/core/src/desk-core.ts";
 import type { InboxRow } from "./desks.ts";
 import { toAnkiTsv } from "../packages/core/src/recall/model.ts";
-import { SHARED_SCOPE, mergeData, scopeFor } from "../packages/core/src/desk-core.ts";
+import { SHARED_SCOPE, mergeData } from "../packages/core/src/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";

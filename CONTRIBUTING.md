@@ -22,6 +22,7 @@ marker is never overwritten by the app.
 ```bash
 bun test                                          # mod, shared, app logic, design tokens
 bun run typecheck
+bun run lint
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
 ```
 

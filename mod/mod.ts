@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import type { Scope } from "../packages/core/src/desk-core.ts";
 import { SHARED_SCOPE, scopeFor } from "../packages/core/src/desk-core.ts";
-import type { ConversationHandle, ConversationOpenEvent, EventContext, LettaMod, TurnStartEvent } from "./letta-types.ts";
+import type { ConversationOpenEvent, EventContext, LettaMod, TurnStartEvent } from "./letta-types.ts";
 import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
@@ -71,7 +71,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
   const stopPersist = persistDesks(store, paths.state);
   const gestures = new GestureLog();
 
-  let activeConversation: ConversationHandle | null = null;
   let activeScope: Scope = SHARED_SCOPE;
 
   let srv: LokiServer | null = null;
@@ -349,7 +348,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   track("conversation_open", (event, ctx) => {
     log("event:conversation_open", { id: (event as ConversationOpenEvent | undefined)?.conversationId ?? ctx?.conversation?.id ?? null });
-    if (ctx?.conversation?.id) activeConversation = ctx.conversation;
     const id = (event as ConversationOpenEvent | undefined)?.conversationId ?? ctx?.conversation?.id ?? null;
     if (id && recall.owns(id)) return; // the recall worker's own conversation: no desk follows it
     const next = scopeFor(id);
@@ -360,7 +358,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
   });
 
   track("turn_start", (event, ctx) => {
-    if (ctx?.conversation?.id) activeConversation = ctx.conversation;
     const ev = event as TurnStartEvent | undefined;
     const convId = ev?.conversationId ?? ctx?.conversation?.id ?? null;
     // Letta's own helper agents get no desk: their turn still runs, it just is not furnished or listed.

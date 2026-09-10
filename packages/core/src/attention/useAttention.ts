@@ -43,7 +43,8 @@ export function useAttention(opts: UseAttentionOptions) {
   /** False until the first agent_list answered: an empty list before that means nothing. */
   const [agentsLoaded, setAgentsLoaded] = useState(false);
   const [digests, setDigests] = useState<Map<string, Digest>>(new Map());
-  const [tick, setTick] = useState(0); // bumps when live state changes (live map is mutable by design)
+  /** The live map as render sees it: a fresh copy each time `bump` fires. The handlers mutate `liveRef` in place. */
+  const [live, setLive] = useState<Map<string, Live>>(() => new Map());
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
   /** From the harness's app_server_info reply: which Letta Code this is. */
   const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[] } | null>(null);
@@ -65,7 +66,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (notifyTimer.current) return;
     notifyTimer.current = setTimeout(() => {
       notifyTimer.current = null;
-      setTick((t) => t + 1);
+      setLive(new Map(liveRef.current));
     }, 150);
   }, []);
 
@@ -183,8 +184,8 @@ export function useAttention(opts: UseAttentionOptions) {
     return () => clearInterval(t);
   }, []);
   const items = useMemo(
-    () => buildItems(conversations, digests, liveRef.current, opts.seen).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
-    [conversations, digests, opts.seen, opts.snooze, tick, now],
+    () => buildItems(conversations, digests, live, opts.seen).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
+    [conversations, digests, opts.seen, opts.snooze, live, now],
   );
 
   // The app-server only lists what is still in the agent's context, so a compacted
@@ -237,13 +238,12 @@ export function useAttention(opts: UseAttentionOptions) {
   const conversation = useCallback(
     (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null } => {
       const key = keyOf(agentId, conversationId);
-      const l = liveRef.current.get(key);
+      const l = live.get(key);
       const base = histories[key];
-      const live: TranscriptRow[] = l ? [...l.tail, ...(l.streamingText ? [{ role: "assistant" as const, text: l.streamingText }] : [])] : [];
-      return { rows: base === undefined && !live.length ? undefined : [...(base ?? []), ...live], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
+      const liveRows: TranscriptRow[] = l ? [...l.tail, ...(l.streamingText ? [{ role: "assistant" as const, text: l.streamingText }] : [])] : [];
+      return { rows: base === undefined && !liveRows.length ? undefined : [...(base ?? []), ...liveRows], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [histories, tick],
+    [histories, live],
   );
 
   const decide = useCallback((rt: Runtime, requestId: string, behavior: "allow" | "deny") => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
 import { catchUpQueue } from "../../../packages/core/src/attention/queue.ts";
 import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
@@ -114,9 +114,12 @@ function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => voi
 /** A `?prefill=` in the route starts the reply box once, then leaves the address so a reload does not repeat it. */
 function usePrefill(conv: ConversationRoute | null) {
   const prefillKey = conv?.prefill ? formatRoute(conv) : null;
-  const prefill = useMemo(() => (conv?.prefill ? { text: conv.prefill, tick: Date.now() } : null), [prefillKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The route arriving is the event: it becomes the prefill (with a fresh tick) and leaves the address.
+  const [prefill, setPrefill] = useState<{ text: string; tick: number } | null>(null);
   useEffect(() => {
-    if (conv?.prefill) replace({ ...conv, prefill: null });
+    if (!conv?.prefill) return;
+    setPrefill({ text: conv.prefill, tick: Date.now() });
+    replace({ ...conv, prefill: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillKey]);
   return prefill;

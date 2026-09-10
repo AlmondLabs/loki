@@ -41,23 +41,6 @@ export function useCamera({
   /** The sheet's undo; false when there is nothing to undo. */
   undo: () => boolean;
 }) {
-  // The sheet's actions, by keymap id: the shell's one key handler (and the menu bar) dispatch to these.
-  useEffect(
-    () =>
-      registerActions({
-        "view.fit": () => fitAllRef.current(),
-        "view.reset": () => resetZoomRef.current(),
-        "view.zoomIn": () => zoomBy(1.25),
-        "view.zoomOut": () => zoomBy(1 / 1.25),
-        "desk.arrange": () => arrange(),
-        "desk.undo": () => {
-          if (!undo()) console.info("loki: nothing to undo on the sheet");
-        },
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
   /** The visible part of the viewport: everything the chat does not cover. */
   const stage = () => {
     const api = viewportRef.current;
@@ -113,9 +96,11 @@ export function useCamera({
   // The keymap actions above were registered once; they call through these to the latest closures.
   const fitAllRef = useRef(fitAll);
   const resetZoomRef = useRef(resetZoom);
+  const zoomByRef = useRef(zoomBy);
   useEffect(() => {
     fitAllRef.current = fitAll;
     resetZoomRef.current = resetZoom;
+    zoomByRef.current = zoomBy;
   });
 
   /** Focus: bring the widget to the front and zoom so it fills a good part of the stage. */
@@ -161,6 +146,24 @@ export function useCamera({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraTarget]);
+
+  // The sheet's actions, by keymap id: the shell's one key handler (and the menu bar) dispatch to these. Registered
+  // once, after every closure they call through is declared (the refs above carry the latest ones).
+  useEffect(
+    () =>
+      registerActions({
+        "view.fit": () => fitAllRef.current(),
+        "view.reset": () => resetZoomRef.current(),
+        "view.zoomIn": () => zoomByRef.current(1.25),
+        "view.zoomOut": () => zoomByRef.current(1 / 1.25),
+        "desk.arrange": () => arrange(),
+        "desk.undo": () => {
+          if (!undo()) console.info("loki: nothing to undo on the sheet");
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   return { highlighted, focusWidget };
 }

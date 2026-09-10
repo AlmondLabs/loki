@@ -98,7 +98,7 @@ describe("desk-core reducer", () => {
   });
 
   test("forgetWidget drops layout and overlay", () => {
-    let s = applyGesture(ensureLayout(emptyDesk("d"), "d/w"), { kind: "set", id: "d/w", path: "v", value: 1 });
+    const s = applyGesture(ensureLayout(emptyDesk("d"), "d/w"), { kind: "set", id: "d/w", path: "v", value: 1 });
     const t = forgetWidget(s, "d/w");
     expect(t.layout["d/w"]).toBeUndefined();
     expect(t.overlay["d/w"]).toBeUndefined();
@@ -116,7 +116,6 @@ describe("desk-core reducer", () => {
 
 describe("applyMeasure guards", () => {
   test("a collapsed frame (a few px wide) is never persisted as the widget's size", () => {
-    const { applyMeasure, emptyDesk, ensureLayout } = require("../packages/core/src/desk-core.ts");
     let state = ensureLayout(emptyDesk("d"), "d/a", []);
     const before = state.layout["d/a"].size;
     expect(applyMeasure(state, "d/a", { w: 2, h: 900 })).toBe(state);

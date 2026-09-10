@@ -83,7 +83,11 @@ export class DeskRegistry {
   /** Drop every desk of an agent (a subagent that slipped in through turn_start). Returns how many went. */
   forgetAgent(agentId: string): number {
     let n = 0;
-    for (const [scope, rt] of this.byScope) if (rt.agent_id === agentId) (this.byScope.delete(scope), n++);
+    for (const [scope, rt] of this.byScope) {
+      if (rt.agent_id !== agentId) continue;
+      this.byScope.delete(scope);
+      n++;
+    }
     if (n) this.persist();
     return n;
   }

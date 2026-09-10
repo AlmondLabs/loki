@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
 import type { CardWithSchedule, RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
 import { Button, Chip, Empty, Meta, Title } from "../ui";
+import { useNow } from "../ui/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { CardEditor, CardList, PreviousText, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
@@ -127,16 +128,17 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
 
 /** What the review view shows around the card: loading, no cards at all, nothing due, or the deck with its key legend. */
 function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pass: ReturnType<typeof useDeckPass>; children: React.ReactNode }) {
+  const now = useNow();
   if (!snap) return <Meta>loading…</Meta>;
   if (snap.cards.length === 0) {
-    const ran = snap.worker.lastRunAt ? ` The worker last ran ${describeGap(Date.now() - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.` : " The worker has not run yet.";
+    const ran = snap.worker.lastRunAt ? ` The worker last ran ${describeGap(now - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.` : " The worker has not run yet.";
     return <Empty card title="Nothing to recall yet.">Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.{ran}</Empty>;
   }
   if (!pass.current) {
     return (
       <Empty card title={pass.passed.size ? "Done for now." : "Nothing due."}>
         {pass.passed.size ? `${pass.passed.size} card${pass.passed.size === 1 ? "" : "s"} this sitting. ` : ""}
-        {pass.nextDue ? `The next one is due in ${describeGap(pass.nextDue - Date.now())}.` : ""}
+        {pass.nextDue ? `The next one is due in ${describeGap(pass.nextDue - now)}.` : ""}
       </Empty>
     );
   }

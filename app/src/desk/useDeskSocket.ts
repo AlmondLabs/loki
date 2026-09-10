@@ -87,7 +87,6 @@ export function useDeskSocket() {
 
     const connect = () => {
       if (disposed) return;
-      const proto = location.protocol === "https:" ? "wss" : "ws";
       const ws = new WebSocket(`${modWsBase()}/ws?t=${token}&desk=${encodeURIComponent(scope)}`);
       wsRef.current = ws;
       setConnection("connecting");

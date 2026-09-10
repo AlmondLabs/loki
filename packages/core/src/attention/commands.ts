@@ -40,8 +40,16 @@ export const LOKI_COMMANDS: SlashCommand[] = [
 export function fromAdvertised(ids: string[] | undefined, mods: Array<{ id: string; description?: string; args?: string }> | undefined, known: SlashCommand[] = HARNESS_COMMANDS): SlashCommand[] {
   const have = new Set(known.map((c) => c.id));
   const out: SlashCommand[] = [];
-  for (const id of ids ?? []) if (!have.has(id) && /^[a-z][\w-]*$/.test(id)) (have.add(id), out.push({ id, description: "", where: "harness" }));
-  for (const m of mods ?? []) if (m.id && !have.has(m.id)) (have.add(m.id), out.push({ id: m.id, description: m.description ?? "", args: m.args, where: "harness" }));
+  for (const id of ids ?? []) {
+    if (have.has(id) || !/^[a-z][\w-]*$/.test(id)) continue;
+    have.add(id);
+    out.push({ id, description: "", where: "harness" });
+  }
+  for (const m of mods ?? []) {
+    if (!m.id || have.has(m.id)) continue;
+    have.add(m.id);
+    out.push({ id: m.id, description: m.description ?? "", args: m.args, where: "harness" });
+  }
   return out;
 }
 
