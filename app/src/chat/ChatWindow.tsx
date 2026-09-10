@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { LAYER } from "../kit/layers";
 import "./chat.css";
 import type { PendingApproval, PendingQuestion } from "../../../packages/core/src/attention/model.ts";
@@ -121,6 +121,13 @@ export function ChatWindow({
   const waiting = !!approval || !!question;
   const { attentive, setHover, setFocused } = useAttentive({ messageCount: messages.length, status, waiting });
   const { unpinned, onScroll, jumpToLatest, unpin } = useTranscriptScroll(scrollRef, messages, status);
+  // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
+  // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
+  const cancelQueuedRef = useRef(onCancelQueued);
+  useEffect(() => {
+    cancelQueuedRef.current = onCancelQueued;
+  }, [onCancelQueued]);
+  const cancelQueued = useCallback((row: TranscriptRow) => cancelQueuedRef.current?.(row.text), []);
 
   return (
     <div
@@ -148,7 +155,7 @@ export function ChatWindow({
         />
       )}
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 16px", position: "relative", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
-        <ThreadBody messages={messages} status={status} error={error} agentName={agentName} waiting={waiting} onCancelQueued={onCancelQueued} />
+        <ThreadBody messages={messages} status={status} error={error} agentName={agentName} waiting={waiting} onCancelQueued={onCancelQueued ? cancelQueued : undefined} />
       </div>
       <AttentionStrip question={question} onAnswer={onAnswer} approval={approval} onApprove={onApprove} />
       {unpinned && (
@@ -218,7 +225,7 @@ function ThreadBody({
   error: string | null;
   agentName: string | null | undefined;
   waiting: boolean;
-  onCancelQueued?: (text: string) => void;
+  onCancelQueued?: (row: TranscriptRow) => void;
 }) {
   return (
     <>
@@ -227,7 +234,7 @@ function ThreadBody({
           same conversation, different room — everything here lands in {agentName ? `${agentName}'s` : "the"} transcript
         </div>
       )}
-      <Transcript rows={messages} streaming={status === "streaming"} onCancelQueued={onCancelQueued ? (row) => onCancelQueued(row.text) : undefined} />
+      <Transcript rows={messages} streaming={status === "streaming"} onCancelQueued={onCancelQueued} />
       {status === "thinking" && !waiting && (
         <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 8px" }}>
           thinking…

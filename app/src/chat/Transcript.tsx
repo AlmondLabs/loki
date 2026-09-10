@@ -11,13 +11,14 @@ export type { TranscriptRow };
 /**
  * Rows are memoised: parsing markdown for a long thread on every keystroke in
  * the message box made typing lag. A row re-renders only when its own text,
- * its last-ness, or the streaming cursor changes.
+ * its last-ness, or the streaming cursor changes. The take-back handler reaches only queued rows,
+ * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  */
 export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
   return (
     <>
       {rows.map((m, i) => (
-        <Row key={i} row={m} last={i === rows.length - 1} streaming={streaming} dim={dim}  onCancelQueued={onCancelQueued} />
+        <Row key={i} row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} />
       ))}
     </>
   );
