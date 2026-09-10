@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { askQuestions, buildQuestionAnswer, buildUserContent, environmentReminder } from "../packages/core/src/attention/content.ts";
+import { askQuestions, buildQuestionAnswer, buildUserContent, environmentReminder } from "../core/attention/content.ts";
 
 describe("user message content", () => {
   const img = { id: "i1", mediaType: "image/jpeg", data: "QUJD", url: "data:image/jpeg;base64,QUJD" };

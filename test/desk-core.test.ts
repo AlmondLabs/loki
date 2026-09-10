@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect, type WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
+import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect, type WidgetManifestEntry } from "../core/desk-core.ts";
 
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -144,7 +144,7 @@ describe("frame sizing", () => {
 describe("deskView (app/src/desk/view.ts)", () => {
   test("shared widgets come first, hidden ones go to the tray, unplaced ones cascade, and own/loaded read the desk's own scope", async () => {
     const { deskView } = await import("../app/src/desk/view.ts");
-    const { autoPlace } = await import("../packages/core/src/desk-core.ts");
+    const { autoPlace } = await import("../core/desk-core.ts");
     const entry = (id: string): WidgetManifestEntry => ({ id, scope: id.split("/")[0], name: id.split("/")[1], kind: "json", file: `${id}.json`, title: id, data: {}, hash: "", updatedAt: 0 });
     const widgets = { shared: [entry("shared/a"), entry("shared/b")], d: [entry("d/x"), entry("d/y")] };
     const desks = {

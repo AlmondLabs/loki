@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import type { Runtime } from "../../../packages/core/src/attention/protocol.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../board/model";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";

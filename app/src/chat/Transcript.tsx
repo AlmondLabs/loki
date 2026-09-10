@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { TranscriptRow } from "../../../packages/core/src/attention/transcript.ts";
+import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button, IconButton } from "../components";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */

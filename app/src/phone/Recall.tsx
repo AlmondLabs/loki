@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useNow } from "../components/useNow";
-import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
-import type { CardWithSchedule } from "../../../packages/core/src/recall/model.ts";
+import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall/fsrs.ts";
+import type { CardWithSchedule } from "../../../core/recall/model.ts";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallIntro, SourceLine } from "../recall/RecallParts";
 import { useDeckPass } from "../recall/useDeckPass";

@@ -2,14 +2,14 @@ import { useState, type Dispatch, type RefObject, type SetStateAction } from "re
 import { ChatInput } from "../chat/ChatInput";
 import { AgentChip, AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import { catchUpQueue, idOf, type Decision } from "../../../packages/core/src/attention/queue.ts";
-import { formatIn, ordinal, type Snooze } from "../../../packages/core/src/attention/snooze.ts";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
+import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Button, Chip, Empty, Meta, Title } from "../components";
 import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../chat/PermissionMode";
-import type { AttentionStatus } from "../../../packages/core/src/attention/model.ts";
+import type { AttentionStatus } from "../../../core/attention/model.ts";
 
 /** The pieces of a Catch Up card. State lives in CatchUpDeck; these only draw it and call back. */
 

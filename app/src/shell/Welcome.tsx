@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Button, Field, Sheet, Title } from "../components";
-import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../packages/core/src/attention/protocol.ts";
+import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../core/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";
 import type { BootstrapStatus } from "./bootstrap";

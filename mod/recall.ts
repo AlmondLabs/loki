@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { newSchedule, review, type Grade, type Schedule } from "../packages/core/src/recall/fsrs.ts";
-import type { Card, CardWithSchedule, Rejected, WorkerStatus } from "../packages/core/src/recall/model.ts";
+import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
+import type { Card, CardWithSchedule, Rejected, WorkerStatus } from "../core/recall/model.ts";
 
 /**
  * The Recall files, under ~/.letta/loki/recall (LOKI_RECALL_DIR in tests):

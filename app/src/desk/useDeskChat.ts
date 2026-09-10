@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { conversationDirName } from "../../../packages/core/src/desk-core.ts";
+import { conversationDirName } from "../../../core/desk-core.ts";
 import type { useDesk } from "./useDesk";
-import type { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
+import type { useAttention } from "../../../core/attention/useAttention.ts";
 
 /**
  * The desk's conversation, from the same model the inbox uses: subscribed while the desk is open,

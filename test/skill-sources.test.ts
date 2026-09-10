@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backendName } from "../packages/core/src/desk-core.ts";
+import { backendName } from "../core/desk-core.ts";
 import { memorySkills } from "../mod/agents.ts";
 import { INSTALL_RE, SkillSources, compareTrees, parseSource, readLock, reconcilePrompt } from "../mod/skill-sources.ts";
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import { catchUpQueue, idOf, snoozedItems } from "../../../packages/core/src/attention/queue.ts";
-import { formatIn } from "../../../packages/core/src/attention/snooze.ts";
-import { formatInput } from "../../../packages/core/src/attention/format.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue, idOf, snoozedItems } from "../../../core/attention/queue.ts";
+import { formatIn } from "../../../core/attention/snooze.ts";
+import { formatInput } from "../../../core/attention/format.ts";
 import { ApprovalCard } from "../chat/ApprovalCard";
 import type { TranscriptRow } from "../chat/Transcript";
 import { AgentChip, AgentFace } from "../desk/AgentChip";

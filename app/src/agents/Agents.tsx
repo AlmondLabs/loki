@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Personality } from "../../../packages/core/src/attention/protocol.ts";
+import type { Personality } from "../../../core/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
 import { Button, Empty, NavButton, Title } from "../components";

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import { catchUpQueue, idOf, snoozedItems, stampOf, type Decision } from "../../../packages/core/src/attention/queue.ts";
-import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue, idOf, snoozedItems, stampOf, type Decision } from "../../../core/attention/queue.ts";
+import type { Snooze } from "../../../core/attention/snooze.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { ApprovalCard } from "../chat/ApprovalCard";
 import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";

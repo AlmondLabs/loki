@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { hostname, networkInterfaces } from "node:os";
 import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";
-import type { Scope } from "../packages/core/src/desk-core.ts";
+import type { Scope } from "../core/desk-core.ts";
 import type { DeviceStore, DeviceVia } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";

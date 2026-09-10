@@ -1,11 +1,11 @@
 import { homedir } from "node:os";
 import { WebSocket } from "ws";
-import { AppServerSocket, type Runtime, type ServerEvent } from "../packages/core/src/attention/protocol.ts";
-import type { Transport } from "../packages/core/src/attention/transport.ts";
-import { applyEvent, emptyLive } from "../packages/core/src/attention/model.ts";
-import { buildPrompt, parseExtraction, similarFront } from "../packages/core/src/recall/extract.ts";
-import { keepsFailing } from "../packages/core/src/recall/fsrs.ts";
-import type { Card } from "../packages/core/src/recall/model.ts";
+import { AppServerSocket, type Runtime, type ServerEvent } from "../core/attention/protocol.ts";
+import type { Transport } from "../core/attention/transport.ts";
+import { applyEvent, emptyLive } from "../core/attention/model.ts";
+import { buildPrompt, parseExtraction, similarFront } from "../core/recall/extract.ts";
+import { keepsFailing } from "../core/recall/fsrs.ts";
+import type { Card } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
 import { readLocalTranscriptSince, type InboxRow, type LocalTranscriptMessage } from "./desks.ts";
 import { log } from "./log.ts";

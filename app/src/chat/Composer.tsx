@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from "react";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
-import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
-import { matchCommands, slashQuery, type SlashCommand } from "../../../packages/core/src/attention/commands.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { PendingQuestion } from "../../../core/attention/model.ts";
+import { matchCommands, slashQuery, type SlashCommand } from "../../../core/attention/commands.ts";
 import { Button } from "../components";
 import { ChatInput } from "./ChatInput";
 import { SlashPalette } from "./SlashPalette";

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import { catchUpQueue, mergeQueue, type Decision } from "../../../packages/core/src/attention/queue.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue, mergeQueue, type Decision } from "../../../core/attention/queue.ts";
 
 /**
  * The pass's queue and what it has decided so far. The current card never moves under your hands,

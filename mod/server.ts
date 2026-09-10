@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { WebSocketServer, WebSocket } from "ws";
 import { log } from "./log.ts";
 import { appServerHeaders } from "./app-server.ts";
-import type { Scope } from "../packages/core/src/desk-core.ts";
-import { scopeFor } from "../packages/core/src/desk-core.ts";
+import type { Scope } from "../core/desk-core.ts";
+import { scopeFor } from "../core/desk-core.ts";
 
 /**
  * Transport only. HTTP exists for /health and the WebSocket upgrade; the

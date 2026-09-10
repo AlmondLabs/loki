@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isNewerVersion, parseVersion } from "../packages/core/src/version.ts";
+import { isNewerVersion, parseVersion } from "../core/version.ts";
 
 test("release tags and plain versions parse alike", () => {
   expect(parseVersion("v0.3.0")).toEqual([0, 3, 0]);

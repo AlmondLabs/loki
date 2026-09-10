@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
-import { catchUpQueue } from "../../../packages/core/src/attention/queue.ts";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
+import { useAttention } from "../../../core/attention/useAttention.ts";
+import { catchUpQueue } from "../../../core/attention/queue.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
 import { makeTransport } from "../shell/transport";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/useDesk";

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { inTauri } from "../desk/env";
-import type { Transport } from "../../../packages/core/src/attention/transport.ts";
+import type { Transport } from "../../../core/attention/transport.ts";
 
 /**
  * How frames reach Letta's app-server from the canvas. In a browser tab: a WebSocket to the

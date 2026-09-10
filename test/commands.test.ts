@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { HARNESS_COMMANDS, LOKI_COMMANDS, allCommands, commandInput, fromAdvertised, matchCommands, parseSlash, slashQuery } from "../packages/core/src/attention/commands.ts";
-import { applyEvent, emptyLive } from "../packages/core/src/attention/model.ts";
+import { HARNESS_COMMANDS, LOKI_COMMANDS, allCommands, commandInput, fromAdvertised, matchCommands, parseSlash, slashQuery } from "../core/attention/commands.ts";
+import { applyEvent, emptyLive } from "../core/attention/model.ts";
 
 describe("slash commands", () => {
   test("parseSlash reads a command and its arguments, and leaves paths and prose alone", () => {

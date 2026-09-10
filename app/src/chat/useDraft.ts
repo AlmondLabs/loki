@@ -1,7 +1,7 @@
 import { useState } from "react";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
-import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
-import { parseSlash, type SlashCommand } from "../../../packages/core/src/attention/commands.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { PendingQuestion } from "../../../core/attention/model.ts";
+import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
 
 /**
  * The message being typed: its text, the images pasted or dropped in, and the send.

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Personality } from "../../../packages/core/src/attention/protocol.ts";
+import type { Personality } from "../../../core/attention/protocol.ts";
 
 export type CreateAgent = (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<{ id: string } | { error: string }>;
 

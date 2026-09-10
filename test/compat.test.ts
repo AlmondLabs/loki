@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../packages/core/src/compat.ts";
+import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../core/compat.ts";
 
 test("compatibility compares major.minor of what the harness reports, against the tested release either way it reports itself", () => {
   expect(lettaCompatible(null)).toBeNull();

@@ -3,11 +3,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 /**
- * `packages/core` (@loki/core) is shared by the canvas, the mod and the phone app. It must not know
+ * `core/` is shared by the canvas, the mod and the phone app. It must not know
  * where it runs: no browser globals, no Tauri, no reach into app/. Relative imports carry the `.ts`
  * extension so Node (the mod) and Metro (the phone) can both resolve them from source.
  */
-const CORE = resolve(import.meta.dir, "..", "packages", "core", "src");
+const CORE = resolve(import.meta.dir, "..", "core");
 const LEAKS = /window\.|document\.|localStorage|navigator\.|@tauri-apps/;
 /** Bare specifiers the package may import: the hook layer needs React; everything else is its own. */
 const ALLOWED_BARE = new Set(["react"]);
@@ -26,7 +26,7 @@ const files = tsFiles(CORE).map((p) => ({ path: relative(CORE, p), abs: p, text:
 const specifiers = (text: string): string[] =>
   [...text.matchAll(/(?:from\s*|import\s*\(\s*|require\s*\(\s*|^\s*import\s*)["']([^"']+)["']/gm)].map((m) => m[1]);
 
-describe("@loki/core is portable", () => {
+describe("core/ is portable", () => {
   test("the package has files", () => {
     expect(files.length).toBeGreaterThan(0);
   });
@@ -46,7 +46,7 @@ describe("@loki/core is portable", () => {
       for (const spec of specifiers(f.text)) {
         if (spec.startsWith(".")) {
           const target = resolve(dirname(f.abs), spec);
-          if (spec.startsWith("../../app") || relative(CORE, target).startsWith("..")) bad.push(`${f.path} → ${spec} (outside packages/core)`);
+          if (relative(CORE, target).startsWith("..")) bad.push(`${f.path} → ${spec} (outside core/)`);
           else if (!spec.endsWith(".ts")) bad.push(`${f.path} → ${spec} (needs an explicit .ts extension)`);
           else if (!existsSync(target)) bad.push(`${f.path} → ${spec} (missing)`);
         } else if (!ALLOWED_BARE.has(spec)) {

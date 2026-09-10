@@ -3,7 +3,7 @@ import { createBridge, scopeOfId, sortDesks, type DeskSummary, PHONE_FRAMES } fr
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
-import type { WidgetManifestEntry } from "../packages/core/src/desk-core.ts";
+import type { WidgetManifestEntry } from "../core/desk-core.ts";
 import type { Client } from "../mod/server.ts";
 import type { LanStatus, LanVia } from "../mod/lan.ts";
 import type { TailscaleStatus } from "../mod/tailscale.ts";

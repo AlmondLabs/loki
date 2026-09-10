@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { AttentionItem } from "../packages/core/src/attention/model.ts";
-import { stampOf } from "../packages/core/src/attention/queue.ts";
+import type { AttentionItem } from "../core/attention/model.ts";
+import { stampOf } from "../core/attention/queue.ts";
 import {
   COMMIT_FRACTION,
   DRAG_SLOP,

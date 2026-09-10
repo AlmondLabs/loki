@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ANSWERS, describeGap, previews, type Grade } from "../../../packages/core/src/recall/fsrs.ts";
-import type { CardWithSchedule, RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
+import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall/fsrs.ts";
+import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import { Button, Chip, Empty, Meta, Title } from "../components";
 import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";

@@ -1,4 +1,4 @@
-import type { SlashCommand } from "../../../packages/core/src/attention/commands.ts";
+import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { Meta, Popover, Row } from "../components";
 
 /**

@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
-import { backendName } from "../packages/core/src/desk-core.ts";
+import { backendName } from "../core/desk-core.ts";
 
 /**
  * What Letta keeps per agent on this machine, read for the Agents page:

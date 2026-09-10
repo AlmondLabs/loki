@@ -16,7 +16,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// The Letta Code release loki was tested with (packages/core/src/compat.ts carries the same number).
+/// The Letta Code release loki was tested with (core/compat.ts carries the same number).
 pub const LETTA_CODE_VERSION: &str = "0.31.12";
 pub const PACKAGE: &str = "@letta-ai/letta-code";
 /// letta-code's engines.node.

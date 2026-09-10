@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildPrompt, parseExtraction, similarFront } from "../packages/core/src/recall/extract.ts";
+import { buildPrompt, parseExtraction, similarFront } from "../core/recall/extract.ts";
 
 describe("recall prompt", () => {
   test("quotes rejections and existing cards, states the room, and asks for JSON", () => {

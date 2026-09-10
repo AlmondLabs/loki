@@ -3,8 +3,8 @@
  * when a drag becomes a swipe and which way it commits, how far a card leans and how strongly the
  * reveal shows, what this pass has done, and which cards the deck must not show again.
  */
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import { catchUpQueue, idOf, stampOf } from "../../../packages/core/src/attention/queue.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue, idOf, stampOf } from "../../../core/attention/queue.ts";
 
 /** Which way a swipe went: right is "seen", left is "later". */
 export type Swipe = "seen" | "later";

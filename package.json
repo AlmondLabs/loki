@@ -5,9 +5,6 @@
   "license": "Apache-2.0",
   "repository": "github:skilp4d/loki",
   "type": "module",
-  "workspaces": [
-    "packages/*"
-  ],
   "description": "A memory palace your agent builds — Letta Code mod + Vite widget desk the agent writes files into",
   "scripts": {
     "dev": "vite --config app/vite.config.ts",

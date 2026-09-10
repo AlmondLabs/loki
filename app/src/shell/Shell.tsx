@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toast } from "../components";
-import { scopeFor } from "../../../packages/core/src/desk-core.ts";
-import { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
+import { scopeFor } from "../../../core/desk-core.ts";
+import { useAttention } from "../../../core/attention/useAttention.ts";
 import { makeTransport } from "./transport";
-import { catchUpQueue } from "../../../packages/core/src/attention/queue.ts";
+import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { Surface } from "../desk/Surface";
 import { useDesk } from "../desk/useDesk";
 import { inTauri } from "../desk/env";

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PERSONALITIES, type Personality } from "../../../packages/core/src/attention/protocol.ts";
+import { PERSONALITIES, type Personality } from "../../../core/attention/protocol.ts";
 import { Button, Field, Row, Title } from "../components";
 
 /** The form for a new agent: name, description, one of Letta's personality presets, a model. */

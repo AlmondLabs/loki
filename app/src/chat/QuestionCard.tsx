@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PendingQuestion } from "../../../packages/core/src/attention/model.ts";
+import type { PendingQuestion } from "../../../core/attention/model.ts";
 import { Button, Chip, Dot, Field } from "../components";
 
 /**

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DeskRegistry, digestLocalConversation, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript } from "../mod/desks.ts";
-import { conversationDirName } from "../packages/core/src/desk-core.ts";
+import { conversationDirName } from "../core/desk-core.ts";
 
 describe("desk registry", () => {
   test("remembers, persists, reloads; scope is the sanitized conversation id", () => {

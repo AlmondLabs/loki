@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Dot, IconButton, TextArea } from "../components";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */

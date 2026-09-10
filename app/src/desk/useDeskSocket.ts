@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeskState, Gesture, Scope, Size, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
-import { scopeFor } from "../../../packages/core/src/desk-core.ts";
+import type { DeskState, Gesture, Scope, Size, WidgetManifestEntry } from "../../../core/desk-core.ts";
+import { scopeFor } from "../../../core/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
-import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
+import type { Snooze } from "../../../core/attention/snooze.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Grade } from "../../../packages/core/src/recall/fsrs.ts";
-import { dueCount, type CardWithSchedule, type RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
+import type { Grade } from "../../../core/recall/fsrs.ts";
+import { dueCount, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 

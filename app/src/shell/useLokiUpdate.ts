@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isNewerVersion } from "../../../packages/core/src/version.ts";
+import { isNewerVersion } from "../../../core/version.ts";
 
 /** What the app knows about newer releases of itself. */
 export interface LokiUpdate {

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { Gesture, Scope } from "../../../packages/core/src/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, emptyDesk } from "../../../packages/core/src/desk-core.ts";
+import type { Gesture, Scope } from "../../../core/desk-core.ts";
+import { SHARED_SCOPE, applyGesture, emptyDesk } from "../../../core/desk-core.ts";
 import { readSession } from "./session";
 import { inTauri, modWsBase } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket } from "./useDeskSocket";
@@ -11,9 +11,9 @@ import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { RefreshOutcome } from "../../../mod/skill-sources.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
 import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
-import type { CardWithSchedule, RecallSnapshot } from "../../../packages/core/src/recall/model.ts";
-import type { Grade } from "../../../packages/core/src/recall/fsrs.ts";
-import type { Snooze } from "../../../packages/core/src/attention/snooze.ts";
+import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
+import type { Grade } from "../../../core/recall/fsrs.ts";
+import type { Snooze } from "../../../core/attention/snooze.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
 

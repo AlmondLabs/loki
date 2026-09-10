@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
 import { MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript } from "../mod/recall-worker.ts";
 import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
-import { review } from "../packages/core/src/recall/fsrs.ts";
+import { review } from "../core/recall/fsrs.ts";
 
 // Whole file runs in ~120 ms alone, yet "rejected cards are quoted…" crossed bun's 5 s default twice on a
 // loaded machine (a Vite build and a browser beside the suite) — the flaky test the launch review could not

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import type { Gesture, Position, Size, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
-import { RESIZE_MIN } from "../../../packages/core/src/desk-core.ts";
+import type { Gesture, Position, Size, WidgetLayout, WidgetManifestEntry } from "../../../core/desk-core.ts";
+import { RESIZE_MIN } from "../../../core/desk-core.ts";
 
 /** Keyboard nudge in canvas px: arrows move or (with Alt) resize by a step; Shift takes the long step. */
 const NUDGE_STEP = 8;

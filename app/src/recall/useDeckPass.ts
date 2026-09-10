@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { reviewQueue, type CardWithSchedule } from "../../../packages/core/src/recall/model.ts";
+import { reviewQueue, type CardWithSchedule } from "../../../core/recall/model.ts";
 
 /**
  * One sitting with the deck, shared by the desktop section and the phone tab: the queue of due cards

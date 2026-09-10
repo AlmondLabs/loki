@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
-import type { AttentionItem } from "../packages/core/src/attention/model.ts";
-import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../packages/core/src/pairing-code.ts";
+import type { AttentionItem } from "../core/attention/model.ts";
+import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 
 /**
  * The phone's pure bits (app/src/phone/model.ts): the pairing URL both ways, the device label,

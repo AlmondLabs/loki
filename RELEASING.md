@@ -8,7 +8,7 @@ to publish.
 
 1. Bump the version in all three places and keep them equal: `package.json`, `src-tauri/tauri.conf.json`,
    `src-tauri/Cargo.toml`. Settings shows the package version; the bundle carries the Tauri one.
-2. If Letta Code was upgraded, retest and update `TESTED_LETTA_CODE` in `packages/core/src/compat.ts`.
+2. If Letta Code was upgraded, retest and update `TESTED_LETTA_CODE` in `core/compat.ts`.
 3. `bun test && bun run typecheck && cargo test --manifest-path src-tauri/Cargo.toml`.
 4. Commit, then `git tag v0.3.0 && git push origin main --tags`.
 5. Wait for the workflow, open the draft release, check the notes, publish.

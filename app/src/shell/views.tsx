@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import { scopeFor } from "../../../packages/core/src/desk-core.ts";
+import { scopeFor } from "../../../core/desk-core.ts";
 import { CatchUp as Inbox } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Board } from "../board/Board";

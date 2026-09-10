@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import type { Runtime } from "../../../packages/core/src/attention/protocol.ts";
-import type { PendingApproval, PendingQuestion } from "../../../packages/core/src/attention/model.ts";
+import type { Runtime } from "../../../core/attention/protocol.ts";
+import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import { ApprovalCard } from "../chat/ApprovalCard";
 import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";

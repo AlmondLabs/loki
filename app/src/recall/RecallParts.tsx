@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { describeGap, isDue, isNew } from "../../../packages/core/src/recall/fsrs.ts";
-import { updatedSinceReview, type CardWithSchedule, type Rejected, type WorkerStatus } from "../../../packages/core/src/recall/model.ts";
+import { describeGap, isDue, isNew } from "../../../core/recall/fsrs.ts";
+import { updatedSinceReview, type CardWithSchedule, type Rejected, type WorkerStatus } from "../../../core/recall/model.ts";
 import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
 import { ago } from "../desk/CatchUpParts";
 

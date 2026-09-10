@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
-import { stampOf, type Decision } from "../../../packages/core/src/attention/queue.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
+import { stampOf, type Decision } from "../../../core/attention/queue.ts";
 
 /**
  * What a card can do, and the small state those actions leave behind: the reply draft and its images,

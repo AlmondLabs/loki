@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { initialIndex, sectionDesks, statusLine, treeKey } from "../app/src/shell/DeskTree.tsx";
 import type { DeskSummary } from "../app/src/desk/useDesk";
-import type { AttentionItem } from "../packages/core/src/attention/model.ts";
+import type { AttentionItem } from "../core/attention/model.ts";
 
 /**
  * The switcher's order (app/src/shell/DeskTree.tsx): waiting on you, pinned, recent in visit order,

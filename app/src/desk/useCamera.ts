@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
-import type { Gesture } from "../../../packages/core/src/desk-core.ts";
+import type { Gesture } from "../../../core/desk-core.ts";
 import type { CameraTarget, VisibleWidget } from "./useDesk";
 import { registerActions } from "../shell/keymap";
 import { glide } from "../kit/motion";

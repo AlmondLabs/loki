@@ -1,5 +1,5 @@
 import type { useDesk } from "../desk/useDesk";
-import type { useAttention } from "../../../packages/core/src/attention/useAttention.ts";
+import type { useAttention } from "../../../core/attention/useAttention.ts";
 
 /** The desk model the window holds (useDesk()); the views and hooks under shell/ read it by this name. */
 export type Desk = ReturnType<typeof useDesk>;

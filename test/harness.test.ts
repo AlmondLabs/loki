@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { decodeEntities, extractHarnessEvents, stripHarnessMarkup } from "../packages/core/src/harness.ts";
+import { decodeEntities, extractHarnessEvents, stripHarnessMarkup } from "../core/harness.ts";
 
 describe("harness markup", () => {
   const notif = `<task-notification>\n<task-id>bash_24</task-id>\n<status>completed</status>\n<summary>Background command "Re-auth dev" completed</summary>\n<result>$ cd /tmp\nnohup aws sso login &gt; /tmp/x 2&gt;&amp;1 &amp;</result>\n<usage>duration_ms: 1</usage>\n</task-notification>\nFull transcript available at: /var/x/bash_24.log`;

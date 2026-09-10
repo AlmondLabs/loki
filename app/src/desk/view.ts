@@ -1,5 +1,5 @@
-import type { DeskState, Scope, WidgetLayout, WidgetManifestEntry } from "../../../packages/core/src/desk-core.ts";
-import { SHARED_SCOPE, autoPlace } from "../../../packages/core/src/desk-core.ts";
+import type { DeskState, Scope, WidgetLayout, WidgetManifestEntry } from "../../../core/desk-core.ts";
+import { SHARED_SCOPE, autoPlace } from "../../../core/desk-core.ts";
 
 export interface VisibleWidget {
   entry: WidgetManifestEntry;

@@ -1,7 +1,7 @@
 import type { LocalAgent, MemoryCommit, MemoryFile } from "../../../mod/agents.ts";
 import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { MemorySkillInfo, RefreshOutcome } from "../../../mod/skill-sources.ts";
-import type { Personality } from "../../../packages/core/src/attention/protocol.ts";
+import type { Personality } from "../../../core/attention/protocol.ts";
 
 export interface AgentDetails {
   agent: LocalAgent;

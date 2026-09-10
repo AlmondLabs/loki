@@ -1,4 +1,4 @@
-import type { PendingApproval, PendingQuestion } from "../../../packages/core/src/attention/model.ts";
+import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import { Button } from "../components";
 import { ApprovalCard } from "./ApprovalCard";
 import { QuestionCard } from "./QuestionCard";

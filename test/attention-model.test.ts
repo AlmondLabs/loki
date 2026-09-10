@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, cancelQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type ConversationInfo } from "../packages/core/src/attention/model.ts";
-import { toTranscript } from "../packages/core/src/harness.ts";
+import { applyEvent, buildItems, cancelQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type ConversationInfo } from "../core/attention/model.ts";
+import { toTranscript } from "../core/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
 

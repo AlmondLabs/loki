@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { LAYER } from "../kit/layers";
 import "./chat.css";
-import type { PendingApproval, PendingQuestion } from "../../../packages/core/src/attention/model.ts";
-import type { SlashCommand } from "../../../packages/core/src/attention/commands.ts";
-import type { ImageAttachment } from "../../../packages/core/src/attention/content.ts";
+import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
+import type { SlashCommand } from "../../../core/attention/commands.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Transcript, type TranscriptRow } from "./Transcript";
 import { Chip } from "../components";
 import type { ModelEntry } from "./ModelPicker";
@@ -97,7 +97,7 @@ export function ChatWindow({
   question?: PendingQuestion | null;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
   onSend: (text: string, images?: ImageAttachment[]) => void;
-  /** Slash commands the box offers (see packages/core/src/attention/commands.ts) and their runner. */
+  /** Slash commands the box offers (see core/attention/commands.ts) and their runner. */
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
   onClose: () => void;

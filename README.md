@@ -146,7 +146,7 @@ changed, so it pairs once more:
 
 ```text
 mod/            Letta mod, plain TypeScript; boot.ts bundles it fresh on each /reload (no manual build)
-packages/core/   desk-core (types + the pure gesture reducer both halves use), attention, recall — portable, no browser globals
+core/           desk-core (types + the pure gesture reducer both halves use), attention, recall — portable, no browser globals
 app/            Vite + React canvas
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
 test/           bun tests
@@ -163,7 +163,7 @@ Only the things a mod can do:
 - watches `~/.letta/loki/widgets/`, syntax-checks `.tsx` with esbuild, tells the tab what changed
 - appends the user's desk activity to their next turn (`turn_start`)
 - finds Letta's app-server and tunnels the browser to it (`/appserver`); the browser owns every conversation
-  view from there — the desk chat and Catch Up cards are one model (`packages/core/src/attention`), streaming token by token
+  view from there — the desk chat and Catch Up cards are one model (`core/attention`), streaming token by token
   whether a turn was typed in Desktop or in the canvas
 - lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
   however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
@@ -267,7 +267,7 @@ run — loki's own (`/model`, `/mode`, `/inbox`, `/desks`) and the harness's (`/
 `/remember`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
 advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
 Harness commands go over the app-server socket as `execute_command`, the path Desktop and the channels use, and
-land in the transcript as one quiet row: the command line, then its outcome. `packages/core/src/attention/commands.ts`
+land in the transcript as one quiet row: the command line, then its outcome. `core/attention/commands.ts`
 is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
 message on the clipboard as the markdown it was written in, not the rendering.
 

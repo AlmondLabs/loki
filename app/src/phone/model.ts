@@ -7,7 +7,7 @@
 
 import type { LanStatus } from "../../../mod/lan.ts";
 import type { DeviceSummary } from "../../../mod/devices.ts";
-import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../packages/core/src/pairing-code.ts";
+import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../core/pairing-code.ts";
 
 /** The mod's own types: what `lan_status` and `devices` carry (mod/lan.ts, mod/devices.ts). */
 export type { LanStatus };

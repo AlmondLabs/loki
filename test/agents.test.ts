@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backendName } from "../packages/core/src/desk-core.ts";
+import { backendName } from "../core/desk-core.ts";
 import { isAgentId, isSubagent, memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
 
 const AGENT = "agent-local-test-1234";

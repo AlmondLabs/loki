@@ -1,6 +1,6 @@
 import { useEffect, type RefObject } from "react";
-import type { AttentionItem } from "../../../packages/core/src/attention/model.ts";
-import type { Decision } from "../../../packages/core/src/attention/queue.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { Decision } from "../../../core/attention/queue.ts";
 import { registerActions } from "../shell/keymap";
 
 /**

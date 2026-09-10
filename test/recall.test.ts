@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
-import type { Card } from "../packages/core/src/recall/model.ts";
+import type { Card } from "../core/recall/model.ts";
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const card = (id: string, over: Partial<Card> = {}): Card => ({
