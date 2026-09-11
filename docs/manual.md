@@ -121,7 +121,9 @@ both must be on the same Wi‑Fi and the Mac must be awake with loki running; so
 clients from each other, and then the phone cannot reach the Mac at all — Tailscale (its address appears in
 Settings › phone too) is the way around that; when it is not, the phone says "Mac unreachable, last seen …" and
 reconnects by itself. Each paired phone is listed in Settings › phone with when it was last seen; "forget"
-locks it out. The rail shows a brass dot on the settings icon while the switch is on. Read [SECURITY.md](SECURITY.md)
+locks it out. The rail shows a brass dot on the settings icon while the switch is on. If the icon opens on
+"loki did not load", the phone could not reach the Mac (wrong network, Tailscale off, the Mac asleep) or launched from a
+cached copy of the page; "try again" reloads, and a page from an older build reloads itself once the Mac answers. Read [SECURITY.md](SECURITY.md)
 before switching it on somewhere you do not trust the network.
 
 **Phone, anywhere.** Install [Tailscale](https://tailscale.com/download) on the Mac and on the phone and sign in to

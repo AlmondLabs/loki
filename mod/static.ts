@@ -89,14 +89,18 @@ export function createStaticApp(dist: string | null): StaticHandler {
     const file = resolve(root, `.${pathname}`);
     const rel = relative(root, file);
     if (!rel || rel.startsWith("..") || rel.split(sep).includes("..") || resolve(root, rel) !== file) return void notFound(res);
+    const immutable = rel.startsWith(`assets${sep}`); // Vite hashes everything under assets/
     let body: Buffer;
     try {
       if (!statSync(file).isFile()) return void notFound(res);
       body = readFileSync(file);
     } catch {
+      // A hashed script from an earlier build: the page that asked for it is stale (a home-screen app on iOS
+      // launches from its cached start page when the network is slow to wake). Answer with a reload instead of
+      // a 404, so the phone picks up the current build rather than sitting on a blank screen.
+      if (immutable && (ext === ".js" || ext === ".mjs")) return void serveStaleReload(res);
       return void notFound(res);
     }
-    const immutable = rel.startsWith(`assets${sep}`); // Vite hashes everything under assets/
     res.writeHead(200, {
       "content-type": TYPES[ext.toLowerCase()] ?? "application/octet-stream",
       "content-length": body.length,
@@ -118,6 +122,20 @@ function serveIndex(root: string, res: ServerResponse): void {
   html = i >= 0 ? html.slice(0, i) + boot + html.slice(i) : boot + html;
   res.writeHead(200, { "content-type": TYPES[".html"], "cache-control": "no-cache" });
   res.end(html);
+}
+
+/**
+ * What a stale hashed script gets instead of a 404: JavaScript that reloads the page once. The guard in
+ * sessionStorage stops a loop if the reloaded page is stale too (the Mac mid-rebuild); a later stale hit,
+ * ten seconds or more on, may reload again. Never cached: the name it answers for belongs to a dead build.
+ */
+export const STALE_RELOAD_SCRIPT = `// loki: this asset belongs to an earlier build; the page reloads to pick up the current one.
+(function(){try{var k="loki.staleReload",t=Number(sessionStorage.getItem(k)||0);if(Date.now()-t<10000)return;sessionStorage.setItem(k,String(Date.now()))}catch(e){}location.reload()})();
+`;
+
+function serveStaleReload(res: ServerResponse): void {
+  res.writeHead(200, { "content-type": TYPES[".js"], "cache-control": "no-store" });
+  res.end(STALE_RELOAD_SCRIPT);
 }
 
 function notFound(res: ServerResponse): void {

@@ -104,6 +104,7 @@ describe("design tokens: definitions and uses agree", () => {
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     const manifest = readFileSync(join(APP, "..", "public", "manifest.webmanifest"), "utf8");
     expect(html.match(/name="theme-color" content="(#[0-9a-fA-F]{6})"/)?.[1]).toBe(bg);
+    expect(html.match(/html \{ background: (#[0-9a-fA-F]{6})/)?.[1]).toBe(bg); // the fallback's ground, before any stylesheet
     expect([...manifest.matchAll(/"(?:background_color|theme_color)":\s*"(#[0-9a-fA-F]{6})"/g)].map((m) => m[1])).toEqual([bg, bg]);
   });
 });

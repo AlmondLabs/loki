@@ -18,9 +18,34 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+    <!-- The page's own colour before any stylesheet arrives (a home-screen app shows this while the script
+         loads), and a fallback for when it never does: a stale cached page, a Mac that did not answer. -->
+    <style>
+      html { background: #12151b; color: #d9d6cf; font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+      body { margin: 0; }
+      #loki-fallback { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
+      #loki-fallback[hidden] { display: none; }
+      #loki-fallback p { margin: 0 0 8px; max-width: 30em; }
+      #loki-fallback .muted { color: #8b8a85; }
+      #loki-fallback button { margin-top: 14px; padding: 12px 22px; font: inherit; color: #c9a86a; background: transparent; border: 1px solid #c9a86a; border-radius: 999px; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="loki-fallback" hidden>
+      <div>
+        <p>loki did not load.</p>
+        <p class="muted">Same Wi‑Fi as the Mac, or Tailscale switched on, and loki open on the Mac.</p>
+        <button type="button" onclick="location.reload()">try again</button>
+      </div>
+    </div>
+    <script>
+      // Shown only if nothing has rendered after eight seconds: the app's first paint is well under one.
+      setTimeout(function () {
+        var root = document.getElementById("root");
+        if (root && !root.firstChild) document.getElementById("loki-fallback").hidden = false;
+      }, 8000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

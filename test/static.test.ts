@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LAN_BOOT_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
+import { LAN_BOOT_SCRIPT, STALE_RELOAD_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
 
 // These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
 // of them has crossed bun's 5 s default. Twenty seconds still catches a hang.
@@ -101,8 +101,20 @@ describe("static app", () => {
     expect(svg.headers.get("content-type")).toContain("image/svg+xml");
   });
 
+  test("a hashed script from an earlier build answers with a one-shot reload, never cached; other misses are 404", async () => {
+    const stale = await fetch(`${served.base}/assets/boot-OLDHASH.js`);
+    expect(stale.status).toBe(200);
+    expect(stale.headers.get("content-type")).toContain("javascript");
+    expect(stale.headers.get("cache-control")).toBe("no-store");
+    expect(await stale.text()).toBe(STALE_RELOAD_SCRIPT);
+    expect(STALE_RELOAD_SCRIPT).toContain("location.reload()");
+    expect(STALE_RELOAD_SCRIPT).toContain("sessionStorage"); // the loop guard
+    expect((await fetch(`${served.base}/assets/nope.css`)).status).toBe(404);
+    expect((await fetch(`${served.base}/nope.js`)).status).toBe(404); // only assets/ is hashed
+  });
+
   test("a missing file with an extension is 404; traversal never leaves the dist", async () => {
-    expect((await fetch(`${served.base}/assets/nope.js`)).status).toBe(404);
+    expect((await fetch(`${served.base}/assets/nope.png`)).status).toBe(404);
     expect((await fetch(`${served.base}/assets/../../secret.txt`)).status).toBe(404);
     expect((await fetch(`${served.base}/assets/..%2F..%2Fsecret.txt`)).status).toBe(404);
     expect((await fetch(`${served.base}/%2e%2e/secret.txt`)).status).toBe(404);
