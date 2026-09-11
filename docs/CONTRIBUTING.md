@@ -13,8 +13,8 @@ bun run dev            # Vite on 127.0.0.1:5173
 bun run desktop:dev    # the Tauri window against the dev server (in a second terminal)
 ```
 
-For the mod, point Letta at your checkout instead of the installed copy: write the shim from the README's
-"Install (development)" section to `~/.letta/mods/loki.ts`. A shim that does not start with the managed
+For the mod, point Letta at your checkout instead of the installed copy: write the shim from the manual's
+"Install (development)" section (`docs/manual.md`) to `~/.letta/mods/loki.ts`. A shim that does not start with the managed
 marker is never overwritten by the app.
 
 ## Checks
