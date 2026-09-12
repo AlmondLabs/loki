@@ -72,14 +72,14 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
       {/* The deck sits in the middle of the view (a little above it, where the eye rests); the lists start at the top. */}
       <div style={{ width: 760, maxWidth: "100%", margin: view === "review" ? "auto" : "0 auto", paddingBottom: view === "review" ? "8vh" : 0, display: "flex", flexDirection: "column", gap: 16 }}>
         <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <Title page>recall</Title>
+          <Title page>learn</Title>
           <Meta>
             {recall.due} due · {cards.length} card{cards.length === 1 ? "" : "s"}
             {leads.length ? ` · ${leads.length} lead${leads.length === 1 ? "" : "s"}` : ""}
             {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
           </Meta>
           <span style={{ flex: 1 }} />
-          <span role="tablist" aria-label="recall views" style={{ display: "inline-flex", gap: 4 }}>
+          <span role="tablist" aria-label="learn views" style={{ display: "inline-flex", gap: 4 }}>
             {(["review", "leads", "all", "deleted"] as View[]).map((v) => (
               <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => setView(v)}>
                 {v === "all" ? "all cards" : v}

@@ -175,7 +175,7 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
  */
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
   return (
-    <section aria-label="about recall" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
+    <section aria-label="about learn" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
       <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
       <p style={{ margin: 0 }}>
         Recall is a writer that runs in the background. Every ten minutes it looks for conversations that have gone quiet, hands the new
@@ -192,20 +192,20 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
         It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at
         all while no conversation has new text. The hidden conversations sit in the desks tree as "recall" desks, so you can read what it was asked.
         Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/recall/</code>. It is off until you turn it on,
-        and Settings › recall turns it off again.
+        and Settings › learn turns it off again.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         {onEnable ? (
           <Button tone="brass" onClick={onEnable}>turn the writer on</Button>
         ) : (
-          <Meta>turn it on from the Mac: Recall, or Settings › recall</Meta>
+          <Meta>turn it on from the Mac: Learn, or Settings › learn</Meta>
         )}
       </div>
     </section>
   );
 }
 
-/** Settings › recall: the writer's switch and knobs, in Settings' fact grid. */
+/** Settings › learn: the writer's switch and knobs, in Settings' fact grid. */
 export function RecallSettings({ worker, onSettings, onRun, running }: { worker: WorkerStatus; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => void; onRun: () => void; running: boolean }) {
   const [model, setModel] = useState(worker.model ?? "");
   const [cap, setCap] = useState(String(worker.dailyCap));

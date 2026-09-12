@@ -28,7 +28,7 @@ export function Sidebar({
   treeOpen: boolean;
   /** Open tasks on the board, shown quietly under its icon. */
   openTasks?: number;
-  /** Cards due in Recall, the same quiet way. */
+  /** Cards due in Learn, the same quiet way. */
   dueCards?: number;
   /** The mod is reachable on the Wi‑Fi (Settings › phone): a brass dot on the settings icon while it is. */
   lanOn?: boolean;
@@ -63,7 +63,7 @@ export function Sidebar({
           <span key={s.id} style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" ? "auto" : 0 }}>
             <button
               onClick={() => onSelect(s.id)}
-              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "recall" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
+              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "learn" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
               aria-pressed={active}
               title={`${s.label} (${s.key})`}
               className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
@@ -85,7 +85,7 @@ export function Sidebar({
               {/* Badges like the Dock's: brass when something needs you (inbox), quiet for a count you chose to keep (board). */}
               {isInbox && waiting > 0 && <Badge n={waiting} tone="accent" />}
               {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
-              {s.id === "recall" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
+              {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
               {/* The listener is on: the page is reachable from the Wi‑Fi, which is worth a brass dot (D11). */}
               {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color="var(--loki-accent)" style={{ position: "absolute", top: 3, right: 3 }} />}
             </button>
@@ -162,7 +162,7 @@ function Icon({ id }: { id: Segment }) {
       </svg>
     );
   }
-  if (id === "recall") {
+  if (id === "learn") {
     // two cards, one behind the other
     return (
       <svg {...common} aria-hidden>

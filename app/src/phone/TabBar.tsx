@@ -13,13 +13,13 @@ export function TabBar({ active, waiting, due = 0 }: { active: Tab | null; waiti
     <nav aria-label="tabs" style={{ flex: "0 0 auto", display: "flex", alignItems: "stretch", height: `calc(${TAB_BAR_HEIGHT}px + ${SAFE.bottom})`, paddingBottom: SAFE.bottom, paddingLeft: SAFE.left, paddingRight: SAFE.right, boxSizing: "border-box", background: "var(--loki-panel)", borderTop: "1px solid var(--loki-border)" }}>
       {TABS.map((t) => {
         const on = t === active;
-        const n = t === "inbox" ? waiting : t === "recall" ? due : 0;
+        const n = t === "inbox" ? waiting : t === "learn" ? due : 0;
         return (
           <button
             key={t}
             type="button"
             onClick={() => navigate({ kind: "tab", tab: t })}
-            aria-label={n > 0 ? `${t}, ${n} ${t === "recall" ? "due" : "waiting"}` : t}
+            aria-label={n > 0 ? `${t}, ${n} ${t === "learn" ? "due" : "waiting"}` : t}
             aria-current={on ? "page" : undefined}
             style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, border: "none", background: "transparent", color: on ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
           >
@@ -65,7 +65,7 @@ function Icon({ tab }: { tab: Tab }) {
       </svg>
     );
   }
-  if (tab === "recall") {
+  if (tab === "learn") {
     // two cards, one behind the other
     return (
       <svg {...common} aria-hidden>

@@ -95,7 +95,7 @@ rail of six segments sits on the left, and one view fills the rest:
   **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
-  **recall**: the card writer's switch (off until you turn it on), cards a day, the model it asks, run now. **files**: where
+  **learn**: the card writer's switch (off until you turn it on), cards a day, the model it asks, run now, and the leads it proposes. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
@@ -253,11 +253,11 @@ land in the transcript as one quiet row: the command line, then its outcome. `co
 is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
 message on the clipboard as the markdown it was written in, not the rendering.
 
-### Recall (⌘5)
+### Learn (⌘5)
 
 Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
 writer spends your provider budget in the background, so the section's first visit explains what it does and
-offers the switch (Settings › recall has it too, with the knobs). Nothing about the cards happens in
+offers the switch (Settings › learn has it too, with the knobs). Nothing about the cards happens in
 chat: a worker in the mod watches for conversations that have gone quiet, hands the new stretch of
 transcript to the agent in a hidden conversation of its own (cleared each time), and writes whatever
 comes back — one fact per card, a question that stands alone, an answer in a line or two — up to a daily

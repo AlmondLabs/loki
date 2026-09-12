@@ -7,6 +7,6 @@ export const SEGMENTS: Array<{ id: Segment; label: string; key: string }> = [
   { id: "inbox", label: "inbox", key: "⌘2" },
   { id: "board", label: "board", key: "⌘3" },
   { id: "agents", label: "agents", key: "⌘4" },
-  { id: "recall", label: "recall", key: "⌘5" },
+  { id: "learn", label: "learn", key: "⌘5" },
   { id: "settings", label: "settings", key: "⌘6" },
 ];

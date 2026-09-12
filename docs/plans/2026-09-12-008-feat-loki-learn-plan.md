@@ -36,8 +36,10 @@ worth keeping; a desk is a directory an agent furnishes. A lesson is a desk with
   its own", is not in the first cut and may never be.
 - **The agent who was there teaches.** It knows the context and the person. A tutor persona is a later
   option; a `human/learning.md` memory file for how the person likes to be taught is the cheaper first step.
-- **Recall keeps its name for now.** Renaming the section to Learn (review, lessons, leads as tabs) is the
-  right end state and a separate, visible change; the tab lands first.
+- **The section is Learn.** Renamed the same day on the user's ask ("Can we rename the entire section (sidebar) and
+  call it Learn?"): the rail, the window title, the menu, the Settings page, the phone tab. Internal ids, the
+  `recall_*` frames, the hook and component names and `~/.letta/loki/recall/` keep the old word; the writer is
+  still "recall", the thing that keeps cards fresh inside Learn.
 - **The brief is a user message.** Sent on the explicit click of "start", as the board's dispatch already
   posts tasks. It is visible in the transcript; it is what the person asked for.
 - **The lesson's folder is the home directory**, like the recall conversation's. Lessons are about a
@@ -77,4 +79,4 @@ is near an existing lead, lesson or dismissed lead is dropped (`similarFront` on
 2. A "learning" group in the desks tree with the progress mark; `[Learn]` stripped from the row title.
 3. Sessions on the FSRS schedule; "n lessons due" in Recall's header; the learned shelf; the memory line.
 4. The phone: leads read-only, lessons list; start stays on the Mac (no `recall_lead_start` in PHONE_FRAMES).
-5. Rename the section to Learn once the tabs make the old name wrong.
+5. ~~Rename the section to Learn~~ — done with slice 1.

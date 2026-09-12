@@ -32,7 +32,7 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     if (desk.connection === "open") void refresh();
   }, [desk.recallVersion, desk.connection, refresh]);
   useEffect(() => {
-    if (segment !== "recall") return;
+    if (segment !== "learn") return;
     void refresh();
     const t = setInterval(() => void refresh(), 60_000);
     return () => clearInterval(t);
@@ -88,7 +88,7 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     setRunning(true);
     const note = await desk.recall.run();
     setRunning(false);
-    notice(`recall: ${note}`);
+    notice(`learn: ${note}`);
     void refresh();
   };
   const exportCards = async () => {

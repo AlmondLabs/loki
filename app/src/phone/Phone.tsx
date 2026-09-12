@@ -167,7 +167,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // thread is fetched once when it arrives, and live rows stream in on top.
   const deck = useDeck(catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
-  const recall = useRecall(desk, route.kind === "tab" && route.tab === "recall" ? "recall" : "desk", (m) => setRecallNote(m));
+  const recall = useRecall(desk, route.kind === "tab" && route.tab === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
   useEffect(() => {
     if (!recallNote) return;
     const t = setTimeout(() => setRecallNote(null), 4000);
@@ -253,7 +253,7 @@ function Screen({ tab, me, desk, catchUp, deck, recall, recallNote, banner, rece
         onUnsnooze={catchUp.unsnooze}
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
-      {tab === "recall" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} />}
+      {tab === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} />}
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
       {tab === "settings" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
     </>

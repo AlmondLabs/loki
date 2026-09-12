@@ -29,7 +29,7 @@ const SEGMENT_KEY = "loki.segment";
 /** The segment survives a reload of the same window; a refresh mid-pass reopens the inbox. */
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
-  return s === "inbox" || s === "settings" || s === "board" || s === "agents" || s === "recall" ? s : "desk";
+  return s === "inbox" || s === "settings" || s === "board" || s === "agents" || s === "learn" ? s : "desk";
 }
 
 /** First launch: nothing to talk to yet. Only while the harness has answered and lists no agents. */
@@ -211,7 +211,7 @@ export function Shell() {
       "segment.desk": () => (setSegment("desk"), setTreeOpen(false)),
       "segment.inbox": () => (setSegment("inbox"), setTreeOpen(false)),
       "segment.board": () => (setSegment("board"), setTreeOpen(false)),
-      "segment.recall": () => (setSegment("recall"), setTreeOpen(false)),
+      "segment.learn": () => (setSegment("learn"), setTreeOpen(false)),
       "segment.agents": () => (setSegment("agents"), setTreeOpen(false)),
       "segment.settings": () => (setSegment("settings"), setTreeOpen(false)),
       "tree.toggle": () => (treeOpen ? setTreeOpen(false) : openTree()),
@@ -283,7 +283,7 @@ export function Shell() {
             />
           )}
 
-          {segment === "recall" && <RecallView recall={recall} active={segment === "recall" && !picker && !captureOpen && !treeOpen} onOpenDesk={openDesk} />}
+          {segment === "learn" && <RecallView recall={recall} active={segment === "learn" && !picker && !captureOpen && !treeOpen} onOpenDesk={openDesk} />}
 
           {segment === "agents" && (
             <AgentsView

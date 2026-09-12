@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 
 /**
  * The phone's routes live in the hash, so a home-screen icon has history and swipe-back:
- *   #/home  #/inbox  #/recall  #/agents  #/settings   the five tabs
+ *   #/home  #/inbox  #/learn  #/agents  #/settings   the five tabs
  *   #/agents/<agentId>                             an agent's page
  *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
  *   #/c/<agentId>/<conversationId>[?prefill=…]     a conversation; `prefill` starts the reply box
  * parse/format are pure (test/phone-router.test.ts); useRoute() follows hashchange.
  */
 
-export type Tab = "home" | "inbox" | "recall" | "agents" | "settings";
-export const TABS: readonly Tab[] = ["home", "inbox", "recall", "agents", "settings"];
+export type Tab = "home" | "inbox" | "learn" | "agents" | "settings";
+export const TABS: readonly Tab[] = ["home", "inbox", "learn", "agents", "settings"];
 
 export type Route =
   | { kind: "tab"; tab: Tab }

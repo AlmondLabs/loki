@@ -20,7 +20,7 @@ export function Recall({ recall, banner }: { recall: RecallModel; banner: ReactN
   const { current } = pass;
   return (
     <>
-      <TopBar title="recall" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}`} progress={pass.total ? pass.passed.size / pass.total : null} />
+      <TopBar title="learn" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}`} progress={pass.total ? pass.passed.size / pass.total : null} />
       {banner}
       <Scroll style={{ padding: `16px ${GUTTER.right} 24px ${GUTTER.left}` }}>
         {!recall.snap ? <Meta>loading…</Meta> : !current && cards.length === 0 && !recall.snap.worker.enabled ? <RecallIntro worker={recall.snap.worker} /> : !current ? <Rest cards={cards.length} passed={pass.passed.size} nextDue={pass.nextDue} /> : (

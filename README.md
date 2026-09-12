@@ -35,7 +35,7 @@ you did rides along on your next message, so the agent sees the desk the way you
 | **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards: approvals to grant, questions to answer, failures, finished work. Approve and reply inline. ⌥Space opens it from anywhere on the Mac. |
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a desk, or dispatch so the agent starts now. |
 | **Agents** | ⌘4 | A page per agent: profile and model, its memory files as a tree, what it learned as a timeline of commits, and its skills with one-click refresh from upstream. |
-| **Recall** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on. Deleting a card is the feedback. |
+| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on. Deleting a card is the feedback. |
 | **Phone** | | The inbox and the desks on your phone over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. |
 
 <p align="center">
@@ -43,7 +43,7 @@ you did rides along on your next message, so the agent sees the desk the way you
 </p>
 
 <p align="center">
-  <img src="docs/images/recall.png" width="900" alt="A recall card: the question, the answer revealed, and two buttons, again or got it">
+  <img src="docs/images/recall.png" width="900" alt="A card in Learn: the question, the answer revealed, and two buttons, again or got it">
 </p>
 
 ## Install
