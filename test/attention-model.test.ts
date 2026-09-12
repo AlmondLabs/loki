@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, cancelQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type ConversationInfo } from "../core/attention/model.ts";
+import { applyEvent, beginCommand, buildItems, cancelQueued, chatStatusOf, commandIdOf, commandRunning, emptyLive, finishCommand, keyOf, settleCommands, takeQueued, type ConversationInfo } from "../core/attention/model.ts";
 import { toTranscript } from "../core/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
@@ -187,5 +187,40 @@ describe("harness machinery in a live user message", () => {
     const r = applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } });
     expect(r).toEqual({ changed: true, userSpoke: false });
     expect(l.tail[2]).toEqual({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
+  });
+});
+
+describe("slash command rows", () => {
+  test("commandIdOf reads the command however the line was written", () => {
+    expect(commandIdOf("/reload")).toBe("reload");
+    expect(commandIdOf("reload")).toBe("reload");
+    expect(commandIdOf("/compact all")).toBe("compact");
+    expect(commandIdOf("  /Reload ")).toBe("reload");
+  });
+  test("a row the harness began with its own wording is finished by the app's: no second row, nothing left running", () => {
+    const l = emptyLive();
+    beginCommand(l, "reload"); // slash_command_start, the harness's text
+    expect(commandRunning(l, "/reload")).toBe(true);
+    finishCommand(l, "/reload", true, "reloaded"); // the app's own answer path
+    expect(l.tail).toHaveLength(1);
+    expect(l.tail[0].summary).toBe("reloaded");
+    expect(commandRunning(l, "/reload")).toBe(false);
+  });
+  test("the newest running row of that command is the one finished; an unrelated command is not touched", () => {
+    const l = emptyLive();
+    beginCommand(l, "/compact all");
+    beginCommand(l, "/reload");
+    finishCommand(l, "/reload", true, "done");
+    expect(l.tail.map((r) => r.summary)).toEqual(["running…", "done"]);
+  });
+  test("settleCommands after the link came back: /reload is the success case, anything else failed; nothing running is a no-op", () => {
+    const l = emptyLive();
+    beginCommand(l, "reload");
+    beginCommand(l, "/compact");
+    expect(settleCommands(l)).toBe(true);
+    expect(l.tail[0].summary).toMatch(/^reloaded/);
+    expect(l.tail[1].summary).toBe("failed");
+    expect(l.tail[1].detail).toMatch(/link.*dropped/);
+    expect(settleCommands(l)).toBe(false);
   });
 });

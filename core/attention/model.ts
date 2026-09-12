@@ -136,6 +136,28 @@ export function beginCommand(l: Live, input: string): void {
   l.tail.push({ role: "event", text: input, summary: RUNNING });
 }
 
+/** The command a row's text names: "/reload", "reload", "/compact all" → "reload", "reload", "compact". */
+export function commandIdOf(input: string): string {
+  return input.trim().replace(/^\//, "").split(/\s+/)[0]?.toLowerCase() ?? "";
+}
+
+/**
+ * The running row a finish belongs to: the newest with the same text, else the newest naming the same
+ * command. The harness writes the command line its own way in its start delta ("reload", say) while the
+ * app finishes with what it sent ("/reload"); matched by text alone the row would spin forever.
+ */
+function runningRow(l: Live, input: string): LiveRow | undefined {
+  const id = commandIdOf(input);
+  let byId: LiveRow | undefined;
+  for (let i = l.tail.length - 1; i >= 0; i--) {
+    const r = l.tail[i];
+    if (r.role !== "event" || r.summary !== RUNNING) continue;
+    if (r.text === input) return r;
+    if (!byId && commandIdOf(r.text) === id) byId = r;
+  }
+  return byId;
+}
+
 /**
  * A slash command finished: the running row (or a fresh one, if the start was never seen) gets the
  * outcome — a one-line output inline, a longer one behind the disclosure, "failed" when it did not work.
@@ -146,14 +168,7 @@ export function finishCommand(l: Live, input: string, success: boolean, output: 
   const oneLine = lines.length === 1 && text.length <= 90;
   const summary = !success ? "failed" : oneLine ? text || "done" : "done";
   const detail = !oneLine && text ? text : !success && text && !oneLine ? text : null;
-  let row: LiveRow | undefined;
-  for (let i = l.tail.length - 1; i >= 0; i--) {
-    const r = l.tail[i];
-    if (r.role === "event" && r.text === input && r.summary === RUNNING) {
-      row = r;
-      break;
-    }
-  }
+  const row = runningRow(l, input);
   if (row) {
     row.summary = summary;
     row.detail = detail;
@@ -162,7 +177,28 @@ export function finishCommand(l: Live, input: string, success: boolean, output: 
 
 /** True while a slash command's row is still waiting for its end. */
 export function commandRunning(l: Live, input: string): boolean {
-  return l.tail.some((r) => r.role === "event" && r.text === input && r.summary === RUNNING);
+  return runningRow(l, input) !== undefined;
+}
+
+/**
+ * The link to the app-server came back after dropping: a command still marked running lost its answer
+ * with the old link, and nothing else will ever finish it. For /reload that is the success case — the
+ * reload is what took the link down. Returns true when a row changed.
+ */
+export function settleCommands(l: Live): boolean {
+  let changed = false;
+  for (const r of l.tail) {
+    if (r.role !== "event" || r.summary !== RUNNING) continue;
+    if (commandIdOf(r.text) === "reload") {
+      r.summary = "reloaded — the mod restarted and the link is back";
+      r.detail = null;
+    } else {
+      r.summary = "failed";
+      r.detail = "the link to the app-server dropped while this ran; its answer was lost";
+    }
+    changed = true;
+  }
+  return changed;
 }
 
 /** "idle" | "thinking" | "streaming" — what a chat box should show for this conversation. */

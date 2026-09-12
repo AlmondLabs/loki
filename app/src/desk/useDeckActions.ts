@@ -2,6 +2,7 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { stampOf, type Decision } from "../../../core/attention/queue.ts";
+import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
 
 /**
  * What a card can do, and the small state those actions leave behind: the reply draft and its images,
@@ -21,6 +22,8 @@ export function useDeckActions({
   onApprove,
   onAnswer,
   onReply,
+  commands = [],
+  onCommand,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
@@ -33,6 +36,9 @@ export function useDeckActions({
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
+  /** Slash commands the reply box knows; a typed one runs for the card's conversation instead of being sent. */
+  commands?: SlashCommand[];
+  onCommand?: (item: AttentionItem, id: string, args: string) => void;
 }) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -76,6 +82,14 @@ export function useDeckActions({
     const text = draft.trim();
     if (!current || (!text && !images.length)) return;
     const item = current;
+    // "/reload", "/compact all": a command the box knows runs as one (with images attached it is a message).
+    const cmd = !images.length ? parseSlash(text) : null;
+    if (cmd && onCommand && commands.some((c) => c.id === cmd.id)) {
+      onCommand(item, cmd.id, cmd.args);
+      setDraft("");
+      setImages([]);
+      return;
+    }
     if (item.pendingQuestion && item.pendingQuestion.questions.length === 1 && text && !images.length) {
       onAnswer(item, item.pendingQuestion.requestId, { [item.pendingQuestion.questions[0].question]: text }); // a typed reply is the answer
       setDraft("");

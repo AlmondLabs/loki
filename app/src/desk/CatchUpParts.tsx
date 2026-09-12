@@ -1,5 +1,8 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { ChatInput } from "../chat/ChatInput";
+import { SlashPalette } from "../chat/SlashPalette";
+import { useSlashPalette } from "../chat/useSlashPalette";
+import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { AgentChip, AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
 import type { AttentionItem } from "../../../core/attention/model.ts";
@@ -188,21 +191,28 @@ function ModelChips({ current, chips, modelFor, models, onLoadModels, onPickMode
   );
 }
 
-/** The reply box and its send button. Esc keeps a draft and hands the keys back, or closes an untouched deck. */
-export function ReplyBox({ current, replyRef, draft, setDraft, images, setImages, sendReply, setTyping, onClose }: { current: AttentionItem; replyRef: RefObject<HTMLTextAreaElement | null>; draft: string; setDraft: (v: string) => void; images: ImageAttachment[]; setImages: Dispatch<SetStateAction<ImageAttachment[]>>; sendReply: () => void; setTyping: (v: boolean) => void; onClose: () => void }) {
+/**
+ * The reply box and its send button. Esc keeps a draft and hands the keys back, or closes an untouched deck.
+ * A draft that starts with "/" opens the same command palette the desk chat has (useSlashPalette).
+ */
+export function ReplyBox({ current, replyRef, draft, setDraft, images, setImages, sendReply, setTyping, onClose, commands = [], onCommand }: { current: AttentionItem; replyRef: RefObject<HTMLTextAreaElement | null>; draft: string; setDraft: (v: string) => void; images: ImageAttachment[]; setImages: Dispatch<SetStateAction<ImageAttachment[]>>; sendReply: () => void; setTyping: (v: boolean) => void; onClose: () => void; commands?: SlashCommand[]; onCommand?: (id: string, args: string) => void }) {
+  const palette = useSlashPalette({ draft, onDraft: setDraft, commands, onCommand, inputRef: replyRef });
   return (
-    <div style={{ display: "flex", gap: 8, padding: "12px 12px 8px", borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
+    <div style={{ position: "relative", display: "flex", gap: 8, padding: "12px 12px 8px", borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
+      {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
       <ChatInput
         ref={replyRef}
         value={draft}
         onChange={setDraft}
         onSubmit={sendReply}
+        onKeyDown={palette.onKeyDown}
         images={images}
         onImages={setImages}
         onEscape={() => (draft.trim() ? replyRef.current?.blur() : onClose())} // esc: keep a draft and hand keys back, or close an untouched deck
         onFocus={() => setTyping(true)}
         onBlur={() => setTyping(false)}
         placeholder={replyPlaceholder(current)}
+        {...palette.aria}
       />
       <Button size="md" tone="brass" onClick={sendReply} disabled={!draft.trim() && !images.length}>send</Button>
     </div>

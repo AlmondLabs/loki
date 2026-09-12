@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { ConnectProvider, Personality } from "./protocol.ts";
-import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
@@ -58,6 +58,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const knownRef = useRef(new Set<string>());
   const reloadRef = useRef<(() => void) | null>(null);
   const lastReload = useRef(0);
+  /** The link dropped since it was last open: when it reopens, commands left running are settled (see settleCommands). */
+  const linkDropped = useRef(false);
 
   /** Re-read the list now (the tree archived or restored something); otherwise it refreshes each minute. Stable, so effects can depend on it. */
   const reload = useCallback(() => reloadRef.current?.(), []);
@@ -79,7 +81,17 @@ export function useAttention(opts: UseAttentionOptions) {
       return;
     }
     const sock = new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
-    sock.onStatus = setStatus;
+    sock.onStatus = (s) => {
+      setStatus(s);
+      if (s === "closed") linkDropped.current = true;
+      else if (s === "open" && linkDropped.current) {
+        // Back after a drop (a /reload restarts the mod, which is this link): finish what the old link left running.
+        linkDropped.current = false;
+        let changed = false;
+        for (const l of liveRef.current.values()) if (settleCommands(l)) changed = true;
+        if (changed) bump();
+      }
+    };
     socketRef.current = sock;
     let reloadTimer: ReturnType<typeof setTimeout> | null = null; // a list refresh waiting on this socket
     const off = sock.on((ev: ServerEvent) => {

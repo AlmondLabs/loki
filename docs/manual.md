@@ -244,7 +244,7 @@ never archived; they leave by being seen). The live half — runtime subscriptio
 speaks Letta's app-server protocol through the mod's `/appserver` tunnel, which exists because the app-server
 refuses browser origins. The seen and snooze markers live in `~/.letta/loki/state/attention.json`.
 
-Slash commands work in the message box as they do in Letta Desktop: type `/` and a palette lists what the box can
+Slash commands work in the message box, and in the reply box of an inbox card, as they do in Letta Desktop: type `/` and a palette lists what the box can
 run — loki's own (`/model`, `/mode`, `/inbox`, `/desks`) and the harness's (`/reload`, `/compact`, `/clear`,
 `/remember`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
 advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.

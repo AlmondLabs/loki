@@ -3,6 +3,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, snoozedItems, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { Snooze } from "../../../core/attention/snooze.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { ApprovalCard } from "../chat/ApprovalCard";
 import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";
@@ -90,6 +91,9 @@ interface CatchUpProps {
   /** The permission mode of a card's conversation, and its setter. */
   modeFor?: (agentId: string, conversationId: string) => string | null;
   onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
+  /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
+  commands?: SlashCommand[];
+  onCommand?: (item: AttentionItem, id: string, args: string) => void;
 }
 
 type DeckProps = CatchUpProps & { showSnoozed: boolean; setShowSnoozed: (update: (v: boolean) => boolean) => void };
@@ -109,7 +113,15 @@ function CatchUpDeck(props: DeckProps) {
   const typing = typingRaw && !!current;
   const thread = current ? conversation(current.agentId, current.id) : undefined;
 
-  const actions = useDeckActions({ current, decided, setDecided, setQueue, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove, onAnswer: props.onAnswer, onReply: props.onReply });
+  // /model and /mode are the card's own chips; everything else goes up (loki's keymap actions, the harness's commands).
+  const runCommand = (item: AttentionItem, id: string, args: string) => {
+    if (id === "model" && props.onPickModel) {
+      props.onLoadModels?.();
+      chips.setModelPicker(true);
+    } else if (id === "mode" && props.onPickMode) chips.setModeMenu(true);
+    else props.onCommand?.(item, id, args);
+  };
+  const actions = useDeckActions({ current, decided, setDecided, setQueue, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove, onAnswer: props.onAnswer, onReply: props.onReply, commands: props.commands, onCommand: runCommand });
   useDeckKeys({ typing, current, decided, draft: actions.draft, replyRef, advance: actions.advance, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose, setShowSnoozed });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
@@ -145,7 +157,7 @@ function CatchUpDeck(props: DeckProps) {
         {!current ? (
           <CaughtUp items={items} snoozedCount={snoozed.length} nextDue={nextDue} decided={decided} replies={actions.replies} />
         ) : (
-          <Card key={idOf(current)} current={current} thread={thread} decided={decided} priorSnooze={snoozes[idOf(current)]} typing={typing} setTyping={setTyping} replyRef={replyRef} chips={chips} actions={actions} deck={props} />
+          <Card key={idOf(current)} current={current} thread={thread} decided={decided} priorSnooze={snoozes[idOf(current)]} typing={typing} setTyping={setTyping} replyRef={replyRef} chips={chips} actions={actions} deck={props} onCommand={(id, args) => runCommand(current, id, args)} />
         )}
         <KeysHint typing={typing} />
       </div>
@@ -154,7 +166,7 @@ function CatchUpDeck(props: DeckProps) {
 }
 
 /** One card: the header, the thread, the pending approval or question, the reply box, the actions. */
-function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyRef, chips, actions, deck }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; priorSnooze: Snooze | undefined; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; chips: ChipState; actions: ReturnType<typeof useDeckActions>; deck: DeckProps }) {
+function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyRef, chips, actions, deck, onCommand }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; priorSnooze: Snooze | undefined; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; chips: ChipState; actions: ReturnType<typeof useDeckActions>; deck: DeckProps; onCommand: (id: string, args: string) => void }) {
   const badgeColor = BADGE[current.status].color;
   /** Today's deferral history for the current card, expired or not. */
   const timesAround = priorSnooze && priorSnooze.stamp === stampOf(current) ? priorSnooze.skips + 1 : 0;
@@ -177,7 +189,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
       <CardThread rows={thread?.rows} status={thread?.status} error={current.status === "failed" ? current.error : null} />
       {current.status === "approval" && current.pendingApproval && <ApprovalCard approval={current.pendingApproval} />}
       {current.pendingQuestion && <QuestionCard question={current.pendingQuestion} onAnswer={(answers) => deck.onAnswer(current, current.pendingQuestion!.requestId, answers)} />}
-      <ReplyBox current={current} replyRef={replyRef} draft={actions.draft} setDraft={actions.setDraft} images={actions.images} setImages={actions.setImages} sendReply={actions.sendReply} setTyping={setTyping} onClose={deck.onClose} />
+      <ReplyBox current={current} replyRef={replyRef} draft={actions.draft} setDraft={actions.setDraft} images={actions.images} setImages={actions.setImages} sendReply={actions.sendReply} setTyping={setTyping} onClose={deck.onClose} commands={deck.commands} onCommand={onCommand} />
       <CardFooter
         current={current}
         typing={typing}

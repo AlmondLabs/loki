@@ -1,7 +1,8 @@
-import { useEffect, useId, useState, type KeyboardEvent, type RefObject } from "react";
+import type { RefObject } from "react";
+import { useSlashPalette } from "./useSlashPalette";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import type { PendingQuestion } from "../../../core/attention/model.ts";
-import { matchCommands, slashQuery, type SlashCommand } from "../../../core/attention/commands.ts";
+import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { Button } from "../components";
 import { ChatInput } from "./ChatInput";
 import { SlashPalette } from "./SlashPalette";
@@ -59,71 +60,22 @@ export function Composer({
 }) {
   const currentMode = isPermissionMode(mode) ? mode : null;
   const hasContent = !!draft.trim() || images.length > 0;
-  const query = slashQuery(draft);
-  const [index, setIndex] = useState(0);
-  /** Esc put the palette away for this draft; typing brings it back. */
-  const [dismissed, setDismissed] = useState<string | null>(null);
-  const listId = useId();
-  const matches = query !== null && commands.length && dismissed !== draft ? matchCommands(query, commands) : [];
-  const open = query !== null && dismissed !== draft && commands.length > 0;
-  useEffect(() => {
-    setIndex(0);
-  }, [query]);
-  useEffect(() => {
-    if (!open) return;
-    document.getElementById(`${listId}-opt-${index}`)?.scrollIntoView({ block: "nearest" });
-  }, [open, index, listId]);
-
-  const pick = (c: SlashCommand) => {
-    if (c.args) {
-      onDraft(`/${c.id} `); // it takes arguments: fill the name in and keep typing
-      inputRef.current?.focus();
-      return;
-    }
-    onDraft("");
-    onCommand?.(c.id, "");
-  };
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (!open) return false;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      if (matches.length) setIndex((i) => (e.key === "ArrowDown" ? Math.min(matches.length - 1, i + 1) : Math.max(0, i - 1)));
-      return true;
-    }
-    if (e.key === "Tab" && matches[index]) {
-      e.preventDefault();
-      onDraft(`/${matches[index].id}${matches[index].args ? " " : ""}`);
-      return true;
-    }
-    if (e.key === "Enter" && !e.shiftKey && matches[index]) {
-      e.preventDefault();
-      pick(matches[index]);
-      return true;
-    }
-    if (e.key === "Escape") {
-      e.preventDefault();
-      setDismissed(draft);
-      return true;
-    }
-    return false;
-  };
+  const palette = useSlashPalette({ draft, onDraft, commands, onCommand, inputRef });
 
   return (
     <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 8, padding: "12px 12px 10px", borderTop: "1px solid var(--loki-border)" }}>
-      {open && <SlashPalette matches={matches} index={index} listId={listId} onHover={setIndex} onPick={pick} />}
+      {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
       <ChatInput
         ref={inputRef}
         value={draft}
         onChange={onDraft}
         onSubmit={onSubmit}
-        onKeyDown={onKeyDown}
+        onKeyDown={palette.onKeyDown}
         onEscape={() => inputRef.current?.blur()}
         images={images}
         onImages={onImages}
         placeholder={composerPlaceholder(question, status, agentName)}
-        aria-controls={open ? listId : undefined}
-        aria-activedescendant={open && matches[index] ? `${listId}-opt-${index}` : undefined}
-        aria-expanded={open || undefined}
+        {...palette.aria}
       />
       {/* The chips on the left with their popovers hung above this row; the status word and send on the right. */}
       <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>

@@ -1,5 +1,7 @@
 import type { MutableRefObject } from "react";
 import { scopeFor } from "../../../core/desk-core.ts";
+import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
+import { runAction } from "./keymap";
 import { CatchUp as Inbox } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Board } from "../board/Board";
@@ -57,6 +59,13 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onPickModel={(item, handle) => onPickModel(scopeFor(item.id, item.agentId), item.runtime, handle)}
       modeFor={(agentId, conversationId) => desk.modeOf(scopeFor(conversationId, agentId))}
       onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agentId), item.runtime, mode)}
+      commands={catchUp.commands}
+      onCommand={(item, id, args) => {
+        // loki's own commands are keymap actions; everything else is the harness's, run for the card's conversation.
+        const local = LOKI_COMMANDS.find((c) => c.id === id);
+        if (local?.action) runAction(local.action);
+        else void catchUp.execute(item.runtime, id, args);
+      }}
     />
   );
 }
