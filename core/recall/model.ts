@@ -43,12 +43,48 @@ export interface CardWithSchedule {
   schedule: Schedule;
 }
 
+/**
+ * Something the person could learn properly: a concept that went by in a conversation without being
+ * understood. The writer proposes leads in the same call that writes cards; the person starts a lesson
+ * from one, or dismisses it, and the dismissed pile is quoted back so a lead never returns reworded.
+ */
+export interface Lead {
+  id: string;
+  /** A few words: "Savings Plan utilisation". */
+  title: string;
+  /** One line quoting the moment it came up. */
+  why: string;
+  /** A primer fits one sitting; a course takes several. */
+  depth: "primer" | "course";
+  source: CardSource;
+  createdAt: string;
+}
+export interface DismissedLead {
+  lead: Lead;
+  at: string;
+}
+/** A lead the person started: the `[Learn] · <title>` conversation it became. */
+export interface Lesson {
+  lead: Lead;
+  agentId: string;
+  conversationId: string;
+  startedAt: string;
+}
+
+/** Learn conversations carry this prefix in their title; the inbox leaves them out, the tree keeps them. */
+export const LEARN_PREFIX = "[Learn]";
+export const learnTitle = (title: string): string => `${LEARN_PREFIX} · ${title.trim()}`;
+export const isLearnTitle = (title: string | null | undefined): boolean => typeof title === "string" && title.trimStart().startsWith(LEARN_PREFIX);
+
 /** What the section shows and the phone mirrors. */
 export interface RecallSnapshot {
   cards: CardWithSchedule[];
   rejected: Rejected[];
   /** The worker: when it last ran, what it did, and what it is set to. */
   worker: WorkerStatus;
+  leads: Lead[];
+  dismissedLeads: DismissedLead[];
+  lessons: Lesson[];
 }
 
 export interface WorkerStatus {

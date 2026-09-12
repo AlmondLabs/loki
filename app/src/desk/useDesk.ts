@@ -55,7 +55,8 @@ const scopeOfId = (id: string): Scope => id.slice(0, Math.max(0, id.indexOf("/")
  * reducer the mod uses, then go up the wire.
  */
 /** A `recall` reply frame as the snapshot the view holds, or null for anything else. */
-const recallSnapshot = (m: Record<string, unknown> | null): RecallSnapshot | null => (m && m.type === "recall" ? ({ cards: m.cards, rejected: m.rejected, worker: m.worker } as RecallSnapshot) : null);
+const recallSnapshot = (m: Record<string, unknown> | null): RecallSnapshot | null =>
+  m && m.type === "recall" ? ({ cards: m.cards, rejected: m.rejected, worker: m.worker, leads: m.leads ?? [], dismissedLeads: m.dismissedLeads ?? [], lessons: m.lessons ?? [] } as RecallSnapshot) : null;
 
 export function useDesk() {
   const {
@@ -227,6 +228,13 @@ export function useDesk() {
     run: () => request("recall_run", {}, 240_000).then((m) => (m && m.type === "recall_ran" ? String(m.note) : m && m.type === "recall_error" ? String(m.message) : "no answer from the mod")),
     /** Anki's plain-text import format, or null. */
     export: () => request("recall_export", {}, 15_000).then((m) => (m && m.type === "recall_export" ? String(m.tsv) : null)),
+    /** Learning leads: dismiss ("not this") and its undo answer with the snapshot; start makes the [Learn] conversation and names it. */
+    leadDismiss: (id: string) => request("recall_lead_dismiss", { id }, 15_000).then(recallSnapshot),
+    leadRestore: (id: string) => request("recall_lead_restore", { id }, 15_000).then(recallSnapshot),
+    leadStart: (id: string): Promise<{ ok: true; agentId: string; conversationId: string } | { ok: false; message: string }> =>
+      request("recall_lead_start", { id }, 60_000).then((m) =>
+        m && m.type === "recall_lesson" ? { ok: true, agentId: String(m.agentId), conversationId: String(m.conversationId) } : { ok: false, message: m && m.type === "recall_error" ? String(m.message) : "the lesson did not start" },
+      ),
   };
 
   /** The Agents page, through the mod: the local record and the memory filesystem (read-only). */

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildPrompt, parseExtraction, similarFront } from "../core/recall/extract.ts";
+import { buildPrompt, lessonBrief, parseExtraction, similarFront } from "../core/recall/extract.ts";
 
 describe("recall prompt", () => {
   test("quotes rejections and existing cards, states the room, and asks for JSON", () => {
@@ -37,9 +37,9 @@ describe("recall extraction parsing", () => {
     const e = parseExtraction('{"cards":[{"front":"only front"},{"front":"","back":"x"},{"front":"ok","back":"ok"}],"revisions":[{"id":"nope","back":"x"},{"id":"c1","reason":"nothing"}]}', known);
     expect(e.cards).toEqual([{ front: "ok", back: "ok", tags: [] }]);
     expect(e.revisions).toEqual([]);
-    expect(parseExtraction("not json at all", known)).toEqual({ cards: [], revisions: [] });
-    expect(parseExtraction("{broken", known)).toEqual({ cards: [], revisions: [] });
-    expect(parseExtraction("[]", known)).toEqual({ cards: [], revisions: [] });
+    expect(parseExtraction("not json at all", known)).toEqual({ cards: [], revisions: [], leads: [] });
+    expect(parseExtraction("{broken", known)).toEqual({ cards: [], revisions: [], leads: [] });
+    expect(parseExtraction("[]", known)).toEqual({ cards: [], revisions: [], leads: [] });
   });
 });
 
@@ -50,5 +50,38 @@ describe("similar fronts", () => {
     expect(similarFront("How does FSRS compute the next interval from stability?", "How does FSRS compute the next interval from stability and difficulty?")).toBe(true);
     expect(similarFront("What is X?", "What is Y?")).toBe(false);
     expect(similarFront("", "What is Y?")).toBe(false);
+  });
+});
+
+describe("learning leads in the writer's call", () => {
+  const base = { agentName: "ira", title: "Infra AWS", transcript: "you: what does KMS rotation do?\nira: it re-keys yearly…", room: 2, existing: [], rejected: [], failing: [] };
+  test("with room, the prompt asks for leads, quotes the ones already known, and the JSON shape gains them", () => {
+    const p = buildPrompt({ ...base, leads: { open: ["KMS key rotation"], started: ["IAM permission boundaries"], dismissed: ["Kubernetes"], room: 5 } });
+    expect(p).toContain("name up to 2 things");
+    expect(p).toContain("- KMS key rotation");
+    expect(p).toContain("- IAM permission boundaries");
+    expect(p).toContain("dismissed (never again");
+    expect(p).toContain("- Kubernetes");
+    expect(p).toContain('"leads":[{"title"');
+  });
+  test("without room, or without the leads input, the prompt says nothing about leads", () => {
+    expect(buildPrompt({ ...base, leads: { open: [], started: [], dismissed: [], room: 0 } })).not.toContain("leads");
+    expect(buildPrompt(base)).not.toContain('"leads"');
+  });
+  test("leads parse with a default depth, a trimmed title, and at most two", () => {
+    const ext = parseExtraction('{"cards":[],"revisions":[],"leads":[{"title":"Savings Plan utilisation?","why":"you asked what covered means","depth":"course"},{"title":"NAT processing","why":"went by unquestioned"},{"title":"third","why":"too many"}]}', new Set());
+    expect(ext.leads).toEqual([
+      { title: "Savings Plan utilisation", why: "you asked what covered means", depth: "course" },
+      { title: "NAT processing", why: "went by unquestioned", depth: "primer" },
+    ]);
+    expect(parseExtraction('{"cards":[]}', new Set()).leads).toEqual([]);
+  });
+  test("the lesson brief names the topic, the moment, the desk-first rule and the cold quiz", () => {
+    const b = lessonBrief({ title: "Savings Plan utilisation", why: "you took my word for 'fully covered'", depth: "primer", source: { title: "[Long] - cost control" } });
+    expect(b).toContain("I want to understand: Savings Plan utilisation.");
+    expect(b).toContain('came up in "[Long] - cost control": you took my word');
+    expect(b).toContain("sized for one sitting");
+    expect(b).toContain("furnish this desk");
+    expect(b).toContain("quiz me cold");
   });
 });

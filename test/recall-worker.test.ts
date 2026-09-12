@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
-import { MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript } from "../mod/recall-worker.ts";
+import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript } from "../mod/recall-worker.ts";
 import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
 import { review } from "../core/recall/fsrs.ts";
 
@@ -142,5 +142,43 @@ describe("recall worker", () => {
     const t = formatTranscript([{ role: "user", text: " hi " }, { role: "tool", text: "Read x" }, { role: "event", text: "compacted" }, { role: "assistant", text: "hello" }], "ira");
     expect(t).toBe("you: hi\nira: hello");
     expect(MIN_NEW_CHARS).toBeGreaterThan(t.length);
+  });
+});
+
+describe("learning leads", () => {
+  test("leads come back with the cards, near-duplicates of open, started or dismissed leads are dropped, and the pile is capped", async () => {
+    store.addLead({ id: "open1", title: "KMS key rotation", why: "w", depth: "primer", source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: new Date(T0).toISOString() });
+    store.addLead({ id: "d1", title: "Kubernetes networking", why: "w", depth: "course", source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: new Date(T0).toISOString() });
+    store.dismissLead("d1", T0);
+    const prompts: string[] = [];
+    const worker = new RecallWorker({
+      store,
+      listInbox: () => [row("c1")],
+      readSince: logs({ c1: chatter(4) }),
+      now: () => T0,
+      ask: async (_a, prompt) => {
+        prompts.push(prompt);
+        return '{"cards":[],"revisions":[],"leads":[{"title":"KMS key rotation in AWS","why":"same as the open one","depth":"primer"},{"title":"Envelope encryption","why":"you asked what a data key was","depth":"course"}]}';
+      },
+    });
+    const r = await worker.tick();
+    expect(r.leads).toBe(1);
+    expect(r.note).toContain("1 lead");
+    const leads = store.leads();
+    expect(leads.map((l) => l.title).sort()).toEqual(["Envelope encryption", "KMS key rotation"]);
+    const added = leads.find((l) => l.title === "Envelope encryption")!;
+    expect(added.depth).toBe("course");
+    expect(added.source).toMatchObject({ agentId: "a1", conversationId: "c1", title: "desk c1" });
+    expect(prompts[0]).toContain("- KMS key rotation");
+    expect(prompts[0]).toContain("- Kubernetes networking");
+  });
+  test("a full pile asks for no leads and writes none", async () => {
+    for (let i = 0; i < MAX_OPEN_LEADS; i++) store.addLead({ id: `l${i}`, title: `topic ${i}`, why: "w", depth: "primer", source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: new Date(T0).toISOString() });
+    let prompt = "";
+    const worker = new RecallWorker({ store, listInbox: () => [row("c1")], readSince: logs({ c1: chatter(4) }), now: () => T0, ask: async (_a, p) => ((prompt = p), '{"cards":[],"revisions":[],"leads":[{"title":"One more","why":"w","depth":"primer"}]}') });
+    const r = await worker.tick();
+    expect(prompt).not.toContain('"leads"');
+    expect(r.leads).toBe(0);
+    expect(store.leads()).toHaveLength(MAX_OPEN_LEADS);
   });
 });

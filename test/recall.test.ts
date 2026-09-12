@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
-import type { Card } from "../core/recall/model.ts";
+import { isLearnTitle, learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const card = (id: string, over: Partial<Card> = {}): Card => ({
@@ -95,5 +95,36 @@ describe("recall store", () => {
   test("ids carry the day and are unique", () => {
     expect(newCardId(T0)).toMatch(/^20260910-[a-z0-9]{6}$/);
     expect(newCardId(T0)).not.toBe(newCardId(T0));
+  });
+});
+
+describe("leads and lessons", () => {
+  const lead = (id: string, title = `topic ${id}`): Lead => ({ id, title, why: "it went by", depth: "primer", source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null }, createdAt: new Date(T0).toISOString() });
+  test("a lead is added, dismissed to its pile, and restored", () => {
+    store.addLead(lead("l1"));
+    store.addLead(lead("l2"));
+    expect(store.leads().map((l) => l.id).sort()).toEqual(["l1", "l2"]);
+    expect(store.dismissLead("l1", T0)?.lead.title).toBe("topic l1");
+    expect(store.leads().map((l) => l.id)).toEqual(["l2"]);
+    expect(store.dismissedLeads()).toHaveLength(1);
+    expect(store.dismissLead("nope")).toBeNull();
+    expect(store.restoreLead("l1")?.id).toBe("l1");
+    expect(store.dismissedLeads()).toEqual([]);
+    expect(store.leads()).toHaveLength(2);
+  });
+  test("starting a lead records the lesson and takes the lead off the pile", () => {
+    store.addLead(lead("l1"));
+    const lesson = store.startLesson("l1", { agentId: "a", conversationId: "conv-9" }, T0);
+    expect(lesson).toMatchObject({ agentId: "a", conversationId: "conv-9", lead: { id: "l1" } });
+    expect(store.leads()).toEqual([]);
+    expect(store.lessons()[0].conversationId).toBe("conv-9");
+    expect(store.startLesson("l1", { agentId: "a", conversationId: "x" })).toBeNull();
+  });
+  test("Learn conversations are named by prefix and recognised by it", () => {
+    expect(learnTitle("  Savings Plans ")).toBe("[Learn] · Savings Plans");
+    expect(isLearnTitle("[Learn] · Savings Plans")).toBe(true);
+    expect(isLearnTitle(" [Learn] · x")).toBe(true);
+    expect(isLearnTitle("Learn about x")).toBe(false);
+    expect(isLearnTitle(null)).toBe(false);
   });
 });

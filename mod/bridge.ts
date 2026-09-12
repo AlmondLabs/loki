@@ -34,6 +34,8 @@ import { isLanVia } from "./lan.ts";
  *    recall_reject { requestId, id } / recall_restore { requestId, id } / recall_forget { requestId, id }   reply: recall_card { requestId, card|null }
  *    recall_settings { requestId, enabled?, model?, dailyCap? }   reply: recall { … };  recall_run { requestId }  reply: recall_ran { requestId, note }
  *    recall_export { requestId }             reply: recall_export { requestId, tsv };  errors: recall_error { requestId, message }
+ *    recall_lead_dismiss { requestId, id } / recall_lead_restore { requestId, id }   reply: recall { … }
+ *    recall_lead_start { requestId, id }     the lead becomes a [Learn] conversation; reply: recall_lesson { requestId, agentId, conversationId }
  *    (every change also broadcasts recall_changed {} so other tabs and phones refetch)
  *    tasks_list { requestId, all? }                          reply: tasks { requestId, tasks }
  *    task_create { requestId, title, description?, labels?, priority?, desk?, agentId?, agentName?, conversationId? }  reply: task_created { requestId, task }
@@ -154,7 +156,7 @@ export interface BridgeDeps {
   /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
   /** Recall (mod/recall.ts, mod/recall-worker.ts): the cards on disk and a way to run the worker now. */
-  recall?: { store: import("./recall.ts").RecallStore; run: () => Promise<{ note: string }> };
+  recall?: { store: import("./recall.ts").RecallStore; run: () => Promise<{ note: string }>; startLesson?: import("./recall-worker.ts").StartLesson };
   /** The board (mod/tasks.ts) and the folder a conversation works in, for the task stamp. */
   tasks?: import("./tasks.ts").TaskBoard;
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
@@ -361,13 +363,16 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "recall_forget":
         case "recall_settings":
         case "recall_run":
+        case "recall_lead_dismiss":
+        case "recall_lead_restore":
+        case "recall_lead_start":
         case "recall_export": {
           const requestId = msg.requestId;
           const recall = deps.recall;
           const fail = (message: string) => client.send({ type: "recall_error", requestId, message });
           if (!recall) return fail("recall is not available in this mod");
           const { store } = recall;
-          const snapshot = () => ({ type: "recall", requestId, cards: store.cards(), rejected: store.rejected(), worker: store.status() });
+          const snapshot = () => ({ type: "recall", requestId, cards: store.cards(), rejected: store.rejected(), worker: store.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons() });
           const id = typeof msg.id === "string" ? msg.id : "";
           const changed = (card: unknown) => {
             client.send({ type: "recall_card", requestId, card });
@@ -408,6 +413,24 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
                 deps.broadcast({ type: "recall_changed" });
                 return client.send(snapshot());
               }
+              case "recall_lead_dismiss":
+                if (!store.dismissLead(id)) return fail("no such lead");
+                deps.broadcast({ type: "recall_changed" });
+                return client.send(snapshot());
+              case "recall_lead_restore":
+                if (!store.restoreLead(id)) return fail("nothing to restore");
+                deps.broadcast({ type: "recall_changed" });
+                return client.send(snapshot());
+              case "recall_lead_start":
+                if (!recall.startLesson) return fail("lessons are not available in this mod");
+                void recall
+                  .startLesson(id)
+                  .then((lesson) => {
+                    client.send({ type: "recall_lesson", requestId, ...lesson }); // the tab opens the desk; the tree reads the new conversation from disk on its next list
+                    deps.broadcast({ type: "recall_changed" });
+                  })
+                  .catch((err) => fail(err instanceof Error ? err.message : String(err)));
+                return;
               case "recall_run":
                 void recall
                   .run()

@@ -16,9 +16,15 @@ export interface Revision {
   /** One line on what changed and why (shown next to "updated"). */
   reason: string;
 }
+export interface LeadCandidate {
+  title: string;
+  why: string;
+  depth: "primer" | "course";
+}
 export interface Extraction {
   cards: Candidate[];
   revisions: Revision[];
+  leads: LeadCandidate[];
 }
 
 export interface PromptInput {
@@ -35,7 +41,12 @@ export interface PromptInput {
   room: number;
   /** Cards the person keeps failing; the model should rewrite or split them. */
   failing: Array<{ id: string; front: string; back: string }>;
+  /** Learning leads already proposed, started, or dismissed: none of these may be proposed again. */
+  leads?: { open: string[]; started: string[]; dismissed: string[]; room: number };
 }
+
+/** Leads per conversation per call; more than this is a list, not a judgement. */
+export const LEADS_PER_CONVERSATION = 2;
 
 export const MAX_TRANSCRIPT_CHARS = 24_000;
 
@@ -68,6 +79,18 @@ export function buildPrompt(input: PromptInput): string {
     lines.push(``, `Cards the person keeps failing — rewrite the wording, or replace one with two smaller cards (a revision plus a new card):`);
     for (const c of input.failing) lines.push(`- ${c.id}: Q: ${oneLine(c.front)} — A: ${oneLine(c.back)}`);
   }
+  const leads = input.leads;
+  const leadRoom = leads ? Math.min(LEADS_PER_CONVERSATION, Math.max(0, leads.room)) : 0;
+  if (leads && leadRoom > 0) {
+    lines.push(
+      ``,
+      `Separately from the cards: name up to ${leadRoom} thing${leadRoom === 1 ? "" : "s"} from this stretch the person could learn properly — a concept they met but did not have to understand. The signals: they asked what something is, the agent explained at length, an acronym went by unquestioned, they took the agent's word for it. A lead is worth naming only if understanding it would change how they work or decide; project trivia and things they plainly already know are not leads. Zero is a fine answer.`,
+      `For each lead: "title" in a few words (a concept, not a question), "why" quoting the moment in one line, and "depth": "primer" if one sitting would do, "course" if it takes several.`,
+    );
+    const named = [...leads.open, ...leads.started];
+    if (named.length) lines.push(`Leads already proposed or under way (do not name these or anything close):`, ...named.slice(0, 60).map((t) => `- ${oneLine(t)}`));
+    if (leads.dismissed.length) lines.push(`Leads the person dismissed (never again, nor anything like them):`, ...leads.dismissed.slice(0, 60).map((t) => `- ${oneLine(t)}`));
+  }
   lines.push(
     ``,
     `Transcript (new since the last time you read it):`,
@@ -76,25 +99,43 @@ export function buildPrompt(input: PromptInput): string {
     `</transcript>`,
     ``,
     `Answer with JSON only, no prose, in this shape:`,
-    `{"cards":[{"front":"…","back":"…","tags":["…"]}],"revisions":[{"id":"…","front":"…","back":"…","reason":"…"}]}`,
+    leads && leadRoom > 0
+      ? `{"cards":[{"front":"…","back":"…","tags":["…"]}],"revisions":[{"id":"…","front":"…","back":"…","reason":"…"}],"leads":[{"title":"…","why":"…","depth":"primer"}]}`
+      : `{"cards":[{"front":"…","back":"…","tags":["…"]}],"revisions":[{"id":"…","front":"…","back":"…","reason":"…"}]}`,
     `Tags are one or two lowercase words naming the topic. Omit "front" or "back" in a revision to keep it as is. Empty arrays when there is nothing to do.`,
   );
   return lines.join("\n");
+}
+
+/**
+ * The first message of a lesson, sent on the person's behalf when they start a lead: what to teach, where
+ * it came up, and how — the desk first, questions before answers, one idea at a time, a cold quiz to close.
+ */
+export function lessonBrief(lead: { title: string; why: string; depth: "primer" | "course"; source: { title: string | null } }): string {
+  const sittings = lead.depth === "primer" ? "one sitting" : "three to five sittings";
+  const where = lead.source.title ? `It came up in "${lead.source.title}"` : "It came up in one of our conversations";
+  return [
+    `This is a lesson, not a task. I want to understand: ${lead.title}.`,
+    `${where}: ${lead.why}`,
+    ``,
+    `Teach it the way a good tutor would. Before you say anything, furnish this desk: an outline of the lesson as a list card I can tick, sized for ${sittings}, and an info card saying where this came from. Then start by asking me what I already think it is, and build from my answer. One idea at a time, a question at the end of each step, no lecture. Tick the outline as we go. When it is all ticked, quiz me cold with two or three questions and tell me plainly whether I have it.`,
+  ].join("\n");
 }
 
 const oneLine = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, 240);
 
 /** The model's reply, forgiving of fences and prose around the JSON. Malformed → nothing. */
 export function parseExtraction(text: string, knownIds: Set<string>): Extraction {
+  const none: Extraction = { cards: [], revisions: [], leads: [] };
   const json = extractJson(text);
-  if (!json) return { cards: [], revisions: [] };
+  if (!json) return none;
   let v: unknown;
   try {
     v = JSON.parse(json);
   } catch {
-    return { cards: [], revisions: [] };
+    return none;
   }
-  if (!v || typeof v !== "object") return { cards: [], revisions: [] };
+  if (!v || typeof v !== "object") return none;
   const o = v as Record<string, unknown>;
   const cards: Candidate[] = [];
   for (const c of Array.isArray(o.cards) ? o.cards : []) {
@@ -117,7 +158,17 @@ export function parseExtraction(text: string, knownIds: Set<string>): Extraction
     if (!front && !back) continue;
     revisions.push({ id, front, back, reason: str(r.reason) || "revised" });
   }
-  return { cards, revisions };
+  const leads: LeadCandidate[] = [];
+  for (const c of Array.isArray(o.leads) ? o.leads : []) {
+    if (!c || typeof c !== "object") continue;
+    const r = c as Record<string, unknown>;
+    const title = str(r.title).replace(/[.?!]+$/, "").slice(0, 80);
+    const why = str(r.why).slice(0, 300);
+    if (!title || !why) continue;
+    leads.push({ title, why, depth: r.depth === "course" ? "course" : "primer" });
+    if (leads.length >= LEADS_PER_CONVERSATION) break;
+  }
+  return { cards, revisions, leads };
 }
 
 function str(v: unknown): string {

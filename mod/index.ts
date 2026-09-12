@@ -13,7 +13,8 @@ import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folder
 import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript, type InboxRow } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore } from "./recall.ts";
-import { QUIET_MS, RecallWorker, askViaAppServer } from "./recall-worker.ts";
+import { QUIET_MS, RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
+import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -204,6 +205,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       if (isSubagent(c.agentId)) continue;
       if (!names.has(c.agentId)) names.set(c.agentId, lookupLocalAgentName(c.agentId));
       const info = lookupLocalConversation(c.conversationId, c.agentId);
+      if (isLearnTitle(info?.title)) continue; // a lesson is precisely the thing that can wait: a desk, never an inbox card
       out.push({ id: c.conversationId, agentId: c.agentId, agentName: names.get(c.agentId) ?? null, title: info?.title ?? null, lastMessageAt: c.lastMessageAt, archived: false, ...digestLocalConversation(c.conversationId, c.agentId) });
     }
     return out.sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
@@ -243,7 +245,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     broadcast,
     listDesks,
     listInbox,
-    recall: { store: recallStore, run: () => recall.tick() },
+    recall: { store: recallStore, run: () => recall.tick(), startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore }) },
     deskInfo,
     deleteWidgetFile,
     seen,

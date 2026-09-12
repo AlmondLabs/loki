@@ -3,9 +3,9 @@ import { WebSocket } from "ws";
 import { AppServerSocket, type Runtime, type ServerEvent } from "../core/attention/protocol.ts";
 import type { Transport } from "../core/attention/transport.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
-import { buildPrompt, parseExtraction, similarFront } from "../core/recall/extract.ts";
+import { buildPrompt, lessonBrief, parseExtraction, similarFront } from "../core/recall/extract.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
-import type { Card } from "../core/recall/model.ts";
+import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
 import { readLocalTranscriptSince, type InboxRow, type LocalTranscriptMessage } from "./desks.ts";
 import { log } from "./log.ts";
@@ -27,6 +27,8 @@ export const QUIET_MS = 10 * 60_000;
 export const MIN_NEW_CHARS = 300;
 /** Conversations per tick, most recently active first, so a busy day is spread over several ticks. */
 export const PER_TICK = 3;
+/** Open learning leads the pile holds at most; past this the writer is not asked for more until some are started or dismissed. */
+export const MAX_OPEN_LEADS = 12;
 const ASK_TIMEOUT_MS = 180_000;
 
 export type Ask = (agentId: string, prompt: string, model: string | null) => Promise<string>;
@@ -46,6 +48,8 @@ export interface TickReport {
   asked: number;
   written: number;
   revised: number;
+  /** Learning leads proposed this tick (core/recall/model.ts Lead). */
+  leads: number;
   note: string;
 }
 
@@ -72,7 +76,7 @@ export class RecallWorker {
     const now = this.deps.now?.() ?? Date.now();
     const readSince = this.deps.readSince ?? ((c, a, from) => readLocalTranscriptSince(c, a, from));
     const w = store.worker();
-    const report: TickReport = { looked: 0, asked: 0, written: 0, revised: 0, note: "" };
+    const report: TickReport = { looked: 0, asked: 0, written: 0, revised: 0, leads: 0, note: "" };
     if (!w.enabled) return { ...report, note: "off" };
     const cursors = { ...w.cursors };
     const quiet = listInbox()
@@ -93,6 +97,9 @@ export class RecallWorker {
       }
       const cards = store.cards();
       const rejected = store.rejected();
+      const openLeads = store.leads();
+      const lessons = store.lessons();
+      const dismissedLeads = store.dismissedLeads();
       const room = Math.max(0, w.dailyCap - store.writtenToday(now)); // writtenToday already counts this run's earlier conversations
       // Cards the person keeps failing, not yet rewritten since they last failed.
       const failing = cards.filter((c) => keepsFailing(c.schedule) && (!c.schedule.lastReview || c.card.updatedAt < c.schedule.lastReview)).slice(0, 5);
@@ -108,6 +115,7 @@ export class RecallWorker {
         rejected: rejected.slice(0, 40).map((r) => ({ front: r.card.front, back: r.card.back, reps: r.reps })),
         room,
         failing: failing.map((c) => ({ id: c.card.id, front: c.card.front, back: c.card.back })),
+        leads: { open: openLeads.map((l) => l.title), started: lessons.map((l) => l.lead.title), dismissed: dismissedLeads.map((d) => d.lead.title), room: MAX_OPEN_LEADS - openLeads.length },
       });
       asked += 1;
       report.asked += 1;
@@ -152,10 +160,24 @@ export class RecallWorker {
       }
       if (written) store.noteWritten(written, now);
       report.written += written;
+      // Learning leads: a title near one already open, started or dismissed is the same lead again.
+      const leadTitles = [...openLeads.map((l) => l.title), ...lessons.map((l) => l.lead.title), ...dismissedLeads.map((d) => d.lead.title)];
+      let leadRoom = MAX_OPEN_LEADS - openLeads.length;
+      for (const cand of ext.leads) {
+        if (leadRoom <= 0) break;
+        if (leadTitles.some((t) => similarFront(t, cand.title))) continue;
+        const lead: Lead = { id: newCardId(now), title: cand.title, why: cand.why, depth: cand.depth, source: { agentId: conv.agentId, agentName: conv.agentName, conversationId: conv.id, title: conv.title, at: conv.lastMessageAt }, createdAt: at };
+        store.addLead(lead);
+        openLeads.push(lead);
+        leadTitles.push(lead.title);
+        leadRoom -= 1;
+        report.leads += 1;
+      }
       cursors[key] = lines;
-      log("recall:conversation", { conversation: conv.id, written, revised: ext.revisions.length });
+      log("recall:conversation", { conversation: conv.id, written, revised: ext.revisions.length, leads: ext.leads.length });
     }
-    const note = report.note || (report.asked ? `${report.written} new · ${report.revised} revised from ${report.asked} conversation${report.asked === 1 ? "" : "s"}` : report.looked ? "nothing worth a card" : "nothing new");
+    const leadsNote = report.leads ? ` · ${report.leads} lead${report.leads === 1 ? "" : "s"}` : "";
+    const note = report.note || (report.asked ? `${report.written} new · ${report.revised} revised${leadsNote} from ${report.asked} conversation${report.asked === 1 ? "" : "s"}` : report.looked ? "nothing worth a card" : "nothing new");
     store.saveWorker({ cursors, lastRunAt: new Date(now).toISOString(), lastRunNote: note });
     return { ...report, note };
   }
@@ -203,6 +225,43 @@ export function askViaAppServer(opts: { url: () => string | null; store: RecallS
       });
       if (!(await sock.sendUserMessage(rt, prompt))) throw new Error("the harness did not accept the prompt");
       return await done;
+    } finally {
+      sock.close();
+    }
+  };
+}
+
+/**
+ * Start a lesson from a lead: a new conversation `[Learn] · <title>` for the lead's agent in the home
+ * directory, the brief sent as the person's first message, the lead recorded as a lesson. The socket
+ * waits for the harness's first word back (or two seconds) so the turn is under way before it closes.
+ */
+export type StartLesson = (leadId: string) => Promise<{ agentId: string; conversationId: string }>;
+export function startLessonViaAppServer(opts: { url: () => string | null; store: RecallStore }): StartLesson {
+  return async (leadId) => {
+    const lead = opts.store.lead(leadId);
+    if (!lead) throw new Error("no such lead");
+    if (!lead.source.agentId) throw new Error("the lead names no agent");
+    const url = opts.url();
+    if (!url) throw new Error("no app-server");
+    const sock = new AppServerSocket(url, wsTransport);
+    await sock.connect();
+    try {
+      const rt = await sock.createConversation(lead.source.agentId, homedir(), learnTitle(lead.title));
+      const started = new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 2000);
+        const off = sock.on((ev: ServerEvent) => {
+          if (ev.runtime && ev.runtime.conversation_id !== rt.conversation_id) return;
+          clearTimeout(timer);
+          off();
+          resolve();
+        });
+      });
+      if (!(await sock.sendUserMessage(rt, lessonBrief(lead)))) throw new Error("the harness did not accept the brief");
+      await started;
+      const lesson = opts.store.startLesson(leadId, { agentId: rt.agent_id, conversationId: rt.conversation_id });
+      log("recall:lesson-started", { lead: leadId, conversation: rt.conversation_id });
+      return { agentId: lesson?.agentId ?? rt.agent_id, conversationId: lesson?.conversationId ?? rt.conversation_id };
     } finally {
       sock.close();
     }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { describeGap, isDue, isNew } from "../../../core/recall/fsrs.ts";
-import { updatedSinceReview, type CardWithSchedule, type Rejected, type WorkerStatus } from "../../../core/recall/model.ts";
+import { updatedSinceReview, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected, type WorkerStatus } from "../../../core/recall/model.ts";
 import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
 import { ago } from "../desk/CatchUpParts";
 
@@ -183,6 +183,11 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
         question that stands alone, an answer in a line or two. You meet them here, on a schedule that spaces the ones you know and
         brings back the ones you miss. Deleting a card is the feedback — the writer reads the pile of deleted ones before writing again.
       </p>
+      <p style={{ margin: 0 }}>
+        In the same call it also names <b>leads</b>: concepts that went by in a conversation without being understood. Each waits under the
+        leads tab until you start it — a <code style={{ fontFamily: "var(--loki-mono)" }}>[Learn]</code> conversation with the agent that was
+        there, which teaches by asking, on a desk it furnishes with the outline — or say "not this", which it remembers.
+      </p>
       <p style={{ margin: 0, color: "var(--loki-muted)" }}>
         It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at
         all while no conversation has new text. The hidden conversations sit in the desks tree as "recall" desks, so you can read what it was asked.
@@ -235,6 +240,78 @@ function Line({ label, children }: { label: string; children: React.ReactNode })
     <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
       <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 4 }}>{label}</span>
       <span style={{ minWidth: 0 }}>{children}</span>
+    </div>
+  );
+}
+
+/** The word for a lead's depth. */
+const DEPTH: Record<Lead["depth"], string> = { primer: "a primer · one sitting", course: "a course · several sittings" };
+
+/**
+ * The leads: things the writer thinks the person could learn properly, newest first, each with start (the
+ * lesson opens as a [Learn] desk) and "not this" (the dismissed pile the writer reads). Under them, the
+ * lessons under way, each a link to its desk.
+ */
+export function LeadList({ leads, lessons, worker, starting, onStart, onDismiss, onOpen }: { leads: Lead[]; lessons: Lesson[]; worker: WorkerStatus; starting: string | null; onStart: (id: string) => void; onDismiss: (id: string) => void; onOpen: (agentId: string, conversationId: string) => void }) {
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      {leads.length === 0 && (
+        <Empty card title="No leads yet.">
+          {worker.enabled
+            ? "When a conversation goes quiet, the writer names what went by in it without being understood — a concept, an acronym, something you took the agent's word for. They collect here, and each is a lesson away."
+            : "Leads come from the writer, and the writer is off. Turn it on under review or in Settings › recall and they will collect here as conversations go quiet."}
+        </Empty>
+      )}
+      {leads.map((l) => (
+        <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "16px 20px 14px", display: "grid", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {l.source.agentName && <Chip static>{l.source.agentName}</Chip>}
+            <Meta>{l.source.title ?? "a conversation"} · {ago(l.createdAt)}</Meta>
+            <span style={{ flex: 1 }} />
+            <Meta>{DEPTH[l.depth]}</Meta>
+          </div>
+          <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>{l.why}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
+            <Button size="sm" tone="brass" onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent, on a desk it furnishes first">
+              {starting === l.id ? "starting…" : "start the lesson"}
+            </Button>
+            <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">not this</Button>
+            {l.source.agentId && l.source.conversationId && (
+              <Button size="sm" bare onClick={() => onOpen(l.source.agentId!, l.source.conversationId!)}>where it came up</Button>
+            )}
+          </div>
+        </section>
+      ))}
+      {lessons.length > 0 && (
+        <div style={{ display: "grid", gap: 6 }}>
+          <Meta>lessons under way</Meta>
+          {lessons.map((s) => (
+            <Row key={s.conversationId} onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's desk">
+              <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
+              {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
+              <Meta>started {ago(s.startedAt)}</Meta>
+            </Row>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Leads the person said "not this" to, with a way back. */
+export function DismissedLeadList({ dismissed, onRestore }: { dismissed: DismissedLead[]; onRestore: (id: string) => void }) {
+  if (dismissed.length === 0) return null;
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <Meta>dismissed leads</Meta>
+      {dismissed.map((d) => (
+        <Row key={d.lead.id}>
+          <span style={{ fontSize: 13.5, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{d.lead.title}</span>
+          <Meta>{ago(d.at)}</Meta>
+          <Button size="sm" bare onClick={() => onRestore(d.lead.id)}>restore</Button>
+        </Row>
+      ))}
     </div>
   );
 }

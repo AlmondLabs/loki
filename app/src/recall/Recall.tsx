@@ -5,7 +5,7 @@ import { Button, Chip, Empty, Meta, Title } from "../components";
 import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
-import { CardEditor, CardList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
+import { CardEditor, CardList, DismissedLeadList, LeadList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
 import { useDeckPass } from "./useDeckPass";
 
 /**
@@ -13,15 +13,17 @@ import { useDeckPass } from "./useDeckPass";
  * answers — again, or got it — that schedules the next sight of it. No composer, no commands: the only ways
  * to shape what gets written are to delete a card (X — it joins the pile the worker reads as "not this")
  * or to edit it. New cards come first with a mark, so the first look at a card is also the chance to throw
- * it out. Beside the deck: every card with search, and the deleted pile with restore.
+ * it out. Beside the deck: the leads (things worth learning properly, each a lesson away), every card with
+ * search, and the deleted pile with restore.
  */
-type View = "review" | "all" | "deleted";
+type View = "review" | "leads" | "all" | "deleted";
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
 
 export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void }) {
   const { snap } = recall;
   const [view, setView] = useState<View>("review");
   const cards = snap?.cards ?? [];
+  const leads = snap?.leads ?? [];
   const pass = useDeckPass(cards);
   const { current, revealed } = pass;
   /** Per-card UI state, by id, so it leaves with the card. */
@@ -73,11 +75,12 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
           <Title page>recall</Title>
           <Meta>
             {recall.due} due · {cards.length} card{cards.length === 1 ? "" : "s"}
+            {leads.length ? ` · ${leads.length} lead${leads.length === 1 ? "" : "s"}` : ""}
             {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
           </Meta>
           <span style={{ flex: 1 }} />
           <span role="tablist" aria-label="recall views" style={{ display: "inline-flex", gap: 4 }}>
-            {(["review", "all", "deleted"] as View[]).map((v) => (
+            {(["review", "leads", "all", "deleted"] as View[]).map((v) => (
               <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => setView(v)}>
                 {v === "all" ? "all cards" : v}
               </Chip>
@@ -120,6 +123,21 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
           </ReviewBody>
         )}
 
+        {view === "leads" && snap && (
+          <LeadList
+            leads={leads}
+            lessons={snap.lessons}
+            worker={snap.worker}
+            starting={recall.starting}
+            onStart={async (id) => {
+              const lesson = await recall.startLead(id);
+              if (lesson) onOpenDesk(lesson.agentId, lesson.conversationId);
+            }}
+            onDismiss={(id) => void recall.dismissLead(id)}
+            onOpen={onOpenDesk}
+          />
+        )}
+
         {view === "all" && snap && (
           <>
             <CardList cards={cards} onEdit={(id, text) => void recall.edit(id, text)} onDelete={(id) => void recall.remove(id)} />
@@ -127,7 +145,12 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
           </>
         )}
 
-        {view === "deleted" && snap && <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />}
+        {view === "deleted" && snap && (
+          <>
+            <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />
+            <DismissedLeadList dismissed={snap.dismissedLeads} onRestore={(id) => void recall.restoreLead(id)} />
+          </>
+        )}
       </div>
     </div>
   );

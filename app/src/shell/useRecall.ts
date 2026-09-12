@@ -16,6 +16,8 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
   const [running, setRunning] = useState(false);
   /** The last card deleted here, for Z. */
   const lastDeleted = useRef<string | null>(null);
+  /** A lead whose lesson is being created (the harness takes a moment). */
+  const [starting, setStarting] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (desk.connection !== "open") return;
@@ -101,8 +103,31 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     }
   };
 
+  /** Start a lesson from a lead: the [Learn] conversation, or null when the mod refused (the notice says why). */
+  const startLead = async (id: string): Promise<{ agentId: string; conversationId: string } | null> => {
+    setStarting(id);
+    const r = await desk.recall.leadStart(id);
+    setStarting(null);
+    if (!r.ok) {
+      notice(r.message);
+      return null;
+    }
+    void refresh();
+    return { agentId: r.agentId, conversationId: r.conversationId };
+  };
+  const dismissLead = async (id: string) => {
+    const next = await desk.recall.leadDismiss(id);
+    if (next) setSnap(next);
+    else notice("the lead did not go");
+  };
+  const restoreLead = async (id: string) => {
+    const next = await desk.recall.leadRestore(id);
+    if (next) setSnap(next);
+    else notice("nothing to restore");
+  };
+
   const due = snap ? dueCount(snap.cards) : 0;
-  return { snap, error, due, running, refresh, grade, remove, undo, restore, forget, edit, settings, run, exportCards };
+  return { snap, error, due, running, starting, refresh, grade, remove, undo, restore, forget, edit, settings, run, exportCards, startLead, dismissLead, restoreLead };
 }
 
 export type Recall = ReturnType<typeof useRecall>;

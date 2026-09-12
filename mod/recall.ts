@@ -2,13 +2,16 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
-import type { Card, CardWithSchedule, Rejected, WorkerStatus } from "../core/recall/model.ts";
+import type { Card, CardWithSchedule, DismissedLead, Lead, Lesson, Rejected, WorkerStatus } from "../core/recall/model.ts";
 
 /**
  * The Recall files, under ~/.letta/loki/recall (LOKI_RECALL_DIR in tests):
  *   cards/<id>.json      the text and its source — the worker's to write and update
  *   schedule/<id>.json   the person's review history (FSRS state) — never touched by the worker
  *   rejected/<id>.json   deleted cards, kept as negative examples the worker reads before writing
+ *   leads/<id>.json      things the person could learn, proposed by the worker (core/recall/model.ts Lead)
+ *   leads-dismissed/     leads the person said "not this" to — the worker's negative examples for leads
+ *   lessons/<id>.json    leads the person started: the [Learn] conversation each became
  *   worker.json          the worker's settings, its per-conversation cursors and its last run
  * One file per card so an agent, a person or a sync tool can read and edit any of it by hand.
  */
@@ -139,6 +142,50 @@ export class RecallStore {
   /** Drop a rejection for good (the pile is otherwise kept: it is what teaches the worker). */
   forget(id: string): void {
     rmSync(this.p("rejected", `${id}.json`), { force: true });
+  }
+
+  // --- leads and lessons -------------------------------------------------
+  leads(): Lead[] {
+    return listJson<Lead>(this.p("leads"))
+      .filter((l) => typeof l.id === "string" && typeof l.title === "string" && typeof l.why === "string")
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  lead(id: string): Lead | null {
+    return readJson<Lead>(this.p("leads", `${id}.json`));
+  }
+  addLead(lead: Lead): void {
+    writeJson(this.p("leads", `${lead.id}.json`), lead);
+  }
+  dismissedLeads(): DismissedLead[] {
+    return listJson<DismissedLead>(this.p("leads-dismissed")).sort((a, b) => b.at.localeCompare(a.at));
+  }
+  /** "Not this": the lead moves to the dismissed pile the worker reads before proposing again. */
+  dismissLead(id: string, now = Date.now()): DismissedLead | null {
+    const lead = this.lead(id);
+    if (!lead) return null;
+    const rec: DismissedLead = { lead, at: new Date(now).toISOString() };
+    writeJson(this.p("leads-dismissed", `${id}.json`), rec);
+    rmSync(this.p("leads", `${id}.json`), { force: true });
+    return rec;
+  }
+  restoreLead(id: string): Lead | null {
+    const rec = readJson<DismissedLead>(this.p("leads-dismissed", `${id}.json`));
+    if (!rec) return null;
+    this.addLead(rec.lead);
+    rmSync(this.p("leads-dismissed", `${id}.json`), { force: true });
+    return rec.lead;
+  }
+  lessons(): Lesson[] {
+    return listJson<Lesson>(this.p("lessons")).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+  /** The lead became a conversation: it leaves the pile and is remembered as a lesson. */
+  startLesson(id: string, conversation: { agentId: string; conversationId: string }, now = Date.now()): Lesson | null {
+    const lead = this.lead(id);
+    if (!lead) return null;
+    const lesson: Lesson = { lead, agentId: conversation.agentId, conversationId: conversation.conversationId, startedAt: new Date(now).toISOString() };
+    writeJson(this.p("lessons", `${id}.json`), lesson);
+    rmSync(this.p("leads", `${id}.json`), { force: true });
+    return lesson;
   }
 
   worker(): WorkerFile {
