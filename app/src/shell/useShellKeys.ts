@@ -8,7 +8,7 @@ import { chordIds, menuSpec, registerActions, resolve, runAction, typingIn, type
  * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
  * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
  * registered once. Dialogs and the tree own their keys (except ⌘K, which closes the tree). Esc peels a
- * layer: the tree first, then a segment other than the desk, through `escape`.
+ * layer: the tree first, then a segment other than the desk, through `escape` (the inbox closes itself).
  */
 export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, actions: Record<string, () => void>, escape: { closeTree: () => void; toDesk: () => void }): void {
   const ref = useRef({ view, actions, escape });
@@ -28,7 +28,7 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
         if (treeOpen) {
           e.preventDefault();
           ref.current.escape.closeTree();
-        } else if (segment === "settings" || segment === "board" || segment === "agents") {
+        } else if (segment === "settings" || segment === "board" || segment === "agents" || segment === "learn") {
           e.preventDefault();
           ref.current.escape.toDesk();
         }

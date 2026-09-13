@@ -204,7 +204,7 @@ in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:517
 
 ## New desk
 
-Press ⌘N (or N on the sheet), pick "new desk" under an agent in the tree, or
+Press ⌘N, pick "new desk" under an agent in the tree, or
 type a name that matches nothing in the tree's filter. The sheet asks for the agent (chips),
 the folder (defaults to that agent's most recent one; recents, typed paths with
 completion, or Browse… for the Finder chooser; the git branch shows when the
