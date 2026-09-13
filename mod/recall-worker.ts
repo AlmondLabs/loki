@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { WebSocket } from "ws";
@@ -12,7 +12,7 @@ import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
 import { readLocalTranscriptSince, type InboxRow, type LocalTranscriptMessage } from "./desks.ts";
 import { log } from "./log.ts";
-import { RecallStore, newCardId } from "./recall.ts";
+import { RecallStore, newCardId, recallDir } from "./recall.ts";
 import { paths } from "./paths.ts";
 
 /**
@@ -25,9 +25,15 @@ import { paths } from "./paths.ts";
  * second cursor keeps looking for leads, so a busy day is not a lead-less one.
  * It never posts anywhere: the person meets its work in the Learn section and nowhere else.
  *
- * The model is asked through the harness, in a hidden conversation per agent named "recall" that is
- * cleared before each question, so the agent's own memory informs the cards while no transcript the
- * person reads is touched. The worker skips its own conversations everywhere (`owns`).
+ * The model is asked through the harness, in one long-running hidden conversation per agent named "recall"
+ * (`writerConversation`), so the agent's own memory informs the cards while no transcript the person reads
+ * is touched. Each ask is self-contained; after the reply the conversation is compacted (`/compact all`),
+ * so the next ask starts from a short summary rather than every transcript ever sent — the in-context
+ * messages stay small while the transcript on disk keeps everything. (`/clear` is not an option: through
+ * the app-server it makes a *new* conversation and leaves the old one addressed, which is how untitled
+ * empty desks once piled up.) The conversation runs in a folder of its own, <recall>/writer, with Letta's
+ * project settings there turning reflection off: the writer's digests must never become the agent's
+ * memory. The worker skips its own conversations everywhere (`owns`).
  */
 export const QUIET_MS = 10 * 60_000;
 /** Less new text than this is not worth a model call; the cursor just moves on. */
@@ -67,9 +73,10 @@ export class RecallWorker {
     this.deps = deps;
   }
 
-  /** True for the worker's own hidden conversations, which must never become desks or inbox cards. */
+  /** True for the worker's own hidden conversations (today's writers and the pre-2026-09-14 ones), which must never become desks or inbox cards. */
   owns(conversationId: string): boolean {
-    return Object.values(this.deps.store.worker().recallConversations ?? {}).includes(conversationId);
+    const w = this.deps.store.worker();
+    return Object.values(w.writers ?? {}).includes(conversationId) || Object.values(w.recallConversations ?? {}).includes(conversationId);
   }
 
   /** One pass; concurrent calls share the running one. */
@@ -212,19 +219,47 @@ export function formatTranscript(rows: LocalTranscriptMessage[], agentName: stri
     .join("\n");
 }
 
+/** Letta reads a folder's own settings from here (settings.local.json under .letta): the writer's turn reflection off. */
+export const WRITER_SETTINGS: Readonly<Record<string, unknown>> = { reflectionTrigger: "off" };
+
 /**
- * Ask an agent through the harness's app-server, in its hidden "recall" conversation: create it once
- * (and hide it), clear it, set the model when one is configured, send the prompt, collect the reply.
+ * The writer's working folder, made on first use: empty but for Letta's project settings, which keep the
+ * dreaming pass (reflection) off every conversation that runs there. Letta resolves reflection settings
+ * per conversation working directory — global, then the folder's, then the agent's — and the folder's
+ * `reflectionTrigger` wins over a global step-count or compaction-event trigger. The file is ours: a
+ * missing or different trigger is put back; other keys someone added stay.
  */
-export function askViaAppServer(opts: { url: () => string | null; store: RecallStore }): Ask {
+export function ensureWriterDir(dir: string): string {
+  const settingsDir = join(dir, ".letta");
+  mkdirSync(settingsDir, { recursive: true });
+  const file = join(settingsDir, "settings.local.json");
+  let current: Record<string, unknown> = {};
+  if (existsSync(file)) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) current = parsed as Record<string, unknown>;
+    } catch {
+      // unreadable: rewritten below
+    }
+  }
+  const wanted = { ...current, ...WRITER_SETTINGS };
+  if (JSON.stringify(wanted) !== JSON.stringify(current) || !existsSync(file)) writeFileSync(file, JSON.stringify(wanted, null, 2) + "\n");
+  return dir;
+}
+
+/**
+ * Ask an agent through the harness's app-server, in its long-running hidden "recall" conversation: create it
+ * once in the writer's folder (and hide it), set the model when one is configured, send the prompt, collect
+ * the reply, then compact the conversation so the next ask starts from a summary.
+ */
+export function askViaAppServer(opts: { url: () => string | null; store: RecallStore; writerDir?: string }): Ask {
   return async (agentId, prompt, model) => {
     const url = opts.url();
     if (!url) throw new Error("no app-server");
     const sock = new AppServerSocket(url, wsTransport);
     await sock.connect();
     try {
-      const rt = await recallConversation(sock, opts.store, agentId);
-      await sock.executeCommand(rt, "clear").catch(() => undefined); // a fresh context each time; the agent's memory still applies
+      const rt = await writerConversation(sock, opts.store, agentId, opts.writerDir ?? join(recallDir(), "writer"));
       if (model) await sock.updateModel(rt, model).catch((e) => log("recall:model", { model, message: String(e) }));
       const live = emptyLive();
       const done = new Promise<string>((resolve, reject) => {
@@ -244,7 +279,12 @@ export function askViaAppServer(opts: { url: () => string | null; store: RecallS
         });
       });
       if (!(await sock.sendUserMessage(rt, prompt))) throw new Error("the harness did not accept the prompt");
-      return await done;
+      const reply = await done;
+      // The ask is answered; fold it into the summary so the conversation stays a few hundred words long. A
+      // compaction that fails only means the next ask carries this one too — it is tried again then.
+      const compacted = await sock.executeCommand(rt, "compact", "all").catch((e: unknown) => ({ success: false, output: e instanceof Error ? e.message : String(e) }));
+      if (!compacted.success) log("recall:compact-failed", { conversation: rt.conversation_id, message: compacted.output });
+      return reply;
     } finally {
       sock.close();
     }
@@ -299,9 +339,13 @@ export function startLessonViaAppServer(opts: { url: () => string | null; store:
   };
 }
 
-/** The agent's hidden recall conversation, created and hidden on first use and remembered in worker.json. */
-async function recallConversation(sock: AppServerSocket, store: RecallStore, agentId: string): Promise<Runtime> {
-  const known = store.worker().recallConversations?.[agentId];
+/**
+ * The agent's writer conversation: one for the life of the agent, created in the writer's folder and hidden
+ * on first use, remembered in worker.json `writers`. The pre-2026-09-14 `recallConversations` entry, made in
+ * the home folder and cleared before each ask, is not reused: its folder has no settings of its own.
+ */
+async function writerConversation(sock: AppServerSocket, store: RecallStore, agentId: string, writerDir: string): Promise<Runtime> {
+  const known = store.worker().writers?.[agentId];
   if (known) {
     const rt = { agent_id: agentId, conversation_id: known };
     try {
@@ -311,9 +355,10 @@ async function recallConversation(sock: AppServerSocket, store: RecallStore, age
       // gone (deleted, or a different backend): make another
     }
   }
-  const rt = await sock.createConversation(agentId, homedir(), "recall");
+  const rt = await sock.createConversation(agentId, ensureWriterDir(writerDir), "recall");
   await sock.updateConversation(rt.conversation_id, { hidden: true }).catch((e) => log("recall:hide-failed", { message: String(e) }));
-  store.saveWorker({ recallConversations: { ...(store.worker().recallConversations ?? {}), [agentId]: rt.conversation_id } });
+  store.saveWorker({ writers: { ...(store.worker().writers ?? {}), [agentId]: rt.conversation_id } });
+  log("recall:writer-created", { agent: agentId, conversation: rt.conversation_id, cwd: writerDir });
   return rt;
 }
 

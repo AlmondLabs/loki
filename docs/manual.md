@@ -165,7 +165,7 @@ Only the things a mod can do:
 - lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
   however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
 - keeps the recall cards (`recall_*`) and runs the worker that writes them: every ten minutes it reads the new
-  stretch of any conversation quiet for ten minutes, asks its agent in a hidden "recall" conversation, and writes
+  stretch of any conversation quiet for ten minutes, asks its agent in its hidden "recall" conversation, and writes
   cards up to the day's cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
   and keeps the seen / snooze markers Catch Up needs
@@ -301,9 +301,9 @@ Spaced-repetition cards, for keeping what the conversations taught you. **Off un
 writer spends your provider budget in the background, so the section's first visit explains what it does and
 offers the switch (Settings › learn has it too, with the knobs). Nothing about the cards happens in
 chat: a worker in the mod watches for conversations that have gone quiet, hands the new stretch of
-transcript to the agent in a hidden conversation of its own (cleared each time), and writes whatever
+transcript to the agent in a hidden conversation of its own, and writes whatever
 comes back — one fact per card, a question that stands alone, an answer in a line or two — up to a daily
-cap (ten by default). You meet the cards only here: the front, space for the answer, then one of two answers — ← again or → got it
+cap (twenty-five by default). You meet the cards only here: the front, space for the answer, then one of two answers — ← again or → got it
 (space stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
 the scheduler modern Anki uses.
 New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
@@ -314,9 +314,13 @@ for a rewrite. E edits in place, O opens the desk it came from, Z undoes a delet
 card with search and holds the worker's knobs — on/off, cards a day, the model it asks, run now — and an
 export in Anki's plain-text import format. Everything is files: `~/.letta/loki/recall/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the worker's edits never touch your schedule. The worker's own
-conversation with each agent — one per agent, named "recall" — is a desk in the tree (⌘K), so you can read what
-it asked and what came back; it stays out of the inbox, and its context is cleared before each question while
-the transcript on disk keeps everything.
+conversation with each agent — one per agent, named "recall", for the life of the agent — is a desk in the tree
+(⌘K), so you can read what it asked and what came back; it stays out of the inbox. After each answer the worker
+compacts it (`/compact all`), so the next question starts from a short summary of the earlier ones rather than
+every transcript ever sent, while the transcript on disk keeps everything. It runs in a folder of its own,
+`~/.letta/loki/recall/writer/`, whose Letta project settings (`.letta/settings.local.json` there) keep the
+dreaming pass off: the writer's digests of your conversations are never turned into the agent's memory. The
+folder and its settings file are the worker's; it puts the trigger back to off if it finds it changed.
 
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
-import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript, lessonCard } from "../mod/recall-worker.ts";
+import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, WRITER_SETTINGS, ensureWriterDir, formatTranscript, lessonCard } from "../mod/recall-worker.ts";
 import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
 import { review } from "../core/recall/fsrs.ts";
 
@@ -60,13 +60,13 @@ describe("recall worker", () => {
     expect(again.asked).toBe(0);
     expect(again.note).toBe("nothing new");
   });
-  test("still-active conversations, the worker's own, and short chatter are not asked", async () => {
-    store.saveWorker({ recallConversations: { a1: "mine" } });
+  test("still-active conversations, the worker's own (today's writer and the old cleared one), and short chatter are not asked", async () => {
+    store.saveWorker({ recallConversations: { a1: "mine" }, writers: { a1: "writer" } });
     let asked = 0;
     const worker = new RecallWorker({
       store,
-      listInbox: () => [row("busy", { lastMessageAt: new Date(T0 - 1000).toISOString() }), row("mine"), row("short")],
-      readSince: logs({ busy: chatter(4), mine: chatter(4), short: [{ role: "user", text: "ok thanks" }] }),
+      listInbox: () => [row("busy", { lastMessageAt: new Date(T0 - 1000).toISOString() }), row("mine"), row("writer"), row("short")],
+      readSince: logs({ busy: chatter(4), mine: chatter(4), writer: chatter(4), short: [{ role: "user", text: "ok thanks" }] }),
       now: () => T0,
       ask: async () => (asked++, '{"cards":[],"revisions":[]}'),
     });
@@ -76,6 +76,24 @@ describe("recall worker", () => {
     expect(store.worker().cursors["a1/short"]).toBe(1); // read and moved past
     expect(store.worker().cursors["a1/busy"]).toBeUndefined();
     expect(worker.owns("mine")).toBe(true);
+    expect(worker.owns("writer")).toBe(true);
+    expect(worker.owns("short")).toBe(false);
+  });
+
+  test("the writer's folder carries Letta's project settings with reflection off, and keeps what else is there", () => {
+    const wd = join(dir, "writer");
+    expect(ensureWriterDir(wd)).toBe(wd);
+    const file = join(wd, ".letta", "settings.local.json");
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(WRITER_SETTINGS);
+    // Someone set the trigger back on and added a key of their own: the trigger goes off again, the key stays.
+    writeFileSync(file, JSON.stringify({ reflectionTrigger: "step-count", theirs: 1 }));
+    ensureWriterDir(wd);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ reflectionTrigger: "off", theirs: 1 });
+    // Garbage in the file is replaced rather than left to break Letta's read of it.
+    writeFileSync(file, "{not json");
+    ensureWriterDir(wd);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(WRITER_SETTINGS);
+    expect(existsSync(join(wd, ".letta"))).toBe(true);
   });
   test("rejected cards are quoted and never come back; the daily cap holds the card cursor, not the lead cursor", async () => {
     store.add({ id: "old", front: "What does KMS key rotation do?", back: "x", tags: [], source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: "2026-09-09T00:00:00Z", updatedAt: "2026-09-09T00:00:00Z", updatedBy: "recall", previous: [] });

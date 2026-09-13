@@ -56,6 +56,7 @@ export function buildPrompt(input: PromptInput): string {
   const lines: string[] = [];
   lines.push(
     `You keep a set of spaced-repetition cards for one person, drawn from their conversations with an AI agent. They never asked for these cards; they only ever see them in a review deck, and delete the ones they do not want. Your job is to write only what they will be glad to be asked about later.`,
+    `This conversation is your working notebook and runs on: whatever stands above this message, summarised or not, is an earlier request already answered. Read only what follows here.`,
     ``,
     `What makes a card worth writing:`,
     `- one fact, concept, command, or decision the person learned or worked out — not chatter, not the agent's plan, not what the person already knew`,

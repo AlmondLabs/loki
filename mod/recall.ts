@@ -30,9 +30,12 @@ interface WorkerFile {
   /** Same, for learning leads: on a day whose cards are all written, leads are still looked for and only this cursor moves. */
   leadCursors?: Record<string, number>;
   /** Per agent: the hidden conversation the worker asks its questions in. */
+  /** Before 2026-09-14: the hidden conversation per agent the worker cleared before each ask. Still its own (`owns`), no longer asked. */
   recallConversations?: Record<string, string>;
+  /** The writer's one long-running conversation per agent (recall-worker.ts `writerConversation`), by agent id. */
+  writers?: Record<string, string>;
 }
-const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 25, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {} };
+const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 25, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {}, writers: {} };
 
 function readJson<T>(path: string): T | null {
   try {
@@ -197,7 +200,7 @@ export class RecallStore {
 
   worker(): WorkerFile {
     const file = readJson<Partial<WorkerFile>>(this.p("worker.json")) ?? {};
-    return { ...WORKER_DEFAULTS, ...file, cursors: { ...(file.cursors ?? {}) }, leadCursors: { ...(file.leadCursors ?? {}) }, recallConversations: { ...(file.recallConversations ?? {}) } };
+    return { ...WORKER_DEFAULTS, ...file, cursors: { ...(file.cursors ?? {}) }, leadCursors: { ...(file.leadCursors ?? {}) }, recallConversations: { ...(file.recallConversations ?? {}) }, writers: { ...(file.writers ?? {}) } };
   }
   saveWorker(update: Partial<WorkerFile>): WorkerFile {
     const next = { ...this.worker(), ...update };
