@@ -9,12 +9,21 @@
 //! mod: the mod's LAN listener serves it to phones (mod/static.ts). Optional: a build without it
 //! still installs the mod.
 //!
+//! Development builds (`tauri dev`) install none of that — a developer's shim would be overwritten on every
+//! start — but a fresh clone has nothing in place at all, and a harness that never loaded the mod shows only
+//! as Vite's proxy errors. So a dev build wires the checkout in when the shim and the skill are absent
+//! (`link_checkout`): the shim imports <checkout>/mod/boot.ts, which re-bundles the mod's files on every
+//! /reload, and the skill directory is a symlink to <checkout>/skills/loki — the manual's by-hand recipe.
+//! Whatever is already there stays. The shim carries DEV_MARKER, not MARKER, so a release build later
+//! treats it as custom and leaves it alone too.
+//!
 //! Also here: which external programs the app needs (`letta`, `bd`) and where they were found.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 pub const MARKER: &str = "// loki: managed by the loki app — edits are overwritten on launch";
+pub const DEV_MARKER: &str = "// loki: development shim from `tauri dev` — imports this checkout's mod/boot.ts; delete it and the app installs its own";
 const SKILL_MARKER: &str = ".managed-by-loki";
 const APP_MARKER: &str = ".managed-by-loki";
 const APP_MARKER_TEXT: &[u8] = b"files here are written by the loki app on launch\n";
@@ -32,6 +41,8 @@ pub enum State {
     Custom,
     /// Not attempted (development build, or LOKI_NO_INSTALL).
     Skipped,
+    /// A development build wired the checkout in: a shim importing mod/boot.ts, a symlink to skills/loki.
+    Linked,
     Error,
 }
 
@@ -57,7 +68,7 @@ impl Report {
     /// The harness must pick up a new mod bundle; a new app/ matters too, because the mod resolves the
     /// canvas directory when its LAN listener starts.
     pub fn changed(&self) -> bool {
-        matches!(self.r#mod, State::Installed | State::Updated) || matches!(self.app, State::Installed | State::Updated)
+        matches!(self.r#mod, State::Installed | State::Updated | State::Linked) || matches!(self.app, State::Installed | State::Updated)
     }
 }
 
@@ -73,6 +84,63 @@ fn shim_source(mod_path: &Path) -> String {
         "{MARKER}\n// Loads the mod bundle the app installed; a fresh query on every activate so /reload never runs stale code.\nimport {{ pathToFileURL }} from \"node:url\";\nexport default async function activate(letta: unknown) {{\n  const url = pathToFileURL({path});\n  url.searchParams.set(\"v\", String(Date.now()));\n  const mod = await import(url.href);\n  return mod.default(letta);\n}}\n",
         path = serde_json::to_string(&mod_path.display().to_string()).unwrap_or_else(|_| "\"\"".into())
     )
+}
+
+fn dev_shim_source(boot: &Path) -> String {
+    format!(
+        "{DEV_MARKER}\nimport {{ pathToFileURL }} from \"node:url\";\nexport default async function activate(letta: unknown) {{\n  const url = pathToFileURL({path});\n  url.searchParams.set(\"v\", String(Date.now())); // boot.ts re-bundles the mod's files on every /reload\n  const mod = await import(url.href);\n  return mod.default(letta);\n}}\n",
+        path = serde_json::to_string(&boot.display().to_string()).unwrap_or_else(|_| "\"\"".into())
+    )
+}
+
+/// A development build, first run on this Mac: point Letta at `checkout` where nothing is in place yet.
+/// mod: Linked when the shim was written now (or already imports this checkout's boot.ts), Skipped when the
+/// app's own shim is there (MARKER), Custom for anything else. skill: Linked for a symlink into this checkout,
+/// Skipped for the app's copy, Custom otherwise. Never overwrites.
+pub fn link_checkout(checkout: &Path, home: &Path) -> Report {
+    let mut report = Report::skipped(home);
+    let boot = checkout.join("mod").join("boot.ts");
+    let shim = shim_path(home);
+    report.mod_path = boot.display().to_string();
+    if !boot.is_file() {
+        report.r#mod = State::Error;
+        report.error = Some(format!("{} is not a checkout: no mod/boot.ts", checkout.display()));
+        return report;
+    }
+    let wanted = dev_shim_source(&boot);
+    report.r#mod = match std::fs::read_to_string(&shim) {
+        Ok(existing) if existing == wanted => State::Linked,
+        Ok(existing) if existing.starts_with(MARKER) => State::Skipped,
+        Ok(_) => State::Custom,
+        Err(_) => match write_if_changed(&shim, wanted.as_bytes()) {
+            Ok(_) => State::Linked,
+            Err(e) => {
+                report.error = Some(format!("could not write {}: {e}", shim.display()));
+                State::Error
+            }
+        },
+    };
+    let skills = checkout.join("skills").join("loki");
+    let dst = skill_dir(home);
+    report.skill = match std::fs::symlink_metadata(&dst) {
+        Ok(m) if m.file_type().is_symlink() => {
+            if std::fs::read_link(&dst).map(|t| t == skills).unwrap_or(false) { State::Linked } else { State::Custom }
+        }
+        Ok(_) if dst.join(SKILL_MARKER).exists() => State::Skipped,
+        Ok(_) => State::Custom,
+        Err(_) => {
+            let linked = dst.parent().map(std::fs::create_dir_all).unwrap_or(Ok(())).and_then(|_| std::os::unix::fs::symlink(&skills, &dst));
+            match linked {
+                Ok(()) => State::Linked,
+                Err(e) => {
+                    let msg = format!("could not link {}: {e}", dst.display());
+                    report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {msg}"), None => msg });
+                    State::Error
+                }
+            }
+        }
+    };
+    report
 }
 
 /// Where the bundled resources are, given Tauri's resource directory (the layout differs between
@@ -377,6 +445,60 @@ mod tests {
         assert_eq!(r.app, State::Custom);
         assert_eq!(std::fs::read(data.join("app").join("index.html")).unwrap(), b"mine");
         assert!(r.error.is_none());
+    }
+
+    fn checkout(root: &Path) -> PathBuf {
+        let c = root.join("checkout");
+        std::fs::create_dir_all(c.join("mod")).unwrap();
+        std::fs::create_dir_all(c.join("skills").join("loki")).unwrap();
+        std::fs::write(c.join("mod").join("boot.ts"), b"export default () => 1;\n").unwrap();
+        std::fs::write(c.join("skills").join("loki").join("SKILL.md"), b"# loki\n").unwrap();
+        c
+    }
+
+    #[test]
+    fn a_dev_build_links_a_fresh_mac_to_the_checkout_and_never_overwrites() {
+        let (root, resources, data, home) = fixture();
+        let c = checkout(root.path());
+        let r = link_checkout(&c, &home);
+        assert_eq!(r.r#mod, State::Linked);
+        assert_eq!(r.skill, State::Linked);
+        assert!(r.changed());
+        assert!(r.error.is_none());
+        let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
+        assert!(shim.starts_with(DEV_MARKER));
+        assert!(shim.contains(&c.join("mod").join("boot.ts").display().to_string()));
+        assert_eq!(std::fs::read_link(skill_dir(&home)).unwrap(), c.join("skills").join("loki"));
+        assert!(skill_dir(&home).join("SKILL.md").is_file());
+        // The same again: still linked, nothing rewritten.
+        let r = link_checkout(&c, &home);
+        assert_eq!((r.r#mod, r.skill), (State::Linked, State::Linked));
+        // A release install then leaves both alone.
+        let r = run(&resources, &data, &home);
+        assert_eq!((r.r#mod, r.skill), (State::Custom, State::Custom));
+        assert!(std::fs::read_to_string(shim_path(&home)).unwrap().starts_with(DEV_MARKER));
+    }
+
+    #[test]
+    fn a_dev_build_leaves_the_apps_install_and_a_strangers_shim_alone() {
+        let (root, resources, data, home) = fixture();
+        let c = checkout(root.path());
+        // The app's own copy in place: skipped, as before.
+        run(&resources, &data, &home);
+        let r = link_checkout(&c, &home);
+        assert_eq!((r.r#mod, r.skill), (State::Skipped, State::Skipped));
+        assert!(std::fs::read_to_string(shim_path(&home)).unwrap().starts_with(MARKER));
+        // Someone else's shim and skill: custom.
+        std::fs::write(shim_path(&home), "// mine\n").unwrap();
+        std::fs::remove_file(skill_dir(&home).join(SKILL_MARKER)).unwrap();
+        let r = link_checkout(&c, &home);
+        assert_eq!((r.r#mod, r.skill), (State::Custom, State::Custom));
+        assert_eq!(std::fs::read_to_string(shim_path(&home)).unwrap(), "// mine\n");
+        // Not a checkout: an error, nothing written.
+        let (_root2, _r2, _d2, home2) = fixture();
+        let r = link_checkout(&root.path().join("nowhere"), &home2);
+        assert_eq!(r.r#mod, State::Error);
+        assert!(!shim_path(&home2).exists());
     }
 
     #[test]

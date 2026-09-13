@@ -5,7 +5,7 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13+, [Bun](https://bun.sh) and Rust (stable, via rustup). Letta Code is not a prerequisite: the shell installs its own copy under `~/.letta/loki/runtime/` on first launch, and `LOKI_LETTA_BIN` points a dev build at a checkout instead.
+macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup — `bun start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools. Letta Code is not a prerequisite: the shell installs its own copy under `~/.letta/loki/runtime/` on first launch, and `LOKI_LETTA_BIN` points a dev build at a checkout instead. On a Mac that has never run loki, `bun start` also writes the development shim and skill symlink described in the manual's [Install (development)](manual.md#install-development).
 
 ```bash
 bun install

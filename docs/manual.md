@@ -174,13 +174,28 @@ Only the things a mod can do:
 
 ## Install (development)
 
+You need Bun, Rust (stable, from rustup) and Xcode's command line tools. Then:
+
 ```bash
 bun install
+bun start
 ```
 
-Point Letta at your checkout instead of the installed copy. Everything in `~/.letta/mods/` is loaded as a
-mod, so only this file lives there (the app leaves it alone because it does not start with the managed
-marker):
+`bun start` checks for `cargo` first — on PATH, or in `~/.cargo/bin` where rustup just put it — and stops with the
+install line when there is none (Tauri's own message is a bare "No such file or directory"). It then starts Vite,
+opens the window (the first build compiles the shell, a few minutes), and waits for the mod: if nothing answers on
+its port after a minute and a half, one paragraph names the shim and the harness log instead of Vite's proxy errors.
+
+A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), so it would run a harness
+without the mod on a Mac that never had loki. Instead, when the shim and the skill are both absent, it points
+Letta at the checkout it was compiled from: `~/.letta/mods/loki.ts` importing `mod/boot.ts` (marked as a
+development shim, so the app leaves it alone later too) and `~/.agents/skills/loki` as a symlink to `skills/loki`.
+Whatever is already in either place stays; Settings › letta › install shows **linked** for each, or what was there.
+Letta Code itself is installed the way the app does it, under `~/.letta/loki/runtime/`, and the Welcome step
+shows the progress.
+
+To do the same by hand — a second checkout, say — everything in `~/.letta/mods/` is loaded as a mod, so only this
+file lives there (the app leaves it alone because it does not start with the managed marker):
 
 ```ts
 // ~/.letta/mods/loki.ts
@@ -201,6 +216,18 @@ ln -s /ABSOLUTE/PATH/TO/loki/skills/loki ~/.agents/skills/loki
 
 Then `/reload` in Letta Code and run `bun start` (Vite plus the window in one terminal), or `bun run dev` (Vite) plus `bun run desktop:dev` (the window against
 it), or open the Vite URL in a browser tab.
+
+When something does not come up:
+
+1. **The window opens but the desk never links** (Vite prints `ws proxy error … 41414`): the harness has no mod.
+   Check `~/.letta/mods/loki.ts` exists and imports a path that exists, then `~/.letta/loki/logs/harness.log` for
+   the mod's error on activate. `/reload` in Letta Code loads it again.
+2. **Welcome says the Letta Code install did not finish**: `~/.letta/loki/logs/install.log` has every line of every
+   attempt; the window shows the telling one (a package that would not build, a host that would not resolve) and
+   npm's own log path. Retry from Welcome once it is fixed. loki installs with `SHARP_IGNORE_GLOBAL_LIBVIPS=1`, so a
+   Homebrew libvips on the Mac no longer makes `sharp` compile itself with node-gyp.
+3. **Letta Desktop is running**: loki talks to its harness rather than starting its own (Requirements), so the
+   Letta Code in use is Desktop's, not the tested copy. Quit Desktop and start loki again to run loki's own.
 
 ## Install as an app (Chrome)
 
@@ -338,8 +365,10 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 
 `LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
 `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1` (make a
-dev build install its mod), `LOKI_NO_INSTALL=1` (stop a release build from doing so).
-Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log`. To run the mod without Letta:
+dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release build
+from installing, and a dev build from linking).
+Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log` (the harness loki starts),
+`~/.letta/loki/logs/install.log` (every Letta Code install or update, appended). To run the mod without Letta:
 `bun scripts/harness.ts`.
 
 ## Hard rules

@@ -352,16 +352,25 @@ function InstallSection({ install }: { install: InstallReport | null }) {
     <Section title="install" hint="on launch the app puts its mod and skill where Letta looks">
       <ModFact install={install} />
       <Fact label="shim" value={install?.shim ?? "~/.letta/mods/loki.ts"} mono />
-      {install?.mod_path ? <Fact label="bundle" value={install.mod_path} mono /> : null}
-      <Fact label="skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : null}</span> : "—"} />
+      {install?.mod_path ? <Fact label={install.mod === "linked" ? "imports" : "bundle"} value={install.mod_path} mono /> : null}
+      <Fact label="skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : install.skill === "linked" ? <Note>a symlink to the checkout this build came from</Note> : null}</span> : "—"} />
       <Fact label="skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
       {install?.error ? <Fact label="error" value={<span style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{install.error}</span>} /> : null}
     </Section>
   );
 }
 
+/** The word after the mod's state: what launch found in the shim's place, or what the harness still needs. */
+function modNote(install: InstallReport): React.ReactNode {
+  if (install.mod === "custom") return <Note>your own shim is in place; the app leaves it alone</Note>;
+  if (install.needs_reload) return <Note tone="warn">the harness started before this copy landed: run /reload in Letta Code, or restart Letta Desktop</Note>;
+  if (install.mod === "linked") return <Note>development build — the shim imports this checkout's mod/boot.ts; /reload re-bundles it</Note>;
+  if (install.mod === "skipped") return <Note>development build — the app's own copy is in place; set LOKI_INSTALL=1 to refresh it</Note>;
+  return null;
+}
+
 function ModFact({ install }: { install: InstallReport | null }) {
-  return <Fact label="mod" value={install ? <span><InstallState s={install.mod} /> {install.mod === "custom" ? <Note>your own shim is in place; the app leaves it alone</Note> : install.mod === "skipped" ? <Note>development build — set LOKI_INSTALL=1 to install anyway</Note> : install.needs_reload ? <Note tone="warn">the harness started before this copy landed: run /reload in Letta Code, or restart Letta Desktop</Note> : null}</span> : "—"} />;
+  return <Fact label="mod" value={install ? <span><InstallState s={install.mod} /> {modNote(install)}</span> : "—"} />;
 }
 
 function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectProvider, onDisconnectProvider, onModelsChanged }: { appServerStatus: AppServerStatus; providers: ConnectProvider[] | null; onLoadProviders: () => Promise<unknown>; onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>; onDisconnectProvider: (providerId: string) => Promise<string | null>; onModelsChanged: () => void }) {

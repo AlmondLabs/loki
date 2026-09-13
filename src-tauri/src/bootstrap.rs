@@ -124,6 +124,27 @@ pub fn pick_tarball(shasums: &str, arch: &str) -> Option<(String, String)> {
     })
 }
 
+/// "2026-09-14 06:12:03 UTC" from the system clock, for the install log's headers (no date crate here).
+pub fn stamp() -> String {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    stamp_of(secs)
+}
+
+pub fn stamp_of(secs: u64) -> String {
+    let (days, rem) = ((secs / 86400) as i64, secs % 86400);
+    // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm).
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + if m <= 2 { 1 } else { 0 };
+    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02} UTC", rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Progress {
     pub stage: &'static str,
@@ -195,6 +216,22 @@ pub fn install(data: &Path, home: &Path, report: &dyn Fn(Progress)) -> Result<Ru
     install_version(data, home, LETTA_CODE_VERSION, report)
 }
 
+/// npm's last line on failure is "A complete log of this run can be found in: …", and the ones before it name
+/// the exit code, the path and the command. The cause is further up: the first `error` line that is none of
+/// those (sharp's "Please add node-gyp to your dependencies", node-gyp's own, an ENOTFOUND). That line, then the
+/// log path, so the person reading the window has both.
+pub fn telling_error(errors: &[String], fallback: &str) -> String {
+    let boilerplate = |l: &str| ["code ", "path ", "command ", "signal ", "A complete log", "errno ", "syscall ", "network ", "notarget", "404"].iter().any(|p| l.starts_with(p)) || l.is_empty();
+    let cause = errors.iter().map(|l| l.trim_start_matches("error").trim()).find(|l| !boilerplate(l));
+    let log = errors.iter().map(|l| l.trim_start_matches("error").trim()).find(|l| l.starts_with("A complete log")).and_then(|l| l.split(": ").nth(1));
+    match (cause, log) {
+        (Some(c), Some(l)) => format!("{c} · npm's log: {l}"),
+        (Some(c), None) => c.to_string(),
+        (None, Some(l)) => format!("{fallback} · npm's log: {l}"),
+        (None, None) => fallback.to_string(),
+    }
+}
+
 /// Run a package manager to completion, its stderr lines to `report` as they come (npm talks on stderr;
 /// the last stdout line is reported at the end for the ones that do not).
 fn stream(cmd: &mut Command, stage: &'static str, report: &dyn Fn(Progress)) -> Result<(), String> {
@@ -210,13 +247,16 @@ fn stream(cmd: &mut Command, stage: &'static str, report: &dyn Fn(Progress)) -> 
         lines
     });
     let mut last = String::new();
+    let mut errors: Vec<String> = vec![];
     if let Some(err) = child.stderr.take() {
         for line in BufReader::new(err).lines().map_while(Result::ok) {
             let t = line.trim();
             // npm's info lines: "npm info run sharp@… postinstall", "npm http fetch GET 200 …" — keep the readable ones.
             if t.is_empty() || t.starts_with("npm http") || t.starts_with("npm timing") || t.starts_with("npm verbose") { continue; }
             last = t.to_string();
-            report(Progress { stage, message: t.trim_start_matches("npm ").to_string() });
+            let message = t.trim_start_matches("npm ").to_string();
+            if message.starts_with("error") || message.starts_with("ERR!") { errors.push(message.clone()); }
+            report(Progress { stage, message });
         }
     }
     let status = child.wait().map_err(|e| e.to_string())?;
@@ -226,7 +266,7 @@ fn stream(cmd: &mut Command, stage: &'static str, report: &dyn Fn(Progress)) -> 
         if last.is_empty() { last = l.trim().to_string(); }
     }
     if !status.success() {
-        return Err(format!("{} failed: {last}", cmd.get_program().to_string_lossy()));
+        return Err(format!("{} failed: {}", cmd.get_program().to_string_lossy(), telling_error(&errors, &last)));
     }
     Ok(())
 }
@@ -253,7 +293,11 @@ pub fn install_version(data: &Path, home: &Path, version: &str, report: &dyn Fn(
             .args(["--no-fund", "--no-audit", "--loglevel", "info"])
             .env("PATH", &path)
             .env("CI", "1")
-            .env("npm_config_update_notifier", "false"),
+            .env("npm_config_update_notifier", "false")
+            // letta-code depends on sharp, whose install step compiles it from source with node-gyp whenever a
+            // libvips is installed on the Mac (Homebrew's, through pkg-config) — and fails on a Mac without
+            // node-gyp, taking the whole install with it. The prebuilt binary sharp ships is what we want.
+            .env("SHARP_IGNORE_GLOBAL_LIBVIPS", "1"),
         "letta",
         report,
     )?;
@@ -308,6 +352,30 @@ mod tests {
         assert_eq!(parse_version("nope"), None);
         assert!(parse_version("v22.19.0").unwrap() >= NODE_MIN);
         assert!(parse_version("v20.19.0").unwrap() < NODE_MIN);
+    }
+
+    #[test]
+    fn the_telling_error_is_the_cause_not_npm_s_footer() {
+        let errors: Vec<String> = [
+            "error code 1",
+            "error path /Users/x/.letta/loki/runtime/letta/lib/node_modules/@letta-ai/letta-code/node_modules/sharp",
+            "error command failed",
+            "error command sh -c node install/check.js || npm run build",
+            "error sharp: Attempting to build from source via node-gyp",
+            "error sharp: Please add node-gyp to your dependencies",
+            "error A complete log of this run can be found in: /Users/x/.npm/_logs/2026-09-13T15_06_11_003Z-debug-0.log",
+        ].iter().map(|s| s.to_string()).collect();
+        assert_eq!(telling_error(&errors, "last line"), "sharp: Attempting to build from source via node-gyp · npm's log: /Users/x/.npm/_logs/2026-09-13T15_06_11_003Z-debug-0.log");
+        assert_eq!(telling_error(&[], "last line"), "last line");
+        let only_footer: Vec<String> = vec!["error code ENOTFOUND".into(), "error A complete log of this run can be found in: /l.log".into()];
+        assert_eq!(telling_error(&only_footer, "npm error network request failed"), "npm error network request failed · npm's log: /l.log");
+    }
+
+    #[test]
+    fn stamps_are_civil_utc() {
+        assert_eq!(stamp_of(0), "1970-01-01 00:00:00 UTC");
+        assert_eq!(stamp_of(1789000000), "2026-09-10 00:26:40 UTC");
+        assert_eq!(stamp_of(951782400), "2000-02-29 00:00:00 UTC");
     }
 
     #[test]

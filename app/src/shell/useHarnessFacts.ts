@@ -3,10 +3,10 @@ import { inTauri } from "../desk/env";
 
 /** What launch did about the mod and the skill (src-tauri/src/install.rs). */
 export interface InstallReport {
-  mod: "installed" | "updated" | "current" | "custom" | "skipped" | "error";
+  mod: "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
   shim: string;
   mod_path: string;
-  skill: "installed" | "updated" | "current" | "custom" | "skipped" | "error";
+  skill: "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
   skill_path: string;
   needs_reload: boolean;
   error: string | null;

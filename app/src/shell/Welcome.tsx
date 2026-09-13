@@ -175,7 +175,7 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
           <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{status.error}</div>
           <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>
             The download needs nodejs.org and registry.npmjs.org to be reachable; a proxy or an offline Mac is the usual reason. Retry below once the
-            network is back. The full log is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/</code>.
+            network is back. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
           </div>
           <Button size="sm" tone="brass" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ justifySelf: "start" }}>
             {busy ? "starting…" : "retry the install"}

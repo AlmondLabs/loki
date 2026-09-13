@@ -122,6 +122,12 @@ docs/           the manual, architecture, design direction, dated plans; CONTRIB
 
 ## Development
 
+You need [Bun](https://bun.sh), Rust from [rustup](https://rustup.rs) (stable; open a new terminal after installing
+it) and Xcode's command line tools (`xcode-select --install`). Not Node, npm or Letta Code: the window installs its
+own copy of Letta Code on first launch, the same way the app does. On a Mac that has never run loki, `bun start`
+also points Letta at your checkout — a shim at `~/.letta/mods/loki.ts` importing `mod/boot.ts`, and
+`~/.agents/skills/loki` as a symlink to `skills/loki` — and leaves anything already there alone.
+
 ```bash
 bun install
 bun start                                         # Vite on 127.0.0.1:5173 plus the Tauri window; Ctrl-C stops both

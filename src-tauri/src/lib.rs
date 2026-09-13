@@ -14,7 +14,7 @@ mod native;
 mod scratch;
 mod widgets;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{Manager, State};
 
 fn loki_dir() -> PathBuf {
@@ -183,24 +183,40 @@ fn start_install(app: tauri::AppHandle) {
     run_bootstrap_job(app, "installing loki's copy of Letta Code", move |report| bootstrap::install(&data, &home, report));
 }
 
-/// An install or update, off the main thread: progress as `loki:bootstrap` events and Status.log, and on
-/// success the harness (re)starts on the runtime the job produced — the link, already retrying, reconnects.
+/// Every line an install or update produced, on disk: Welcome and Settings show the last few, this keeps them all
+/// (one section per attempt, appended). Best effort — a log that cannot be written never stops an install.
+fn install_log_line(line: &str) {
+    use std::io::Write;
+    let path = loki_dir().join("logs").join("install.log");
+    if let Some(dir) = path.parent() { let _ = std::fs::create_dir_all(dir); }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) { let _ = writeln!(f, "{line}"); }
+}
+
+/// An install or update, off the main thread: progress as `loki:bootstrap` events, Status.log and
+/// ~/.letta/loki/logs/install.log, and on success the harness (re)starts on the runtime the job produced — the
+/// link, already retrying, reconnects.
 fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn Fn(bootstrap::Progress)) -> Result<bootstrap::Runtime, String> + Send + 'static) {
     use tauri::Emitter;
     let home = home_dir();
     if let Some(b) = app.try_state::<bootstrap::BootstrapState>() {
         if let Ok(mut s) = b.0.lock() { s.installing = true; s.error = None; s.log.clear(); }
     }
+    install_log_line(&format!("\n--- {opening} · {} · loki {} ---", bootstrap::stamp(), env!("CARGO_PKG_VERSION")));
     let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "start", message: opening.to_string() });
     tauri::async_runtime::spawn_blocking(move || {
         let report = |p: bootstrap::Progress| {
             eprintln!("loki: bootstrap: {} · {}", p.stage, p.message);
+            install_log_line(&format!("[{}] {}", p.stage, p.message));
             if let Some(b) = app.try_state::<bootstrap::BootstrapState>() {
                 if let Ok(mut s) = b.0.lock() { s.log.push(p.message.clone()); if s.log.len() > 200 { s.log.remove(0); } }
             }
             let _ = app.emit("loki:bootstrap", p);
         };
         let result = job(&report);
+        match &result {
+            Ok(rt) => install_log_line(&format!("done: {}", rt.letta.display())),
+            Err(e) => install_log_line(&format!("error: {e}")),
+        }
         let Some(b) = app.try_state::<bootstrap::BootstrapState>() else { return };
         match result {
             Ok(rt) => {
@@ -235,6 +251,18 @@ fn install_wanted() -> bool {
     !cfg!(debug_assertions) || std::env::var_os("LOKI_INSTALL").is_some()
 }
 
+/// The checkout a development build was compiled from, when it should be wired into Letta where nothing is yet
+/// (install.rs `link_checkout`). Release builds: never (the path is not even in the binary). LOKI_NO_INSTALL: no.
+fn dev_checkout() -> Option<PathBuf> {
+    #[cfg(debug_assertions)]
+    {
+        if std::env::var_os("LOKI_NO_INSTALL").is_some() { return None; }
+        return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(Path::to_path_buf);
+    }
+    #[allow(unreachable_code)]
+    None
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = ensure_token();
@@ -259,6 +287,9 @@ pub fn run() {
                     None => install::Report { r#mod: install::State::Error, error: Some("bundled mod not found in the app's resources".into()), ..install::Report::skipped(&home) },
                 };
                 eprintln!("loki: install: mod {:?} · skill {:?} · app {:?}{}", report.r#mod, report.skill, report.app, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
+            } else if let Some(checkout) = dev_checkout() {
+                report = install::link_checkout(&checkout, &home);
+                eprintln!("loki: dev: mod {:?} · skill {:?} · shim {} → {}{}", report.r#mod, report.skill, report.shim, report.mod_path, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             }
 
             // Which harness? Desktop's if it is running; otherwise our own on a fixed port.
