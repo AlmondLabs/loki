@@ -68,9 +68,11 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
   }, [active, view, recall]);
 
   return (
-    <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-      {/* The deck sits in the middle of the view (a little above it, where the eye rests); the lists start at the top. */}
-      <div style={{ width: 760, maxWidth: "100%", margin: view === "review" ? "auto" : "0 auto", paddingBottom: view === "review" ? "8vh" : 0, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ position: "absolute", inset: 0, overflowY: "auto", scrollbarGutter: "stable", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+      {/* The header keeps its place across the views, so the tab just clicked stays under the pointer. Inside the
+          body, the deck sits in the middle of what is left (a little above it, where the eye rests); the lists
+          start at the top. The gutter is reserved so a long list's scrollbar does not shift the column sideways. */}
+      <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
         <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
           <Title page>learn</Title>
           <Meta>
@@ -96,8 +98,11 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
           </Meta>
         )}
 
-        {view === "review" && snap && !snap.worker.enabled && cards.length === 0 && <RecallIntro worker={snap.worker} onEnable={() => void recall.settings({ enabled: true })} />}
-        {view === "review" && !(snap && !snap.worker.enabled && cards.length === 0) && (
+        <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
+          {view === "review" && (
+            <div style={{ margin: "auto 0", paddingBottom: "8vh", display: "grid", gap: 16 }}>
+              {snap && !snap.worker.enabled && cards.length === 0 && <RecallIntro worker={snap.worker} onEnable={() => void recall.settings({ enabled: true })} />}
+              {!(snap && !snap.worker.enabled && cards.length === 0) && (
           <ReviewBody snap={snap} pass={pass}>
             {current && (
               <Deck
@@ -121,7 +126,9 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
               />
             )}
           </ReviewBody>
-        )}
+              )}
+            </div>
+          )}
 
         {view === "leads" && snap && (
           <LeadList
@@ -151,6 +158,7 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
             <DismissedLeadList dismissed={snap.dismissedLeads} onRestore={(id) => void recall.restoreLead(id)} />
           </>
         )}
+        </div>
       </div>
     </div>
   );

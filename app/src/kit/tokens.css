@@ -115,6 +115,8 @@ a:focus-visible {
 .loki-rail:hover { background: var(--loki-panel-header) !important; color: var(--loki-fg) !important; }
 @keyframes loki-card-next { from { opacity: 0; transform: translateX(28px) scale(0.99); } to { opacity: 1; transform: none; } }
 @keyframes loki-card-back { from { opacity: 0; transform: translateX(-28px) scale(0.99); } to { opacity: 1; transform: none; } }
+/* A view swapped under a fixed header (Learn's tabs): a short fade, no movement. */
+@keyframes loki-view-in { from { opacity: 0; } to { opacity: 1; } }
 
 
 /* Reduced motion: no durations and no delays — a delayed zero-length settle would leave a frame at its
