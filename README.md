@@ -124,8 +124,9 @@ docs/           the manual, architecture, design direction, dated plans; CONTRIB
 
 ```bash
 bun install
-bun run dev                                       # Vite on 127.0.0.1:5173
-bun run desktop:dev                               # the Tauri window against it
+bun start                                         # Vite on 127.0.0.1:5173 plus the Tauri window; Ctrl-C stops both
+bun run dev                                       # Vite alone, for a browser tab
+bun run desktop:dev                               # the Tauri window against a Vite already running
 bun test && bun run typecheck && bun run lint     # bun tests, tsc, eslint (typescript-eslint + React compiler rules)
 cargo test --manifest-path src-tauri/Cargo.toml   # the shell
 bun run desktop:build                             # the .app and .dmg

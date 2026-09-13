@@ -9,8 +9,9 @@ macOS 13+, [Bun](https://bun.sh) and Rust (stable, via rustup). Letta Code is no
 
 ```bash
 bun install
-bun run dev            # Vite on 127.0.0.1:5173
-bun run desktop:dev    # the Tauri window against the dev server (in a second terminal)
+bun start              # Vite on 127.0.0.1:5173 plus the Tauri window in one terminal (Ctrl-C stops both)
+bun run dev            # Vite alone, for a browser tab
+bun run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
 
 For the mod, point Letta at your checkout instead of the installed copy: write the shim from the manual's

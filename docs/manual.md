@@ -184,7 +184,7 @@ Skill, so the agent knows the vocabulary:
 ln -s /ABSOLUTE/PATH/TO/loki/skills/loki ~/.agents/skills/loki
 ```
 
-Then `/reload` in Letta Code and run `bun run dev` (Vite) plus `bun run desktop:dev` (the window against
+Then `/reload` in Letta Code and run `bun start` (Vite plus the window in one terminal), or `bun run dev` (Vite) plus `bun run desktop:dev` (the window against
 it), or open the Vite URL in a browser tab.
 
 ## Install as an app (Chrome)
