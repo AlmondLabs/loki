@@ -132,6 +132,12 @@ export function RejectedList({ rejected, onRestore, onForget }: { rejected: Reje
   );
 }
 
+/** "3 of 10 written today", or, at the cap, that cards resume after midnight while leads are still looked for. */
+function writtenLine(worker: WorkerStatus): string {
+  if (worker.dailyCap > 0 && worker.writtenToday >= worker.dailyCap) return `today's ${worker.dailyCap} cards are written — more after midnight; leads are still looked for`;
+  return `${worker.writtenToday} of ${worker.dailyCap} written today`;
+}
+
 /** The worker's knobs and its last word, plus the export. */
 export function WorkerStrip({ worker, running, onSettings, onRun, onExport, cardCount }: { worker: WorkerStatus; running: boolean; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => void; onRun: () => void; onExport: () => void; cardCount: number }) {
   const [model, setModel] = useState(worker.model ?? "");
@@ -144,7 +150,7 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
           {worker.enabled ? "on" : "off"}
         </Button>
         <Meta wrap>
-          {worker.lastRunAt ? `last run ${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {worker.writtenToday} of {worker.dailyCap} written today
+          {worker.lastRunAt ? `last run ${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}
         </Meta>
         <span style={{ flex: 1 }} />
         <Button size="sm" onClick={onRun} disabled={running || !worker.enabled} title="read the quiet conversations now instead of waiting for the timer">{running ? "running…" : "run now"}</Button>
@@ -225,7 +231,7 @@ export function RecallSettings({ worker, onSettings, onRun, running }: { worker:
       </Line>
       <Line label="last run">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <Meta wrap>{worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {worker.writtenToday} of {worker.dailyCap} written today</Meta>
+          <Meta wrap>{worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}</Meta>
           <Button size="sm" onClick={onRun} disabled={running || !worker.enabled} title="read the quiet conversations now instead of waiting for the timer">{running ? "running…" : "run now"}</Button>
         </span>
       </Line>

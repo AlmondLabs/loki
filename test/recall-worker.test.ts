@@ -77,7 +77,7 @@ describe("recall worker", () => {
     expect(store.worker().cursors["a1/busy"]).toBeUndefined();
     expect(worker.owns("mine")).toBe(true);
   });
-  test("rejected cards are quoted and never come back; the daily cap holds the cursor", async () => {
+  test("rejected cards are quoted and never come back; the daily cap holds the card cursor, not the lead cursor", async () => {
     store.add({ id: "old", front: "What does KMS key rotation do?", back: "x", tags: [], source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: "2026-09-09T00:00:00Z", updatedAt: "2026-09-09T00:00:00Z", updatedBy: "recall", previous: [] });
     store.reject("old", T0 - 1000);
     store.saveWorker({ dailyCap: 1 });
@@ -96,8 +96,21 @@ describe("recall worker", () => {
     expect(prompt).toContain("[0 reviews] Q: What does KMS key rotation do?");
     expect(store.cards().map((c) => c.card.front)).toEqual(["Which service stores session logs?"]); // the rejected one stayed out
     expect(r.written).toBe(1);
+    expect(r.asked).toBe(2); // c2 was still read, for leads
+    expect(r.note).toBe("1 new · 0 revised from 2 conversations · cards at the day's cap");
+    expect(store.worker().cursors["a1/c2"]).toBeUndefined(); // its cards wait for tomorrow
+    expect(store.worker().leadCursors?.["a1/c2"]).toBe(2);
+  });
+
+  test("with the day's cards written and the lead pile full, nothing is asked and the cursor waits", async () => {
+    store.saveWorker({ dailyCap: 0 });
+    for (let i = 0; i < MAX_OPEN_LEADS; i++) store.addLead({ id: `l${i}`, title: `topic ${i}`, why: "w", depth: "primer", source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: new Date(T0).toISOString() });
+    let asked = 0;
+    const worker = new RecallWorker({ store, listInbox: () => [row("c1")], readSince: logs({ c1: chatter(4) }), now: () => T0, ask: async () => ((asked += 1), '{"cards":[],"revisions":[],"leads":[]}') });
+    const r = await worker.tick();
+    expect(asked).toBe(0);
     expect(r.note).toBe("daily cap reached");
-    expect(store.worker().cursors["a1/c2"]).toBeUndefined(); // waits for tomorrow
+    expect(store.worker().cursors["a1/c1"]).toBeUndefined();
   });
   test("revisions rewrite an existing card and keep the old wording; failing cards are offered for a rewrite", async () => {
     store.add({ id: "k1", front: "What does KMS key rotation do?", back: "Rotates keys.", tags: [], source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", updatedBy: "recall", previous: [] });
@@ -171,6 +184,30 @@ describe("learning leads", () => {
     expect(added.source).toMatchObject({ agentId: "a1", conversationId: "c1", title: "desk c1" });
     expect(prompts[0]).toContain("- KMS key rotation");
     expect(prompts[0]).toContain("- Kubernetes networking");
+  });
+  test("a full card day still finds leads: the prompt asks for none, leads are written, and tomorrow's card pass reads the same stretch", async () => {
+    store.saveWorker({ dailyCap: 1, written: { day: new Date(T0).toISOString().slice(0, 10), count: 1 } });
+    const prompts: string[] = [];
+    const reply = '{"cards":[{"front":"Which service stores session logs?","back":"S3 via SSM.","tags":[]}],"revisions":[],"leads":[{"title":"Envelope encryption","why":"you asked what a data key was","depth":"primer"}]}';
+    const worker = new RecallWorker({ store, listInbox: () => [row("c1")], readSince: logs({ c1: chatter(4) }), now: () => T0, ask: async (_a, p) => (prompts.push(p), reply) });
+    const r = await worker.tick();
+    expect(prompts[0]).toContain("write no new cards this time");
+    expect(prompts[0]).toContain('"leads"');
+    expect(r.written).toBe(0);
+    expect(r.leads).toBe(1);
+    expect(r.note).toBe("0 new · 0 revised · 1 lead from 1 conversation · cards at the day's cap");
+    expect(store.leads().map((l) => l.title)).toEqual(["Envelope encryption"]);
+    expect(store.worker().cursors["a1/c1"]).toBeUndefined();
+    expect(store.worker().leadCursors?.["a1/c1"]).toBe(2);
+    // The same stretch, once the lead cursor is ahead, is not read again for leads today.
+    expect((await worker.tick()).asked).toBe(0);
+    // Tomorrow: the card pass starts at the card cursor, writes the card, and the lead is not written twice.
+    const tomorrow = new RecallWorker({ store, listInbox: () => [row("c1")], readSince: logs({ c1: chatter(4) }), now: () => T0 + 86_400_000, ask: async (_a, p) => (prompts.push(p), reply) });
+    const t = await tomorrow.tick();
+    expect(prompts[1]).toContain("at most 1 new card");
+    expect(t.written).toBe(1);
+    expect(t.leads).toBe(0);
+    expect(store.worker().cursors["a1/c1"]).toBe(2);
   });
   test("a full pile asks for no leads and writes none", async () => {
     for (let i = 0; i < MAX_OPEN_LEADS; i++) store.addLead({ id: `l${i}`, title: `topic ${i}`, why: "w", depth: "primer", source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: new Date(T0).toISOString() });

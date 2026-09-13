@@ -25,12 +25,14 @@ interface WorkerFile {
   lastRunNote: string | null;
   /** ISO day ("2026-09-10") the count belongs to, and the count. */
   written: { day: string; count: number };
-  /** Per conversation ("agentId/conversationId"): how many transcript lines the worker has already read. */
+  /** Per conversation ("agentId/conversationId"): how many transcript lines the worker has already read for cards. */
   cursors: Record<string, number>;
+  /** Same, for learning leads: on a day whose cards are all written, leads are still looked for and only this cursor moves. */
+  leadCursors?: Record<string, number>;
   /** Per agent: the hidden conversation the worker asks its questions in. */
   recallConversations?: Record<string, string>;
 }
-const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, recallConversations: {} };
+const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {} };
 
 function readJson<T>(path: string): T | null {
   try {
@@ -53,7 +55,12 @@ function listJson<T>(dir: string): T[] {
   }
   return names.map((f) => readJson<T>(join(dir, f))).filter((v): v is T => v !== null);
 }
-const isoDay = (now: number) => new Date(now).toISOString().slice(0, 10);
+/** The calendar day where the Mac is ("2026-09-10"): the cap resets at the person's midnight, not UTC's. */
+const isoDay = (now: number): string => {
+  const d = new Date(now);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+};
 
 export function newCardId(now = Date.now()): string {
   return `${new Date(now).toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(36).slice(2, 8)}`;
@@ -190,7 +197,7 @@ export class RecallStore {
 
   worker(): WorkerFile {
     const file = readJson<Partial<WorkerFile>>(this.p("worker.json")) ?? {};
-    return { ...WORKER_DEFAULTS, ...file, cursors: { ...(file.cursors ?? {}) }, recallConversations: { ...(file.recallConversations ?? {}) } };
+    return { ...WORKER_DEFAULTS, ...file, cursors: { ...(file.cursors ?? {}) }, leadCursors: { ...(file.leadCursors ?? {}) }, recallConversations: { ...(file.recallConversations ?? {}) } };
   }
   saveWorker(update: Partial<WorkerFile>): WorkerFile {
     const next = { ...this.worker(), ...update };

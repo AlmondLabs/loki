@@ -95,7 +95,7 @@ rail of six segments sits on the left, and one view fills the rest:
   **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
-  **learn**: the card writer's switch (off until you turn it on), cards a day, the model it asks, run now, and the leads it proposes. **files**: where
+  **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), the model it asks, run now, and the leads it proposes. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
 Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table

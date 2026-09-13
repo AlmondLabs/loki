@@ -65,7 +65,7 @@ export function buildPrompt(input: PromptInput): string {
     `- fewer is better: zero is a fine answer`,
     ``,
     `Conversation: "${input.title ?? "untitled"}" between the person ("you") and ${who}.`,
-    `You may write at most ${input.room} new card${input.room === 1 ? "" : "s"}.`,
+    input.room > 0 ? `You may write at most ${input.room} new card${input.room === 1 ? "" : "s"}.` : `Today's quota of new cards is already written: write no new cards this time. Revisions of existing cards are still welcome.`,
   );
   if (input.rejected.length) {
     lines.push(``, `Cards the person deleted (do not write these or anything like them; a high review count means it was badly written, a zero means it was unwanted):`);

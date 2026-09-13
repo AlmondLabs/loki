@@ -15,8 +15,11 @@ import { RecallStore, newCardId } from "./recall.ts";
  * The recall worker: the only writer of cards. On a timer it looks for conversations that have gone
  * quiet with text the worker has not read yet, hands the new stretch to a model together with the
  * existing cards and the rejected pile, and writes whatever comes back — new cards up to the day's
- * cap, revisions to cards the conversation corrected, rewrites of cards the person keeps failing.
- * It never posts anywhere: the person meets its work in the Recall section and nowhere else.
+ * cap, revisions to cards the conversation corrected, rewrites of cards the person keeps failing — and
+ * learning leads (core/recall/model.ts Lead), which come out of the same call. The card cap is a limit on
+ * the deck, not on reading: once the day's cards are written, the card cursor waits for tomorrow while a
+ * second cursor keeps looking for leads, so a busy day is not a lead-less one.
+ * It never posts anywhere: the person meets its work in the Learn section and nowhere else.
  *
  * The model is asked through the harness, in a hidden conversation per agent named "recall" that is
  * cleared before each question, so the agent's own memory informs the cards while no transcript the
@@ -79,6 +82,8 @@ export class RecallWorker {
     const report: TickReport = { looked: 0, asked: 0, written: 0, revised: 0, leads: 0, note: "" };
     if (!w.enabled) return { ...report, note: "off" };
     const cursors = { ...w.cursors };
+    const leadCursors = { ...(w.leadCursors ?? {}) };
+    let cappedAsks = 0;
     const quiet = listInbox()
       .filter((r) => !this.owns(r.id) && r.lastMessageAt && now - new Date(r.lastMessageAt).getTime() >= QUIET_MS)
       .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
@@ -86,15 +91,6 @@ export class RecallWorker {
     for (const conv of quiet) {
       if (asked >= PER_TICK) break;
       const key = `${conv.agentId}/${conv.id}`;
-      const from = cursors[key] ?? 0;
-      const { rows, lines } = readSince(conv.id, conv.agentId, from);
-      if (lines <= from) continue; // nothing new
-      report.looked += 1;
-      const transcript = formatTranscript(rows, conv.agentName);
-      if (transcript.length < MIN_NEW_CHARS) {
-        cursors[key] = lines; // chatter: read, not worth asking about
-        continue;
-      }
       const cards = store.cards();
       const rejected = store.rejected();
       const openLeads = store.leads();
@@ -103,9 +99,26 @@ export class RecallWorker {
       const room = Math.max(0, w.dailyCap - store.writtenToday(now)); // writtenToday already counts this run's earlier conversations
       // Cards the person keeps failing, not yet rewritten since they last failed.
       const failing = cards.filter((c) => keepsFailing(c.schedule) && (!c.schedule.lastReview || c.card.updatedAt < c.schedule.lastReview)).slice(0, 5);
-      if (room === 0 && failing.length === 0) {
+      const leadRoom = MAX_OPEN_LEADS - openLeads.length;
+      // The day's cards are written: the card cursor stays (tomorrow reads this stretch for cards); leads are
+      // still looked for from their own cursor. With the lead pile full as well there is nothing to ask.
+      const capped = room === 0 && failing.length === 0;
+      if (capped && leadRoom <= 0) {
         report.note = "daily cap reached";
-        break; // the cursor stays: tomorrow's tick reads this stretch
+        break;
+      }
+      // Off the cap, the stretch starts at the card cursor even where leads already read part of it: the
+      // model may name a lead twice, and the title dedupe below drops the repeat.
+      const from = capped ? Math.max(cursors[key] ?? 0, leadCursors[key] ?? 0) : (cursors[key] ?? 0);
+      const { rows, lines } = readSince(conv.id, conv.agentId, from);
+      if (lines <= from) continue; // nothing new
+      report.looked += 1;
+      const transcript = formatTranscript(rows, conv.agentName);
+      if (transcript.length < MIN_NEW_CHARS) {
+        // chatter: read, not worth asking about
+        leadCursors[key] = lines;
+        if (!capped) cursors[key] = lines;
+        continue;
       }
       const prompt = buildPrompt({
         agentName: conv.agentName,
@@ -115,10 +128,11 @@ export class RecallWorker {
         rejected: rejected.slice(0, 40).map((r) => ({ front: r.card.front, back: r.card.back, reps: r.reps })),
         room,
         failing: failing.map((c) => ({ id: c.card.id, front: c.card.front, back: c.card.back })),
-        leads: { open: openLeads.map((l) => l.title), started: lessons.map((l) => l.lead.title), dismissed: dismissedLeads.map((d) => d.lead.title), room: MAX_OPEN_LEADS - openLeads.length },
+        leads: { open: openLeads.map((l) => l.title), started: lessons.map((l) => l.lead.title), dismissed: dismissedLeads.map((d) => d.lead.title), room: leadRoom },
       });
       asked += 1;
       report.asked += 1;
+      if (capped) cappedAsks += 1;
       let reply: string;
       try {
         reply = await this.deps.ask(conv.agentId, prompt, w.model);
@@ -162,23 +176,25 @@ export class RecallWorker {
       report.written += written;
       // Learning leads: a title near one already open, started or dismissed is the same lead again.
       const leadTitles = [...openLeads.map((l) => l.title), ...lessons.map((l) => l.lead.title), ...dismissedLeads.map((d) => d.lead.title)];
-      let leadRoom = MAX_OPEN_LEADS - openLeads.length;
+      let leadsLeft = leadRoom;
       for (const cand of ext.leads) {
-        if (leadRoom <= 0) break;
+        if (leadsLeft <= 0) break;
         if (leadTitles.some((t) => similarFront(t, cand.title))) continue;
         const lead: Lead = { id: newCardId(now), title: cand.title, why: cand.why, depth: cand.depth, source: { agentId: conv.agentId, agentName: conv.agentName, conversationId: conv.id, title: conv.title, at: conv.lastMessageAt }, createdAt: at };
         store.addLead(lead);
         openLeads.push(lead);
         leadTitles.push(lead.title);
-        leadRoom -= 1;
+        leadsLeft -= 1;
         report.leads += 1;
       }
-      cursors[key] = lines;
-      log("recall:conversation", { conversation: conv.id, written, revised: ext.revisions.length, leads: ext.leads.length });
+      leadCursors[key] = lines;
+      if (!capped) cursors[key] = lines;
+      log("recall:conversation", { conversation: conv.id, written, revised: ext.revisions.length, leads: ext.leads.length, capped });
     }
     const leadsNote = report.leads ? ` · ${report.leads} lead${report.leads === 1 ? "" : "s"}` : "";
-    const note = report.note || (report.asked ? `${report.written} new · ${report.revised} revised${leadsNote} from ${report.asked} conversation${report.asked === 1 ? "" : "s"}` : report.looked ? "nothing worth a card" : "nothing new");
-    store.saveWorker({ cursors, lastRunAt: new Date(now).toISOString(), lastRunNote: note });
+    const capNote = cappedAsks ? " · cards at the day's cap" : "";
+    const note = report.note || (report.asked ? `${report.written} new · ${report.revised} revised${leadsNote} from ${report.asked} conversation${report.asked === 1 ? "" : "s"}${capNote}` : report.looked ? "nothing worth a card" : "nothing new");
+    store.saveWorker({ cursors, leadCursors, lastRunAt: new Date(now).toISOString(), lastRunNote: note });
     return { ...report, note };
   }
 }
