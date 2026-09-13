@@ -184,13 +184,57 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
  * run from a terminal needs its own, because Letta names the files inside by a per-process counter.
  */
 function ScratchFacts({ scratch }: { scratch: Scratch }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   if (!scratch.available) return <Fact label="loki's harness" value="the app only — a browser tab does not launch a harness" />;
+  return (
+    <>
+      <HarnessScratchFact scratch={scratch} />
+      <TerminalScratchFact suggestion={scratch.settings?.terminalSuggestion ?? "$HOME/.letta/scratch"} />
+    </>
+  );
+}
+
+/** The folder loki's harness uses: editable, applied with a harness restart, and a way back to the default. */
+function HarnessScratchFact({ scratch }: { scratch: Scratch }) {
+  const [draft, setDraft] = useState<string | null>(null);
   const s = scratch.settings;
   const shown = draft ?? s?.path ?? "";
   const changed = s ? shown.trim() !== s.path : false;
-  const line = `export LETTA_SCRATCHPAD="${s?.terminalSuggestion ?? "$HOME/.letta/scratch"}"`;
+  const apply = (path: string | null) => void scratch.set(path).then(() => setDraft(null));
+  return (
+    <Fact
+      label="loki's harness"
+      value={
+        <span style={{ display: "inline-grid", gap: 6 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <Field size="sm" mono value={shown} onChange={(e) => setDraft(e.target.value)} placeholder={s?.defaultPath ?? "reading…"} style={{ width: 340 }} aria-label="scratch folder for loki's harness" disabled={!s || scratch.busy} />
+            <Button size="sm" tone="brass" disabled={!s || !changed || scratch.busy} onClick={() => apply(shown)} title="saves the folder and restarts the harness on it — a turn in progress stops">
+              {scratch.busy ? "restarting…" : "apply, restarting the harness"}
+            </Button>
+            {s && !s.isDefault && (
+              <Button size="sm" bare disabled={scratch.busy} onClick={() => apply(null)}>
+                back to the default
+              </Button>
+            )}
+          </span>
+          {scratchWord(scratch)}
+        </span>
+      }
+    />
+  );
+}
+
+/** The line under the field: the shell's error, else where the folder stands against the default. */
+function scratchWord(scratch: Scratch): React.ReactNode {
+  if (scratch.error) return <Note tone="warn">{scratch.error}</Note>;
+  const s = scratch.settings;
+  if (!s) return <Note>asking the shell…</Note>;
+  return <Note>{s.isDefault ? "the default; emptied each time the harness starts" : `default ${s.defaultPath}`}</Note>;
+}
+
+/** The export line for a `letta` run from a terminal, with copy. */
+function TerminalScratchFact({ suggestion }: { suggestion: string }) {
+  const [copied, setCopied] = useState(false);
+  const line = `export LETTA_SCRATCHPAD="${suggestion}"`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(line);
@@ -201,39 +245,18 @@ function ScratchFacts({ scratch }: { scratch: Scratch }) {
     }
   };
   return (
-    <>
-      <Fact
-        label="loki's harness"
-        value={
-          <span style={{ display: "inline-grid", gap: 6 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <Field size="sm" mono value={shown} onChange={(e) => setDraft(e.target.value)} placeholder={s?.defaultPath ?? "reading…"} style={{ width: 340 }} aria-label="scratch folder for loki's harness" disabled={!s || scratch.busy} />
-              <Button size="sm" tone="brass" disabled={!s || !changed || scratch.busy} onClick={() => void scratch.set(shown).then(() => setDraft(null))} title="saves the folder and restarts the harness on it — a turn in progress stops">
-                {scratch.busy ? "restarting…" : "apply, restarting the harness"}
-              </Button>
-              {s && !s.isDefault && (
-                <Button size="sm" bare disabled={scratch.busy} onClick={() => void scratch.set(null).then(() => setDraft(null))}>
-                  back to the default
-                </Button>
-              )}
-            </span>
-            {scratch.error ? <Note tone="warn">{scratch.error}</Note> : <Note>{s ? (s.isDefault ? "the default; emptied each time the harness starts" : `default ${s.defaultPath}`) : "asking the shell…"}</Note>}
+    <Fact
+      label="your terminal"
+      value={
+        <span style={{ display: "inline-grid", gap: 6 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{line}</code>
+            <Button size="sm" onClick={() => void copy()}>{copied ? "copied" : "copy"}</Button>
           </span>
-        }
-      />
-      <Fact
-        label="your terminal"
-        value={
-          <span style={{ display: "inline-grid", gap: 6 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{line}</code>
-              <Button size="sm" onClick={() => void copy()}>{copied ? "copied" : "copy"}</Button>
-            </span>
-            <Note>for a `letta` you run yourself, in its shell profile — a different folder from loki's, since both write task_1.log, task_2.log…</Note>
-          </span>
-        }
-      />
-    </>
+          <Note>for a `letta` you run yourself, in its shell profile — a different folder from loki's, since both write task_1.log, task_2.log…</Note>
+        </span>
+      }
+    />
   );
 }
 
