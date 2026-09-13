@@ -359,7 +359,7 @@ describe("recall frames", () => {
       const list = c.sent.pop()!;
       expect(list.type).toBe("recall");
       expect((list.cards as unknown[]).length).toBe(1);
-      expect((list.worker as { dailyCap: number }).dailyCap).toBe(10);
+      expect((list.worker as { dailyCap: number }).dailyCap).toBe(25);
       bridge.onMessage(c, { type: "recall_grade", requestId: "r2", id: "k1", grade: 3 });
       const graded = c.sent.pop()!;
       expect(graded.type).toBe("recall_card");
