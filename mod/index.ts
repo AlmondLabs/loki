@@ -19,6 +19,7 @@ import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
+import { reflectionState } from "./reflection.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
@@ -280,6 +281,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       read: (id, path) => readMemoryFile(id, path),
       log: (id, opts) => memoryLog(id, opts),
       diff: (id, sha) => memoryDiff(id, sha),
+      reflection: (id) => reflectionState(id, (c) => lookupLocalConversation(c, id)?.title ?? null),
       globalSkills: () => listGlobalSkills().map((g) => ({ ...g, source: skillSources.describeGlobal(g) })),
       install: (id, source, force) => installSkill(source, id, { force }),
     },

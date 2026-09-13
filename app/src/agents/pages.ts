@@ -1,12 +1,13 @@
 /**
  * The pages down the left of an agent (app/src/agents/Agents.tsx), in the order they are listed.
  * profile: who it is and where it works. memory: the files, read. changes: what it learned, as a
- * timeline of commits. skills: its own and the installed ones, with refresh. Global skills are not
- * an agent's and live in Settings › skills. The phone's Agent screen uses the same four words as
- * headings in one scroll.
+ * timeline of commits. reflection: Letta's sleep-time pass — when it fires, how it merges, each
+ * conversation's count, a pass by hand. skills: its own and the installed ones, with refresh. Global
+ * skills are not an agent's and live in Settings › skills. The phone's Agent screen uses profile,
+ * memory, changes and skills as headings in one scroll.
  */
-export type AgentPage = "profile" | "memory" | "changes" | "skills";
-export const AGENT_PAGES: readonly AgentPage[] = ["profile", "memory", "changes", "skills"];
+export type AgentPage = "profile" | "memory" | "changes" | "reflection" | "skills";
+export const AGENT_PAGES: readonly AgentPage[] = ["profile", "memory", "changes", "reflection", "skills"];
 /** The page is remembered for the window, like Settings' (sessionStorage). */
 export const AGENT_PAGE_KEY = "loki.agentsPage";
 /** Where a first visit lands: the reading room. */
@@ -21,5 +22,6 @@ export const AGENT_PAGE_HINT: Record<AgentPage, string> = {
   profile: "who it is, and where it is working",
   memory: "what it knows, file by file",
   changes: "what it learned, newest first",
+  reflection: "when it sleeps on what happened, and what came of it",
   skills: "its own, and the ones installed from elsewhere",
 };

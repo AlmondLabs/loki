@@ -10,6 +10,7 @@ import type { AgentDetails } from "../agents/Agents";
 import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { RefreshOutcome } from "../../../mod/skill-sources.ts";
 import type { MemoryCommit } from "../../../mod/agents.ts";
+import type { ReflectionState } from "../../../mod/reflection.ts";
 import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
@@ -244,6 +245,7 @@ export function useDesk() {
     read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((m) => (m && m.type === "memory_file" ? ((m.content as string | null) ?? null) : null)),
     log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((m) => (m && m.type === "memory_commits" ? ((m.commits as MemoryCommit[]) ?? []) : [])),
     diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((m) => (m && m.type === "memory_diff" ? ((m.diff as string) ?? null) : null)),
+    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((m) => (m && m.type === "reflection_state" ? ({ conversations: m.conversations ?? [], lastCommit: m.lastCommit ?? null } as ReflectionState) : null)),
     globalSkills: () => request("skills_global", {}, 10_000).then((m) => (m && m.type === "skills_global" ? ((m.skills as GlobalSkill[]) ?? []) : [])),
     /** `letta install <source> --agent <id>` through the mod; resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>

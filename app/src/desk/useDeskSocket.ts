@@ -167,6 +167,7 @@ export function useDeskSocket() {
           case "memory_file":
           case "memory_commits":
           case "memory_diff":
+          case "reflection_state":
           case "agent_error":
           case "tasks":
           case "task_created":

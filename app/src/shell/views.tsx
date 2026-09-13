@@ -89,6 +89,7 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
       onAskToUpdate={onAskToUpdate}
       onUpdateAgent={catchUp.updateAgent}
       write={{ createAgent: catchUp.createAgent, deleteAgent: catchUp.deleteAgent, writeMemory: catchUp.memory.write, removeMemory: catchUp.memory.remove }}
+      reflect={catchUp.reflection}
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}
       onShowBoard={onShowBoard}

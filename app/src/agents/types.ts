@@ -1,7 +1,8 @@
 import type { LocalAgent, MemoryCommit, MemoryFile } from "../../../mod/agents.ts";
 import type { GlobalSkill } from "../../../mod/skills.ts";
 import type { MemorySkillInfo, RefreshOutcome } from "../../../mod/skill-sources.ts";
-import type { Personality } from "../../../core/attention/protocol.ts";
+import type { Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime } from "../../../core/attention/protocol.ts";
+import type { ReflectionState } from "../../../mod/reflection.ts";
 
 export interface AgentDetails {
   agent: LocalAgent;
@@ -21,6 +22,16 @@ export interface AgentsApi {
   installSkill: (agentId: string, source: string, force?: boolean) => Promise<string | null>;
   /** Fetch an installed skill's upstream and replace, stage for the agent to reconcile, or report it current (mod/skill-sources.ts). */
   refreshSkill: (agentId: string, name: string, source?: string) => Promise<RefreshOutcome | { error: string }>;
+  /** Letta's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
+  reflection: (agentId: string) => Promise<ReflectionState | null>;
+}
+
+/** Letta's sleep-time reflection through the app-server: the agent's settings, and a pass by hand. */
+export interface ReflectionControls {
+  get: (rt: Runtime) => Promise<ReflectionSettings | null>;
+  set: (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge }) => Promise<string | null>;
+  /** Resolves to the harness's one-line answer ("Started a reflection pass…", "No new transcript content…"). */
+  run: (rt: Runtime) => Promise<string>;
 }
 
 /** Writes through the app-server; each resolves to an error message or null. */

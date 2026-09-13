@@ -46,6 +46,8 @@ export interface MemoryCommit {
   message: string;
   at: string;
   files: string[];
+  /** The committer: the agent's name, or "Reflection Subagent" for a sleep-time pass (mod/reflection.ts). */
+  author: string;
 }
 
 /**
@@ -166,7 +168,7 @@ function git(args: string[], cwd: string): Promise<string> {
 export async function memoryLog(agentId: string, opts: { path?: string; limit?: number } = {}, dir = backendDir()): Promise<MemoryCommit[]> {
   const root = memoryRoot(agentId, dir);
   if (!existsSync(join(root, ".git"))) return [];
-  const args = ["log", `-n${Math.max(1, Math.min(200, opts.limit ?? 40))}`, "--format=%x1e%H%x1f%s%x1f%cI", "--name-only"];
+  const args = ["log", `-n${Math.max(1, Math.min(200, opts.limit ?? 40))}`, "--format=%x1e%H%x1f%s%x1f%cI%x1f%an", "--name-only"];
   if (opts.path) args.push("--", opts.path);
   const out = await git(args, root);
   return parseGitLog(out);
@@ -180,8 +182,8 @@ export function parseGitLog(out: string): MemoryCommit[] {
     .filter(Boolean)
     .map((chunk) => {
       const [head, ...rest] = chunk.split("\n");
-      const [sha = "", message = "", at = ""] = head.split("\x1f");
-      return { sha, message, at, files: rest.map((l) => l.trim()).filter(Boolean) };
+      const [sha = "", message = "", at = "", author = ""] = head.split("\x1f");
+      return { sha, message, at, files: rest.map((l) => l.trim()).filter(Boolean), author };
     });
 }
 

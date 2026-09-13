@@ -12,6 +12,23 @@ export interface Runtime {
 }
 export type ServerEvent = Record<string, unknown> & { type: string; runtime?: Runtime };
 
+/** Letta's sleep-time reflection: when a pass fires and how its changes land (ReflectionSettingsSnapshot, in loki's casing). */
+export type ReflectionTrigger = "off" | "step-count" | "compaction-event";
+export type ReflectionMerge = "auto" | "explicit";
+export interface ReflectionSettings {
+  trigger: ReflectionTrigger;
+  /** Steps a conversation accumulates since its last pass before the step-count trigger fires. */
+  stepCount: number;
+  merge: ReflectionMerge;
+  mergeInstructions: string;
+}
+export function parseReflectionSettings(v: unknown): ReflectionSettings | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const trigger = o.trigger === "off" || o.trigger === "step-count" || o.trigger === "compaction-event" ? o.trigger : "step-count";
+  return { trigger, stepCount: typeof o.step_count === "number" && o.step_count > 0 ? Math.floor(o.step_count) : 25, merge: o.merge === "explicit" ? "explicit" : "auto", mergeInstructions: typeof o.merge_instructions === "string" ? o.merge_instructions : "" };
+}
+
 /** One credential the harness asks for when connecting a provider. */
 export interface ProviderField {
   key: string;
@@ -206,6 +223,19 @@ export class AppServerSocket {
   async updateAgent(agentId: string, body: Record<string, unknown>): Promise<void> {
     const res = await this.request("agent_update", { agent_id: agentId, body });
     if (res.success === false) throw new Error(String(res.error ?? "agent update refused"));
+  }
+
+  // --- sleep-time reflection: Letta's per-agent settings, addressed through one of the agent's conversations ------
+  async getReflectionSettings(rt: Runtime): Promise<ReflectionSettings | null> {
+    const res = await this.request("get_reflection_settings", { runtime: rt });
+    if (res.success === false) throw new Error(String(res.error ?? "reflection settings refused"));
+    return parseReflectionSettings(res.reflection_settings);
+  }
+  /** Written to Letta's global settings (its per-agent table), the scope the /sleeptime overlay writes too. */
+  async setReflectionSettings(rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge }): Promise<ReflectionSettings | null> {
+    const res = await this.request("set_reflection_settings", { runtime: rt, settings: { trigger: s.trigger, step_count: s.stepCount, merge: s.merge }, scope: "global" });
+    if (res.success === false) throw new Error(String(res.error ?? "reflection settings refused"));
+    return parseReflectionSettings(res.reflection_settings);
   }
 
   // --- providers, agents, memory, skills (the onboarding surface) ----------------------------------

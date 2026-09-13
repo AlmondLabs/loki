@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
-import type { ConnectProvider, Personality } from "./protocol.ts";
+import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
 import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
@@ -504,6 +504,45 @@ export function useAttention(opts: UseAttentionOptions) {
     }
   }, []);
 
+  /**
+   * Letta's sleep-time reflection for an agent: its settings (per agent, though the protocol addresses a
+   * conversation), and a pass started by hand — the same as /reflect in that conversation's chat.
+   */
+  const reflection = useMemo(
+    () => ({
+      get: async (rt: Runtime): Promise<ReflectionSettings | null> => {
+        const sock = socketRef.current;
+        if (!sock) return null;
+        try {
+          return await sock.getReflectionSettings(rt);
+        } catch {
+          return null;
+        }
+      },
+      set: async (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge }): Promise<string | null> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to the app-server";
+        try {
+          await sock.setReflectionSettings(rt, s);
+          return null;
+        } catch (err) {
+          return err instanceof Error ? err.message : String(err);
+        }
+      },
+      run: async (rt: Runtime): Promise<string> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to the app-server";
+        try {
+          const r = await sock.executeCommand(rt, "reflect");
+          return r.output || (r.success ? "started" : "the harness refused");
+        } catch (err) {
+          return err instanceof Error ? err.message : String(err);
+        }
+      },
+    }),
+    [],
+  );
+
   return {
     status,
     server,
@@ -521,6 +560,7 @@ export function useAttention(opts: UseAttentionOptions) {
     memory,
     skills,
     updateAgent,
+    reflection,
     listModels,
     updateModel,
     setMode,

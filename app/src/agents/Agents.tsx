@@ -13,8 +13,9 @@ import { NewAgent } from "./NewAgent";
 import { ProfilePage } from "./ProfilePage";
 import { MemoryPage } from "./MemoryPage";
 import { ChangesPage } from "./ChangesPage";
+import { ReflectionPage } from "./ReflectionPage";
 import { SkillsPage, type Adding } from "./SkillsPage";
-import type { AgentEdit, AgentsApi, AgentsWrite } from "./types";
+import type { AgentEdit, AgentsApi, AgentsWrite, ReflectionControls } from "./types";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
 export { Diff } from "./ChangesPage";
@@ -36,6 +37,7 @@ export function Agents({
   onAskToUpdate,
   onUpdateAgent,
   write,
+  reflect,
   listModels,
   onShowDesks,
   onShowBoard,
@@ -52,6 +54,8 @@ export function Agents({
   /** Through the app-server; resolves to an error message or null. */
   onUpdateAgent: (agentId: string, body: AgentEdit) => Promise<string | null>;
   write: AgentsWrite;
+  /** Letta's reflection settings and a pass by hand, through the app-server. */
+  reflect: ReflectionControls;
   listModels: () => Promise<Array<{ handle: string }>>;
   onShowDesks: () => void;
   onShowBoard: () => void;
@@ -152,6 +156,7 @@ export function Agents({
     profile: <ProfilePage d={d} selected={selected} avatar={avatar(selected)} models={models} onLoadModels={loadModels} onSave={store.save} desks={desks} tasks={tasks} onOpenDesk={onOpenDesk} onShowDesks={onShowDesks} onShowBoard={onShowBoard} confirmDelete={store.confirmDelete} setConfirmDelete={store.setConfirmDelete} onRemove={store.remove} />,
     memory: <MemoryPage d={d} selected={selected} filePath={filePath} onPickFile={setFilePath} reading={reading} onAskToUpdate={onAskToUpdate} />,
     changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} />,
+    reflection: <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} desks={desks} api={api} reflect={reflect} onOpenDesk={onOpenDesk} />,
     skills: <SkillsPage d={d} store={store} viewSkill={shownSkill} onPickSkill={setSkillName} adding={adding} setAdding={setAdding} reading={reading} />,
   };
   return (

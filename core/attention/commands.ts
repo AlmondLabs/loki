@@ -21,6 +21,7 @@ export const HARNESS_COMMANDS: SlashCommand[] = [
   { id: "compact", description: "summarise the conversation so far (compaction)", args: "[all|sliding_window]", where: "harness" },
   { id: "clear", description: "clear the in-context messages", where: "harness" },
   { id: "remember", description: "remember something from this conversation", args: "[instructions]", where: "harness" },
+  { id: "reflect", description: "reflect on this conversation now: a sleep-time pass that commits what it keeps to memory", where: "harness" },
   { id: "init", description: "initialise (or re-initialise) the agent's memory", where: "harness" },
   { id: "doctor", description: "audit and refine the agent's memory structure", where: "harness" },
   { id: "context-limit", description: "set this conversation's context window", args: "[tokens] [--override]", where: "harness" },

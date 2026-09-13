@@ -78,10 +78,15 @@ rail of six segments sits on the left, and one view fills the rest:
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Board** (⌘3): tasks for later, see below.
-- **Agents** (⌘4): one tab per agent, then four pages down the left. **profile**: face, name, description and model
+- **Agents** (⌘4): one tab per agent, then five pages down the left. **profile**: face, name, description and model
   (editable), effort and context, where it is working (its live desks, each a link, and its open tasks), and delete at
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
-  this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right. **skills**:
+  this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
+  Letta's Reflection Subagent is marked. **reflection**: Letta's sleep-time pass over what happened — when it fires
+  (off, every n steps of a conversation, after a compaction), how its changes land (merged on its own, or left for the
+  agent to integrate), the steps each conversation has gathered since its last pass with "reflect now" beside it (the
+  same as `/reflect` in that chat), and the last pass that changed memory. These are Letta's own settings for the
+  agent, the ones its `/sleeptime` overlay shows in a terminal. **skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.letta/skills`, a repo the `skills`
@@ -248,7 +253,7 @@ refuses browser origins. The seen and snooze markers live in `~/.letta/loki/stat
 
 Slash commands work in the message box, and in the reply box of an inbox card, as they do in Letta Desktop: type `/` and a palette lists what the box can
 run — loki's own (`/model`, `/mode`, `/inbox`, `/desks`) and the harness's (`/reload`, `/compact`, `/clear`,
-`/remember`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
+`/remember`, `/reflect`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
 advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
 Harness commands go over the app-server socket as `execute_command`, the path Desktop and the channels use, and
 land in the transcript as one quiet row: the command line, then its outcome. `core/attention/commands.ts`

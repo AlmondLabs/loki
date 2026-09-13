@@ -85,7 +85,7 @@ describe("agents: memory", () => {
     const out = "\x1eabc123\x1fmemory: learned a thing\x1f2026-09-06T10:00:00+05:30\nsystem/human.md\nreference/life/notes.md\n\x1edef456\x1ffix: typo\x1f2026-09-05T09:00:00+05:30\nsystem/persona.md\n";
     const log = parseGitLog(out);
     expect(log).toHaveLength(2);
-    expect(log[0]).toEqual({ sha: "abc123", message: "memory: learned a thing", at: "2026-09-06T10:00:00+05:30", files: ["system/human.md", "reference/life/notes.md"] });
+    expect(log[0]).toEqual({ sha: "abc123", message: "memory: learned a thing", at: "2026-09-06T10:00:00+05:30", files: ["system/human.md", "reference/life/notes.md"], author: "" });
     expect(log[1].files).toEqual(["system/persona.md"]);
   });
 });

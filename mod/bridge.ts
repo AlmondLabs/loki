@@ -46,6 +46,7 @@ import { isLanVia } from "./lan.ts";
  *    memory_read { requestId, agentId, path } reply: memory_file { requestId, agentId, path, content|null }
  *    memory_log { requestId, agentId, path?, limit? }  reply: memory_commits { requestId, agentId, commits }
  *    memory_diff { requestId, agentId, sha }  reply: memory_diff { requestId, agentId, sha, diff }; errors: agent_error
+ *    reflection_state { requestId, agentId }  reply: reflection_state { requestId, agentId, conversations, lastCommit } (mod/reflection.ts)
  *    skills_global { requestId }             reply: skills_global { requestId, skills } (~/.letta/skills, mod/skills.ts)
  *    skill_install { requestId, agentId, source, force? }  reply: skill_installed { requestId, agentId, output }; errors: agent_error
  *    skill_refresh { requestId, agentId, name, source? }   reply: skill_refreshed { requestId, agentId, name, outcome: "current" | "replaced" | "reconcile", label, changed?, upstreamPath?, prompt? }
@@ -145,6 +146,8 @@ export interface BridgeDeps {
     read: (agentId: string, path: string) => string | null;
     log: (agentId: string, opts: { path?: string; limit?: number }) => Promise<import("./agents.ts").MemoryCommit[]>;
     diff: (agentId: string, sha: string) => Promise<string>;
+    /** Letta's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
+    reflection?: (agentId: string) => Promise<import("./reflection.ts").ReflectionState>;
     /** Skills outside memory (mod/skills.ts). */
     globalSkills?: () => import("./skills.ts").GlobalSkill[];
     install?: (agentId: string, source: string, force: boolean) => Promise<string>;
@@ -523,7 +526,8 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "agent_get":
         case "memory_read":
         case "memory_log":
-        case "memory_diff": {
+        case "memory_diff":
+        case "reflection_state": {
           const requestId = msg.requestId;
           const ag = deps.agents;
           const fail = (err: unknown) => client.send({ type: "agent_error", requestId, message: err instanceof Error ? err.message : String(err) });
@@ -537,6 +541,9 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
               .log(agentId, { limit: 1 })
               .catch(() => [])
               .then(async (last) => client.send({ type: "agent", requestId, agent, files: ag.tree(agentId), skills: await (ag.skillsInfo ? ag.skillsInfo(agentId).catch(() => ag.skills(agentId)) : ag.skills(agentId)), hasProfile: ag.hasProfile(agentId), lastCommit: last[0] ?? null }));
+          } else if (msg.type === "reflection_state") {
+            if (!ag.reflection) return fail(new Error("reflection is not available in this mod"));
+            void ag.reflection(agentId).then((state) => client.send({ type: "reflection_state", requestId, agentId, ...state }), fail);
           } else if (msg.type === "memory_read") {
             if (typeof msg.path !== "string") return fail(new Error("path required"));
             client.send({ type: "memory_file", requestId, agentId, path: msg.path, content: ag.read(agentId, msg.path) });
