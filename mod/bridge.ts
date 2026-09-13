@@ -35,7 +35,7 @@ import { isLanVia } from "./lan.ts";
  *    recall_settings { requestId, enabled?, model?, dailyCap? }   reply: recall { … };  recall_run { requestId }  reply: recall_ran { requestId, note }
  *    recall_export { requestId }             reply: recall_export { requestId, tsv };  errors: recall_error { requestId, message }
  *    recall_lead_dismiss { requestId, id } / recall_lead_restore { requestId, id }   reply: recall { … }
- *    recall_lead_start { requestId, id }     the lead becomes a [Learn] conversation; reply: recall_lesson { requestId, agentId, conversationId }
+ *    recall_lead_start { requestId, id }     the lead becomes a [Learn] conversation with an info card on its desk; reply: recall_lesson { requestId, agentId, conversationId } — the app then sends the brief
  *    (every change also broadcasts recall_changed {} so other tabs and phones refetch)
  *    tasks_list { requestId, all? }                          reply: tasks { requestId, tasks }
  *    task_create { requestId, title, description?, labels?, priority?, desk?, agentId?, agentName?, conversationId? }  reply: task_created { requestId, task }
@@ -159,7 +159,13 @@ export interface BridgeDeps {
   /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
   /** Recall (mod/recall.ts, mod/recall-worker.ts): the cards on disk and a way to run the worker now. */
-  recall?: { store: import("./recall.ts").RecallStore; run: () => Promise<{ note: string }>; startLesson?: import("./recall-worker.ts").StartLesson };
+  recall?: {
+    store: import("./recall.ts").RecallStore;
+    run: () => Promise<{ note: string }>;
+    startLesson?: import("./recall-worker.ts").StartLesson;
+    /** True while the lesson's conversation holds no message: the brief never arrived and the app offers to send it again. */
+    lessonEmpty?: (lesson: import("../core/recall/model.ts").Lesson) => boolean;
+  };
   /** The board (mod/tasks.ts) and the folder a conversation works in, for the task stamp. */
   tasks?: import("./tasks.ts").TaskBoard;
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
@@ -375,7 +381,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const fail = (message: string) => client.send({ type: "recall_error", requestId, message });
           if (!recall) return fail("recall is not available in this mod");
           const { store } = recall;
-          const snapshot = () => ({ type: "recall", requestId, cards: store.cards(), rejected: store.rejected(), worker: store.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons() });
+          const snapshot = () => ({ type: "recall", requestId, cards: store.cards(), rejected: store.rejected(), worker: store.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })) });
           const id = typeof msg.id === "string" ? msg.id : "";
           const changed = (card: unknown) => {
             client.send({ type: "recall_card", requestId, card });

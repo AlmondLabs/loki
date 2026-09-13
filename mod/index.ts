@@ -246,7 +246,12 @@ export default function activate(letta: LettaMod): (() => void) | void {
     broadcast,
     listDesks,
     listInbox,
-    recall: { store: recallStore, run: () => recall.tick(), startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore }) },
+    recall: {
+      store: recallStore,
+      run: () => recall.tick(),
+      startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets }),
+      lessonEmpty: (l) => lookupLocalConversation(l.conversationId, l.agentId)?.lastMessageAt == null,
+    },
     deskInfo,
     deleteWidgetFile,
     seen,

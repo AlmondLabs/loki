@@ -258,7 +258,7 @@ const DEPTH: Record<Lead["depth"], string> = { primer: "a primer · one sitting"
  * lesson opens as a [Learn] desk) and "not this" (the dismissed pile the writer reads). Under them, the
  * lessons under way, each a link to its desk.
  */
-export function LeadList({ leads, lessons, worker, starting, onStart, onDismiss, onOpen }: { leads: Lead[]; lessons: Lesson[]; worker: WorkerStatus; starting: string | null; onStart: (id: string) => void; onDismiss: (id: string) => void; onOpen: (agentId: string, conversationId: string) => void }) {
+export function LeadList({ leads, lessons, worker, starting, onStart, onResume, onDismiss, onOpen }: { leads: Lead[]; lessons: Lesson[]; worker: WorkerStatus; starting: string | null; onStart: (id: string) => void; onResume: (lesson: Lesson) => void; onDismiss: (id: string) => void; onOpen: (agentId: string, conversationId: string) => void }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {leads.length === 0 && (
@@ -269,19 +269,20 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onDismiss,
         </Empty>
       )}
       {leads.map((l) => (
-        <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "16px 20px 14px", display: "grid", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {l.source.agentName && <Chip static>{l.source.agentName}</Chip>}
-            <Meta>{l.source.title ?? "a conversation"} · {ago(l.createdAt)}</Meta>
-            <span style={{ flex: 1 }} />
-            <Meta>{DEPTH[l.depth]}</Meta>
-          </div>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>{l.why}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
-            <Button size="sm" tone="brass" onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent, on a desk it furnishes first">
-              {starting === l.id ? "starting…" : "start the lesson"}
-            </Button>
+        <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, overflow: "hidden", display: "grid" }}>
+          {/* The card is the start: one click opens the lesson's desk with the chat and sends the brief. */}
+          <Row flush onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent: the desk opens, the brief goes out, the agent begins" style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {l.source.agentName && <Chip static>{l.source.agentName}</Chip>}
+              <Meta>{l.source.title ?? "a conversation"} · {ago(l.createdAt)}</Meta>
+              <span style={{ flex: 1 }} />
+              <Meta>{DEPTH[l.depth]}</Meta>
+            </span>
+            <span style={{ display: "block", fontFamily: "var(--loki-display)", fontSize: 22, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</span>
+            <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>{l.why}</span>
+            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{starting === l.id ? "furnishing the desk…" : "start the lesson →"}</span>
+          </Row>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}>
             <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">not this</Button>
             {l.source.agentId && l.source.conversationId && (
               <Button size="sm" bare onClick={() => onOpen(l.source.agentId!, l.source.conversationId!)}>where it came up</Button>
@@ -293,11 +294,18 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onDismiss,
         <div style={{ display: "grid", gap: 6 }}>
           <Meta>lessons under way</Meta>
           {lessons.map((s) => (
-            <Row key={s.conversationId} onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's desk">
-              <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
-              {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
-              <Meta>started {ago(s.startedAt)}</Meta>
-            </Row>
+            <div key={s.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
+              <Row flush onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's desk" style={{ minWidth: 0 }}>
+                <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
+                {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
+                <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.startedAt)}`}</Meta>
+              </Row>
+              {s.empty && (
+                <Button size="sm" tone="brass" onClick={() => onResume(s)} title="open the desk and send the brief as your first message">
+                  send the brief
+                </Button>
+              )}
+            </div>
           ))}
         </div>
       )}

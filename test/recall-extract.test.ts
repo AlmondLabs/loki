@@ -82,6 +82,7 @@ describe("learning leads in the writer's call", () => {
     expect(b).toContain('came up in "[Long] - cost control": you took my word');
     expect(b).toContain("sized for one sitting");
     expect(b).toContain("furnish this desk");
+    expect(b).toContain("why this matters to me");
     expect(b).toContain("quiz me cold");
   });
 });

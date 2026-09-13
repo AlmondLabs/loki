@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall/fsrs.ts";
-import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
+import { learnTitle, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
+import { lessonBrief } from "../../../core/recall/extract.ts";
 import { Button, Chip, Empty, Meta, Title } from "../components";
 import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";
@@ -20,7 +21,7 @@ type View = "review" | "leads" | "all" | "deleted";
 const VIEWS: View[] = ["review", "leads", "all", "deleted"];
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
 
-export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void }) {
+export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
   const { snap } = recall;
   const [view, setView] = useState<View>("review");
   const cards = snap?.cards ?? [];
@@ -102,7 +103,7 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
       <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
         <RecallHeader recall={recall} view={view} onView={setView} />
         <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
-          {view === "review" ? <ReviewView recall={recall} pass={pass}>{deck}</ReviewView> : <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} />}
+          {view === "review" ? <ReviewView recall={recall} pass={pass}>{deck}</ReviewView> : <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />}
         </div>
       </div>
     </div>
@@ -171,7 +172,7 @@ function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: Ret
 }
 
 /** The three list views: leads, all cards with the worker strip, deleted (cards and leads). */
-function ListsView({ recall, view, onOpenDesk }: { recall: RecallModel; view: View; onOpenDesk: (agentId: string, conversationId: string) => void }) {
+function ListsView({ recall, view, onOpenDesk, onBegin }: { recall: RecallModel; view: View; onOpenDesk: (agentId: string, conversationId: string) => void; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
   const { snap } = recall;
   if (!snap) return <Notices recall={recall} />;
   return (
@@ -185,8 +186,9 @@ function ListsView({ recall, view, onOpenDesk }: { recall: RecallModel; view: Vi
           starting={recall.starting}
           onStart={async (id) => {
             const lesson = await recall.startLead(id);
-            if (lesson) onOpenDesk(lesson.agentId, lesson.conversationId);
+            if (lesson) onBegin(lesson.agentId, lesson.conversationId, lesson.brief, lesson.title);
           }}
+          onResume={(s) => onBegin(s.agentId, s.conversationId, lessonBrief(s.lead), learnTitle(s.lead.title))}
           onDismiss={(id) => void recall.dismissLead(id)}
           onOpen={onOpenDesk}
         />

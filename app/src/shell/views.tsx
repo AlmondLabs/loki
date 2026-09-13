@@ -31,8 +31,8 @@ type PickModel = (scope: string, rt: Runtime, handle: string) => Promise<void>;
 type PickMode = (scope: string, rt: Runtime, mode: string) => Promise<void>;
 
 /** Recall: the review deck, the card list and the deleted pile, over the mod's files. */
-export function RecallView({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: OpenDesk }) {
-  return <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} />;
+export function RecallView({ recall, active, onOpenDesk, onBegin }: { recall: RecallModel; active: boolean; onOpenDesk: OpenDesk; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
+  return <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} onBegin={onBegin} />;
 }
 
 /** The inbox: every conversation's cards, with the model and mode pickers per conversation. */

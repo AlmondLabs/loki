@@ -69,6 +69,8 @@ export interface Lesson {
   agentId: string;
   conversationId: string;
   startedAt: string;
+  /** Set by the mod's snapshot: the conversation holds no message yet, so the brief never arrived (the app sends it again). */
+  empty?: boolean;
 }
 
 /** Learn conversations carry this prefix in their title; the inbox leaves them out, the tree keeps them. */

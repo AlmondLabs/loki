@@ -144,6 +144,11 @@ export function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setSegment],
   );
+  /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message, the way a dispatched task does. */
+  const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
+    openDesk(agentId, conversationId, { chat: true });
+    catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title });
+  };
   const stepDesk = (dir: 1 | -1) => {
     const live = desk.desks.list.filter((d) => d.status === "live");
     if (live.length < 2) return;
@@ -287,7 +292,7 @@ export function Shell() {
             />
           )}
 
-          {segment === "learn" && <RecallView recall={recall} active={segment === "learn" && !picker && !captureOpen && !treeOpen} onOpenDesk={openDesk} />}
+          {segment === "learn" && <RecallView recall={recall} active={segment === "learn" && !picker && !captureOpen && !treeOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
 
           {segment === "agents" && (
             <AgentsView

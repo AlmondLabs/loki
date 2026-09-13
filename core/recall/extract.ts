@@ -118,7 +118,7 @@ export function lessonBrief(lead: { title: string; why: string; depth: "primer" 
     `This is a lesson, not a task. I want to understand: ${lead.title}.`,
     `${where}: ${lead.why}`,
     ``,
-    `Teach it the way a good tutor would. Before you say anything, furnish this desk: an outline of the lesson as a list card I can tick, sized for ${sittings}, and an info card saying where this came from. Then start by asking me what I already think it is, and build from my answer. One idea at a time, a question at the end of each step, no lecture. Tick the outline as we go. When it is all ticked, quiz me cold with two or three questions and tell me plainly whether I have it.`,
+    `Teach it the way a good tutor would. Before you say anything, furnish this desk: an outline of the lesson as a list card I can tick, sized for ${sittings}, and an info card saying where this came from. Then open with one sentence on why this matters to me, drawn from where it came up, and ask me what I already think it is; build from my answer. One idea at a time, a question at the end of each step, no lecture. Tick the outline as we go. When it is all ticked, quiz me cold with two or three questions and tell me plainly whether I have it.`,
   ].join("\n");
 }
 

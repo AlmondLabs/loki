@@ -1,15 +1,19 @@
+import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { WebSocket } from "ws";
 import { AppServerSocket, type Runtime, type ServerEvent } from "../core/attention/protocol.ts";
 import type { Transport } from "../core/attention/transport.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
-import { buildPrompt, lessonBrief, parseExtraction, similarFront } from "../core/recall/extract.ts";
+import { buildPrompt, parseExtraction, similarFront } from "../core/recall/extract.ts";
+import { scopeFor } from "../core/desk-core.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
 import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
 import { readLocalTranscriptSince, type InboxRow, type LocalTranscriptMessage } from "./desks.ts";
 import { log } from "./log.ts";
 import { RecallStore, newCardId } from "./recall.ts";
+import { paths } from "./paths.ts";
 
 /**
  * The recall worker: the only writer of cards. On a timer it looks for conversations that have gone
@@ -253,7 +257,22 @@ export function askViaAppServer(opts: { url: () => string | null; store: RecallS
  * waits for the harness's first word back (or two seconds) so the turn is under way before it closes.
  */
 export type StartLesson = (leadId: string) => Promise<{ agentId: string; conversationId: string }>;
-export function startLessonViaAppServer(opts: { url: () => string | null; store: RecallStore }): StartLesson {
+/**
+ * The first thing on a lesson's desk: an info card with the lead, so the desk is furnished before the agent says a
+ * word. The agent's outline joins it once the brief lands (the app sends the brief over its own live socket, the way
+ * the board's dispatch does — a message fired from a socket that closes right after never reaches the agent).
+ */
+export function lessonCard(lead: Lead): { type: "info-card"; title: string; data: { lines: string[] } } {
+  const who = lead.source.agentName ?? "the agent";
+  const where = lead.source.title ? `it came up in "${lead.source.title}" with ${who}` : `it came up in a conversation with ${who}`;
+  return {
+    type: "info-card",
+    title: lead.title,
+    data: { lines: [lead.depth === "primer" ? "a primer — one sitting" : "a course — a few sittings", where, lead.why, `${who} lays the lesson out here; the chat opens with the brief`] },
+  };
+}
+
+export function startLessonViaAppServer(opts: { url: () => string | null; store: RecallStore; widgetsDir?: string }): StartLesson {
   return async (leadId) => {
     const lead = opts.store.lead(leadId);
     if (!lead) throw new Error("no such lead");
@@ -264,17 +283,13 @@ export function startLessonViaAppServer(opts: { url: () => string | null; store:
     await sock.connect();
     try {
       const rt = await sock.createConversation(lead.source.agentId, homedir(), learnTitle(lead.title));
-      const started = new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 2000);
-        const off = sock.on((ev: ServerEvent) => {
-          if (ev.runtime && ev.runtime.conversation_id !== rt.conversation_id) return;
-          clearTimeout(timer);
-          off();
-          resolve();
-        });
-      });
-      if (!(await sock.sendUserMessage(rt, lessonBrief(lead)))) throw new Error("the harness did not accept the brief");
-      await started;
+      const dir = join(opts.widgetsDir ?? paths.widgets, scopeFor(rt.conversation_id, rt.agent_id));
+      try {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
+      } catch (err) {
+        log("recall:lesson-card-failed", { message: err instanceof Error ? err.message : String(err) }); // the desk starts bare; the lesson still starts
+      }
       const lesson = opts.store.startLesson(leadId, { agentId: rt.agent_id, conversationId: rt.conversation_id });
       log("recall:lesson-started", { lead: leadId, conversation: rt.conversation_id });
       return { agentId: lesson?.agentId ?? rt.agent_id, conversationId: lesson?.conversationId ?? rt.conversation_id };

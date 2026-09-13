@@ -288,9 +288,11 @@ the transcript on disk keeps everything.
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a
 lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — under the
-**leads** tab, newest first, at most twelve open. **start the lesson** creates a `[Learn] · <title>` conversation
-with the agent that was there and sends the brief as your first message: furnish the desk with the outline as a
-list you can tick, ask before telling, one idea at a time, a cold quiz at the end; the desk opens with the chat.
+**leads** tab, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
+with the agent that was there, puts an info card with the lead on its desk, opens the desk with the chat and sends
+the brief as your first message: open with why this matters to you, furnish the desk with the outline as a list you
+can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
+conversation is still empty) is listed under "lessons under way" with **send the brief**.
 **not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
 **deleted**). Learn conversations are desks in the tree and never inbox cards. Files: `~/.letta/loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.

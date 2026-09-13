@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { lessonBrief } from "../../../core/recall/extract.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
-import { dueCount, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
+import { dueCount, learnTitle, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
@@ -103,8 +104,13 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     }
   };
 
-  /** Start a lesson from a lead: the [Learn] conversation, or null when the mod refused (the notice says why). */
-  const startLead = async (id: string): Promise<{ agentId: string; conversationId: string } | null> => {
+  /**
+   * Start a lesson from a lead: the mod makes the [Learn] conversation and furnishes its desk; the caller opens the
+   * desk and sends the brief (the person's first message) over the app's live socket. Null when the mod refused.
+   */
+  const startLead = async (id: string): Promise<{ agentId: string; conversationId: string; brief: string; title: string } | null> => {
+    const lead = snap?.leads.find((l) => l.id === id);
+    if (!lead) return null;
     setStarting(id);
     const r = await desk.recall.leadStart(id);
     setStarting(null);
@@ -113,7 +119,7 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
       return null;
     }
     void refresh();
-    return { agentId: r.agentId, conversationId: r.conversationId };
+    return { agentId: r.agentId, conversationId: r.conversationId, brief: lessonBrief(lead), title: learnTitle(lead.title) };
   };
   const dismissLead = async (id: string) => {
     const next = await desk.recall.leadDismiss(id);

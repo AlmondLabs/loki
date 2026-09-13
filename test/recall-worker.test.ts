@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
-import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript } from "../mod/recall-worker.ts";
+import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript, lessonCard } from "../mod/recall-worker.ts";
 import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
 import { review } from "../core/recall/fsrs.ts";
 
@@ -217,5 +217,15 @@ describe("learning leads", () => {
     expect(prompt).not.toContain('"leads"');
     expect(r.leads).toBe(0);
     expect(store.leads()).toHaveLength(MAX_OPEN_LEADS);
+  });
+});
+
+describe("a lesson's first widget", () => {
+  test("the info card carries the lead: depth, where it came up, the moment, and who lays the lesson out", () => {
+    const card = lessonCard({ id: "l1", title: "Envelope encryption", why: "you asked what a data key was", depth: "primer", source: { agentId: "a1", agentName: "ira", conversationId: "c1", title: "[Long] - KMS", at: null }, createdAt: "2026-09-13T00:00:00Z" });
+    expect(card.type).toBe("info-card");
+    expect(card.title).toBe("Envelope encryption");
+    expect(card.data.lines).toEqual(["a primer — one sitting", 'it came up in "[Long] - KMS" with ira', "you asked what a data key was", "ira lays the lesson out here; the chat opens with the brief"]);
+    expect(lessonCard({ id: "l2", title: "T", why: "w", depth: "course", source: { agentId: "a1", agentName: null, conversationId: "c1", title: null, at: null }, createdAt: "2026-09-13T00:00:00Z" }).data.lines.slice(0, 2)).toEqual(["a course — a few sittings", "it came up in a conversation with the agent"]);
   });
 });
