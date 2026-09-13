@@ -19,7 +19,7 @@ export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: Memory
                 <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>{ago(c.at)}</span>
                 <span style={{ lineHeight: 1.4 }}>
                   {c.message}
-                  {/reflection/i.test(c.author ?? "") && <span style={{ marginLeft: 8, fontSize: 10, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>reflection</span>}
+                  {/reflection/i.test(c.author ?? "") && <span style={{ marginLeft: 8, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>reflection</span>}
                 </span>
                 <span />
                 <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
