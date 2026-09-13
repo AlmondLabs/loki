@@ -103,7 +103,8 @@ rail of six segments sits on the left, and one view fills the rest:
   **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), the model it asks, run now, and the leads it proposes. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
-⌘[ and ⌘] step through whatever the section showing is made of: desks on the desk, cards in the inbox, columns
+`?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
+that work everywhere; `?` or Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: desks on the desk, cards in the inbox, columns
 on the board, views in Learn, agents in Agents, pages in Settings — the same two keys everywhere, never a jump
 back to the desk. Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the

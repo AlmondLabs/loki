@@ -21,6 +21,7 @@ import { useRecall } from "./useRecall";
 import { useLokiUpdate } from "./useLokiUpdate";
 import { useGlobalShortcut } from "./useGlobalShortcut";
 import { useShellKeys } from "./useShellKeys";
+import { KeysSheet } from "./KeysSheet";
 import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
 import type { CatchUp, Runtime } from "./types";
 
@@ -159,6 +160,8 @@ export function Shell() {
   const shortcut = useGlobalShortcut();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
+  /** The `?` cheat sheet for the view showing. */
+  const [keysOpen, setKeysOpen] = useState(false);
   const pendingAssign = useRef<Picker | null>(null);
   const createDesk = async (agent: string, folder: string, name: string) => {
     const rt = await catchUp.createDesk(agent, folder, name);
@@ -217,6 +220,7 @@ export function Shell() {
       "tree.toggle": () => (treeOpen ? setTreeOpen(false) : openTree()),
       "desk.new": () => setNewDesk({ open: true, name: "", agentId: null }),
       "task.new": () => setCaptureOpen(true),
+      "keys.sheet": () => setKeysOpen((v) => !v),
       "desk.prev": () => stepDesk(-1),
       "desk.next": () => stepDesk(1),
       "window.hide": () => {
@@ -325,6 +329,7 @@ export function Shell() {
       </div>
 
       <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={board.createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
+      {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), setSegment("settings"))} />}
       {boardNotice && <Toast>{boardNotice}</Toast>}
 
       <NewDeskSheet

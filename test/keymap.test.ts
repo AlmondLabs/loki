@@ -59,6 +59,12 @@ describe("keymap: resolution", () => {
     expect(resolve(ev("ArrowLeft", { meta: true }, true), "desk")).toBeNull(); // the caret's
     expect(resolve(ev("ArrowLeft", { meta: true, alt: true }, true), "desk")?.id).toBe("chat.left");
   });
+  test("? opens the cheat sheet anywhere, never from inside a text box", () => {
+    expect(resolve(ev("?", { shift: true }), "board")?.id).toBe("keys.sheet");
+    expect(resolve(ev("?", { shift: true }), "learn")?.id).toBe("keys.sheet");
+    expect(resolve(ev("?", { shift: true }, true), "inbox")).toBeNull();
+    expect(resolve(ev("/"), "board")?.id).toBe("board.filter"); // the unshifted key keeps its own meaning
+  });
   test("segments and settings comma", () => {
     expect(resolve(ev(",", { meta: true }), "board")?.id).toBe("segment.settings");
     expect(resolve(ev("4", { meta: true }), "desk")?.id).toBe("segment.agents");
@@ -69,6 +75,7 @@ describe("keymap: resolution", () => {
 
 describe("keymap: presentation", () => {
   test("formats chords with Mac symbols", () => {
+    expect(formatKeys("shift+/")).toBe("?");
     expect(formatKeys("cmd+shift+a")).toBe("⌘⇧A");
     expect(formatKeys("cmd+]")).toBe("⌘]");
     expect(formatKeys("shift+backspace")).toBe("⇧⌫");

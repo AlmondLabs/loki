@@ -41,6 +41,7 @@ export const KEYMAP: Binding[] = [
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
   { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", typing: true },
+  { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
   // --- desk ----------------------------------------------------------
@@ -132,8 +133,9 @@ const SYMBOL: Record<string, string> = {
   down: "↓",
 };
 
-/** "cmd+shift+a" → "⌘⇧A"; letters upper-cased, named keys as symbols. */
+/** "cmd+shift+a" → "⌘⇧A"; letters upper-cased, named keys as symbols; the one shifted punctuation chord shows as the character it types. */
 export function formatKeys(spec: string): string {
+  if (spec === "shift+/") return "?";
   return spec
     .split("+")
     .map((p) => SYMBOL[p] ?? (p.length === 1 ? p.toUpperCase() : p))
@@ -186,6 +188,7 @@ export function matches(e: KeyboardEvent, spec: string): boolean {
       if (key === "=") return k === "=" || k === "+";
       if (key === "-") return k === "-" || k === "_";
       if (key === ",") return k === "," || k === "<";
+      if (key === "/") return k === "/" || k === "?";
       return k === key;
   }
 }
