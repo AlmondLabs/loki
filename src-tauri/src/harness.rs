@@ -40,10 +40,14 @@ pub fn ensure_backend_mode(rt: &Runtime, home: &Path) {
 }
 
 impl Harness {
-    /// Start `letta server` with `rt`; replaces a child started earlier.
-    pub fn start(&self, rt: &Runtime, token_file: &Path, log_dir: &Path) -> Result<(), String> {
+    /// Start `letta server` with `rt`; replaces a child started earlier. `scratch` is the folder Letta's Bash
+    /// tool keeps background output in (scratch.rs): emptied here, and handed to the harness as LETTA_SCRATCHPAD.
+    pub fn start(&self, rt: &Runtime, token_file: &Path, log_dir: &Path, scratch: &Path) -> Result<(), String> {
         std::fs::create_dir_all(log_dir).map_err(|e| e.to_string())?;
         let log = std::fs::File::create(log_dir.join("harness.log")).map_err(|e| e.to_string())?;
+        // A scratch folder that cannot be made is not worth refusing the harness for: Letta falls back to its
+        // temp folder, and Settings › letta shows the error next to the path.
+        if let Err(e) = crate::scratch::prepare(scratch) { eprintln!("loki: scratch folder: {e}"); }
         let child = Command::new(&rt.letta)
             .args(["server", "--listen", LISTEN_URL, "--ws-auth", "capability-token", "--ws-token-file"])
             .arg(token_file)
@@ -51,6 +55,9 @@ impl Harness {
             // Letta Code checks npm at startup and replaces itself in the background; under loki that is
             // never wanted — the harness would change under a session, and loki's private copy has its own prefix.
             .env("DISABLE_AUTOUPDATER", "1")
+            // Letta's memory subagents (dreaming) run sandboxed and may only write under ~/.letta; their Bash
+            // tool needs its scratch folder there, or every pass fails before its first command.
+            .env("LETTA_SCRATCHPAD", scratch)
             .stdin(Stdio::null())
             .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
             .stderr(Stdio::from(log))

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys, registerActions } from "../shell/keymap";
-import { Button, Chip, Dot, NavButton, Switch, Title } from "../components";
+import { Button, Chip, Dot, Field, NavButton, Switch, Title } from "../components";
+import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../core/compat.ts";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
@@ -63,6 +64,7 @@ export function Settings({
   update,
   shortcut,
   recall,
+  scratch,
 }: {
   appServerStatus: AppServerStatus;
   tunnelUrl: string | null;
@@ -94,6 +96,8 @@ export function Settings({
   shortcut: GlobalShortcut;
   /** The card writer's switch and knobs (Settings › learn). */
   recall: RecallModel;
+  /** The harness's scratch folder (Settings › letta). */
+  scratch: Scratch;
 }) {
   const harness = useHarnessFacts(tunnelUrl);
   const [page, setPage] = useState<SettingsPage>(() => {
@@ -123,7 +127,7 @@ export function Settings({
         ))}
       </nav>
       <div style={{ display: "grid", gap: 28, alignContent: "start", minWidth: 0 }}>
-        {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} />}
+        {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} />}
         {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
         {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
         {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
@@ -141,7 +145,7 @@ export function Settings({
 }
 
 /** Settings › letta: the harness, the mod, what loki needs on this machine, and what launch installed. */
-function LettaPage({ update, harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null> }) {
+function LettaPage({ update, harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta, scratch }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; scratch: Scratch }) {
   // Never print the token: a browser tab's tunnel URL carries it as a query.
   const shownUrl = harness.appServerUrl ? harness.appServerUrl.replace(/\?.*$/, "") : null;
   return (
@@ -153,6 +157,9 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
         <Fact label="app-server" value={shownUrl ?? "—"} mono />
         <Fact label="who runs it" value={describeRunner(harness.appServerUrl)} />
         <Fact label="link" value={<Status s={appServerStatus} />} />
+      </Section>
+      <Section title="scratch" hint="where Letta's Bash tool keeps background output; dreaming runs sandboxed and may only write under ~/.letta">
+        <ScratchFacts scratch={scratch} />
       </Section>
       <Section title="mod" hint="desk layout, widget files, transcripts">
         <Fact label="endpoint" value={modBase()} mono />
@@ -167,6 +174,65 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
         <Fact label="system" value="macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript" />
       </Section>
       {inTauri && <InstallSection install={harness.install} />}
+    </>
+  );
+}
+
+/**
+ * The scratch folder: loki's harness gets one under ~/.letta (Letta's own default, a system temp folder, is refused
+ * by the sandbox its memory subagents run in since 0.31.13, so every dreaming pass failed silently); a `letta`
+ * run from a terminal needs its own, because Letta names the files inside by a per-process counter.
+ */
+function ScratchFacts({ scratch }: { scratch: Scratch }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  if (!scratch.available) return <Fact label="loki's harness" value="the app only — a browser tab does not launch a harness" />;
+  const s = scratch.settings;
+  const shown = draft ?? s?.path ?? "";
+  const changed = s ? shown.trim() !== s.path : false;
+  const line = `export LETTA_SCRATCHPAD="${s?.terminalSuggestion ?? "$HOME/.letta/scratch"}"`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(line);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <>
+      <Fact
+        label="loki's harness"
+        value={
+          <span style={{ display: "inline-grid", gap: 6 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <Field size="sm" mono value={shown} onChange={(e) => setDraft(e.target.value)} placeholder={s?.defaultPath ?? "reading…"} style={{ width: 340 }} aria-label="scratch folder for loki's harness" disabled={!s || scratch.busy} />
+              <Button size="sm" tone="brass" disabled={!s || !changed || scratch.busy} onClick={() => void scratch.set(shown).then(() => setDraft(null))} title="saves the folder and restarts the harness on it — a turn in progress stops">
+                {scratch.busy ? "restarting…" : "apply, restarting the harness"}
+              </Button>
+              {s && !s.isDefault && (
+                <Button size="sm" bare disabled={scratch.busy} onClick={() => void scratch.set(null).then(() => setDraft(null))}>
+                  back to the default
+                </Button>
+              )}
+            </span>
+            {scratch.error ? <Note tone="warn">{scratch.error}</Note> : <Note>{s ? (s.isDefault ? "the default; emptied each time the harness starts" : `default ${s.defaultPath}`) : "asking the shell…"}</Note>}
+          </span>
+        }
+      />
+      <Fact
+        label="your terminal"
+        value={
+          <span style={{ display: "inline-grid", gap: 6 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{line}</code>
+              <Button size="sm" onClick={() => void copy()}>{copied ? "copied" : "copy"}</Button>
+            </span>
+            <Note>for a `letta` you run yourself, in its shell profile — a different folder from loki's, since both write task_1.log, task_2.log…</Note>
+          </span>
+        }
+      />
     </>
   );
 }

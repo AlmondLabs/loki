@@ -15,6 +15,12 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
   harness's version next to the tested one. Letta Code never updates itself under loki (the harness runs with
   its self-updater off): the only update the app ever offers on its own is loki's. Settings › letta has
   **check** (asks npm for the newest release) and **update** (reinstalls loki's copy at it and restarts the harness).
+  The harness runs with `LETTA_SCRATCHPAD` set to a folder under `~/.letta` (`~/.letta/loki/scratch` by default,
+  emptied at each start): since Letta Code 0.31.13 its memory subagents — the dreaming (reflection) pass, its
+  selector, the explicit-merge reviewer — run in a sandbox that may only write under `~/.letta`, and Letta's own
+  scratch folder, under the system temp directory, is refused, so every pass failed before its first command.
+  Settings › letta shows the folder, lets you change it, and gives the line for a `letta` you run in a terminal
+  (a different folder: Letta names the files inside by a per-process counter, so two harnesses must not share one).
 - **beads** (`brew install beads`) for the board. Optional; everything else works without it.
 
 ## Install
@@ -98,7 +104,7 @@ rail of six segments sits on the left, and one view fills the rest:
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
 - **Settings** (⌘6, ⌘,): eight pages down the left, one showing at a time, the last one remembered for the
   window. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six hours; `brew upgrade --cask loki` is the way up), which harness the app is on, how it reaches the mod, requirements and install status.
-  **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
+  the harness's **scratch** folder (see Requirements) with apply, back to the default, and the line for a terminal. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
   **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), the model it asks, run now, and the leads it proposes. **files**: where

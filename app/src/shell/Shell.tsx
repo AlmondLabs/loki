@@ -20,6 +20,7 @@ import { useBoard } from "./useBoard";
 import { useRecall } from "./useRecall";
 import { useLokiUpdate } from "./useLokiUpdate";
 import { useGlobalShortcut } from "./useGlobalShortcut";
+import { useScratch } from "./useScratch";
 import { useShellKeys } from "./useShellKeys";
 import { KeysSheet } from "./KeysSheet";
 import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
@@ -163,6 +164,7 @@ export function Shell() {
   const recall = useRecall(desk, segment, notice);
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
+  const scratch = useScratch();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   /** The `?` cheat sheet for the view showing. */
@@ -309,7 +311,7 @@ export function Shell() {
             />
           )}
 
-          {segment === "settings" && <SettingsView update={update} shortcut={shortcut} recall={recall} desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
+          {segment === "settings" && <SettingsView update={update} shortcut={shortcut} recall={recall} scratch={scratch} desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
 
           {welcome && segment !== "settings" && <WelcomeView step={welcome} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} models={modelList} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
 

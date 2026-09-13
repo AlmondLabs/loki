@@ -11,6 +11,7 @@ mod harness;
 mod install;
 mod menu;
 mod native;
+mod scratch;
 mod widgets;
 
 use std::path::PathBuf;
@@ -144,6 +145,30 @@ fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState
     Ok(())
 }
 
+/// Settings › letta: the harness's scratch folder, the default, and the line for a terminal (scratch.rs).
+#[tauri::command]
+fn scratch_settings() -> scratch::Settings {
+    scratch::settings(&loki_dir(), &home_dir())
+}
+
+/// Settings › letta: a new scratch folder (None: back to the default). Saved, then the harness restarts on it —
+/// the env var is read at launch — when it is loki's own; a turn in progress stops, the link reconnects.
+#[tauri::command]
+fn set_scratch_dir(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>, path: Option<String>) -> Result<scratch::Settings, String> {
+    let (data, home) = (loki_dir(), home_dir());
+    let chosen = match path.as_deref().map(str::trim) {
+        Some(p) if !p.is_empty() => Some(scratch::validate(p, &home)?),
+        _ => None,
+    };
+    scratch::write(&data, &scratch::ShellPrefs { scratch_dir: chosen.map(|p| p.to_string_lossy().into_owned()) })?;
+    if let Some(h) = app.try_state::<harness::Harness>() {
+        if let Some(rt) = boot.0.lock().ok().and_then(|s| s.runtime()) {
+            h.start(&rt, &data.join("token"), &data.join("logs"), &scratch::effective_dir(&data, &home))?;
+        }
+    }
+    Ok(scratch::settings(&data, &home))
+}
+
 /// Install (or retry installing) Letta Code privately, then start the harness. Progress: `loki:bootstrap` events.
 #[tauri::command]
 fn install_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
@@ -181,7 +206,7 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
             Ok(rt) => {
                 harness::ensure_backend_mode(&rt, &home);
                 let version = bootstrap::letta_version(&rt);
-                let started = app.try_state::<harness::Harness>().map(|h| h.start(&rt, &loki_dir().join("token"), &loki_dir().join("logs"))).unwrap_or(Err("no harness slot".into()));
+                let started = app.try_state::<harness::Harness>().map(|h| h.start(&rt, &loki_dir().join("token"), &loki_dir().join("logs"), &scratch::effective_dir(&loki_dir(), &home_dir()))).unwrap_or(Err("no harness slot".into()));
                 if let Ok(mut s) = b.0.lock() {
                     let (log, latest) = (std::mem::take(&mut s.log), s.latest.take());
                     *s = bootstrap::Status::from_runtime(&rt);
@@ -217,7 +242,7 @@ pub fn run() {
     tauri::Builder::default()
         // Links leave the app through the system browser (window.open is blocked in the webview).
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![appserver_send, appserver_url, client_log, install_status, tool_status, bootstrap_status, install_letta, check_letta_update, update_letta, native::set_waiting, native::set_global_shortcut, menu::set_menu])
+        .invoke_handler(tauri::generate_handler![appserver_send, appserver_url, client_log, install_status, tool_status, bootstrap_status, install_letta, check_letta_update, update_letta, native::set_waiting, native::set_global_shortcut, menu::set_menu, scratch_settings, set_scratch_dir])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
         .setup(move |app| {
@@ -267,7 +292,7 @@ pub fn run() {
                     Some(rt) => {
                         eprintln!("loki: letta at {}{}", rt.letta.display(), if rt.private { " (installed by loki)" } else { "" });
                         harness::ensure_backend_mode(rt, &home);
-                        if let Err(e) = app.state::<harness::Harness>().start(rt, &loki_dir().join("token"), &loki_dir().join("logs")) {
+                        if let Err(e) = app.state::<harness::Harness>().start(rt, &loki_dir().join("token"), &loki_dir().join("logs"), &scratch::effective_dir(&loki_dir(), &home_dir())) {
                             eprintln!("loki: {e}");
                             if let Ok(mut s) = app.state::<bootstrap::BootstrapState>().0.lock() { s.error = Some(e); }
                         }
