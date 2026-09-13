@@ -37,10 +37,17 @@ describe("keymap: matching", () => {
 });
 
 describe("keymap: resolution", () => {
-  test("view bindings win over anywhere: ⌘] is next card in the inbox, next desk on the desk", () => {
-    expect(resolve(ev("]", { meta: true }), "inbox")?.id).toBe("inbox.next");
-    expect(resolve(ev("]", { meta: true }), "desk")?.id).toBe("desk.next");
-    expect(resolve(ev("]", { meta: true }), "board")?.id).toBe("desk.next");
+  test("⌘[ and ⌘] step what each section is made of, never the next desk from elsewhere", () => {
+    const next = (segment: Parameters<typeof resolve>[1]) => resolve(ev("]", { meta: true }), segment)?.id;
+    const prev = (segment: Parameters<typeof resolve>[1]) => resolve(ev("[", { meta: true }), segment)?.id;
+    expect([next("desk"), prev("desk")]).toEqual(["desk.next", "desk.prev"]);
+    expect([next("inbox"), prev("inbox")]).toEqual(["inbox.next", "inbox.later"]);
+    expect([next("board"), prev("board")]).toEqual(["board.nextColumn", "board.prevColumn"]);
+    expect([next("learn"), prev("learn")]).toEqual(["learn.nextView", "learn.prevView"]);
+    expect([next("agents"), prev("agents")]).toEqual(["agents.next", "agents.prev"]);
+    expect([next("settings"), prev("settings")]).toEqual(["settings.nextPage", "settings.prevPage"]);
+    // and while typing in the section's own box (the board filter, the reply box)
+    expect(resolve(ev("]", { meta: true }, true), "board")?.id).toBe("board.nextColumn");
   });
   test("plain letters never fire inside a text box; chords marked typing do", () => {
     expect(resolve(ev("a"), "inbox")?.id).toBe("inbox.approve");
@@ -83,7 +90,7 @@ describe("keymap: presentation", () => {
     expect(approve.accelerator).toBe("CmdOrCtrl+Enter");
   });
   test("a chord names every binding it could mean, so the menu's echo of the other one is dropped", () => {
-    expect(chordIds(ev("]", { meta: true })).sort()).toEqual(["desk.next", "inbox.next"]);
+    expect(chordIds(ev("]", { meta: true })).sort()).toEqual(["agents.next", "board.nextColumn", "desk.next", "inbox.next", "learn.nextView", "settings.nextPage"]);
     expect(chordIds(ev("k", { meta: true }))).toEqual(["tree.toggle"]);
   });
 });

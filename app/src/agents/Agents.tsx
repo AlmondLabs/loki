@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Personality } from "../../../core/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
+import { registerActions } from "../shell/keymap";
 import { Button, Empty, NavButton, Title } from "../components";
 import type { Task } from "../board/model";
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, DEFAULT_AGENT_PAGE, isAgentPage, type AgentPage } from "./pages";
@@ -102,6 +103,17 @@ export function Agents({
     flash(`${opts.name} is here`);
     return null;
   };
+
+  // ⌘[ and ⌘] step through the tabs (agents.prev / agents.next in the keymap), wrapping at the ends.
+  useEffect(() => {
+    const step = (d: 1 | -1) => {
+      if (agents.length < 2) return;
+      const i = Math.max(0, agents.findIndex((a) => a.id === selected));
+      setCreating(false);
+      setSelected(agents[(i + d + agents.length) % agents.length].id);
+    };
+    return registerActions({ "agents.prev": () => step(-1), "agents.next": () => step(1) });
+  });
 
   if (!agents.length && !creating) return <NoAgents onNew={() => setCreating(true)} />;
 

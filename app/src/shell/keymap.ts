@@ -40,12 +40,14 @@ export const KEYMAP: Binding[] = [
   { id: "tree.toggle", keys: ["cmd+k"], where: "anywhere", label: "Desks Tree", typing: true, menu: "Desk" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
-  { id: "desk.prev", keys: ["cmd+["], where: "anywhere", label: "Previous Desk", typing: true, menu: "Desk/step" },
-  { id: "desk.next", keys: ["cmd+]"], where: "anywhere", label: "Next Desk", typing: true, menu: "Desk/step" },
   { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", typing: true },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
   // --- desk ----------------------------------------------------------
+  // ⌘[ and ⌘] step through what a section is made of: desks here, cards in the inbox, columns on the
+  // board, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
+  { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Desk", typing: true, menu: "Desk/step" },
+  { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Desk", typing: true, menu: "Desk/step" },
   { id: "chat.toggle", keys: ["cmd+/"], where: "desk", label: "Show / Hide Chat", typing: true, menu: "Chat" },
   { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
   { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },
@@ -87,6 +89,8 @@ export const KEYMAP: Binding[] = [
   { id: "board.dispatch", keys: ["cmd+enter"], where: "board", label: "Dispatch (assign and start now)…", typing: true, menu: "Board/act" },
   { id: "board.done", keys: ["backspace"], where: "board", label: "Done (strike from the board)", menu: "Board/act", menuAccel: false },
   { id: "board.blocked", keys: ["shift+backspace"], where: "board", label: "Blocked / Unblocked", menu: "Board/act", menuAccel: false },
+  { id: "board.prevColumn", keys: ["cmd+["], where: "board", label: "Previous Column", typing: true, menu: "Board/step" },
+  { id: "board.nextColumn", keys: ["cmd+]"], where: "board", label: "Next Column", typing: true, menu: "Board/step" },
   { id: "board.filter", keys: ["/"], where: "board", label: "filter" },
   { id: "board.refresh", keys: ["cmd+r"], where: "board", label: "Refresh Board", typing: true, menu: "Board" },
   { id: "board.clear", keys: ["escape"], where: "board", label: "clear the selection", note: "handled by the board" },
@@ -100,6 +104,14 @@ export const KEYMAP: Binding[] = [
   { id: "recall.edit", keys: ["e"], where: "learn", label: "Edit Card", menu: "Learn", menuAccel: false },
   { id: "recall.open", keys: ["cmd+o", "o"], where: "learn", label: "Open the Source Desk", typing: true, menu: "Learn/go" },
   { id: "recall.refresh", keys: ["cmd+r"], where: "learn", label: "Refresh", typing: true, menu: "Learn/go" },
+  { id: "learn.prevView", keys: ["cmd+["], where: "learn", label: "Previous View", typing: true, menu: "Learn/step" },
+  { id: "learn.nextView", keys: ["cmd+]"], where: "learn", label: "Next View", typing: true, menu: "Learn/step" },
+
+  // --- agents / settings: the tabs across the top, the pages down the left ------------------------------
+  { id: "agents.prev", keys: ["cmd+["], where: "agents", label: "previous agent", typing: true },
+  { id: "agents.next", keys: ["cmd+]"], where: "agents", label: "next agent", typing: true },
+  { id: "settings.prevPage", keys: ["cmd+["], where: "settings", label: "previous page", typing: true },
+  { id: "settings.nextPage", keys: ["cmd+]"], where: "settings", label: "next page", typing: true },
 
   // --- global --------------------------------------------------------
   { id: "global.inbox", keys: ["alt+space"], where: "global", label: "bring loki up on the inbox", note: "the OS" },
@@ -268,7 +280,7 @@ export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
 }
 
 /** Rows for Settings, grouped by scope in display order. */
-export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "learn", "global"];
+export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "learn", "agents", "settings", "global"];
 
 // --- the action registry: views register what their ids do; the shell dispatches ----------------
 type Action = () => void;

@@ -17,6 +17,7 @@ import { useDeckPass } from "./useDeckPass";
  * search, and the deleted pile with restore.
  */
 type View = "review" | "leads" | "all" | "deleted";
+const VIEWS: View[] = ["review", "leads", "all", "deleted"];
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
 
 export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void }) {
@@ -63,9 +64,14 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
       "recall.edit": () => keys.current.edit(),
       "recall.open": () => keys.current.open(),
       "recall.undo": () => void recall.undo(),
-      "recall.refresh": () => void recall.refresh(),
     });
   }, [active, view, recall]);
+  // The section's own keys, whichever view shows: ⌘[ and ⌘] step the views, ⌘R refreshes.
+  useEffect(() => {
+    if (!active) return;
+    const step = (d: 1 | -1) => setView((v) => VIEWS[(VIEWS.indexOf(v) + d + VIEWS.length) % VIEWS.length]);
+    return registerActions({ "learn.prevView": () => step(-1), "learn.nextView": () => step(1), "recall.refresh": () => void recall.refresh() });
+  }, [active, recall]);
 
   return (
     <div style={{ position: "absolute", inset: 0, overflowY: "auto", scrollbarGutter: "stable", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
@@ -82,7 +88,7 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
           </Meta>
           <span style={{ flex: 1 }} />
           <span role="tablist" aria-label="learn views" style={{ display: "inline-flex", gap: 4 }}>
-            {(["review", "leads", "all", "deleted"] as View[]).map((v) => (
+            {VIEWS.map((v) => (
               <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => setView(v)}>
                 {v === "all" ? "all cards" : v}
               </Chip>

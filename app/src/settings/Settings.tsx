@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
-import { KEYMAP, WHERE_ORDER, formatKeys } from "../shell/keymap";
+import { KEYMAP, WHERE_ORDER, formatKeys, registerActions } from "../shell/keymap";
 import { Button, Chip, Dot, NavButton, Switch, Title } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../core/compat.ts";
@@ -104,6 +104,11 @@ export function Settings({
     setPage(p);
     sessionStorage.setItem(PAGE_KEY, p);
   };
+  // ⌘[ and ⌘] step the pages (settings.prevPage / settings.nextPage in the keymap), wrapping at the ends.
+  useEffect(() => {
+    const step = (d: 1 | -1) => pick(PAGES[(PAGES.findIndex((p) => p.id === page) + d + PAGES.length) % PAGES.length].id);
+    return registerActions({ "settings.prevPage": () => step(-1), "settings.nextPage": () => step(1) });
+  });
 
   return (
     <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "28px 40px 60px", boxSizing: "border-box" }}>

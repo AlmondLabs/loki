@@ -196,6 +196,8 @@ export function Board({
         const blocked = ids.every((id) => byId.get(id)?.status === "blocked");
         onStatus(ids, blocked ? "open" : "blocked");
       },
+      "board.prevColumn": () => move("left"),
+      "board.nextColumn": () => move("right"),
       "board.filter": () => filterRef.current?.focus(),
       "board.refresh": () => onRefresh(),
     });

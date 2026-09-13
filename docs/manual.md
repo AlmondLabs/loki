@@ -74,7 +74,7 @@ rail of six segments sits on the left, and one view fills the rest:
   centred until its first widget lands. Clicking the desk icon again (or ⌘K) opens the **desks tree**: one centred list of every
   desk, pinned first then by recency, each with its agent's face and attention dot; a chip row filters to one
   agent (click, or Tab / ⇧Tab); type to filter, ↑↓, ↵; ⌘P pins, ⌘E archives; "new desk" at the bottom, the
-  archive folded under it. Picking a desk closes it. ⌘[ and ⌘] step through live desks without opening anything.
+  archive folded under it. Picking a desk closes it. On the desk, ⌘[ and ⌘] step through live desks without opening anything.
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Board** (⌘3): tasks for later, see below.
@@ -98,7 +98,9 @@ rail of six segments sits on the left, and one view fills the rest:
   **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), the model it asks, run now, and the leads it proposes. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
-Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
+⌘[ and ⌘] step through whatever the section showing is made of: desks on the desk, cards in the inbox, columns
+on the board, views in Learn, agents in Agents, pages in Settings — the same two keys everywhere, never a jump
+back to the desk. Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
 menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the board, the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
