@@ -206,35 +206,49 @@ function LettaUpdateFact({ bootstrap, onCheck, onUpdate }: { bootstrap: Bootstra
     setBusy(null);
   };
   if (!bootstrap?.letta) return null;
-  const { version, latest, managed, installing } = bootstrap;
-  const newer = !!latest && !!version && latest !== version;
-  const tested = latest ? lettaCompatible(latest, TESTED_LETTA_CODE) : null;
   return (
     <Fact
       label="updates"
       value={
         <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{version ? `installed ${version}` : "installed —"}{latest ? ` · newest ${latest}` : ""}</span>
-          {installing ? (
-            <Note tone="warn">{bootstrap.log[bootstrap.log.length - 1] ?? "updating…"}</Note>
-          ) : (
-            <>
-              <Button size="sm" onClick={() => void run("check", onCheck)} disabled={busy !== null}>{busy === "check" ? "checking…" : "check"}</Button>
-              {newer && managed && (
-                <Button size="sm" tone="brass" onClick={() => void run("update", onUpdate)} disabled={busy !== null} title="pulls the newest release and restarts the harness — a turn in progress stops">
-                  {busy === "update" ? "updating…" : `update to ${latest}`}
-                </Button>
-              )}
-              {newer && !managed && <Note tone="warn">newer release — this harness is not loki's to restart; update Letta Code where it runs</Note>}
-              {latest && !newer && version && <Note>up to date</Note>}
-            </>
-          )}
-          {newer && tested === false && <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}; a newer minor may need a loki update too</Note>}
-          {!installing && !latest && !error && <Note>Letta Code never updates itself under loki — this is the only way it moves</Note>}
-          {(error ?? (!installing ? bootstrap.error : null)) && <Note tone="warn">{error ?? bootstrap.error}</Note>}
+          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{bootstrap.version ? `installed ${bootstrap.version}` : "installed —"}{bootstrap.latest ? ` · newest ${bootstrap.latest}` : ""}</span>
+          {bootstrap.installing ? <Note tone="warn">{bootstrap.log[bootstrap.log.length - 1] ?? "updating…"}</Note> : <UpdateActions bootstrap={bootstrap} busy={busy} onCheck={() => void run("check", onCheck)} onUpdate={() => void run("update", onUpdate)} />}
+          <UpdateNotes bootstrap={bootstrap} error={error} />
         </span>
       }
     />
+  );
+}
+
+/** Check, and update when a newer release exists and this harness is loki's to restart; else the one-line verdict. */
+function UpdateActions({ bootstrap, busy, onCheck, onUpdate }: { bootstrap: BootstrapStatus; busy: "check" | "update" | null; onCheck: () => void; onUpdate: () => void }) {
+  const { version, latest, managed } = bootstrap;
+  const newer = !!latest && !!version && latest !== version;
+  return (
+    <>
+      <Button size="sm" onClick={onCheck} disabled={busy !== null}>{busy === "check" ? "checking…" : "check"}</Button>
+      {newer && managed && (
+        <Button size="sm" tone="brass" onClick={onUpdate} disabled={busy !== null} title="pulls the newest release and restarts the harness — a turn in progress stops">
+          {busy === "update" ? "updating…" : `update to ${latest}`}
+        </Button>
+      )}
+      {newer && !managed && <Note tone="warn">newer release — this harness is not loki's to restart; update Letta Code where it runs</Note>}
+      {latest && !newer && version && <Note>up to date</Note>}
+    </>
+  );
+}
+
+/** The footnotes: a newer minor loki was not tested with, the never-auto-updates reminder before the first check, and any error. */
+function UpdateNotes({ bootstrap, error }: { bootstrap: BootstrapStatus; error: string | null }) {
+  const { version, latest, installing } = bootstrap;
+  const newer = !!latest && !!version && latest !== version;
+  const shown = error ?? (installing ? null : bootstrap.error);
+  return (
+    <>
+      {newer && lettaCompatible(latest!, TESTED_LETTA_CODE) === false && <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}; a newer minor may need a loki update too</Note>}
+      {!installing && !latest && !error && <Note>Letta Code never updates itself under loki — this is the only way it moves</Note>}
+      {shown && <Note tone="warn">{shown}</Note>}
+    </>
   );
 }
 

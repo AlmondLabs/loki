@@ -29,7 +29,7 @@ export interface AgentsApi {
 /** Letta's sleep-time reflection through the app-server: the agent's settings, and a pass by hand. */
 export interface ReflectionControls {
   get: (rt: Runtime) => Promise<ReflectionSettings | null>;
-  set: (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge }) => Promise<string | null>;
+  set: (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }) => Promise<string | null>;
   /** Resolves to the harness's one-line answer ("Started a reflection pass…", "No new transcript content…"). */
   run: (rt: Runtime) => Promise<string>;
 }

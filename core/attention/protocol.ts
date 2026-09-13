@@ -232,8 +232,8 @@ export class AppServerSocket {
     return parseReflectionSettings(res.reflection_settings);
   }
   /** Written to Letta's global settings (its per-agent table), the scope the /sleeptime overlay writes too. */
-  async setReflectionSettings(rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge }): Promise<ReflectionSettings | null> {
-    const res = await this.request("set_reflection_settings", { runtime: rt, settings: { trigger: s.trigger, step_count: s.stepCount, merge: s.merge }, scope: "global" });
+  async setReflectionSettings(rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<ReflectionSettings | null> {
+    const res = await this.request("set_reflection_settings", { runtime: rt, settings: { trigger: s.trigger, step_count: s.stepCount, merge: s.merge, merge_instructions: s.mergeInstructions ?? "" }, scope: "global" });
     if (res.success === false) throw new Error(String(res.error ?? "reflection settings refused"));
     return parseReflectionSettings(res.reflection_settings);
   }

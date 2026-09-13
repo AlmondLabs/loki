@@ -24,7 +24,6 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
   const { snap } = recall;
   const [view, setView] = useState<View>("review");
   const cards = snap?.cards ?? [];
-  const leads = snap?.leads ?? [];
   const pass = useDeckPass(cards);
   const { current, revealed } = pass;
   /** Per-card UI state, by id, so it leaves with the card. */
@@ -73,100 +72,138 @@ export function Recall({ recall, active, onOpenDesk }: { recall: RecallModel; ac
     return registerActions({ "learn.prevView": () => step(-1), "learn.nextView": () => step(1), "recall.refresh": () => void recall.refresh() });
   }, [active, recall]);
 
+  const deck = current && (
+    <Deck
+      c={current}
+      position={pass.passed.size + 1}
+      total={pass.total}
+      revealed={revealed}
+      editing={editing}
+      showPrevious={previousId === current.card.id}
+      onReveal={pass.reveal}
+      onGrade={grade}
+      onDelete={remove}
+      onEdit={() => setEditingId(current.card.id)}
+      onOpen={open}
+      onTogglePrevious={() => setPreviousId((p) => (p === current.card.id ? null : current.card.id))}
+      onSave={(text) => {
+        void recall.edit(current.card.id, text);
+        setEditingId(null);
+      }}
+      onCancel={() => setEditingId(null)}
+    />
+  );
+
   return (
     <div style={{ position: "absolute", inset: 0, overflowY: "auto", scrollbarGutter: "stable", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
       {/* The header keeps its place across the views, so the tab just clicked stays under the pointer. Inside the
           body, the deck sits in the middle of what is left (a little above it, where the eye rests); the lists
           start at the top. The gutter is reserved so a long list's scrollbar does not shift the column sideways. */}
       <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-        <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-          <Title page>learn</Title>
-          <Meta>
-            {recall.due} due · {cards.length} card{cards.length === 1 ? "" : "s"}
-            {leads.length ? ` · ${leads.length} lead${leads.length === 1 ? "" : "s"}` : ""}
-            {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
-          </Meta>
-          <span style={{ flex: 1 }} />
-          <span role="tablist" aria-label="learn views" style={{ display: "inline-flex", gap: 4 }}>
-            {VIEWS.map((v) => (
-              <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => setView(v)}>
-                {v === "all" ? "all cards" : v}
-              </Chip>
-            ))}
-          </span>
-        </header>
-
-        {recall.error && <Meta brass wrap>{recall.error}</Meta>}
-        {snap && !snap.worker.enabled && cards.length > 0 && (
-          <Meta wrap>
-            the writer is off — these are the cards so far, no new ones are coming ·{" "}
-            <Button bare size="sm" tone="brass" onClick={() => void recall.settings({ enabled: true })}>turn it on</Button>
-          </Meta>
-        )}
-
+        <RecallHeader recall={recall} view={view} onView={setView} />
         <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
-          {view === "review" && (
-            <div style={{ margin: "auto 0", paddingBottom: "8vh", display: "grid", gap: 16 }}>
-              {snap && !snap.worker.enabled && cards.length === 0 && <RecallIntro worker={snap.worker} onEnable={() => void recall.settings({ enabled: true })} />}
-              {!(snap && !snap.worker.enabled && cards.length === 0) && (
-          <ReviewBody snap={snap} pass={pass}>
-            {current && (
-              <Deck
-                c={current}
-                position={pass.passed.size + 1}
-                total={pass.total}
-                revealed={revealed}
-                editing={editing}
-                showPrevious={previousId === current.card.id}
-                onReveal={pass.reveal}
-                onGrade={grade}
-                onDelete={remove}
-                onEdit={() => setEditingId(current.card.id)}
-                onOpen={open}
-                onTogglePrevious={() => setPreviousId((p) => (p === current.card.id ? null : current.card.id))}
-                onSave={(text) => {
-                  void recall.edit(current.card.id, text);
-                  setEditingId(null);
-                }}
-                onCancel={() => setEditingId(null)}
-              />
-            )}
-          </ReviewBody>
-              )}
-            </div>
-          )}
-
-        {view === "leads" && snap && (
-          <LeadList
-            leads={leads}
-            lessons={snap.lessons}
-            worker={snap.worker}
-            starting={recall.starting}
-            onStart={async (id) => {
-              const lesson = await recall.startLead(id);
-              if (lesson) onOpenDesk(lesson.agentId, lesson.conversationId);
-            }}
-            onDismiss={(id) => void recall.dismissLead(id)}
-            onOpen={onOpenDesk}
-          />
-        )}
-
-        {view === "all" && snap && (
-          <>
-            <CardList cards={cards} onEdit={(id, text) => void recall.edit(id, text)} onDelete={(id) => void recall.remove(id)} />
-            <WorkerStrip worker={snap.worker} running={recall.running} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} onExport={() => void recall.exportCards()} cardCount={cards.length} />
-          </>
-        )}
-
-        {view === "deleted" && snap && (
-          <>
-            <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />
-            <DismissedLeadList dismissed={snap.dismissedLeads} onRestore={(id) => void recall.restoreLead(id)} />
-          </>
-        )}
+          {view === "review" ? <ReviewView recall={recall} pass={pass}>{deck}</ReviewView> : <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} />}
         </div>
       </div>
     </div>
+  );
+}
+
+/** The title, the counts, and the four view tabs. */
+function RecallHeader({ recall, view, onView }: { recall: RecallModel; view: View; onView: (v: View) => void }) {
+  const { snap } = recall;
+  const cards = snap?.cards.length ?? 0;
+  const leads = snap?.leads.length ?? 0;
+  return (
+    <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+      <Title page>learn</Title>
+      <Meta>
+        {recall.due} due · {cards} card{cards === 1 ? "" : "s"}
+        {leads ? ` · ${leads} lead${leads === 1 ? "" : "s"}` : ""}
+        {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
+      </Meta>
+      <span style={{ flex: 1 }} />
+      <span role="tablist" aria-label="learn views" style={{ display: "inline-flex", gap: 4 }}>
+        {VIEWS.map((v) => (
+          <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => onView(v)}>
+            {v === "all" ? "all cards" : v}
+          </Chip>
+        ))}
+      </span>
+    </header>
+  );
+}
+
+/** The notices above any view: an error, and the writer being off while cards exist. */
+function Notices({ recall }: { recall: RecallModel }) {
+  const { snap } = recall;
+  return (
+    <>
+      {recall.error && <Meta brass wrap>{recall.error}</Meta>}
+      {snap && !snap.worker.enabled && snap.cards.length > 0 && (
+        <Meta wrap>
+          the writer is off — these are the cards so far, no new ones are coming ·{" "}
+          <Button bare size="sm" tone="brass" onClick={() => void recall.settings({ enabled: true })}>turn it on</Button>
+        </Meta>
+      )}
+    </>
+  );
+}
+
+/** The review view: the intro until the writer has ever been on, else the deck (passed in) with its states around it. */
+function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: ReturnType<typeof useDeckPass>; children: React.ReactNode }) {
+  const { snap } = recall;
+  const fresh = !!snap && !snap.worker.enabled && snap.cards.length === 0;
+  return (
+    <>
+      <Notices recall={recall} />
+      <div style={{ margin: "auto 0", paddingBottom: "8vh", display: "grid", gap: 16 }}>
+        {fresh ? (
+          <RecallIntro worker={snap.worker} onEnable={() => void recall.settings({ enabled: true })} />
+        ) : (
+          <ReviewBody snap={snap} pass={pass}>
+            {children}
+          </ReviewBody>
+        )}
+      </div>
+    </>
+  );
+}
+
+/** The three list views: leads, all cards with the worker strip, deleted (cards and leads). */
+function ListsView({ recall, view, onOpenDesk }: { recall: RecallModel; view: View; onOpenDesk: (agentId: string, conversationId: string) => void }) {
+  const { snap } = recall;
+  if (!snap) return <Notices recall={recall} />;
+  return (
+    <>
+      <Notices recall={recall} />
+      {view === "leads" && (
+        <LeadList
+          leads={snap.leads}
+          lessons={snap.lessons}
+          worker={snap.worker}
+          starting={recall.starting}
+          onStart={async (id) => {
+            const lesson = await recall.startLead(id);
+            if (lesson) onOpenDesk(lesson.agentId, lesson.conversationId);
+          }}
+          onDismiss={(id) => void recall.dismissLead(id)}
+          onOpen={onOpenDesk}
+        />
+      )}
+      {view === "all" && (
+        <>
+          <CardList cards={snap.cards} onEdit={(id, text) => void recall.edit(id, text)} onDelete={(id) => void recall.remove(id)} />
+          <WorkerStrip worker={snap.worker} running={recall.running} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} onExport={() => void recall.exportCards()} cardCount={snap.cards.length} />
+        </>
+      )}
+      {view === "deleted" && (
+        <>
+          <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />
+          <DismissedLeadList dismissed={snap.dismissedLeads} onRestore={(id) => void recall.restoreLead(id)} />
+        </>
+      )}
+    </>
   );
 }
 

@@ -519,7 +519,7 @@ export function useAttention(opts: UseAttentionOptions) {
           return null;
         }
       },
-      set: async (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge }): Promise<string | null> => {
+      set: async (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to the app-server";
         try {

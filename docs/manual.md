@@ -83,8 +83,9 @@ rail of six segments sits on the left, and one view fills the rest:
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
   this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
   Letta's Reflection Subagent is marked. **reflection**: Letta's sleep-time pass over what happened — when it fires
-  (off, every n steps of a conversation, after a compaction), how its changes land (merged on its own, or left for the
-  agent to integrate), the steps each conversation has gathered since its last pass with "reflect now" beside it (the
+  (off, every n steps of a conversation, after a compaction), how its changes land (applied automatically, or handed to
+  the agent to review, edit and merge in a background conversation of its own, with your review notes), the steps each
+  conversation has gathered since its last pass with "reflect now" beside it (the
   same as `/reflect` in that chat), and the last pass that changed memory. These are Letta's own settings for the
   agent, the ones its `/sleeptime` overlay shows in a terminal. **skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
