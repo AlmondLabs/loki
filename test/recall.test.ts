@@ -23,7 +23,7 @@ describe("recall store", () => {
   test("a fresh dir has no cards, no rejections and default worker settings", () => {
     expect(store.cards()).toEqual([]);
     expect(store.rejected()).toEqual([]);
-    expect(store.status(T0)).toEqual({ enabled: false, model: null, dailyCap: 10, lastRunAt: null, lastRunNote: null, writtenToday: 0 });
+    expect(store.status(T0)).toEqual({ enabled: false, model: null, dailyCap: 25, lastRunAt: null, lastRunNote: null, writtenToday: 0 });
   });
   test("add writes a card file and a fresh schedule; cards come back oldest first", () => {
     store.add(card("b", { createdAt: "2026-09-10T10:00:00Z" }));
