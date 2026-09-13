@@ -138,7 +138,7 @@ export function ReflectionPage({ agentId, agentName, desks, api, reflect, onOpen
               return (
                 <div key={c.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", alignItems: "center", gap: 12, padding: "6px 8px", borderBottom: "1px solid var(--loki-border)" }}>
                   <Row dense flush onClick={() => onOpenDesk(agentId, c.conversationId)} title="open this conversation" style={{ minWidth: 0, display: "grid", gap: 2 }}>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{c.title ?? c.conversationId}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5 }}>{c.title ?? c.conversationId}</span>
                     <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>
                       {c.stepsSince} step{c.stepsSince === 1 ? "" : "s"} since {c.lastSucceededAt ? `the pass ${ago(c.lastSucceededAt)}` : "the start, no pass yet"}
                       {settings?.trigger === "step-count" ? ` · fires at ${stepCount}${due ? " · due after its next turn" : ""}` : ""}
@@ -167,7 +167,7 @@ const TRIGGER_HINT: Record<ReflectionTrigger, string> = {
 
 function Line({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 12, alignItems: "start", fontSize: 13, lineHeight: 1.5 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
       <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 4 }}>{label}</span>
       <span style={{ minWidth: 0, display: "grid", gap: 4 }}>{children}</span>
     </div>
