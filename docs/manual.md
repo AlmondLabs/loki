@@ -300,10 +300,13 @@ message on the clipboard as the markdown it was written in, not the rendering.
 Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
 writer spends your provider budget in the background, so the section's first visit explains what it does and
 offers the switch (Settings › learn has it too, with the knobs). Nothing about the cards happens in
-chat: a worker in the mod watches for conversations that have gone quiet, hands the new stretch of
-transcript to the agent in a hidden conversation of its own, and writes whatever
-comes back — one fact per card, a question that stands alone, an answer in a line or two — up to a daily
-cap (twenty-five by default). You meet the cards only here: the front, space for the answer, then one of two answers — ← again or → got it
+chat: a worker in the mod watches for conversations that have gone quiet, hands their new stretches of
+transcript to the agent together — one question per agent, the stretches most worth reading first, up to a
+budget; what does not fit waits for the next tick — and writes whatever comes back: one fact per card, a
+question that stands alone, an answer in a line or two, up to a daily cap (twenty-five by default) shared
+across the stretches. Reading them side by side, the model writes one card for a fact that came up twice and
+a revision, not a second card, for a later correction; a card the person keeps failing brings the tail of the
+conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space for the answer, then one of two answers — ← again or → got it
 (space stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
 the scheduler modern Anki uses.
 New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
@@ -317,10 +320,12 @@ content and review history kept apart so the worker's edits never touch your sch
 conversation with each agent — one per agent, named "recall", for the life of the agent — is a desk in the tree
 (⌘K), so you can read what it asked and what came back; it stays out of the inbox. After each answer the worker
 compacts it (`/compact all`), so the next question starts from a short summary of the earlier ones rather than
-every transcript ever sent, while the transcript on disk keeps everything. It runs in a folder of its own,
-`~/.letta/loki/recall/writer/`, whose Letta project settings (`.letta/settings.local.json` there) keep the
+every transcript ever sent, while the transcript on disk keeps everything. Its working directory is
+`~/.letta/loki/recall/` itself: the prompt quotes only the existing cards whose wording overlaps the stretches
+and names the folder for the rest, so the model can grep the deck with its read-only tools before writing, and
+the prompt stops growing with the deck. Letta's project settings there (`.letta/settings.local.json`) keep the
 dreaming pass off: the writer's digests of your conversations are never turned into the agent's memory. The
-folder and its settings file are the worker's; it puts the trigger back to off if it finds it changed.
+settings file is the worker's; it puts the trigger back to off if it finds it changed.
 
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a

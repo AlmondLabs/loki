@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
-import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, WRITER_SETTINGS, ensureWriterDir, formatTranscript, lessonCard } from "../mod/recall-worker.ts";
+import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, WRITER_SETTINGS, ensureWriterDir, formatTranscript, lessonCard, overlappingCards, packSlices, scoreStretch } from "../mod/recall-worker.ts";
 import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
 import { review } from "../core/recall/fsrs.ts";
 
@@ -95,7 +95,7 @@ describe("recall worker", () => {
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(WRITER_SETTINGS);
     expect(existsSync(join(wd, ".letta"))).toBe(true);
   });
-  test("rejected cards are quoted and never come back; the daily cap holds the card cursor, not the lead cursor", async () => {
+  test("rejected cards are quoted and never come back; two quiet conversations of one agent go in one call, and the room is shared", async () => {
     store.add({ id: "old", front: "What does KMS key rotation do?", back: "x", tags: [], source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: "2026-09-09T00:00:00Z", updatedAt: "2026-09-09T00:00:00Z", updatedBy: "recall", previous: [] });
     store.reject("old", T0 - 1000);
     store.saveWorker({ dailyCap: 1 });
@@ -112,12 +112,82 @@ describe("recall worker", () => {
     });
     const r = await worker.tick();
     expect(prompt).toContain("[0 reviews] Q: What does KMS key rotation do?");
+    expect(prompt).toContain('<slice id="s1" conversation="desk c1" mode="new"');
+    expect(prompt).toContain('<slice id="s2" conversation="desk c2" mode="new"');
+    expect(prompt).toContain(`The deck has 0 cards in all. Every card is a file under ${dir}/cards/`);
     expect(store.cards().map((c) => c.card.front)).toEqual(["Which service stores session logs?"]); // the rejected one stayed out
     expect(r.written).toBe(1);
-    expect(r.asked).toBe(2); // c2 was still read, for leads
-    expect(r.note).toBe("1 new · 0 revised from 2 conversations · cards at the day's cap");
-    expect(store.worker().cursors["a1/c2"]).toBeUndefined(); // its cards wait for tomorrow
+    expect(r.asked).toBe(1); // one call for the agent
+    expect(r.slices).toBe(2);
+    expect(r.note).toBe("1 new · 0 revised from 2 conversations");
+    // Both stretches were read in an uncapped call: both cursors move.
+    expect(store.worker().cursors["a1/c2"]).toBe(2);
     expect(store.worker().leadCursors?.["a1/c2"]).toBe(2);
+  });
+
+  test("cards and leads land on the conversation their slice names; an unknown label falls back to the first slice; agents get a call each", async () => {
+    const prompts: string[] = [];
+    const worker = new RecallWorker({
+      store,
+      listInbox: () => [row("c1"), row("c2", { lastMessageAt: new Date(T0 - QUIET_MS - 5000).toISOString() }), row("c3", { agentId: "a2", agentName: "bo" })],
+      readSince: logs({ c1: chatter(4), c2: chatter(4), c3: chatter(4) }),
+      now: () => T0,
+      ask: async (agentId, p) => {
+        prompts.push(p);
+        if (agentId === "a2") return '{"cards":[{"slice":"s1","front":"Who is bo?","back":"An agent.","tags":[]}],"revisions":[],"leads":[]}';
+        return '{"cards":[{"slice":"s2","front":"Which service stores session logs?","back":"S3 via SSM.","tags":[]},{"slice":"nope","front":"What is a CMK?","back":"A customer master key.","tags":[]}],"revisions":[],"leads":[{"slice":"s2","title":"Envelope encryption","why":"w","depth":"primer"}]}';
+      },
+    });
+    const r = await worker.tick();
+    expect(r.asked).toBe(2);
+    expect(r.slices).toBe(3);
+    expect(r.note).toBe("3 new · 0 revised · 1 lead from 3 conversations in 2 asks");
+    const by = Object.fromEntries(store.cards().map((c) => [c.card.front, c.card.source]));
+    expect(by["Which service stores session logs?"]).toMatchObject({ agentId: "a1", conversationId: "c2", title: "desk c2" });
+    expect(by["What is a CMK?"]).toMatchObject({ agentId: "a1", conversationId: "c1" }); // "nope" → first slice
+    expect(by["Who is bo?"]).toMatchObject({ agentId: "a2", agentName: "bo", conversationId: "c3" });
+    expect(store.leads()[0].source).toMatchObject({ conversationId: "c2" });
+    expect(prompts.filter((p) => p.includes('conversation="desk c3"'))).toHaveLength(1); // the other agent's stretch stays out of a1's call
+  });
+
+  test("a replay of the conversation a failing card came from rides along, marked, and yields no new card", async () => {
+    store.add({ id: "k1", front: "What does KMS key rotation do?", back: "Rotates keys.", tags: [], source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: "desk c0", at: null }, createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-01T00:00:00Z", updatedBy: "recall", previous: [] });
+    store.grade("k1", 3, T0 - 9 * 86_400_000);
+    for (const d of [8, 7, 6]) store.grade("k1", 1, T0 - d * 86_400_000);
+    let prompt = "";
+    const worker = new RecallWorker({
+      store,
+      listInbox: () => [row("c1")], // c0 is not quiet-with-new-text; it comes back only as a replay
+      readSince: logs({ c1: chatter(4), c0: chatter(5) }),
+      now: () => T0,
+      ask: async (_a, p) => ((prompt = p), '{"cards":[{"slice":"s2","front":"From the replay","back":"x","tags":[]},{"slice":"s1","front":"Which service stores session logs?","back":"S3.","tags":[]}],"revisions":[{"id":"k1","slice":"s2","back":"Creates new key material yearly.","reason":"clearer"}]}'),
+    });
+    const r = await worker.tick();
+    expect(prompt).toContain('<slice id="s2" conversation="desk c0" mode="replay" for="k1"');
+    expect(prompt).toContain("here because card k1 keeps failing");
+    expect(r.slices).toBe(1); // the replay is not a conversation read
+    expect(r.revised).toBe(1);
+    expect(store.cards().map((c) => c.card.front).sort()).toEqual(["What does KMS key rotation do?", "Which service stores session logs?"]); // nothing new from the replay
+    expect(store.worker().cursors["a1/c0"]).toBeUndefined(); // a replay moves no cursor
+  });
+
+  test("slices are packed by score within the budget, the rest wait; cards are quoted only when their words overlap", () => {
+    const quiet = [{ role: "assistant", text: "a long monologue ".repeat(40) }] as LocalTranscriptMessage[];
+    const lively = [{ role: "user", text: "what is a CMK? why does it rotate? " .repeat(10) }, { role: "assistant", text: "explained ".repeat(20) }] as LocalTranscriptMessage[];
+    expect(scoreStretch(lively)).toBeGreaterThan(scoreStretch(quiet));
+    expect(scoreStretch([])).toBe(0);
+    const picked = packSlices([{ text: "a".repeat(300), score: 1 }, { text: "b".repeat(700), score: 3 }, { text: "c".repeat(500), score: 2 }], 1000);
+    expect(picked.map((p) => p.text[0])).toEqual(["b", "a"]); // c would not fit after b; a still does
+    expect(packSlices([{ text: "x".repeat(5000), score: 1 }], 100)).toHaveLength(1); // always at least one
+    expect(packSlices(Array.from({ length: 12 }, (_, i) => ({ text: "y", score: i })), 1000, 8)).toHaveLength(8);
+    const cards = [
+      { id: "1", front: "What does KMS key rotation do?", back: "…", tags: [] },
+      { id: "2", front: "Which port does Postgres use?", back: "5432", tags: ["postgres"] },
+      { id: "3", front: "What is a sprint?", back: "…", tags: ["jira"] },
+    ];
+    expect(overlappingCards(cards, ["you: is rotation of a KMS key automatic? ira: yes, and jira has nothing to do with it"]).map((c) => c.id)).toEqual(["1", "3"]);
+    expect(overlappingCards(cards, ["nothing here"])).toEqual([]);
+    expect(overlappingCards(cards, ["postgres port"], 1).map((c) => c.id)).toEqual(["2"]);
   });
 
   test("with the day's cards written and the lead pile full, nothing is asked and the cursor waits", async () => {

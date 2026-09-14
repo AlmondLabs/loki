@@ -184,9 +184,9 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
     <section aria-label="about learn" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
       <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
       <p style={{ margin: 0 }}>
-        Recall is a writer that runs in the background. Every ten minutes it looks for conversations that have gone quiet, hands the new
-        stretch of transcript to that agent in a hidden conversation of its own, and keeps whatever comes back as cards: one fact each, a
-        question that stands alone, an answer in a line or two. You meet them here, on a schedule that spaces the ones you know and
+        Recall is a writer that runs in the background. Every ten minutes it looks for conversations that have gone quiet, hands their new
+        stretches of transcript to the agent together, in one question per agent in a hidden conversation of its own, and keeps whatever
+        comes back as cards: one fact each, a question that stands alone, an answer in a line or two. You meet them here, on a schedule that spaces the ones you know and
         brings back the ones you miss. Deleting a card is the feedback — the writer reads the pile of deleted ones before writing again.
       </p>
       <p style={{ margin: 0 }}>
