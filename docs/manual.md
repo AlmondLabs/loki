@@ -44,8 +44,8 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 
 Or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security.
 
-**From source**: Bun and Rust, then `bun run desktop:build` (see the README). A build made on your
-own Mac never carries the flag.
+**From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout or
+`bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
 Whichever way, you do not need Node, npm or Letta installed first. Then:
 
@@ -181,10 +181,13 @@ bun install
 bun start
 ```
 
-`bun start` checks for `cargo` first — on PATH, or in `~/.cargo/bin` where rustup just put it — and stops with the
-install line when there is none (Tauri's own message is a bare "No such file or directory"). It then starts Vite,
-opens the window (the first build compiles the shell, a few minutes), and waits for the mod: if nothing answers on
-its port after a minute and a half, one paragraph names the shim and the harness log instead of Vite's proxy errors.
+`bun start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
+`~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
+command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
+that whatever answers on port 5173 is loki's own Vite and not another project's dev server, which the window
+would otherwise show. It then starts Vite, opens the window (the first build compiles the shell, a few minutes),
+and waits for the mod: if nothing answers on its port after a minute and a half, one paragraph names the shim
+and the harness log instead of Vite's proxy errors. `bun start --check` reports all of it without starting anything.
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), so it would run a harness
 without the mod on a Mac that never had loki. Instead, when the shim and the skill are both absent, it points

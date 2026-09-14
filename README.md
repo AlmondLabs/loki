@@ -27,6 +27,17 @@ you did rides along on your next message, so the agent sees the desk the way you
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
+Cloned the repo and want it running? With [Bun](https://bun.sh), Rust from [rustup](https://rustup.rs) and Xcode's
+command line tools installed:
+
+```bash
+bun install && bun start
+```
+
+The first start compiles the shell and installs a private copy of Letta Code, a few minutes each; the window then
+asks for a model provider key. Everything else, including the Homebrew install of the finished app, is under
+[Install](#install) and [Development](#development).
+
 ## What you get
 
 | | | |
@@ -64,7 +75,8 @@ Applications, then clear the flag once:
 xattr -dr com.apple.quarantine /Applications/loki.app
 ```
 
-**From source**: Bun and Rust, then `bun run desktop:build`. A build made on your own Mac never carries the flag.
+**From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout, or
+`bun run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
 
 You need macOS 13 or later and nothing else. On first launch loki installs its own private copy of Letta Code
 (never touching one you have), asks for a model provider key, and helps you name your first agent. Then ask it to

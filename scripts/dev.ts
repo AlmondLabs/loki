@@ -1,17 +1,21 @@
 // One command for a development session: `bun start` (package.json "start").
-//   0. Preflight: the Rust toolchain `tauri dev` needs, found on PATH or where rustup puts it.
-//   1. Vite on 127.0.0.1:5173, unless something already answers there (a `bun run dev` in another terminal).
+//   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and Xcode's command line
+//      tools, which cargo links with.
+//   1. Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `bun run dev` in another terminal).
+//      Another project's dev server on that port is refused rather than shown in the window.
 //   2. `tauri dev` against it — its beforeDevCommand bundles the mod first — which opens the window.
 //   3. A watch for the mod on its port: the window links to Letta's app-server on its own, but the desk needs the
 //      mod inside the harness, and a harness that never loaded it shows only as Vite's proxy errors. One line says why.
 // Ctrl-C (or the window closing) stops what this script started and nothing else. `--check` only reports.
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEV_URL = "http://127.0.0.1:5173";
+/** In app/index.html; whatever answers on the port without it is not loki's Vite. */
+const VITE_MARKER = 'name="apple-mobile-web-app-title" content="loki"';
 const MOD_HEALTH = `http://127.0.0.1:${process.env.LOKI_PORT ?? "41414"}/health`;
 const MOD_WAIT_MS = 90_000;
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -62,6 +66,27 @@ async function answering(url: string): Promise<boolean> {
   }
 }
 
+/** What answers at the dev URL: loki's Vite, something else (another project's dev server), or nothing. */
+async function viteThere(url: string): Promise<"ours" | "other" | "none"> {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(800) });
+    if (r.status >= 500) return "none";
+    return (await r.text()).includes(VITE_MARKER) ? "ours" : "other";
+  } catch {
+    return "none";
+  }
+}
+
+/**
+ * Xcode's command line tools: cargo links through them, and without them the build dies much later with an
+ * `xcrun` or linker error that names nothing. `xcode-select -p` prints the developer directory when either
+ * the tools or Xcode is installed.
+ */
+function xcodeToolsPresent(): boolean {
+  const r = spawnSync("xcode-select", ["-p"], { stdio: "ignore" });
+  return r.status === 0;
+}
+
 async function waitFor(url: string, ms: number, alive: () => boolean = () => true): Promise<boolean> {
   const until = Date.now() + ms;
   while (Date.now() < until && alive()) {
@@ -88,12 +113,13 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
   });
 }
 
-const viteUp = await answering(DEV_URL);
+const vite = await viteThere(DEV_URL);
 const firstBuild = !existsSync(join(root, "src-tauri", "target"));
 if (process.argv.includes("--check")) {
   const cargo = onPath("cargo") ?? (existsSync(join(home, ".cargo", "bin", "cargo")) ? join(home, ".cargo", "bin", "cargo") + " (not on PATH)" : null);
   console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `bun start` would stop and say how to install it");
-  console.log(viteUp ? `vite: already answering at ${DEV_URL} — would reuse it` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
+  console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
+  console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`bun start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
   console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
   console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts; shim ${existsSync(shimPath) ? "present" : "absent"} at ${shimPath}`);
   process.exit(0);
@@ -101,10 +127,18 @@ if (process.argv.includes("--check")) {
 
 const path = rustPreflight();
 if (!path) process.exit(1);
+if (!xcodeToolsPresent()) {
+  console.error(["loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.", "  Run `xcode-select --install`, finish the dialog, then `bun start` again."].join("\n"));
+  process.exit(1);
+}
 env = { ...process.env, PATH: path };
 
-if (viteUp) {
-  console.error(`loki dev: ${DEV_URL} is already answering — using that Vite`);
+if (vite === "other") {
+  console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `bun start` again."].join("\n"));
+  process.exit(1);
+}
+if (vite === "ours") {
+  console.error(`loki dev: loki's Vite is already answering at ${DEV_URL} — using it`);
 } else {
   console.error(`loki dev: starting Vite at ${DEV_URL}`);
   const vite = run(bin("vite"), ["--config", "app/vite.config.ts"]);
