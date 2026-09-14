@@ -57,8 +57,10 @@ Signing needs an Apple Developer Program membership (paid, yearly).
 4. Change `identifier` in `src-tauri/tauri.conf.json` if you do not own the current reverse-DNS name;
    notarization ties the app to it, and changing it later resets the app's data directory.
 
-The workflow reads all six as plain env vars; when they are empty, tauri-action skips signing and the
-build still succeeds.
+The workflow exports the six as env vars only when `APPLE_CERTIFICATE` is set (a step before tauri-action);
+Tauri signs whenever that variable exists, even empty, so passing missing secrets straight through would fail
+the bundle with "failed to import keychain certificate", as the first release attempt did. Without the secrets
+the build succeeds unsigned.
 
 ## Building locally
 

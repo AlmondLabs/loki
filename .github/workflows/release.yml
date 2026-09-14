@@ -22,16 +22,27 @@ jobs:
         with:
           workspaces: src-tauri
       - run: bun install --frozen-lockfile
-      - uses: tauri-apps/tauri-action@v0
+      # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
+      # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
+      # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
+      # unsigned (docs/manual.md, "Requirements"; docs/RELEASING.md, "Signing").
+      - name: signing secrets, when present
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Signing and notarization: all optional. Without them the .dmg is unsigned (see docs/manual.md, "Requirements").
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then echo "no Apple certificate secret: the .dmg will be unsigned"; exit 0; fi
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] && echo "$v=${!v}" >> "$GITHUB_ENV"
+          done
+          echo "signing with $APPLE_SIGNING_IDENTITY"
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "loki ${{ github.ref_name }}"
