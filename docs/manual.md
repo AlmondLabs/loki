@@ -28,7 +28,7 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
 **Homebrew**, the recommended way:
 
 ```bash
-brew install --cask --no-quarantine skilp4d/loki/loki
+brew install --cask --no-quarantine almondlabs/loki/loki
 ```
 
 `--no-quarantine` matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned

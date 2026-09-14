@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "repository": "github:skilp4d/loki",
+  "repository": "github:AlmondLabs/loki",
   "type": "module",
   "description": "A memory palace your agent builds \u2014 Letta Code mod + Vite widget desk the agent writes files into",
   "scripts": {

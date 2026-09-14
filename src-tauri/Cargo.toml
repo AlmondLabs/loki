@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "loki — a memory palace your agent builds"
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/skilp4d/loki"
+repository = "https://github.com/AlmondLabs/loki"
 
 [lib]
 name = "loki_lib"

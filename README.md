@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/skilp4d/loki/actions/workflows/ci.yml"><img src="https://github.com/skilp4d/loki/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml"><img src="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-1a1a20" alt="macOS 13 or later">
   <img src="https://img.shields.io/badge/licence-Apache--2.0-1a1a20" alt="Apache-2.0">
 </p>
@@ -68,13 +68,13 @@ that provider charges. Everything else, including the Homebrew install of the fi
 **Homebrew** is the recommended way:
 
 ```bash
-brew install --cask --no-quarantine skilp4d/loki/loki
+brew install --cask --no-quarantine almondlabs/loki/loki
 ```
 
 `--no-quarantine` matters: loki is not signed with an Apple Developer ID, and macOS calls an unsigned download
 "damaged". Upgrades are `brew upgrade --cask loki`.
 
-**The `.dmg`** from the [latest release](https://github.com/skilp4d/loki/releases/latest): drag loki to
+**The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
 Applications, then clear the flag once:
 
 ```bash
