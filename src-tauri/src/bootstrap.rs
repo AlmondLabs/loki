@@ -310,9 +310,26 @@ pub fn install_version(data: &Path, home: &Path, version: &str, report: &dyn Fn(
     if !letta.is_file() {
         return Err("npm finished but bin/letta is missing".into());
     }
+    // letta-code's post-install marks node-pty's spawn-helper executable for darwin-arm64 only; the darwin-x64
+    // copy ships read-only, and on an Intel Mac every pty the harness opens would fail. Ours is the arch's copy.
+    let helper = prefix.join("lib").join("node_modules").join(PACKAGE).join("node_modules").join("node-pty").join("prebuilds").join(format!("darwin-{}", arch())).join("spawn-helper");
+    match mark_executable(&helper) {
+        Ok(true) => report(Progress { stage: "letta", message: format!("made node-pty's spawn-helper executable for darwin-{}", arch()) }),
+        Ok(false) => {}
+        Err(e) => report(Progress { stage: "letta", message: format!("could not mark {} executable: {e}", helper.display()) }),
+    }
     let v = run(Command::new(&letta).arg("--version").env("PATH", &path), "letta --version")?;
     report(Progress { stage: "done", message: format!("Letta Code {} installed", v.trim()) });
     Ok(Runtime { letta, node_bin_dir: Some(node_bin_dir), private: true })
+}
+
+/// chmod 755 on `path` when it exists and lacks the owner's execute bit; Ok(true) when it changed.
+pub fn mark_executable(path: &Path) -> std::io::Result<bool> {
+    use std::os::unix::fs::PermissionsExt;
+    let Ok(meta) = std::fs::metadata(path) else { return Ok(false) };
+    if !meta.is_file() || meta.permissions().mode() & 0o100 != 0 { return Ok(false); }
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
+    Ok(true)
 }
 
 /// What Settings and Welcome show.
@@ -374,6 +391,19 @@ mod tests {
         assert_eq!(telling_error(&[], "last line"), "last line");
         let only_footer: Vec<String> = vec!["error code ENOTFOUND".into(), "error A complete log of this run can be found in: /l.log".into()];
         assert_eq!(telling_error(&only_footer, "npm error network request failed"), "npm error network request failed · npm's log: /l.log");
+    }
+
+    #[test]
+    fn marks_a_read_only_helper_executable_once() {
+        use std::os::unix::fs::PermissionsExt;
+        let p = std::env::temp_dir().join(format!("loki-spawn-helper-{}", std::process::id()));
+        std::fs::write(&p, b"#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(mark_executable(&p).unwrap(), true);
+        assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o777, 0o755);
+        assert_eq!(mark_executable(&p).unwrap(), false);
+        assert_eq!(mark_executable(&p.join("nowhere")).unwrap(), false);
+        let _ = std::fs::remove_file(&p);
     }
 
     #[test]

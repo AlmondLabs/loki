@@ -38,8 +38,11 @@ bun install && bun start
 
 Node, npm and Letta Code are not needed: the window installs its own private copy of Letta Code, with its own
 Node when the Mac has none, and `bun start` says what is missing before it builds. The first start compiles the
-shell and installs Letta Code, a few minutes each; the window then asks for a model provider key. Everything
-else, including the Homebrew install of the finished app, is under [Install](#install) and [Development](#development).
+shell and installs Letta Code, a few minutes each; the window then asks for a model provider key: one you already
+have with Anthropic, OpenAI, Google, OpenRouter, Ollama for local models, or another of the providers Letta Code
+connects to. Letta checks the key with the provider and keeps it; loki never sees it, and each turn costs whatever
+that provider charges. Everything else, including the Homebrew install of the finished app, is under
+[Install](#install) and [Development](#development).
 
 ## What you get
 
@@ -82,7 +85,8 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 `bun run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
 
 You need macOS 13 or later and nothing else. On first launch loki installs its own private copy of Letta Code
-(never touching one you have), asks for a model provider key, and helps you name your first agent. Then ask it to
+(never touching one you have), asks for a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
+others; you pay that provider, loki never sees the key), and helps you name your first agent. Then ask it to
 put something on the desk.
 
 ## Your first widget

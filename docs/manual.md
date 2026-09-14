@@ -54,8 +54,10 @@ Whichever way, you do not need Node, npm or Letta installed first. Then:
    at `~/.agents/skills/loki/`. Settings → install shows what happened.
 2. If Letta Desktop (or a `letta` session) was already running, `/reload` in Letta Code so the harness
    picks the mod up. If nothing was running, loki starts its own harness and the mod is already in it.
-3. The first launch shows **Welcome** over the empty desk: connect a model provider (paste a key; Letta
-   checks it with the provider and keeps it, loki never sees it again), then name your first agent and
+3. The first launch shows **Welcome** over the empty desk: connect a model provider (paste a key from one of
+   the providers Letta Code connects to — Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and
+   more; Letta checks it with the provider and keeps it, loki never sees it again; every turn is billed by that
+   provider), then name your first agent and
    pick one of Letta's personalities. You land on its desk with the chat open.
 4. Ask your agent to put something on the desk.
 
