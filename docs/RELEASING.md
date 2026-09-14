@@ -10,7 +10,7 @@ to publish.
    `src-tauri/Cargo.toml`. Settings shows the package version; the bundle carries the Tauri one.
 2. If Letta Code was upgraded, retest and update `TESTED_LETTA_CODE` in `core/compat.ts`.
 3. `bun test && bun run typecheck && cargo test --manifest-path src-tauri/Cargo.toml`.
-4. Commit, then `git tag v0.3.0 && git push origin main --tags`.
+4. Commit, then `git tag v0.1.0 && git push origin main --tags`.
 5. Wait for the workflow, open the draft release, check the notes, publish.
 6. Publishing triggers `.github/workflows/cask.yml`, which reads the `.dmg`'s checksum, renders the Homebrew
    cask and pushes it to the tap (below). `brew upgrade --cask loki` then picks the release up. The rendered
@@ -71,7 +71,7 @@ timed out`. The `.app` is complete at that point; make the image without the Fin
 cd src-tauri/target/release/bundle/macos
 ../dmg/bundle_dmg.sh --skip-jenkins --volname loki --icon loki.app 180 170 --app-drop-link 480 170 \
   --window-size 660 400 --hide-extension loki.app --volicon ../dmg/icon.icns \
-  ../dmg/loki_0.3.0_aarch64.dmg loki.app
+  ../dmg/loki_0.1.0_aarch64.dmg loki.app
 ```
 
 ## What ships
