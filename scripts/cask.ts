@@ -1,6 +1,7 @@
 // The Homebrew cask for a release: `bun scripts/cask.ts <owner> <version> <sha256>` prints Casks/loki.rb.
 // .github/workflows/cask.yml runs it when a release is published and pushes the result to <owner>/homebrew-loki.
-// The app is not signed, so the cask's caveat and the README both say to install with --no-quarantine.
+// The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
+// xattr line that lets macOS open it; Settings › Privacy & Security › Open Anyway is the other way.
 
 export type CaskInput = { owner: string; version: string; sha256: string };
 
@@ -27,7 +28,7 @@ export function renderCask({ owner, version, sha256 }: CaskInput): string {
     strategy :github_latest
   end
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "loki.app"
 
@@ -38,9 +39,10 @@ export function renderCask({ owner, version, sha256 }: CaskInput): string {
   ]
 
   caveats <<~EOS
-    loki is not signed with an Apple Developer ID. If macOS says it is damaged, the download was
-    quarantined: run \`xattr -dr com.apple.quarantine /Applications/loki.app\` once, or reinstall with
-      brew reinstall --cask --no-quarantine loki
+    loki is not signed with an Apple Developer ID, so macOS will call the download "damaged" the
+    first time. Clear the quarantine flag once and it opens:
+      xattr -dr com.apple.quarantine /Applications/loki.app
+    (or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security).
   EOS
 end
 `;

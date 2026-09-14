@@ -65,14 +65,15 @@ that provider charges. Everything else, including the Homebrew install of the fi
 
 ## Install
 
-**Homebrew** is the recommended way:
+**Homebrew** is the recommended way. Two lines, because loki is not signed with an Apple Developer ID and macOS
+calls an unsigned download "damaged" until its quarantine flag is cleared once:
 
 ```bash
-brew install --cask --no-quarantine almondlabs/loki/loki
+brew install --cask almondlabs/loki/loki
+xattr -dr com.apple.quarantine /Applications/loki.app
 ```
 
-`--no-quarantine` matters: loki is not signed with an Apple Developer ID, and macOS calls an unsigned download
-"damaged". Upgrades are `brew upgrade --cask loki`.
+Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line.
 
 **The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
 Applications, then clear the flag once:

@@ -46,7 +46,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "loki ${{ github.ref_name }}"
-          releaseBody: "Install with Homebrew: `brew install --cask --no-quarantine ${{ github.repository_owner }}/loki/loki` (the cask follows once this release is published). Or drag the .dmg below to Applications and clear the quarantine flag once, since the app is not signed: `xattr -dr com.apple.quarantine /Applications/loki.app`. First launch installs Letta Code privately, then walks you through a provider and your first agent."
+          releaseBody: "Install with Homebrew: `brew install --cask ${{ github.repository_owner }}/loki/loki` (the cask follows once this release is published), or drag the .dmg below to Applications. Either way, clear the quarantine flag once, since the app is not signed: `xattr -dr com.apple.quarantine /Applications/loki.app`. First launch installs Letta Code privately, then walks you through a provider and your first agent."
           releaseDraft: true
           prerelease: false
           args: --target universal-apple-darwin

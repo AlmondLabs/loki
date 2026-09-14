@@ -1,6 +1,6 @@
 # When a release is published (release.yml leaves a draft; you press publish), read the .dmg's checksum,
 # render Casks/loki.rb with scripts/cask.ts and push it to the tap repo <owner>/homebrew-loki, so
-# `brew install --cask --no-quarantine <owner>/loki/loki` and `brew upgrade` follow the release.
+# `brew install --cask <owner>/loki/loki` and `brew upgrade` follow the release.
 # Needs the TAP_TOKEN secret (a token that can push to homebrew-loki); see docs/RELEASING.md.
 name: cask
 on:

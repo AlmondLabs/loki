@@ -17,9 +17,10 @@ describe("homebrew cask", () => {
 
   test("matches the app's floor and knows what loki leaves behind", () => {
     const rb = renderCask({ owner: "example", version: "0.3.0", sha256: sha });
-    expect(rb).toContain('depends_on macos: ">= :ventura"'); // tauri.conf.json: minimumSystemVersion 13.0
+    expect(rb).toContain("depends_on macos: :ventura"); // tauri.conf.json: minimumSystemVersion 13.0; Homebrew 7 deprecates the ">= :ventura" string form
     for (const p of ["~/.letta/loki", "~/.letta/mods/loki.ts", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
-    expect(rb).toContain("--no-quarantine");
+    expect(rb).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
+    expect(rb).not.toContain("--no-quarantine"); // gone from Homebrew 7: "invalid option"
   });
 
   test("refuses input that would render a broken cask", () => {

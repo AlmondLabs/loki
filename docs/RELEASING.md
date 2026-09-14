@@ -19,8 +19,9 @@ to publish.
 ## Homebrew tap (one-time setup)
 
 The app is not signed (next section), so Homebrew is the recommended install: `brew install --cask
---no-quarantine <owner>/loki/loki`. The `--no-quarantine` is what spares people the "damaged" dialog —
-Homebrew quarantines cask downloads by default, exactly like a browser would.
+<owner>/loki/loki`, then `xattr -dr com.apple.quarantine /Applications/loki.app` once. Homebrew quarantines
+cask downloads exactly like a browser would, and Homebrew 7 removed the `--no-quarantine` flag that used to
+skip it, so the cask's caveat and the README both give the `xattr` line.
 
 1. Create an empty public repository named **`homebrew-loki`** under the same owner as this repo (Homebrew
    resolves `<owner>/loki` to it). No files needed; the workflow adds `Casks/loki.rb`.
@@ -35,8 +36,8 @@ the template (`bun scripts/cask.ts <owner> <version> <sha256>`), covered by `tes
 ## Signing (one-time setup)
 
 Without signing, macOS blocks the downloaded app as "damaged"; people must run
-`xattr -dr com.apple.quarantine /Applications/loki.app`, allow it in System Settings › Privacy & Security, or
-install through Homebrew with `--no-quarantine` (right-click → Open no longer helps on macOS 14 and later).
+`xattr -dr com.apple.quarantine /Applications/loki.app` or allow it in System Settings › Privacy & Security
+(right-click → Open no longer helps on macOS 14 and later, and Homebrew 7 has no `--no-quarantine`).
 Signing needs an Apple Developer Program membership (paid, yearly).
 
 1. In Xcode or developer.apple.com, create a **Developer ID Application** certificate and export it with

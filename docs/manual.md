@@ -28,12 +28,15 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
 **Homebrew**, the recommended way:
 
 ```bash
-brew install --cask --no-quarantine almondlabs/loki/loki
+brew install --cask almondlabs/loki/loki
+xattr -dr com.apple.quarantine /Applications/loki.app
 ```
 
-`--no-quarantine` matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned
-download as "damaged"; Homebrew quarantines cask downloads like a browser would unless told not to. Upgrades
-are `brew upgrade --cask loki`; the cask follows each release.
+The second line matters. loki is not signed with an Apple Developer ID, and macOS refuses to open an unsigned
+download as "damaged"; Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no longer has
+a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand once per install. The cask's
+own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xattr` line again; the cask
+follows each release.
 
 **The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
 Open is not enough for an unsigned app on macOS 14 and later):
