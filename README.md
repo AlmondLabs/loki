@@ -27,16 +27,19 @@ you did rides along on your next message, so the agent sees the desk the way you
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
-Cloned the repo and want it running? With [Bun](https://bun.sh), Rust from [rustup](https://rustup.rs) and Xcode's
-command line tools installed:
+Cloned the repo and want it running? Three tools, then two commands:
 
 ```bash
+xcode-select --install                                              # Xcode's command line tools, once
+curl -fsSL https://bun.sh/install | bash                            # Bun
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh      # Rust; then open a new terminal
 bun install && bun start
 ```
 
-The first start compiles the shell and installs a private copy of Letta Code, a few minutes each; the window then
-asks for a model provider key. Everything else, including the Homebrew install of the finished app, is under
-[Install](#install) and [Development](#development).
+Node, npm and Letta Code are not needed: the window installs its own private copy of Letta Code, with its own
+Node when the Mac has none, and `bun start` says what is missing before it builds. The first start compiles the
+shell and installs Letta Code, a few minutes each; the window then asks for a model provider key. Everything
+else, including the Homebrew install of the finished app, is under [Install](#install) and [Development](#development).
 
 ## What you get
 
@@ -135,8 +138,9 @@ docs/           the manual, architecture, design direction, dated plans; CONTRIB
 ## Development
 
 You need [Bun](https://bun.sh), Rust from [rustup](https://rustup.rs) (stable; open a new terminal after installing
-it) and Xcode's command line tools (`xcode-select --install`). Not Node, npm or Letta Code: the window installs its
-own copy of Letta Code on first launch, the same way the app does. On a Mac that has never run loki, `bun start`
+it) and Xcode's command line tools (`xcode-select --install`). Not Node, npm or Letta Code: Vite and the Tauri CLI
+run under Bun when the Mac has no Node, and the window installs its own copy of Letta Code on first launch, with
+its own Node if need be, the same way the app does. On a Mac that has never run loki, `bun start`
 also points Letta at your checkout — a shim at `~/.letta/mods/loki.ts` importing `mod/boot.ts`, and
 `~/.agents/skills/loki` as a symlink to `skills/loki` — and leaves anything already there alone.
 

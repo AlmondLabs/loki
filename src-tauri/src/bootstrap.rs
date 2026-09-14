@@ -248,17 +248,22 @@ fn stream(cmd: &mut Command, stage: &'static str, report: &dyn Fn(Progress)) -> 
     });
     let mut last = String::new();
     let mut errors: Vec<String> = vec![];
+    let mut warnings = 0usize;
     if let Some(err) = child.stderr.take() {
         for line in BufReader::new(err).lines().map_while(Result::ok) {
             let t = line.trim();
             // npm's info lines: "npm info run sharp@… postinstall", "npm http fetch GET 200 …" — keep the readable ones.
             if t.is_empty() || t.starts_with("npm http") || t.starts_with("npm timing") || t.starts_with("npm verbose") { continue; }
+            // Its warnings — sixty-odd lines of peer-dependency and deprecation notes for letta-code — would fill
+            // Welcome's pane and mean nothing to the person watching; counted, then summed up in one line.
+            if t.starts_with("npm warn") || t.starts_with("npm WARN") { warnings += 1; continue; }
             last = t.to_string();
             let message = t.trim_start_matches("npm ").to_string();
             if message.starts_with("error") || message.starts_with("ERR!") { errors.push(message.clone()); }
             report(Progress { stage, message });
         }
     }
+    if warnings > 0 { report(Progress { stage, message: format!("{warnings} npm warning line{} not shown (peer dependencies, deprecations; npm's own log has them)", if warnings == 1 { "" } else { "s" }) }); }
     let status = child.wait().map_err(|e| e.to_string())?;
     let out = out_thread.join().unwrap_or_default();
     if let Some(l) = out.iter().rev().find(|l| !l.trim().is_empty()) {

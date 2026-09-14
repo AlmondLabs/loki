@@ -174,7 +174,8 @@ Only the things a mod can do:
 
 ## Install (development)
 
-You need Bun, Rust (stable, from rustup) and Xcode's command line tools. Then:
+You need Bun, Rust (stable, from rustup) and Xcode's command line tools; not Node (Vite and the Tauri CLI run
+under Bun when there is none, and the window installs its own for Letta Code). Then:
 
 ```bash
 bun install
@@ -187,7 +188,9 @@ command line tools (`xcode-select -p`; without them the build fails later with a
 that whatever answers on port 5173 is loki's own Vite and not another project's dev server, which the window
 would otherwise show. It then starts Vite, opens the window (the first build compiles the shell, a few minutes),
 and waits for the mod: if nothing answers on its port after a minute and a half, one paragraph names the shim
-and the harness log instead of Vite's proxy errors. `bun start --check` reports all of it without starting anything.
+and the harness log instead of Vite's proxy errors. On a first launch, when no Letta Code is installed under
+`~/.letta/loki/runtime/` yet, the script says so and starts that clock only once the window has installed it.
+`bun start --check` reports all of it without starting anything.
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), so it would run a harness
 without the mod on a Mac that never had loki. Instead, when the shim and the skill are both absent, it points

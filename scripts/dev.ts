@@ -1,6 +1,7 @@
 // One command for a development session: `bun start` (package.json "start").
 //   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and Xcode's command line
 //      tools, which cargo links with.
+//      Node is not required: Vite and the Tauri CLI are Node programs, and a Mac without Node runs them with Bun.
 //   1. Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `bun run dev` in another terminal).
 //      Another project's dev server on that port is refused rather than shown in the window.
 //   2. `tauri dev` against it — its beforeDevCommand bundles the mod first — which opens the window.
@@ -23,6 +24,12 @@ const bin = (name: string) => fileURLToPath(new URL(`../node_modules/.bin/${name
 const home = homedir();
 const shimPath = join(home, ".letta", "mods", "loki.ts");
 const harnessLog = join(home, ".letta", "loki", "logs", "harness.log");
+const installLog = join(home, ".letta", "loki", "logs", "install.log");
+/** loki's private Letta Code (src-tauri/src/bootstrap.rs). Absent on a first launch: the window installs it before any harness can start. */
+const privateLetta = join(home, ".letta", "loki", "runtime", "letta", "bin", "letta");
+const firstLaunch = !process.env.LOKI_LETTA_BIN && !existsSync(privateLetta);
+/** How long a first launch may take to install Letta Code before the script gives up waiting for it. */
+const INSTALL_WAIT_MS = 30 * 60_000;
 
 /** Where `name` is, on PATH; null if nowhere. */
 function onPath(name: string, path = process.env.PATH ?? ""): string | null {
@@ -98,8 +105,10 @@ async function waitFor(url: string, ms: number, alive: () => boolean = () => tru
 
 const children: ChildProcess[] = [];
 let env = process.env;
+/** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts. Without a Node on PATH they run under Bun (process.execPath), which handles both. */
+const nodeless = !onPath("node");
 function run(cmd: string, args: string[]): ChildProcess {
-  const child = spawn(cmd, args, { cwd: root, stdio: "inherit", env });
+  const child = nodeless ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
   children.push(child);
   return child;
 }
@@ -119,8 +128,10 @@ if (process.argv.includes("--check")) {
   const cargo = onPath("cargo") ?? (existsSync(join(home, ".cargo", "bin", "cargo")) ? join(home, ".cargo", "bin", "cargo") + " (not on PATH)" : null);
   console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `bun start` would stop and say how to install it");
   console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
+  console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; the window installs its own Node for Letta Code" : `node: ${onPath("node")}`);
   console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`bun start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
   console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
+  console.log(firstLaunch ? `letta: none under ${privateLetta} — first launch; the window installs it, and the mod wait starts after` : `letta: ${process.env.LOKI_LETTA_BIN ?? privateLetta}`);
   console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts; shim ${existsSync(shimPath) ? "present" : "absent"} at ${shimPath}`);
   process.exit(0);
 }
@@ -132,6 +143,7 @@ if (!xcodeToolsPresent()) {
   process.exit(1);
 }
 env = { ...process.env, PATH: path };
+if (nodeless) console.error("loki dev: no Node on this Mac — Vite and the Tauri CLI run with Bun; the window installs its own Node for Letta Code");
 
 if (vite === "other") {
   console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `bun start` again."].join("\n"));
@@ -162,16 +174,29 @@ tauri.on("exit", (code) => {
   process.exit(code ?? 0);
 });
 
-// The mod, once the harness has it. Nothing to say while it comes up; one paragraph if it never does.
+// The mod, once the harness has it. Nothing to say while it comes up; one paragraph if it never does. On a first
+// launch the window installs Letta Code first (Node from nodejs.org if the Mac has none, then npm), which takes
+// minutes and shows in Welcome; the clock for the mod starts when that copy exists.
 void (async () => {
-  const modUp = await waitFor(MOD_HEALTH, MOD_WAIT_MS, () => tauri.exitCode === null);
-  if (modUp || tauri.exitCode !== null) return;
+  const alive = () => tauri.exitCode === null;
+  if (firstLaunch) {
+    console.error("loki dev: first launch — the window is installing loki's copy of Letta Code (Welcome shows the progress); the mod comes up once that finishes");
+    const until = Date.now() + INSTALL_WAIT_MS;
+    while (alive() && Date.now() < until && !existsSync(privateLetta)) await new Promise((r) => setTimeout(r, 2000));
+    if (!alive()) return;
+    if (!existsSync(privateLetta)) {
+      console.error(`loki dev: Letta Code is still not installed after ${INSTALL_WAIT_MS / 60_000} min — Welcome shows the error and offers a retry; every line is in ${installLog}`);
+      return;
+    }
+  }
+  const modUp = await waitFor(MOD_HEALTH, MOD_WAIT_MS, alive);
+  if (modUp || !alive()) return;
   console.error(
     [
       `loki dev: the mod is not answering at ${MOD_HEALTH} after ${MOD_WAIT_MS / 1000} s, so the desk has nothing to link to`,
       "  (Vite's \"ws proxy error\" lines above are that). The mod runs inside the Letta harness; the harness loads it from the shim",
       `  ${shimPath}${existsSync(shimPath) ? "" : " — which is missing; a dev build writes one pointing at this checkout when the shim is absent, so check the app's own output above"}.`,
-      `  The harness's own log: ${harnessLog}. If Letta Code is still installing (first launch), the window's Welcome shows the progress.`,
+      `  The harness's own log: ${harnessLog}.`,
     ].join("\n"),
   );
 })();
