@@ -3,7 +3,8 @@
 //! A native window around the React canvas. The Rust side:
 //!  - hands the page the mod's token and port before any script runs
 //!  - holds the app-server socket (with the bearer token) and relays frames
-//!  - finds Desktop's harness, or starts its own `letta server --listen …`
+//!  - attaches to a running app-server (Desktop's, a `letta server`), or launches its own `letta server --listen …`
+//!    from the machine's Letta Code — installing that with npm first when the Mac has none (bootstrap.rs)
 
 mod appserver;
 mod bootstrap;
@@ -117,24 +118,23 @@ async fn check_letta_update(app: tauri::AppHandle) -> Result<bootstrap::Status, 
     .map_err(|e| e.to_string())?
 }
 
-/// Settings › letta "update": pull the newest Letta Code the way this one was installed, then restart the
-/// harness on it. Only for a harness loki started (Desktop's, or one adopted from an earlier run, is not ours to restart).
+/// Settings › letta "update": `npm install -g @letta-ai/letta-code@latest` — the same command that installed it,
+/// into the same global folder — then restart the harness on it. Only for a harness loki launched (Desktop's, or
+/// one adopted from an earlier run, is not ours to restart), and never for a binary named by LOKI_LETTA_BIN.
 #[tauri::command]
 fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
     if app.try_state::<harness::Harness>().is_none() {
         return Err("this harness is not loki's to restart — update Letta Code where it runs".into());
     }
     let Some(rt) = boot.0.lock().ok().and_then(|s| s.runtime()) else { return Err("no Letta Code to update".into()) };
-    // loki only ever moves its own copy; a binary named by LOKI_LETTA_BIN is whoever's to update.
-    if !rt.private {
-        return Err(format!("{} is not loki's copy — update it yourself", rt.letta.display()));
+    if rt.explicit {
+        return Err(format!("{} is named by LOKI_LETTA_BIN — not npm's to update", rt.letta.display()));
     }
     if boot.0.lock().map(|s| s.installing).unwrap_or(false) { return Ok(()); }
     let home = home_dir();
-    let data = loki_dir();
     let before = boot.0.lock().ok().and_then(|s| s.version.clone());
-    run_bootstrap_job(app, "updating loki's copy of Letta Code", move |report| {
-        let after = bootstrap::install_version(&data, &home, "latest", report)?;
+    run_bootstrap_job(app, "updating Letta Code with npm", move |report| {
+        let after = bootstrap::install_version(&home, "latest", report)?;
         // npm said yes but the copy did not move: say so instead of restarting the harness for nothing.
         let now = bootstrap::letta_version(&after);
         if before.is_some() && now == before {
@@ -161,15 +161,15 @@ fn set_scratch_dir(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapSt
         _ => None,
     };
     scratch::write(&data, &scratch::ShellPrefs { scratch_dir: chosen.map(|p| p.to_string_lossy().into_owned()) })?;
-    if let Some(h) = app.try_state::<harness::Harness>() {
+    if app.try_state::<harness::Harness>().is_some() {
         if let Some(rt) = boot.0.lock().ok().and_then(|s| s.runtime()) {
-            h.start(&rt, &data.join("token"), &data.join("logs"), &scratch::effective_dir(&data, &home))?;
+            start_harness(&app, &rt)?;
         }
     }
     Ok(scratch::settings(&data, &home))
 }
 
-/// Install (or retry installing) Letta Code privately, then start the harness. Progress: `loki:bootstrap` events.
+/// Install (or retry installing) Letta Code with npm, then start the harness. Progress: `loki:bootstrap` events.
 #[tauri::command]
 fn install_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
     if boot.0.lock().map(|s| s.installing).unwrap_or(false) { return Ok(()); }
@@ -179,8 +179,15 @@ fn install_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapStat
 
 /// The install, off the main thread; on success the harness starts and the link (already retrying) connects.
 fn start_install(app: tauri::AppHandle) {
+    let home = home_dir();
+    run_bootstrap_job(app, "installing Letta Code with npm", move |report| bootstrap::install(&home, report));
+}
+
+/// `letta server` on `rt`, with loki's token, logs, scratch folder and private mods folder.
+fn start_harness(app: &tauri::AppHandle, rt: &bootstrap::Runtime) -> Result<(), String> {
     let (data, home) = (loki_dir(), home_dir());
-    run_bootstrap_job(app, "installing loki's copy of Letta Code", move |report| bootstrap::install(&data, &home, report));
+    let Some(h) = app.try_state::<harness::Harness>() else { return Err("no harness slot".into()) };
+    h.start(rt, &harness::Launch { token_file: &data.join("token"), log_dir: &data.join("logs"), scratch: &scratch::effective_dir(&data, &home) })
 }
 
 /// Every line an install or update produced, on disk: Welcome and Settings show the last few, this keeps them all
@@ -222,7 +229,7 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
             Ok(rt) => {
                 harness::ensure_backend_mode(&rt, &home);
                 let version = bootstrap::letta_version(&rt);
-                let started = app.try_state::<harness::Harness>().map(|h| h.start(&rt, &loki_dir().join("token"), &loki_dir().join("logs"), &scratch::effective_dir(&loki_dir(), &home_dir()))).unwrap_or(Err("no harness slot".into()));
+                let started = start_harness(&app, &rt);
                 if let Ok(mut s) = b.0.lock() {
                     let (log, latest) = (std::mem::take(&mut s.log), s.latest.take());
                     *s = bootstrap::Status::from_runtime(&rt);
@@ -276,14 +283,14 @@ pub fn run() {
         .setup(move |app| {
             use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-            // The mod first, so a harness we start below loads the copy that ships with this build.
-            // Everything loki writes lives under ~/.letta/loki (loki_dir): the mod bundle, the phone canvas, the private runtime.
-            let home = home_dir();
+            // The mod first, so a harness we launch below loads the copy that ships with this build.
+            // Everything loki writes lives under ~/.letta/loki (loki_dir): the mod bundle, the phone canvas; the shim in ~/.letta/mods.
+            let (home, data) = (home_dir(), loki_dir());
             let mut report = install::Report::skipped(&home);
             if install_wanted() {
                 let resources = app.path().resource_dir().ok().and_then(|d| install::find_resources(&d));
                 report = match resources {
-                    Some(res) => install::run(&res, &loki_dir(), &home),
+                    Some(res) => install::run(&res, &data, &home),
                     None => install::Report { r#mod: install::State::Error, error: Some("bundled mod not found in the app's resources".into()), ..install::Report::skipped(&home) },
                 };
                 eprintln!("loki: install: mod {:?} · skill {:?} · app {:?}{}", report.r#mod, report.skill, report.app, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
@@ -292,27 +299,22 @@ pub fn run() {
                 eprintln!("loki: dev: mod {:?} · skill {:?} · shim {} → {}{}", report.r#mod, report.skill, report.shim, report.mod_path, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             }
 
-            // Which harness? Desktop's if it is running; otherwise our own on a fixed port.
+            // Which harness? A running app-server if there is one (Desktop's, a `letta server`, loki's own from an
+            // earlier run); otherwise launch our own on a fixed port from the machine's Letta Code.
             let explicit = std::env::var("LOKI_APP_SERVER_URL").ok();
-            let data_dir = loki_dir();
+            let token = read_token();
             let home_for_boot = home.clone();
-            // (url, bearer, own-harness path?, letta runtime if found)
+            // (url, bearer, launching our own?, letta runtime if found)
             let (url, bearer, own, runtime) = tauri::async_runtime::block_on(async {
                 if let Some(u) = explicit {
                     return (u, None, false, None);
                 }
-                if let Some(u) = appserver::find_desktop_app_server(&[41414]).await {
-                    return (u, None, false, None);
+                if let Some((u, b)) = appserver::find_app_server(&[41414, 41415], token.as_deref()).await {
+                    return (u, b, false, None);
                 }
-                let token = read_token();
-                // A loki harness from an earlier run may still be up (e.g. the app was killed): adopt it.
-                if appserver::probe_with(harness::LISTEN_URL, token.as_deref()).await {
-                    eprintln!("loki: adopting a running loki harness");
-                    return (harness::LISTEN_URL.to_string(), token, false, None);
-                }
-                (harness::LISTEN_URL.to_string(), token, true, bootstrap::find_letta(&home_for_boot, &data_dir))
+                (harness::LISTEN_URL.to_string(), token, true, bootstrap::find_letta(&home_for_boot))
             });
-            eprintln!("loki: app-server at {url} ({})", if own { "own harness" } else { "existing" });
+            eprintln!("loki: app-server at {url} ({})", if own { "launching" } else if url == harness::LISTEN_URL { "a loki harness already running" } else { "attached" });
             // A harness that was already up loaded whatever mod it found at its start.
             report.needs_reload = report.changed() && !own;
             app.manage(report);
@@ -321,16 +323,15 @@ pub fn run() {
                 app.manage(harness::Harness::default());
                 match &runtime {
                     Some(rt) => {
-                        eprintln!("loki: letta at {}{}", rt.letta.display(), if rt.private { " (installed by loki)" } else { "" });
+                        eprintln!("loki: letta at {}{}", rt.letta.display(), if rt.explicit { " (LOKI_LETTA_BIN)" } else { "" });
                         harness::ensure_backend_mode(rt, &home);
-                        if let Err(e) = app.state::<harness::Harness>().start(rt, &loki_dir().join("token"), &loki_dir().join("logs"), &scratch::effective_dir(&loki_dir(), &home_dir())) {
+                        if let Err(e) = start_harness(app.handle(), rt) {
                             eprintln!("loki: {e}");
                             if let Ok(mut s) = app.state::<bootstrap::BootstrapState>().0.lock() { s.error = Some(e); }
                         }
                     }
-                    None if std::env::var_os("LOKI_NO_BOOTSTRAP").is_some() => eprintln!("loki: letta not found and LOKI_NO_BOOTSTRAP is set"),
                     None => {
-                        eprintln!("loki: no copy of Letta Code under {} — installing one", loki_dir().display());
+                        eprintln!("loki: no Letta Code on this Mac — installing it with npm");
                         start_install(app.handle().clone());
                     }
                 }

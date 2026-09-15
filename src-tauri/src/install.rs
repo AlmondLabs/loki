@@ -2,8 +2,11 @@
 //!
 //! The app ships the mod as one bundled file (src-tauri/resources/mod/loki-mod.mjs, built by
 //! scripts/build-mod.ts). On launch it is copied to ~/.letta/loki/mod (loki's home, `data` below) and a
-//! shim in ~/.letta/mods/loki.ts points at it. A shim the app did not write (a developer's, pointing at a
-//! checkout) is left alone. The same goes for the skill in ~/.agents/skills/loki.
+//! shim in ~/.letta/mods/loki.ts points at it. Every harness on the Mac loads that folder (Letta's loader has
+//! no per-harness folder: LETTA_MODS_DIR reaches `letta install`, not the loader), and the mod itself decides
+//! whether to serve the desk from the capabilities the harness hands it (mod/gate.ts): only a harness hosting
+//! an app-server does. A shim the app did not write (a developer's, pointing at a checkout) is left alone.
+//! The same goes for the skill in ~/.agents/skills/loki.
 //!
 //! The built canvas (src-tauri/resources/app, a copy of app/dist) lands at <data>/app beside the
 //! mod: the mod's LAN listener serves it to phones (mod/static.ts). Optional: a build without it
@@ -72,6 +75,7 @@ impl Report {
     }
 }
 
+/// Letta's shared mods folder, read by every harness on the Mac.
 pub fn shim_path(home: &Path) -> PathBuf {
     home.join(".letta").join("mods").join("loki.ts")
 }
@@ -170,7 +174,7 @@ fn install_mod(resources: &Path, data_dir: &Path, home: &Path) -> Result<(State,
     let bundle = std::fs::read(resources.join("mod").join("loki-mod.mjs")).map_err(|e| format!("bundled mod unreadable: {e}"))?;
     let mod_path = data_dir.join("mod").join("loki-mod.mjs");
     let shim = shim_path(home);
-    // A shim that is not ours stays: someone is running the mod from a checkout.
+    // A shim that is not ours stays: someone is running the mod from a checkout (a dev build's link).
     if let Ok(existing) = std::fs::read_to_string(&shim) {
         if !existing.starts_with(MARKER) {
             return Ok((State::Custom, shim, mod_path));
@@ -365,6 +369,7 @@ mod tests {
         let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
         assert!(shim.starts_with(MARKER));
         assert!(shim.contains(&data.join("mod").join("loki-mod.mjs").display().to_string()));
+        assert_eq!(shim_path(&home), home.join(".letta").join("mods").join("loki.ts"), "Letta's shared folder: the loader has no other");
         assert!(skill_dir(&home).join("SKILL.md").is_file());
 
         let r = run(&resources, &data, &home);

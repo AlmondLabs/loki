@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { inTauri } from "../desk/env";
 
 /** What launch did about the mod and the skill (src-tauri/src/install.rs). */
+export type InstallState = "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
 export interface InstallReport {
-  mod: "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
+  mod: InstallState;
+  /** ~/.letta/mods/loki.ts — Letta's shared folder, which every harness on the Mac loads. */
   shim: string;
   mod_path: string;
-  skill: "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
+  skill: InstallState;
   skill_path: string;
   needs_reload: boolean;
   error: string | null;

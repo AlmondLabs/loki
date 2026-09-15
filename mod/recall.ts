@@ -21,6 +21,8 @@ interface WorkerFile {
   enabled: boolean;
   model: string | null;
   dailyCap: number;
+  /** Minutes between sweeps (the tick, mod/index.ts). The quiet threshold a conversation must pass stays ten minutes. */
+  tickMinutes?: number;
   lastRunAt: string | null;
   lastRunNote: string | null;
   /** ISO day ("2026-09-10") the count belongs to, and the count. */
@@ -35,7 +37,13 @@ interface WorkerFile {
   /** The writer's one long-running conversation per agent (recall-worker.ts `writerConversation`), by agent id. */
   writers?: Record<string, string>;
 }
-const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 25, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {}, writers: {} };
+export const DEFAULT_TICK_MINUTES = 10;
+/** A sweep at most once a minute, at least once a day. */
+export const TICK_MINUTES_RANGE = { min: 1, max: 24 * 60 } as const;
+export function clampTickMinutes(n: number): number {
+  return Math.min(TICK_MINUTES_RANGE.max, Math.max(TICK_MINUTES_RANGE.min, Math.round(n)));
+}
+const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 25, tickMinutes: DEFAULT_TICK_MINUTES, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {}, writers: {} };
 
 function readJson<T>(path: string): T | null {
   try {
@@ -219,7 +227,7 @@ export class RecallStore {
   }
   status(now = Date.now()): WorkerStatus {
     const w = this.worker();
-    return { enabled: w.enabled, model: w.model, dailyCap: w.dailyCap, lastRunAt: w.lastRunAt, lastRunNote: w.lastRunNote, writtenToday: this.writtenToday(now) };
+    return { enabled: w.enabled, model: w.model, dailyCap: w.dailyCap, tickMinutes: w.tickMinutes ?? DEFAULT_TICK_MINUTES, lastRunAt: w.lastRunAt, lastRunNote: w.lastRunNote, writtenToday: this.writtenToday(now) };
   }
 
   exists(): boolean {

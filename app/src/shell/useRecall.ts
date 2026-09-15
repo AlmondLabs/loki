@@ -80,7 +80,7 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     if (!r.ok) return notice(r.message);
     patch(id, r.card);
   };
-  const settings = async (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => {
+  const settings = async (s: { enabled?: boolean; model?: string | null; dailyCap?: number; tickMinutes?: number }) => {
     const next = await desk.recall.settings(s);
     if (next) setSnap(next);
     else notice("the setting did not take");

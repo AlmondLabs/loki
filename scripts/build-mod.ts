@@ -19,6 +19,10 @@ await build({
   format: "esm",
   target: "node20",
   external: ["esbuild"],
+  // The bundle is ESM, and `ws` (inlined) reaches Node's builtins with require(): without a `require` in scope,
+  // esbuild's shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle,
+  // and the mod never activates. Bun tolerated it, which is how it went unnoticed.
+  banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
   legalComments: "none",
   logLevel: "warning",
 });
