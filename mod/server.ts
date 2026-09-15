@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
-import { WebSocketServer, WebSocket } from "ws";
+import { WebSocketServer, WebSocket } from "./ws.ts";
 import { log } from "./log.ts";
 import { appServerHeaders } from "./app-server.ts";
 import type { Scope } from "../core/desk-core.ts";

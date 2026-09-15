@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { WebSocket } from "ws";
+import { WebSocket } from "./ws.ts";
 import { readFileSync } from "node:fs";
 import { log } from "./log.ts";
 import { paths } from "./paths.ts";
@@ -73,12 +73,19 @@ export function probeAppServer(url: string, timeoutMs = PROBE_TIMEOUT_MS): Promi
             letta_code_version: typeof m.letta_code_version === "string" ? m.letta_code_version : undefined,
             capabilities: (m.capabilities as Record<string, boolean>) ?? {},
           });
-        } else finish(null);
+        } else {
+          log("app-server:probe-refused", { url, reply: String(raw).slice(0, 200) });
+          finish(null);
+        }
       } catch {
         finish(null);
       }
     });
-    ws.on("error", () => finish(null));
+    ws.on("error", (err) => {
+      log("app-server:probe-error", { url, message: err instanceof Error ? err.message : String(err) });
+      finish(null);
+    });
+    ws.on("unexpected-response", (_req, res) => log("app-server:probe-unexpected", { url, status: res.statusCode }));
   });
 }
 

@@ -8,7 +8,8 @@ to publish.
 
 1. Bump the version in all three places and keep them equal: `package.json`, `src-tauri/tauri.conf.json`,
    `src-tauri/Cargo.toml`. Settings shows the package version; the bundle carries the Tauri one.
-2. If Letta Code was upgraded, retest and update `TESTED_LETTA_CODE` in `core/compat.ts`.
+2. Retest against npm's newest Letta Code (`npm view @letta-ai/letta-code version`; a fresh install gets exactly that) and
+   move `TESTED_LETTA_CODE` in `core/compat.ts` to it. `MIN_LETTA_CODE` moves only when something older stops working.
 3. `bun test && bun run typecheck && cargo test --manifest-path src-tauri/Cargo.toml`.
 4. Commit, then `git tag v0.1.0 && git push origin main --tags`.
 5. Wait for the workflow, open the draft release, check the notes, publish.

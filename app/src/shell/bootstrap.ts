@@ -5,7 +5,8 @@ import { inTauri } from "../desk/env";
 export interface BootstrapStatus {
   letta: string | null;
   node: string | null;
-  private: boolean;
+  /** Named by LOKI_LETTA_BIN: not npm's to update. */
+  explicit: boolean;
   installing: boolean;
   error: string | null;
   log: string[];
@@ -18,11 +19,11 @@ export interface BootstrapStatus {
 }
 
 /**
- * Letta Code on this machine, as the shell sees it: found, being installed by loki, or failed.
- * Outside the shell (a browser tab) there is nothing to report and `status` stays null.
- * `check` asks for the installed and the newest version; `update` pulls the newest and restarts the
- * harness — the only way Letta Code moves under loki (the harness runs with its self-updater off).
- * Both resolve to an error line, or null.
+ * Letta Code on this machine, as the shell sees it: found where installers put it, being installed with
+ * npm by loki, or failed. Outside the shell (a browser tab) there is nothing to report and `status` stays null.
+ * `check` asks for the installed and the newest version; `update` runs `npm install -g @letta-ai/letta-code@latest`
+ * and restarts the harness when loki launched it (that harness runs with its self-updater off; a terminal
+ * session updates the same install by itself). Both resolve to an error line, or null.
  */
 export function useBootstrap(): { status: BootstrapStatus | null; install: () => Promise<void>; check: () => Promise<string | null>; update: () => Promise<string | null> } {
   const [status, setStatus] = useState<BootstrapStatus | null>(null);

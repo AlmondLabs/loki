@@ -7,14 +7,20 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
 
 - **macOS 13 or later.** The shell finds Letta Desktop with `lsof`, picks folders with the Finder, and
   uses the native title bar, dock badge and a global shortcut. Nothing else is supported today.
-- **Letta Code.** loki runs its own copy, installed on first launch under `~/.letta/loki/runtime/`: Node 22
-  from nodejs.org (checked against its published checksum) when the Mac has none, then `@letta-ai/letta-code`
-  at the release loki was tested with, from registry.npmjs.org. A `letta` you installed yourself is never
-  used or touched, and nothing you do to it changes what loki runs. (If Letta Desktop is running, loki talks
-  to Desktop's harness instead — never two harnesses on one backend.) Settings shows the copy in use and the
-  harness's version next to the tested one. Letta Code never updates itself under loki (the harness runs with
-  its self-updater off): the only update the app ever offers on its own is loki's. Settings › letta has
-  **check** (asks npm for the newest release) and **update** (reinstalls loki's copy at it and restarts the harness).
+- **Letta Code.** loki runs the one on your Mac — the same `letta` a terminal runs. On launch the shell looks
+  where installers put it (`LOKI_LETTA_BIN`, PATH, `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, nvm, fnm,
+  npm's global bin) and, finding none, runs `npm install -g @letta-ai/letta-code@latest` with the npm beside the
+  first Node 22 or newer it finds the same way (Homebrew's `node` comes with the cask), so the terminal's
+  `letta` and loki's are one file. Welcome shows the install as it runs; a global folder npm may not write (the
+  nodejs.org installer leaves one owned by root) gets the `sudo` line to run yourself, since loki never runs one.
+  If an app-server is already running — Letta Desktop's, a `letta server` you started, Letta's channel gateway —
+  loki attaches to it and launches nothing; a plain terminal `letta` opens no app-server, so it is never loki's
+  harness. Otherwise loki launches `letta server` itself. Settings › letta shows which, the path in use, and the
+  harness's version against the range loki runs on (`core/compat.ts`: below the minimum it says so and names the
+  upgrade line; above the tested release it says "newer than tested"). The harness loki launches runs with the
+  self-updater off, so nothing changes under a session; your terminal sessions keep the install fresh by themselves,
+  and Settings › letta has **check** (asks npm for the newest) and **update** (the same `npm install -g`, then the
+  harness restarts).
   The harness runs with `LETTA_SCRATCHPAD` set to a folder under `~/.letta` (`~/.letta/loki/scratch` by default,
   emptied at each start): since Letta Code 0.31.13 its memory subagents — the dreaming (reflection) pass, its
   selector, the explicit-merge reviewer — run in a sandbox that may only write under `~/.letta`, and Letta's own
@@ -50,13 +56,19 @@ Or open it, dismiss the dialog, and allow it under System Settings › Privacy &
 **From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout or
 `bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
-Whichever way, you do not need Node, npm or Letta installed first. Then:
+Whichever way, Letta Code need not be installed first: loki uses the one on your Mac or installs it with npm
+(Requirements). The cask brings Node; the `.dmg` and source routes need a Node 22 or newer on the Mac only when no
+`letta` is there yet. Then:
 
-1. Open loki. On first launch it installs its private copy of Letta Code (Requirements), copies its mod to
-   `~/.letta/loki/mod/`, writes the shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill
-   at `~/.agents/skills/loki/`. Settings → install shows what happened.
-2. If Letta Desktop (or a `letta` session) was already running, `/reload` in Letta Code so the harness
-   picks the mod up. If nothing was running, loki starts its own harness and the mod is already in it.
+1. Open loki. On first launch it finds or installs Letta Code, copies its mod to `~/.letta/loki/mod/`, writes the
+   shim `~/.letta/mods/loki.ts` that Letta loads, and installs the agent's skill at `~/.agents/skills/loki/`.
+   Settings → install shows what happened. Every harness on the Mac loads that shim — Letta has one shared mods
+   folder — but the mod serves the desk only inside a harness that hosts an app-server (loki's own, Letta Desktop,
+   a `letta server`); in a terminal `letta` session it logs one line and stands down, so it never takes the
+   desk's port or runs a second card writer there.
+2. If Letta Desktop (or a `letta server`) was already running, loki attached to it, and Settings says to `/reload`
+   in it (or restart Desktop) so it picks the mod up. If nothing was running, loki launched its own harness and the
+   mod is already in it.
 3. The first launch shows **Welcome** over the empty desk: connect a model provider (paste a key from one of
    the providers Letta Code connects to — Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and
    more; Letta checks it with the provider and keeps it, loki never sees it again; every turn is billed by that
@@ -66,8 +78,8 @@ Whichever way, you do not need Node, npm or Letta installed first. Then:
 
 Updates are a new release (`brew upgrade --cask loki`, or the next `.dmg`); the app re-installs its mod on launch
 when the bundle changed. It never overwrites a shim or skill it did not write, so a checkout wired up for
-development (below) keeps working. Letta Code is updated only from Settings › letta, never on its own (see
-Requirements).
+development (below) keeps working. Letta Code moves when your terminal updates it or from Settings › letta (see
+Requirements); the harness loki launches never updates itself.
 
 ## The window
 
@@ -179,8 +191,9 @@ Only the things a mod can do:
 
 ## Install (development)
 
-You need Bun, Rust (stable, from rustup) and Xcode's command line tools; not Node (Vite and the Tauri CLI run
-under Bun when there is none, and the window installs its own for Letta Code). Then:
+You need Bun, Rust (stable, from rustup) and Xcode's command line tools; Vite and the Tauri CLI run under Bun
+when there is no Node. Letta Code is found or installed by the window as the app does it (Requirements), which
+needs a Node 22 or newer somewhere only when no `letta` is on the Mac yet. Then:
 
 ```bash
 bun install
@@ -193,8 +206,8 @@ command line tools (`xcode-select -p`; without them the build fails later with a
 that whatever answers on port 5173 is loki's own Vite and not another project's dev server, which the window
 would otherwise show. It then starts Vite, opens the window (the first build compiles the shell, a few minutes),
 and waits for the mod: if nothing answers on its port after a minute and a half, one paragraph names the shim
-and the harness log instead of Vite's proxy errors. On a first launch, when no Letta Code is installed under
-`~/.letta/loki/runtime/` yet, the script says so and starts that clock only once the window has installed it.
+and the harness log instead of Vite's proxy errors. On a first launch, when no `letta` is on the Mac yet, the
+script says so and starts that clock only once the window has installed one.
 `bun start --check` reports all of it without starting anything.
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), so it would run a harness
@@ -202,11 +215,12 @@ without the mod on a Mac that never had loki. Instead, when the shim and the ski
 Letta at the checkout it was compiled from: `~/.letta/mods/loki.ts` importing `mod/boot.ts` (marked as a
 development shim, so the app leaves it alone later too) and `~/.agents/skills/loki` as a symlink to `skills/loki`.
 Whatever is already in either place stays; Settings › letta › install shows **linked** for each, or what was there.
-Letta Code itself is installed the way the app does it, under `~/.letta/loki/runtime/`, and the Welcome step
-shows the progress.
+Letta Code itself is found or installed the way the app does it, and the Welcome step shows the progress.
 
 To do the same by hand — a second checkout, say — everything in `~/.letta/mods/` is loaded as a mod, so only this
-file lives there (the app leaves it alone because it does not start with the managed marker):
+file lives there (the app leaves it alone because it does not start with the managed marker). Your own terminal
+`letta` loads it too and stands down (`mod/gate.ts`): only a harness hosting an app-server serves the desk.
+`LOKI_MOD_SERVE=1` in a terminal session's environment makes it serve anyway, for debugging.
 
 ```ts
 // ~/.letta/mods/loki.ts
@@ -232,13 +246,19 @@ When something does not come up:
 
 1. **The window opens but the desk never links** (Vite prints `ws proxy error … 41414`): the harness has no mod.
    Check `~/.letta/mods/loki.ts` exists and imports a path that exists, then `~/.letta/loki/logs/harness.log` for
-   the mod's error on activate. `/reload` in Letta Code loads it again.
+   the mod's error on activate, and `~/.letta/loki/mod.log` for an `activate:standing-down` line (the mod decided
+   this harness hosts no app-server). `/reload` in Letta Code loads it again.
 2. **Welcome says the Letta Code install did not finish**: `~/.letta/loki/logs/install.log` has every line of every
-   attempt; the window shows the telling one (a package that would not build, a host that would not resolve) and
-   npm's own log path. Retry from Welcome once it is fixed. loki installs with `SHARP_IGNORE_GLOBAL_LIBVIPS=1`, so a
-   Homebrew libvips on the Mac no longer makes `sharp` compile itself with node-gyp.
-3. **Letta Desktop is running**: loki talks to its harness rather than starting its own (Requirements), so the
-   Letta Code in use is Desktop's, not the tested copy. Quit Desktop and start loki again to run loki's own.
+   attempt; the window shows the telling one (a package that would not build, a host that would not resolve, a
+   global folder npm may not write — with the `sudo` line to run in a terminal) and npm's own log path. Retry from
+   Welcome once it is fixed. loki installs with `SHARP_IGNORE_GLOBAL_LIBVIPS=1`, so a Homebrew libvips on the Mac
+   does not make `sharp` compile itself with node-gyp. No Node 22 or newer anywhere: `brew install node`, then retry.
+3. **Letta Desktop (or a `letta server`) is running**: loki attached to that harness rather than launching its own
+   (Requirements). Settings › letta names it and its version against the tested range; the mod loads there from the
+   shared `~/.letta/mods/loki.ts` after a `/reload` or a restart. Quit it and start loki again to run loki's own.
+4. **Homebrew moved to a new Node major** and the harness log shows a module-version error from a native module:
+   Letta Code's global install was built for the old one. Settings › letta › **update** (a reinstall) or
+   `npm install -g @letta-ai/letta-code@latest` in a terminal rebuilds it.
 
 ## Install as an app (Chrome)
 
@@ -384,9 +404,12 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 ## Environment variables
 
 `LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
-`LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1` (make a
-dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release build
-from installing, and a dev build from linking).
+`LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1`
+(make a dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release
+build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the desk, or not,
+whatever harness loaded it), `LOKI_WS_MODULE` (debugging only: the module the mod takes `ws` from under Bun). The
+harness loki launches gets `LETTA_SCRATCHPAD` (the scratch folder) and `DISABLE_AUTOUPDATER=1`. Letta runs it under
+Bun when one is on PATH and under Node otherwise; `mod.log`'s `activate` line says which, and which `ws`.
 Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log` (the harness loki starts),
 `~/.letta/loki/logs/install.log` (every Letta Code install or update, appended). To run the mod without Letta:
 `bun scripts/harness.ts`.

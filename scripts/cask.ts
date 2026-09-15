@@ -2,6 +2,8 @@
 // .github/workflows/cask.yml runs it when a release is published and pushes the result to <owner>/homebrew-loki.
 // The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
 // xattr line that lets macOS open it; Settings › Privacy & Security › Open Anyway is the other way.
+// The cask depends on the `node` formula: loki installs Letta Code with `npm install -g` on first launch, so a
+// Mac with nothing on it gets Node (and npm) from Homebrew and Letta Code from npm's newest release.
 
 export type CaskInput = { owner: string; version: string; sha256: string };
 
@@ -29,6 +31,8 @@ export function renderCask({ owner, version, sha256 }: CaskInput): string {
   end
 
   depends_on macos: :ventura
+  # Letta Code is installed with npm on first launch (docs/manual.md › Requirements); Node brings npm.
+  depends_on formula: "node"
 
   app "loki.app"
 

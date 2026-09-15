@@ -26,6 +26,8 @@ import type { DeskInfo, DeskSummary } from "./bridge.ts";
 import { sortDesks } from "./bridge.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
+import { shouldServe } from "./gate.ts";
+import { wsSource } from "./ws.ts";
 import { createBridge, scopeOfId } from "./bridge.ts";
 import { DeviceStore } from "./devices.ts";
 import { PairingCodes } from "./pairing.ts";
@@ -62,7 +64,13 @@ function loadOrCreateToken(): string {
 export default function activate(letta: LettaMod): (() => void) | void {
   if (!letta.capabilities?.tools && !letta.capabilities?.events) return; // nothing a desk needs
   initLog(paths.modLog);
-  log("activate", { pid: process.pid, node: process.versions.node, capabilities: letta.capabilities });
+  // Every harness loads this mod; only the one hosting an app-server serves the desk (mod/gate.ts).
+  const gate = shouldServe(letta.capabilities);
+  if (!gate.serve) {
+    log("activate:standing-down", { pid: process.pid, reason: gate.reason });
+    return;
+  }
+  log("activate", { pid: process.pid, node: process.versions.node, bun: process.versions.bun ?? null, ws: wsSource, capabilities: letta.capabilities });
 
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
   const token = loadOrCreateToken();

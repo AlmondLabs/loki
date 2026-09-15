@@ -5,7 +5,7 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup — `bun start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools. Letta Code is not a prerequisite: the shell installs its own copy under `~/.letta/loki/runtime/` on first launch, and `LOKI_LETTA_BIN` points a dev build at a checkout instead. On a Mac that has never run loki, `bun start` also writes the development shim and skill symlink described in the manual's [Install (development)](manual.md#install-development).
+macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup — `bun start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools. Letta Code is not a prerequisite: the shell uses the `letta` on the Mac or installs it with `npm install -g` on first launch (which needs a Node 22+ somewhere), and `LOKI_LETTA_BIN` points a dev build at a checkout instead. On a Mac that has never run loki, `bun start` also writes the development shim and skill symlink described in the manual's [Install (development)](manual.md#install-development).
 
 ```bash
 bun install
@@ -36,7 +36,7 @@ CI runs the same three. `test/tokens.test.ts` fails when an inline style leaves 
   for the app.
 - `core/` types, the pure gesture reducer, harness parsing and the attention model all three clients use; no browser or Tauri imports.
 - `app/` the React canvas and shell. Every shortcut lives in `app/src/shell/keymap.ts`.
-- `src-tauri/` the shell: harness discovery, the app-server link, widget transpiling, the install step.
+- `src-tauri/` the shell: finding or installing Letta Code, attaching to or launching the harness, the app-server link, widget transpiling, the install step.
 - `skills/loki/SKILL.md` what the agent reads; keep it in step with `mod/tools.ts`.
 - `docs/plans/` design history, dated. New behaviour gets a short plan there first.
 
