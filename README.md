@@ -53,7 +53,7 @@ that provider charges. Everything else, including the Homebrew install of the fi
 | **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards: approvals to grant, questions to answer, failures, finished work. Approve and reply inline. ⌥Space opens it from anywhere on the Mac. |
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a desk, or dispatch so the agent starts now. |
 | **Agents** | ⌘4 | A page per agent: profile and model, its memory files as a tree, what it learned as a timeline of commits, and its skills with one-click refresh from upstream. |
-| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on. Deleting a card is the feedback. |
+| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
 | **Phone** | | The inbox and the desks on your phone over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. |
 
 <p align="center">
@@ -91,7 +91,9 @@ You need macOS 13 or later. The cask brings Node; the `.dmg` route needs a Node 
 your Mac — the same `letta` a terminal runs — or installs it with `npm install -g @letta-ai/letta-code`, asks for
 a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and others; you pay that provider, loki never
 sees the key), and helps you name your first agent. Then ask it to put something on the desk. If Letta Desktop
-is running, loki attaches to its harness instead of launching one.
+or a `letta server` is already running, loki attaches to that harness instead of launching one. loki runs
+whatever Letta Code is on the Mac; it was last tested with 0.32.10, and Settings › letta says where yours stands
+against that and offers the update.
 
 ## Your first widget
 
@@ -125,10 +127,12 @@ flowchart LR
 ```
 
 Three parts, one repo: a **Letta mod** that runs inside the harness and owns the files, a **Rust shell** that
-installs Letta Code and hosts the window, and a **React app** that renders the desk. The mod streams
-conversations to the app through a tunnel, the app watches the widget files through Vite, and your gestures on
-the desk go back to the agent as context on the next turn. Nothing leaves your machine except your messages to
-the provider you chose. [docs/architecture.md](docs/architecture.md) has the long version.
+finds or installs Letta Code, launches or attaches to the harness and hosts the window, and a **React app** that
+renders the desk. The mod streams conversations to the app through a tunnel, the app watches the widget files
+through Vite, and your gestures on the desk go back to the agent as context on the next turn. Every Letta
+harness on the Mac loads the mod, but only the one hosting an app-server serves the desk; a terminal `letta`
+session logs one line and stands down. Nothing leaves your machine except your messages to the provider you
+chose. [docs/architecture.md](docs/architecture.md) has the long version.
 
 ## Layout
 
@@ -140,7 +144,7 @@ skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
 src-tauri/      the macOS shell (Rust): finds or installs Letta Code, launches or attaches to the harness, hosts the canvas
 scripts/        build-mod (the bundle the app ships), harness (run the mod without Letta), cask (Homebrew)
 test/           bun tests
-docs/           the manual, architecture, design direction, dated plans; CONTRIBUTING, SECURITY and RELEASING
+docs/           the manual, learn (the mental model), architecture, design direction, dated plans; CONTRIBUTING, SECURITY and RELEASING
 ```
 
 ## Development
@@ -170,6 +174,7 @@ of the installed mod, see the manual's [Install (development)](docs/manual.md#in
 ## Read on
 
 - [The manual](docs/manual.md): every view, every key, every file loki writes.
+- [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a sweep costs.
 - [Architecture](docs/architecture.md): Letta's four layers and the journey of a message.
 - [Design](docs/design.md): a drafting table at night, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/RELEASING.md).

@@ -328,6 +328,9 @@ message on the clipboard as the markdown it was written in, not the rendering.
 
 ### Learn (⌘5)
 
+The mental model — what the writer reads, asks, writes and costs, and how leads become lessons — is
+[docs/learn.md](learn.md); this section is the reference for the keys and the files.
+
 Spaced-repetition cards, for keeping what the conversations taught you. **Off until you switch it on**: the
 writer spends your provider budget in the background, so the section's first visit explains what it does and
 offers the switch (Settings › learn has it too, with the knobs). Nothing about the cards happens in
