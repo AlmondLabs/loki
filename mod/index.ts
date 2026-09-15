@@ -12,8 +12,8 @@ import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
 import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript, type InboxRow } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
-import { RecallStore } from "./recall.ts";
-import { QUIET_MS, RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
+import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
+import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
@@ -245,7 +245,14 @@ export default function activate(letta: LettaMod): (() => void) | void {
   const recall = new RecallWorker({ store: recallStore, listInbox, ask: askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
   const recallTick = () => void recall.tick().then((r) => log("recall:tick", r)).catch((err) => log("recall:tick-error", err instanceof Error ? err.message : String(err)));
   const recallFirst = setTimeout(recallTick, 90_000); // once the harness and the app-server link have settled
-  const recallTimer = setInterval(recallTick, QUIET_MS);
+  // The sweep timer: every `tickMinutes` (Settings › learn; ten by default), reset when the setting changes.
+  let recallTimer: ReturnType<typeof setInterval> | null = null;
+  const scheduleRecall = (minutes: number) => {
+    if (recallTimer) clearInterval(recallTimer);
+    recallTimer = setInterval(recallTick, clampTickMinutes(minutes) * 60_000);
+    log("recall:schedule", { minutes: clampTickMinutes(minutes) });
+  };
+  scheduleRecall(recallStore.worker().tickMinutes ?? DEFAULT_TICK_MINUTES);
 
   const bridge = createBridge({
     store,
@@ -257,6 +264,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     recall: {
       store: recallStore,
       run: () => recall.tick(),
+      reschedule: scheduleRecall,
       startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets }),
       lessonEmpty: (l) => lookupLocalConversation(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
@@ -454,7 +462,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (titleTimer) clearTimeout(titleTimer);
     clearInterval(tasksTimer);
     clearTimeout(recallFirst);
-    clearInterval(recallTimer);
+    if (recallTimer) clearInterval(recallTimer);
   };
   letta.signal?.addEventListener("abort", shutdown, { once: true });
 

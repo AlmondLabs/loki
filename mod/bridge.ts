@@ -1,3 +1,4 @@
+import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { InboxRow } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
@@ -32,7 +33,7 @@ import { isLanVia } from "./lan.ts";
  *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
  *    recall_grade { requestId, id, grade 1-4 } / recall_edit { requestId, id, front?, back?, tags? }   reply: recall_card { requestId, card }
  *    recall_reject { requestId, id } / recall_restore { requestId, id } / recall_forget { requestId, id }   reply: recall_card { requestId, card|null }
- *    recall_settings { requestId, enabled?, model?, dailyCap? }   reply: recall { … };  recall_run { requestId }  reply: recall_ran { requestId, note }
+ *    recall_settings { requestId, enabled?, model?, dailyCap?, tickMinutes? }   reply: recall { … };  recall_run { requestId }  reply: recall_ran { requestId, note }
  *    recall_export { requestId }             reply: recall_export { requestId, tsv };  errors: recall_error { requestId, message }
  *    recall_lead_dismiss { requestId, id } / recall_lead_restore { requestId, id }   reply: recall { … }
  *    recall_lead_start { requestId, id }     the lead becomes a [Learn] conversation with an info card on its desk; reply: recall_lesson { requestId, agentId, conversationId } — the app then sends the brief
@@ -162,6 +163,8 @@ export interface BridgeDeps {
   recall?: {
     store: import("./recall.ts").RecallStore;
     run: () => Promise<{ note: string }>;
+    /** The sweep timer follows the setting: called with the new interval when `tickMinutes` changes. */
+    reschedule?: (minutes: number) => void;
     startLesson?: import("./recall-worker.ts").StartLesson;
     /** True while the lesson's conversation holds no message: the brief never arrived and the app offers to send it again. */
     lessonEmpty?: (lesson: import("../core/recall/model.ts").Lesson) => boolean;
@@ -418,7 +421,10 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
                 if (typeof msg.enabled === "boolean") update.enabled = msg.enabled;
                 if (msg.model === null || typeof msg.model === "string") update.model = msg.model || null;
                 if (typeof msg.dailyCap === "number" && msg.dailyCap >= 0) update.dailyCap = Math.round(msg.dailyCap);
+                if (typeof msg.tickMinutes === "number" && Number.isFinite(msg.tickMinutes)) update.tickMinutes = clampTickMinutes(msg.tickMinutes);
+                const before = store.worker().tickMinutes ?? DEFAULT_TICK_MINUTES;
                 store.saveWorker(update);
+                if (typeof update.tickMinutes === "number" && update.tickMinutes !== before) deps.recall?.reschedule?.(update.tickMinutes);
                 deps.broadcast({ type: "recall_changed" });
                 return client.send(snapshot());
               }

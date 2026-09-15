@@ -139,9 +139,10 @@ function writtenLine(worker: WorkerStatus): string {
 }
 
 /** The worker's knobs and its last word, plus the export. */
-export function WorkerStrip({ worker, running, onSettings, onRun, onExport, cardCount }: { worker: WorkerStatus; running: boolean; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => void; onRun: () => void; onExport: () => void; cardCount: number }) {
+export function WorkerStrip({ worker, running, onSettings, onRun, onExport, cardCount }: { worker: WorkerStatus; running: boolean; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number; tickMinutes?: number }) => void; onRun: () => void; onExport: () => void; cardCount: number }) {
   const [model, setModel] = useState(worker.model ?? "");
   const [cap, setCap] = useState(String(worker.dailyCap));
+  const [every, setEvery] = useState(String(worker.tickMinutes));
   return (
     <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -159,6 +160,9 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className="loki-label" style={{ fontSize: 9.5 }}>cards a day</span>
         <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
+        <span className="loki-label" style={{ fontSize: 9.5 }}>sweep every</span>
+        <Field size="sm" mono value={every} onChange={(e) => setEvery(e.target.value)} onBlur={() => Number.isFinite(Number(every)) && Number(every) >= 1 && onSettings({ tickMinutes: Number(every) })} style={{ width: 56 }} aria-label="minutes between sweeps" title="minutes between sweeps; each sweep that finds quiet conversations costs one model call per agent" />
+        <span className="loki-label" style={{ fontSize: 9.5 }}>min</span>
         <span className="loki-label" style={{ fontSize: 9.5 }}>model</span>
         <Field size="sm" mono value={model} onChange={(e) => setModel(e.target.value)} onBlur={() => onSettings({ model: model.trim() || null })} placeholder="the agent's own" style={{ width: 260 }} aria-label="worker model" title="a model handle such as anthropic/claude-haiku-4-5; empty uses each agent's model" />
       </div>
@@ -212,19 +216,26 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
 }
 
 /** Settings › learn: the writer's switch and knobs, in Settings' fact grid. */
-export function RecallSettings({ worker, onSettings, onRun, running }: { worker: WorkerStatus; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number }) => void; onRun: () => void; running: boolean }) {
+export function RecallSettings({ worker, onSettings, onRun, running }: { worker: WorkerStatus; onSettings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number; tickMinutes?: number }) => void; onRun: () => void; running: boolean }) {
   const [model, setModel] = useState(worker.model ?? "");
   const [cap, setCap] = useState(String(worker.dailyCap));
+  const [every, setEvery] = useState(String(worker.tickMinutes));
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <Line label="writer">
         <span style={{ display: "inline-grid", gap: 4 }}>
-          <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? "on — reads quiet conversations every ten minutes and writes cards" : "off — no conversation is read, nothing is written"} />
+          <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? `on — reads quiet conversations every ${everyLabel(worker.tickMinutes)} and writes cards` : "off — no conversation is read, nothing is written"} />
           <Meta wrap>each run asks the agent's model, so it spends a little of your provider budget; off by default for that reason</Meta>
         </span>
       </Line>
       <Line label="cards a day">
         <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
+      </Line>
+      <Line label="sweep every">
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Field size="sm" mono value={every} onChange={(e) => setEvery(e.target.value)} onBlur={() => Number.isFinite(Number(every)) && Number(every) >= 1 && onSettings({ tickMinutes: Number(every) })} style={{ width: 64 }} aria-label="minutes between sweeps" />
+          <Meta wrap>minutes. Each sweep that finds quiet conversations is one model call per agent, plus a compaction, over the agent's whole fixed prompt — a longer gap means fewer, larger asks and later cards. A conversation still has to be quiet for ten minutes before it is read.</Meta>
+        </span>
       </Line>
       <Line label="model">
         <Field size="sm" mono value={model} onChange={(e) => setModel(e.target.value)} onBlur={() => onSettings({ model: model.trim() || null })} placeholder="the agent's own" style={{ width: 280 }} aria-label="the model the writer asks" />
@@ -238,6 +249,14 @@ export function RecallSettings({ worker, onSettings, onRun, running }: { worker:
       <Line label="files"><Meta>~/.letta/loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
     </div>
   );
+}
+
+/** "ten minutes", "an hour", "every 90 minutes" — for the switch's label. */
+function everyLabel(minutes: number): string {
+  if (minutes === 60) return "hour";
+  if (minutes % 60 === 0) return `${minutes / 60} hours`;
+  if (minutes === 1) return "minute";
+  return `${minutes} minutes`;
 }
 
 /** A labelled line in Settings' fact grid (the label column matches Settings' own). */

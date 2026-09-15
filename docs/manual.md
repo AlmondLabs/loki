@@ -124,7 +124,7 @@ rail of six segments sits on the left, and one view fills the rest:
   the harness's **scratch** folder (see Requirements) with apply, back to the default, and the line for a terminal. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
-  **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), the model it asks, run now, and the leads it proposes. **files**: where
+  **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), sweep every N minutes (how often the writer looks for quiet conversations; ten by default, one to 1440; each sweep that finds some is one model call per agent over the agent's whole fixed prompt), the model it asks, run now, and the leads it proposes. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
@@ -345,7 +345,7 @@ card (X) is the signal.** Deleted cards move to a pile the worker reads before w
 not to write, so a rejected card never comes back reworded; a card deleted after many failed reviews reads
 as "badly written", one deleted unseen as "not wanted". Cards you keep failing are offered back to the worker
 for a rewrite. E edits in place, O opens the desk it came from, Z undoes a delete. "all cards" lists every
-card with search and holds the worker's knobs — on/off, cards a day, the model it asks, run now — and an
+card with search and holds the worker's knobs — on/off, cards a day, sweep every N minutes, the model it asks, run now — and an
 export in Anki's plain-text import format. Everything is files: `~/.letta/loki/recall/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the worker's edits never touch your schedule. The worker's own
 conversation with each agent — one per agent, named "recall", for the life of the agent — is a desk in the tree
