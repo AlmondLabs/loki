@@ -1,6 +1,7 @@
 import { extractHarnessEvents, looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
 import type { ImageAttachment } from "./content.ts";
+import { byPriority, isScheduledPrompt, type LastAsk } from "./priority.ts";
 
 /**
  * Attention model: which conversations are waiting on the user, and why.
@@ -43,6 +44,8 @@ export interface ConversationInfo {
 export interface Digest {
   lastRole: "user" | "assistant" | null;
   lastAssistantText: string | null;
+  /** The last message a person or a schedule sent, so the score can tell a reply to you from a report. */
+  lastAsk?: LastAsk | null;
 }
 
 export interface LiveRow {
@@ -72,6 +75,8 @@ export interface Live {
   lastAssistantText: string | null;
   lastRole: "user" | "assistant" | null;
   lastMessageAt: string | null;
+  /** The last user message seen live: when, and whether a schedule sent it. */
+  lastAsk: LastAsk | null;
   /** Rows that arrived live since the transcript was last loaded (the streaming reply is not in here until it ends). */
   tail: LiveRow[];
   /** Tool calls already announced (a call streams as several deltas). */
@@ -103,6 +108,8 @@ export interface AttentionItem extends ConversationInfo {
   error: string | null;
   seenAt: string | null;
   unread: boolean;
+  /** The last message a person or a schedule sent (live if seen, else from the log); null when unknown. */
+  lastAsk?: LastAsk | null;
   runtime: Runtime;
 }
 
@@ -110,7 +117,7 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
 const TEXT_LIMIT = 700;
 
 export function emptyLive(): Live {
-  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
+  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
 }
 
 /**
@@ -289,6 +296,7 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         for (const ev of events) l.tail.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
         const text = stripHarnessMarkup(raw).trim();
         if (!text) return { changed: events.length > 0, userSpoke: false };
+        l.lastAsk = { at: now, scheduled: isScheduledPrompt(text) };
         settle(l);
         const own = l.ownSends.indexOf(text);
         if (own >= 0) l.ownSends.splice(own, 1); // shown when it was sent
@@ -343,14 +351,16 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
   }
 }
 
-const RANK: Record<AttentionStatus, number> = { approval: 0, question: 1, failed: 2, done: 3, running: 4, idle: 5 };
-
-/** Combine everything into the sorted item list. */
+/**
+ * Combine everything into the item list, highest score first (priority.ts): blocked agents, then warm
+ * replies to you, then colder ones, then reports; `now` is the clock the warmth and age terms read.
+ */
 export function buildItems(
   conversations: ConversationInfo[],
   digests: Map<string, Digest>,
   live: Map<string, Live>,
   seen: Record<string, string>,
+  now = Date.now(),
 ): AttentionItem[] {
   const out: AttentionItem[] = [];
   for (const c of conversations) {
@@ -381,8 +391,9 @@ export function buildItems(
       error: l?.error ?? null,
       seenAt,
       unread,
+      lastAsk: l?.lastAsk ?? d?.lastAsk ?? null,
       runtime: { agent_id: c.agentId, conversation_id: c.id },
     });
   }
-  return out.sort((a, b) => RANK[a.status] - RANK[b.status] || (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+  return byPriority(out, now);
 }

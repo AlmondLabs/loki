@@ -142,7 +142,7 @@ The inbox, on your phone, with nothing installed. Settings › phone → switch 
 "pair a phone" → scan the QR with the phone's camera → in Safari, Share → Add to Home Screen → open the new
 icon and type the six-character code once (a home-screen app has its own cookie jar, so the code shown in
 Settings is asked for one more time; it stays valid ten minutes). From then on the icon opens straight into the
-inbox: the same cards as Catch Up in the same order — approvals, questions, failures, finished — each with
+inbox: the same cards as Catch Up in the same order (highest score first, see "The order") — each with
 approve / deny / answer / seen / later, and a tap opens the conversation with the transcript, the approval or
 question card, and a reply box. No desks, board or agents on the phone.
 
@@ -309,7 +309,7 @@ recognition is available, so treat it like any other cloud dictation.
 
 The app knows which conversations are waiting on you. The inbox icon on the rail shows the count; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers): approvals first (approve/deny inline), then questions, failures, and finished work. → or ⌘] marks seen, ← or ⌘[ keeps unread, A or ⌘↵ approves, D or ⌘⇧D denies, O or ⌘O opens that desk with its chat focused, S or ⌘S shows snoozed, Z undoes (the ⌘ forms work while typing a reply), Esc returns to the desk.
+tool calls as muted markers), highest score first (see "The order" below). → or ⌘] marks seen, ← or ⌘[ keeps unread, A or ⌘↵ approves, D or ⌘⇧D denies, O or ⌘O opens that desk with its chat focused, S or ⌘S shows snoozed, Z undoes (the ⌘ forms work while typing a reply), Esc returns to the desk.
 Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents read from the local
 backend on disk (`inbox_list`), main chats included, with who spoke last taken from the tail of each log — nothing is
 windowed by age or capped by count, so a conversation only leaves the inbox when it is archived (main chats are
@@ -376,11 +376,30 @@ The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 Every desk, tree group, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
 conversation, so multi-agent setups stay legible.
 
+### The order
+
+The deck is a scheduler's ready queue: one score per card, one list, no sections. The score is
+`blocked ? 100 : 0` (an approval, a question, a failed turn — an agent is stopped) `+ warm ? 10 : 0` (the
+agent spoke under four minutes ago, so the provider still has the conversation's prompt cached and a reply
+now costs a tenth of one typed later) `+ yours ? 5 : 0` (the turn answers a message you sent, not a
+scheduled task's prompt) `− 0.1` an hour since the last message. Blocked agents come first, then warm
+replies to you, then colder ones, then reports nobody asked for — a cron's digest, a background job. Age
+only settles ties and lets old cards drift down; nothing ages upward. Each card says the largest term after
+its time: `warm`, `reply to you`, `report` (blocked cards say it with their badge). The order is recomputed
+on every event — an approval or reply on the card in front of you, a turn finishing or blocking anywhere,
+the half-minute clock that fades warmth — and again whenever a card is popped, but the card in front of you
+never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts` is the score.
+
+**A reply hands the card over.** Send a reply (or answer a question) and the card leaves the deck at once:
+the conversation is the agent's now. When its turn finishes the card comes back by score — warm and yours,
+so right behind whatever you are reading. The next thing you see is the answer to what you just said, while
+its cache is still hot; five turns in ten minutes cost about a quarter of the same five spread over a day.
+
 ### Later, with backoff
 
-"Later" (←) on a card defers it Anki-style: it leaves the pass and comes back
+"Later" (←) on a card defers it Anki-style — the wait queue beside the ready queue: it leaves the pass and comes back
 after 5 minutes, then 15, 45, 2 hours, 6 hours, and at most a day, each time you
-defer it again. A card that moves on (new reply, new approval) returns at once,
+defer it again, at whatever score it then has. A card that moves on (new reply, new approval) returns at once,
 labelled "back". Approvals never defer. The ladder resets each day. The deck
 shows how many are snoozed and when the next is due; S shows them anyway.
 

@@ -171,7 +171,7 @@ describe("bridge", () => {
 
 describe("bridge history", () => {
   test("inbox_list answers with the mod's open conversations and echoes the request id", () => {
-    const rows = [{ id: "default", agentId: "a1", agentName: "ira", title: "ira · main chat", lastMessageAt: "2026-09-06T11:49:16Z", archived: false as const, lastRole: "assistant" as const, lastAssistantText: "It's on your canvas now." }];
+    const rows = [{ id: "default", agentId: "a1", agentName: "ira", title: "ira · main chat", lastMessageAt: "2026-09-06T11:49:16Z", archived: false as const, lastRole: "assistant" as const, lastAsk: null, lastAssistantText: "It's on your canvas now." }];
     const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listInbox: () => rows });
     const c = client("c1");
     bridge.onMessage(c, { type: "inbox_list", requestId: "i1" });

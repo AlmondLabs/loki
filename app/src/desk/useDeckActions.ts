@@ -1,14 +1,15 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
-import { stampOf, type Decision } from "../../../core/attention/queue.ts";
+import { popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
 
 /**
  * What a card can do, and the small state those actions leave behind: the reply draft and its images,
- * the 900ms flash on the badge ("approved", "sent"), the count of replies this pass, and which way the
+ * the 900ms flash on the badge ("approved", "denied"), the count of replies this pass, and which way the
  * last move went so the next card enters from that side. The queue and the decisions are the deck's
- * (useDeckQueue); this hook only writes to them.
+ * (useDeckQueue); this hook only writes to them. Every move pops the head and re-orders the rest by
+ * score at that moment (popHead), the way a scheduler picks its next process when one leaves the CPU.
  */
 export function useDeckActions({
   current,
@@ -43,7 +44,7 @@ export function useDeckActions({
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
-  /** Replies sent this pass. A reply keeps you on the card; only next/later/approve/deny move it. */
+  /** Replies and answers sent this pass. Each hands the conversation to the agent: the card leaves the queue and comes back with the answer. */
   const [replies, setReplies] = useState(0);
   /** Which way the last move went; the next card enters from that side. */
   const [dir, setDir] = useState<"next" | "back">("next");
@@ -57,9 +58,28 @@ export function useDeckActions({
     }
     setDir("next");
     setDecided((d) => [...d, { item: current, action, via, stamp: stampOf(current) }]);
-    setQueue((q) => q.slice(1));
+    setQueue((q) => popHead(q));
     setDraft("");
     setImages([]);
+  };
+  /**
+   * The conversation is the agent's now (a reply or an answer went out): its card leaves the ready queue
+   * the way a process leaves for I/O, without a decision — when the turn finishes it is actionable again
+   * and the merge puts it back by score, warm and yours, right behind whatever you are reading. Sending
+   * already marks the conversation seen.
+   */
+  const leave = () => {
+    setReplies((n) => n + 1);
+    setDir("next");
+    setQueue((q) => popHead(q));
+    setDraft("");
+    setImages([]);
+  };
+  /** Answer the card's pending question (the structured form); the card leaves with the answer. */
+  const answer = (answers: Record<string, string | string[]>) => {
+    if (!current?.pendingQuestion) return;
+    onAnswer(current, current.pendingQuestion.requestId, answers);
+    leave();
   };
   const undo = () => {
     const last = decided[decided.length - 1];
@@ -77,7 +97,7 @@ export function useDeckActions({
     setTimeout(() => setFlash(null), 900);
     advance("seen", behavior === "allow" ? "approve" : "deny");
   };
-  // Sending a reply keeps the card: you may want to watch the answer arrive. Moving on is yours (→ / ←).
+  // Sending a reply hands the card over: it leaves, and the answer brings it back to the front of what is left.
   const sendReply = () => {
     const text = draft.trim();
     if (!current || (!text && !images.length)) return;
@@ -92,17 +112,12 @@ export function useDeckActions({
     }
     if (item.pendingQuestion && item.pendingQuestion.questions.length === 1 && text && !images.length) {
       onAnswer(item, item.pendingQuestion.requestId, { [item.pendingQuestion.questions[0].question]: text }); // a typed reply is the answer
-      setDraft("");
-      setImages([]);
+      leave();
       return;
     }
     onReply(item, text, images);
-    setReplies((n) => n + 1);
-    setDraft("");
-    setImages([]);
-    setFlash("sent");
-    setTimeout(() => setFlash(null), 900);
+    leave();
   };
 
-  return { draft, setDraft, images, setImages, flash, replies, dir, advance, undo, approve, sendReply };
+  return { draft, setDraft, images, setImages, flash, replies, dir, advance, undo, approve, answer, sendReply };
 }

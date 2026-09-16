@@ -147,11 +147,11 @@ export function useAttention(opts: UseAttentionOptions) {
         // The list and the digests are the mod's, read from disk in one answer: nothing is windowed or capped here.
         const rows = await opts.listConversations();
         if (cancelled) return;
-        const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+        const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
         lastReload.current = Date.now();
         knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
         setConversations(convs);
-        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText }])));
+        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk ?? null }])));
         // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
         for (const c of convs.slice(0, opts.subscribeLimit ?? 30)) {
           const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
@@ -189,14 +189,14 @@ export function useAttention(opts: UseAttentionOptions) {
     [],
   );
 
-  // Snoozes expire on their own; re-evaluate twice a minute so cards come due without any event.
+  // The clock tick: snoozes come due and warmth fades without any other event, so the items are rebuilt twice a minute.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
   const items = useMemo(
-    () => buildItems(conversations, digests, live, opts.seen).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
+    () => buildItems(conversations, digests, live, opts.seen, now).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
     [conversations, digests, opts.seen, opts.snooze, live, now],
   );
 

@@ -50,7 +50,7 @@ that provider charges. Everything else, including the Homebrew install of the fi
 | | | |
 |---|---|---|
 | **Desk** | ⌘1 | One desk per conversation, furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Pan, zoom, arrange, undo. |
-| **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards: approvals to grant, questions to answer, failures, finished work. Approve and reply inline. ⌥Space opens it from anywhere on the Mac. |
+| **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards, highest score first: blocked agents, then warm replies to you (their prompt is still cached, so answering now is cheap), then the rest. Approve and reply inline; a reply hands the card over and the answer comes back to the front. ⌥Space opens it from anywhere on the Mac. |
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a desk, or dispatch so the agent starts now. |
 | **Agents** | ⌘4 | A page per agent: profile and model, its memory files as a tree, what it learned as a timeline of commits, and its skills with one-click refresh from upstream. |
 | **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |

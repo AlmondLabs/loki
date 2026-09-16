@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, snoozedItems } from "../../../core/attention/queue.ts";
 import { formatIn } from "../../../core/attention/snooze.ts";
+import { REASON_LABEL, reasonOf } from "../../../core/attention/priority.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import { ApprovalCard } from "../chat/ApprovalCard";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -565,7 +566,10 @@ function CardFooter({ item, onApprove, onOpen, onLater, onSeen }: { item: Attent
   const asks = !!item.pendingQuestion || item.status === "question";
   return (
     <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 6, minHeight: 40, padding: "4px 8px 4px 12px", borderTop: "1px solid var(--loki-border)" }}>
-      <Meta style={{ flex: 1, minWidth: 0 }}>{waitingSince(item)}</Meta>
+      <Meta style={{ flex: 1, minWidth: 0 }}>
+        {REASON_LABEL[reasonOf(item)] ? `${REASON_LABEL[reasonOf(item)]} · ` : ""}
+        {waitingSince(item)}
+      </Meta>
       {item.pendingApproval ? (
         <>
           <Button size="touch" tone="negative" onClick={() => onApprove?.("deny")}>
