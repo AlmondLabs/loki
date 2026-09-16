@@ -4,7 +4,7 @@ import { KEYMAP, WHERE_ORDER, formatKeys, registerActions } from "../shell/keyma
 import { Button, Chip, Dot, Field, NavButton, Switch, Title } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
-import { TESTED_APP_SERVER_REPORT, TESTED_LETTA_CODE, lettaCompatible } from "../../../core/compat.ts";
+import { MIN_LETTA_CODE, TESTED_LETTA_CODE, UPGRADE_LINE, lettaStanding } from "../../../core/compat.ts";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { Providers } from "./Providers";
 import { Phone, type PhoneApi } from "./Phone";
@@ -33,7 +33,7 @@ type ModConnection = "connecting" | "open" | "closed";
 function describeRunner(appServerUrl: string | null): string {
   const viaTunnel = !!appServerUrl && appServerUrl.includes("/appserver");
   const ownHarness = !!appServerUrl && /:41600\//.test(appServerUrl);
-  return !appServerUrl ? "not found" : viaTunnel ? "whichever harness the mod found — this tab reaches it through the mod's tunnel" : ownHarness ? "loki's own harness (letta server --listen), adopted or spawned at launch" : "Letta Desktop";
+  return !appServerUrl ? "not found" : viaTunnel ? "whichever harness the mod found — this tab reaches it through the mod's tunnel" : ownHarness ? "loki's own harness (letta server --listen), launched now or by an earlier run" : "a harness loki did not launch — Letta Desktop, or a letta server you started; loki attached to it instead of launching its own";
 }
 
 /**
@@ -275,16 +275,26 @@ function LokiVersionFact({ update }: { update: LokiUpdate }) {
   return <Fact label="version" value={value} />;
 }
 
-/** The Letta Code the harness reports, against the release loki was tested with. */
+/** The Letta Code the harness reports, against the range loki runs on (core/compat.ts). */
 function LettaCodeFact({ lettaVersion, tools }: { lettaVersion: string | null; tools: Tools | null }) {
-  const compatible = lettaCompatible(lettaVersion);
-  return <Fact label="letta code" value={lettaVersion ? <span>harness reports {lettaVersion}{compatible === false ? <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}, whose harness reports {TESTED_APP_SERVER_REPORT} — if something is off, this is the first suspect</Note> : <Note>as the tested release ({TESTED_LETTA_CODE}) does</Note>}</span> : tools ? (tools.letta ? "harness not linked yet" : <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note>) : "—"} />;
+  return <Fact label="letta code" value={lettaVersion ? <span>harness reports {lettaVersion}<StandingNote version={lettaVersion} /></span> : tools ? (tools.letta ? "harness not linked yet" : <Note tone="warn">not found — the shell installs it with npm on launch</Note>) : "—"} />;
+}
+
+/** Where a version stands: the tested release, newer than it (runs; first suspect), older (fine), or below the minimum (upgrade). */
+function StandingNote({ version }: { version: string }) {
+  const standing = lettaStanding(version);
+  if (standing === "tested") return <Note>the release loki was tested with</Note>;
+  if (standing === "newer") return <Note tone="warn">newer than the release loki was tested with ({TESTED_LETTA_CODE}) — if something is off, this is the first suspect</Note>;
+  if (standing === "too_old") return <Note tone="warn">below the oldest release loki runs on ({MIN_LETTA_CODE}) — in a terminal: {UPGRADE_LINE}</Note>;
+  if (standing === "older") return <Note>older than the tested release ({TESTED_LETTA_CODE}); fine down to {MIN_LETTA_CODE}</Note>;
+  return null;
 }
 
 /**
- * Updating Letta Code is manual and lives here: the harness runs with its self-updater off, so the only
- * "update available" the app ever shows on its own is loki's. "check" asks npm; "update" pulls the newest
- * release the way this copy was installed and restarts the harness — only when loki started that harness.
+ * Updating Letta Code from here: "check" asks npm for the newest release; "update" runs the same
+ * `npm install -g @letta-ai/letta-code@latest` that installed it and restarts the harness — only when loki
+ * launched that harness. loki's harness runs with the self-updater off, so nothing changes under a session;
+ * a terminal `letta` updates the same install by itself.
  */
 function LettaUpdateFact({ bootstrap, onCheck, onUpdate }: { bootstrap: BootstrapStatus | null; onCheck: () => Promise<string | null>; onUpdate: () => Promise<string | null> }) {
   const [busy, setBusy] = useState<"check" | "update" | null>(null);
@@ -317,33 +327,33 @@ function UpdateActions({ bootstrap, busy, onCheck, onUpdate }: { bootstrap: Boot
     <>
       <Button size="sm" onClick={onCheck} disabled={busy !== null}>{busy === "check" ? "checking…" : "check"}</Button>
       {newer && managed && (
-        <Button size="sm" tone="brass" onClick={onUpdate} disabled={busy !== null} title="pulls the newest release and restarts the harness — a turn in progress stops">
+        <Button size="sm" tone="brass" onClick={onUpdate} disabled={busy !== null} title="npm install -g @letta-ai/letta-code@latest, then the harness restarts — a turn in progress stops">
           {busy === "update" ? "updating…" : `update to ${latest}`}
         </Button>
       )}
-      {newer && !managed && <Note tone="warn">newer release — this harness is not loki's to restart; update Letta Code where it runs</Note>}
+      {newer && !managed && <Note tone="warn">newer release — this harness is not loki's to restart; in a terminal: {UPGRADE_LINE}, then restart it where it runs</Note>}
       {latest && !newer && version && <Note>up to date</Note>}
     </>
   );
 }
 
-/** The footnotes: a newer minor loki was not tested with, the never-auto-updates reminder before the first check, and any error. */
+/** The footnotes: a newest release beyond the tested one, the how-it-moves reminder before the first check, and any error. */
 function UpdateNotes({ bootstrap, error }: { bootstrap: BootstrapStatus; error: string | null }) {
   const { version, latest, installing } = bootstrap;
   const newer = !!latest && !!version && latest !== version;
   const shown = error ?? (installing ? null : bootstrap.error);
   return (
     <>
-      {newer && lettaCompatible(latest!, TESTED_LETTA_CODE) === false && <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}; a newer minor may need a loki update too</Note>}
-      {!installing && !latest && !error && <Note>Letta Code never updates itself under loki — this is the only way it moves</Note>}
+      {newer && lettaStanding(latest) === "newer" && <Note tone="warn">loki was tested with {TESTED_LETTA_CODE}; a newer release may need a loki update too</Note>}
+      {!installing && !latest && !error && <Note>loki's harness never updates itself; this button or a terminal's {UPGRADE_LINE} moves the one install both use</Note>}
       {shown && <Note tone="warn">{shown}</Note>}
     </>
   );
 }
 
-/** The letta CLI on this Mac: found, installing privately, failed (with the install button), or as the tool scan saw it. */
+/** The letta CLI on this Mac: found where installers put it, being installed with npm, failed (with the install button), or as the tool scan saw it. */
 function LettaCliFact({ bootstrap, tools, onInstallLetta }: { bootstrap: BootstrapStatus | null; tools: Tools | null; onInstallLetta: () => Promise<void> }) {
-  return <Fact label="letta cli" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.private ? <Note>loki's own copy — yours, if you have one, is never touched</Note> : <Note>named by LOKI_LETTA_BIN — not loki's copy, so not loki's to update</Note>}</span> : bootstrap.installing ? <Note tone="warn">installing a private copy… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <Button size="sm" onClick={() => void onInstallLetta()} style={{ marginLeft: 8 }}>install</Button> <Note>or: npm install -g @letta-ai/letta-code</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — npm install -g @letta-ai/letta-code</Note> : "—"} mono />;
+  return <Fact label="letta cli" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.explicit ? <Note>named by LOKI_LETTA_BIN — not npm's, so not the update button's to move</Note> : <Note>the Mac's own Letta Code — the same file a terminal runs</Note>}</span> : bootstrap.installing ? <Note tone="warn">installing with npm… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <Button size="sm" onClick={() => void onInstallLetta()} style={{ marginLeft: 8 }}>install</Button> <Note>or, in a terminal: {UPGRADE_LINE}</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — {UPGRADE_LINE}</Note> : "—"} mono />;
 }
 
 /** In the shell only: what launch did about the mod and the skill. */
@@ -351,7 +361,7 @@ function InstallSection({ install }: { install: InstallReport | null }) {
   return (
     <Section title="install" hint="on launch the app puts its mod and skill where Letta looks">
       <ModFact install={install} />
-      <Fact label="shim" value={install?.shim ?? "~/.letta/mods/loki.ts"} mono />
+      <Fact label="shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on this Mac loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "imports" : "bundle"} value={install.mod_path} mono /> : null}
       <Fact label="skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : install.skill === "linked" ? <Note>a symlink to the checkout this build came from</Note> : null}</span> : "—"} />
       <Fact label="skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
@@ -363,7 +373,7 @@ function InstallSection({ install }: { install: InstallReport | null }) {
 /** The word after the mod's state: what launch found in the shim's place, or what the harness still needs. */
 function modNote(install: InstallReport): React.ReactNode {
   if (install.mod === "custom") return <Note>your own shim is in place; the app leaves it alone</Note>;
-  if (install.needs_reload) return <Note tone="warn">the harness started before this copy landed: run /reload in Letta Code, or restart Letta Desktop</Note>;
+  if (install.needs_reload) return <Note tone="warn">the harness started before this copy landed: /reload in it, or restart Letta Desktop</Note>;
   if (install.mod === "linked") return <Note>development build — the shim imports this checkout's mod/boot.ts; /reload re-bundles it</Note>;
   if (install.mod === "skipped") return <Note>development build — the app's own copy is in place; set LOKI_INSTALL=1 to refresh it</Note>;
   return null;
@@ -430,7 +440,6 @@ function FilesPage() {
       <Fact label="board" value={`${HOME}/board  (beads · bd, embedded Dolt, prefix lk)`} mono />
       <Fact label="token" value={`${HOME}/token`} mono />
       <Fact label="logs" value={`${HOME}/mod.log · ${HOME}/logs/harness.log`} mono />
-      <Fact label="letta code" value={`${HOME}/runtime/  (loki's own Node and Letta Code)`} mono />
       <Fact label="mod · canvas" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />
     </Section>
   );

@@ -130,12 +130,81 @@ pub fn desktop_ports() -> Vec<u16> {
     ports
 }
 
-/// Desktop's app-server if one is running (no auth), else None.
-pub async fn find_desktop_app_server(exclude: &[u16]) -> Option<String> {
-    for port in desktop_ports() {
-        if exclude.contains(&port) { continue; }
-        let url = format!("ws://127.0.0.1:{port}/ws");
-        if probe(&url).await { return Some(url); }
+/// App-server addresses named on command lines in the process list: a `letta server --listen …` (loki's
+/// own from an earlier run, or one the user started — a Node or Bun process, so `lsof -c Letta` never sees
+/// it) and Letta's channel gateway, launched with `--app-server-url …`. `ps` is always at /bin/ps.
+pub fn ps_app_server_urls() -> Vec<String> {
+    let out = std::process::Command::new("/bin/ps").args(["-axo", "command"]).output();
+    let Ok(out) = out else { return vec![] };
+    parse_ps_urls(&String::from_utf8_lossy(&out.stdout))
+}
+
+pub fn parse_ps_urls(ps: &str) -> Vec<String> {
+    let mut urls = vec![];
+    for line in ps.lines() {
+        let words: Vec<&str> = line.split_whitespace().collect();
+        for (i, w) in words.iter().enumerate() {
+            let flag = (*w == "--listen" && words.iter().any(|x| *x == "server")) || *w == "--app-server-url";
+            if !flag { continue; }
+            if let Some(url) = words.get(i + 1).and_then(|a| ws_url(a)) {
+                if !urls.contains(&url) { urls.push(url); }
+            }
+        }
+    }
+    urls
+}
+
+/// `ws://host:port/ws` from what `--listen` accepts: a ws URL as is, `host:port`, `:port` or a bare port (loopback).
+fn ws_url(addr: &str) -> Option<String> {
+    if addr.starts_with("ws://") || addr.starts_with("wss://") { return Some(addr.to_string()); }
+    let (host, port) = match addr.rsplit_once(':') {
+        Some((h, p)) => (if h.is_empty() { "127.0.0.1" } else { h }, p),
+        None => ("127.0.0.1", addr),
+    };
+    port.parse::<u16>().ok()?;
+    Some(format!("ws://{host}:{port}/ws"))
+}
+
+fn port_of(url: &str) -> Option<u16> {
+    url.split('/').nth(2)?.rsplit(':').next()?.parse().ok()
+}
+
+/// A running app-server loki may use, with the bearer it answered to: Desktop's (no auth), a `letta server`
+/// or gateway from the process list, loki's own from an earlier run (the token). `exclude` keeps the mod's
+/// ports out of the probe. None: nothing is running, so loki launches its own.
+pub async fn find_app_server(exclude: &[u16], token: Option<&str>) -> Option<(String, Option<String>)> {
+    let mut candidates: Vec<String> = desktop_ports().into_iter().map(|p| format!("ws://127.0.0.1:{p}/ws")).collect();
+    for u in ps_app_server_urls() {
+        if !candidates.contains(&u) { candidates.push(u); }
+    }
+    for url in candidates {
+        if port_of(&url).map(|p| exclude.contains(&p)).unwrap_or(true) { continue; }
+        if probe(&url).await { return Some((url, None)); }
+        if token.is_some() && probe_with(&url, token).await { return Some((url, token.map(str::to_string))); }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_app_server_addresses_off_the_process_list() {
+        let ps = "\
+COMMAND
+/usr/bin/login -fp me
+bun /opt/homebrew/lib/node_modules/@letta-ai/letta-code/letta.js server --listen ws://127.0.0.1:41600/ws --ws-auth capability-token --ws-token-file /Users/me/.letta/loki/token
+node /x/letta.js channel-gateway --app-server-url ws://127.0.0.1:53211/ws --channels telegram
+letta server --listen :4400
+letta server --listen 0.0.0.0:4401
+letta --listen nothing-without-server
+grep --listen ws://evil
+";
+        assert_eq!(parse_ps_urls(ps), vec!["ws://127.0.0.1:41600/ws".to_string(), "ws://127.0.0.1:53211/ws".into(), "ws://127.0.0.1:4400/ws".into(), "ws://0.0.0.0:4401/ws".into()]);
+        assert_eq!(parse_ps_urls(""), Vec::<String>::new());
+        assert_eq!(port_of("ws://127.0.0.1:41600/ws"), Some(41600));
+        assert_eq!(ws_url("41600"), Some("ws://127.0.0.1:41600/ws".into()));
+        assert_eq!(ws_url("nope"), None);
+    }
 }

@@ -94,6 +94,8 @@ export interface WorkerStatus {
   /** The model handle the worker asks, or null for the harness's default. */
   model: string | null;
   dailyCap: number;
+  /** Minutes between the writer's sweeps. */
+  tickMinutes: number;
   lastRunAt: string | null;
   lastRunNote: string | null;
   /** Cards written today, against the cap. */

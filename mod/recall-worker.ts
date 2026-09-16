@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { WebSocket } from "ws";
+import { WebSocket } from "./ws.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "../core/attention/protocol.ts";
 import type { Transport } from "../core/attention/transport.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";

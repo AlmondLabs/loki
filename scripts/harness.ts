@@ -7,6 +7,8 @@ type Handler = (...args: unknown[]) => unknown;
 type Tool = { name: string; run: (ctx: { args: Record<string, unknown>; conversation: unknown }) => unknown };
 type Command = { id: string };
 
+// The fake letta below hands the mod session-style capabilities; serve anyway (mod/gate.ts).
+process.env.LOKI_MOD_SERVE ??= "1";
 const modUrl = pathToFileURL(new URL("../mod/boot.ts", import.meta.url).pathname); // same path Letta takes
 modUrl.searchParams.set("v", String(Date.now()));
 const mod = await import(modUrl.href);

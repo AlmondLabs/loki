@@ -84,7 +84,7 @@ function LettaStep({ lettaStep, bootstrap, onInstallLetta }: { lettaStep: boolea
   return lettaStep ? (
     <LettaInstall status={bootstrap} onRetry={onInstallLetta} />
   ) : (
-    <span style={{ fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ? `${bootstrap.private ? "installed by loki · " : ""}${bootstrap.letta}` : "the harness this window is linked to"}</span>
+    <span style={{ fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ?? "the harness this window is linked to"}</span>
   );
 }
 
@@ -156,14 +156,14 @@ function PersonalityPicker({ value, onPick }: { value: Personality; onPick: (p: 
   );
 }
 
-/** Letta Code is being installed privately (or failed): the log as it comes, retry when it fails. */
+/** Letta Code is being installed with npm (or failed): the log as it comes, retry when it fails. */
 function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onRetry: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const lines = status?.log ?? [];
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>
-        {status?.error ? "Installing Letta Code did not finish." : status?.installing ? "This Mac has no Letta Code, so loki is installing a private copy under its own folder. Nothing else on the machine is touched." : "Looking for Letta Code…"}
+        {status?.error ? "Installing Letta Code did not finish." : status?.installing ? "This Mac has no Letta Code, so loki is installing it with npm — the same install a terminal's npm install -g makes, into npm's global folder, so the letta command works there too." : "Looking for Letta Code…"}
       </div>
       {lines.length > 0 && (
         <pre style={{ margin: 0, maxHeight: 160, overflowY: "auto", padding: "8px 10px", fontSize: 10.5, lineHeight: 1.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)", background: "var(--loki-well)", borderRadius: 6, whiteSpace: "pre-wrap" }}>
@@ -174,15 +174,16 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
         <div style={{ display: "grid", gap: 8 }}>
           <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{status.error}</div>
           <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>
-            The download needs nodejs.org and registry.npmjs.org to be reachable; a proxy or an offline Mac is the usual reason. Retry below once the
-            network is back. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
+            The install needs a Node 22 or newer with npm (Homebrew's <code style={{ fontFamily: "var(--loki-mono)" }}>brew install node</code>; the loki cask
+            brings it) and registry.npmjs.org to be reachable. A global folder npm may not write needs the sudo line above, run in a terminal. Retry below
+            once it is fixed. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
           </div>
           <Button size="sm" tone="brass" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ justifySelf: "start" }}>
             {busy ? "starting…" : "retry the install"}
           </Button>
         </div>
       )}
-      {!status?.error && status?.installing && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>Node 22 comes from nodejs.org if the Mac has none; Letta Code from registry.npmjs.org. A few minutes.</div>}
+      {!status?.error && status?.installing && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>npm from the Node already on this Mac; Letta Code from registry.npmjs.org. A few minutes.</div>}
     </div>
   );
 }

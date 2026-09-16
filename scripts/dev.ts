@@ -7,6 +7,8 @@
 //   2. `tauri dev` against it — its beforeDevCommand bundles the mod first — which opens the window.
 //   3. A watch for the mod on its port: the window links to Letta's app-server on its own, but the desk needs the
 //      mod inside the harness, and a harness that never loaded it shows only as Vite's proxy errors. One line says why.
+//      On a Mac with no Letta Code the window installs it with npm first (Welcome shows the progress); the clock for
+//      the mod starts once a `letta` exists where installers put it.
 // Ctrl-C (or the window closing) stops what this script started and nothing else. `--check` only reports.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -25,9 +27,10 @@ const home = homedir();
 const shimPath = join(home, ".letta", "mods", "loki.ts");
 const harnessLog = join(home, ".letta", "loki", "logs", "harness.log");
 const installLog = join(home, ".letta", "loki", "logs", "install.log");
-/** loki's private Letta Code (src-tauri/src/bootstrap.rs). Absent on a first launch: the window installs it before any harness can start. */
-const privateLetta = join(home, ".letta", "loki", "runtime", "letta", "bin", "letta");
-const firstLaunch = !process.env.LOKI_LETTA_BIN && !existsSync(privateLetta);
+/** Where a `letta` may be, beyond PATH (src-tauri/src/bootstrap.rs `bin_dirs`): the window looks in the same places. */
+const lettaDirs = [...(process.env.PATH ?? "").split(":"), "/opt/homebrew/bin", "/usr/local/bin", join(home, ".volta", "bin"), join(home, ".bun", "bin"), join(home, ".npm-global", "bin"), join(home, ".local", "bin")].filter(Boolean);
+const lettaFound = (): string | null => process.env.LOKI_LETTA_BIN ?? lettaDirs.map((d) => join(d, "letta")).find((p) => existsSync(p)) ?? null;
+const firstLaunch = lettaFound() === null;
 /** How long a first launch may take to install Letta Code before the script gives up waiting for it. */
 const INSTALL_WAIT_MS = 30 * 60_000;
 
@@ -128,10 +131,10 @@ if (process.argv.includes("--check")) {
   const cargo = onPath("cargo") ?? (existsSync(join(home, ".cargo", "bin", "cargo")) ? join(home, ".cargo", "bin", "cargo") + " (not on PATH)" : null);
   console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `bun start` would stop and say how to install it");
   console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
-  console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; the window installs its own Node for Letta Code" : `node: ${onPath("node")}`);
+  console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; Letta Code's npm install needs a Node 22+ somewhere (brew install node)" : `node: ${onPath("node")}`);
   console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`bun start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
   console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
-  console.log(firstLaunch ? `letta: none under ${privateLetta} — first launch; the window installs it, and the mod wait starts after` : `letta: ${process.env.LOKI_LETTA_BIN ?? privateLetta}`);
+  console.log(firstLaunch ? "letta: none on PATH or where installers put it — first launch; the window installs it with npm, and the mod wait starts after" : `letta: ${lettaFound()}`);
   console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts; shim ${existsSync(shimPath) ? "present" : "absent"} at ${shimPath}`);
   process.exit(0);
 }
@@ -143,7 +146,7 @@ if (!xcodeToolsPresent()) {
   process.exit(1);
 }
 env = { ...process.env, PATH: path };
-if (nodeless) console.error("loki dev: no Node on this Mac — Vite and the Tauri CLI run with Bun; the window installs its own Node for Letta Code");
+if (nodeless) console.error("loki dev: no Node on PATH — Vite and the Tauri CLI run with Bun; Letta Code's npm install needs a Node 22+ somewhere (Homebrew's counts)");
 
 if (vite === "other") {
   console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `bun start` again."].join("\n"));
@@ -175,16 +178,16 @@ tauri.on("exit", (code) => {
 });
 
 // The mod, once the harness has it. Nothing to say while it comes up; one paragraph if it never does. On a first
-// launch the window installs Letta Code first (Node from nodejs.org if the Mac has none, then npm), which takes
-// minutes and shows in Welcome; the clock for the mod starts when that copy exists.
+// launch the window installs Letta Code first (npm install -g, with the Node already on the Mac), which takes
+// minutes and shows in Welcome; the clock for the mod starts when a `letta` exists.
 void (async () => {
   const alive = () => tauri.exitCode === null;
   if (firstLaunch) {
-    console.error("loki dev: first launch — the window is installing loki's copy of Letta Code (Welcome shows the progress); the mod comes up once that finishes");
+    console.error("loki dev: first launch — the window is installing Letta Code with npm (Welcome shows the progress); the mod comes up once that finishes");
     const until = Date.now() + INSTALL_WAIT_MS;
-    while (alive() && Date.now() < until && !existsSync(privateLetta)) await new Promise((r) => setTimeout(r, 2000));
+    while (alive() && Date.now() < until && lettaFound() === null) await new Promise((r) => setTimeout(r, 2000));
     if (!alive()) return;
-    if (!existsSync(privateLetta)) {
+    if (lettaFound() === null) {
       console.error(`loki dev: Letta Code is still not installed after ${INSTALL_WAIT_MS / 60_000} min — Welcome shows the error and offers a retry; every line is in ${installLog}`);
       return;
     }
