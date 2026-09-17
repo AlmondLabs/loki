@@ -54,12 +54,13 @@ reply does.
    score on every event. A permission request that arrives while you read lands next, not on top of you.
 5. **Recompute at dequeue too.** `popHead` drops the head and orders the rest by score at that moment: the
    next card's warmth may have changed while you read the last one.
-6. **A reply is a state transition.** Reply to (or answer) the head and the conversation is the agent's: its
-   card leaves the ready queue at once, the way a process leaves for I/O, with no decision recorded. When the
-   turn finishes the card is actionable again and the merge places it by score — warm and yours, right behind
-   whatever you are reading. That is the burst: the next thing you see is the answer to what you just said,
-   while its cache is hot, with no hold key and no focus set. Before, a reply kept the card on screen and the
-   answer came back as a new card at the end of the pass.
+6. **A reply keeps the card** (restored 2026-09-17). The first cut made a reply a state transition — the card
+   left the ready queue the way a process leaves for I/O and came back by score when the turn finished. That
+   reversed a design the user had made on purpose ("I had designed for that to be an explicit ⌘] action. Why
+   did that digress?"), and it was not needed for the burst: staying on the card, the answer streams in where
+   you are and the follow-up goes out warm with no re-ordering at all. So: a reply or an answer keeps the card
+   current; moving on is ⌘] as before; and if you do move on, the merge places the returning card by score —
+   warm and yours — behind whatever you are reading then. The record is kept here so the reversal is not retried.
 7. **The word.** Each card carries the largest term of its score after the time: `warm` (brass), `reply to
    you`, `report`; blocked cards say it with their badge. The phone's footer carries the same word.
 8. **Unchanged.** The wait queue (snooze tiers, the content stamp that voids a deferral, the daily reset), the
@@ -87,7 +88,7 @@ reply does.
 - `core/attention/priority.ts` (new): the score, `reasonOf`, `byPriority`, `isScheduledPrompt`, `LastAsk`.
 - `core/attention/model.ts`: `lastAsk` on Digest, Live and AttentionItem; `buildItems(…, now)` orders by score.
 - `core/attention/queue.ts`: `popHead`; `mergeQueue` orders the tail by score. `useAttention.ts` feeds the clock.
-- `app/src/desk/useDeckActions.ts`: `leave` (a reply or answer pops the head), `answer`; `CatchUp.tsx`,
+- `app/src/desk/useDeckActions.ts`: `answer` (the structured form, through the same path as a typed reply); `CatchUp.tsx`,
   `CatchUpParts.tsx` (the word), `app/src/phone/Inbox.tsx` (the word).
 - `mod/desks.ts`: the digest's `lastAsk`.
 - Tests: `test/priority.test.ts` (new), `queue.test.ts`, `attention-model.test.ts`, `desks.test.ts`.

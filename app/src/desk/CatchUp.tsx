@@ -18,7 +18,7 @@ import { useDeckQueue } from "./useDeckQueue";
  * Catch Up: one waiting conversation at a time, a decision per card.
  *   → / space  mark seen, next        ← keep unread, next
  *   A approve  D deny                 R reply       O open desk       Z undo     Esc close
- * Highest score first (core/attention/priority.ts): blocked agents, warm replies to you, the rest; a reply hands the card over.
+ * Highest score first (core/attention/priority.ts): blocked agents, warm replies to you, the rest. A reply keeps the card.
  */
 
 /** Status → label and colour; the phone inbox (app/src/phone/Inbox.tsx) uses the same table. */

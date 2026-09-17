@@ -44,7 +44,7 @@ export function useDeckActions({
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
-  /** Replies and answers sent this pass. Each hands the conversation to the agent: the card leaves the queue and comes back with the answer. */
+  /** Replies and answers sent this pass. A reply keeps you on the card; only next/later/approve/deny move it. */
   const [replies, setReplies] = useState(0);
   /** Which way the last move went; the next card enters from that side. */
   const [dir, setDir] = useState<"next" | "back">("next");
@@ -63,23 +63,23 @@ export function useDeckActions({
     setImages([]);
   };
   /**
-   * The conversation is the agent's now (a reply or an answer went out): its card leaves the ready queue
-   * the way a process leaves for I/O, without a decision — when the turn finishes it is actionable again
-   * and the merge puts it back by score, warm and yours, right behind whatever you are reading. Sending
-   * already marks the conversation seen.
+   * A reply or an answer went out: the card stays — you may want to watch the answer arrive, and a
+   * follow-up typed while it streams in lands while the conversation's prompt is still cached. Moving on
+   * is yours (→ / ⌘]); if you do move on, the answer brings the card back by score, warm and yours, behind
+   * whatever you are reading then. Sending already marks the conversation seen.
    */
-  const leave = () => {
+  const sent = () => {
     setReplies((n) => n + 1);
-    setDir("next");
-    setQueue((q) => popHead(q));
     setDraft("");
     setImages([]);
+    setFlash("sent");
+    setTimeout(() => setFlash(null), 900);
   };
-  /** Answer the card's pending question (the structured form); the card leaves with the answer. */
+  /** Answer the card's pending question (the structured form); the card stays while the agent goes on. */
   const answer = (answers: Record<string, string | string[]>) => {
     if (!current?.pendingQuestion) return;
     onAnswer(current, current.pendingQuestion.requestId, answers);
-    leave();
+    sent();
   };
   const undo = () => {
     const last = decided[decided.length - 1];
@@ -97,7 +97,7 @@ export function useDeckActions({
     setTimeout(() => setFlash(null), 900);
     advance("seen", behavior === "allow" ? "approve" : "deny");
   };
-  // Sending a reply hands the card over: it leaves, and the answer brings it back to the front of what is left.
+  // Sending a reply keeps the card: you may want to watch the answer arrive. Moving on is yours (→ / ←).
   const sendReply = () => {
     const text = draft.trim();
     if (!current || (!text && !images.length)) return;
@@ -112,11 +112,11 @@ export function useDeckActions({
     }
     if (item.pendingQuestion && item.pendingQuestion.questions.length === 1 && text && !images.length) {
       onAnswer(item, item.pendingQuestion.requestId, { [item.pendingQuestion.questions[0].question]: text }); // a typed reply is the answer
-      leave();
+      sent();
       return;
     }
     onReply(item, text, images);
-    leave();
+    sent();
   };
 
   return { draft, setDraft, images, setImages, flash, replies, dir, advance, undo, approve, answer, sendReply };

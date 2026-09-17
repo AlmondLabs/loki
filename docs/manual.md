@@ -391,10 +391,10 @@ on every event — an approval or reply on the card in front of you, a turn fini
 the half-minute clock that fades warmth — and again whenever a card is popped, but the card in front of you
 never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts` is the score.
 
-**A reply hands the card over.** Send a reply (or answer a question) and the card leaves the deck at once:
-the conversation is the agent's now. When its turn finishes the card comes back by score — warm and yours,
-so right behind whatever you are reading. The next thing you see is the answer to what you just said, while
-its cache is still hot; five turns in ten minutes cost about a quarter of the same five spread over a day.
+**A reply keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
+into the card, and a follow-up typed then goes out while the conversation's prompt is still cached — five
+turns in ten minutes cost about a quarter of the same five spread over a day. Moving on is yours (→ or ⌘]);
+if you do, the answer brings the card back by score, warm and yours, behind whatever you are reading then.
 
 ### Later, with backoff
 

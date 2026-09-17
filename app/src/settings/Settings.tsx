@@ -451,7 +451,7 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
         <Fact label="warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
         <Fact label="reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
         <Fact label="age" value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first" />
-        <Fact label="a reply" value="hands the card over: it leaves, and comes back warm behind whatever you are reading when the answer lands" />
+        <Fact label="a reply" value="keeps the card, so the answer streams in where you are and a follow-up goes out warm; ⌘] moves on, and the answer then brings the card back by score" />
       </Section>
       <LadderSection inbox={inbox} />
     </>
