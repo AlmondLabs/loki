@@ -382,9 +382,10 @@ The deck is a scheduler's ready queue: one score per card, one list, no sections
 `blocked ? 100 : 0` (an approval, a question, a failed turn — an agent is stopped) `+ warm ? 10 : 0` (the
 agent spoke under four minutes ago, so the provider still has the conversation's prompt cached and a reply
 now costs a tenth of one typed later) `+ yours ? 5 : 0` (the turn answers a message you sent, not a
-scheduled task's prompt) `− 0.1` an hour since the last message. Blocked agents come first, then warm
-replies to you, then colder ones, then reports nobody asked for — a cron's digest, a background job. Age
-only settles ties and lets old cards drift down; nothing ages upward. Each card says the largest term after
+scheduled task's prompt) `− 0.1` an hour since the last message (`+ 0.1` for a blocked card). Blocked agents
+come first, the one waiting longest ahead, then warm replies to you, then colder ones, then reports nobody
+asked for — a cron's digest, a background job. For everything else age only settles ties and lets old cards
+drift down. Each card says the largest term after
 its time: `warm`, `reply to you`, `report` (blocked cards say it with their badge). The order is recomputed
 on every event — an approval or reply on the card in front of you, a turn finishing or blocking anywhere,
 the half-minute clock that fades warmth — and again whenever a card is popped, but the card in front of you

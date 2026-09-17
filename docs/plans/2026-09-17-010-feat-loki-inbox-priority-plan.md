@@ -73,8 +73,12 @@ reply does.
   not as a lower priority. A card that wakes re-enters at its natural score.
 - **Warm is four minutes, not five.** The provider's cache lives five minutes from its last use; the fourth
   minute is for reading the card and typing.
-- **Age never lifts a card.** Operating systems age priorities to prevent starvation; here starving a report
-  is the point, and a blocked agent is already at the top.
+- **Age never lifts a card, except a blocked one** (2026-09-17, on "how will you manage cards with the same
+  score"). Operating systems age priorities to prevent starvation; here starving a report is the point. But
+  among blocked cards the sign flips: the agent that has waited longest comes first, since a stopped agent
+  is the one case where waiting makes a card more urgent. Ties otherwise fall to a stable sort — newest first
+  in the list, already-queued before newly-arrived in an open deck — and are near-impossible anyway, the age
+  term being continuous to the millisecond.
 - **Replies record no decision.** A decision keeps a conversation out until its stamp changes; the turn that
   answers a reply always changes the stamp, and undoing a sent message is not a thing.
 

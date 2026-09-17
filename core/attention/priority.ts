@@ -6,9 +6,10 @@ import type { AttentionItem } from "./model.ts";
  *   score = blocked ? 100 : 0     an approval, a question, a failed turn — an agent is stopped
  *         + warm    ?  10 : 0     the agent spoke under four minutes ago: its prompt is still cached
  *         + yours   ?   5 : 0     the turn answers a message a person sent, not a scheduled prompt
- *         − 0.1 · hours since the last message
+ *         ± 0.1 · hours since the last message   (− for the rest; + for blocked cards)
  *
- * Blocked agents dwarf everything else. Warm replies to you come next: the provider keeps a prompt
+ * Blocked agents dwarf everything else, and among them the one that has waited longest comes first:
+ * a stopped agent is the one case where waiting makes a card more urgent, not less. Warm replies to you come next: the provider keeps a prompt
  * cached five minutes from its last use, so a reply typed while the card is warm costs a tenth of one
  * typed later, which re-reads the whole conversation. Then colder replies, then reports nobody asked
  * for (a cron's digest, a background job). The age term only settles ties and lets old cards drift
@@ -41,7 +42,8 @@ export const isYours = (i: AttentionItem): boolean => i.lastRole === "assistant"
 
 export function scoreOf(i: AttentionItem, now = Date.now()): number {
   const hours = i.lastMessageAt ? Math.max(0, now - new Date(i.lastMessageAt).getTime()) / 3_600_000 : 0;
-  return (isBlocked(i) ? BLOCKED_POINTS : 0) + (isWarm(i, now) ? WARM_POINTS : 0) + (isYours(i) ? YOURS_POINTS : 0) - AGE_POINTS_PER_HOUR * hours;
+  const blocked = isBlocked(i);
+  return (blocked ? BLOCKED_POINTS : 0) + (isWarm(i, now) ? WARM_POINTS : 0) + (isYours(i) ? YOURS_POINTS : 0) + (blocked ? 1 : -1) * AGE_POINTS_PER_HOUR * hours;
 }
 
 /** The largest term of a card's score: the one word that explains its place in the list. */

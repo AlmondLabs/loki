@@ -32,10 +32,14 @@ const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => (
 describe("the score", () => {
   test("blocked dwarfs everything: an approval, a question, a failure each score 100 before age", () => {
     for (const status of ["approval", "question", "failed"] as const) {
-      expect(scoreOf(item("b", { status, lastMessageAt: at(30) }), NOW)).toBeCloseTo(BLOCKED_POINTS - AGE_POINTS_PER_HOUR / 2, 5);
+      expect(scoreOf(item("b", { status, lastMessageAt: at(30) }), NOW)).toBeCloseTo(BLOCKED_POINTS + AGE_POINTS_PER_HOUR / 2, 5);
     }
     // blocked and warm both: the terms add
-    expect(scoreOf(item("b", { status: "approval", lastMessageAt: at(1) }), NOW)).toBeCloseTo(BLOCKED_POINTS + WARM_POINTS - AGE_POINTS_PER_HOUR / 60, 5);
+    expect(scoreOf(item("b", { status: "approval", lastMessageAt: at(1) }), NOW)).toBeCloseTo(BLOCKED_POINTS + WARM_POINTS + AGE_POINTS_PER_HOUR / 60, 5);
+    // among blocked cards the one that has waited longest comes first
+    expect(byPriority([item("new", { status: "approval", lastMessageAt: at(6) }), item("old", { status: "approval", lastMessageAt: at(50) })], NOW).map((i) => i.id)).toEqual(["old", "new"]);
+    // …unless the newer one is still warm: answering it now is cheap, and the terms add
+    expect(byPriority([item("new", { status: "approval", lastMessageAt: at(2) }), item("old", { status: "approval", lastMessageAt: at(50) })], NOW).map((i) => i.id)).toEqual(["new", "old"]);
     // a day-old approval still beats a warm reply that just landed
     expect(scoreOf(item("b", { status: "approval", lastMessageAt: at(24 * 60) }), NOW)).toBeGreaterThan(scoreOf(item("w", { lastMessageAt: at(0), lastAsk: { at: at(1), scheduled: false } }), NOW));
   });
@@ -59,7 +63,7 @@ describe("the score", () => {
     expect(scoreOf(item("p", { lastRole: "user", lastAsk: { at: at(1), scheduled: false } }), NOW)).toBeCloseTo(-AGE_POINTS_PER_HOUR, 5);
   });
 
-  test("age only drifts a card down, a tenth of a point an hour; nothing ages upward", () => {
+  test("age drifts a card down, a tenth of a point an hour; only a blocked card ages upward", () => {
     const fresh = item("f", { lastMessageAt: at(30) });
     const stale = item("s", { lastMessageAt: at(3 * 24 * 60) });
     expect(scoreOf(fresh, NOW)).toBeGreaterThan(scoreOf(stale, NOW));

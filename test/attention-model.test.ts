@@ -28,9 +28,9 @@ describe("attention model (browser)", () => {
     applyEvent(run, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "run" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
     live.set(keyOf("a", "run"), run);
     const items = buildItems(convs, digests, live, { [keyOf("a", "seen")]: "2026-09-05T09:00:00Z" }, new Date("2026-09-05T10:00:00Z").getTime());
-    // by score (priority.ts): the two blocked cards first, the newer of them (the approval, from 09:30) ahead; then the finished one; the rest by age
-    expect(items.map((i) => `${i.id}:${i.status}`)).toEqual(["appr:approval", "q:question", "done:done", "seen:idle", "run:running"]);
-    expect(items[0].pendingApproval).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
+    // by score (priority.ts): the two blocked cards first, the one waiting longest (the question, from 07:00) ahead; then the finished one; the rest by age
+    expect(items.map((i) => `${i.id}:${i.status}`)).toEqual(["q:question", "appr:approval", "done:done", "seen:idle", "run:running"]);
+    expect(items.find((i) => i.id === "appr")!.pendingApproval).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
   });
 
   test("applyEvent: streaming text lands on stop, user speaking resets and reports", () => {
