@@ -4,6 +4,7 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import type { Snooze } from "../../../core/attention/snooze.ts";
+import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
 
@@ -47,6 +48,8 @@ export function useDeskSocket() {
   const [appServer, setAppServer] = useState(false);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
+  /** How long "later" hides a card (Settings › inbox); the mod keeps it beside the markers. */
+  const [ladder, setLadder] = useState<SnoozeLadder>(DEFAULT_LADDER);
   /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
   const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
@@ -197,6 +200,11 @@ export function useDeskSocket() {
           case "seen":
             setSeenMap((msg.seen as Record<string, string>) ?? {});
             setSnoozeMap((msg.snooze as Record<string, Snooze>) ?? {});
+            {
+              // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
+              const next = msg.ladder && typeof msg.ladder === "object" ? clampLadder(msg.ladder as Partial<Record<keyof SnoozeLadder, unknown>>) : DEFAULT_LADDER;
+              setLadder((prev) => (prev.firstMinutes === next.firstMinutes && prev.growth === next.growth ? prev : next));
+            }
             if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
           case "desk_title":
@@ -267,6 +275,7 @@ export function useDeskSocket() {
     appServer,
     seenMap,
     snoozeMap,
+    ladder,
     tasksVersion,
     recallVersion,
     lanStatus,

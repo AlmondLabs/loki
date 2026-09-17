@@ -1,6 +1,7 @@
-import { extractHarnessEvents, looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
+import { extractHarnessEvents, isScheduledPrompt, looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
 import type { ImageAttachment } from "./content.ts";
+import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
  * Attention model: which conversations are waiting on the user, and why.
@@ -43,6 +44,8 @@ export interface ConversationInfo {
 export interface Digest {
   lastRole: "user" | "assistant" | null;
   lastAssistantText: string | null;
+  /** Who sent the last message into the conversation, so the score can tell a reply to you from a report. */
+  lastAsk: AskedBy | null;
 }
 
 export interface LiveRow {
@@ -72,6 +75,8 @@ export interface Live {
   lastAssistantText: string | null;
   lastRole: "user" | "assistant" | null;
   lastMessageAt: string | null;
+  /** Who sent the last user message seen live: a person, or a schedule. */
+  lastAsk: AskedBy | null;
   /** Rows that arrived live since the transcript was last loaded (the streaming reply is not in here until it ends). */
   tail: LiveRow[];
   /** Tool calls already announced (a call streams as several deltas). */
@@ -103,6 +108,12 @@ export interface AttentionItem extends ConversationInfo {
   error: string | null;
   seenAt: string | null;
   unread: boolean;
+  /** Who sent the last message into the conversation (live if seen, else from the log); null when unknown. */
+  lastAsk: AskedBy | null;
+  /** The card's place in the list, stamped by buildItems at one instant for every item (priority.ts). */
+  score: number;
+  /** The one word that explains the score: what the card shows after its time. */
+  reason: Reason;
   runtime: Runtime;
 }
 
@@ -110,7 +121,7 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
 const TEXT_LIMIT = 700;
 
 export function emptyLive(): Live {
-  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
+  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
 }
 
 /**
@@ -289,6 +300,7 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         for (const ev of events) l.tail.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
         const text = stripHarnessMarkup(raw).trim();
         if (!text) return { changed: events.length > 0, userSpoke: false };
+        l.lastAsk = isScheduledPrompt(text) ? "schedule" : "person";
         settle(l);
         const own = l.ownSends.indexOf(text);
         if (own >= 0) l.ownSends.splice(own, 1); // shown when it was sent
@@ -343,16 +355,19 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
   }
 }
 
-const RANK: Record<AttentionStatus, number> = { approval: 0, question: 1, failed: 2, done: 3, running: 4, idle: 5 };
-
-/** Combine everything into the sorted item list. */
+/**
+ * Combine everything into the item list, each item stamped with its score and reason at `now` and the
+ * list ordered highest first (priority.ts): blocked agents, then warm replies to you, then colder ones,
+ * then reports.
+ */
 export function buildItems(
   conversations: ConversationInfo[],
   digests: Map<string, Digest>,
   live: Map<string, Live>,
   seen: Record<string, string>,
+  now = Date.now(),
 ): AttentionItem[] {
-  const out: AttentionItem[] = [];
+  const out: Unscored[] = [];
   for (const c of conversations) {
     const key = keyOf(c.agentId, c.id);
     const d = digests.get(key);
@@ -381,8 +396,9 @@ export function buildItems(
       error: l?.error ?? null,
       seenAt,
       unread,
+      lastAsk: l?.lastAsk ?? d?.lastAsk ?? null,
       runtime: { agent_id: c.agentId, conversation_id: c.id },
     });
   }
-  return out.sort((a, b) => RANK[a.status] - RANK[b.status] || (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+  return scored(out, now);
 }

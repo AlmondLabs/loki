@@ -1,4 +1,5 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
+import { DEFAULT_LADDER } from "../core/attention/ladder.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { InboxRow } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
@@ -28,6 +29,7 @@ import { isLanVia } from "./lan.ts";
  *    trash         { id }                    delete the widget's file (the agent's work is gone for good)
  *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, snooze, appServer }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
+ *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages }
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
  *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
@@ -230,6 +232,9 @@ export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_li
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
+  /** The seen markers, the deferrals and the "later" ladder, as one frame; sent on request and broadcast on every change. */
+  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
+
   const deskFrame = (scope: Scope) => {
     const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null };
     return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, model: info.model, mode: info.mode ?? null, state: store.get(scope), widgets: widgets.entries(scope) };
@@ -282,19 +287,19 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           return;
         }
         case "seen_list": {
-          client.send({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, appServer: appServerAvailable?.() ?? false });
+          client.send(seenFrame());
           return;
         }
         case "seen_mark":
           if (typeof msg.conversationId === "string") {
             seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            broadcast({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, appServer: appServerAvailable?.() ?? false });
+            broadcast(seenFrame());
           }
           return;
         case "seen_unmark":
           if (typeof msg.conversationId === "string") {
             seen?.unmark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            broadcast({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, appServer: appServerAvailable?.() ?? false });
+            broadcast(seenFrame());
           }
           return;
         case "snooze_set": {
@@ -302,16 +307,21 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const skips = Number(msg.skips);
           if (typeof msg.conversationId === "string" && Number.isFinite(skips) && typeof msg.until === "string" && typeof msg.stamp === "string" && typeof msg.at === "string") {
             seen?.setSnooze(agentId, msg.conversationId, { skips, until: msg.until, stamp: msg.stamp, at: msg.at });
-            broadcast({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, appServer: appServerAvailable?.() ?? false });
+            broadcast(seenFrame());
           }
           break;
         }
         case "snooze_clear":
           if (typeof msg.conversationId === "string") {
             seen?.clearSnooze(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            broadcast({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, appServer: appServerAvailable?.() ?? false });
+            broadcast(seenFrame());
           }
           break;
+        case "snooze_ladder": {
+          seen?.setLadder({ firstMinutes: msg.firstMinutes, growth: msg.growth });
+          broadcast(seenFrame());
+          return;
+        }
         case "trash": {
           if (typeof msg.id !== "string" || !deleteWidgetFile) return;
           const entry = widgets.get(msg.id);

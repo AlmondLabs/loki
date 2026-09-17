@@ -7,6 +7,7 @@ import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
+import type { SnoozeLadder } from "./ladder.ts";
 import { stampOf } from "./queue.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
@@ -29,6 +30,8 @@ export interface UseAttentionOptions {
   unmarkSeen: (agentId: string, conversationId: string) => void;
   setSnooze: (agentId: string, conversationId: string, rec: Snooze) => void;
   clearSnooze: (agentId: string, conversationId: string) => void;
+  /** How long "later" hides a card (the mod's setting; ladder.ts has the defaults). */
+  ladder?: SnoozeLadder;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
   loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null }>>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
@@ -147,11 +150,11 @@ export function useAttention(opts: UseAttentionOptions) {
         // The list and the digests are the mod's, read from disk in one answer: nothing is windowed or capped here.
         const rows = await opts.listConversations();
         if (cancelled) return;
-        const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+        const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
         lastReload.current = Date.now();
         knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
         setConversations(convs);
-        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText }])));
+        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk }])));
         // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
         for (const c of convs.slice(0, opts.subscribeLimit ?? 30)) {
           const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
@@ -189,14 +192,14 @@ export function useAttention(opts: UseAttentionOptions) {
     [],
   );
 
-  // Snoozes expire on their own; re-evaluate twice a minute so cards come due without any event.
+  // The clock tick: snoozes come due and warmth fades without any other event, so the items are rebuilt twice a minute.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
   const items = useMemo(
-    () => buildItems(conversations, digests, live, opts.seen).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
+    () => buildItems(conversations, digests, live, opts.seen, now).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
     [conversations, digests, opts.seen, opts.snooze, live, now],
   );
 
@@ -581,7 +584,7 @@ export function useAttention(opts: UseAttentionOptions) {
     seen: (item: AttentionItem) => opts.markSeen(item.agentId, item.id),
     unread: (item: AttentionItem) => opts.unmarkSeen(item.agentId, item.id),
     /** "Later": defer with backoff; the deferral is void if the card moves on. */
-    later: (item: AttentionItem) => opts.setSnooze(item.agentId, item.id, nextSnooze(opts.snooze[keyOf(item.agentId, item.id)], stampOf(item))),
+    later: (item: AttentionItem) => opts.setSnooze(item.agentId, item.id, nextSnooze(opts.snooze[keyOf(item.agentId, item.id)], stampOf(item), Date.now(), opts.ladder)),
     unsnooze: (item: AttentionItem) => opts.clearSnooze(item.agentId, item.id),
     snoozes: opts.snooze,
   };

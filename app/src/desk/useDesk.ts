@@ -15,6 +15,7 @@ import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { Snooze } from "../../../core/attention/snooze.ts";
+import type { SnoozeLadder } from "../../../core/attention/ladder.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
 
@@ -82,6 +83,7 @@ export function useDesk() {
     appServer,
     seenMap,
     snoozeMap,
+    ladder,
     tasksVersion,
     recallVersion,
     lanStatus,
@@ -263,6 +265,9 @@ export function useDesk() {
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
     setSnooze: (agentId: string, conversationId: string, rec: Snooze) => send({ type: "snooze_set", agentId, conversationId, ...rec }),
+    /** How long "later" hides a card, and the setter (Settings › inbox): the mod clamps and broadcasts. */
+    ladder,
+    setLadder: (input: Partial<SnoozeLadder>) => send({ type: "snooze_ladder", ...input }),
     /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((m) => ((m?.conversations as InboxConversation[] | undefined) ?? [])),
     /** The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame). */

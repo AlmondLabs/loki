@@ -8,6 +8,7 @@ import { avatarUrl } from "./env";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
+import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Button, Chip, Empty, Meta, Title } from "../components";
 import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
@@ -122,6 +123,8 @@ export interface CardHeaderProps {
 /** Title, who and when, the deferral history, and the status badge. The mode and model chips sit in the card's last row. */
 export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash }: CardHeaderProps) {
   const badge = BADGE[current.status];
+  /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
+  const reason = REASON_LABEL[current.reason];
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)" }}>
       <div style={{ minWidth: 0 }}>
@@ -130,6 +133,7 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
           <AgentFace name={current.agentName} src={avatarUrl(current.agentId)} size={18} />
           <AgentChip name={current.agentName} />
           <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
+          {reason && <Meta brass={reason === "warm"}>{reason}</Meta>}
           {cameBack && <Meta brass>back · new since you moved on</Meta>}
           {timesAround > 1 && <Meta brass>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
           {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}

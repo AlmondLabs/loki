@@ -1,4 +1,5 @@
 import type { AttentionItem, AttentionStatus } from "./model.ts";
+import { byScore } from "./priority.ts";
 
 const ACTIONABLE: AttentionStatus[] = ["approval", "question", "failed", "done"];
 export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
@@ -10,11 +11,12 @@ export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
  */
 export const stampOf = (i: AttentionItem) => `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}|${i.turns}`;
 
+/** The ready queue: every card that can be acted on now, in the order the items came (buildItems stamps and sorts by score). */
 export function catchUpQueue(items: AttentionItem[], includeSnoozed = false): AttentionItem[] {
   return items.filter((i) => ACTIONABLE.includes(i.status) && (includeSnoozed || !i.snooze));
 }
 
-/** Actionable items currently hidden by a deferral. */
+/** The wait queue: actionable items currently hidden by a deferral. */
 export function snoozedItems(items: AttentionItem[]): AttentionItem[] {
   return items.filter((i) => ACTIONABLE.includes(i.status) && !!i.snooze);
 }
@@ -28,12 +30,17 @@ export interface Decision {
   stamp: string;
 }
 
+/** The head is popped: the card under your hands is done with, and the rest are ordered again by their score. */
+export function popHead(queue: AttentionItem[]): AttentionItem[] {
+  return byScore(queue.slice(1));
+}
+
 /**
- * Fold live items into an open pass. The current card (index 0) never moves;
- * items no longer actionable drop out; new ones join at the end — including a
- * conversation decided earlier in this pass if it has a newer message or a new
- * approval, so a reply that comes back while the deck is open is queued rather
- * than lost until the next ⌘⇧K.
+ * Fold live items into an open pass, on every event: the head (index 0) never moves; items no
+ * longer actionable drop out; everything behind the head — what was there and what just arrived —
+ * is ordered by score. A conversation decided earlier in this pass comes back if it has a newer
+ * message or a new approval, so a reply that lands while the deck is open is queued rather than
+ * lost until the next ⌘⇧K; being warm and yours, it lands right behind the head.
  */
 export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[], includeSnoozed = false): AttentionItem[] {
   const actionable = catchUpQueue(items, includeSnoozed);
@@ -48,5 +55,8 @@ export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decid
     const prev = decidedStamp.get(id);
     return prev === undefined || prev !== stampOf(i);
   });
-  return fresh.length || keep.length !== queue.length ? [...keep, ...fresh] : queue;
+  const next = keep.length ? [keep[0], ...byScore([...keep.slice(1), ...fresh])] : byScore(fresh);
+  // The kept items are the queue's own objects, so identity says whether anything moved.
+  const same = next.length === queue.length && next.every((i, idx) => i === queue[idx]);
+  return same ? queue : next;
 }

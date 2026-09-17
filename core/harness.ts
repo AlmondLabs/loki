@@ -134,6 +134,9 @@ export function toTranscript(messages: Array<Record<string, unknown>>): Transcri
   return out;
 }
 
+/** Letta's scheduler speaks first in a cron turn, always with this opening: not a person's message. */
+export const isScheduledPrompt = (text: string): boolean => /^\s*Scheduled task\b/.test(text);
+
 /** Heuristic: does this assistant message end by asking the user something? */
 export function looksLikeQuestion(text: string | null): boolean {
   if (!text) return false;

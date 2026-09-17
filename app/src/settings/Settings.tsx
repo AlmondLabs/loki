@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys, registerActions } from "../shell/keymap";
-import { Button, Chip, Dot, Field, NavButton, Switch, Title } from "../components";
+import { Button, Chip, Dot, Field, Meta, NavButton, Switch, Title } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { MIN_LETTA_CODE, TESTED_LETTA_CODE, UPGRADE_LINE, lettaStanding } from "../../../core/compat.ts";
@@ -15,12 +15,21 @@ import type { LokiUpdate } from "../shell/useLokiUpdate";
 import type { GlobalShortcut } from "../shell/useGlobalShortcut";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallSettings } from "../recall/RecallParts";
+import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attention/priority.ts";
+import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
+import { within, type Range } from "../../../core/range.ts";
 
 const HOME = "~/.letta/loki";
 
 /** The pages down the left. "letta" gathers what loki runs on: harness, mod, requirements, install. */
-export type SettingsPage = "letta" | "providers" | "phone" | "skills" | "learn" | "chat" | "files" | "keys";
-export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+export type SettingsPage = "letta" | "inbox" | "providers" | "phone" | "skills" | "learn" | "chat" | "files" | "keys";
+export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "inbox" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+
+/** Settings › inbox: the "later" ladder in force and its setter (useDesk().attention). */
+export interface InboxSettingsApi {
+  ladder: SnoozeLadder;
+  onLadder: (input: Partial<SnoozeLadder>) => void;
+}
 const PAGE_KEY = "loki.settingsPage";
 export function isSettingsPage(v: unknown): v is SettingsPage {
   return PAGES.some((p) => p.id === v);
@@ -65,6 +74,7 @@ export function Settings({
   shortcut,
   recall,
   scratch,
+  inbox,
 }: {
   appServerStatus: AppServerStatus;
   tunnelUrl: string | null;
@@ -98,6 +108,8 @@ export function Settings({
   recall: RecallModel;
   /** The harness's scratch folder (Settings › letta). */
   scratch: Scratch;
+  /** The deck's "later" ladder (Settings › inbox). */
+  inbox: InboxSettingsApi;
 }) {
   const harness = useHarnessFacts(tunnelUrl);
   const [page, setPage] = useState<SettingsPage>(() => {
@@ -128,6 +140,7 @@ export function Settings({
       </nav>
       <div style={{ display: "grid", gap: 28, alignContent: "start", minWidth: 0 }}>
         {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} />}
+        {page === "inbox" && <InboxPage inbox={inbox} />}
         {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
         {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
         {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
@@ -426,7 +439,33 @@ function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement }: { 
       <Fact label="position" value={<Choice options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />} />
       <Fact label="side width" value={<Choice options={["narrow", "wide"] as ChatWidth[]} value={chatWidth} onPick={onChatWidth} />} />
       <Fact label="empty desk" value="opens the chat centred until the first widget lands" />
-      <Fact label="later" value="5m · 15m · 45m · 2h · 6h · 1d, one step further each time a card is deferred" />
+    </Section>
+  );
+}
+
+/** Settings › inbox: how the deck orders its cards, and how long "later" hides one. */
+function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
+  return (
+    <>
+      <Section title="order" hint="one score per card, one list; the card in front of you never moves until you act on it">
+        <Fact label="blocked" value={`+${BLOCKED_POINTS} — an approval, a question, a failed turn: an agent is stopped`} />
+        <Fact label="warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
+        <Fact label="reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
+        <Fact label="age" value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first" />
+        <Fact label="a reply" value="keeps the card, so the answer streams in where you are and a follow-up goes out warm; ⌘] moves on, and the answer then brings the card back by score" />
+      </Section>
+      <LadderSection inbox={inbox} />
+    </>
+  );
+}
+
+function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
+  return (
+    <Section title="later" hint="how long ← hides a card: the first deferral, then each further one in the same day multiplied by the growth, never past a day">
+      <Knob label="first" value={inbox.ladder.firstMinutes} range={LADDER_RANGE.firstMinutes} aria="minutes the first deferral lasts" onApply={(n) => inbox.onLadder({ firstMinutes: n })} hint={`minutes (${LADDER_RANGE.firstMinutes.min}–${LADDER_RANGE.firstMinutes.max}); the one you feel — does the card come back inside this pass or after the next coffee`} />
+      <Knob label="growth" value={inbox.ladder.growth} range={LADDER_RANGE.growth} aria="growth per further deferral" onApply={(n) => inbox.onLadder({ growth: n })} hint={`× per further deferral of the same card (${LADDER_RANGE.growth.min}–${LADDER_RANGE.growth.max}); 1 keeps every deferral the same length`} />
+      <Fact label="ladder" value={ladderSteps(inbox.ladder).map(formatGap).join(" · ")} mono />
+      <Fact label="resets" value="each day; a card that moves on (new reply, new approval) comes back at once; approvals never defer" />
     </Section>
   );
 }
@@ -476,6 +515,22 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
         </tbody>
       </table>
     </Section>
+  );
+}
+
+/** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
+function Knob({ label, value, range, aria, hint, onApply }: { label: string; value: number; range: Range; aria: string; hint: string; onApply: (n: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  return (
+    <Fact
+      label={label}
+      value={
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Field size="sm" mono value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => within(draft, range) && onApply(Number(draft))} style={{ width: 64 }} aria-label={aria} />
+          <Meta wrap>{hint}</Meta>
+        </span>
+      }
+    />
   );
 }
 

@@ -1,11 +1,12 @@
 import type { AttentionItem } from "./model.ts";
 import { stampOf } from "./queue.ts";
+import { DEFAULT_LADDER, snoozeGapMs, type SnoozeLadder } from "./ladder.ts";
 
 /**
- * "Later" with a memory, Anki-style: each time you defer the same card the
- * gap before it returns grows — 5m, 15m, 45m, 2h, 6h, then a day. Approvals
- * never snooze. A card that has moved on (new reply, new approval) ignores its
- * snooze and comes straight back. Everything resets at the start of a new day.
+ * "Later" with a memory, Anki-style — the wait queue beside the deck's ready queue: each time you
+ * defer the same card the gap before it returns grows along the ladder (ladder.ts; by default 10m,
+ * 30m, 1h30, 4h30, 13h30, then a day). Approvals never snooze. A card that has moved on (new reply,
+ * new approval) ignores its snooze and comes straight back. Everything resets at the start of a new day.
  */
 export interface Snooze {
   /** How many times in a row (today) this card was deferred. */
@@ -18,19 +19,16 @@ export interface Snooze {
   at: string;
 }
 
-export const SNOOZE_TIERS_MS = [5, 15, 45, 120, 360, 1440].map((m) => m * 60_000);
-
 export function sameLocalDay(iso: string, now: number): boolean {
   const a = new Date(iso);
   const b = new Date(now);
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-/** The next deferral for a card, building on today's earlier ones. */
-export function nextSnooze(prev: Snooze | undefined, stamp: string, now = Date.now()): Snooze {
+/** The next deferral for a card, building on today's earlier ones, one rung further up the ladder. */
+export function nextSnooze(prev: Snooze | undefined, stamp: string, now = Date.now(), ladder: SnoozeLadder = DEFAULT_LADDER): Snooze {
   const skips = (prev && sameLocalDay(prev.at, now) ? prev.skips : 0) + 1;
-  const tier = SNOOZE_TIERS_MS[Math.min(skips, SNOOZE_TIERS_MS.length) - 1];
-  return { skips, until: new Date(now + tier).toISOString(), stamp, at: new Date(now).toISOString() };
+  return { skips, until: new Date(now + snoozeGapMs(skips, ladder)).toISOString(), stamp, at: new Date(now).toISOString() };
 }
 
 /** The snooze that currently hides this item, or null if it is due (or was never deferred). */

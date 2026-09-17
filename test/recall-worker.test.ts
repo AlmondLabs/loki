@@ -13,7 +13,7 @@ import { review } from "../core/recall/fsrs.ts";
 setDefaultTimeout(20_000);
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
-const row = (id: string, over: Partial<InboxRow> = {}): InboxRow => ({ id, agentId: "a1", agentName: "ira", title: `desk ${id}`, lastMessageAt: new Date(T0 - QUIET_MS - 1000).toISOString(), archived: false, lastRole: "assistant", lastAssistantText: null, ...over });
+const row = (id: string, over: Partial<InboxRow> = {}): InboxRow => ({ id, agentId: "a1", agentName: "ira", title: `desk ${id}`, lastMessageAt: new Date(T0 - QUIET_MS - 1000).toISOString(), archived: false, lastRole: "assistant", lastAssistantText: null, lastAsk: null, ...over });
 const chatter = (n: number): LocalTranscriptMessage[] => [{ role: "user", text: "what does KMS key rotation do in AWS? ".repeat(n) }, { role: "assistant", text: "It re-keys the CMK yearly while keeping old material to decrypt. ".repeat(n) }];
 
 let dir: string;

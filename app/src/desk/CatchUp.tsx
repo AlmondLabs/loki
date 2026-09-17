@@ -18,7 +18,7 @@ import { useDeckQueue } from "./useDeckQueue";
  * Catch Up: one waiting conversation at a time, a decision per card.
  *   → / space  mark seen, next        ← keep unread, next
  *   A approve  D deny                 R reply       O open desk       Z undo     Esc close
- * Approvals first, then questions, failures, finished work.
+ * Highest score first (core/attention/priority.ts): blocked agents, warm replies to you, the rest. A reply keeps the card.
  */
 
 /** Status → label and colour; the phone inbox (app/src/phone/Inbox.tsx) uses the same table. */
@@ -188,7 +188,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
       <CardHeader current={current} cameBack={cameBackIn(decided, current)} timesAround={timesAround} priorSnooze={priorSnooze} flash={actions.flash} />
       <CardThread rows={thread?.rows} status={thread?.status} error={current.status === "failed" ? current.error : null} />
       {current.status === "approval" && current.pendingApproval && <ApprovalCard approval={current.pendingApproval} />}
-      {current.pendingQuestion && <QuestionCard question={current.pendingQuestion} onAnswer={(answers) => deck.onAnswer(current, current.pendingQuestion!.requestId, answers)} />}
+      {current.pendingQuestion && <QuestionCard question={current.pendingQuestion} onAnswer={actions.answer} />}
       <ReplyBox current={current} replyRef={replyRef} draft={actions.draft} setDraft={actions.setDraft} images={actions.images} setImages={actions.setImages} sendReply={actions.sendReply} setTyping={setTyping} onClose={deck.onClose} commands={deck.commands} onCommand={onCommand} />
       <CardFooter
         current={current}

@@ -5,7 +5,7 @@ import { toTranscript } from "../core/harness.ts";
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
 
 describe("attention model (browser)", () => {
-  test("buildItems classifies approval / question / done / running / idle and sorts", () => {
+  test("buildItems classifies approval / question / done / running / idle and orders by score", () => {
     const convs: ConversationInfo[] = [
       { id: "done", agentId: "a", agentName: "ira", title: "Done", lastMessageAt: "2026-09-05T08:00:00Z", archived: false },
       { id: "q", agentId: "a", agentName: "ira", title: "Q", lastMessageAt: "2026-09-05T07:00:00Z", archived: false },
@@ -14,22 +14,23 @@ describe("attention model (browser)", () => {
       { id: "run", agentId: "a", agentName: "ira", title: "Run", lastMessageAt: "2026-09-05T04:00:00Z", archived: false },
     ];
     const digests = new Map([
-      [keyOf("a", "done"), { lastRole: "assistant" as const, lastAssistantText: "Finished." }],
-      [keyOf("a", "q"), { lastRole: "assistant" as const, lastAssistantText: "Should I proceed?" }],
-      [keyOf("a", "appr"), { lastRole: "assistant" as const, lastAssistantText: "Running it." }],
-      [keyOf("a", "seen"), { lastRole: "assistant" as const, lastAssistantText: "Old news." }],
-      [keyOf("a", "run"), { lastRole: "user" as const, lastAssistantText: null }],
+      [keyOf("a", "done"), { lastRole: "assistant" as const, lastAssistantText: "Finished.", lastAsk: null }],
+      [keyOf("a", "q"), { lastRole: "assistant" as const, lastAssistantText: "Should I proceed?", lastAsk: null }],
+      [keyOf("a", "appr"), { lastRole: "assistant" as const, lastAssistantText: "Running it.", lastAsk: null }],
+      [keyOf("a", "seen"), { lastRole: "assistant" as const, lastAssistantText: "Old news.", lastAsk: null }],
+      [keyOf("a", "run"), { lastRole: "user" as const, lastAssistantText: null, lastAsk: null }],
     ]);
     const live = new Map();
     const appr = emptyLive();
-    applyEvent(appr, { type: "control_request", request_id: "perm-1", request: { subtype: "can_use_tool", tool_name: "Bash", input: { command: "ls" } }, agent_id: "a", conversation_id: "appr" });
+    applyEvent(appr, { type: "control_request", request_id: "perm-1", request: { subtype: "can_use_tool", tool_name: "Bash", input: { command: "ls" } }, agent_id: "a", conversation_id: "appr" }, "2026-09-05T09:30:00Z");
     live.set(keyOf("a", "appr"), appr);
     const run = emptyLive();
     applyEvent(run, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "run" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
     live.set(keyOf("a", "run"), run);
-    const items = buildItems(convs, digests, live, { [keyOf("a", "seen")]: "2026-09-05T09:00:00Z" });
-    expect(items.map((i) => `${i.id}:${i.status}`)).toEqual(["appr:approval", "q:question", "done:done", "run:running", "seen:idle"]);
-    expect(items[0].pendingApproval).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
+    const items = buildItems(convs, digests, live, { [keyOf("a", "seen")]: "2026-09-05T09:00:00Z" }, new Date("2026-09-05T10:00:00Z").getTime());
+    // by score (priority.ts): the two blocked cards first, the one waiting longest (the question, from 07:00) ahead; then the finished one; the rest by age
+    expect(items.map((i) => `${i.id}:${i.status}`)).toEqual(["q:question", "appr:approval", "done:done", "seen:idle", "run:running"]);
+    expect(items.find((i) => i.id === "appr")!.pendingApproval).toMatchObject({ requestId: "perm-1", toolName: "Bash" });
   });
 
   test("applyEvent: streaming text lands on stop, user speaking resets and reports", () => {

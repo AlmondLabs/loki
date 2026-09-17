@@ -4,7 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
-import { extractHarnessEvents, stripHarnessMarkup, toolLabel } from "../core/harness.ts";
+import { extractHarnessEvents, isScheduledPrompt, stripHarnessMarkup, toolLabel } from "../core/harness.ts";
+import type { AskedBy } from "../core/attention/priority.ts";
 import type { Runtime } from "./app-server.ts";
 
 /**
@@ -295,6 +296,8 @@ function textParts(content: unknown): string {
 export interface LocalDigest {
   lastRole: "user" | "assistant" | null;
   lastAssistantText: string | null;
+  /** Who sent the last message into the conversation: the inbox's score tells a reply to you from a cron's report by it. */
+  lastAsk: AskedBy | null;
 }
 
 /** One open conversation as the inbox lists it: the record from disk plus its digest. */
@@ -318,7 +321,7 @@ const DIGEST_TEXT_LIMIT = 700;
  */
 export function digestLocalConversation(conversationId: string, agentId?: string | null, backendDir = join(homedir(), ".letta", "lc-local-backend")): LocalDigest {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
-  const none: LocalDigest = { lastRole: null, lastAssistantText: null };
+  const none: LocalDigest = { lastRole: null, lastAssistantText: null, lastAsk: null };
   let tail: string;
   try {
     const size = statSync(path).size;
@@ -336,6 +339,10 @@ export function digestLocalConversation(conversationId: string, agentId?: string
   }
   const lines = tail.split("\n");
   if (lines.length && tail.length === DIGEST_TAIL_BYTES) lines.shift(); // a line cut in half at the window's edge
+  // Backwards: the first human or assistant text decides who spoke last; the scan goes on to the last
+  // thing a person (or a schedule) said, and stops there — nothing older changes the digest.
+  let lastRole: LocalDigest["lastRole"] = null;
+  let lastAssistantText: string | null = null;
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i];
     if (!line.trim()) continue;
@@ -348,11 +355,14 @@ export function digestLocalConversation(conversationId: string, agentId?: string
     if (entry.type !== "message" || !entry.message) continue;
     const role = entry.message.role;
     if (role === "user") {
-      if (stripHarnessMarkup(textParts(entry.message.content)).trim()) return { lastRole: "user", lastAssistantText: null };
-    } else if (role === "assistant") {
+      const text = stripHarnessMarkup(textParts(entry.message.content)).trim();
+      if (text) return { lastRole: lastRole ?? "user", lastAssistantText, lastAsk: isScheduledPrompt(text) ? "schedule" : "person" };
+    } else if (role === "assistant" && !lastRole) {
       const text = textParts(entry.message.content).trim();
-      if (text) return { lastRole: "assistant", lastAssistantText: text.slice(-DIGEST_TEXT_LIMIT) };
+      if (!text) continue;
+      lastRole = "assistant";
+      lastAssistantText = text.slice(-DIGEST_TEXT_LIMIT);
     }
   }
-  return none;
+  return { lastRole, lastAssistantText, lastAsk: null };
 }

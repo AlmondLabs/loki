@@ -61,6 +61,7 @@ export function Shell() {
     unmarkSeen: attention.unmarkSeen,
     setSnooze: attention.setSnooze,
     clearSnooze: attention.clearSnooze,
+    ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
   });

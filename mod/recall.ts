@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { clamp } from "../core/range.ts";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
@@ -41,7 +42,7 @@ export const DEFAULT_TICK_MINUTES = 10;
 /** A sweep at most once a minute, at least once a day. */
 export const TICK_MINUTES_RANGE = { min: 1, max: 24 * 60 } as const;
 export function clampTickMinutes(n: number): number {
-  return Math.min(TICK_MINUTES_RANGE.max, Math.max(TICK_MINUTES_RANGE.min, Math.round(n)));
+  return clamp(Math.round(n), TICK_MINUTES_RANGE, DEFAULT_TICK_MINUTES);
 }
 const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 25, tickMinutes: DEFAULT_TICK_MINUTES, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {}, writers: {} };
 
