@@ -275,13 +275,14 @@ function TerminalScratchFact({ suggestion }: { suggestion: string }) {
 
 /** The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path. */
 function LokiVersionFact({ update }: { update: LokiUpdate }) {
+  const cask = update.channel === "nightly" ? "loki-nightly" : "loki";
   const value = update.newer ? (
     <span>
       {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
-      <Note>brew upgrade --cask loki, or the .dmg on the release page</Note>
+      <Note>brew upgrade --cask {cask}, or the .dmg on the release page</Note>
     </span>
   ) : update.latest ? (
-    <span>{update.current}<Note>the newest release</Note></span>
+    <span>{update.current}<Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note></span>
   ) : (
     <span>{update.current}{update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}</span>
   );

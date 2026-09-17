@@ -74,7 +74,16 @@ brew install --cask almondlabs/loki/loki
 xattr -dr com.apple.quarantine /Applications/loki.app
 ```
 
-Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line.
+Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line. Versions are dates: `2026.9.28` is
+the stable that shipped on that day.
+
+**Nightly**, if you want every merge about twenty minutes after it lands (one loki at a time, so this replaces the
+stable install; `brew uninstall --cask loki` first, or the other way round to go back):
+
+```bash
+brew install --cask almondlabs/loki/loki-nightly
+xattr -dr com.apple.quarantine /Applications/loki.app
+```
 
 **The `.dmg`** from the [latest release](https://github.com/AlmondLabs/loki/releases/latest): drag loki to
 Applications, then clear the flag once:

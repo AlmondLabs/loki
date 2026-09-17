@@ -42,7 +42,13 @@ The second line matters. loki is not signed with an Apple Developer ID, and macO
 download as "damaged"; Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no longer has
 a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand once per install. The cask's
 own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xattr` line again; the cask
-follows each release.
+follows each release. Versions are dates (`2026.9.28` shipped on that day, UTC).
+
+**Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main`, built about twenty
+minutes after it lands, versioned `2026.9.28-nightly.a96ee85` after the day and the commit. The two casks
+conflict — both builds share `~/.letta/loki`, the mod shim and the harness port — so switching channels is an
+uninstall and an install. Settings › letta shows which channel a build is on and names the right cask in its
+upgrade line. How releases are cut: [docs/RELEASING.md](RELEASING.md).
 
 **The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
 Open is not enough for an unsigned app on macOS 14 and later):
@@ -76,7 +82,7 @@ Whichever way, Letta Code need not be installed first: loki uses the one on your
    pick one of Letta's personalities. You land on its desk with the chat open.
 4. Ask your agent to put something on the desk.
 
-Updates are a new release (`brew upgrade --cask loki`, or the next `.dmg`); the app re-installs its mod on launch
+Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app re-installs its mod on launch
 when the bundle changed. It never overwrites a shim or skill it did not write, so a checkout wired up for
 development (below) keeps working. Letta Code moves when your terminal updates it or from Settings › letta (see
 Requirements); the harness loki launches never updates itself.
