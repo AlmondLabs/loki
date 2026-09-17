@@ -7,6 +7,7 @@ import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
+import type { SnoozeLadder } from "./ladder.ts";
 import { stampOf } from "./queue.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
@@ -29,6 +30,8 @@ export interface UseAttentionOptions {
   unmarkSeen: (agentId: string, conversationId: string) => void;
   setSnooze: (agentId: string, conversationId: string, rec: Snooze) => void;
   clearSnooze: (agentId: string, conversationId: string) => void;
+  /** How long "later" hides a card (the mod's setting; ladder.ts has the defaults). */
+  ladder?: SnoozeLadder;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
   loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null }>>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
@@ -581,7 +584,7 @@ export function useAttention(opts: UseAttentionOptions) {
     seen: (item: AttentionItem) => opts.markSeen(item.agentId, item.id),
     unread: (item: AttentionItem) => opts.unmarkSeen(item.agentId, item.id),
     /** "Later": defer with backoff; the deferral is void if the card moves on. */
-    later: (item: AttentionItem) => opts.setSnooze(item.agentId, item.id, nextSnooze(opts.snooze[keyOf(item.agentId, item.id)], stampOf(item))),
+    later: (item: AttentionItem) => opts.setSnooze(item.agentId, item.id, nextSnooze(opts.snooze[keyOf(item.agentId, item.id)], stampOf(item), Date.now(), opts.ladder)),
     unsnooze: (item: AttentionItem) => opts.clearSnooze(item.agentId, item.id),
     snoozes: opts.snooze,
   };

@@ -88,3 +88,16 @@ reply does.
 - `mod/desks.ts`: the digest's `lastAsk`.
 - Tests: `test/priority.test.ts` (new), `queue.test.ts`, `attention-model.test.ts`, `desks.test.ts`.
 - `docs/manual.md`, `README.md`.
+
+## Follow-up (2026-09-17): the ladder becomes two knobs
+
+"Can this be made configurable like 1 number (x) and the steps are x^n. Default x can be 10." The old steps
+(5m · 15m · 45m · 2h · 6h · 1d) were already geometric, about ×3 each; 10ⁿ minutes is too steep (the third
+deferral hides a card for most of a day, the fourth for a week — with the daily reset only two steps would ever
+run), and one base ties the first step to the growth. Chosen: two knobs, **first** (minutes, default 10) and
+**growth** (default 3), steps = first · growth^(n−1), capped at a day: 10m · 30m · 1h30 · 4h30 · 13h30 · 1d.
+`core/attention/ladder.ts` holds the ladder, its ranges (1–1440 minutes, ×1–×10) and the labels; the mod keeps
+the setting in `state/attention.json` beside the markers (`SeenStore.ladder`/`setLadder`), the `seen` frame
+carries it, `snooze_ladder { firstMinutes?, growth? }` sets it, and Settings gains an **inbox** page: the order's
+terms, and the two fields with the resulting ladder shown. The phone defers by the same ladder.
+

@@ -169,6 +169,31 @@ describe("bridge", () => {
   });
 });
 
+describe("bridge: the later ladder", () => {
+  test("seen carries the ladder; snooze_ladder sets a knob, clamps it and broadcasts the new seen frame", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { SeenStore } = await import("../mod/seen.ts");
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const seen = new SeenStore(join(dir, "attention.json"));
+      const broadcasts: object[] = [];
+      const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m), seen });
+      const c = client("c1");
+      bridge.onMessage(c, { type: "seen_list" });
+      expect(c.sent[0]).toMatchObject({ type: "seen", ladder: { firstMinutes: 10, growth: 3 } });
+      bridge.onMessage(c, { type: "snooze_ladder", firstMinutes: 5 });
+      expect(broadcasts.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5, growth: 3 } });
+      bridge.onMessage(c, { type: "snooze_ladder", growth: 0 });
+      expect(broadcasts.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5, growth: 1 } });
+      expect(seen.ladder()).toEqual({ firstMinutes: 5, growth: 1 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("bridge history", () => {
   test("inbox_list answers with the mod's open conversations and echoes the request id", () => {
     const rows = [{ id: "default", agentId: "a1", agentName: "ira", title: "ira · main chat", lastMessageAt: "2026-09-06T11:49:16Z", archived: false as const, lastRole: "assistant" as const, lastAsk: null, lastAssistantText: "It's on your canvas now." }];

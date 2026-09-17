@@ -398,10 +398,12 @@ its cache is still hot; five turns in ten minutes cost about a quarter of the sa
 ### Later, with backoff
 
 "Later" (←) on a card defers it Anki-style — the wait queue beside the ready queue: it leaves the pass and comes back
-after 5 minutes, then 15, 45, 2 hours, 6 hours, and at most a day, each time you
-defer it again, at whatever score it then has. A card that moves on (new reply, new approval) returns at once,
-labelled "back". Approvals never defer. The ladder resets each day. The deck
-shows how many are snoozed and when the next is due; S shows them anyway.
+after a gap that grows each time you defer the same card in a day, at whatever score it then has. The gap is a
+ladder with two knobs in Settings › inbox: the **first** deferral in minutes (default 10) and the **growth** per
+further one (default ×3), so by default 10m · 30m · 1h 30m · 4h 30m · 13h 30m, and never more than a day. The
+mod keeps the setting beside the seen markers, so the phone defers by the same ladder. A card that moves on
+(new reply, new approval) returns at once, labelled "back". Approvals never defer. The ladder resets each day.
+The deck shows how many are snoozed and when the next is due; S shows them anyway. `core/attention/ladder.ts`.
 
 ## Board (tasks for later)
 

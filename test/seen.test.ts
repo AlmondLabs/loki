@@ -19,6 +19,12 @@ describe("seen store", () => {
       expect(again.snoozes()).toEqual({ "a/c2": rec });
       again.clearSnooze("a", "c2");
       expect(new SeenStore(path).snoozes()).toEqual({});
+      // the "later" ladder: defaults until set; each knob clamped; persisted beside the markers; only written once set
+      expect(again.ladder()).toEqual({ firstMinutes: 10, growth: 3 });
+      expect(JSON.parse(readFileSync(path, "utf8")).ladder).toBeUndefined();
+      expect(again.setLadder({ firstMinutes: 5 })).toEqual({ firstMinutes: 5, growth: 3 });
+      expect(again.setLadder({ growth: 20 })).toEqual({ firstMinutes: 5, growth: 10 });
+      expect(new SeenStore(path).ladder()).toEqual({ firstMinutes: 5, growth: 10 });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
