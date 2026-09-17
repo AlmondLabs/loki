@@ -154,7 +154,7 @@ export function useAttention(opts: UseAttentionOptions) {
         lastReload.current = Date.now();
         knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
         setConversations(convs);
-        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk ?? null }])));
+        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk }])));
         // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
         for (const c of convs.slice(0, opts.subscribeLimit ?? 30)) {
           const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };

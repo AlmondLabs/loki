@@ -58,7 +58,7 @@ export function useDeckActions({
     }
     setDir("next");
     setDecided((d) => [...d, { item: current, action, via, stamp: stampOf(current) }]);
-    setQueue((q) => popHead(q));
+    setQueue(popHead);
     setDraft("");
     setImages([]);
   };
@@ -97,7 +97,6 @@ export function useDeckActions({
     setTimeout(() => setFlash(null), 900);
     advance("seen", behavior === "allow" ? "approve" : "deny");
   };
-  // Sending a reply keeps the card: you may want to watch the answer arrive. Moving on is yours (→ / ←).
   const sendReply = () => {
     const text = draft.trim();
     if (!current || (!text && !images.length)) return;

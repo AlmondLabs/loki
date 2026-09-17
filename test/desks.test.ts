@@ -149,12 +149,12 @@ describe("digestLocalConversation", () => {
         { type: "message", message: { role: "user", content: "<task-notification><task-id>t</task-id></task-notification>" } },
         "not json",
       ]);
-      expect(digestLocalConversation("c-asked", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Which one?", lastAsk: { at: null, scheduled: false } });
+      expect(digestLocalConversation("c-asked", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Which one?", lastAsk: "person" });
       write(backend, "c-replied", [
         { type: "message", message: { role: "assistant", content: [{ type: "text", text: "Done." }] } },
         { type: "message", message: { role: "user", content: [{ type: "text", text: "<system-reminder>env</system-reminder>\nthanks" }] } },
       ]);
-      expect(digestLocalConversation("c-replied", null, backend)).toEqual({ lastRole: "user", lastAssistantText: null, lastAsk: { at: null, scheduled: false } });
+      expect(digestLocalConversation("c-replied", null, backend)).toEqual({ lastRole: "user", lastAssistantText: null, lastAsk: "person" });
       write(backend, "c-tools-only", [{ type: "message", message: { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } }]);
       expect(digestLocalConversation("c-tools-only", null, backend)).toEqual({ lastRole: null, lastAssistantText: null, lastAsk: null });
       expect(digestLocalConversation("missing", null, backend)).toEqual({ lastRole: null, lastAssistantText: null, lastAsk: null });
@@ -162,7 +162,7 @@ describe("digestLocalConversation", () => {
       rmSync(backend, { recursive: true, force: true });
     }
   });
-  test("the last ask: when a person last spoke, or that a schedule did — the score tells a reply to you from a cron's report by it", () => {
+  test("who asked last: a person, or a schedule — the score tells a reply to you from a cron's report by it", () => {
     const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {
       write(backend, "c-yours", [
@@ -170,15 +170,15 @@ describe("digestLocalConversation", () => {
         { type: "message", timestamp: "2026-09-16T08:00:20.000Z", message: { role: "assistant", content: [{ type: "text", text: "Halfway." }] } },
         { type: "message", timestamp: "2026-09-16T08:00:21.000Z", message: { role: "toolResult", content: [{ type: "text", text: "ok" }] } },
       ]);
-      expect(digestLocalConversation("c-yours", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Halfway.", lastAsk: { at: "2026-09-16T08:00:00.000Z", scheduled: false } });
+      expect(digestLocalConversation("c-yours", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Halfway.", lastAsk: "person" });
       write(backend, "c-cron", [
         { type: "message", timestamp: "2026-09-15T02:00:00.000Z", message: { role: "user", content: "tune the digest" } },
         { type: "message", timestamp: "2026-09-15T02:00:09.000Z", message: { role: "assistant", content: [{ type: "text", text: "Tuned." }] } },
         { type: "message", message: { role: "user", metadata: { created_at: "2026-09-16T02:30:00.000Z" }, content: [{ type: "text", text: 'Scheduled task "jira-watch-daily" is firing.\nDescription: the daily digest' }] } },
         { type: "message", timestamp: "2026-09-16T02:31:00.000Z", message: { role: "assistant", content: [{ type: "text", text: "Two issues moved." }] } },
       ]);
-      // the schedule spoke last before the agent: a report, timed from the message's own metadata
-      expect(digestLocalConversation("c-cron", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Two issues moved.", lastAsk: { at: "2026-09-16T02:30:00.000Z", scheduled: true } });
+      // the schedule spoke last before the agent: a report
+      expect(digestLocalConversation("c-cron", null, backend)).toEqual({ lastRole: "assistant", lastAssistantText: "Two issues moved.", lastAsk: "schedule" });
     } finally {
       rmSync(backend, { recursive: true, force: true });
     }
@@ -188,7 +188,7 @@ describe("digestLocalConversation", () => {
     try {
       const filler = { type: "message", message: { role: "assistant", content: [{ type: "text", text: "x".repeat(4000) }] } };
       write(backend, "c-long", [...Array.from({ length: 200 }, () => filler), { type: "message", message: { role: "user", content: "last word" } }]);
-      expect(digestLocalConversation("c-long", null, backend)).toEqual({ lastRole: "user", lastAssistantText: null, lastAsk: { at: null, scheduled: false } });
+      expect(digestLocalConversation("c-long", null, backend)).toEqual({ lastRole: "user", lastAssistantText: null, lastAsk: "person" });
     } finally {
       rmSync(backend, { recursive: true, force: true });
     }

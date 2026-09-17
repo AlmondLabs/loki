@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, snoozedItems } from "../../../core/attention/queue.ts";
 import { formatIn } from "../../../core/attention/snooze.ts";
-import { REASON_LABEL, reasonOf } from "../../../core/attention/priority.ts";
+import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import { ApprovalCard } from "../chat/ApprovalCard";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -564,10 +564,12 @@ function CardBody({ item, view, onApprove, onOpen, onLater, onSeen }: { item: At
 function CardFooter({ item, onApprove, onOpen, onLater, onSeen }: { item: AttentionItem; onApprove?: (behavior: "allow" | "deny") => void; onOpen?: () => void; onLater?: () => void; onSeen?: () => void }) {
   /** A structured AskUserQuestion, or the last message read as a question: either way, the answer is in the conversation. */
   const asks = !!item.pendingQuestion || item.status === "question";
+  /** The one word that explains the card's place in the queue; blocked cards say it with the badge. */
+  const reason = REASON_LABEL[item.reason];
   return (
     <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 6, minHeight: 40, padding: "4px 8px 4px 12px", borderTop: "1px solid var(--loki-border)" }}>
       <Meta style={{ flex: 1, minWidth: 0 }}>
-        {REASON_LABEL[reasonOf(item)] ? `${REASON_LABEL[reasonOf(item)]} · ` : ""}
+        {reason && `${reason} · `}
         {waitingSince(item)}
       </Meta>
       {item.pendingApproval ? (

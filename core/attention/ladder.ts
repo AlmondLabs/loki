@@ -5,6 +5,8 @@
  * and how much faster each further one gets. Defaults 10 minutes and ×3: 10m · 30m · 1h30 · 4h30 · 13h30 · 1d.
  * Shared by the deck (core/attention/snooze.ts) and the mod, which keeps the setting beside the seen markers.
  */
+import { clamp } from "../range.ts";
+
 export interface SnoozeLadder {
   firstMinutes: number;
   growth: number;
@@ -14,12 +16,6 @@ export const DEFAULT_LADDER: SnoozeLadder = { firstMinutes: 10, growth: 3 };
 export const LADDER_RANGE = { firstMinutes: { min: 1, max: 1440 }, growth: { min: 1, max: 10 } } as const;
 /** No deferral outlives the day; the daily reset would void it anyway. */
 export const MAX_SNOOZE_MS = 24 * 60 * 60_000;
-
-const clamp = (v: unknown, range: { min: number; max: number }, fallback: number): number => {
-  const n = typeof v === "number" ? v : Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(range.max, Math.max(range.min, n));
-};
 
 /** A ladder from loose input (a settings frame, a file): each knob within its range, else the default. */
 export function clampLadder(input: Partial<Record<keyof SnoozeLadder, unknown>> | null | undefined, base: SnoozeLadder = DEFAULT_LADDER): SnoozeLadder {

@@ -14,11 +14,11 @@ describe("attention model (browser)", () => {
       { id: "run", agentId: "a", agentName: "ira", title: "Run", lastMessageAt: "2026-09-05T04:00:00Z", archived: false },
     ];
     const digests = new Map([
-      [keyOf("a", "done"), { lastRole: "assistant" as const, lastAssistantText: "Finished." }],
-      [keyOf("a", "q"), { lastRole: "assistant" as const, lastAssistantText: "Should I proceed?" }],
-      [keyOf("a", "appr"), { lastRole: "assistant" as const, lastAssistantText: "Running it." }],
-      [keyOf("a", "seen"), { lastRole: "assistant" as const, lastAssistantText: "Old news." }],
-      [keyOf("a", "run"), { lastRole: "user" as const, lastAssistantText: null }],
+      [keyOf("a", "done"), { lastRole: "assistant" as const, lastAssistantText: "Finished.", lastAsk: null }],
+      [keyOf("a", "q"), { lastRole: "assistant" as const, lastAssistantText: "Should I proceed?", lastAsk: null }],
+      [keyOf("a", "appr"), { lastRole: "assistant" as const, lastAssistantText: "Running it.", lastAsk: null }],
+      [keyOf("a", "seen"), { lastRole: "assistant" as const, lastAssistantText: "Old news.", lastAsk: null }],
+      [keyOf("a", "run"), { lastRole: "user" as const, lastAssistantText: null, lastAsk: null }],
     ]);
     const live = new Map();
     const appr = emptyLive();

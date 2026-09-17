@@ -318,7 +318,6 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           }
           break;
         case "snooze_ladder": {
-          // Each knob given is clamped to its range; one left out keeps its value. Every tab and phone hears the new ladder.
           seen?.setLadder({ firstMinutes: msg.firstMinutes, growth: msg.growth });
           broadcast(seenFrame());
           return;

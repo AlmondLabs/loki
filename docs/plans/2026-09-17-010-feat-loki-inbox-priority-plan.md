@@ -40,8 +40,8 @@ reply does.
    then colder replies; then reports nobody asked for. The age term only settles ties and lets old cards
    drift down. Nothing ages upward. `buildItems` orders by it, so the desktop deck, the phone deck and the
    rail count all see the same list.
-2. **Yours vs a report.** The mod's digest now records the last message a person or a schedule sent
-   (`lastAsk: { at, scheduled }`), reading the log backwards past the agent's last words to the last human
+2. **Yours vs a report.** The mod's digest now records who sent the last message into the conversation
+   (`lastAsk: "person" | "schedule"`), reading the log backwards past the agent's last words to the last human
    text; Letta's scheduler always opens with `Scheduled task "…" is firing.`, which is the whole test. The
    live stream sets the same field from `user_message` deltas. Cron digests therefore rank as reports without
    loki reading the cron file.

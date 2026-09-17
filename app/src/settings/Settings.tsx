@@ -17,6 +17,7 @@ import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallSettings } from "../recall/RecallParts";
 import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attention/priority.ts";
 import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
+import { within, type Range } from "../../../core/range.ts";
 
 const HOME = "~/.letta/loki";
 
@@ -458,32 +459,11 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
   );
 }
 
-/** A typed knob is applied on blur only when it is a number inside its range; anything else is left in the box. */
-const within = (v: string, range: { min: number; max: number }) => Number.isFinite(Number(v)) && Number(v) >= range.min && Number(v) <= range.max;
-
 function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
-  const [first, setFirst] = useState(String(inbox.ladder.firstMinutes));
-  const [growth, setGrowth] = useState(String(inbox.ladder.growth));
   return (
     <Section title="later" hint="how long ← hides a card: the first deferral, then each further one in the same day multiplied by the growth, never past a day">
-      <Fact
-        label="first"
-        value={
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Field size="sm" mono value={first} onChange={(e) => setFirst(e.target.value)} onBlur={() => within(first, LADDER_RANGE.firstMinutes) && inbox.onLadder({ firstMinutes: Number(first) })} style={{ width: 64 }} aria-label="minutes the first deferral lasts" />
-            <Meta wrap>minutes ({LADDER_RANGE.firstMinutes.min}–{LADDER_RANGE.firstMinutes.max}); the one you feel — does the card come back inside this pass or after the next coffee</Meta>
-          </span>
-        }
-      />
-      <Fact
-        label="growth"
-        value={
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Field size="sm" mono value={growth} onChange={(e) => setGrowth(e.target.value)} onBlur={() => within(growth, LADDER_RANGE.growth) && inbox.onLadder({ growth: Number(growth) })} style={{ width: 64 }} aria-label="growth per further deferral" />
-            <Meta wrap>× per further deferral of the same card ({LADDER_RANGE.growth.min}–{LADDER_RANGE.growth.max}); 1 keeps every deferral the same length</Meta>
-          </span>
-        }
-      />
+      <Knob label="first" value={inbox.ladder.firstMinutes} range={LADDER_RANGE.firstMinutes} aria="minutes the first deferral lasts" onApply={(n) => inbox.onLadder({ firstMinutes: n })} hint={`minutes (${LADDER_RANGE.firstMinutes.min}–${LADDER_RANGE.firstMinutes.max}); the one you feel — does the card come back inside this pass or after the next coffee`} />
+      <Knob label="growth" value={inbox.ladder.growth} range={LADDER_RANGE.growth} aria="growth per further deferral" onApply={(n) => inbox.onLadder({ growth: n })} hint={`× per further deferral of the same card (${LADDER_RANGE.growth.min}–${LADDER_RANGE.growth.max}); 1 keeps every deferral the same length`} />
       <Fact label="ladder" value={ladderSteps(inbox.ladder).map(formatGap).join(" · ")} mono />
       <Fact label="resets" value="each day; a card that moves on (new reply, new approval) comes back at once; approvals never defer" />
     </Section>
@@ -535,6 +515,22 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
         </tbody>
       </table>
     </Section>
+  );
+}
+
+/** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
+function Knob({ label, value, range, aria, hint, onApply }: { label: string; value: number; range: Range; aria: string; hint: string; onApply: (n: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  return (
+    <Fact
+      label={label}
+      value={
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <Field size="sm" mono value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => within(draft, range) && onApply(Number(draft))} style={{ width: 64 }} aria-label={aria} />
+          <Meta wrap>{hint}</Meta>
+        </span>
+      }
+    />
   );
 }
 

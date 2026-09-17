@@ -200,7 +200,11 @@ export function useDeskSocket() {
           case "seen":
             setSeenMap((msg.seen as Record<string, string>) ?? {});
             setSnoozeMap((msg.snooze as Record<string, Snooze>) ?? {});
-            setLadder(msg.ladder && typeof msg.ladder === "object" ? clampLadder(msg.ladder as Partial<Record<keyof SnoozeLadder, unknown>>) : DEFAULT_LADDER);
+            {
+              // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
+              const next = msg.ladder && typeof msg.ladder === "object" ? clampLadder(msg.ladder as Partial<Record<keyof SnoozeLadder, unknown>>) : DEFAULT_LADDER;
+              setLadder((prev) => (prev.firstMinutes === next.firstMinutes && prev.growth === next.growth ? prev : next));
+            }
             if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
           case "desk_title":

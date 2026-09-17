@@ -2,14 +2,11 @@ import { describe, expect, test } from "bun:test";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { activeSnooze, formatIn, nextSnooze, ordinal } from "../core/attention/snooze.ts";
 import { MAX_SNOOZE_MS, snoozeGapMs } from "../core/attention/ladder.ts";
+import { attentionItem } from "./fixtures/attention.ts";
 import { stampOf } from "../core/attention/queue.ts";
 
 const T0 = new Date("2026-09-05T10:00:00").getTime(); // local time, mid-day
-const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
-  id: "c", agentId: "a", agentName: "ira", title: "c", lastMessageAt: "2026-09-05T09:00:00Z", archived: false,
-  status: "done", lastAssistantText: "here", lastRole: "assistant", pendingApproval: null, pendingQuestion: null, turns: 0, error: null, seenAt: null, unread: true,
-  runtime: { agent_id: "a", conversation_id: "c" }, ...over,
-});
+const item = (over: Partial<AttentionItem> = {}) => attentionItem("c", { agentId: "a", lastMessageAt: "2026-09-05T09:00:00Z", lastAssistantText: "here", runtime: { agent_id: "a", conversation_id: "c" }, ...over });
 
 describe("snooze backoff", () => {
   test("each deferral today waits longer along the ladder: 10m, 30m, 1h30, 4h30, 13h30, then a day, and stays at a day", () => {

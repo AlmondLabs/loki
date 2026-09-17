@@ -8,7 +8,7 @@ import { avatarUrl } from "./env";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
-import { REASON_LABEL, reasonOf } from "../../../core/attention/priority.ts";
+import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Button, Chip, Empty, Meta, Title } from "../components";
 import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
@@ -124,7 +124,7 @@ export interface CardHeaderProps {
 export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash }: CardHeaderProps) {
   const badge = BADGE[current.status];
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
-  const reason = REASON_LABEL[reasonOf(current)];
+  const reason = REASON_LABEL[current.reason];
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)" }}>
       <div style={{ minWidth: 0 }}>

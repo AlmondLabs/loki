@@ -1,26 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { mergeQueue, popHead, stampOf } from "../core/attention/queue.ts";
+import { scored } from "../core/attention/priority.ts";
+import { attentionItem } from "./fixtures/attention.ts";
 
-const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({
-  id,
-  agentId: "a1",
-  agentName: "ira",
-  title: id,
-  lastMessageAt: "2026-09-05T10:00:00Z",
-  archived: false,
-  status: "done",
-  lastAssistantText: "x",
-  lastRole: "assistant",
-  pendingApproval: null,
-  pendingQuestion: null,
-  turns: 0,
-  error: null,
-  seenAt: null,
-  unread: true,
-  runtime: { agent_id: "a1", conversation_id: id },
-  ...over,
-});
+const item = attentionItem;
 
 describe("catch up queue merge", () => {
   test("new items join behind the head by score; the current card never moves; resolved items drop out", () => {
@@ -51,27 +35,26 @@ describe("catch up queue merge", () => {
 
   test("what arrives is placed by score, not appended: a warm reply to you goes right behind the head, a cold report to the back", () => {
     const now = new Date("2026-09-16T10:00:00Z").getTime();
-    const head = item("head", { lastMessageAt: "2026-09-16T06:00:00Z" });
-    const old = item("old", { lastMessageAt: "2026-09-16T07:00:00Z" });
-    const warm = item("warm", { lastMessageAt: "2026-09-16T09:58:00Z", lastAsk: { at: "2026-09-16T09:57:00Z", scheduled: false } });
-    const report = item("report", { lastMessageAt: "2026-09-16T09:59:00Z", lastAsk: { at: "2026-09-16T09:58:00Z", scheduled: true } });
-    const q = mergeQueue([head, old], [head, old, report, warm], [], false, now);
+    // items arrive stamped, as buildItems hands them over
+    const stamp = (i: AttentionItem) => scored([i], now)[0];
+    const head = stamp(item("head", { lastMessageAt: "2026-09-16T06:00:00Z" }));
+    const old = stamp(item("old", { lastMessageAt: "2026-09-16T07:00:00Z" }));
+    const report = stamp(item("report", { lastMessageAt: "2026-09-16T09:59:00Z", lastAsk: "schedule" }));
+    const warm = stamp(item("warm", { lastMessageAt: "2026-09-16T09:58:00Z", lastAsk: "person" }));
+    const q = mergeQueue([head, old], [head, old, report, warm], []);
     expect(q.map((i) => i.id)).toEqual(["head", "warm", "report", "old"]);
     // the head stays even when something blocked arrives; the blocked card is next
-    const blocked = item("blocked", { status: "approval", pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" }, lastMessageAt: "2026-09-16T09:59:30Z" });
-    expect(mergeQueue(q, [head, old, report, warm, blocked], [], false, now).map((i) => i.id)).toEqual(["head", "blocked", "warm", "report", "old"]);
+    const blocked = stamp(item("blocked", { status: "approval", pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" }, lastMessageAt: "2026-09-16T09:59:30Z" }));
+    expect(mergeQueue(q, [head, old, report, warm, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "warm", "report", "old"]);
   });
 
-  test("popHead drops the head and orders the rest by score at that moment", () => {
-    const now = new Date("2026-09-16T10:00:00Z").getTime();
-    const head = item("head");
-    const cold = item("cold", { lastMessageAt: "2026-09-16T08:00:00Z" });
-    const warm = item("warm", { lastMessageAt: "2026-09-16T09:59:00Z" });
-    // the tail was ordered earlier with cold ahead; by now warm has arrived and leads
-    expect(popHead([head, cold, warm], now).map((i) => i.id)).toEqual(["warm", "cold"]);
-    // ten minutes on, warm has cooled and the newer card still leads, by age alone
-    expect(popHead([head, cold, warm], now + 10 * 60_000).map((i) => i.id)).toEqual(["warm", "cold"]);
-    expect(popHead([head], now)).toEqual([]);
+  test("popHead drops the head and orders the rest by their stamped score", () => {
+    const head = item("head", { score: 3 });
+    const low = item("low", { score: -1 });
+    const high = item("high", { score: 9 });
+    // the tail was ordered earlier with low ahead; the stamps say high leads
+    expect(popHead([head, low, high]).map((i) => i.id)).toEqual(["high", "low"]);
+    expect(popHead([head])).toEqual([]);
   });
 
   test("returns the same array when nothing changed", () => {
