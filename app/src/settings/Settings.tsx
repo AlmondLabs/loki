@@ -458,10 +458,12 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
   );
 }
 
+/** A typed knob is applied on blur only when it is a number inside its range; anything else is left in the box. */
+const within = (v: string, range: { min: number; max: number }) => Number.isFinite(Number(v)) && Number(v) >= range.min && Number(v) <= range.max;
+
 function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
   const [first, setFirst] = useState(String(inbox.ladder.firstMinutes));
   const [growth, setGrowth] = useState(String(inbox.ladder.growth));
-  const within = (v: string, range: { min: number; max: number }) => Number.isFinite(Number(v)) && Number(v) >= range.min && Number(v) <= range.max;
   return (
     <Section title="later" hint="how long ← hides a card: the first deferral, then each further one in the same day multiplied by the growth, never past a day">
       <Fact
