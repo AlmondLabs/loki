@@ -1,19 +1,79 @@
-# Tag a version (`git tag v0.3.0 && git push --tags`) and this builds the macOS app, signs and
-# notarizes it when the Apple secrets are present, and attaches the .dmg to a draft release.
-# See docs/RELEASING.md for the secrets and the steps around it.
+# Releases, two channels, from every push to main (docs/RELEASING.md; scripts/release.ts does the deciding):
+#   nightly  every merge builds the app and replaces the rolling `nightly` prerelease and the loki-nightly cask
+#   stable   merging the release PR (branch release/next) tags vYYYY.M.D, publishes the release and pushes the loki cask
+# The release PR itself is created by the first merge after a stable and rebuilt by every merge after that, and at
+# midnight UTC so its number is today's date. Signing is optional (the Apple secrets); TAP_TOKEN pushes the casks.
 name: release
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+  schedule:
+    - cron: "5 0 * * *" # refresh the release PR to today's date (UTC)
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  macos:
-    runs-on: macos-14
+  plan:
+    name: what this run does
+    runs-on: ubuntu-latest
+    outputs:
+      kind: ${{ steps.plan.outputs.kind }}
+      version: ${{ steps.plan.outputs.version }}
+      next: ${{ steps.plan.outputs.next }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: oven-sh/setup-bun@v2
+      - id: plan
+        run: bun scripts/release.ts plan
+
+  release-pr:
+    name: the release PR
+    needs: plan
+    if: needs.plan.outputs.kind == 'nightly' || needs.plan.outputs.kind == 'repush'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-pr
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          # RELEASE_TOKEN (optional, see RELEASING.md) makes the PR's pushes trigger ci.yml; the workflow token cannot.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: oven-sh/setup-bun@v2
+      - env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bun scripts/release.ts release-pr "${{ needs.plan.outputs.next }}"
+
+  build:
+    name: build and publish (${{ needs.plan.outputs.kind }} ${{ needs.plan.outputs.version }})
+    needs: plan
+    # a nightly only from a merge (the midnight run and a manual run refresh the PR, they do not ship); a stable always
+    if: needs.plan.outputs.kind == 'stable' || (needs.plan.outputs.kind == 'nightly' && github.event_name == 'push')
+    runs-on: macos-14
+    concurrency:
+      # only the newest merge matters for a nightly; a stable is never cancelled
+      group: build-${{ needs.plan.outputs.kind }}
+      cancel-in-progress: ${{ needs.plan.outputs.kind == 'nightly' }}
+    env:
+      KIND: ${{ needs.plan.outputs.kind }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -22,6 +82,9 @@ jobs:
         with:
           workspaces: src-tauri
       - run: bun install --frozen-lockfile
+      # The version files hold the last stable; the build gets this run's number and nothing is committed.
+      - name: stamp the version
+        run: bun scripts/release.ts set "$VERSION"
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
       # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
       # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
@@ -40,13 +103,47 @@ jobs:
             [ -n "${!v}" ] && echo "$v=${!v}" >> "$GITHUB_ENV"
           done
           echo "signing with $APPLE_SIGNING_IDENTITY"
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: build the universal dmg
+        uses: tauri-apps/tauri-action@v0
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "loki ${{ github.ref_name }}"
-          releaseBody: "Install with Homebrew: `brew install --cask ${{ github.repository_owner }}/loki/loki` (the cask follows once this release is published), or drag the .dmg below to Applications. Either way, clear the quarantine flag once, since the app is not signed: `xattr -dr com.apple.quarantine /Applications/loki.app`. First launch installs Letta Code privately, then walks you through a provider and your first agent."
-          releaseDraft: true
-          prerelease: false
           args: --target universal-apple-darwin
+      - name: publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          DMG="$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/loki_*_universal.dmg)"
+          echo "dmg=$DMG" >> "$GITHUB_ENV"
+          bun scripts/release.ts publish "$KIND" "$VERSION" "$DMG"
+      - name: render the cask
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
+          bun scripts/cask.ts "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
+          cat cask.rb
+          # The cask rides along on the release too, so anyone can check what the tap carries.
+          TAG="$([ "$KIND" = stable ] && echo "v$VERSION" || echo nightly)"
+          gh release upload "$TAG" cask.rb --repo "$GITHUB_REPOSITORY" --clobber
+      - name: push the cask to the tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          FILE="$([ "$KIND" = stable ] && echo loki.rb || echo loki-nightly.rb)"
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::error::TAP_TOKEN secret is missing — the cask was rendered (see the release assets) but not pushed to ${OWNER}/homebrew-loki. docs/RELEASING.md explains the token."
+            exit 1
+          fi
+          git clone --quiet "https://x-access-token:${TAP_TOKEN}@github.com/${OWNER}/homebrew-loki.git" tap
+          cd tap
+          git checkout -B main
+          mkdir -p Casks
+          cp ../cask.rb "Casks/$FILE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "Casks/$FILE"
+          if git diff --cached --quiet; then echo "tap already at $VERSION"; exit 0; fi
+          git commit --quiet -m "loki ${KIND} ${VERSION}"
+          git push --quiet origin main
