@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { modBase } from "../desk/env";
 import type { Me } from "./Pair";
 import { routeOf } from "./model";
@@ -60,6 +60,7 @@ export function Settings({
         <Section title="this phone" hint="paired to the Mac; nothing is installed">
           <Fact label="name" value={me.name} />
           <Fact label="paired" value="paired" />
+          <Fact label="screen" value={<ViewportFact />} />
           {confirm ? (
             <div role="alertdialog" aria-label="unpair this phone" style={{ display: "grid", gap: 10, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)" }}>
               <span>This phone forgets the Mac and the Mac forgets it. Pairing again takes a fresh code from Settings › phone on the Mac.</span>
@@ -137,3 +138,24 @@ function Fact({ label, value, mono = false }: { label: string; value: ReactNode;
     </div>
   );
 }
+
+/**
+ * How the page is running, for telling a Safari home-screen app from a Chrome one or a browser tab:
+ * the viewport the web view got against the screen (a shorter viewport is a host keeping a strip for
+ * its own toolbar — nothing the page can paint), and the display mode. Read at mount; a rotation re-reads it.
+ */
+function readViewport(): string {
+  const standalone = matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return `${window.innerWidth}×${window.innerHeight} of ${screen.width}×${screen.height} · ${standalone ? "web app" : "browser"} · ${navigator.userAgent.includes("CriOS") ? "chrome" : "safari"}`;
+}
+
+function ViewportFact() {
+  const [text, setText] = useState(readViewport);
+  useEffect(() => {
+    const onResize = () => setText(readViewport());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{text}</span>;
+}
+
