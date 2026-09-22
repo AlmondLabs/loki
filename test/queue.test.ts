@@ -33,6 +33,23 @@ describe("catch up queue merge", () => {
     expect(mergeQueue([], [approval], decided).map((i) => i.id)).toEqual(["a"]);
   });
 
+  test("showing snoozed cards brings back cards deferred earlier in this pass", () => {
+    const a = item("a");
+    const snooze = { skips: 1, until: "2026-09-05T10:30:00Z", stamp: stampOf(a), at: "2026-09-05T10:00:00Z" };
+    const deferred = item("a", { snooze });
+    const decided = [{ item: a, action: "unread" as const, via: "later" as const, stamp: stampOf(a), snoozedShown: false }];
+
+    expect(mergeQueue([], [deferred], decided)).toEqual([]);
+    expect(mergeQueue([], [deferred], decided, true).map((i) => i.id)).toEqual(["a"]);
+
+    // Deferred while snoozed cards were already shown — first time or again — it stays out instead of looping straight back.
+    const deferredShown = [{ ...decided[0], snoozedShown: true }];
+    expect(mergeQueue([], [deferred], deferredShown, true)).toEqual([]);
+    expect(mergeQueue([], [deferred], [{ ...deferredShown[0], item: deferred }], true)).toEqual([]);
+    // Moving on with "next" is not a deferral: showing snoozed cards does not bring it back.
+    expect(mergeQueue([], [deferred], [{ ...decided[0], via: "next" as const, action: "seen" as const }], true)).toEqual([]);
+  });
+
   test("what arrives is placed by score, not appended: a warm reply to you goes right behind the head, a cold report to the back", () => {
     const now = new Date("2026-09-16T10:00:00Z").getTime();
     // items arrive stamped, as buildItems hands them over

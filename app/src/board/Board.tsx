@@ -356,8 +356,8 @@ function TaskCard({
       onFocus={onFocus}
       onKeyDown={onKeyDown}
       style={{
-        background: selected ? "var(--loki-accent-soft)" : "var(--loki-panel)",
-        border: `1px solid ${focused ? "var(--loki-accent)" : selected ? "var(--loki-accent-soft)" : "var(--loki-border)"}`,
+        background: selected ? "var(--loki-selection)" : "var(--loki-panel)",
+        border: `1px solid ${focused ? "var(--loki-accent)" : selected ? "var(--loki-control-border)" : "var(--loki-border)"}`,
         borderRadius: 12,
         padding: "10px 12px",
         cursor: "pointer",

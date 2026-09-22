@@ -44,9 +44,9 @@ describe("desk registry", () => {
     try {
       const convDir = join(dir, "conversations", Buffer.from("conversation:local-conv-9").toString("base64").replace(/=+$/, ""));
       mkdirSync(convDir, { recursive: true });
-      writeFileSync(join(convDir, "conversation.json"), JSON.stringify({ id: "local-conv-9", agent_id: "agent-9", summary: "[Short] - Trip planning", last_message_at: "2026-09-03T05:00:00.000Z" }));
+      writeFileSync(join(convDir, "conversation.json"), JSON.stringify({ id: "local-conv-9", agent_id: "agent-9", summary: "[Short] - Trip planning", last_message_at: "2026-09-03T05:00:00.000Z", model_settings: { reasoning: { reasoning_effort: "high" } } }));
       expect(lookupLocalAgentId("local-conv-9", dir)).toBe("agent-9");
-      expect(lookupLocalConversation("local-conv-9", null, dir)).toEqual({ agentId: "agent-9", title: "[Short] - Trip planning", lastMessageAt: "2026-09-03T05:00:00.000Z", archived: false, model: null });
+      expect(lookupLocalConversation("local-conv-9", null, dir)).toEqual({ agentId: "agent-9", title: "[Short] - Trip planning", lastMessageAt: "2026-09-03T05:00:00.000Z", archived: false, model: null, reasoningEffort: "high" });
       writeFileSync(join(convDir, "conversation.json"), JSON.stringify({ id: "local-conv-9", agent_id: "agent-9", summary: "x", archived: true, archived_at: "2026-09-03T06:00:00.000Z" }));
       expect(lookupLocalConversation("local-conv-9", null, dir)?.archived).toBe(true);
       expect(lookupLocalConversation("nope", null, dir)).toBeNull();

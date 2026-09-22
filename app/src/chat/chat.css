@@ -16,7 +16,7 @@
 .loki-md li::marker { color: var(--loki-muted); font-variant-numeric: tabular-nums; }
 .loki-md li > p { margin: 0; }
 .loki-md code {
-  font-family: var(--loki-mono); font-size: 12px; background: var(--loki-hairline);
+  font-family: var(--loki-mono); font-size: 12px; background: var(--loki-code);
   padding: 1px 5px; border-radius: 4px;
 }
 .loki-md pre {

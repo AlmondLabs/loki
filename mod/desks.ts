@@ -7,6 +7,7 @@ import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts
 import { extractHarnessEvents, isScheduledPrompt, stripHarnessMarkup, toolLabel } from "../core/harness.ts";
 import type { AskedBy } from "../core/attention/priority.ts";
 import type { Runtime } from "./app-server.ts";
+import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
 
 /**
  * Desk registry: which agent + conversation a desk (scope) belongs to. The
@@ -111,6 +112,7 @@ export interface LocalConversationInfo {
   archived: boolean;
   /** The conversation's own model, when it was switched away from the agent's. */
   model: string | null;
+  reasoningEffort: ReasoningEffort | null;
 }
 
 /** The agent's display name from the local backend, if present. */
@@ -129,7 +131,7 @@ export function lookupLocalConversation(conversationId: string, agentId?: string
     const dir = join(backendDir, "conversations", conversationDirName(conversationId, agentId));
     const p = join(dir, "conversation.json");
     if (!existsSync(p)) return null;
-    const c = JSON.parse(readFileSync(p, "utf8")) as { agent_id?: string; summary?: string | null; last_message_at?: string | null; archived?: boolean; model?: string | null };
+    const c = JSON.parse(readFileSync(p, "utf8")) as { agent_id?: string; summary?: string | null; last_message_at?: string | null; archived?: boolean; model?: string | null; model_settings?: unknown };
     const agent = typeof c.agent_id === "string" ? c.agent_id : null;
     // An agent's main chat has no summary; call it by the agent's name.
     const fallback = conversationId === "default" && agent ? `${lookupLocalAgentName(agent, backendDir) ?? "agent"} · main chat` : null;
@@ -139,6 +141,7 @@ export function lookupLocalConversation(conversationId: string, agentId?: string
       lastMessageAt: typeof c.last_message_at === "string" ? c.last_message_at : null,
       archived: c.archived === true,
       model: typeof c.model === "string" && c.model ? c.model : null,
+      reasoningEffort: reasoningEffortFromSettings(c.model_settings),
     };
   } catch {
     return null;

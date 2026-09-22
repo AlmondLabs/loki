@@ -12,7 +12,7 @@
   justify-content: center;
   gap: 6px;
   box-sizing: border-box;
-  border: 1px solid var(--loki-border);
+  border: 1px solid var(--loki-control-border);
   border-radius: 8px;
   background: transparent;
   color: var(--loki-muted);
@@ -24,8 +24,8 @@
   touch-action: manipulation;
   transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
 }
-.loki-btn:hover:not(:disabled) { background: var(--loki-panel-header); }
-.loki-btn:active:not(:disabled) { background: var(--loki-accent-soft); }
+.loki-btn:hover:not(:disabled) { background: var(--loki-hover); }
+.loki-btn:active:not(:disabled) { background: var(--loki-selection); }
 .loki-btn:disabled { opacity: 0.5; cursor: default; }
 .loki-btn[aria-pressed="true"], .loki-btn[aria-current], .loki-btn[aria-selected="true"], .loki-btn[aria-expanded="true"] { color: var(--loki-fg); }
 .loki-btn--sm { min-height: 28px; padding: 0 12px; font-size: 12px; }
@@ -61,8 +61,8 @@
   cursor: pointer;
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
-.loki-nav:hover { background: var(--loki-panel-header); color: var(--loki-fg); }
-.loki-nav[aria-current] { background: var(--loki-panel); border-color: var(--loki-border); color: var(--loki-fg); }
+.loki-nav:hover { background: var(--loki-hover); color: var(--loki-fg); }
+.loki-nav[aria-current] { background: var(--loki-selection); border-color: var(--loki-control-border); color: var(--loki-fg); }
 
 /* ---- Chip ---------------------------------------------------------------------------------------- */
 .loki-chip {
@@ -72,7 +72,7 @@
   box-sizing: border-box;
   min-height: 24px;
   padding: 2px 10px;
-  border: 1px solid var(--loki-border);
+  border: 1px solid var(--loki-control-border);
   border-radius: 999px;
   background: transparent;
   color: var(--loki-muted);
@@ -89,7 +89,7 @@
 .loki-chip:hover:not(:disabled):not(.loki-chip--static) { border-color: var(--loki-muted); color: var(--loki-fg); }
 .loki-chip:disabled { opacity: 0.5; cursor: default; }
 /* Chosen: paper. A filter or a choice never spends brass. */
-.loki-chip--active { border-color: var(--loki-fg); background: var(--loki-panel-header); color: var(--loki-fg); }
+.loki-chip--active { border-color: var(--loki-fg); background: var(--loki-selection); color: var(--loki-fg); }
 /* Brass: the one that needs you (an open permission mode, the agent filter you picked in the tree). */
 .loki-chip--brass { border-color: var(--loki-accent); background: var(--loki-brass-soft); color: var(--loki-accent); }
 /* A status badge in its own colour: set --chip-tone inline. */
@@ -102,7 +102,7 @@
 /* Floating over the sheet or the transcript: opaque, with the low shadow. */
 .loki-chip--float { background: var(--loki-panel); box-shadow: var(--loki-shadow-low); }
 /* Mid-change ("switching…"): quiet and waiting, never dimmed text. */
-.loki-chip[aria-busy="true"] { color: var(--loki-muted); border-color: var(--loki-border); cursor: progress; }
+.loki-chip[aria-busy="true"] { color: var(--loki-muted); border-color: var(--loki-control-border); cursor: progress; }
 /* Condensed caps instead of mono: the tree's agent chips, Settings' choices. */
 .loki-chip--label { font-family: var(--loki-label); font-size: 9.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; }
 
@@ -114,7 +114,7 @@
   box-sizing: border-box;
   min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
   padding: 7px 10px;
-  border: 1px solid var(--loki-border);
+  border: 1px solid var(--loki-control-border);
   border-radius: 6px;
   background: var(--loki-well);
   color: var(--loki-fg);
@@ -137,12 +137,12 @@
 .loki-field--title { font-size: 15px; }
 /* Text that is secretly editable (an agent's name on its profile): shows its box on hover and focus. */
 .loki-field--inline { min-height: 0; padding: 2px 6px; margin: 0 -6px; width: calc(100% + 12px); border-color: transparent; background: transparent; font: inherit; line-height: inherit; }
-.loki-field--inline:hover:not(:disabled), .loki-field--inline:focus { border-color: var(--loki-border); background: var(--loki-well); }
+.loki-field--inline:hover:not(:disabled), .loki-field--inline:focus { border-color: var(--loki-control-border); background: var(--loki-well); }
 .loki-field--mono { font-family: var(--loki-mono); }
 textarea.loki-field { resize: none; overflow-y: auto; }
 
 /* ---- Row ----------------------------------------------------------------------------------------- */
-/* A pickable line in a list: hover and selection are the header tint, never brass. */
+/* A pickable line in a list: neutral hover and selection states, never brass. */
 .loki-row {
   display: flex;
   align-items: center;
@@ -161,8 +161,8 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   touch-action: manipulation;
   transition: background-color 120ms ease-out;
 }
-.loki-row:hover, .loki-row[aria-selected="true"], .loki-row[aria-checked="true"], .loki-row[data-selected] { background: var(--loki-panel-header); }
-.loki-row[aria-current] { background: var(--loki-accent-soft); }
+.loki-row:hover { background: var(--loki-hover); }
+.loki-row[aria-selected="true"], .loki-row[aria-checked="true"], .loki-row[data-selected], .loki-row[aria-current] { background: var(--loki-selection); }
 .loki-row--dense { padding: 5px 8px; border-radius: 6px; }
 .loki-row--touch { min-height: 44px; }
 /* Rows inside one bordered group: square, hairlines between, two-line content top-aligned. */

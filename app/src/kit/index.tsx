@@ -1,6 +1,6 @@
 
 import type { ComponentType } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -68,7 +68,15 @@ export function Stat({ data }: KitProps) {
 export function SliderControl({ data, onSet }: KitProps) {
   const value = Number(data.value ?? 0);
   const [live, setLive] = useState<number | null>(null);
+  const liveRef = useRef<number | null>(null);
+  const pointerActive = useRef(false);
   const shown = live ?? value;
+  const commit = () => {
+    if (liveRef.current === null) return;
+    onSet("value", liveRef.current);
+    liveRef.current = null;
+    setLive(null);
+  };
   return (
     <div className="loki-widget-body" style={{ display: "grid", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -86,12 +94,26 @@ export function SliderControl({ data, onSet }: KitProps) {
         max={Number(data.max ?? 100)}
         step={Number(data.step ?? 1)}
         value={shown}
-        onChange={(e) => setLive(Number(e.target.value))}
+        onPointerDown={() => {
+          pointerActive.current = true;
+        }}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          liveRef.current = next;
+          setLive(next);
+          if (!pointerActive.current) commit();
+        }}
         onPointerUp={() => {
-          if (live !== null) {
-            onSet("value", live);
-            setLive(null);
-          }
+          pointerActive.current = false;
+          commit();
+        }}
+        onPointerCancel={() => {
+          pointerActive.current = false;
+          commit();
+        }}
+        onBlur={() => {
+          pointerActive.current = false;
+          commit();
         }}
       />
     </div>

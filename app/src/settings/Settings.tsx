@@ -18,12 +18,14 @@ import { RecallSettings } from "../recall/RecallParts";
 import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attention/priority.ts";
 import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { within, type Range } from "../../../core/range.ts";
+import { ThemeChoice } from "./ThemeChoice";
+import { useTheme } from "../theme";
 
 const HOME = "~/.letta/loki";
 
 /** The pages down the left. "letta" gathers what loki runs on: harness, mod, requirements, install. */
-export type SettingsPage = "letta" | "inbox" | "providers" | "phone" | "skills" | "learn" | "chat" | "files" | "keys";
-export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "inbox" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+export type SettingsPage = "letta" | "inbox" | "providers" | "phone" | "skills" | "learn" | "appearance" | "chat" | "files" | "keys";
+export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "inbox" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "appearance" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
 
 /** Settings › inbox: the "later" ladder in force and its setter (useDesk().attention). */
 export interface InboxSettingsApi {
@@ -145,6 +147,7 @@ export function Settings({
         {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
         {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
         {page === "learn" && <RecallPage recall={recall} />}
+        {page === "appearance" && <AppearancePage />}
         {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} />}
         {page === "files" && <FilesPage />}
         {page === "keys" && <KeysPage shortcut={shortcut} />}
@@ -154,6 +157,16 @@ export function Settings({
         </div>
       </div>
     </div>
+  );
+}
+
+function AppearancePage() {
+  const theme = useTheme();
+  return (
+    <Section title="appearance" hint="the colors on this device; system follows macOS as it changes">
+      <Fact label="theme" value={<ThemeChoice />} />
+      <Fact label="using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
+    </Section>
   );
 }
 

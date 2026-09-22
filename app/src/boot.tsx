@@ -6,6 +6,7 @@ import { inLan, inTauri, installShellLogging } from "./desk/env";
 installShellLogging();
 import { Shell } from "./shell/Shell";
 import { Phone } from "./phone/Phone";
+import { ThemeProvider } from "./theme";
 
 /**
  * Links leave the canvas. Anything the agent or a widget links to — markdown in
@@ -31,4 +32,4 @@ document.addEventListener(
 );
 
 // Served over the Wi‑Fi by the mod (window.__LOKI__.lan): the phone's inbox instead of the desk.
-createRoot(document.getElementById("root")!).render(inLan ? <Phone /> : <Shell />);
+createRoot(document.getElementById("root")!).render(<ThemeProvider>{inLan ? <Phone /> : <Shell />}</ThemeProvider>);

@@ -78,7 +78,7 @@ export function Agents({
     setPicked(id);
   };
   const [models, setModels] = useState<string[] | null>(null);
-  const loadModels = () => void listModels().then((m) => setModels(m.map((e) => e.handle)));
+  const loadModels = () => void listModels().then((m) => setModels([...new Set(m.map((e) => e.handle))]));
   const [creating, setCreating] = useState(false);
   /** The skills page's add form (write here, or install from a source). */
   const [adding, setAdding] = useState<Adding>(null);

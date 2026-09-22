@@ -25,6 +25,8 @@ import { useShellKeys } from "./useShellKeys";
 import { KeysSheet } from "./KeysSheet";
 import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
 import type { CatchUp, Runtime } from "./types";
+import { effortLabel } from "../chat/ModelPicker";
+import type { ModelSelection } from "../../../core/models.ts";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -112,11 +114,12 @@ export function Shell() {
   useEffect(() => {
     if (welcome === "agent") loadModels();
   }, [welcome, loadModels]);
-  const pickModel = async (scope: string, rt: Runtime, handle: string) => {
-    const err = await catchUp.updateModel(rt, handle);
-    if (err) return notice(`model: ${err}`);
-    desk.setDeskModel(scope, handle);
-    notice(`${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${handle.split("/").pop()}`);
+  const pickModel = async (scope: string, rt: Runtime, selection: ModelSelection) => {
+    const { applied, error } = await catchUp.updateModel(rt, selection);
+    if (error || !applied) return notice(`model: ${error ?? "the app-server did not return the applied model"}`);
+    desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+    const effort = applied.reasoningEffort ? ` · effort ${effortLabel(applied.reasoningEffort)}` : "";
+    notice(`${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${applied.handle.split("/").pop()}${effort}`);
   };
   const [modelPickerTick, setModelPickerTick] = useState(0);
   const [modeMenuTick, setModeMenuTick] = useState(0);
@@ -342,6 +345,7 @@ export function Shell() {
 
       <NewDeskSheet
         state={newDesk}
+        inheritCurrentDesk={segment === "desk"}
         onClose={() => {
           pendingAssign.current = null;
           setNewDesk({ open: false, name: "", agentId: null });

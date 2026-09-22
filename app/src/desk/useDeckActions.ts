@@ -16,6 +16,7 @@ export function useDeckActions({
   decided,
   setDecided,
   setQueue,
+  snoozedShown,
   onSeen,
   onUnread,
   onLater,
@@ -30,6 +31,8 @@ export function useDeckActions({
   decided: Decision[];
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
+  /** The deck's "show snoozed" state, stamped on each decision (see Decision.snoozedShown). */
+  snoozedShown: boolean;
   onSeen: (item: AttentionItem) => void;
   onUnread: (item: AttentionItem) => void;
   onLater: (item: AttentionItem) => void;
@@ -57,7 +60,7 @@ export function useDeckActions({
       if (!current.pendingApproval) onLater(current); // approvals never snooze
     }
     setDir("next");
-    setDecided((d) => [...d, { item: current, action, via, stamp: stampOf(current) }]);
+    setDecided((d) => [...d, { item: current, action, via, stamp: stampOf(current), snoozedShown }]);
     setQueue(popHead);
     setDraft("");
     setImages([]);

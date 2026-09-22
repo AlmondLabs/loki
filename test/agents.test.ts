@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backendName } from "../core/desk-core.ts";
@@ -76,6 +76,18 @@ describe("agents: memory", () => {
     expect(readMemoryFile(AGENT, "/etc/passwd", dir)).toBeNull();
     expect(readMemoryFile(AGENT, "profile.png", dir)).toBeNull();
     expect(readMemoryFile(AGENT, "system", dir)).toBeNull();
+  });
+  test("refuses files and profile images whose symlinks escape memory", () => {
+    const outside = join(dir, "outside.txt");
+    writeFileSync(outside, "outside memory");
+    symlinkSync(outside, join(memoryRoot(AGENT, dir), "system", "outside.md"));
+    expect(readMemoryFile(AGENT, "system/outside.md", dir)).toBeNull();
+
+    const linkedAgent = "agent-local-linked-profile";
+    const linkedMemory = memoryRoot(linkedAgent, dir);
+    mkdirSync(linkedMemory, { recursive: true });
+    symlinkSync(outside, join(linkedMemory, "profile.png"));
+    expect(profilePath(linkedAgent, dir)).toBeNull();
   });
   test("profile image path", () => {
     expect(profilePath(AGENT, dir)).toEndWith("profile.png");

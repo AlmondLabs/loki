@@ -15,6 +15,7 @@ import { useDeskChat, type DeskChatModel } from "./useDeskChat";
 import { Chip, Empty } from "../components";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { runAction } from "../shell/keymap";
+import type { ModelSelection } from "../../../core/models.ts";
 
 function WidgetBody({
   w,
@@ -52,7 +53,7 @@ interface SurfaceProps {
   models?: import("../chat/ModelPicker").ModelEntry[] | null;
   onLoadModels?: () => void;
   /** Switch this desk's conversation to a model; the shell talks to the app-server. */
-  onPickModel?: (scope: string, rt: { agent_id: string; conversation_id: string }, handle: string) => Promise<void>;
+  onPickModel?: (scope: string, rt: { agent_id: string; conversation_id: string }, selection: ModelSelection) => Promise<void>;
   modelPickerTick?: number;
   /** Set this desk's conversation permission mode; the shell talks to the app-server. */
   onPickMode?: (scope: string, rt: { agent_id: string; conversation_id: string }, mode: string) => Promise<void>;
@@ -211,9 +212,10 @@ function DeskChat({
       findTick={findChat}
       prefill={chatPrefill}
       model={desk.model}
+      reasoningEffort={desk.reasoningEffort}
       models={models}
       onLoadModels={onLoadModels}
-      onPickModel={deskRuntime && onPickModel ? (h) => onPickModel(scope, deskRuntime, h) : undefined}
+      onPickModel={deskRuntime && onPickModel ? (selection) => onPickModel(scope, deskRuntime, selection) : undefined}
       modelPickerTick={modelPickerTick}
       mode={deskChat?.mode ?? desk.mode}
       onPickMode={deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined}

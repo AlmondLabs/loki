@@ -6,8 +6,24 @@
          maximum-scale=1 stops iOS zooming into a focused text box (pinch zoom stays available). -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
     <title>loki</title>
-    <meta name="theme-color" content="#12151b" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e1217" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Resolve the saved preference before CSS or React paints. The provider repeats this logic after
+      // mount so system mode follows later OS changes and the theme-color meta stays in sync.
+      (function () {
+        var preference = "system";
+        try {
+          var saved = localStorage.getItem("loki.theme");
+          if (saved === "light" || saved === "dark" || saved === "system") preference = saved;
+        } catch (_) {}
+        var theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference;
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.themePreference = preference;
+        document.documentElement.style.colorScheme = theme;
+        document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0e1217" : "#e8eced";
+      })();
+    </script>
     <!-- Added to the Home Screen on iOS: no browser chrome, the status bar over our own background. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -21,13 +37,16 @@
     <!-- The page's own colour before any stylesheet arrives (a home-screen app shows this while the script
          loads), and a fallback for when it never does: a stale cached page, a Mac that did not answer. -->
     <style>
-      html { background: #12151b; color: #d9d6cf; font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+      html { background: #0e1217; color: #e8e4dc; font: 15px/1.5 -apple-system, system-ui, sans-serif; }
+      html[data-theme="light"] { background: #e8eced; color: #1c222a; }
       body { margin: 0; }
       #loki-fallback { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
       #loki-fallback[hidden] { display: none; }
       #loki-fallback p { margin: 0 0 8px; max-width: 30em; }
-      #loki-fallback .muted { color: #8b8a85; }
-      #loki-fallback button { margin-top: 14px; padding: 12px 22px; font: inherit; color: #c9a86a; background: transparent; border: 1px solid #c9a86a; border-radius: 999px; }
+      #loki-fallback .muted { color: #9299a2; }
+      html[data-theme="light"] #loki-fallback .muted { color: #565f68; }
+      #loki-fallback button { margin-top: 14px; padding: 12px 22px; font: inherit; color: #d3a64f; background: transparent; border: 1px solid #d3a64f; border-radius: 999px; }
+      html[data-theme="light"] #loki-fallback button { color: #745922; border-color: #745922; }
     </style>
   </head>
   <body>

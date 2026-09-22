@@ -9,7 +9,10 @@
   --color-loki-bg: var(--loki-bg);
   --color-loki-panel: var(--loki-panel);
   --color-loki-panel-header: var(--loki-panel-header);
+  --color-loki-hover: var(--loki-hover);
+  --color-loki-selection: var(--loki-selection);
   --color-loki-border: var(--loki-border);
+  --color-loki-control-border: var(--loki-control-border);
   --color-loki-fg: var(--loki-fg);
   --color-loki-muted: var(--loki-muted);
   --color-loki-accent: var(--loki-accent);

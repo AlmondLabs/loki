@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
+import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
 import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
@@ -483,7 +484,6 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, [bump]);
-  /** Switch a conversation's model; resolves to an error message or null. */
   /** Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived. */
   const archiveConversation = useCallback(async (conversationId: string, archived: boolean): Promise<string | null> => {
     const sock = socketRef.current;
@@ -496,14 +496,14 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, []);
-  const updateModel = useCallback(async (rt: Runtime, handle: string): Promise<string | null> => {
+  /** Switch a conversation's model; returns the applied handle/effort or an error. */
+  const updateModel = useCallback(async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return { applied: null, error: "not connected to the app-server" };
     try {
-      await sock.updateModel(rt, handle);
-      return null;
+      return { applied: await sock.updateModel(rt, selection), error: null };
     } catch (err) {
-      return err instanceof Error ? err.message : String(err);
+      return { applied: null, error: err instanceof Error ? err.message : String(err) };
     }
   }, []);
 

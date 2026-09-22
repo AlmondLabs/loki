@@ -440,7 +440,7 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
       className="loki-tree-row"
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-accent-soft)" : "transparent", opacity: d.status === "live" ? 1 : 0.7 }}
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", opacity: d.status === "live" ? 1 : 0.7 }}
     >
       <Mark item={mark} status={d.status} />
       {showFace && (d.agentId ? <AgentFace name={d.agentName} src={avatarUrl(d.agentId)} size={18} /> : <AgentChip name={d.agentName} size={9.5} />)}
@@ -485,7 +485,7 @@ function NewRow({ index, optionId, selected, onHover, onChoose, label }: { index
       aria-selected={index === selected}
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", marginTop: 4, borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-accent-soft)" : "transparent", color: "var(--loki-muted)", fontSize: 12 }}
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", marginTop: 4, borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", color: "var(--loki-muted)", fontSize: 12 }}
     >
       <span style={{ width: 7, textAlign: "center", color: "var(--loki-accent)", fontSize: 13.5, lineHeight: 1 }}>+</span>
       <span>{label}</span>

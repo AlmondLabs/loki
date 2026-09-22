@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { backendName } from "../core/desk-core.ts";
@@ -96,8 +96,7 @@ export function memoryRoot(agentId: string, dir = backendDir()): string {
 
 export function profilePath(agentId: string, dir = backendDir()): string | null {
   if (!isAgentId(agentId)) return null;
-  const p = join(memoryRoot(agentId, dir), "profile.png");
-  return existsSync(p) ? p : null;
+  return containedFile(memoryRoot(agentId, dir), "profile.png")?.path ?? null;
 }
 
 const SKIP = new Set([".git", "node_modules"]);
@@ -144,15 +143,27 @@ export function memorySkills(agentId: string, dir = backendDir()): MemorySkill[]
 
 /** A memory file's text, or null when the path escapes the root, is not a file, or is too large or binary. */
 export function readMemoryFile(agentId: string, path: string, dir = backendDir(), limit = 512 * 1024): string | null {
-  const root = resolve(memoryRoot(agentId, dir));
-  const abs = resolve(root, path);
-  if (abs !== root && !abs.startsWith(root + sep)) return null;
   try {
-    const st = statSync(abs);
-    if (!st.isFile() || st.size > limit) return null;
-    const buf = readFileSync(abs);
+    const file = containedFile(memoryRoot(agentId, dir), path);
+    if (!file || file.bytes > limit) return null;
+    const buf = readFileSync(file.path);
     if (buf.subarray(0, 512).includes(0)) return null; // binary
     return buf.toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+function containedFile(rootPath: string, path: string): { path: string; bytes: number } | null {
+  try {
+    const root = resolve(rootPath);
+    const candidate = resolve(root, path);
+    if (candidate !== root && !candidate.startsWith(root + sep)) return null;
+    const realRoot = realpathSync(root);
+    const realCandidate = realpathSync(candidate);
+    if (realCandidate !== realRoot && !realCandidate.startsWith(realRoot + sep)) return null;
+    const st = statSync(realCandidate);
+    return st.isFile() ? { path: realCandidate, bytes: st.size } : null;
   } catch {
     return null;
   }

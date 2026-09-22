@@ -7,6 +7,7 @@ import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Transcript, type TranscriptRow } from "./Transcript";
 import { Chip } from "../components";
 import type { ModelEntry } from "./ModelPicker";
+import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { PermissionMode } from "./PermissionMode";
 import { ChatHeader } from "./ChatHeader";
 import { FindBar } from "./FindBar";
@@ -45,6 +46,7 @@ export function ChatWindow({
   findTick = 0,
   prefill = null,
   model = null,
+  reasoningEffort = null,
   models = null,
   onLoadModels,
   onPickModel,
@@ -80,9 +82,10 @@ export function ChatWindow({
   prefill?: { text: string; tick: number } | null;
   /** The conversation's model and the switcher (list_models / update_model through the app-server). */
   model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
   models?: ModelEntry[] | null;
   onLoadModels?: () => void;
-  onPickModel?: (handle: string) => Promise<void>;
+  onPickModel?: (selection: ModelSelection) => Promise<void>;
   /** Bumped by the host (⌘⇧M) to open the model picker. */
   modelPickerTick?: number;
   /** The conversation's permission mode and its setter (runtime_start { mode }). */
@@ -177,6 +180,7 @@ export function ChatWindow({
         commands={commands}
         onCommand={onCommand}
         model={model}
+        reasoningEffort={reasoningEffort}
         models={models}
         mode={mode}
         hasModelPicker={!!onPickModel}

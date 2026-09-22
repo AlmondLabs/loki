@@ -3,18 +3,24 @@
 **Subject.** A memory palace your agent furnishes. One person's desks, seen at a
 glance: what the agent built here, who built it, what is waiting on you.
 
-**Direction: a drafting table at night.** The canvas is a sheet on an architect's
+**Direction: a drafting table, day or night.** The canvas is a sheet on an architect's
 table. Chrome is title-block lettering; the desk's identity is the window's own
-title, drawn by macOS; anything that needs a human is brass.
+title, drawn by macOS; anything that needs a human is brass. The dark palette reads as
+lamplight on ink slate. The light palette uses cool drafting paper and darker brass,
+with the same semantic roles and contrast.
 
 ## Tokens (`app/src/kit/tokens.css`)
 
-Colour: ink-slate ground `--loki-bg`, panels `--loki-panel` / `--loki-panel-header`, hairlines
-`--loki-border`, paper `--loki-fg`, `--loki-muted`; brass `--loki-accent` (with `--loki-accent-soft`,
-`--loki-brass-soft`, `--loki-brass-glow`) for anything that needs the human; verdigris `--loki-positive`;
-oxblood `--loki-negative`. Three more surfaces: `--loki-well` (inputs), `--loki-bubble` (the agent's
-speech), `--loki-veil` (behind a sheet). No literal colour appears in a component; the agent chip's
-hue is the one computed colour.
+Colour uses matched OKLCH ramps in both themes. The structural stack is slate ground `--loki-bg`,
+panel `--loki-panel`, raised header `--loki-panel-header`, then `--loki-hover` and neutral
+`--loki-selection`. `--loki-border` is a quiet divider; `--loki-control-border` is deliberately stronger
+and stays at least 3:1 against control surfaces. Paper `--loki-fg` and `--loki-muted` stay AA on every
+working surface. Brass `--loki-accent` is for anything that needs the human, with separate chart,
+attention and glow values; verdigris is positive and oxblood is negative. Inputs, agent speech, user
+speech and inline code each have their own surface token instead of borrowing selection or accent.
+No literal colour appears in a component; the agent chip's hue is the one computed colour. `data-theme`
+selects dark or light values, and the saved `system` preference follows the operating system. An inline
+initializer applies it before first paint.
 
 Type scale, in px, used as plain numbers in inline styles: **9.5** micro (labels, kbd, rail) ·
 **10.5** meta (mono details) · **11** label (`.loki-label`) · **12** small · **13.5** body · **15** row title ·
@@ -45,7 +51,7 @@ the serif), **Chip** (active is paper, brass only for what needs the human, tone
 tag, touch, label, float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row**
 (selected, dense, touch, flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or
 bottom), **Popover**, **Kbd**, **Meta**, **Title**, **Dot**, **Empty**, **Banner**, **Toast**. Selection and
-hover are the header tint; brass is never spent on a selection. A one-off is `className`/`style` on the
+hover use distinct neutral steps; brass is never spent on a selection. A one-off is `className`/`style` on the
 primitive; a one-off that repeats becomes a modifier. Button and Field share one height scale (sm 28 · md 36 ·
 touch 44); a field and the button beside it always share a size. Widgets on the sheet keep `@loki/kit`; app chrome
 never ships into that surface. What stays hand-built: the rail (`.loki-rail`), the chat bubble, the tree's

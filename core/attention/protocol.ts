@@ -1,5 +1,6 @@
 import { buildUserContent, type ImageAttachment } from "./content.ts";
 import type { MakeTransport, Transport } from "./transport.ts";
+import { modelEntriesFromWire, reasoningEffortFromSettings, type AppliedModel, type ModelEntry, type ModelSelection } from "../models.ts";
 /**
  * Client for Letta's app-server protocol, reached through the mod's
  * /appserver tunnel (the app-server itself refuses browser origins). Requests
@@ -298,19 +299,12 @@ export class AppServerSocket {
     if (res.success === false) throw new Error(String(res.error ?? "could not disable the skill"));
   }
 
-  /** list_models: every handle this harness can run — { id, handle, label, description, isDefault?, isFeatured? }. */
-  async listModels(): Promise<Array<{ id: string; handle: string; label: string; description?: string; isDefault?: boolean; isFeatured?: boolean }>> {
+  /** list_models: every concrete model preset this harness can run, including selectable effort variants. */
+  async listModels(): Promise<ModelEntry[]> {
     const res = await this.request("list_models", {}, 20_000);
-    const entries = (res.entries as Array<Record<string, unknown>> | undefined) ?? [];
-    return entries
-      .map((e) => ({ id: String(e.id ?? e.handle ?? ""), handle: String(e.handle ?? e.id ?? ""), label: String(e.label ?? e.handle ?? ""), description: typeof e.description === "string" ? e.description : undefined, isDefault: e.isDefault === true, isFeatured: e.isFeatured === true }))
-      .filter((e) => e.handle);
+    return modelEntriesFromWire(res.entries);
   }
 
-  /**
-   * update_model: switch the model for one conversation (the main chat's switch lands on the agent).
-   * Resolves to the handle the server applied; throws with the server's message on refusal.
-   */
   /** conversation_update: archive / unarchive (and other record fields). The main chat cannot be updated. */
   async updateConversation(conversationId: string, body: Record<string, unknown>): Promise<void> {
     const res = await this.request("conversation_update", { conversation_id: conversationId, body });
@@ -328,12 +322,23 @@ export class AppServerSocket {
     return { success: res.success !== false, output: typeof res.output === "string" ? res.output : "" };
   }
 
-  async updateModel(rt: Runtime, handle: string, reasoningEffort?: string | null): Promise<string> {
-    const payload: Record<string, unknown> = { model_handle: handle };
-    if (reasoningEffort !== undefined) payload.reasoning_effort = reasoningEffort;
+  /**
+   * update_model: switch the model for one conversation (the main chat's switch lands on the agent).
+   * Resolves to the handle and effort the server applied; throws with the server's message on refusal.
+   */
+  async updateModel(rt: Runtime, choice: ModelSelection | string): Promise<AppliedModel> {
+    // A bare handle is sent as model_handle alone: with a model_id Letta's resolver takes the id path,
+    // and an unregistered handle there skips the exact-handle lookup that carries the preset's settings.
+    const selection: ModelSelection = typeof choice === "string" ? { id: "", handle: choice } : choice;
+    const payload: Record<string, unknown> = { model_handle: selection.handle };
+    if (selection.id) payload.model_id = selection.id;
+    if (selection.reasoningEffort !== undefined) payload.reasoning_effort = selection.reasoningEffort;
     const res = await this.request("update_model", { runtime: rt, payload }, 60_000);
     if (res.success === false) throw new Error(String(res.error ?? "model update refused"));
-    return String(res.model_handle ?? handle);
+    return {
+      handle: String(res.model_handle ?? selection.handle),
+      reasoningEffort: reasoningEffortFromSettings(res.model_settings) ?? selection.reasoningEffort ?? null,
+    };
   }
 
   async listAgents(): Promise<Array<{ id: string; name?: string; hidden?: boolean }>> {

@@ -1,8 +1,9 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import type { Scope } from "../core/desk-core.ts";
-import { SHARED_SCOPE, scopeFor } from "../core/desk-core.ts";
-import type { ConversationOpenEvent, EventContext, LettaMod, TurnStartEvent } from "./letta-types.ts";
+import { SHARED_SCOPE } from "../core/desk-core.ts";
+import type { ConversationOpenEvent, EventContext, LettaMod, TurnEndEvent, TurnStartEvent } from "./letta-types.ts";
+import { runtimeFromEvent, ScopeDebouncer } from "./lifecycle-events.ts";
 import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
@@ -35,6 +36,7 @@ import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
+import { reasoningEffortFromSettings } from "../core/models.ts";
 
 /**
  * loki — a memory palace your agent builds.
@@ -155,15 +157,17 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   // --- transport -------------------------------------------------------
   const deskInfo = (scope: Scope): DeskInfo & { lastActive: string | null } => {
-    if (scope === SHARED_SCOPE) return { title: "shared", status: "none", agentName: null, agentId: null, model: null, lastActive: null };
+    if (scope === SHARED_SCOPE) return { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
     const rt = desks.get(scope);
-    if (!rt) return { title: null, status: "none", agentName: null, agentId: null, model: null, lastActive: null };
+    if (!rt) return { title: null, status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
     const agentName = lookupLocalAgentName(rt.agent_id);
-    const agentModel = readLocalAgent(rt.agent_id)?.model ?? null;
+    const agent = readLocalAgent(rt.agent_id);
+    const agentModel = agent?.model ?? null;
+    const agentEffort = reasoningEffortFromSettings(agent?.modelSettings);
     const info = lookupLocalConversation(rt.conversation_id, rt.agent_id);
     const mode = permissionModeOf(rt.agent_id, rt.conversation_id);
-    if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, mode, lastActive: null };
-    return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, mode, lastActive: info.lastMessageAt };
+    if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, reasoningEffort: agentEffort, mode, lastActive: null };
+    return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, reasoningEffort: info.model ? info.reasoningEffort : info.reasoningEffort ?? agentEffort, mode, lastActive: info.lastMessageAt };
   };
   const listDesks = (): DeskSummary[] => {
     // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
@@ -191,6 +195,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
           conversationId: desks.get(scope)?.conversation_id ?? null,
           pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
           model: info.model,
+          reasoningEffort: info.reasoningEffort,
           mode: info.mode ?? null,
           widgets: widgets.entries(scope).length,
           active: scope === activeScope,
@@ -369,13 +374,14 @@ export default function activate(letta: LettaMod): (() => void) | void {
       // events capability absent — the mod still serves desks and tools
     }
   };
-  let titleTimer: ReturnType<typeof setTimeout> | null = null;
+  const titleRefreshes = new ScopeDebouncer();
 
   track("conversation_open", (event, ctx) => {
-    log("event:conversation_open", { id: (event as ConversationOpenEvent | undefined)?.conversationId ?? ctx?.conversation?.id ?? null });
-    const id = (event as ConversationOpenEvent | undefined)?.conversationId ?? ctx?.conversation?.id ?? null;
-    if (id && recall.owns(id)) return; // the recall worker's own conversation: no desk follows it
-    const next = scopeFor(id);
+    const runtime = runtimeFromEvent(event as ConversationOpenEvent | undefined, ctx);
+    log("event:conversation_open", { id: runtime.conversationId });
+    if (runtime.agentId && isSubagent(runtime.agentId)) return; // helper agents get no desk, and the tab does not follow them
+    if (runtime.conversationId && recall.owns(runtime.conversationId)) return; // the recall worker's own conversation: no desk follows it
+    const next = runtime.conversationId ? desks.remember(runtime.conversationId, runtime.agentId) : SHARED_SCOPE;
     if (next !== activeScope) {
       activeScope = next;
       broadcast({ type: "switch_desk", scope: activeScope }); // the tab follows the conversation
@@ -384,22 +390,23 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   track("turn_start", (event, ctx) => {
     const ev = event as TurnStartEvent | undefined;
-    const convId = ev?.conversationId ?? ctx?.conversation?.id ?? null;
+    const runtime = runtimeFromEvent(ev, ctx);
+    const convId = runtime.conversationId;
     // Letta's own helper agents get no desk: their turn still runs, it just is not furnished or listed.
-    if (ev?.agentId && isSubagent(ev.agentId)) return;
+    if (runtime.agentId && isSubagent(runtime.agentId)) return;
     // The recall worker's conversation is a desk you can open, but its turns are the worker's: no context rides
     // along, the tab does not follow it, and it is never marked seen.
     if (convId && recall.owns(convId)) {
-      desks.remember(convId, ev?.agentId ?? null);
+      desks.remember(convId, runtime.agentId);
       return;
     }
-    const scope = convId ? desks.remember(convId, ev?.agentId ?? null) : SHARED_SCOPE;
+    const scope = convId ? desks.remember(convId, runtime.agentId) : SHARED_SCOPE;
     activeScope = scope;
     // The return path: everything the user did on this desk (and the shared desk) rides along.
     const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
     log("event:turn_start", { desk: scope, attached: lines.length });
     if (convId) {
-      seen.mark(ev?.agentId ?? null, convId); // you just spoke in this conversation
+      seen.mark(runtime.agentId, convId); // you just spoke in this conversation
       broadcast({ type: "seen", seen: seen.all(), snooze: seen.snoozes(), appServer: appServerUrl !== null });
     }
     // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation.
@@ -426,13 +433,15 @@ export default function activate(letta: LettaMod): (() => void) | void {
     return undefined;
   });
 
-  track("turn_end", () => {
-    if (titleTimer) clearTimeout(titleTimer);
-    titleTimer = setTimeout(() => {
-      const scope = activeScope;
+  track("turn_end", (event, ctx) => {
+    const runtime = runtimeFromEvent(event as TurnEndEvent | undefined, ctx);
+    if (runtime.agentId && isSubagent(runtime.agentId)) return;
+    if (runtime.conversationId && recall.owns(runtime.conversationId)) return;
+    const scope = runtime.conversationId ? desks.remember(runtime.conversationId, runtime.agentId) : activeScope;
+    titleRefreshes.schedule(scope, () => {
       // Letta names conversations lazily; tell tabs when the title or status changes.
       const info = deskInfo(scope);
-      if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName, model: info.model, mode: info.mode ?? null }, scope === SHARED_SCOPE ? undefined : scope);
+      if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null }, scope === SHARED_SCOPE ? undefined : scope);
     }, 1200);
   });
 
@@ -459,7 +468,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     srv = null;
     starting = null;
     widgets.close();
-    if (titleTimer) clearTimeout(titleTimer);
+    titleRefreshes.clear();
     clearInterval(tasksTimer);
     clearTimeout(recallFirst);
     if (recallTimer) clearInterval(recallTimer);

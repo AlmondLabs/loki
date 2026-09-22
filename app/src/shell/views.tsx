@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { runAction } from "./keymap";
 import { CatchUp as Inbox } from "../desk/CatchUp";
@@ -21,6 +21,7 @@ import type { GlobalShortcut } from "./useGlobalShortcut";
 import type { Scratch } from "./useScratch";
 import type { AssignTarget, useBoard } from "./useBoard";
 import type { CatchUp, Desk, Runtime } from "./types";
+import type { ModelSelection } from "../../../core/models.ts";
 
 /**
  * The views the rail switches between, each a thin wrapper that wires the window's models to one
@@ -28,7 +29,7 @@ import type { CatchUp, Desk, Runtime } from "./types";
  */
 
 type OpenDesk = (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void;
-type PickModel = (scope: string, rt: Runtime, handle: string) => Promise<void>;
+type PickModel = (scope: string, rt: Runtime, selection: ModelSelection) => Promise<void>;
 type PickMode = (scope: string, rt: Runtime, mode: string) => Promise<void>;
 
 /** Recall: the review deck, the card list and the deleted pile, over the mod's files. */
@@ -55,9 +56,10 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       conversation={catchUp.conversation}
       loadHistory={(item) => void catchUp.loadHistory(item)}
       modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}
+      reasoningEffortFor={(agentId, conversationId) => desk.reasoningEffortOf(scopeFor(conversationId, agentId))}
       models={models}
       onLoadModels={onLoadModels}
-      onPickModel={(item, handle) => onPickModel(scopeFor(item.id, item.agentId), item.runtime, handle)}
+      onPickModel={(item, selection) => onPickModel(scopeFor(item.id, item.agentId), item.runtime, selection)}
       modeFor={(agentId, conversationId) => desk.modeOf(scopeFor(conversationId, agentId))}
       onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agentId), item.runtime, mode)}
       commands={catchUp.commands}
@@ -114,7 +116,7 @@ export function WelcomeView({ step, catchUp, boot, onInstallLetta, models, onLoa
       onConnect={catchUp.connectProvider}
       onDisconnect={catchUp.disconnectProvider}
       onModelsChanged={onModelsChanged}
-      models={models ? models.map((m) => m.handle) : null}
+      models={models ? [...new Set(models.map((m) => m.handle))] : null}
       onLoadModels={onLoadModels}
       onCreate={catchUp.createAgent}
       bootstrap={boot}
@@ -190,8 +192,8 @@ export function SwitcherTree({ open, onClose, desk, catchUp, visited, onSwitch, 
   );
 }
 
-/** The new-desk dialog; `defaultFolder` stays null whether or not the desk has a runtime. */
-export function NewDeskSheet({ state, onClose, desk, catchUp, onCreate }: { state: { open: boolean; name: string; agentId: string | null }; onClose: () => void; desk: Desk; catchUp: CatchUp; onCreate: (agent: string, folder: string, name: string) => Promise<void> }) {
-  const deskRuntime = desk.agentId && desk.conversationId ? { agent_id: desk.agentId, conversation_id: desk.conversationId } : null;
-  return <NewDesk open={state.open} onClose={onClose} agents={catchUp.agents} defaultAgentId={state.agentId ?? desk.agentId} defaultFolder={deskRuntime ? null : null} initialName={state.name} folders={desk.attention.folders} onCreate={onCreate} />;
+/** The new-desk dialog inherits the open desk's working folder when the mod knows it. */
+export function NewDeskSheet({ state, inheritCurrentDesk, onClose, desk, catchUp, onCreate }: { state: { open: boolean; name: string; agentId: string | null }; inheritCurrentDesk: boolean; onClose: () => void; desk: Desk; catchUp: CatchUp; onCreate: (agent: string, folder: string, name: string) => Promise<void> }) {
+  const currentConversationKey = inheritCurrentDesk && desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null;
+  return <NewDesk open={state.open} onClose={onClose} agents={catchUp.agents} defaultAgentId={state.agentId ?? desk.agentId} currentAgentId={inheritCurrentDesk ? desk.agentId : null} currentConversationKey={currentConversationKey} initialName={state.name} folders={desk.attention.folders} onCreate={onCreate} />;
 }

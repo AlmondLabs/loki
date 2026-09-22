@@ -6,7 +6,8 @@ import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { Button } from "../components";
 import { ChatInput } from "./ChatInput";
 import { SlashPalette } from "./SlashPalette";
-import { ModelChip, ModelPicker, type ModelEntry } from "./ModelPicker";
+import { EffortChip, EffortMenu, ModelChip, ModelPicker, effortEntriesFor, type ModelEntry } from "./ModelPicker";
+import { selectionOf, type ReasoningEffort } from "../../../core/models.ts";
 import { ModeChip, ModeMenu, isPermissionMode } from "./PermissionMode";
 import type { ModelAndMode } from "./useModelAndMode";
 import type { ChatStatus } from "./ChatWindow";
@@ -31,6 +32,7 @@ export function Composer({
   commands = [],
   onCommand,
   model = null,
+  reasoningEffort = null,
   models = null,
   mode = null,
   hasModelPicker = false,
@@ -52,6 +54,7 @@ export function Composer({
   onCommand?: (id: string, args: string) => void;
   /** The conversation's model and mode, whether each can be changed here, and the switchers' state. */
   model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
   models?: ModelEntry[] | null;
   mode?: string | null;
   hasModelPicker?: boolean;
@@ -59,6 +62,8 @@ export function Composer({
   controls?: ModelAndMode;
 }) {
   const currentMode = isPermissionMode(mode) ? mode : null;
+  const effortEntries = effortEntriesFor(models ?? [], model);
+  const hasEffortPicker = effortEntries.length > 1;
   const hasContent = !!draft.trim() || images.length > 0;
   const palette = useSlashPalette({ draft, onDraft, commands, onCommand, inputRef });
 
@@ -80,9 +85,15 @@ export function Composer({
       {/* The chips on the left with their popovers hung above this row; the status word and send on the right. */}
       <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
         {controls && hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
+        {controls && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
+        {controls && hasModelPicker && hasEffortPicker && (
+          <>
+            <EffortChip effort={reasoningEffort} busy={controls.changingEffort} onClick={controls.toggleEffort} />
+            <EffortMenu open={controls.effortOpen} side="above" entries={effortEntries} current={reasoningEffort} onPick={(entry) => void controls.pickEffort(selectionOf(entry))} onClose={controls.closeEffort} />
+          </>
+        )}
         {controls && hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
         {controls && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
-        {controls && <ModelPicker open={controls.pickerOpen} side="above" current={model} entries={models} loading={!models} onPick={(h) => void controls.pickModel(h)} onClose={controls.closePicker} />}
         <span className="loki-label" style={{ marginLeft: "auto", fontSize: 9.5, color: "var(--loki-muted)", opacity: 0.7, whiteSpace: "nowrap" }}>{statusWord(status)}</span>
         <Button
           size="md"

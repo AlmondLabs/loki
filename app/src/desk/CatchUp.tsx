@@ -9,6 +9,7 @@ import { QuestionCard } from "../chat/QuestionCard";
 import { Transcript, type TranscriptRow } from "../chat/Transcript";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
+import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { BADGE, CardFooter, CardHeader, CaughtUp, DeckHeader, KeysHint, ReplyBox, cameBackIn, liveWaitingCount, useChipState, type ChipState } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
 import { useDeckKeys } from "./useDeckKeys";
@@ -85,9 +86,10 @@ interface CatchUpProps {
   onOpenDesk: (agentId: string, conversationId: string) => void;
   /** The model a card's conversation runs on, and the switcher (shared with the desk chat). */
   modelFor?: (agentId: string, conversationId: string) => string | null;
+  reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null;
   models?: ModelEntry[] | null;
   onLoadModels?: () => void;
-  onPickModel?: (item: AttentionItem, handle: string) => Promise<void>;
+  onPickModel?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
   /** The permission mode of a card's conversation, and its setter. */
   modeFor?: (agentId: string, conversationId: string) => string | null;
   onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
@@ -121,7 +123,7 @@ function CatchUpDeck(props: DeckProps) {
     } else if (id === "mode" && props.onPickMode) chips.setModeMenu(true);
     else props.onCommand?.(item, id, args);
   };
-  const actions = useDeckActions({ current, decided, setDecided, setQueue, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove, onAnswer: props.onAnswer, onReply: props.onReply, commands: props.commands, onCommand: runCommand });
+  const actions = useDeckActions({ current, decided, setDecided, setQueue, snoozedShown: showSnoozed, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove, onAnswer: props.onAnswer, onReply: props.onReply, commands: props.commands, onCommand: runCommand });
   useDeckKeys({ typing, current, decided, draft: actions.draft, replyRef, advance: actions.advance, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose, setShowSnoozed });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
@@ -197,7 +199,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         advance={actions.advance}
         onOpenDesk={deck.onOpenDesk}
         onClose={deck.onClose}
-        controls={{ threadMode: thread?.mode, chips, modelFor: deck.modelFor, models: deck.models ?? null, onLoadModels: deck.onLoadModels, onPickModel: deck.onPickModel, modeFor: deck.modeFor, onPickMode: deck.onPickMode }}
+        controls={{ threadMode: thread?.mode, chips, modelFor: deck.modelFor, reasoningEffortFor: deck.reasoningEffortFor, models: deck.models ?? null, onLoadModels: deck.onLoadModels, onPickModel: deck.onPickModel, modeFor: deck.modeFor, onPickMode: deck.onPickMode }}
       />
     </div>
   );

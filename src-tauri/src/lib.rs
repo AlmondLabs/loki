@@ -355,9 +355,9 @@ pub fn run() {
                 .title("loki")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(900.0, 600.0)
-                // The native title bar: macOS draws the desk's name (the page sets it) with the lights inline.
-                .theme(Some(tauri::Theme::Dark))
-                .background_color(tauri::window::Color(0x12, 0x15, 0x1b, 0xff))
+                // macOS draws the desk's name (the page sets it) with the lights inline. It starts on
+                // the system theme; the page applies the saved light/dark preference after it loads.
+                .background_color(tauri::window::Color(0x0e, 0x12, 0x17, 0xff))
                 .initialization_script(&script)
                 .build()?;
             menu::listen(app.handle());
