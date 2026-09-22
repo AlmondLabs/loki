@@ -144,9 +144,30 @@ function Fact({ label, value, mono = false }: { label: string; value: ReactNode;
  * the viewport the web view got against the screen (a shorter viewport is a host keeping a strip for
  * its own toolbar — nothing the page can paint), and the display mode. Read at mount; a rotation re-reads it.
  */
+/** The safe-area insets as the page receives them, read off a probe element padded with env(). */
+function safeInsets(): { top: number; bottom: number } {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const out = { top: Math.round(parseFloat(cs.paddingTop) || 0), bottom: Math.round(parseFloat(cs.paddingBottom) || 0) };
+  probe.remove();
+  return out;
+}
+
 function readViewport(): string {
   const standalone = matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return `${window.innerWidth}×${window.innerHeight} of ${screen.width}×${screen.height} · ${standalone ? "web app" : "browser"} · ${navigator.userAgent.includes("CriOS") ? "chrome" : "safari"}`;
+  const insets = safeInsets();
+  const visual = window.visualViewport ? Math.round(window.visualViewport.height) : null;
+  return [
+    `view ${window.innerWidth}×${window.innerHeight}`,
+    `screen ${screen.width}×${screen.height}`,
+    `insets ${insets.top}/${insets.bottom}`,
+    `visual ${visual ?? "–"}`,
+    `doc ${document.documentElement.clientHeight}`,
+    standalone ? "web app" : "browser",
+    navigator.userAgent.includes("CriOS") ? "chrome" : "safari",
+  ].join(" · ");
 }
 
 function ViewportFact() {
