@@ -12,11 +12,11 @@ import { QuestionCard } from "./QuestionCard";
 import { ChatInput } from "./ChatInput";
 import { FindBar } from "./FindBar";
 import { SlashPalette } from "./SlashPalette";
-import { Transcript, type TranscriptRow } from "./Transcript";
+import { Transcript, type MessageLayout, type TranscriptRow } from "./Transcript";
 import { EffortChip, EffortMenu, ModelChip, ModelPicker, effortEntriesFor, type ModelEntry } from "./ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./PermissionMode";
 import { useChatTicks } from "./useChatTicks";
-import { useDraft } from "./useDraft";
+import { useDraft, type ControlledDraft } from "./useDraft";
 import { useModelAndMode } from "./useModelAndMode";
 import { useSlashPalette } from "./useSlashPalette";
 import { useTranscriptScroll } from "./useTranscriptScroll";
@@ -88,6 +88,11 @@ export function Conversation({
   onTyping,
   onEscapeEmpty,
   onSent,
+  draft: controlledDraft,
+  layout,
+  notice,
+  placeholder,
+  attach = false,
 }: {
   view: ConversationView;
   actions: ConversationActions;
@@ -120,6 +125,16 @@ export function Conversation({
   onEscapeEmpty?: () => void;
   /** A message or an answer went out from the box. */
   onSent?: () => void;
+  /** The host keeps the draft (the phone's per-conversation store); omitted, the box keeps its own, as on the desktop. */
+  draft?: ControlledDraft;
+  /** The avatar-led message layout and the unread divider (Transcript's MessageLayout); omitted, bubbles. */
+  layout?: MessageLayout;
+  /** A line between the thread and the box: "friday is waiting for your reply", the link state. */
+  notice?: ReactNode;
+  /** The empty box's words, in place of composerPlaceholder's. */
+  placeholder?: string;
+  /** A button in the box that picks images from the device (the phone has no drag and drop). */
+  attach?: boolean;
 }) {
   const approval = view.approval ?? null;
   const question = view.question ?? null;
@@ -132,7 +147,7 @@ export function Conversation({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
   const threadRef = useRef<ThreadHandle>(null);
-  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer: actions.onAnswer, onSend: actions.onSend, commands: actions.commands, onCommand: actions.onCommand, onSent });
+  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer: actions.onAnswer, onSend: actions.onSend, commands: actions.commands, onCommand: actions.onCommand, onSent, controlled: controlledDraft });
   const { findOpen, setFindOpen, findRef } = useChatTicks({ focusTick, findTick, inputRef });
   useEffect(() => {
     if (!prefill || prefill.tick <= 0) return;
@@ -171,13 +186,14 @@ export function Conversation({
           onClose={() => setFindOpen(false)}
         />
       )}
-      <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
+      <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
 
       {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} />}
       {approval && <ApprovalCard approval={approval} />}
+      {notice}
 
       {/* The message box with send beside it; a draft that starts with "/" opens the command palette above. */}
-      <div style={{ position: "relative", display: "flex", gap: 8, padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})`, borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
+      <div className="loki-composer" style={{ position: "relative", display: "flex", gap: 8, padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})`, borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
         {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
         <ChatInput
           ref={inputRef}
@@ -193,7 +209,8 @@ export function Conversation({
           onBlur={() => onTyping?.(false)}
           images={images}
           onImages={setImages}
-          placeholder={composerPlaceholder(view, agentName)}
+          placeholder={placeholder ?? composerPlaceholder(view, agentName)}
+          attach={attach}
           {...palette.aria}
         />
         <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
@@ -261,7 +278,7 @@ export interface ThreadHandle {
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, style }, ref) {
+export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const { unpinned, onScroll, jumpToLatest, unpin } = useTranscriptScroll(scrollRef, list, status);
@@ -276,10 +293,10 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
   const who = agentName ?? "the agent";
   return (
     <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
+      <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} />}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} />}
         {status === "thinking" && !waiting && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
         {error && <div style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", fontSize: 12, marginTop: 12, overflowWrap: "anywhere" }}>{error}</div>}
       </div>

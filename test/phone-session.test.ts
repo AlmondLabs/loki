@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import type { AttentionItem, PendingQuestion } from "../core/attention/model.ts";
+import { draftWriter, submitDraft } from "../app/src/chat/useDraft.ts";
+import { EMPTY_DECK, commitCard, undoCard } from "../app/src/phone/deck.ts";
 import { EMPTY_DRAFT, createDrafts, createFocusMemory, createRecents, createScrollMemory, draftKey, pushRecent, sanitizeRecents, type RecentEntry } from "../app/src/phone/session.ts";
 
 /**
@@ -172,5 +175,65 @@ describe("focus return", () => {
     const f = createFocusMemory();
     f.remember("#/home", null);
     expect(f.take("#/home")).toBeNull();
+  });
+});
+
+/**
+ * The shared composer's controlled draft (chat/useDraft.ts), wired to the phone's store the way Inbox and
+ * the desk page wire it: sending clears the conversation that sent and no other, and deciding a card in
+ * the review pass leaves its draft alone.
+ */
+describe("drafts through the shared composer", () => {
+  const card = (id: string) => ({ id, agentId: "a1", agentName: "ira", title: id, lastMessageAt: "2026-09-07T10:00:00Z", archived: false, status: "done", lastAssistantText: "x", lastRole: "assistant", pendingApproval: null, pendingQuestion: null, turns: 0, error: null, seenAt: null, unread: true, lastAsk: null, score: 0, reason: "report", runtime: { agent_id: "a1", conversation_id: id } }) as unknown as AttentionItem;
+
+  test("sending clears only the submitted conversation's draft", () => {
+    const d = createDrafts();
+    const k1 = draftKey("a1", "c1");
+    const k2 = draftKey("a1", "c2");
+    d.set(k1, { text: "  reply one ", images: [img("x")] });
+    d.set(k2, { text: "still typing", images: [] });
+    const sent: [string, number][] = [];
+    let after = 0;
+    const went = submitDraft(d.get(k1), { question: null, onSend: (t, imgs = []) => sent.push([t, imgs.length]), onSent: () => after++ }, () => d.clear(k1));
+    expect(went).toBe(true);
+    expect(sent).toEqual([["reply one", 1]]);
+    expect(after).toBe(1);
+    expect(d.get(k1)).toEqual(EMPTY_DRAFT);
+    expect(d.get(k2).text).toBe("still typing");
+  });
+  test("a typed answer to the one open question clears the draft too; an empty draft sends nothing and keeps nothing", () => {
+    const d = createDrafts();
+    const k = draftKey("a1", "c1");
+    d.set(k, { text: "yes", images: [] });
+    const answers: unknown[] = [];
+    const question = { requestId: "r1", questions: [{ question: "Ship it?", options: [], multiSelect: false }], at: "" } as unknown as PendingQuestion;
+    submitDraft(d.get(k), { question, onAnswer: (a) => answers.push(a), onSend: () => answers.push("sent") }, () => d.clear(k));
+    expect(answers).toEqual([{ "Ship it?": "yes" }]);
+    expect(d.get(k)).toEqual(EMPTY_DRAFT);
+    expect(submitDraft(EMPTY_DRAFT, { question: null, onSend: () => answers.push("sent") }, () => d.clear(k))).toBe(false);
+    expect(answers).toHaveLength(1);
+  });
+  test("writes merge onto the latest draft, so text and images set in one turn do not undo each other", () => {
+    const d = createDrafts();
+    const k = draftKey("a1", "c1");
+    const latest = { current: d.get(k) };
+    const w = draftWriter(latest, (next) => d.set(k, next));
+    w.setText("hello");
+    w.setImages([img("y")]); // an image decoded after the text changed: it must not bring back stale text
+    expect(d.get(k)).toEqual({ text: "hello", images: [img("y")] });
+    w.clear();
+    expect(d.keys()).toEqual([]);
+  });
+  test("deciding the card (Later, Mark as Read) leaves its draft for when it comes back", () => {
+    const d = createDrafts();
+    const a = card("c1");
+    const k = draftKey(a.agentId, a.id);
+    d.set(k, { text: "half a thought", images: [] });
+    let s = commitCard(EMPTY_DECK, a, "later");
+    expect(d.get(k).text).toBe("half a thought");
+    s = undoCard(s, a, "later");
+    s = commitCard(s, a, "seen");
+    expect(s.pass.seen).toBe(1);
+    expect(d.get(k).text).toBe("half a thought");
   });
 });

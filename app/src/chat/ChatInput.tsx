@@ -29,18 +29,21 @@ export const ChatInput = forwardRef<
     onImages?: (images: ImageAttachment[]) => void;
     placeholder?: string;
     disabled?: boolean;
+    /** A "+" before the box that picks images from the device, for hosts without paste or drop (the phone). */
+    attach?: boolean;
     style?: CSSProperties;
     "aria-controls"?: string;
     "aria-activedescendant"?: string;
     "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, style, ...aria }, ref) {
+>(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, attach = false, style, ...aria }, ref) {
   const addBlobs = async (blobs: Blob[]) => {
     if (!onImages || !blobs.length) return;
     const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
     onImages([...images, ...added.filter((a): a is ImageAttachment => !!a)]);
   };
   const inner = useRef<HTMLTextAreaElement | null>(null);
+  const picker = useRef<HTMLInputElement | null>(null);
   const setRef = (el: HTMLTextAreaElement | null) => {
     inner.current = el;
     if (typeof ref === "function") ref(el);
@@ -119,7 +122,28 @@ export const ChatInput = forwardRef<
           ))}
         </div>
       )}
-      <div style={{ position: "relative", display: "flex", minWidth: 0 }}>
+      <div style={{ position: "relative", display: "flex", minWidth: 0, ...(attach ? { alignItems: "flex-end", gap: 6 } : null) }}>
+      {attach && onImages && (
+        <>
+          <IconButton size={36} label="attach images" onClick={() => picker.current?.click()} disabled={disabled} className="loki-composer-attach">
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+          </IconButton>
+          <input
+            ref={picker}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+              e.target.value = ""; // the same photo can be picked again
+              void addBlobs(files);
+            }}
+          />
+        </>
+      )}
       <TextArea
         ref={setRef}
         value={value}

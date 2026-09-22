@@ -714,6 +714,161 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-phone-chips .loki-chip { flex: none; min-height: var(--phone-touch); }
 .loki-phone-chip-count { color: var(--loki-muted); font-variant-numeric: tabular-nums; }
 
+/* ---- Inbox: the review pass ---------------------------------------------------------------------- */
+/* The Inbox stays mounted under other tabs and pages. Out of sight it keeps its boxes (visibility, not
+   display), so the card's thread keeps its scroll offset and the box its caret; nothing in it is reachable. */
+.loki-phone-inbox { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.loki-phone-inbox[data-away] { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+.loki-phone-undo {
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-4);
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-hover);
+  color: var(--phone-link);
+  font: inherit;
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+/* The deck: the card fills it, less the few pixels where the stack shows through below. */
+.loki-phone-deck { flex: 1; min-height: 0; position: relative; margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left)); }
+.loki-phone-card {
+  position: absolute;
+  inset: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-lg);
+  transform-origin: 50% 100%;
+  will-change: transform;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+.loki-phone-card[data-role="leaving"] { pointer-events: none; }
+.loki-phone-card[data-refused] { outline: 2px solid var(--loki-accent); outline-offset: -1px; }
+.loki-phone-card-head {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: var(--phone-space-1) var(--phone-space-4) var(--phone-space-2);
+  border-bottom: 1px solid var(--loki-border);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
+}
+.loki-phone-card-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  max-width: 100%;
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-3);
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+.loki-phone-card-who:active { background: var(--loki-hover); }
+.loki-phone-card-who .loki-phone-icon { color: var(--loki-muted); }
+.loki-phone-card-desk { display: flex; gap: var(--phone-space-1); max-width: 100%; min-width: 0; font-size: var(--phone-text-meta); color: var(--loki-muted); white-space: nowrap; }
+.loki-phone-card-when { flex: none; font-variant-numeric: tabular-nums; }
+/* The card's conversation: the thread takes what is left and scrolls on its own; notice and box stay put. */
+.loki-phone-card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.loki-phone-card [data-thread-scroll] { touch-action: pan-y; }
+.loki-phone-card .loki-composer { border-top: none !important; }
+.loki-phone-card .loki-banner { flex: none; margin: 0 var(--phone-space-3); }
+.loki-phone-card-veil { position: absolute; inset: 0; background: var(--loki-veil); pointer-events: none; }
+/* "friday is waiting for your reply": a quiet pill between the thread and the box. */
+.loki-phone-notice {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: var(--phone-space-1) var(--phone-space-3) 0;
+  padding: var(--phone-space-1) var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-pill);
+  color: var(--loki-muted);
+  font-size: var(--phone-text-meta);
+  line-height: var(--phone-leading);
+}
+/* What a drag reveals under the card: Mark as Read on the left, Later on the right. */
+.loki-phone-reveal { position: absolute; inset: 0 0 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--phone-space-6); pointer-events: none; font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
+.loki-phone-reveal-read, .loki-phone-reveal-later { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
+.loki-phone-reveal-read { color: var(--loki-positive); }
+.loki-phone-reveal-later { color: var(--loki-muted); }
+/* Later and Mark as Read (or Deny and Approve): two big buttons under the card, clear of the home indicator
+   (the navigation is hidden while a card is up, so this row owns the bottom inset). */
+.loki-phone-decide {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--phone-space-2);
+  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-3) + var(--phone-safe-bottom)) calc(var(--phone-space-3) + var(--phone-safe-left));
+}
+.loki-phone-decide-btn {
+  min-height: 52px;
+  padding: 0 var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-hover);
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+.loki-phone-decide-btn:active { background: var(--loki-selection); }
+.loki-phone-decide-btn--affirm, .loki-phone-decide-btn--affirm:active { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone-decide-btn--deny { color: var(--loki-negative); }
+/* A deferred card's row: Bring back beside it, visible, not behind a long press. */
+.loki-phone-row-action {
+  flex: none;
+  align-self: center;
+  min-height: var(--phone-touch);
+  margin-right: calc(var(--phone-gutter) + var(--phone-safe-right));
+  padding: 0 var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-sm);
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+
+/* Short screens (landscape, the keyboard up): the head goes to one line and the buttons to touch height,
+   so the thread keeps the room. */
+@media (max-height: 500px) {
+  .loki-phone-card-head { display: flex; align-items: center; justify-content: center; gap: var(--phone-space-2); padding: 0 var(--phone-space-3); }
+  .loki-phone-card-who { flex: none; }
+  .loki-phone-decide-btn { min-height: var(--phone-touch); }
+  .loki-phone-decide { padding-top: var(--phone-space-1); padding-bottom: calc(var(--phone-space-2) + var(--phone-safe-bottom)); }
+}
+
+/* ---- Messages: the shared transcript's avatar-led layout (chat/Transcript.tsx, `people`) ---------- */
+.loki-phone-thread .loki-msg[data-row] { display: flex; align-items: flex-start; gap: var(--phone-space-2); margin: 2px 0 !important; }
+.loki-phone-thread .loki-msg[data-first] { margin-top: var(--phone-space-3) !important; }
+.loki-phone .loki-msg-face { flex: none; width: 36px; }
+.loki-phone .loki-msg-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.loki-phone .loki-msg-name { font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone .loki-msg-body { font-size: var(--phone-text-body); line-height: var(--phone-leading); color: var(--loki-fg); }
+.loki-phone .loki-msg-body img { max-width: 100%; height: auto; }
+.loki-phone .loki-msg-queued { margin-top: var(--phone-space-1); }
+.loki-phone .loki-msg-divider { display: flex; align-items: center; gap: var(--phone-space-2); margin: var(--phone-space-4) 0 var(--phone-space-1); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-msg-divider-day { color: var(--loki-fg); }
+.loki-phone .loki-msg-divider-rule { flex: 1; height: 1px; background: var(--phone-unread); }
+.loki-phone .loki-msg-divider-new { color: var(--loki-negative); }
+.loki-phone .loki-composer-attach { flex: none; }
+
 /* ---- Motion -------------------------------------------------------------------------------------- */
 /* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with
    it, so a transition written with them never moves. Focus rings, selection and state colours stay. */

@@ -1,9 +1,10 @@
-import { memo, useEffect, useState } from "react";
+import { Fragment, memo, useEffect, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button, IconButton } from "../components";
+import { AgentFace } from "../desk/AgentChip";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -14,22 +15,91 @@ export type { TranscriptRow };
  * its last-ness, or the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
+  const firsts = people ? runStarts(rows, dividerAt) : null;
   return (
     <>
       {rows.map((m, i) => (
-        <Row key={i} row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} />
+        <Fragment key={i}>
+          {dividerAt === i && <Divider day={dividerDay} />}
+          <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} />
+        </Fragment>
       ))}
     </>
   );
 });
 
-/** One row, by role. This is the memo boundary; the three shapes below are plain functions rendered inside it. */
-const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+/** Which rows start a run: a message whose author differs from the last message's, or the first after the divider. Tool and event rows neither start nor break one. */
+export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null): boolean[] {
+  const out: boolean[] = [];
+  let author: TranscriptRow["role"] | null = null;
+  rows.forEach((m, i) => {
+    if (i === dividerAt) author = null;
+    const speaks = m.role === "user" || m.role === "assistant";
+    out.push(speaks && m.role !== author);
+    if (speaks) author = m.role;
+  });
+  return out;
+}
+
+/** Who wrote a message, for the message layout: the name over it, and the face beside it (drawn from `face`, or the name). */
+export interface Person {
+  name: string;
+  face?: string | null;
+  avatar?: string | null;
+}
+
+/**
+ * The optional message layout (the phone's, Slack's): with `people`, messages are avatar-led rows — face,
+ * bold name, then the body at full width — instead of bubbles. `dividerAt` draws the "New" line before that
+ * row, with `dividerDay` ("Today") on its left. Without them the transcript is the desktop's, unchanged.
+ * The host keeps `people` stable (memo), as with the take-back handler.
+ */
+export interface MessageLayout {
+  people?: { user: Person; assistant: Person };
+  dividerAt?: number | null;
+  dividerDay?: string | null;
+}
+
+/** The unread boundary: the day on the left, "New" on the right, a hairline between. */
+function Divider({ day }: { day: string | null }) {
+  return (
+    <div className="loki-msg-divider" role="separator" aria-label={day ? `New since you last looked, ${day}` : "New since you last looked"}>
+      {day && <span className="loki-msg-divider-day">{day}</span>}
+      <span className="loki-msg-divider-rule" />
+      <span className="loki-msg-divider-new">New</span>
+    </div>
+  );
+}
+
+/** One row, by role. This is the memo boundary; the shapes below are plain functions rendered inside it. */
+const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean }) {
   if (m.role === "tool") return <ToolRow row={m} />;
   if (m.role === "event") return <EventRow row={m} />;
+  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} />;
   return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} />;
 });
+
+/** A message in the avatar-led layout: the face and bold name at the start of a run, the body under the name. */
+function Message({ row: m, last, streaming, person, first, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+  return (
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} className="loki-msg">
+      <span className="loki-msg-face" aria-hidden>
+        {first && <AgentFace name={person.face ?? person.name} src={person.avatar ?? null} size={36} />}
+      </span>
+      <div className="loki-msg-copy">
+        {first && <div className="loki-msg-name">{person.name}</div>}
+        {!first && <span className="sr-only">{person.name}: </span>}
+        <div className="loki-msg-body">{m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}</div>
+        {m.queued && (
+          <Button bare size="sm" tone="brass" onClick={() => onCancelQueued?.(m)} disabled={!onCancelQueued} className="loki-msg-queued">
+            queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ToolRow({ row: m }: { row: TranscriptRow }) {
   return (

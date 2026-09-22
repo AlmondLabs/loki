@@ -1,41 +1,45 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import type { AttentionItem } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, snoozedItems } from "../../../core/attention/queue.ts";
+import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
+import type { ImageAttachment } from "../../../core/attention/content.ts";
+import { idOf, snoozedItems } from "../../../core/attention/queue.ts";
 import { formatIn } from "../../../core/attention/snooze.ts";
-import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { formatInput } from "../../../core/attention/format.ts";
-import { ApprovalCard } from "../chat/ApprovalCard";
 import type { TranscriptRow } from "../chat/Transcript";
-import { AgentChip, AgentFace } from "../desk/AgentChip";
+import { Conversation, Thread } from "../chat/Conversation";
 import { avatarUrl } from "../desk/env";
-import { BADGE } from "../desk/CatchUp";
-import { Thread } from "../chat/Conversation";
+import { Button } from "../components";
 import { waitingSince } from "./model";
-import { Button, Chip, Empty, Meta, Row } from "../components";
-import { SAFE, TopBar } from "./ui";
+import { Icon } from "./icons";
+import { Avatar, RowSection } from "./rows";
+import { draftKey, useDraft } from "./session";
+import { TopBar } from "./ui";
 import {
   DRAG_SLOP,
-  EMPTY_PASS,
+  EMPTY_DECK,
   FLY_EASE,
   FLY_MS,
   UNDO_MS,
+  canCommit,
+  cardNotice,
   cardsToDraw,
-  dismiss,
+  commitCard,
+  dayLabel,
+  deckQueue,
+  holdCard,
   isHorizontalDrag,
   passTotal,
-  pruneDismissed,
+  reconcileDeck,
   refusedOffset,
-  restore,
   revealOpacity,
+  reviewAnnouncement,
   rotationFor,
   stackPose,
   summaryLine,
   swipeDecision,
-  tally,
-  toFront,
+  undoCard,
+  unreadBoundary,
   velocityOf,
-  visibleQueue,
-  type Dismissed,
+  type DeckState,
   type PassSummary,
   type Role,
   type Swipe,
@@ -43,12 +47,13 @@ import {
 } from "./deck";
 
 /**
- * The inbox as a deck, the way Slack's Catch Up works on a phone: one card at a time, full width,
- * the next one or two peeking from behind. Swipe right for seen, left for later; tap to open;
- * buttons under the deck do the same for thumbs that do not swipe. Approvals refuse both swipes —
- * approve or deny inside the card is the only way off. An undo pill follows each swipe for six
- * seconds. The pure parts (when a drag commits, the lean, the pass tally, what stays hidden) are
- * in deck.ts.
+ * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
+ * one or two peeking from behind, "N Left" on top. The card is the conversation itself — who it is
+ * with, the thread with the unread line, what the agent waits on, and a working message box — so a card
+ * can be read and answered without leaving the pass. Under it, Later and Mark as Read; swipe left for
+ * Later, right for Mark as Read. Approvals refuse both, and the two buttons become Deny and Approve.
+ * Undo sits in the top bar for six seconds after Later or Mark as Read. The pure parts (when a drag
+ * commits, the lean, the pass itself, what the card says) are in deck.ts.
  */
 
 /** The two or three lines a card would show under its title without a thread (kept for callers). */
@@ -59,63 +64,54 @@ export function preview(item: AttentionItem): string {
   return item.lastAssistantText ?? "";
 }
 
-/** What the deck needs of a conversation to draw the thread inside a card. */
+/** What the deck needs of a conversation to draw it inside a card (useAttention's `conversation`). */
 export interface CardView {
   rows: TranscriptRow[] | undefined;
   status: "idle" | "thinking" | "streaming";
+  pending?: PendingApproval | null;
+  question?: PendingQuestion | null;
+  error?: string | null;
 }
 
-/** Space under the top card where the stack shows through: two hints, six pixels each. */
-const PEEK = 12;
-
 /**
- * What a pass remembers: the cards swiped (until the seen marker or the snooze lands) and the one on
- * top, kept there while the list re-sorts beneath. The parent holds it — it also owns the transcripts,
- * and fetches the top card's when it changes — and hands it to the Inbox, which swipes.
+ * A pass, held by the parent (Phone.tsx) beside the transcripts it fetches for the top card, so it
+ * survives the Inbox being out of sight: the cards in order, the one on top, the tally, and the card
+ * held after a reply. `commit` is false when the card refuses that way off (Later on an approval).
  */
 export interface Deck {
-  /** The queue minus the dismissed, the pinned card first. */
   visible: AttentionItem[];
   current: AttentionItem | undefined;
   currentId: string | null;
-  /** A card swiped off: hidden until its marker lands; the next one comes up. */
-  dismiss: (item: AttentionItem) => void;
-  /** The swipe taken back: the card returns on top. */
-  restore: (item: AttentionItem) => void;
+  pass: PassSummary;
+  /** The card kept in hand after a reply from it (deck.ts DeckState.held). */
+  heldId: string | null;
+  commit: (item: AttentionItem, via: Via) => boolean;
+  undo: (item: AttentionItem, via: Via, wasHeld: boolean) => void;
+  /** Something went out from this card: keep it on top until it is decided. */
+  hold: (item: AttentionItem) => void;
 }
 
 export function useDeck(items: AttentionItem[]): Deck {
-  const [dismissed, setDismissed] = useState<Dismissed>(() => new Map());
-  /** The card on top stays on top while the list re-sorts under it. */
-  const [topId, setTopId] = useState<string | null>(null);
-  const queue = useMemo(() => catchUpQueue(items), [items]);
-  const visible = useMemo(() => toFront(visibleQueue(queue, dismissed), topId), [queue, dismissed, topId]);
+  const [state, setState] = useState<DeckState>(EMPTY_DECK);
+  const visible = useMemo(() => deckQueue(items, state), [items, state]);
   const current: AttentionItem | undefined = visible[0];
-  const currentId = current ? idOf(current) : null;
-
-  // Pin whatever is on top; drop dismissals the live list has outgrown.
+  // Pin whatever is on top, drop dismissals the live list has outgrown (the same state when nothing moved).
   useEffect(() => {
-    if (currentId !== topId) setTopId(currentId);
-  }, [currentId, topId]);
-  useEffect(() => {
-    setDismissed((d) => {
-      const next = pruneDismissed(d, items);
-      return next.size === d.size ? d : next;
-    });
-  }, [items]);
-
+    setState((s) => reconcileDeck(s, items));
+  }, [items, state]);
   return {
     visible,
     current,
-    currentId,
-    dismiss: (item) => {
-      setDismissed((d) => dismiss(d, item));
-      setTopId(null);
+    currentId: current ? idOf(current) : null,
+    pass: state.pass,
+    heldId: state.held ? idOf(state.held) : null,
+    commit: (item, via) => {
+      if (!canCommit(item, via)) return false;
+      setState((s) => commitCard(s, item, via));
+      return true;
     },
-    restore: (item) => {
-      setDismissed((d) => restore(d, item));
-      setTopId(idOf(item));
-    },
+    undo: (item, via, wasHeld) => setState((s) => undoCard(s, item, via, wasHeld)),
+    hold: (item) => setState((s) => holdCard(s, item)),
   };
 }
 
@@ -139,7 +135,7 @@ function useTimer() {
 }
 
 /** The card's width decides the commit distance and the lean: the deck's box, measured live; 360 until it is on screen. */
-function useDeckWidth(hidden: boolean) {
+function useDeckWidth(on: boolean) {
   const deckRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(360);
   useEffect(() => {
@@ -150,69 +146,81 @@ function useDeckWidth(hidden: boolean) {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hidden]);
+  }, [on]);
   return { deckRef, width };
 }
 
+type Undo = { item: AttentionItem; via: Swipe; held: boolean };
+
 /**
- * What a pass does to the deck as cards go: the tally; the card flying off (for FLY_MS, unless motion
- * is reduced); the undo pill's card (for UNDO_MS after a seen or later); the flash when an approval
- * refuses a swipe. `commit` takes the card off by one of the four ways and tells the parent; `undoLast`
- * puts the last swipe back.
+ * What a pass does on screen as cards go: the card flying off (for FLY_MS, unless motion is reduced),
+ * the Undo button's card (for UNDO_MS after Later or Mark as Read), the flash when an approval refuses,
+ * and the sentence a screen reader hears. `commit` takes the card off and tells the parent; `undoLast`
+ * puts the last one back.
  */
 function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem) => void; onLater: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
-  const [pass, setPass] = useState<PassSummary>(EMPTY_PASS);
   const [leaving, setLeaving] = useState<{ item: AttentionItem; dir: 1 | -1 } | null>(null);
-  const [undo, setUndo] = useState<{ item: AttentionItem; via: Swipe } | null>(null);
+  const [undo, setUndo] = useState<Undo | null>(null);
   const [refused, setRefused] = useState(false);
+  const [said, setSaid] = useState("");
   const undoTimer = useTimer();
   const leaveTimer = useTimer();
   const refuseTimer = useTimer();
 
+  const flashRefused = () => {
+    setRefused(true);
+    setSaid("This one needs Approve or Deny.");
+    refuseTimer.set(() => setRefused(false), 420);
+  };
   const commit = (item: AttentionItem, via: Via) => {
-    deck.dismiss(item);
-    setPass((p) => tally(p, via));
+    const held = deck.heldId === idOf(item);
+    if (!deck.commit(item, via)) {
+      onCommit();
+      flashRefused();
+      return;
+    }
     onCommit();
     if (via === "seen") onSeen(item);
     else if (via === "later") onLater(item);
+    const rest = deck.visible.filter((i) => idOf(i) !== idOf(item));
+    setSaid(reviewAnnouncement(via, rest[0], rest.length));
     if (!reduced) {
       setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1 });
       leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), FLY_MS + 30);
     }
     undoTimer.clear();
     if (via === "seen" || via === "later") {
-      setUndo({ item, via });
+      setUndo({ item, via, held });
       undoTimer.set(() => setUndo(null), UNDO_MS);
     } else setUndo(null);
   };
   const undoLast = () => {
     if (!undo) return;
     undoTimer.clear();
-    deck.restore(undo.item);
-    setPass((p) => tally(p, undo.via, -1));
+    deck.undo(undo.item, undo.via, undo.held);
     setLeaving(null);
     onUndo(undo.item, undo.via);
+    setSaid(`Undone. ${undo.item.title ?? undo.item.id} is back.`);
     setUndo(null);
   };
-  const flashRefused = () => {
-    setRefused(true);
-    refuseTimer.set(() => setRefused(false), 420);
-  };
-  return { pass, leaving, undo, refused, commit, undoLast, flashRefused };
+  return { leaving, undo, refused, said, commit, undoLast, flashRefused };
 }
+
+/** A drag never starts on something that takes a finger itself: the box, a control, a code block that scrolls sideways. */
+const OWN_GESTURE = "textarea, input, select, button, a, pre, summary, [data-attachments], [data-question]";
 
 /**
  * Pointer Events on the top card (touch and mouse alike). A drag starts only once the finger has
- * moved more sideways than up and past the slop, so the thread inside still scrolls; touch-action
- * pan-y hands vertical pans to the browser, which then cancels our pointer. Owns the drag offset and
- * the velocity samples; the tap that ends a drag does not open the card.
+ * moved more sideways than up and past the slop, so the thread inside still scrolls (pan-y hands
+ * vertical pans to the browser, which then cancels our pointer), and never from the message box or a
+ * control. Owns the drag offset and the velocity samples.
  */
-function useSwipe({ width, approval, current, onCommit, onRefuse, onOpen }: { width: number; approval: boolean; current: AttentionItem | undefined; onCommit: (item: AttentionItem, via: Swipe) => void; onRefuse: () => void; onOpen: (item: AttentionItem) => void }) {
+function useSwipe({ width, approval, current, onCommit, onRefuse }: { width: number; approval: boolean; current: AttentionItem | undefined; onCommit: (item: AttentionItem, via: Swipe) => void; onRefuse: () => void }) {
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
   const start = useRef<{ x: number; y: number; id: number; dragging: boolean; samples: { x: number; t: number }[] } | null>(null);
-  const suppressClick = useRef(false);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    if ((e.target as Element).closest(OWN_GESTURE)) return;
     start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, dragging: false, samples: [{ x: e.clientX, t: e.timeStamp }] };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
@@ -238,7 +246,6 @@ function useSwipe({ width, approval, current, onCommit, onRefuse, onOpen }: { wi
     if (!s || s.id !== e.pointerId) return;
     start.current = null;
     if (!s.dragging) return;
-    suppressClick.current = true;
     const dx = e.clientX - s.x;
     if (cancelled || !current) {
       setDrag(null);
@@ -251,16 +258,15 @@ function useSwipe({ width, approval, current, onCommit, onRefuse, onOpen }: { wi
       if (approval && Math.abs(dx) > DRAG_SLOP * 2) onRefuse();
     }
   };
-  const onClick = (e: React.MouseEvent<HTMLElement>) => {
-    if (suppressClick.current) {
-      suppressClick.current = false;
-      return;
-    }
-    if ((e.target as HTMLElement).closest("button, a, input, textarea, select, summary, pre")) return;
-    if (current) onOpen(current);
-  };
-  const handlers: CardHandlers = { onPointerDown, onPointerMove, onPointerUp: (e) => finish(e, false), onPointerCancel: (e) => finish(e, true), onClick };
+  const handlers: CardHandlers = { onPointerDown, onPointerMove, onPointerUp: (e) => finish(e, false), onPointerCancel: (e) => finish(e, true) };
   return { drag, clear: () => setDrag(null), handlers };
+}
+
+/** What the card's conversation can do: reply (text, images), answer the open question, take back a queued message. */
+export interface CardActions {
+  onSend: (item: AttentionItem, text: string, images: ImageAttachment[]) => void;
+  onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
+  onCancelQueued: (item: AttentionItem, text: string) => void;
 }
 
 export function Inbox({
@@ -271,229 +277,195 @@ export function Inbox({
   banner,
   conversation,
   deck,
+  backLabel,
+  onClose,
   onOpen,
+  onConnection,
   onApprove,
   onSeen,
   onLater,
   onUnsnooze,
   onUndo,
+  card,
 }: {
   items: AttentionItem[];
   /** The app-server has answered at least once; before that an empty list means nothing. */
   loaded: boolean;
   /** The mod found an app-server to tunnel to; without one there is no inbox to read. */
   available: boolean;
-  /** A conversation is open on top: keep the pass (counts, dismissed cards) but draw nothing. */
+  /** Another tab or a page is on top: keep everything (the pass, the thread's scroll, the draft) but show nothing. */
   hidden?: boolean;
-  /** "Mac unreachable": the only place the link state shows here; the header is one row. */
+  /** "Mac unreachable · last seen …", or null while the link is fine. In a pass it takes the card's notice line. */
   banner?: ReactNode;
   /** The live thread behind a card; `rows` is undefined until loaded. */
   conversation: (agentId: string, conversationId: string) => CardView;
   /** The pass, from `useDeck` in the parent. */
   deck: Deck;
+  /** Where the top bar's back chevron goes, as a word ("Home"). */
+  backLabel: string;
+  /** Leave the pass (the navigation is hidden while a card is up). */
+  onClose: () => void;
+  /** Open the card's desk, full screen. */
   onOpen: (item: AttentionItem) => void;
+  /** The pairing and connection details, for the states where the Mac is the problem. */
+  onConnection: () => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onSeen: (item: AttentionItem) => void;
   onLater: (item: AttentionItem) => void;
   onUnsnooze: (item: AttentionItem) => void;
-  /** Take back the last swipe: "seen" → unmark seen, "later" → clear the snooze. */
+  /** Take back the last Later or Mark as Read: "seen" → unmark seen, "later" → clear the snooze. */
   onUndo: (item: AttentionItem, via: Swipe) => void;
+  card: CardActions;
 }) {
   const reduced = useReducedMotion();
   const [showDeferred, setShowDeferred] = useState(false);
-  const { deckRef, width } = useDeckWidth(hidden);
+  const { visible, current } = deck;
+  const { deckRef, width } = useDeckWidth(!!current);
 
   const snoozed = snoozedItems(items);
   const running = items.filter((i) => i.status === "running").length;
-  const { visible, current } = deck;
   const approval = !!current?.pendingApproval;
 
-  const { pass, leaving, undo, refused, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit: () => swipe.clear() });
-  const swipe = useSwipe({ width, approval, current, onCommit: commit, onRefuse: flashRefused, onOpen });
+  const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit: () => swipe.clear() });
+  const swipe = useSwipe({ width, approval, current, onCommit: commit, onRefuse: flashRefused });
 
-  const total = passTotal(pass) + visible.length;
-  const progress = total > 0 ? passTotal(pass) / total : 0;
+  const done = passTotal(deck.pass);
+  const total = done + visible.length;
 
   return (
-    // A tab with a fixed bottom (the thumb buttons): it stops above the floating navigation rather than under it.
-    <div className="loki-phone-above-nav" style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
+    <div className="loki-phone-inbox loki-phone-above-nav" data-away={hidden || undefined} aria-hidden={hidden || undefined}>
       <TopBar
-        title="Inbox"
-        height={44}
-        right={
-          total > 0 ? (
-            <Meta aria-live="polite">
-              {visible.length} left
-            </Meta>
-          ) : null
+        left={
+          current ? (
+            <button type="button" className="loki-phone-icon-btn" aria-label={`Back to ${backLabel}`} onClick={onClose}>
+              <Icon name="back" size={22} />
+            </button>
+          ) : undefined
         }
-        progress={progress}
+        title={current ? `${visible.length} Left` : "Inbox"}
+        right={
+          undo ? (
+            <button type="button" className="loki-phone-undo" onClick={undoLast} aria-label={undo.via === "seen" ? "Undo Mark as Read" : "Undo Later"}>
+              Undo
+            </button>
+          ) : undefined
+        }
+        progress={current && total > 0 ? done / total : null}
       />
-      {banner}
+      <div className="loki-phone-sr-only" role="status" aria-live="polite">
+        {said}
+      </div>
 
       {!current ? (
-        <EmptyDeck available={available} loaded={loaded} running={running} pass={pass} snoozed={snoozed} showDeferred={showDeferred} onToggleDeferred={() => setShowDeferred((v) => !v)} onOpen={onOpen} onUnsnooze={onUnsnooze} />
+        <EmptyDeck available={available} loaded={loaded} banner={banner} running={running} pass={deck.pass} snoozed={snoozed} showDeferred={showDeferred} onToggleDeferred={() => setShowDeferred((v) => !v)} onOpen={onOpen} onUnsnooze={onUnsnooze} backLabel={backLabel} onClose={onClose} onConnection={onConnection} />
       ) : (
-        <div ref={deckRef} style={{ flex: 1, minHeight: 0, position: "relative", margin: `8px calc(10px + ${SAFE.right}) 8px calc(10px + ${SAFE.left})` }}>
-          <Reveal dx={swipe.drag?.dx ?? 0} width={width} approval={approval} />
-          <Stack
-            visible={visible}
-            leaving={leaving}
-            drag={swipe.drag}
-            width={width}
-            approval={approval}
-            refused={refused}
-            reduced={reduced}
-            conversation={conversation}
-            handlers={swipe.handlers}
-            onOpen={onOpen}
+        <>
+          <div ref={deckRef} className="loki-phone-deck">
+            <Reveal dx={swipe.drag?.dx ?? 0} width={width} approval={approval} />
+            <Stack visible={visible} leaving={leaving} drag={swipe.drag} width={width} approval={approval} refused={refused} reduced={reduced} conversation={conversation} handlers={swipe.handlers} deck={deck} banner={banner} card={card} onOpen={onOpen} />
+          </div>
+          <Decisions
+            item={current}
+            onLater={() => commit(current, "later")}
+            onSeen={() => commit(current, "seen")}
+            onApprove={(behavior) => {
+              if (!current.pendingApproval) return;
+              onApprove(current, current.pendingApproval.requestId, behavior);
+              commit(current, behavior === "allow" ? "approve" : "deny");
+            }}
           />
-        </div>
+        </>
       )}
-
-      {current && (
-        <ThumbActionRow
-          item={current}
-          onLater={() => commit(current, "later")}
-          onSeen={() => commit(current, "seen")}
-          onApprove={(behavior) => {
-            if (!current.pendingApproval) return;
-            onApprove(current, current.pendingApproval.requestId, behavior);
-            commit(current, behavior === "allow" ? "approve" : "deny");
-          }}
-        />
-      )}
-
-      {undo && <UndoPill via={undo.via} onUndo={undoLast} />}
     </div>
   );
 }
 
-/** Nothing on the deck: why (no harness, still reading, caught up), the pass so far, and the deferred cards behind a toggle. */
-function EmptyDeck({ available, loaded, running, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze }: { available: boolean; loaded: boolean; running: number; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void }) {
-  return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) 24px calc(12px + ${SAFE.left})`, display: "grid", gap: 10, alignContent: "start" }}>
-      <Empty card title={!available ? "No harness on the Mac." : loaded ? "You're caught up." : "Reading the inbox…"} style={{ marginTop: 24 }}>
-        {passTotal(pass) > 0 && <div style={{ fontSize: 10.5, color: "var(--loki-fg)", marginTop: 10, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{summaryLine(pass)}</div>}
-        <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>{!available ? "loki's mod has not found Letta's app-server; open loki on the Mac" : !loaded ? "the Mac is listing conversations" : running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
-        {snoozed.length > 0 && (
-          <Button size="touch" onClick={onToggleDeferred} aria-expanded={showDeferred} style={{ marginTop: 16 }}>
-            deferred · {snoozed.length}
-          </Button>
-        )}
-      </Empty>
-      {showDeferred && <DeferredList snoozed={snoozed} onOpen={onOpen} onUnsnooze={onUnsnooze} />}
-    </div>
-  );
-}
-
-/** The snoozed cards as rows: title, agent and when each comes back, with unsnooze beside. */
-function DeferredList({ snoozed, onOpen, onUnsnooze }: { snoozed: AttentionItem[]; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void }) {
-  return snoozed.map((item) => (
-    <div key={idOf(item)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px 4px 0", border: "1px solid var(--loki-border)", borderRadius: 8, opacity: 0.75 }}>
-      <Row touch onClick={() => onOpen(item)} style={{ flex: 1, minWidth: 0, fontSize: 13.5 }}>
-        <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 2 }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title ?? item.id}</span>
-          <Meta>
-            {item.agentName ?? "agent"} · back in {item.snooze ? formatIn(item.snooze.until) : "a while"}
-          </Meta>
-        </span>
-      </Row>
-      <Button size="touch" onClick={() => onUnsnooze(item)}>
-        unsnooze
-      </Button>
-    </div>
-  ));
-}
-
-/** The reveal, between the stack and the top card: seen on the left as the card goes right, later on the right. Approvals reveal nothing. */
-function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
-  const seenReveal = !approval && dx > 0 ? revealOpacity(dx, width) : 0;
-  const laterReveal = !approval && dx < 0 ? revealOpacity(dx, width) : 0;
-  return (
-    <div aria-hidden style={{ position: "absolute", inset: `0 0 ${PEEK}px`, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 26px", pointerEvents: "none" }}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--loki-positive)", fontFamily: "var(--loki-mono)", fontSize: 15, letterSpacing: "0.06em", opacity: seenReveal, transform: `scale(${0.9 + seenReveal * 0.1})` }}>
-        <Check /> seen
-      </span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", fontSize: 15, letterSpacing: "0.06em", opacity: laterReveal, transform: `scale(${0.9 + laterReveal * 0.1})` }}>
-        later <Clock />
-      </span>
-    </div>
-  );
-}
-
-/** One keyed list, one component: a card keeps its DOM node as it goes shell → top → leaving, so its transform transitions between poses. */
-function Stack({ visible, leaving, drag, width, approval, refused, reduced, conversation, handlers, onOpen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; onOpen: (item: AttentionItem) => void }) {
-  const dx = drag?.dx ?? 0;
-  const move = reduced ? "none" : `transform ${FLY_MS}ms ${FLY_EASE}, opacity ${FLY_MS}ms ${FLY_EASE}`;
-  return cardsToDraw(visible, leaving?.item ?? null).map(({ item, role, index }) => {
-    if (role === "leaving")
-      return <Card key={idOf(item)} item={item} role={role} view={conversation(item.agentId, item.id)} style={{ zIndex: 7, transform: `translateX(${leaving!.dir * (width + 80)}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: move, pointerEvents: "none" }} />;
-    if (role === "top") {
-      const offset = approval ? refusedOffset(dx) : dx;
-      return (
-        <Card
-          key={idOf(item)}
-          item={item}
-          role={role}
-          view={conversation(item.agentId, item.id)}
-          refused={refused}
-          style={{
-            zIndex: 6,
-            transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none",
-            transition: drag ? "none" : move,
-          }}
-          handlers={handlers}
-          onOpen={() => onOpen(item)}
-        />
-      );
-    }
-    const pose = stackPose(index);
-    return <Card key={idOf(item)} item={item} role={role} veil={1 - pose.opacity} style={{ zIndex: 4 - index, transform: `translateY(${pose.offsetY}px) scale(${pose.scale})`, transition: move, pointerEvents: "none" }} />;
-  });
-}
-
-/** The pill under the deck after a swipe: one tap puts the card back. */
-function UndoPill({ via, onUndo }: { via: Swipe; onUndo: () => void }) {
-  return (
-    <div style={{ position: "absolute", left: 0, right: 0, bottom: 64, display: "flex", justifyContent: "center", zIndex: 8, pointerEvents: "none" }}>
-      <Button size="touch" tone="brass" onClick={onUndo} className="loki-sheet" style={{ pointerEvents: "auto", background: "var(--loki-panel)", borderRadius: 999, padding: "0 18px", boxShadow: "var(--loki-shadow-low)" }}>
-        undo {via === "seen" ? "seen" : "later"}
-      </Button>
-    </div>
-  );
-}
-
-/** One card's frame: panel, hairline (brass for a decision), the card radius. */
-function frame(item: AttentionItem, extra: CSSProperties): CSSProperties {
-  const badge = BADGE[item.status];
-  return {
-    position: "absolute",
-    inset: `0 0 ${PEEK}px`,
-    display: "flex",
-    flexDirection: "column",
-    background: "var(--loki-panel)",
-    border: `1px solid ${item.status === "approval" || item.status === "question" ? badge.color : "var(--loki-border)"}`,
-    borderRadius: 12,
-    overflow: "hidden",
-    transformOrigin: "50% 100%",
-    willChange: "transform",
-    ...extra,
-  };
-}
-
-function Head({ item }: { item: AttentionItem }) {
-  const badge = BADGE[item.status];
+/**
+ * No card up: why (no harness, the Mac unreachable, still reading, caught up), what this pass did, and
+ * what to do next; the deferred cards follow as a folded section, each with Bring back.
+ */
+function EmptyDeck({ available, loaded, banner, running, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void; backLabel: string; onClose: () => void; onConnection: () => void }) {
+  const summary = summaryLine(pass);
+  const macProblem = !available || !!banner;
+  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : loaded ? "You're caught up" : "Reading the inbox…";
+  const line = !available
+    ? "Open loki on the Mac so its mod can find Letta's app-server."
+    : banner
+      ? "Cards come back when it reconnects; nothing in this pass is lost."
+      : !loaded
+        ? "The Mac is listing conversations."
+        : running > 0
+          ? `${running} still running. They land here when they finish.`
+          : "Nothing is waiting on you.";
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "10px 12px 0" }}>
-        <AgentFace name={item.agentName} src={avatarUrl(item.agentId)} size={20} />
-        <AgentChip name={item.agentName} />
-        <span style={{ flex: 1 }} />
-        <Chip tone={badge.color}>{badge.label}</Chip>
+      {banner}
+      <div className="loki-phone-scroll loki-phone-scroll--flush">
+        <div className="loki-phone-empty" role="status">
+          <Icon name={macProblem ? "laptop" : loaded ? "check" : "inbox"} size={32} />
+          <p className="loki-phone-headline">{title}</p>
+          <p>{line}</p>
+          {summary && <p className="loki-phone-meta">This pass: {summary}</p>}
+          {macProblem ? (
+            <Button size="touch" tone="paper" onClick={onConnection}>
+              Connection details
+            </Button>
+          ) : loaded ? (
+            <Button size="touch" tone="paper" onClick={onClose}>
+              Back to {backLabel}
+            </Button>
+          ) : null}
+        </div>
+        {snoozed.length > 0 && (
+          <RowSection icon="clock" title="Later" count={snoozed.length} open={showDeferred} onToggle={onToggleDeferred}>
+            <ul className="loki-phone-list">
+              {snoozed.map((item) => (
+                <DeferredRow key={idOf(item)} item={item} onOpen={() => onOpen(item)} onUnsnooze={() => onUnsnooze(item)} />
+              ))}
+            </ul>
+          </RowSection>
+        )}
       </div>
-      <div style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", margin: "6px 12px 0", paddingBottom: 8, borderBottom: "1px solid var(--loki-border)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", overflowWrap: "anywhere" }}>{item.title ?? item.id}</div>
     </>
+  );
+}
+
+/** A card sent to Later: the agent's face, its title, when it comes back, and Bring back beside it. */
+function DeferredRow({ item, onOpen, onUnsnooze }: { item: AttentionItem; onOpen: () => void; onUnsnooze: () => void }) {
+  const title = item.title ?? item.id;
+  return (
+    <li className="loki-phone-row-item" data-dim>
+      <button type="button" className="loki-phone-row" onClick={onOpen}>
+        <Avatar name={item.agentName} src={avatarUrl(item.agentId)} />
+        <span className="loki-phone-row-copy">
+          <span className="loki-phone-row-title">
+            <span className="loki-phone-ellipsis">{title}</span>
+          </span>
+          <span className="loki-phone-row-preview">
+            {item.agentName ?? "agent"} · back in {item.snooze ? formatIn(item.snooze.until) : "a while"}
+          </span>
+        </span>
+      </button>
+      <button type="button" className="loki-phone-row-action" onClick={onUnsnooze} aria-label={`Bring back ${title}`}>
+        Bring back
+      </button>
+    </li>
+  );
+}
+
+/** Under the top card while it is dragged: Mark as Read on the left as the card goes right, Later on the right. Approvals reveal nothing. */
+function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
+  const read = !approval && dx > 0 ? revealOpacity(dx, width) : 0;
+  const later = !approval && dx < 0 ? revealOpacity(dx, width) : 0;
+  return (
+    <div aria-hidden className="loki-phone-reveal">
+      <span className="loki-phone-reveal-read" style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
+        <Icon name="check" size={20} /> Mark as Read
+      </span>
+      <span className="loki-phone-reveal-later" style={{ opacity: later, transform: `scale(${0.9 + later * 0.1})` }}>
+        Later <Icon name="clock" size={20} />
+      </span>
+    </div>
   );
 }
 
@@ -502,120 +474,134 @@ interface CardHandlers {
   onPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
   onPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
   onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
-  onClick: (e: React.MouseEvent<HTMLElement>) => void;
 }
 
-function Card({
-  item,
-  role,
-  view,
-  refused = false,
-  veil = 0,
-  style,
-  handlers,
-  onOpen,
-}: {
-  item: AttentionItem;
-  role: Role;
-  view?: CardView;
-  refused?: boolean;
-  /** 0..1: how much of the veil sits over a card behind the top one. */
-  veil?: number;
-  style: CSSProperties;
-  handlers?: CardHandlers;
-  onOpen?: () => void;
-}) {
-  const badge = BADGE[item.status];
+/** One keyed list, one component: a card keeps its DOM node as it goes shell → top → leaving, so its transform transitions between poses. */
+function Stack({ visible, leaving, drag, width, approval, refused, reduced, conversation, handlers, deck, banner, card, onOpen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; deck: Deck; banner?: ReactNode; card: CardActions; onOpen: (item: AttentionItem) => void }) {
+  const dx = drag?.dx ?? 0;
+  const move = reduced ? "none" : `transform ${FLY_MS}ms ${FLY_EASE}, opacity ${FLY_MS}ms ${FLY_EASE}`;
+  return cardsToDraw(visible, leaving?.item ?? null).map(({ item, role, index }) => {
+    if (role === "leaving")
+      return (
+        <Card key={idOf(item)} item={item} role={role} style={{ zIndex: 3, transform: `translateX(${leaving!.dir * (width + 80)}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: move }}>
+          <ReadOnlyThread item={item} view={conversation(item.agentId, item.id)} />
+        </Card>
+      );
+    if (role === "top") {
+      const offset = approval ? refusedOffset(dx) : dx;
+      return (
+        <Card
+          key={idOf(item)}
+          item={item}
+          role={role}
+          refused={refused}
+          style={{ zIndex: 2, transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none", transition: drag ? "none" : move }}
+          handlers={handlers}
+          onOpen={() => onOpen(item)}
+        >
+          <CardConversation item={item} view={conversation(item.agentId, item.id)} banner={banner} card={card} onHold={() => deck.hold(item)} />
+        </Card>
+      );
+    }
+    const pose = stackPose(index);
+    return <Card key={idOf(item)} item={item} role={role} veil={1 - pose.opacity} style={{ zIndex: 1 - index, transform: `translateY(${pose.offsetY}px) scale(${pose.scale})`, transition: move }} />;
+  });
+}
+
+/**
+ * The card: who it is with (a button that opens the desk), then the body. Only the top card is live;
+ * the ones behind are its frame and head under a veil, and the one flying off is inert.
+ */
+function Card({ item, role, refused = false, veil = 0, style, handlers, onOpen, children }: { item: AttentionItem; role: Role; refused?: boolean; /** 0..1: how much of the veil sits over a card behind the top one. */ veil?: number; style: CSSProperties; handlers?: CardHandlers; onOpen?: () => void; children?: ReactNode }) {
   const top = role === "top";
+  const title = item.title ?? item.id;
   return (
-    <article
-      aria-label={`${item.title ?? item.id}, ${badge.label}`}
-      aria-hidden={!top}
-      {...(top ? handlers : {})}
-      style={frame(item, { ...style, touchAction: "pan-y", userSelect: "none", WebkitUserSelect: "none", WebkitTapHighlightColor: "transparent", cursor: top ? "grab" : "default", outline: refused ? "2px solid var(--loki-accent)" : "none", outlineOffset: -1 })}
-    >
-      <Head item={item} />
-      {role === "shell" ? <div style={{ flex: 1 }} /> : <CardBody item={item} view={view} onOpen={onOpen} />}
+    <article className="loki-phone-card" data-role={role} data-refused={refused || undefined} aria-label={top ? `${title}, with ${item.agentName ?? "the agent"}` : undefined} aria-hidden={!top || undefined} inert={!top} {...(top ? handlers : {})} style={style}>
+      <header className="loki-phone-card-head">
+        <button type="button" className="loki-phone-card-who" onClick={onOpen} aria-label={`Open ${title} with ${item.agentName ?? "the agent"}`} tabIndex={top ? undefined : -1}>
+          <Avatar name={item.agentName} src={avatarUrl(item.agentId)} size={28} />
+          <span className="loki-phone-ellipsis">{item.agentName ?? "agent"}</span>
+          <Icon name="chevron-down" size={16} />
+        </button>
+        <span className="loki-phone-card-desk">
+          <span className="loki-phone-ellipsis">{title}</span>
+          <span aria-hidden>·</span>
+          <span className="loki-phone-card-when">{waitingSince(item)}</span>
+        </span>
+      </header>
+      {children && <div className="loki-phone-card-body loki-phone-thread">{children}</div>}
       {/* Cards behind the top one are dimmed by an opaque veil, not opacity, so the stack does not show through itself. */}
-      {veil > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", opacity: veil, pointerEvents: "none" }} />}
+      {veil > 0 && <div aria-hidden className="loki-phone-card-veil" style={{ opacity: veil }} />}
     </article>
   );
 }
 
-/** A live card below its head: the thread, the approval's details, and the footer row. Shells draw none of it. */
-function CardBody({ item, view, onOpen }: { item: AttentionItem; view?: CardView; onOpen?: () => void }) {
-  return (
-    <>
-      {/* The thread spans the card: the phone's column is the reading measure (PhoneStyles lifts the desktop's 78% cap). */}
-      {view && (
-        <div className="loki-phone-thread" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <Thread rows={view.rows} status={view.status} error={item.status === "failed" ? item.error : null} agentName={item.agentName} style={{ padding: "8px 12px" }} />
-        </div>
-      )}
-      {item.pendingApproval && <ApprovalCard approval={item.pendingApproval} />}
-      <CardFooter item={item} onOpen={onOpen} />
-    </>
-  );
-}
-
-/** One footer row: when, then what you can do about it. Approvals decide here; questions answer in the thread. */
-function CardFooter({ item, onOpen }: { item: AttentionItem; onOpen?: () => void }) {
-  /** The one word that explains the card's place in the queue; blocked cards say it with the badge. */
-  const reason = REASON_LABEL[item.reason];
-  return (
-    <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 6, minHeight: 40, padding: "4px 8px 4px 12px", borderTop: "1px solid var(--loki-border)" }}>
-      <Meta style={{ flex: 1, minWidth: 0 }}>
-        {reason && `${reason} · `}
-        {waitingSince(item)}
-      </Meta>
-      <Button size="touch" bare onClick={onOpen} aria-label="open conversation">
-        open
-      </Button>
+/**
+ * The top card's conversation: the shared chat surface with the phone's message layout, the unread line,
+ * the notice (or the link state while the Mac is out of reach), and a message box whose draft lives in
+ * session.ts under this conversation's key — the same draft the desk page shows. A message or an answer
+ * from here holds the card on top until you decide it. Approve and deny are the buttons under the card.
+ */
+function CardConversation({ item, view, banner, card, onHold }: { item: AttentionItem; view: CardView; banner?: ReactNode; card: CardActions; onHold: () => void }) {
+  const [draft, setDraft] = useDraft(draftKey(item.agentId, item.id));
+  const agentName = item.agentName ?? "the agent";
+  const people = useMemo(() => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }), [item.agentName, item.agentId]);
+  const dividerAt = unreadBoundary(view.rows, item.unread);
+  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt) }), [people, dividerAt, item.lastMessageAt]);
+  const question = view.question ?? null;
+  const approval = view.pending ?? item.pendingApproval;
+  const notice = banner ?? (
+    <div className="loki-phone-notice">
+      <span className="loki-phone-ellipsis">{cardNotice(item, view.status)}</span>
     </div>
   );
+  return (
+    <Conversation
+      touch
+      dim={false}
+      attach
+      view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question }}
+      actions={{
+        onSend: (text, images = []) => card.onSend(item, text, images),
+        onAnswer: question
+          ? (answers) => {
+              card.onAnswer(item, question.requestId, answers);
+              onHold();
+            }
+          : undefined,
+        onCancelQueued: (text) => card.onCancelQueued(item, text),
+      }}
+      agentName={agentName}
+      layout={layout}
+      notice={notice}
+      placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
+      draft={{ value: draft, onChange: setDraft }}
+      onSent={onHold}
+    />
+  );
 }
 
-/** Persistent thumb controls below the card; every swipe has a visible button equivalent. */
-function ThumbActionRow({ item, onLater, onSeen, onApprove }: { item: AttentionItem; onLater: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
+/** The card flying off: its thread as it was, nothing to type into. */
+function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView }) {
+  return <Thread rows={view.rows} status={view.status} agentName={item.agentName} dim={false} />;
+}
+
+/**
+ * The two big buttons under the card; every swipe has one. Later and Mark as Read, or — for an approval,
+ * which refuses both — Deny and Approve. The same two elements in both cases, so focus stays put as the
+ * next card comes up.
+ */
+function Decisions({ item, onLater, onSeen, onApprove }: { item: AttentionItem; onLater: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
+  const approval = !!item.pendingApproval;
   return (
-    <div style={{ flex: "0 0 auto", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, padding: `8px calc(12px + ${SAFE.right}) 10px calc(12px + ${SAFE.left})`, borderTop: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}>
-      {item.pendingApproval ? (
-        <>
-          <Button size="touch" tone="negative" block onClick={() => onApprove("deny")}>
-            deny
-          </Button>
-          <Button size="touch" tone="positive" block onClick={() => onApprove("allow")}>
-            approve
-          </Button>
-        </>
-      ) : (
-        <>
-          <Button size="touch" tone="paper" block onClick={onLater} title="comes back later, later each time">
-            <Clock /> later
-          </Button>
-          <Button size="touch" tone="positive" block onClick={onSeen}>
-            <Check /> seen
-          </Button>
-        </>
-      )}
+    <div className="loki-phone-decide">
+      <button type="button" className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"} onClick={approval ? () => onApprove("deny") : onLater} aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Later: comes back later, a little later each time"}>
+        {approval ? "Deny" : "Later"}
+      </button>
+      <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={approval ? () => onApprove("allow") : onSeen} aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}>
+        {approval ? "Approve" : "Mark as Read"}
+      </button>
     </div>
-  );
-}
-
-function Check() {
-  return (
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M4 10.5 8.2 14.5 16 6" />
-    </svg>
-  );
-}
-
-function Clock() {
-  return (
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <circle cx="10" cy="10" r="7" />
-      <path d="M10 6v4.4l2.8 1.8" />
-    </svg>
   );
 }
 

@@ -20,7 +20,7 @@ import { useRecall } from "../shell/useRecall";
 import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
 import { agentNameOf, archiveList, lastSeen, linkState, threadFor } from "./model";
-import { back, backTarget, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
+import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { recentPlaces, useFocusOnRoute } from "./session";
 import { Banner, Button } from "../components";
 import "./phone.css";
@@ -42,6 +42,12 @@ type ConversationRoute = Extract<Route, { kind: "conversation" }>;
 
 /** An inbox card, opened: its conversation, full screen. */
 const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
+
+/** Out of the Inbox pass: back where it was opened from, or Home when the app was opened on it. */
+const closeInbox = () => {
+  if (depthOf(history.state) > 0) history.back();
+  else replace(HOME, "pop");
+};
 
 export function Phone() {
   const [gate, setGate] = useState<Gate>({ kind: "checking" });
@@ -193,7 +199,10 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 
   const recentFolders = useCallback(() => attention.folders.recent().then((r) => r.byAgent), []); // eslint-disable-line react-hooks/exhaustive-deps
   const tab = route.kind === "tab" ? route.tab : null;
-  const nav = showsNav(route);
+  // A card up in the Inbox is a focused pass: it takes the whole screen, as Slack's Catch Up does, and its
+  // own back chevron leaves it. With no card (caught up, loading, the Mac away) the navigation is back.
+  const nav = showsNav(route) && !(tab === "inbox" && deck.current);
+  const inboxFrom = tab === "inbox" && from && formatRoute(from) !== formatRoute(route) ? from : HOME;
 
   // Back from the page on screen, and what its control says: where it was opened from, else its parent.
   const onBack = () => back(route);
@@ -232,7 +241,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} />
+      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
 
       {nav ? (
         <TabBar active={tab} waiting={waiting}>
@@ -275,7 +284,7 @@ function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, pref
  * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
  * place back from the scroll memory (their data is cached above them).
  */
-function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onArchive }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null }) {
+function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string }) {
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -306,7 +315,15 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onAr
         banner={banner}
         conversation={catchUp.conversation}
         deck={deck}
+        backLabel={inboxBack}
+        onClose={closeInbox}
         onOpen={openItem}
+        onConnection={() => navigate({ kind: "preferences" })}
+        card={{
+          onSend: (item, text, images) => catchUp.reply(item, text, images),
+          onAnswer: (item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers),
+          onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
+        }}
         onApprove={catchUp.approve}
         onSeen={catchUp.seen}
         onLater={later}
