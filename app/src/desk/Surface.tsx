@@ -4,6 +4,7 @@ import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { getPath, mergeData } from "../../../core/desk-core.ts";
 import { KIT_COMPONENTS } from "../kit";
 import { ChatBubble, ChatWindow, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
+import type { ConversationActions, ConversationView } from "../chat/Conversation";
 import type { useDesk, VisibleWidget } from "./useDesk";
 import type { useAttention } from "../../../core/attention/useAttention.ts";
 import { Viewport } from "./Viewport";
@@ -197,46 +198,54 @@ function DeskChat({
   onPickMode,
   modeMenuTick = 0,
 }: SurfaceProps & { chat: DeskChatModel; onToggleWidth: () => void }) {
-  const { scope, title, agentName, attention } = desk;
+  const { scope, title, agentName, agentId, attention } = desk;
   const { deskRuntime, deskChat, pendingApproval, pendingQuestion, deskFolder } = chat;
+  const view: ConversationView = {
+    rows: deskChat?.rows ?? [],
+    status: deskChat?.status ?? "idle",
+    error: !attention.available ? "chat needs Letta's app-server — is a harness running?" : deskChat?.error ?? null,
+    model: desk.model,
+    reasoningEffort: desk.reasoningEffort,
+    mode: deskChat?.mode ?? desk.mode,
+    approval: pendingApproval,
+    question: pendingQuestion,
+  };
+  const actions: ConversationActions = {
+    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title }),
+    onAnswer: (answers) => {
+      if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
+    },
+    onApprove: (behavior) => {
+      if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
+    },
+    commands: catchUp.commands,
+    onCommand: (id, args) => {
+      // loki's own commands are keymap actions; everything else is the harness's, run for this conversation.
+      const local = LOKI_COMMANDS.find((c) => c.id === id);
+      if (local?.action) runAction(local.action);
+      else if (deskRuntime) void catchUp.execute(deskRuntime, id, args);
+    },
+    onLoadModels,
+    onPickModel: deskRuntime && onPickModel ? (selection) => onPickModel(scope, deskRuntime, selection) : undefined,
+    onPickMode: deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined,
+    onCancelQueued: (text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text),
+  };
   return (
     <ChatWindow
-      messages={deskChat?.rows ?? []}
-      status={deskChat?.status ?? "idle"}
-      error={!attention.available ? "chat needs Letta's app-server — is a harness running?" : deskChat?.error ?? null}
+      title={title}
       agentName={agentName}
+      agentId={agentId}
+      view={view}
+      actions={actions}
+      models={models}
       width={chatWidth}
       placement={chatPlacement}
       onToggleWidth={onToggleWidth}
       focusTick={focusChat}
       findTick={findChat}
       prefill={chatPrefill}
-      model={desk.model}
-      reasoningEffort={desk.reasoningEffort}
-      models={models}
-      onLoadModels={onLoadModels}
-      onPickModel={deskRuntime && onPickModel ? (selection) => onPickModel(scope, deskRuntime, selection) : undefined}
       modelPickerTick={modelPickerTick}
-      mode={deskChat?.mode ?? desk.mode}
-      onPickMode={deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined}
       modeMenuTick={modeMenuTick}
-      approval={pendingApproval}
-      question={pendingQuestion}
-      onAnswer={(answers) => {
-        if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
-      }}
-      onApprove={(behavior) => {
-        if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
-      }}
-      onSend={(text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title })}
-      commands={catchUp.commands}
-      onCommand={(id, args) => {
-        // loki's own commands are keymap actions; everything else is the harness's, run for this conversation.
-        const local = LOKI_COMMANDS.find((c) => c.id === id);
-        if (local?.action) runAction(local.action);
-        else if (deskRuntime) void catchUp.execute(deskRuntime, id, args);
-      }}
-      onCancelQueued={(text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text)}
       onClose={() => onChatOpen(false)}
     />
   );

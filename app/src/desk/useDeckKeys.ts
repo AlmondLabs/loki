@@ -5,13 +5,12 @@ import { registerActions } from "../shell/keymap";
 
 /**
  * The deck's keys: its actions by keymap id, and Esc with the reply box idle. Re-registers whenever
- * the closures it hands out would go stale (the current card, the decisions, the draft, typing).
+ * the closures it hands out would go stale (the current card, the decisions, typing).
  */
 export function useDeckKeys({
   typing,
   current,
   decided,
-  draft,
   replyRef,
   advance,
   approve,
@@ -23,7 +22,6 @@ export function useDeckKeys({
   typing: boolean;
   current: AttentionItem | undefined;
   decided: Decision[];
-  draft: string;
   replyRef: RefObject<HTMLTextAreaElement | null>;
   advance: (action: "seen" | "unread") => void;
   approve: (behavior: "allow" | "deny") => void;
@@ -54,7 +52,7 @@ export function useDeckKeys({
       "inbox.snoozed": () => setShowSnoozed((v) => !v),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typing, current, decided, draft]);
+  }, [typing, current, decided]);
   // Esc with the box idle closes the deck (the box handles its own Esc: keep a draft, or close when empty).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

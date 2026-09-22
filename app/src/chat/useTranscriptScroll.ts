@@ -28,6 +28,19 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     pinnedRef.current = false;
     setUnpinned(true);
   };
+  // The phone keeps its deck mounted under the other tabs (display: none), where scrollHeight is 0:
+  // when the thread first gains height, land at the bottom if that is where the reader was.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let height = el.clientHeight;
+    const ro = new ResizeObserver(() => {
+      if (height === 0 && el.clientHeight > 0 && pinnedRef.current) el.scrollTop = el.scrollHeight;
+      height = el.clientHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [scrollRef]);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;

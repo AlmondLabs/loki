@@ -1,15 +1,14 @@
 import { useState, type Dispatch, type SetStateAction } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { popHead, stampOf, type Decision } from "../../../core/attention/queue.ts";
-import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
 
 /**
- * What a card can do, and the small state those actions leave behind: the reply draft and its images,
- * the 900ms flash on the badge ("approved", "denied"), the count of replies this pass, and which way the
- * last move went so the next card enters from that side. The queue and the decisions are the deck's
- * (useDeckQueue); this hook only writes to them. Every move pops the head and re-orders the rest by
- * score at that moment (popHead), the way a scheduler picks its next process when one leaves the CPU.
+ * What moves a card, and the small state those moves leave behind: the 900ms flash on the badge
+ * ("approved", "denied", "sent"), the count of replies this pass, and which way the last move went so
+ * the next card enters from that side. The reply box itself is the Conversation's. The queue and the
+ * decisions are the deck's (useDeckQueue); this hook only writes to them. Every move pops the head and
+ * re-orders the rest by score at that moment (popHead), the way a scheduler picks its next process
+ * when one leaves the CPU.
  */
 export function useDeckActions({
   current,
@@ -22,10 +21,6 @@ export function useDeckActions({
   onLater,
   onUnsnooze,
   onApprove,
-  onAnswer,
-  onReply,
-  commands = [],
-  onCommand,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
@@ -38,14 +33,7 @@ export function useDeckActions({
   onLater: (item: AttentionItem) => void;
   onUnsnooze: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
-  onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
-  onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
-  /** Slash commands the reply box knows; a typed one runs for the card's conversation instead of being sent. */
-  commands?: SlashCommand[];
-  onCommand?: (item: AttentionItem, id: string, args: string) => void;
 }) {
-  const [draft, setDraft] = useState("");
-  const [images, setImages] = useState<ImageAttachment[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   /** Replies and answers sent this pass. A reply keeps you on the card; only next/later/approve/deny move it. */
   const [replies, setReplies] = useState(0);
@@ -62,8 +50,6 @@ export function useDeckActions({
     setDir("next");
     setDecided((d) => [...d, { item: current, action, via, stamp: stampOf(current), snoozedShown }]);
     setQueue(popHead);
-    setDraft("");
-    setImages([]);
   };
   /**
    * A reply or an answer went out: the card stays — you may want to watch the answer arrive, and a
@@ -73,16 +59,8 @@ export function useDeckActions({
    */
   const sent = () => {
     setReplies((n) => n + 1);
-    setDraft("");
-    setImages([]);
     setFlash("sent");
     setTimeout(() => setFlash(null), 900);
-  };
-  /** Answer the card's pending question (the structured form); the card stays while the agent goes on. */
-  const answer = (answers: Record<string, string | string[]>) => {
-    if (!current?.pendingQuestion) return;
-    onAnswer(current, current.pendingQuestion.requestId, answers);
-    sent();
   };
   const undo = () => {
     const last = decided[decided.length - 1];
@@ -100,26 +78,5 @@ export function useDeckActions({
     setTimeout(() => setFlash(null), 900);
     advance("seen", behavior === "allow" ? "approve" : "deny");
   };
-  const sendReply = () => {
-    const text = draft.trim();
-    if (!current || (!text && !images.length)) return;
-    const item = current;
-    // "/reload", "/compact all": a command the box knows runs as one (with images attached it is a message).
-    const cmd = !images.length ? parseSlash(text) : null;
-    if (cmd && onCommand && commands.some((c) => c.id === cmd.id)) {
-      onCommand(item, cmd.id, cmd.args);
-      setDraft("");
-      setImages([]);
-      return;
-    }
-    if (item.pendingQuestion && item.pendingQuestion.questions.length === 1 && text && !images.length) {
-      onAnswer(item, item.pendingQuestion.requestId, { [item.pendingQuestion.questions[0].question]: text }); // a typed reply is the answer
-      sent();
-      return;
-    }
-    onReply(item, text, images);
-    sent();
-  };
-
-  return { draft, setDraft, images, setImages, flash, replies, dir, advance, undo, approve, answer, sendReply };
+  return { flash, replies, dir, advance, undo, approve, sent };
 }
