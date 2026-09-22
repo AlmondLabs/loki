@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The loki window: core APIs and the loki commands.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-hide", "opener:default"]
+  "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-set-theme", "core:window:allow-hide", "opener:default"]
 }

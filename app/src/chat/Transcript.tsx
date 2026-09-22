@@ -67,7 +67,7 @@ function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: Transcr
           overflowWrap: "anywhere",
           padding: "9px 13px",
           borderRadius: 12,
-          background: m.role === "user" ? "var(--loki-accent-soft)" : "var(--loki-bubble)",
+          background: m.role === "user" ? "var(--loki-user-bubble)" : "var(--loki-bubble)",
           // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.
           border: m.queued ? "1px dashed var(--loki-accent)" : undefined,
           opacity: m.queued ? 0.7 : !dim || last || m.role === "user" ? 1 : 0.85,

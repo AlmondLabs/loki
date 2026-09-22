@@ -4,8 +4,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkFolder, completeFolder, expandPath, gitBranch, recentFolders } from "../mod/folders.ts";
 import { conversationDirName } from "../core/desk-core.ts";
+import { suggestedFolder } from "../app/src/desk/NewDesk.tsx";
 
 describe("folders", () => {
+  test("new desk prefers the current desk folder, then the selected agent's latest folder", () => {
+    const recent = { a1: ["/work/latest", "/work/older"], a2: ["/other/project"] };
+
+    expect(suggestedFolder(recent, "/work/current", "a1", "a1")).toEqual({ path: "/work/current", source: "current" });
+    expect(suggestedFolder(recent, "/work/current", "a2", "a1")).toEqual({ path: "/other/project", source: "recent" });
+    expect(suggestedFolder(recent, "/work/current", "a1", null)).toEqual({ path: "/work/latest", source: "recent" });
+    expect(suggestedFolder(recent, null, "a1", "a1")).toEqual({ path: "/work/latest", source: "recent" });
+    expect(suggestedFolder(recent, null, "missing", "a1")).toBeNull();
+  });
+
   test("recent folders per agent, newest first, deduped; the desk's own folder by conversation", () => {
     const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {

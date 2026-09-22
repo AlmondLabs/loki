@@ -5,11 +5,13 @@ import { routeOf } from "./model";
 import { currentBuild } from "./UpdateBar";
 import { Button, Dot, Title } from "../components";
 import { GUTTER, Scroll, TopBar } from "./ui";
+import { ThemeChoice } from "../settings/ThemeChoice";
+import { useTheme } from "../theme";
 
 /**
- * Settings on the phone: three short sections in the desktop's Section / Fact voice, stacked. What
- * this phone is and how to unpair it; what the Mac is and whether the two links are up; and a line
- * about where everything else lives. No brass here — nothing on this page waits for you.
+ * Settings on the phone, in the desktop's Section / Fact voice: this device's appearance and pairing,
+ * what the Mac is and whether the two links are up, and what remains on the desktop. No brass here —
+ * nothing on this page waits for you.
  */
 export function Settings({
   me,
@@ -29,6 +31,7 @@ export function Settings({
   banner?: ReactNode;
   onUnpaired: () => void;
 }) {
+  const theme = useTheme();
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +52,11 @@ export function Settings({
       <TopBar title="Settings" sub={sub} />
       {banner}
       <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} 32px ${GUTTER.left}` }}>
+        <Section title="appearance" hint="kept on this phone; system follows its display setting">
+          <Fact label="theme" value={<ThemeChoice touch />} />
+          <Fact label="using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
+        </Section>
+
         <Section title="this phone" hint="paired to the Mac; nothing is installed">
           <Fact label="name" value={me.name} />
           <Fact label="paired" value="paired" />

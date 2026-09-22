@@ -28,6 +28,8 @@ export interface Decision {
   via?: "next" | "later" | "approve" | "deny";
   /** stampOf(item) when decided; the same conversation comes back if it has moved on since. */
   stamp: string;
+  /** Whether snoozed cards were shown when this was decided; "show snoozed" only revisits cards deferred while they were hidden. */
+  snoozedShown?: boolean;
 }
 
 /** The head is popped: the card under your hands is done with, and the rest are ordered again by their score. */
@@ -45,15 +47,19 @@ export function popHead(queue: AttentionItem[]): AttentionItem[] {
 export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[], includeSnoozed = false): AttentionItem[] {
   const actionable = catchUpQueue(items, includeSnoozed);
   const actionableIds = new Set(actionable.map(idOf));
-  const decidedStamp = new Map<string, string>();
-  for (const d of decided) decidedStamp.set(idOf(d.item), d.stamp); // last decision wins
+  const lastDecision = new Map<string, Decision>();
+  for (const d of decided) lastDecision.set(idOf(d.item), d); // last decision wins
   const keep = queue.filter((i, idx) => idx === 0 || actionableIds.has(idOf(i)));
   const known = new Set(keep.map(idOf));
   const fresh = actionable.filter((i) => {
     const id = idOf(i);
     if (known.has(id)) return false;
-    const prev = decidedStamp.get(id);
-    return prev === undefined || prev !== stampOf(i);
+    const prev = lastDecision.get(id);
+    if (!prev || prev.stamp !== stampOf(i)) return true;
+    // "Show snoozed" is an explicit request to revisit cards deferred earlier in this pass while
+    // snoozed cards were hidden. A card deferred with them already shown was just sent away: keep it
+    // out, or every "later" would loop it straight back.
+    return includeSnoozed && !!i.snooze && prev.via === "later" && !prev.snoozedShown;
   });
   const next = keep.length ? [keep[0], ...byScore([...keep.slice(1), ...fresh])] : byScore(fresh);
   // The kept items are the queue's own objects, so identity says whether anything moved.

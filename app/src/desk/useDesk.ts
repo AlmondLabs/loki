@@ -3,7 +3,7 @@ import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, emptyDesk } from "../../../core/desk-core.ts";
 import { readSession } from "./session";
 import { inTauri, modWsBase } from "./env";
-import { PHONE_DEMO, phoneDemo, useDeskSocket } from "./useDeskSocket";
+import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { deskView } from "./view";
 import type { Task } from "../board/model";
 import type { AgentDetails } from "../agents/Agents";
@@ -18,6 +18,7 @@ import type { Snooze } from "../../../core/attention/snooze.ts";
 import type { SnoozeLadder } from "../../../core/attention/ladder.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
+import type { ReasoningEffort } from "../../../core/models.ts";
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -39,6 +40,7 @@ export interface DeskSummary {
   conversationId: string | null;
   /** The model the conversation runs on (its override, else the agent's). */
   model: string | null;
+  reasoningEffort: ReasoningEffort | null;
   /** The permission mode Letta persisted for the conversation. */
   mode?: string | null;
   pinned?: boolean;
@@ -78,6 +80,8 @@ export function useDesk() {
     agentIds,
     models,
     setModels,
+    reasoningEfforts,
+    setReasoningEfforts,
     modes,
     setModes,
     appServer,
@@ -325,12 +329,15 @@ export function useDesk() {
   const status: DeskStatus = statuses[scope] ?? "none";
   const agentName = agentNames[scope] ?? null;
   const model = models[scope] ?? null;
+  const reasoningEffort = reasoningEfforts[scope] ?? null;
   /** After a switch the mod only re-reads the conversation at the next turn end; remember the new model now. */
-  const setDeskModel = (s: Scope, handle: string) => {
+  const setDeskModel = (s: Scope, handle: string, effort: ReasoningEffort | null) => {
     setModels((t) => ({ ...t, [s]: handle }));
-    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, model: handle } : d)));
+    setReasoningEfforts((current) => withReasoningEffort(current, s, effort));
+    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, model: handle, reasoningEffort: effort } : d)));
   };
   const modelOf = (s: Scope): string | null => models[s] ?? deskList.find((d) => d.scope === s)?.model ?? null;
+  const reasoningEffortOf = (s: Scope): ReasoningEffort | null => reasoningEfforts[s] ?? deskList.find((d) => d.scope === s)?.reasoningEffort ?? null;
   const mode = modes[scope] ?? null;
   const setDeskMode = (s: Scope, m: string) => {
     setModes((t) => ({ ...t, [s]: m }));
@@ -349,7 +356,9 @@ export function useDesk() {
     agentId,
     conversationId,
     model,
+    reasoningEffort,
     modelOf,
+    reasoningEffortOf,
     setDeskModel,
     mode,
     modeOf,

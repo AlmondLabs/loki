@@ -7,6 +7,7 @@ import type { Snooze } from "../../../core/attention/snooze.ts";
 import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
+import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 
 const NO_YANK_MS = 2000;
 
@@ -43,6 +44,7 @@ export function useDeskSocket() {
   const [agentNames, setAgentNames] = useState<Record<Scope, string>>({});
   const [agentIds, setAgentIds] = useState<Record<Scope, string>>({});
   const [models, setModels] = useState<Record<Scope, string>>({});
+  const [reasoningEfforts, setReasoningEfforts] = useState<Record<Scope, ReasoningEffort>>({});
   const [modes, setModes] = useState<Record<Scope, string>>({});
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   const [appServer, setAppServer] = useState(false);
@@ -110,6 +112,7 @@ export function useDeskSocket() {
             if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [s]: msg.agentName as string }));
             if (typeof msg.agentId === "string" && msg.agentId) setAgentIds((t) => ({ ...t, [s]: msg.agentId as string }));
             if (typeof msg.model === "string" && msg.model) setModels((t) => ({ ...t, [s]: msg.model as string }));
+            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
             if (typeof msg.mode === "string" && msg.mode) setModes((t) => ({ ...t, [s]: msg.mode as string }));
             setDesks((d) => ({ ...d, [s]: msg.state as DeskState }));
             setWidgets((w) => ({ ...w, [s]: msg.widgets as WidgetManifestEntry[] }));
@@ -212,6 +215,7 @@ export function useDeskSocket() {
             if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [msg.scope as Scope]: msg.status as DeskStatus }));
             if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [msg.scope as Scope]: msg.agentName as string }));
             if (typeof msg.model === "string" && msg.model) setModels((t) => ({ ...t, [msg.scope as Scope]: msg.model as string }));
+            setReasoningEfforts((current) => withReasoningEffort(current, msg.scope as Scope, msg.reasoningEffort));
             if (typeof msg.mode === "string" && msg.mode) setModes((t) => ({ ...t, [msg.scope as Scope]: msg.mode as string }));
             break;
           case "error":
@@ -270,6 +274,8 @@ export function useDeskSocket() {
     agentIds,
     models,
     setModels,
+    reasoningEfforts,
+    setReasoningEfforts,
     modes,
     setModes,
     appServer,
@@ -289,4 +295,13 @@ export function useDeskSocket() {
     measure,
     reportWidgetError,
   };
+}
+
+/** The efforts map with one scope set, or cleared when the value is not a level. */
+export function withReasoningEffort(current: Record<Scope, ReasoningEffort>, scope: Scope, value: unknown): Record<Scope, ReasoningEffort> {
+  if (isReasoningEffort(value)) return current[scope] === value ? current : { ...current, [scope]: value };
+  if (!(scope in current)) return current;
+  const next = { ...current };
+  delete next[scope];
+  return next;
 }

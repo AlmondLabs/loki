@@ -24,8 +24,9 @@ interface NewDeskProps {
   onClose: () => void;
   agents: Array<{ id: string; name: string }>;
   defaultAgentId: string | null;
-  /** The folder of the desk you are on, if known. */
-  defaultFolder: string | null;
+  /** The desk this dialog opened from; its exact folder wins over recency for that same agent. */
+  currentAgentId: string | null;
+  currentConversationKey: string | null;
   initialName?: string;
   folders: FolderApi;
   onCreate: (agentId: string, folder: string, name: string) => Promise<void>;
@@ -33,6 +34,15 @@ interface NewDeskProps {
 
 type FolderStatus = { ok: boolean; branch: string | null; reason?: string } | null;
 type FolderOption = { path: string; group: "match" | "mine" | "others" };
+type FolderSuggestion = { path: string; source: "current" | "recent" };
+
+/** The predictable hierarchy for an untouched folder field. */
+export function suggestedFolder(recent: Record<string, string[]>, currentFolder: string | null, agentId: string | null, currentAgentId: string | null): FolderSuggestion | null {
+  if (!agentId) return null;
+  if (currentFolder && agentId === currentAgentId) return { path: currentFolder, source: "current" };
+  const latest = recent[agentId]?.[0];
+  return latest ? { path: latest, source: "recent" } : null;
+}
 
 /** The folder list's rows: typed completions first; then this agent's recent folders; then everyone else's. */
 function folderOptions(recent: Record<string, string[]>, matches: string[], agentId: string | null, folderTouched: boolean): FolderOption[] {
@@ -53,12 +63,15 @@ function folderOptions(recent: Record<string, string[]>, matches: string[], agen
   return list.slice(0, 14);
 }
 
-function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialName = "", folders, onCreate }: NewDeskProps) {
+function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
   const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
-  const [folder, setFolder] = useState(defaultFolder ?? "");
+  const [folder, setFolder] = useState("");
+  const [folderSource, setFolderSource] = useState<FolderSuggestion["source"] | null>(null);
   const [folderTouched, setFolderTouched] = useState(false);
   const [name, setName] = useState(initialName);
   const [recent, setRecent] = useState<Record<string, string[]>>({});
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
+  const [foldersReady, setFoldersReady] = useState(false);
   const [matches, setMatches] = useState<string[]>([]);
   const [status, setStatus] = useState<FolderStatus>(null);
   const [busy, setBusy] = useState<false | "creating" | "picking">(false);
@@ -70,9 +83,17 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
   // Open: every agent's recent folders, and the caret in the first field still to fill.
   useEffect(() => {
     let gone = false;
-    void folders.recent().then((r) => {
-      if (!gone) setRecent(r.byAgent);
-    });
+    void folders
+      .recent()
+      .then((r) => {
+        if (gone) return;
+        setRecent(r.byAgent);
+        setCurrentFolder(currentConversationKey ? r.byConversation[currentConversationKey] ?? null : null);
+      })
+      .catch(() => {}) // no recent folders to offer; Browse still works
+      .finally(() => {
+        if (!gone) setFoldersReady(true);
+      });
     const t = setTimeout(() => (initialName ? folderRef : nameRef).current?.focus(), 0);
     return () => {
       gone = true;
@@ -81,14 +102,14 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The folder follows the agent until you edit it.
+  // The folder follows context until you edit it: the current desk first, then this agent's latest.
   useEffect(() => {
-    if (folderTouched || !agentId) return;
-    const first = recent[agentId]?.[0];
-    if (first) setFolder(first);
-    else if (defaultFolder) setFolder(defaultFolder);
+    if (folderTouched) return;
+    const suggestion = suggestedFolder(recent, currentFolder, agentId, currentAgentId);
+    setFolder(suggestion?.path ?? "");
+    setFolderSource(suggestion?.source ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, recent]);
+  }, [agentId, recent, currentFolder]);
 
   // Validate (and complete) as you type, debounced.
   useEffect(() => {
@@ -122,10 +143,13 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
   };
   const browse = async () => {
     setBusy("picking");
-    const picked = await folders.pick(status?.ok ? folder.trim() : undefined);
+    // The native picker validates this path itself. Passing it immediately avoids a race where a
+    // quick Browse click beat the debounced status check and macOS opened an unrelated old folder.
+    const picked = await folders.pick(folder.trim() || undefined);
     setBusy(false);
     if (picked) {
       setFolder(picked);
+      setFolderSource(null);
       setFolderTouched(true);
       setListOpen(false);
     }
@@ -133,6 +157,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
   /** A folder chosen from the list (or Finder) is yours: it stops following the agent and the list closes. */
   const chooseFolder = (path: string) => {
     setFolder(path);
+    setFolderSource(null);
     setFolderTouched(true);
     setListOpen(false);
   };
@@ -173,6 +198,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
           folder={folder}
           onType={(value) => {
             setFolder(value);
+            setFolderSource(null);
             setFolderTouched(true);
             setListOpen(true);
           }}
@@ -184,6 +210,8 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, defaultFolder, initialN
           busy={busy}
           onBrowse={() => void browse()}
           agentName={agentName}
+          source={folderSource}
+          canBrowse={foldersReady || folderTouched}
         />
 
         <div>
@@ -242,6 +270,8 @@ function FolderPicker({
   busy,
   onBrowse,
   agentName,
+  source,
+  canBrowse,
 }: {
   inputRef: RefObject<HTMLInputElement | null>;
   folder: string;
@@ -254,12 +284,17 @@ function FolderPicker({
   busy: false | "creating" | "picking";
   onBrowse: () => void;
   agentName: string | null;
+  source: FolderSuggestion["source"] | null;
+  canBrowse: boolean;
 }) {
   const [hi, setHi] = useState(0);
   return (
     <div style={{ position: "relative" }}>
       <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
-        <span>folder</span>
+        <span>
+          folder
+          {source && <span style={{ textTransform: "none", letterSpacing: 0, marginLeft: 6, fontFamily: "var(--loki-mono)" }}>· {source === "current" ? "current desk" : `recent for ${agentName ?? "this agent"}`}</span>}
+        </span>
         <FolderVerdict status={status} />
       </div>
       <div style={{ display: "flex", gap: 8 }}>
@@ -293,8 +328,8 @@ function FolderPicker({
           spellCheck={false}
           aria-invalid={status ? !status.ok : undefined}
         />
-        <Button size="sm" onClick={onBrowse} disabled={busy !== false} title="choose a folder in Finder">
-          {busy === "picking" ? "choosing…" : "browse…"}
+        <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title="choose a folder in Finder">
+          {busy === "picking" ? "choosing…" : !canBrowse ? "loading…" : "browse…"}
         </Button>
       </div>
       {listOpen && options.length > 0 && <FolderList options={options} hi={hi} onHover={setHi} onChoose={onChoose} agentName={agentName} />}

@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { ChatInput } from "../chat/ChatInput";
 import { SlashPalette } from "../chat/SlashPalette";
 import { useSlashPalette } from "../chat/useSlashPalette";
@@ -11,9 +11,10 @@ import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.t
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Button, Chip, Empty, Meta, Title } from "../components";
-import { ModelChip, ModelPicker, type ModelEntry } from "../chat/ModelPicker";
+import { EffortChip, EffortMenu, ModelChip, ModelPicker, effortEntriesFor, type ModelEntry } from "../chat/ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../chat/PermissionMode";
 import type { AttentionStatus } from "../../../core/attention/model.ts";
+import { selectionOf, type ModelSelection, type ReasoningEffort } from "../../../core/models.ts";
 
 /** The pieces of a Catch Up card. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -94,9 +95,11 @@ export function passSummary(decided: Decision[], replies: number): string {
 export function useChipState() {
   const [modelPicker, setModelPicker] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [effortMenu, setEffortMenu] = useState(false);
+  const [changingEffort, setChangingEffort] = useState(false);
   const [modeMenu, setModeMenu] = useState(false);
   const [changingMode, setChangingMode] = useState(false);
-  return { modelPicker, setModelPicker, switching, setSwitching, modeMenu, setModeMenu, changingMode, setChangingMode };
+  return { modelPicker, setModelPicker, switching, setSwitching, effortMenu, setEffortMenu, changingEffort, setChangingEffort, modeMenu, setModeMenu, changingMode, setChangingMode };
 }
 export type ChipState = ReturnType<typeof useChipState>;
 
@@ -105,9 +108,10 @@ export interface ChipControls {
   threadMode: string | null | undefined;
   chips: ChipState;
   modelFor?: (agentId: string, conversationId: string) => string | null;
+  reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null;
   models: ModelEntry[] | null;
   onLoadModels?: () => void;
-  onPickModel?: (item: AttentionItem, handle: string) => Promise<void>;
+  onPickModel?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
   modeFor?: (agentId: string, conversationId: string) => string | null;
   onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
 }
@@ -150,7 +154,15 @@ function ModeChips({ current, threadMode, chips, modeFor, onPickMode }: { curren
   const mode = isPermissionMode(threadMode) ? threadMode : isPermissionMode(recorded) ? (recorded as PermissionMode) : null;
   return (
     <>
-      <ModeChip mode={mode} busy={chips.changingMode} onClick={() => chips.setModeMenu((v) => !v)} />
+      <ModeChip
+        mode={mode}
+        busy={chips.changingMode}
+        onClick={() => {
+          chips.setModelPicker(false);
+          chips.setEffortMenu(false);
+          chips.setModeMenu((v) => !v);
+        }}
+      />
       <ModeMenu
         open={chips.modeMenu}
         side="above"
@@ -167,30 +179,62 @@ function ModeChips({ current, threadMode, chips, modeFor, onPickMode }: { curren
 }
 
 /** The model chip and its picker (opening upward) for the card's conversation. */
-function ModelChips({ current, chips, modelFor, models, onLoadModels, onPickModel }: { current: AttentionItem; chips: ChipState; modelFor: (agentId: string, conversationId: string) => string | null; models: ModelEntry[] | null; onLoadModels?: () => void; onPickModel: (item: AttentionItem, handle: string) => Promise<void> }) {
+function ModelChips({ current, chips, modelFor, reasoningEffortFor, models, onLoadModels, onPickModel }: { current: AttentionItem; chips: ChipState; modelFor: (agentId: string, conversationId: string) => string | null; reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null; models: ModelEntry[] | null; onLoadModels?: () => void; onPickModel: (item: AttentionItem, selection: ModelSelection) => Promise<void> }) {
+  const model = modelFor(current.agentId, current.id);
+  const effort = reasoningEffortFor?.(current.agentId, current.id) ?? null;
+  const effortEntries = effortEntriesFor(models ?? [], model);
+  useEffect(() => onLoadModels?.(), [onLoadModels]);
   return (
     <>
       <ModelChip
-        model={modelFor(current.agentId, current.id)}
+        model={model}
         busy={chips.switching}
         onClick={() => {
           onLoadModels?.();
+          chips.setEffortMenu(false);
+          chips.setModeMenu(false);
           chips.setModelPicker((v) => !v);
         }}
       />
       <ModelPicker
         open={chips.modelPicker}
         side="above"
-        current={modelFor(current.agentId, current.id)}
+        current={model}
+        currentEffort={effort}
         entries={models}
         loading={!models}
         onClose={() => chips.setModelPicker(false)}
-        onPick={(h) => {
+        onPick={(selection) => {
           chips.setModelPicker(false);
           chips.setSwitching(true);
-          void onPickModel(current, h).finally(() => chips.setSwitching(false));
+          void onPickModel(current, selection).finally(() => chips.setSwitching(false));
         }}
       />
+      {effortEntries.length > 1 && (
+        <>
+          <EffortChip
+            effort={effort}
+            busy={chips.changingEffort}
+            onClick={() => {
+              chips.setModelPicker(false);
+              chips.setModeMenu(false);
+              chips.setEffortMenu((v) => !v);
+            }}
+          />
+          <EffortMenu
+            open={chips.effortMenu}
+            side="above"
+            entries={effortEntries}
+            current={effort}
+            onClose={() => chips.setEffortMenu(false)}
+            onPick={(entry) => {
+              chips.setEffortMenu(false);
+              chips.setChangingEffort(true);
+              void onPickModel(current, selectionOf(entry)).finally(() => chips.setChangingEffort(false));
+            }}
+          />
+        </>
+      )}
     </>
   );
 }
@@ -235,10 +279,10 @@ function replyPlaceholder(current: AttentionItem): string {
  * ⌘ chords while you type.
  */
 export function CardFooter({ current, typing, approve, advance, onOpenDesk, onClose, controls }: { current: AttentionItem; typing: boolean; approve: (behavior: "allow" | "deny") => void; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void; controls: ChipControls }) {
-  const { threadMode, chips, modelFor, models, onLoadModels, onPickModel, modeFor, onPickMode } = controls;
+  const { threadMode, chips, modelFor, reasoningEffortFor, models, onLoadModels, onPickModel, modeFor, onPickMode } = controls;
   return (
     <div style={{ position: "relative", display: "flex", gap: 8, padding: "0 12px 12px", alignItems: "center", flexWrap: "wrap" }}>
-      {onPickModel && modelFor && <ModelChips current={current} chips={chips} modelFor={modelFor} models={models} onLoadModels={onLoadModels} onPickModel={onPickModel} />}
+      {onPickModel && modelFor && <ModelChips current={current} chips={chips} modelFor={modelFor} reasoningEffortFor={reasoningEffortFor} models={models} onLoadModels={onLoadModels} onPickModel={onPickModel} />}
       {onPickMode && modeFor && <ModeChips current={current} threadMode={threadMode} chips={chips} modeFor={modeFor} onPickMode={onPickMode} />}
       {current.pendingApproval && (
         <>

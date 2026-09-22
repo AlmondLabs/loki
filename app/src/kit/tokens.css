@@ -1,32 +1,38 @@
-/* loki design tokens — a drafting table at night.
-   Ink-slate ground, paper-white data, brass for anything that needs you
+/* loki design tokens — a drafting table by day or night.
+   Slate ground, paper data, brass for anything that needs you
    (approvals, unread), verdigris for live/positive, oxblood for failure.
    Type: New York (display) for room names, Avenir Next Condensed (label)
    for title-block lettering, the system face for reading, SF Mono for data. */
 :root {
-  --loki-bg: #12151b;
-  --loki-panel: #1a1e27;
-  --loki-panel-header: #1f2430;
-  --loki-border: #2b313d;
-  --loki-fg: #e7e3d8;
-  --loki-muted: #8b909c;
-  --loki-accent: #c9a45c;
-  --loki-accent-soft: #262c39;
-  --loki-brass-soft: rgba(201, 164, 92, 0.1);
-  --loki-positive: #6fb3a4;
-  --loki-negative: #cf7266; /* 4.97:1 on panel, 4.62:1 on panel-header — the old #c0665b was 4.20:1 */
-  --loki-grid: #2c3240;
-  /* Wells (inputs), the agent's bubble, veils and glows — the few surfaces that are not panel or bg. */
-  --loki-well: #0f1218;
-  --loki-bubble: #20252e;
-  --loki-veil: rgba(8, 8, 10, 0.45);
-  --loki-brass-glow: rgba(201, 164, 92, 0.28);
-  --loki-hairline: rgba(255, 255, 255, 0.06);
-  /* Shadows: sheet (modals), float (popovers), panel (the chat), low (small plates). */
-  --loki-shadow-sheet: 0 30px 90px rgba(0, 0, 0, 0.6);
-  --loki-shadow-float: 0 18px 60px rgba(0, 0, 0, 0.55);
-  --loki-shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --loki-shadow-low: 0 6px 20px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+  /* The two backgrounds stay in hex because the manifest, native window and prepaint script repeat them. */
+  --loki-bg: #0e1217;
+  --loki-panel: oklch(22% 0.014 255);
+  --loki-panel-header: oklch(25.5% 0.015 255);
+  --loki-hover: oklch(27.5% 0.016 255);
+  --loki-selection: oklch(29.5% 0.019 255);
+  --loki-border: oklch(34% 0.018 255);
+  --loki-control-border: oklch(51% 0.018 255);
+  --loki-fg: oklch(92% 0.012 83);
+  --loki-muted: oklch(68% 0.016 255);
+  --loki-accent: oklch(75% 0.115 82);
+  --loki-accent-soft: oklch(30% 0.05 82);
+  --loki-brass-soft: oklch(23.5% 0.025 82);
+  --loki-positive: oklch(73% 0.1 166);
+  --loki-negative: oklch(70% 0.14 27);
+  --loki-grid: oklch(27% 0.014 255);
+  /* Wells, speech, inline code, veils and glows are the few surfaces outside the main elevation ramp. */
+  --loki-well: oklch(15% 0.012 255);
+  --loki-bubble: oklch(24% 0.014 255);
+  --loki-user-bubble: oklch(25.5% 0.03 82);
+  --loki-code: oklch(27% 0.014 255);
+  --loki-veil: oklch(8% 0.01 255 / 0.62);
+  --loki-brass-glow: oklch(75% 0.115 82 / 0.25);
+  /* Elevation comes mostly from the surface ramp. These compact shadows only lift detached UI. */
+  --loki-shadow-sheet: 0 8px 8px oklch(5% 0.01 255 / 0.5);
+  --loki-shadow-float: 0 6px 8px oklch(5% 0.01 255 / 0.42);
+  --loki-shadow-panel: 0 4px 8px oklch(5% 0.01 255 / 0.28);
+  --loki-shadow-low: 0 3px 6px oklch(5% 0.01 255 / 0.24);
   /*
    * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
    *   9.5 micro (labels, kbd, rail)   10.5 meta (mono details)   11 label (.loki-label)   12 small
@@ -40,6 +46,36 @@
   --loki-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
   --loki-label: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
   --loki-mono: "SF Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Daylight keeps the same material roles. Brass darkens so small labels remain AA on pale panels. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --loki-bg: #e8eced;
+  --loki-panel: oklch(98.5% 0.003 220);
+  --loki-panel-header: oklch(95.5% 0.006 220);
+  --loki-hover: oklch(93.5% 0.009 220);
+  --loki-selection: oklch(90% 0.012 220);
+  --loki-border: oklch(82% 0.01 220);
+  --loki-control-border: oklch(65% 0.014 230);
+  --loki-fg: oklch(25% 0.018 255);
+  --loki-muted: oklch(48% 0.018 250);
+  --loki-accent: oklch(48% 0.08 82);
+  --loki-accent-soft: oklch(89% 0.04 82);
+  --loki-brass-soft: oklch(95% 0.018 82);
+  --loki-positive: oklch(44% 0.09 166);
+  --loki-negative: oklch(48% 0.14 27);
+  --loki-grid: oklch(85% 0.009 220);
+  --loki-well: oklch(99.5% 0.002 220);
+  --loki-bubble: oklch(96% 0.006 220);
+  --loki-user-bubble: oklch(94% 0.018 82);
+  --loki-code: oklch(92% 0.01 220);
+  --loki-veil: oklch(18% 0.01 255 / 0.28);
+  --loki-brass-glow: oklch(48% 0.08 82 / 0.16);
+  --loki-shadow-sheet: 0 8px 8px oklch(25% 0.018 255 / 0.16);
+  --loki-shadow-float: 0 6px 8px oklch(25% 0.018 255 / 0.14);
+  --loki-shadow-panel: 0 4px 8px oklch(25% 0.018 255 / 0.1);
+  --loki-shadow-low: 0 3px 6px oklch(25% 0.018 255 / 0.09);
 }
 
 /* Title-block lettering: condensed caps, tracked. */
@@ -112,7 +148,7 @@ a:focus-visible {
 .loki-tree-row:hover .loki-tree-meta, .loki-tree-row[aria-selected="true"] .loki-tree-meta { display: none; }
 .loki-tree-row:hover .loki-tree-actions, .loki-tree-row[aria-selected="true"] .loki-tree-actions { display: inline-flex !important; }
 /* Rail buttons. */
-.loki-rail:hover { background: var(--loki-panel-header) !important; color: var(--loki-fg) !important; }
+.loki-rail:hover { background: var(--loki-hover) !important; color: var(--loki-fg) !important; }
 @keyframes loki-card-next { from { opacity: 0; transform: translateX(28px) scale(0.99); } to { opacity: 1; transform: none; } }
 @keyframes loki-card-back { from { opacity: 0; transform: translateX(-28px) scale(0.99); } to { opacity: 1; transform: none; } }
 /* A view swapped under a fixed header (Learn's tabs): a short fade, no movement. */

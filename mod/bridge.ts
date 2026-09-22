@@ -1,6 +1,7 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { DEFAULT_LADDER } from "../core/attention/ladder.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
+import type { ReasoningEffort } from "../core/models.ts";
 import type { InboxRow } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
 import { SHARED_SCOPE, mergeData } from "../core/desk-core.ts";
@@ -87,6 +88,7 @@ export interface DeskInfo {
   agentId: string | null;
   /** The model this conversation runs on: its own override, else the agent's. */
   model: string | null;
+  reasoningEffort: ReasoningEffort | null;
   /** The permission mode Letta persisted for this conversation (default: unrestricted). */
   mode?: string | null;
 }
@@ -236,8 +238,8 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
   const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
 
   const deskFrame = (scope: Scope) => {
-    const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null };
-    return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, model: info.model, mode: info.mode ?? null, state: store.get(scope), widgets: widgets.entries(scope) };
+    const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
+    return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null, state: store.get(scope), widgets: widgets.entries(scope) };
   };
 
   return {

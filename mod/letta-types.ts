@@ -11,6 +11,7 @@ export interface ConversationHandle {
 
 export interface EventContext {
   conversation?: ConversationHandle;
+  agent?: { id?: string; name?: string };
 }
 
 export interface CommandContext {
@@ -43,6 +44,11 @@ export interface TurnStartEvent {
   agentId: string | null;
   conversationId: string | null;
   input: Array<Record<string, unknown>>;
+}
+
+export interface TurnEndEvent {
+  agentId: string | null;
+  conversationId: string | null;
 }
 
 export interface ConversationOpenEvent {
