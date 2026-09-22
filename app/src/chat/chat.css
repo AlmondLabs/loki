@@ -63,3 +63,16 @@
   margin: 0; padding: 10px 12px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: 8px;
   font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; color: var(--loki-fg);
 }
+
+/* The box and what sits under it (Conversation.tsx, ChatInput.tsx). Static values live here so the phone
+   restyles them by class (phone/phone.css); the gutters stay inline, since the host sets them at runtime.
+   The attach layout is :where() so it adds no specificity over the phone's own field. */
+.loki-composer { position: relative; display: flex; gap: 8px; border-top: 1px solid var(--loki-border); align-items: flex-end; }
+.loki-composer-field { position: relative; display: flex; min-width: 0; }
+.loki-composer-field:where([data-attach]) { align-items: flex-end; gap: 6px; }
+.loki-composer-mic { position: absolute; right: 6px; bottom: 6px; }
+.loki-conversation-footer { position: relative; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.loki-approval-kicker { color: var(--loki-accent); margin-bottom: 8px; }
+.loki-question-kicker { color: var(--loki-accent); font-size: 9.5px; }
+.loki-question-text { font-family: var(--loki-display); font-size: 13.5px; color: var(--loki-fg); }
+.loki-thread-error { color: var(--loki-negative); font-family: var(--loki-mono); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }

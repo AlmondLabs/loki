@@ -124,7 +124,7 @@ export const ChatInput = forwardRef<
           ))}
         </div>
       )}
-      <div className="loki-composer-field" style={{ position: "relative", display: "flex", minWidth: 0, ...(attach ? { alignItems: "flex-end", gap: 6 } : null) }}>
+      <div className="loki-composer-field" data-attach={attach || undefined}>
       {attach && onImages && (
         <>
           <IconButton size={36} label="attach images" onClick={() => picker.current?.click()} disabled={disabled} className="loki-composer-attach">
@@ -229,7 +229,6 @@ export const ChatInput = forwardRef<
           aria-pressed={listening}
           title={listening ? "stop dictating" : "dictate (⌘D)"}
           className="loki-composer-mic"
-          style={{ position: "absolute", right: 6, bottom: 6 }}
         >
           {icons?.mic ?? (
             <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">

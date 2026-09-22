@@ -1004,10 +1004,10 @@ span.loki-phone-section-btn { cursor: default; }
 
 /* The box, in both the page and the Inbox card: a rounded field with "+" at its start and the mic at its
    end, send as a round icon beside it; no hairline over it (the notice pill separates). */
-.loki-phone .loki-composer { border-top: none !important; align-items: center !important; }
+.loki-phone .loki-composer { border-top: none; align-items: center; }
 .loki-phone .loki-composer-field {
-  align-items: center !important;
-  gap: 0 !important;
+  align-items: center;
+  gap: 0;
   min-height: var(--phone-touch);
   box-sizing: border-box;
   padding: 0 var(--phone-space-1);
@@ -1030,7 +1030,7 @@ span.loki-phone-section-btn { cursor: default; }
 /* The empty box stays one line at 320: a long placeholder ends in an ellipsis rather than wrapping. */
 .loki-phone .loki-composer-text::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .loki-phone .loki-composer-attach { position: relative; color: var(--loki-fg); border-radius: var(--phone-radius-pill); }
-.loki-phone .loki-composer-mic { border-radius: var(--phone-radius-pill); bottom: auto !important; top: 50%; transform: translateY(-50%); }
+.loki-phone .loki-composer-mic { border-radius: var(--phone-radius-pill); bottom: auto; top: 50%; transform: translateY(-50%); }
 /* The glyphs are smaller than a fingertip; the target is not (44 around each). */
 .loki-phone .loki-composer-attach::after, .loki-phone .loki-composer-mic::after { content: ""; position: absolute; inset: -8px; }
 .loki-phone .loki-composer-attach::after { inset: -4px; }
@@ -1048,7 +1048,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-composer-send:disabled { opacity: 1; }
 
 /* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour. */
-.loki-phone .loki-conversation-footer { flex-wrap: nowrap !important; }
+.loki-phone .loki-conversation-footer { flex-wrap: nowrap; }
 .loki-phone .loki-conversation-footer .loki-approve, .loki-phone .loki-conversation-footer .loki-deny {
   flex: 1;
   min-height: var(--phone-touch);
@@ -1070,12 +1070,12 @@ span.loki-phone-section-btn { cursor: default; }
 }
 .loki-phone .loki-question-kicker, .loki-phone .loki-approval-kicker {
   display: inline-block;
-  font-size: var(--phone-text-meta) !important;
+  font-size: var(--phone-text-meta);
   font-weight: var(--phone-weight-strong);
-  color: var(--loki-fg) !important;
+  color: var(--loki-fg);
 }
 .loki-phone .loki-question-kicker::first-letter, .loki-phone .loki-approval-kicker::first-letter { text-transform: uppercase; }
-.loki-phone .loki-question-text { font-family: var(--loki-font) !important; font-size: var(--phone-text-body) !important; font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-question-text { font-family: var(--loki-font); font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
 .loki-phone .loki-question-answer {
   min-height: var(--phone-touch);
   padding: 0 var(--phone-space-4);
@@ -1105,7 +1105,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-thread .loki-chip--float::after { content: ""; position: absolute; inset: -9px 0; }
 
 /* A failed turn's message: the desk's mono line becomes a sans meta line, still in the negative colour. */
-.loki-phone .loki-thread-error { font-family: var(--loki-font) !important; font-size: var(--phone-text-meta) !important; line-height: var(--phone-leading); margin-left: 44px; }
+.loki-phone .loki-thread-error { font-family: var(--loki-font); font-size: var(--phone-text-meta); line-height: var(--phone-leading); margin-left: 44px; }
 
 /* Reading: links in the link colour and breakable anywhere; a code block scrolls inside itself, the page never does. */
 .loki-phone .loki-msg-body .loki-md a, .loki-phone-thread .loki-md a { color: var(--phone-link); overflow-wrap: anywhere; }

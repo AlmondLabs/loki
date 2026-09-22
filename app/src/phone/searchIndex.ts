@@ -90,10 +90,14 @@ export const normalize = (raw: string): string => fold(cleanQuery(raw));
 
 const WORD = /[\p{L}\p{N}]/u;
 
+/** A field as it is compared: whitespace collapsed, folded. Done once per field when the index is built. */
+const foldField = (text: string): string => fold(text.replace(/\s+/g, " ").trim());
+
 /** How well `text` holds `q`: 0 the whole of it, 1 its start, 2 a word's start, 3 anywhere; null not at all. */
-export function tierOf(text: string, q: string): 0 | 1 | 2 | 3 | null {
-  const t = fold(text.replace(/\s+/g, " ").trim());
-  const n = normalize(q);
+export const tierOf = (text: string, q: string): 0 | 1 | 2 | 3 | null => tierIn(foldField(text), normalize(q));
+
+/** tierOf on a folded field and a normalized query: what each keystroke runs, with nothing refolded. */
+function tierIn(t: string, n: string): 0 | 1 | 2 | 3 | null {
   if (!n) return null;
   if (t === n) return 0;
   let at = t.indexOf(n);
@@ -150,7 +154,10 @@ const pageHit = (d: Destination): Hit => ({ key: `page:${formatRoute(d.route)}`,
 
 const openable = (d: DeskSummary): d is DeskSummary & { agentId: string; conversationId: string } => !!d.agentId && !!d.conversationId;
 
-function entries(src: SearchSources): Entry[] {
+/** The sources as searchable entries, fields folded: build once per sources (Search.tsx memoizes it), query per keystroke. */
+export type SearchIndex = { readonly entries: readonly Entry[] };
+
+export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
   for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskTitle(d), d.agentName ?? ""], recency: time(d.lastActive) });
   for (const a of src.agents) {
@@ -160,21 +167,23 @@ function entries(src: SearchSources): Entry[] {
   // The loaded actionable items, the Later ones included: what the Inbox holds, not every conversation.
   for (const i of catchUpQueue(src.items, true)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agentName ?? ""], recency: time(i.lastMessageAt) });
   for (const d of DESTINATIONS) out.push({ hit: pageHit(d), fields: [d.label, ...d.keywords], recency: 0 });
-  return out;
+  for (const e of out) e.fields = e.fields.map(foldField);
+  return { entries: out };
 }
 
 /** Title fields weigh first at the same tier: score = tier × this + the field's index (0 title, then the rest). */
 const FIELD_SPAN = 100;
 
 /** The groups for a query, in a fixed order, empty ones left out; a blank query is none (the recents show instead). */
-export function search(src: SearchSources, raw: string, max = GROUP_MAX): Group[] {
+export function search(src: SearchSources | SearchIndex, raw: string, max = GROUP_MAX): Group[] {
   const q = normalize(raw);
   if (!q) return [];
+  const idx = "entries" in src ? src : buildIndex(src);
   const scored: Array<{ e: Entry; score: number; index: number }> = [];
-  entries(src).forEach((e, index) => {
+  idx.entries.forEach((e, index) => {
     let score = Infinity;
     e.fields.forEach((f, fi) => {
-      const t = f ? tierOf(f, q) : null;
+      const t = f ? tierIn(f, q) : null;
       if (t !== null) score = Math.min(score, t * FIELD_SPAN + Math.min(fi, 1));
     });
     if (score !== Infinity) scored.push({ e, score, index });

@@ -5,7 +5,7 @@ import { EMPTY_DECK, commitCard, threadNotice, undoCard } from "../app/src/phone
 import { threadLine } from "../app/src/phone/model.ts";
 import { formatRoute, parseRoute } from "../app/src/phone/router.ts";
 import { keyboardInset } from "../app/src/phone/viewport.ts";
-import { EMPTY_DRAFT, createDrafts, drafts, createFocusMemory, createRecents, createScrollMemory, draftKey, pushRecent, sanitizeRecents, type RecentEntry } from "../app/src/phone/session.ts";
+import { EMPTY_DRAFT, createDrafts, drafts, createFocusMemory, createRecents, createScrollMemory, draftKey, nextPrefill, pushRecent, restoreFocus, sanitizeRecents, type RecentEntry } from "../app/src/phone/session.ts";
 
 /**
  * The phone's session layer (app/src/phone/session.ts): drafts keyed by conversation, bounded recent
@@ -58,6 +58,17 @@ describe("drafts", () => {
     off();
     d.set(k1, { text: "after", images: [] });
     expect(heard).toEqual(["mine", ""]);
+  });
+  test("the last unsubscribe forgets the key (no empty listener sets pile up)", () => {
+    const d = createDrafts();
+    const offA = d.subscribe("k1", () => {});
+    const offB = d.subscribe("k1", () => {});
+    d.subscribe("k2", () => {})();
+    expect(d.watched()).toBe(1);
+    offA();
+    expect(d.watched()).toBe(1);
+    offB();
+    expect(d.watched()).toBe(0);
   });
   test("the same draft object comes back until it changes (a stable snapshot for React)", () => {
     const d = createDrafts();
@@ -174,10 +185,58 @@ describe("focus return", () => {
     expect(f.take("#/inbox")).toBe(b);
     expect(f.take("#/home")).toBe(a);
   });
+  test("a remounted launcher is found again by id, else by data-launch", () => {
+    const f = createFocusMemory();
+    const byLaunch = { isConnected: true } as unknown as Element;
+    const saved = (globalThis as { document?: unknown }).document;
+    (globalThis as { document?: unknown }).document = { getElementById: () => null, querySelector: (sel: string) => (sel === '[data-launch="desk:a1/c1"]' ? byLaunch : null) };
+    try {
+      f.remember("#/home", { isConnected: false, id: "gone-id", getAttribute: () => "desk:a1/c1" } as unknown as Element);
+      expect(f.take("#/home")).toBe(byLaunch);
+    } finally {
+      (globalThis as { document?: unknown }).document = saved;
+    }
+  });
   test("nothing to remember is no entry", () => {
     const f = createFocusMemory();
     f.remember("#/home", null);
     expect(f.take("#/home")).toBeNull();
+  });
+});
+
+describe("focus on arrival", () => {
+  const heading = (away: boolean, log: string[], name: string) => ({ getClientRects: () => [{}], closest: (sel: string) => (away && sel.includes("[data-away]") ? {} : null), focus: () => log.push(name) });
+  test("a heading in a screen kept mounted but away (the hidden Inbox) is not the one focused", () => {
+    const log: string[] = [];
+    const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
+    const g = globalThis as { HTMLElement?: unknown };
+    const saved = g.HTMLElement;
+    g.HTMLElement ??= class {}; // Bun has no DOM; restoreFocus only asks whether a launcher is one
+    try {
+      restoreFocus(root, "#/agents", false, createFocusMemory());
+    } finally {
+      g.HTMLElement = saved;
+    }
+    expect(log).toEqual(["agents"]);
+  });
+});
+
+describe("prefill", () => {
+  const conv = (conversationId: string, prefill: string | null = null) => ({ agentId: "a1", conversationId, prefill });
+  test("a ?prefill= is held for its own conversation only", () => {
+    const held = nextPrefill(null, conv("c1", "ask about x"), 5);
+    expect(held).toEqual({ key: draftKey("a1", "c1"), text: "ask about x", tick: 5 });
+    // the address drops the prefill; the same conversation keeps it
+    expect(nextPrefill(held, conv("c1"), 6)).toBe(held);
+  });
+  test("leaving its conversation drops it, so another conversation, or this one reopened, keeps its draft", () => {
+    const held = nextPrefill(null, conv("c1", "ask about x"), 5);
+    expect(nextPrefill(held, conv("c2"), 6)).toBeNull();
+    expect(nextPrefill(held, null, 6)).toBeNull();
+  });
+  test("a new ?prefill= replaces the held one with a fresh tick", () => {
+    const held = nextPrefill(null, conv("c1", "one"), 5);
+    expect(nextPrefill(held, conv("c2", "two"), 9)).toEqual({ key: draftKey("a1", "c2"), text: "two", tick: 9 });
   });
 });
 
@@ -302,8 +361,8 @@ describe("the conversation page", () => {
     expect(keyboardInset(844, null)).toBe(0);
     expect(keyboardInset(844, { height: 844, offsetTop: 0, scale: 1 })).toBe(0);
     expect(keyboardInset(844, { height: 508, offsetTop: 0, scale: 1 })).toBe(336);
-    // iOS scrolls the visual viewport to show the caret: the band under it is still the keyboard's
-    expect(keyboardInset(844, { height: 508, offsetTop: 120, scale: 1 })).toBe(216);
+    // iOS scrolls the visual viewport to show the caret: the keyboard is no smaller for it
+    expect(keyboardInset(844, { height: 508, offsetTop: 120, scale: 1 })).toBe(336);
     // pinch zoom shrinks the visual viewport too; that is not a keyboard
     expect(keyboardInset(844, { height: 400, offsetTop: 0, scale: 2 })).toBe(0);
     // a browser that resizes the layout for the keyboard: nothing left to make up

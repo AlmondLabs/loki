@@ -19,10 +19,10 @@ import { Recall as RecallTab } from "./Recall";
 import { useRecall } from "../shell/useRecall";
 import { useDeckPass } from "../recall/useDeckPass";
 import { TabBar } from "./TabBar";
-import { UpdateBar } from "./UpdateBar";
+import { UpdateBar, useHealthBuild } from "./UpdateBar";
 import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, type LinkState } from "./model";
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
-import { recentPlaces, useFocusOnRoute } from "./session";
+import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
 import { useKeyboardInset } from "./viewport";
 import { Banner, Button } from "../components";
 import "./phone.css";
@@ -120,18 +120,22 @@ function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => voi
   }, [connection]);
 }
 
-/** A `?prefill=` in the route starts the reply box once, then leaves the address so a reload does not repeat it. */
+/**
+ * A `?prefill=` in the route starts the reply box once, then leaves the address so a reload does not repeat
+ * it. It is held for its own conversation only (session.ts, nextPrefill): every ConversationPage gets this
+ * value and applies it on mount, so any other conversation, or this one reopened, must see null.
+ */
 function usePrefill(conv: ConversationRoute | null) {
-  const prefillKey = conv?.prefill ? formatRoute(conv) : null;
+  const convKey = conv ? draftKey(conv.agentId, conv.conversationId) : null;
   // The route arriving is the event: it becomes the prefill (with a fresh tick) and leaves the address.
-  const [prefill, setPrefill] = useState<{ text: string; tick: number } | null>(null);
+  const [held, setHeld] = useState<Prefill | null>(null);
   useEffect(() => {
-    if (!conv?.prefill) return;
-    setPrefill({ text: conv.prefill, tick: Date.now() });
-    replace({ ...conv, prefill: null });
+    setHeld((h) => nextPrefill(h, conv, Date.now()));
+    if (conv?.prefill) replace({ ...conv, prefill: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillKey]);
-  return prefill;
+  }, [convKey, conv?.prefill]);
+  // Checked at render too: a newly opened conversation's page applies prefill before this effect drops it.
+  return held && held.key === convKey ? held : null;
 }
 
 function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
@@ -226,8 +230,9 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // The on-screen keyboard: where it only shrinks the visual viewport, the shell fits what is visible (viewport.ts).
   useKeyboardInset(shellRef);
   // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
+  // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
   useEffect(() => {
-    if (!nav && route.kind !== "search") recentPlaces.add(place);
+    if (route.kind !== "tab" && route.kind !== "search") recentPlaces.add(place);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place]);
 
@@ -245,7 +250,9 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const link = linkState(desk.connection, catchUp.status, attention.available);
   // What Search looks through: only what the phone already holds (searchIndex.ts), agent descriptions from the Agents cache.
   const searchSources = useMemo(() => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, describe: knownDescription }), [desk.desks.list, catchUp.agents, catchUp.items]);
-  const update = <UpdateBar servedBuild={desk.servedBuild} />;
+  // The /health poll lives here, not in the bar: the bar moves between the dock and the page strip, which remounts it.
+  const health = useHealthBuild();
+  const update = <UpdateBar servedBuild={desk.servedBuild} health={health} />;
   return (
     <div ref={shellRef} className="loki-phone loki-phone-shell">
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}

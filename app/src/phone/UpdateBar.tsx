@@ -21,12 +21,11 @@ async function servedBuildNow(): Promise<string | null> {
 /**
  * A home-screen web app has no reload button, so the page watches for a newer canvas: the mod says so
  * over the socket (`app_build`), and /health is asked when the app comes back to the front and once a
- * minute while it is. A change shows a thin bar — brass, because this one needs a tap — and a change
- * found after more than thirty seconds in the background reloads at once, since nothing is mid-flight.
- * On a tab it rides in the navigation's dock, above the capsule; on a full-screen page it is the strip
- * at the bottom and clears the home indicator itself (phone.css, .loki-phone-update).
+ * minute while it is. A change found after more than thirty seconds in the background reloads at once,
+ * since nothing is mid-flight. This hook is the /health half, called once by the shell (Phone.tsx) so the
+ * bar's remounts neither lose what it heard nor restart the minute.
  */
-export function UpdateBar({ servedBuild }: { servedBuild: string | null }) {
+export function useHealthBuild(): string | null {
   const current = currentBuild();
   const [health, setHealth] = useState<string | null>(null);
   const hiddenAt = useRef<number | null>(null);
@@ -63,6 +62,17 @@ export function UpdateBar({ servedBuild }: { servedBuild: string | null }) {
       stop();
     };
   }, [current]);
+
+  return health;
+}
+
+/**
+ * A change shows a thin bar — brass, because this one needs a tap. On a tab it rides in the navigation's
+ * dock, above the capsule; on a full-screen page it is the strip at the bottom and clears the home
+ * indicator itself (phone.css, .loki-phone-update).
+ */
+export function UpdateBar({ servedBuild, health }: { servedBuild: string | null; /** From useHealthBuild. */ health: string | null }) {
+  const current = currentBuild();
 
   if (!needsReload(servedBuild, current) && !needsReload(health, current)) return null;
   return (

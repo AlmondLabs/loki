@@ -4,7 +4,7 @@ import { Icon } from "./icons";
 import type { LinkState } from "./model";
 import { navigate, rewrite } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
-import { cleanQuery, isPlace, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./searchIndex";
+import { buildIndex, cleanQuery, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./searchIndex";
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
 
 /** What Search covers, said plainly wherever it would otherwise look like message search. */
@@ -23,7 +23,8 @@ const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "mo
 export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: { q: string; /** Opened anew (not come back to): start at the top. */ fresh: boolean; sources: SearchSources; link: LinkState; /** The agent list has arrived from the Mac. */ loaded: boolean; onBack: () => void; backLabel: string }) {
   const [query, setQuery] = useState(q);
   const [recent, setRecent] = useState(() => recentSearches.read());
-  const [placesTick, setPlacesTick] = useState(0);
+  // The stored places, read once and again only after a Clear; what still resolves is checked against sources below.
+  const [placeHashes, setPlaceHashes] = useState(() => recentPlaces.read());
   const input = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   // A fresh Search starts at the top; one come back to keeps its place (scroll memory "search").
@@ -31,9 +32,11 @@ export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: {
   useScrollMemory(scroller, "search");
 
   const typed = cleanQuery(query);
-  const groups = useMemo(() => search(sources, typed), [sources, typed]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const places = useMemo(() => recentPlaceHits(recentPlaces.read((h) => isPlace(h, sources)), sources), [sources, placesTick]);
+  // Fields are folded once per sources, not per keystroke.
+  const index = useMemo(() => buildIndex(sources), [sources]);
+  const groups = useMemo(() => search(index, typed), [index, typed]);
+  // Only shown before typing; recentPlaceHits drops what no longer resolves.
+  const places = useMemo(() => (typed ? [] : recentPlaceHits(placeHashes, sources)), [typed, placeHashes, sources]);
   const found = groups.reduce((n, g) => n + g.total, 0);
 
   // A new query starts its results at the top.
@@ -183,7 +186,7 @@ export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: {
                 title="Recently visited"
                 onClear={() => {
                   recentPlaces.clear();
-                  setPlacesTick((n) => n + 1);
+                  setPlaceHashes([]);
                 }}
               >
                 {places.map((h) => (

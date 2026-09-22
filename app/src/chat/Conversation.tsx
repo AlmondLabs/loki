@@ -196,7 +196,7 @@ export function Conversation({
       {notice}
 
       {/* The message box with send beside it; a draft that starts with "/" opens the command palette above. */}
-      <div className="loki-composer" style={{ position: "relative", display: "flex", gap: 8, padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})`, borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
+      <div className="loki-composer" style={{ padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})` }}>
         {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
         <ChatInput
           ref={inputRef}
@@ -229,7 +229,7 @@ export function Conversation({
       </div>
 
       {hasFooter && (
-        <div className="loki-conversation-footer" style={{ position: "relative", display: "flex", gap: 8, padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})`, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
           {hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
           {hasModelPicker && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
           {hasEffortPicker && (
@@ -309,7 +309,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
         {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} />}
         {status === "thinking" && !waiting && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
-        {error && <div className="loki-thread-error" style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", fontSize: 12, marginTop: 12, overflowWrap: "anywhere" }}>{error}</div>}
+        {error && <div className="loki-thread-error">{error}</div>}
       </div>
       {unpinned && (
         <Chip float onClick={jumpToLatest} aria-label="jump to latest" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>

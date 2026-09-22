@@ -52,9 +52,9 @@ function QuestionCardFor({ question, onAnswer, touch = false }: { question: Pend
         return (
           <div key={qi} style={{ display: "grid", gap: 6 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <span className="loki-label loki-question-kicker" style={{ color: "var(--loki-accent)", fontSize: 9.5 }}>{qi === 0 ? (many ? `asks you · ${question.questions.length}` : "asks you") : `${qi + 1}`}</span>
+              <span className="loki-label loki-question-kicker">{qi === 0 ? (many ? `asks you · ${question.questions.length}` : "asks you") : `${qi + 1}`}</span>
               {q.header && <span className="loki-label" style={{ fontSize: 9.5 }}>{q.header}</span>}
-              <span className="loki-question-text" style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, color: "var(--loki-fg)" }}>{q.question}</span>
+              <span className="loki-question-text">{q.question}</span>
             </div>
             <div role={q.multiSelect ? "group" : "radiogroup"} aria-label={q.question} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} onMouseLeave={() => setPeek(null)}>
               {q.options.map((o) => {

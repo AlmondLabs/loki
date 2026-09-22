@@ -3,7 +3,7 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../app/src/desk/useDesk";
 import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
-import { DESTINATIONS, GROUP_MAX, MAX_QUERY, cleanQuery, isPlace, recentPlaceHits, search, tierOf, type SearchSources } from "../app/src/phone/searchIndex.ts";
+import { DESTINATIONS, GROUP_MAX, MAX_QUERY, buildIndex, cleanQuery, isPlace, recentPlaceHits, search, tierOf, type SearchSources } from "../app/src/phone/searchIndex.ts";
 
 /**
  * The phone's local Search (app/src/phone/searchIndex.ts): what it matches (declared fields only — desk
@@ -105,6 +105,14 @@ describe("matching", () => {
   });
   test("deterministic: the same query on the same data gives the same answer", () => {
     expect(search(src(), "mobile")).toEqual(search(src(), "mobile"));
+  });
+  test("an index built once answers every keystroke the same as the sources would, without reading them again", () => {
+    let described = 0;
+    const s = src({ describe: (id) => (described++, id === "a2" ? "Keeps the household accounts" : null) });
+    const idx = buildIndex(s);
+    const built = described;
+    for (const q of ["l", "le", "led", "household", "Café"]) expect(search(idx, q)).toEqual(search(src(), q));
+    expect(described).toBe(built);
   });
 });
 

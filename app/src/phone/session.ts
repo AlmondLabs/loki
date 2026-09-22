@@ -41,8 +41,14 @@ export function createDrafts() {
       let set = subs.get(key);
       if (!set) subs.set(key, (set = new Set()));
       set.add(fn);
-      return () => void set.delete(fn);
+      return () => {
+        set.delete(fn);
+        // the last reader gone: forget the key, so conversations visited once leave nothing behind
+        if (set.size === 0 && subs.get(key) === set) subs.delete(key);
+      };
     },
+    /** How many keys have a reader (for tests). */
+    watched: (): number => subs.size,
   };
 }
 export type Drafts = ReturnType<typeof createDrafts>;
@@ -62,6 +68,23 @@ export function useDraft(key: string | null, store: Drafts = drafts): [Draft, (d
   const set = useCallback((d: Draft) => key && store.set(key, d), [key, store]);
   const clear = useCallback(() => key && store.clear(key), [key, store]);
   return [draft, set, clear];
+}
+
+// ---- Prefill --------------------------------------------------------------------------------------
+
+/** A `?prefill=` held for the one conversation it was addressed to. */
+export type Prefill = { key: string; text: string; tick: number };
+
+/**
+ * The held prefill after the route changes: a new `?prefill=` replaces it (with a fresh tick); the same
+ * conversation, its address tidied, keeps it; anywhere else drops it, so no other conversation — nor this
+ * one opened again later — gets it written over its draft.
+ */
+export function nextPrefill(held: Prefill | null, conv: { agentId: string; conversationId: string; prefill: string | null } | null, tick: number): Prefill | null {
+  if (!conv) return null;
+  const key = draftKey(conv.agentId, conv.conversationId);
+  if (conv.prefill) return { key, text: conv.prefill, tick };
+  return held?.key === key ? held : null;
 }
 
 // ---- Recents --------------------------------------------------------------------------------------
@@ -221,9 +244,11 @@ export function createFocusMemory() {
       if (!hit) return null;
       if (hit.el.isConnected) return hit.el;
       if (typeof document === "undefined") return null;
-      if (hit.id) return document.getElementById(hit.id);
-      if (hit.launch) return document.querySelector(`[data-launch="${CSS.escape(hit.launch)}"]`);
-      return null;
+      // the id first; a remounted screen may give it a new id, so data-launch is the fallback, not an alternative
+      const byId = hit.id ? document.getElementById(hit.id) : null;
+      if (byId || !hit.launch) return byId;
+      const launch = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(hit.launch) : hit.launch.replace(/["\\]/g, "\\$&");
+      return document.querySelector(`[data-launch="${launch}"]`);
     },
   };
 }
@@ -236,7 +261,8 @@ export function activeControl(): Element | null {
   return a && a !== document.body && a !== document.documentElement ? a : null;
 }
 
-const visible = (el: Element) => el.getClientRects().length > 0;
+/** On screen: it has a box, and is not in a screen kept mounted but away (the Inbox hides with visibility, which keeps its box). */
+const visible = (el: Element) => el.getClientRects().length > 0 && !el.closest("[data-away], [hidden]");
 
 /**
  * After a route change: back at a destination, focus the control it was left from; arriving anywhere

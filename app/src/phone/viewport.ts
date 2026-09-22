@@ -10,13 +10,14 @@ import { useEffect, type RefObject } from "react";
 type VisualViewportLike = { height: number; offsetTop: number; scale: number };
 
 /**
- * How many CSS pixels of the layout the keyboard hides: the band below the visible part. 0 without a
- * visual viewport, when zoomed (pinch shrinks the visual viewport too; that is not a keyboard), and for
- * sub-pixel noise.
+ * How many CSS pixels of the layout the keyboard takes: the layout height the visual viewport no longer
+ * shows. offsetTop is left out on purpose: iOS scrolls the visual viewport to show the caret, which moves
+ * where the visible part sits but does not shrink the keyboard. 0 without a visual viewport, when zoomed
+ * (pinch shrinks the visual viewport too; that is not a keyboard), and for sub-pixel noise.
  */
 export function keyboardInset(layoutHeight: number, vv: VisualViewportLike | null | undefined): number {
   if (!vv || vv.scale > 1.01) return 0;
-  const hidden = layoutHeight - vv.offsetTop - vv.height;
+  const hidden = layoutHeight - vv.height;
   return hidden >= 1 ? Math.round(hidden) : 0;
 }
 
