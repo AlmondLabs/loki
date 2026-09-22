@@ -1,0 +1,328 @@
+/* loki on the phone — Slack mode.
+   The phone keeps loki's semantic roles (--loki-bg, --loki-fg, …) but redeclares them on the phone root
+   element, so every shared control inside inherits the mobile values. A declaration on the element beats
+   the one inherited from :root whatever its specificity, so data-palette never reaches the phone; only
+   data-theme picks night or day. The desktop never renders .loki-phone and is untouched.
+   Slack's extra roles live beside them as --phone-*: links, the unread badge, presence, the affirmative
+   button, the type scale, radii, spacing, layers and motion. test/tokens.test.ts fences all of it. */
+
+/* Night: Slack's dark mobile ground, raised surfaces a step lighter. */
+.loki-phone {
+  color-scheme: dark;
+  --loki-bg: #1a1d21;
+  --loki-panel: #222529;
+  --loki-panel-header: #27292d;
+  --loki-hover: #2c2f34;
+  --loki-selection: #34373c;
+  --loki-border: #35383d;
+  --loki-control-border: #72767d;
+  --loki-fg: #e8e8e8;
+  --loki-muted: #ababad;
+  --loki-accent: #1d9bd1;
+  --loki-accent-soft: #163247;
+  --loki-brass-soft: #12293a;
+  --loki-positive: #2bac76;
+  --loki-negative: #f4738f;
+  --loki-grid: #2c2f34;
+  --loki-well: #222529;
+  --loki-bubble: #222529;
+  --loki-user-bubble: #1f2833;
+  --loki-code: #2c2f34;
+  --loki-veil: rgba(0, 0, 0, 0.6);
+  --loki-brass-glow: rgba(29, 155, 209, 0.25);
+  --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.45);
+  --loki-shadow-float: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.24);
+  --phone-link: #1d9bd1;
+  --phone-unread: #e01e5a;
+  --phone-on-unread: #ffffff;
+  --phone-presence: #2bac76;
+  --phone-affirm: #007a5a;
+  --phone-on-affirm: #ffffff;
+  --phone-focus: #1d9bd1;
+  /* one sans stack for everything the phone presents; mono is left for code */
+  --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+  --loki-display: var(--loki-font);
+  --loki-label: var(--loki-font);
+  /* type (px): micro tab labels · meta timestamps · body previews · emph row titles and messages · title · large */
+  --phone-text-micro: 11px;
+  --phone-text-meta: 13px;
+  --phone-text-body: 15px;
+  --phone-text-emph: 17px;
+  --phone-text-title: 20px;
+  --phone-text-large: 28px;
+  --phone-leading: 1.4;
+  --phone-leading-tight: 1.25;
+  --phone-weight-strong: 700;
+  --phone-weight-heavy: 800;
+  /* radii: rows and buttons · cards and sheets · the floating capsule · pills and circles */
+  --phone-radius-sm: 8px;
+  --phone-radius-md: 12px;
+  --phone-radius-lg: 24px;
+  --phone-radius-pill: 999px;
+  /* spacing on a 4px step; the gutter is Slack's 16 */
+  --phone-space-1: 4px;
+  --phone-space-2: 8px;
+  --phone-space-3: 12px;
+  --phone-space-4: 16px;
+  --phone-space-5: 20px;
+  --phone-space-6: 24px;
+  --phone-gutter: 16px;
+  --phone-touch: 44px;
+  /* layers mirror kit/layers.ts: bars inside a screen, the floating navigation (rail), sheets (modal), toasts */
+  --phone-layer-bar: 10;
+  --phone-layer-nav: 110;
+  --phone-layer-sheet: 200;
+  --phone-layer-toast: 300;
+  /* motion: quick state changes, navigation pushes, sheets rising */
+  --phone-ease: cubic-bezier(0.2, 0, 0, 1);
+  --phone-dur-fast: 120ms;
+  --phone-dur: 220ms;
+  --phone-dur-sheet: 300ms;
+  --phone-safe-top: env(safe-area-inset-top, 0px);
+  --phone-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --phone-safe-left: env(safe-area-inset-left, 0px);
+  --phone-safe-right: env(safe-area-inset-right, 0px);
+
+  background: var(--loki-bg);
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-body);
+  line-height: var(--phone-leading);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Day: Slack's light mobile — white ground, grey hairlines, near-black ink. */
+:root[data-theme="light"] .loki-phone {
+  color-scheme: light;
+  --loki-bg: #ffffff;
+  --loki-panel: #ffffff;
+  --loki-panel-header: #f8f8f8;
+  --loki-hover: #f4f4f4;
+  --loki-selection: #e8f5fa;
+  --loki-border: #e2e2e2;
+  --loki-control-border: #868686;
+  --loki-fg: #1d1c1d;
+  --loki-muted: #616061;
+  --loki-accent: #1264a3;
+  --loki-accent-soft: #d6ebf7;
+  --loki-brass-soft: #e8f5fa;
+  --loki-positive: #007a5a;
+  --loki-negative: #c7174b;
+  --loki-grid: #ebebeb;
+  --loki-well: #f8f8f8;
+  --loki-bubble: #f8f8f8;
+  --loki-user-bubble: #eef6fb;
+  --loki-code: #f4f4f4;
+  --loki-veil: rgba(29, 28, 29, 0.4);
+  --loki-brass-glow: rgba(18, 100, 163, 0.16);
+  --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.09);
+  --phone-link: #1264a3;
+  --phone-unread: #e01e5a;
+  --phone-on-unread: #ffffff;
+  --phone-presence: #1d9a67;
+  --phone-affirm: #007a5a;
+  --phone-on-affirm: #ffffff;
+  --phone-focus: #1264a3;
+}
+
+/* The document never scrolls on the phone. iOS rubber-bands the body behind a fixed shell when a drag starts
+   outside a list or a list reaches its end, and the whole shell — tab bar included — drags with it; the keyboard
+   can leave it scrolled, too. Pinning html and body stops that; the lists contain their own overscroll. Only
+   while a phone shell is on the page, so the desktop's document is left alone. */
+html:has(.loki-phone-shell),
+html:has(.loki-phone-shell) body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* The shell: the whole screen, one column. Fixed to the viewport (the fallback), then the small and the
+   dynamic viewport where supported, so browser toolbars never leave a band under the navigation. */
+.loki-phone-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+@supports (height: 100svh) {
+  .loki-phone-shell { height: 100svh; }
+}
+@supports (height: 100dvh) {
+  .loki-phone-shell { height: 100dvh; }
+}
+
+/* Checking, unreachable: one centred message on the ground. */
+.loki-phone-splash {
+  display: grid;
+  place-items: center;
+  padding: calc(var(--phone-space-6) + var(--phone-safe-top)) var(--phone-space-6) calc(var(--phone-space-6) + var(--phone-safe-bottom));
+  color: var(--loki-muted);
+  text-align: center;
+}
+.loki-phone-splash-inner { max-width: 360px; }
+
+/* ---- Type ---------------------------------------------------------------------------------------- */
+.loki-phone-large-title { margin: 0; font-size: var(--phone-text-large); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone-title { font-size: var(--phone-text-emph); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone-headline { font-size: var(--phone-text-emph); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); }
+.loki-phone-body { font-size: var(--phone-text-body); line-height: var(--phone-leading); }
+.loki-phone-meta { font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+.loki-phone-link { color: var(--phone-link); text-decoration: none; }
+.loki-phone-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The shared primitives, in the phone's voice: no mono metadata, no condensed caps, bold sans titles. */
+.loki-phone .loki-label {
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-meta);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--loki-muted);
+}
+.loki-phone .loki-meta,
+.loki-phone .loki-banner {
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-meta);
+  letter-spacing: normal;
+}
+.loki-phone .loki-chip {
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-meta);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.loki-phone .loki-chip--tag { font-size: var(--phone-text-micro); }
+.loki-phone .loki-title { font-family: var(--loki-font); font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-btn--touch,
+.loki-phone .loki-field--touch { font-size: var(--phone-text-body); }
+.loki-phone .loki-btn--touch { font-weight: 600; }
+
+/* ---- Focus and touch ----------------------------------------------------------------------------- */
+/* A 2px ring in the link colour, off the control so it never sits on the control's own hairline. Fields
+   keep it inside, since their containers clip. */
+.loki-phone :is(button, a, summary, select, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--phone-focus);
+  outline-offset: 2px;
+}
+.loki-phone :is(input, textarea):focus-visible {
+  outline: 2px solid var(--phone-focus);
+  outline-offset: -2px;
+}
+.loki-phone button, .loki-phone a, .loki-phone [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.loki-phone-icon { display: block; flex: none; }
+/* A bare icon control: the visible glyph can be small, the target is always 44. */
+.loki-phone-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--phone-touch);
+  min-height: var(--phone-touch);
+  padding: 0;
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-fg);
+  cursor: pointer;
+  transition: background-color var(--phone-dur-fast) var(--phone-ease);
+}
+.loki-phone-icon-btn:active:not(:disabled) { background: var(--loki-hover); }
+.loki-phone-icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- The shared pieces in ui.tsx ------------------------------------------------------------------ */
+/* The top bar clears the notch and draws on the ground with a hairline, the way Slack's headers do. */
+.loki-phone-topbar {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: var(--phone-layer-bar);
+  padding-top: var(--phone-safe-top);
+  background: var(--loki-bg);
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-phone-topbar--progress { border-bottom: none; }
+.loki-phone-topbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: 0 calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-2) + var(--phone-safe-left));
+}
+.loki-phone-topbar-copy { flex: 1; min-width: 0; }
+.loki-phone-topbar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-phone-topbar-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--phone-text-meta);
+  color: var(--loki-muted);
+}
+.loki-phone-topbar-actions { flex: 0 0 auto; display: flex; align-items: center; gap: var(--phone-space-1); }
+.loki-phone-progress { height: 2px; background: var(--loki-border); overflow: hidden; }
+.loki-phone-progress-fill { height: 100%; background: var(--loki-accent); transition: width var(--phone-dur) var(--phone-ease); }
+
+/* One vertical scroll owner per screen; it contains its own overscroll so the page never moves. */
+.loki-phone-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+
+/* A section heading: sentence case, bold sans, a count or a note on the right. */
+.loki-phone-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--phone-space-2);
+  padding: var(--phone-space-2) 0 var(--phone-space-2);
+  font-size: var(--phone-text-emph);
+  font-weight: var(--phone-weight-strong);
+  line-height: var(--phone-leading-tight);
+  color: var(--loki-fg);
+}
+.loki-phone-heading-aside { margin-left: auto; font-size: var(--phone-text-meta); font-weight: 400; color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+
+.loki-btn.loki-phone-back { padding-left: var(--phone-space-1); padding-right: var(--phone-space-3); gap: 2px; color: var(--loki-fg); }
+
+/* ---- Reading ------------------------------------------------------------------------------------- */
+/* The desktop's transcript caps a bubble at 78% of the column; on a phone the column is the measure, so
+   messages span it (the cap is an inline style in chat/Transcript.tsx). */
+.loki-phone-thread [data-row="user"] > div, .loki-phone-thread [data-row="assistant"] > div { max-width: 100% !important; font-size: var(--phone-text-body); line-height: var(--phone-leading); }
+.loki-phone-thread [data-row="user"], .loki-phone-thread [data-row="assistant"] { margin: 6px 0 !important; }
+.loki-phone-md p, .loki-phone-md ul, .loki-phone-md ol, .loki-phone-md pre, .loki-phone-md blockquote { margin: 0 0 12px; }
+.loki-phone-md h1, .loki-phone-md h2, .loki-phone-md h3 { font-family: var(--loki-font); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); margin: 18px 0 8px; }
+.loki-phone-md h1 { font-size: var(--phone-text-title); }
+.loki-phone-md h2 { font-size: var(--phone-text-emph); }
+.loki-phone-md h3 { font-size: var(--phone-text-body); }
+.loki-phone-md a { color: var(--phone-link); }
+.loki-phone-md code { font-family: var(--loki-mono); font-size: var(--phone-text-meta); }
+.loki-phone-md pre { background: var(--loki-code); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-sm); padding: 10px 12px; overflow-x: auto; }
+
+/* ---- Motion -------------------------------------------------------------------------------------- */
+/* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with
+   it, so a transition written with them never moves. Focus rings, selection and state colours stay. */
+@media (prefers-reduced-motion: reduce) {
+  .loki-phone {
+    --phone-dur-fast: 0ms;
+    --phone-dur: 0ms;
+    --phone-dur-sheet: 0ms;
+  }
+}

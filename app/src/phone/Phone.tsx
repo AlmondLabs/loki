@@ -19,7 +19,7 @@ import { UpdateBar } from "./UpdateBar";
 import { agentNameOf, lastSeen, threadFor } from "./model";
 import { back, formatRoute, navigate, replace, tabOf, useRoute, type Route, type Tab } from "./router";
 import { Banner, Button } from "../components";
-import { PhoneStyles, SAFE } from "./ui";
+import "./phone.css";
 
 /**
  * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
@@ -57,8 +57,8 @@ export function Phone() {
   if (gate.kind === "unreachable")
     return (
       <Splash>
-        <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, color: "var(--loki-fg)" }}>The Mac did not answer.</div>
-        <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 8, lineHeight: 1.5 }}>Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</div>
+        <h1 className="loki-phone-large-title">The Mac did not answer.</h1>
+        <div className="loki-phone-body" style={{ color: "var(--loki-muted)", marginTop: 8 }}>Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</div>
         <Button size="touch" tone="paper" onClick={() => void check()} style={{ marginTop: 18 }}>
           try again
         </Button>
@@ -201,8 +201,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const tab = onTab ? route.tab : null;
 
   return (
-    <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)", color: "var(--loki-fg)", fontFamily: "var(--loki-font)" }}>
-      <PhoneStyles />
+    <div className="loki-phone loki-phone-shell">
       {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} lastTab={lastTab} prefill={prefill} />}
       {route.kind === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} onBack={() => back({ kind: "tab", tab: "home" })} />}
       {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} onBack={() => back({ kind: "tab", tab: "agents" })} />}
@@ -274,8 +273,8 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onUn
 
 function Splash({ children }: { children: React.ReactNode }) {
   return (
-    <main style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", padding: `calc(24px + ${SAFE.top}) 24px calc(24px + ${SAFE.bottom})`, background: "var(--loki-bg)", color: "var(--loki-muted)", fontSize: 13.5, textAlign: "center", boxSizing: "border-box" }}>
-      <div style={{ maxWidth: 360 }}>{children}</div>
+    <main className="loki-phone loki-phone-shell loki-phone-splash">
+      <div className="loki-phone-splash-inner">{children}</div>
     </main>
   );
 }

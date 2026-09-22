@@ -60,11 +60,11 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
   };
 
   return (
-    <main style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: `calc(24px + ${SAFE.top}) calc(24px + ${SAFE.right}) calc(24px + ${SAFE.bottom}) calc(24px + ${SAFE.left})`, background: "var(--loki-bg)", color: "var(--loki-fg)", boxSizing: "border-box" }}>
+    <main className="loki-phone loki-phone-shell" style={{ justifyContent: "center", padding: `calc(24px + ${SAFE.top}) calc(24px + ${SAFE.right}) calc(24px + ${SAFE.bottom}) calc(24px + ${SAFE.left})` }}>
       <div style={{ maxWidth: 420, width: "100%", margin: "0 auto", display: "grid", gap: 18 }}>
         <div>
           <div className="loki-label">loki · phone</div>
-          <h1 style={{ margin: "6px 0 0", fontFamily: "var(--loki-display)", fontSize: 28, fontWeight: 400, color: "var(--loki-fg)" }}>Pair with the Mac</h1>
+          <h1 className="loki-phone-large-title" style={{ marginTop: 6 }}>Pair with the Mac</h1>
           <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)" }}>Open Settings › phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
         </div>
         <form
@@ -75,7 +75,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
           style={{ display: "grid", gap: 12 }}
         >
           <label htmlFor="pair-code" style={{ display: "grid", gap: 6 }}>
-            <span className="loki-label" style={{ fontSize: 9.5 }}>pairing code</span>
+            <span className="loki-label">pairing code</span>
             <Field
               id="pair-code"
               ref={inputRef}

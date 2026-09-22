@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -42,6 +42,9 @@ const themeBlock = (palette: Palette, theme: Theme) => {
 const themeColor = (palette: Palette, theme: Theme, name: string): Rgb => {
   const raw = themeBlock(palette, theme).match(new RegExp(`--loki-${name}:\\s*([^;]+)`))?.[1].trim();
   if (!raw) throw new Error(`missing --loki-${name} in ${palette} ${theme}`);
+  return parseColor(raw);
+};
+const parseColor = (raw: string): Rgb => {
   if (raw.startsWith("#")) return [1, 3, 5].map((i) => Number.parseInt(raw.slice(i, i + 2), 16) / 255) as Rgb;
   const hit = raw.match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)/);
   if (!hit) throw new Error(`cannot read ${raw}`);
@@ -81,7 +84,8 @@ const value = (hit: string) => hit.slice(hit.indexOf(": ") + 2);
 describe("design tokens: every style stays on the scales", () => {
   test("no literal colours — every colour is a --loki token", () => {
     const re = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b(?![0-9a-fA-F])|rgba?\([^)]*\)|hsla?\([^)]*\)/g;
-    const hits = findAll(files, re, (m) => m[0]).filter((h) => !COMPUTED(h) && !h.startsWith("kit/tokens.css"));
+    // the phone's token file holds its own literals, only in custom property declarations (fenced below)
+    const hits = findAll(files, re, (m) => m[0]).filter((h) => !COMPUTED(h) && !h.startsWith("kit/tokens.css") && !h.startsWith("phone/phone.css"));
     expect(hits).toEqual([]);
   });
   test("font sizes come from the type scale (inline, px strings, expressions, css)", () => {
@@ -189,4 +193,118 @@ describe("design tokens: every family remains readable on both sides", () => {
       });
     }
   }
+});
+
+/**
+ * The phone's Slack-mode system (app/src/phone/phone.css): the same --loki-* roles, redeclared on the
+ * phone root element so everything inside inherits them — whatever :root's data-palette says, since an
+ * element's own declaration beats an inherited one regardless of specificity. Night is the bare root
+ * class; day is the root class under data-theme="light".
+ */
+describe("phone tokens: one Slack-like system under the phone root", () => {
+  const PHONE = join(APP, "phone", "phone.css");
+  const phone = existsSync(PHONE) ? readFileSync(PHONE, "utf8").replace(/\/\*[\s\S]*?\*\//g, "") : "";
+  const PHONE_SELECTOR: Record<Theme, string> = { dark: ".loki-phone", light: ':root[data-theme="light"] .loki-phone' };
+  const phoneBlock = (theme: Theme) => {
+    const start = phone.indexOf(`\n${PHONE_SELECTOR[theme]} {`);
+    if (start < 0) throw new Error(`no phone block for ${PHONE_SELECTOR[theme]}`);
+    return phone.slice(start, phone.indexOf("\n}", start + 1));
+  };
+  const raw = (theme: Theme, name: string) => {
+    const hit = phoneBlock(theme).match(new RegExp(`\\s(--(?:loki|phone)-${name}):\\s*([^;]+);`))?.[2].trim();
+    if (!hit) throw new Error(`missing ${name} in phone ${theme}`);
+    return hit;
+  };
+  const color = (theme: Theme, name: string) => parseColor(raw(theme, name));
+  const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !["radius", "font", "display", "label", "mono"].includes(t));
+  /** Slack's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
+  const PHONE_ROLES = ["link", "unread", "on-unread", "presence", "affirm", "on-affirm"];
+
+  test("phone.css exists and is imported by the phone shell, not injected", () => {
+    expect(phone.length).toBeGreaterThan(0);
+    const shell = readFileSync(join(APP, "phone", "Phone.tsx"), "utf8");
+    const ui = readFileSync(join(APP, "phone", "ui.tsx"), "utf8");
+    expect(shell).toContain('import "./phone.css"');
+    expect(ui).not.toContain("<style>");
+  });
+
+  for (const theme of THEMES) {
+    test(`${theme}: defines every colour role the desktop does, plus the phone's own`, () => {
+      const block = phoneBlock(theme);
+      const defined = new Set([...block.matchAll(/--(?:loki|phone)-([a-z-]+):/g)].map((m) => m[1]));
+      expect([...desktopColours, ...PHONE_ROLES].filter((t) => !defined.has(t))).toEqual([]);
+    });
+
+    test(`${theme}: text, links and states meet AA on every working surface`, () => {
+      const surfaces = ["bg", "panel", "panel-header", "well"];
+      const inks = ["fg", "muted", "accent", "link", "positive", "negative"];
+      const failures = inks.flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(theme, ink), color(theme, surface)) }))).filter(({ ratio }) => ratio < 4.5);
+      expect(failures).toEqual([]);
+      for (const surface of ["bubble", "user-bubble", "hover", "selection"]) expect(contrast(color(theme, "fg"), color(theme, surface))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, "on-unread"), color(theme, "unread"))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, "on-affirm"), color(theme, "affirm"))).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, "accent"), color(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
+    });
+
+    test(`${theme}: controls, presence and badges stay visible against their ground (3:1)`, () => {
+      for (const surface of ["panel", "well"]) expect(contrast(color(theme, "control-border"), color(theme, surface))).toBeGreaterThanOrEqual(3);
+      for (const mark of ["presence", "unread"]) expect(contrast(color(theme, mark), color(theme, "bg"))).toBeGreaterThanOrEqual(3);
+    });
+
+  }
+
+  test("the display and label faces are the sans stack for both sides — no serif, condensed or mono presentation", () => {
+    // declared once on the root class; the day block only changes colours
+    for (const face of ["font", "display", "label"]) expect(raw("dark", face)).not.toMatch(/(?<!sans-)serif|New York|Iowan|Georgia|Condensed|Narrow|mono/i);
+    expect(phoneBlock("light")).not.toMatch(/--loki-(font|display|label):/);
+  });
+
+  test("the phone never keys on data-palette, and its tokens sit on the phone element rather than :root", () => {
+    expect(phone).not.toContain("data-palette");
+    const declaring = [...phone.matchAll(/(?:^|\n)([^\n{}@]+?)\s*\{[^}]*--loki-bg:/g)].map((m) => m[1].trim());
+    expect(declaring.sort()).toEqual(Object.values(PHONE_SELECTOR).sort());
+  });
+
+  test("the gates and the paired shell all carry the phone root class", () => {
+    const shell = readFileSync(join(APP, "phone", "Phone.tsx"), "utf8");
+    const pair = readFileSync(join(APP, "phone", "Pair.tsx"), "utf8");
+    expect(shell.match(/className="loki-phone loki-phone-shell/g)?.length ?? 0).toBeGreaterThanOrEqual(2); // splash and paired
+    expect(pair).toMatch(/className="loki-phone loki-phone-shell/);
+  });
+
+  test("presentation classes drop mono and condensed caps inside the phone; mono stays for code", () => {
+    for (const cls of ["loki-label", "loki-meta", "loki-chip", "loki-banner", "loki-title"]) expect(phone).toMatch(new RegExp(`\\.loki-phone \\.${cls}\\b[^{]*\\{[^}]*font-family: var\\(--loki-font\\)`));
+    expect(phone).toMatch(/\.loki-phone \.loki-label\b[^{]*\{[^}]*text-transform: none/);
+    const monoRules = [...phone.matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => m[1].trim());
+    expect(monoRules.filter((sel) => !/\b(code|pre|kbd)\b/.test(sel))).toEqual([]);
+  });
+
+  test("literal colours appear only in custom property declarations", () => {
+    const re = /#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)/;
+    const off = phone.split("\n").filter((line) => re.test(line) && !/^\s*--[a-z0-9-]+:/.test(line));
+    expect(off).toEqual([]);
+  });
+
+  test("the phone's type scale and radii are named, and stay on a scale", () => {
+    const PHONE_TEXT = new Set([11, 13, 15, 17, 20, 28]);
+    const texts = [...phone.matchAll(/--phone-text-[a-z-]+:\s*([\d.]+)px/g)].map((m) => Number(m[1]));
+    expect(texts.length).toBeGreaterThanOrEqual(5);
+    expect(texts.filter((n) => !PHONE_TEXT.has(n))).toEqual([]);
+    const radii = [...phone.matchAll(/--phone-radius-[a-z-]+:\s*([\d.]+)px/g)].map((m) => Number(m[1]));
+    expect(radii.length).toBeGreaterThanOrEqual(3);
+    expect(radii.filter((n) => !RADII.has(n))).toEqual([]);
+    // rules pick sizes from the scale, never a literal px
+    expect([...phone.matchAll(/(?<!-)font-size:\s*([\d.]+px)/g)].map((m) => m[1])).toEqual([]);
+  });
+
+  test("the page pinning, shell height, focus and motion rules exist, and none of them reach the desktop", () => {
+    // the document never scrolls on the phone, but only while a phone shell is on the page
+    expect(phone).toMatch(/html:has\(\.loki-phone-shell\)/);
+    const bare = [...phone.matchAll(/(?:^|\n|\})\s*([^{}@/]+?)\s*\{/g)].map((m) => m[1].trim()).flatMap((sel) => sel.split(/,(?![^(]*\))/).map((s) => s.trim())).filter((s) => s && !s.startsWith("from") && !s.startsWith("to") && !/^\d+%$/.test(s));
+    expect(bare.filter((s) => !s.includes(".loki-phone") && !s.startsWith("@"))).toEqual([]);
+    expect(phone).toContain("100svh");
+    expect(phone).toContain("100dvh");
+    expect(phone).toMatch(/\.loki-phone [^{]*:focus-visible[^{]*\{[^}]*outline: 2px solid/);
+    expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+  });
 });
