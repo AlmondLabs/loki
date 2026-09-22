@@ -18,7 +18,7 @@
     "desktop:dev": "tauri dev --config '{\"build\":{\"devUrl\":\"http://127.0.0.1:5173\"}}'",
     "desktop:build": "tauri build",
     "doctor": "react-doctor",
-    "usage": "bun scripts/usage.ts"
+    "analytics": "bun scripts/analytics.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

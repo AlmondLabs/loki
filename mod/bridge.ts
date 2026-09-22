@@ -1,6 +1,6 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { DEFAULT_LADDER } from "../core/attention/ladder.ts";
-import { USAGE_ACTION_RE } from "../core/usage.ts";
+import { isEventName } from "../core/analytics.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 import type { InboxRow } from "./desks.ts";
@@ -194,8 +194,8 @@ export interface BridgeDeps {
     forget: (id: string) => boolean;
   };
   broadcast(msg: object, scope?: Scope): void;
-  /** The usage log (mod/usage.ts): an action this client took, or a `usage` frame it sent about one the mod cannot see. */
-  usage?: (client: Client, action: string, detail?: Record<string, unknown>) => void;
+  /** Analytics (mod/analytics.ts): an event this client caused, or a `capture` frame it sent about one the mod cannot see. */
+  capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
 }
 
 export function scopeOfId(id: string): Scope {
@@ -232,7 +232,7 @@ const isPoint = (v: unknown): boolean =>
  * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
  * skills, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["usage", "list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
@@ -260,15 +260,15 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       if (client.deviceId && !PHONE_FRAMES.has(String(msg.type))) {
         return client.send({ type: "error", requestId: msg.requestId, message: `${String(msg.type)} is not available on the phone` });
       }
-      const note = (action: string, detail?: Record<string, unknown>) => deps.usage?.(client, action, detail);
+      const track = (event: string, properties?: Record<string, unknown>) => deps.capture?.(client, event, properties);
       switch (msg.type) {
-        case "usage": {
-          // The app's own moves (views, desk switches, sends…): a plain lowercase action and an optional detail object.
-          if (typeof msg.action !== "string" || !USAGE_ACTION_RE.test(msg.action)) {
-            client.send({ type: "error", message: "malformed usage" });
+        case "capture": {
+          // The app's own events (views, desk switches, sends…): a snake_case name and an optional properties object.
+          if (!isEventName(msg.event)) {
+            client.send({ type: "error", message: "malformed capture" });
             return;
           }
-          note(msg.action, msg.detail && typeof msg.detail === "object" && !Array.isArray(msg.detail) ? (msg.detail as Record<string, unknown>) : undefined);
+          track(msg.event, msg.properties && typeof msg.properties === "object" && !Array.isArray(msg.properties) ? (msg.properties as Record<string, unknown>) : undefined);
           return;
         }
         case "gesture": {
@@ -281,7 +281,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const entry = widgets.get(g.id);
           const before = entry ? mergeData(entry.data, store.get(wScope).overlay[g.id]) : undefined;
           store.gesture(wScope, g); // store subscribers broadcast the new state
-          note("gesture", { kind: g.kind });
+          track("widget_gestured", { kind: g.kind });
           const d = describeGesture(g, entry, before);
           if (d) gestures.record(client.scope, d.line, d.key);
           return;
@@ -298,7 +298,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           if (after !== before) {
             const ids = Object.entries(after.layout).filter(([, l]) => !l.hidden).map(([id]) => id);
             gestures.record(client.scope, `tidied the desk (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
-            note("arrange");
+            track("desk_arranged");
             broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, client.scope === SHARED_SCOPE ? undefined : client.scope);
           }
           return;
@@ -310,14 +310,14 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "seen_mark":
           if (typeof msg.conversationId === "string") {
             seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            note("seen");
+            track("conversation_marked_seen");
             broadcast(seenFrame());
           }
           return;
         case "seen_unmark":
           if (typeof msg.conversationId === "string") {
             seen?.unmark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            note("unread");
+            track("conversation_kept_unread");
             broadcast(seenFrame());
           }
           return;
@@ -326,7 +326,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const skips = Number(msg.skips);
           if (typeof msg.conversationId === "string" && Number.isFinite(skips) && typeof msg.until === "string" && typeof msg.stamp === "string" && typeof msg.at === "string") {
             seen?.setSnooze(agentId, msg.conversationId, { skips, until: msg.until, stamp: msg.stamp, at: msg.at });
-            note("later", { skips });
+            track("card_deferred", { skips });
             broadcast(seenFrame());
           }
           break;
@@ -334,7 +334,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "snooze_clear":
           if (typeof msg.conversationId === "string") {
             seen?.clearSnooze(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            note("unsnooze");
+            track("deferral_cleared");
             broadcast(seenFrame());
           }
           break;
@@ -354,7 +354,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           store.forget(scopeOfId(msg.id), msg.id);
           const name = entry ? `"${entry.title}" (${entry.id})` : `"${msg.id}"`;
           gestures.record(client.scope, `trashed ${name} — its file was deleted`, `trash:${msg.id}`);
-          note("trash");
+          track("widget_trashed");
           return;
         }
         case "widget_status": {
@@ -377,7 +377,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "pin_set": {
           if (typeof msg.agentId !== "string" || typeof msg.conversationId !== "string" || !deps.setPin) return;
           deps.setPin(msg.agentId, msg.conversationId, msg.pinned === true);
-          note("pin", { pinned: msg.pinned === true });
+          track("desk_pinned", { pinned: msg.pinned === true });
           deps.broadcast({ type: "desks", desks: listDesks?.() ?? [] }); // every tab's tree follows
           return;
         }

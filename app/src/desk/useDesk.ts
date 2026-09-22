@@ -261,18 +261,18 @@ export function useDesk() {
       request("skill_refresh", { agentId, name, source }, 130_000).then((m): RefreshOutcome | { error: string } => (m && m.type === "skill_refreshed" ? (m as unknown as RefreshOutcome) : { error: m && m.type === "agent_error" ? String(m.message ?? "refresh failed") : "refresh timed out" })),
   };
 
-  // The usage log (core/usage.ts): best effort, dropped while the socket is down. Stable, so hosts can hang effects on it.
+  // Analytics (core/analytics.ts): best effort, dropped while the socket is down. Stable, so hosts can hang effects on it.
   const sendRef = useRef(send);
   useEffect(() => {
     sendRef.current = send;
   });
-  const usage = useCallback((action: string, detail?: Record<string, unknown>) => {
-    sendRef.current({ type: "usage", action, ...(detail ? { detail } : {}) });
+  const capture = useCallback((event: string, properties?: Record<string, unknown>) => {
+    sendRef.current({ type: "capture", event, ...(properties ? { properties } : {}) });
   }, []);
 
   const attention = {
     available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab
-    usage,
+    capture,
     tunnelUrl,
     seen: seenMap,
     snooze: snoozeMap,

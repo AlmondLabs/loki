@@ -128,6 +128,10 @@ function usePrefill(conv: ConversationRoute | null) {
 function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const desk = useDesk();
   const { attention } = desk;
+  // Analytics (core/analytics.ts): every event the phone sends carries the tab or page on screen as $screen.
+  const screenRef = useRef<string | null>(null);
+  const { capture: captureRaw } = attention;
+  const capture = useCallback((event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }), [captureRaw]);
   const catchUp = useAttention({
     enabled: attention.available,
     tunnelUrl: attention.tunnelUrl,
@@ -141,18 +145,18 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
-    usage: attention.usage,
+    capture,
   });
   const route = useRoute();
   const lastTab = useLastTab(route);
-  // The usage log: the tab or page on screen, on change (a conversation page is "conversation", not which one).
+  // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).
   const routeView = route.kind === "tab" ? route.tab : route.kind;
   const prevView = useRef<string | null>(null);
   useEffect(() => {
-    if (prevView.current !== null && prevView.current !== routeView) attention.usage("view", { to: routeView, from: prevView.current });
+    if (prevView.current !== null && prevView.current !== routeView) capture("view_opened", { view: routeView, from: prevView.current });
     prevView.current = routeView;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeView]);
+    screenRef.current = routeView;
+  }, [routeView, capture]);
 
   // A pairing QR opened while already paired: the code is not needed, drop it from the address (the route stays).
   useEffect(() => {

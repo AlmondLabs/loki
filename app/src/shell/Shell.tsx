@@ -53,6 +53,10 @@ function welcomeFor(boot: BootstrapStatus | null, catchUp: Pick<CatchUp, "status
 export function Shell() {
   const desk = useDesk();
   const { attention } = desk;
+  // Analytics (core/analytics.ts): every event the Mac sends carries the view on screen as $screen.
+  const screenRef = useRef<Segment | null>(null);
+  const { capture: captureRaw } = attention;
+  const capture = useCallback((event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }), [captureRaw]);
   const catchUp = useAttention({
     enabled: attention.available,
     tunnelUrl: attention.tunnelUrl,
@@ -66,7 +70,7 @@ export function Shell() {
     ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
-    usage: attention.usage,
+    capture,
   });
   const { message: boardNotice, notice } = useNotice();
   // The inbox lists what is open on disk; when the tree archives or restores a conversation, re-read it now rather than at the next minute.
@@ -82,24 +86,24 @@ export function Shell() {
     sessionStorage.setItem(SEGMENT_KEY, s);
   }, []);
   const [treeOpen, setTreeOpen] = useState(false);
-  // The usage log (core/usage.ts): the view on screen, the desk under it, the chat open or closed — each on change.
-  const usage = attention.usage;
+  // The view on screen, the desk under it, the chat open or closed — an event on each change.
   const prevSegment = useRef<Segment | null>(null);
   useEffect(() => {
-    if (prevSegment.current !== null) usage("view", { to: segment, from: prevSegment.current });
+    if (prevSegment.current !== null) capture("view_opened", { view: segment, from: prevSegment.current });
     prevSegment.current = segment;
-  }, [segment, usage]);
+    screenRef.current = segment;
+  }, [segment, capture]);
   useEffect(() => {
-    usage("desk", { scope: desk.scope });
-  }, [desk.scope, usage]);
+    capture("desk_switched", { desk: desk.scope });
+  }, [desk.scope, capture]);
   const [newDesk, setNewDesk] = useState<{ open: boolean; name: string; agentId: string | null }>({ open: false, name: "", agentId: null });
   const chat = useChatLayout(desk);
   const { chatOpen, setChatOpen } = chat;
   const prevChatOpen = useRef<boolean | null>(null);
   useEffect(() => {
-    if (prevChatOpen.current !== null) usage("chat", { open: chatOpen });
+    if (prevChatOpen.current !== null) capture(chatOpen ? "chat_opened" : "chat_closed");
     prevChatOpen.current = chatOpen;
-  }, [chatOpen, usage]);
+  }, [chatOpen, capture]);
   /** Bumped to move focus into the chat's message box (opening the chat if it is closed). */
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
@@ -299,7 +303,7 @@ export function Shell() {
             />
           </div>
 
-          {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={modelList} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} onPass={(pass) => usage("pass", pass)} />}
+          {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={modelList} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} onPass={(pass) => capture("inbox_pass_completed", pass)} />}
 
           {segment === "board" && (
             <BoardView

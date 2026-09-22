@@ -62,7 +62,7 @@ interface CatchUpProps {
   /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
-  /** The deck closed: what this pass did, for the usage log. Not called for a pass that decided nothing. */
+  /** The deck closed: what this pass did, for analytics. Not called for a pass that decided nothing. */
   onPass?: PassSummaryHandler;
 }
 

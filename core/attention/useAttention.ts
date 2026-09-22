@@ -39,11 +39,11 @@ export interface UseAttentionOptions {
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
   subscribeLimit?: number;
-  /** The usage log (core/usage.ts): an action this model carried out for the user. */
-  usage?: (action: string, detail?: Record<string, unknown>) => void;
+  /** Analytics (core/analytics.ts): an event this model carried out for the user. */
+  capture?: (event: string, properties?: Record<string, unknown>) => void;
 }
 
-/** Where a message was typed, for the usage log; the phone's sends carry none (its surface says). */
+/** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
 export type SendOrigin = "desk" | "inbox" | "lesson";
 
 export function useAttention(opts: UseAttentionOptions) {
@@ -272,7 +272,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const was = l?.pending?.requestId === requestId ? l.pending : null;
     if (l && was) l.pending = null; // optimistic: the card clears at once
     opts.markSeen(rt.agent_id, rt.conversation_id);
-    opts.usage?.("approve", { behavior });
+    opts.capture?.("approval_decided", { behavior });
     bump();
     void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
       if (ok || !l || !was) return;
@@ -291,7 +291,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const summary = Object.values(answers).map((a) => (Array.isArray(a) ? a.join(", ") : a)).join(" · ");
     if (summary.trim()) l.tail.push({ role: "user", text: summary });
     opts.markSeen(rt.agent_id, rt.conversation_id);
-    opts.usage?.("answer");
+    opts.capture?.("question_answered");
     bump();
     void socketRef.current?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
       if (ok) return;
@@ -309,7 +309,7 @@ export function useAttention(opts: UseAttentionOptions) {
       liveRef.current.set(key, l);
     }
     const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
-    opts.usage?.("send", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
+    opts.capture?.("message_sent", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, context });
@@ -344,7 +344,7 @@ export function useAttention(opts: UseAttentionOptions) {
       liveRef.current.set(key, l);
     }
     const input = commandInput(commandId, args);
-    opts.usage?.("command", { id: commandId });
+    opts.capture?.("command_run", { command: commandId });
     const sock = socketRef.current;
     if (!sock) {
       finishCommand(l, input, false, "not connected to the app-server");
@@ -487,7 +487,7 @@ export function useAttention(opts: UseAttentionOptions) {
       await sock.runtimeStart(rt, { mode });
       const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
       if (l) l.mode = mode;
-      opts.usage?.("mode", { mode });
+      opts.capture?.("mode_set", { mode });
       bump();
       return null;
     } catch (err) {
@@ -512,7 +512,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (!sock) return { applied: null, error: "not connected to the app-server" };
     try {
       const applied = await sock.updateModel(rt, selection);
-      opts.usage?.("model", { handle: applied.handle, effort: applied.reasoningEffort });
+      opts.capture?.("model_switched", { model: applied.handle, effort: applied.reasoningEffort });
       return { applied, error: null };
     } catch (err) {
       return { applied: null, error: err instanceof Error ? err.message : String(err) };

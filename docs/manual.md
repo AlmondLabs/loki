@@ -432,17 +432,23 @@ Setup: `brew install beads`. The mod creates the board (`bd init --prefix lk`) t
 
 Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise** (to the tray at the bottom-left; the file stays), and **trash** (deletes the file after a confirm). The agent hears about all three on your next turn.
 
-## Usage log
+## Analytics
 
-loki keeps a record of what you do in it — which views you open, which desks get turns, how an inbox pass went,
-what you send from where, which models and modes you pick — as one JSON line per action in
-`~/.letta/loki/logs/usage.jsonl`. It is local: the mod writes it, nothing sends it anywhere, and the lines carry
-ids and counts only (a desk's scope, a model's handle), never message text, titles or folder paths. It rotates
-at 20 MB to `usage.jsonl.1`, which is about two years. `LOKI_USAGE_LOG=0` in the harness's environment turns it off.
+loki keeps product analytics on itself — which views you open, which desks get turns, how an inbox pass went,
+what you send from where, which models and modes you pick — as events in `~/.letta/loki/logs/events.jsonl`, one
+per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
+writes the file, nothing sends it anywhere, and `bun run analytics` on this machine is the only reader. The
+`distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, phone,
+or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
+a client sent the event, `$app_version`, and the event's own fields — ids and counts (a desk's scope, a model's
+handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
+`message_sent`, `inbox_pass_completed`; `core/analytics.ts` lists them all with their properties. The file rotates
+at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the harness's environment turns it off.
 
-`bun run usage` (or `bun run usage -- --days 7`) reads it into a report: views opened, inbox passes and their
-decisions, turns per desk, sends by origin, model and mode picks, the hours and weekdays you use loki, and
-which actions never happened in the window. `core/usage.ts` lists every action and what its detail carries.
+`bun run analytics` (or `bun run analytics -- --days 7`) prints the report: sessions by device and their median
+length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
+property (views by name, turns by desk, sends by origin, models picked), the inbox passes and their decision
+split, the hours and weekdays loki is used, and the events that never fired in the period.
 
 ## Environment variables
 
@@ -450,12 +456,12 @@ which actions never happened in the window. `core/usage.ts` lists every action a
 `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1`
 (make a dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release
 build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the desk, or not,
-whatever harness loaded it), `LOKI_USAGE_LOG=0` (no usage log), `LOKI_WS_MODULE` (debugging only: the module the mod takes `ws` from under Bun). The
+whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics), `LOKI_WS_MODULE` (debugging only: the module the mod takes `ws` from under Bun). The
 harness loki launches gets `LETTA_SCRATCHPAD` (the scratch folder) and `DISABLE_AUTOUPDATER=1`. Letta runs it under
 Bun when one is on PATH and under Node otherwise; `mod.log`'s `activate` line says which, and which `ws`.
 Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log` (the harness loki starts),
-`~/.letta/loki/logs/install.log` (every Letta Code install or update, appended), `~/.letta/loki/logs/usage.jsonl`
-(what you did in loki; see "Usage log"). To run the mod without Letta:
+`~/.letta/loki/logs/install.log` (every Letta Code install or update, appended), `~/.letta/loki/logs/events.jsonl`
+(product analytics on loki itself; see "Analytics"). To run the mod without Letta:
 `bun scripts/harness.ts`.
 
 ## Hard rules
