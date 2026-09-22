@@ -26,6 +26,8 @@ export const paths = {
   devices: join(stateDir, "devices.json"),
   token: join(homedir(), ".letta", "loki", "token"),
   modLog: join(homedir(), ".letta", "loki", "mod.log"),
+  /** The usage log (core/usage.ts): one JSON line per action, local only. */
+  usage: join(homedir(), ".letta", "loki", "logs", "usage.jsonl"),
 } as const;
 
 export const DEFAULT_MOD_PORT = 41414;

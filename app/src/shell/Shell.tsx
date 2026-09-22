@@ -66,6 +66,7 @@ export function Shell() {
     ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
+    usage: attention.usage,
   });
   const { message: boardNotice, notice } = useNotice();
   // The inbox lists what is open on disk; when the tree archives or restores a conversation, re-read it now rather than at the next minute.
@@ -81,9 +82,24 @@ export function Shell() {
     sessionStorage.setItem(SEGMENT_KEY, s);
   }, []);
   const [treeOpen, setTreeOpen] = useState(false);
+  // The usage log (core/usage.ts): the view on screen, the desk under it, the chat open or closed — each on change.
+  const usage = attention.usage;
+  const prevSegment = useRef<Segment | null>(null);
+  useEffect(() => {
+    if (prevSegment.current !== null) usage("view", { to: segment, from: prevSegment.current });
+    prevSegment.current = segment;
+  }, [segment, usage]);
+  useEffect(() => {
+    usage("desk", { scope: desk.scope });
+  }, [desk.scope, usage]);
   const [newDesk, setNewDesk] = useState<{ open: boolean; name: string; agentId: string | null }>({ open: false, name: "", agentId: null });
   const chat = useChatLayout(desk);
   const { chatOpen, setChatOpen } = chat;
+  const prevChatOpen = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (prevChatOpen.current !== null) usage("chat", { open: chatOpen });
+    prevChatOpen.current = chatOpen;
+  }, [chatOpen, usage]);
   /** Bumped to move focus into the chat's message box (opening the chat if it is closed). */
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
@@ -152,7 +168,7 @@ export function Shell() {
   /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message, the way a dispatched task does. */
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
     openDesk(agentId, conversationId, { chat: true });
-    catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title });
+    catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title, origin: "lesson" });
   };
   const stepDesk = (dir: 1 | -1) => {
     const live = desk.desks.list.filter((d) => d.status === "live");
@@ -283,7 +299,7 @@ export function Shell() {
             />
           </div>
 
-          {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={modelList} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} />}
+          {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={modelList} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} onPass={(pass) => usage("pass", pass)} />}
 
           {segment === "board" && (
             <BoardView

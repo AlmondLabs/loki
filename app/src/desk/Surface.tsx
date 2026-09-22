@@ -211,7 +211,7 @@ function DeskChat({
     question: pendingQuestion,
   };
   const actions: ConversationActions = {
-    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title }),
+    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title, origin: "desk" }),
     onAnswer: (answers) => {
       if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
     },

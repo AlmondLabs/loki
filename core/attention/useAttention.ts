@@ -39,7 +39,12 @@ export interface UseAttentionOptions {
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
   subscribeLimit?: number;
+  /** The usage log (core/usage.ts): an action this model carried out for the user. */
+  usage?: (action: string, detail?: Record<string, unknown>) => void;
 }
+
+/** Where a message was typed, for the usage log; the phone's sends carry none (its surface says). */
+export type SendOrigin = "desk" | "inbox" | "lesson";
 
 export function useAttention(opts: UseAttentionOptions) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
@@ -267,6 +272,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const was = l?.pending?.requestId === requestId ? l.pending : null;
     if (l && was) l.pending = null; // optimistic: the card clears at once
     opts.markSeen(rt.agent_id, rt.conversation_id);
+    opts.usage?.("approve", { behavior });
     bump();
     void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
       if (ok || !l || !was) return;
@@ -285,6 +291,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const summary = Object.values(answers).map((a) => (Array.isArray(a) ? a.join(", ") : a)).join(" · ");
     if (summary.trim()) l.tail.push({ role: "user", text: summary });
     opts.markSeen(rt.agent_id, rt.conversation_id);
+    opts.usage?.("answer");
     bump();
     void socketRef.current?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
       if (ok) return;
@@ -294,7 +301,7 @@ export function useAttention(opts: UseAttentionOptions) {
   }, [opts, bump]);
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
-  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { folder?: string | null; desk?: string | null } = {}) => {
+  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { folder?: string | null; desk?: string | null; origin?: SendOrigin } = {}) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     let l = liveRef.current.get(key);
     if (!l) {
@@ -302,6 +309,7 @@ export function useAttention(opts: UseAttentionOptions) {
       liveRef.current.set(key, l);
     }
     const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
+    opts.usage?.("send", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, context });
@@ -321,7 +329,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
     if (l && dropQueued(l, text)) bump();
   }, [bump]);
-  const reply = useCallback((item: AttentionItem, text: string, images: ImageAttachment[] = []) => send(item.runtime, text, images, { desk: item.title }), [send]);
+  const reply = useCallback((item: AttentionItem, text: string, images: ImageAttachment[] = []) => send(item.runtime, text, images, { desk: item.title, origin: "inbox" }), [send]);
 
   /**
    * A slash command for the harness (/reload, /compact …): execute_command, the path Desktop uses. The
@@ -336,6 +344,7 @@ export function useAttention(opts: UseAttentionOptions) {
       liveRef.current.set(key, l);
     }
     const input = commandInput(commandId, args);
+    opts.usage?.("command", { id: commandId });
     const sock = socketRef.current;
     if (!sock) {
       finishCommand(l, input, false, "not connected to the app-server");
@@ -357,7 +366,7 @@ export function useAttention(opts: UseAttentionOptions) {
       bump();
       return { success: reloaded, output: reloaded ? "reloaded" : message };
     }
-  }, [bump]);
+  }, [bump, opts]);
 
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
     const sock = socketRef.current;
@@ -478,12 +487,13 @@ export function useAttention(opts: UseAttentionOptions) {
       await sock.runtimeStart(rt, { mode });
       const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
       if (l) l.mode = mode;
+      opts.usage?.("mode", { mode });
       bump();
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : String(err);
     }
-  }, [bump]);
+  }, [bump, opts]);
   /** Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived. */
   const archiveConversation = useCallback(async (conversationId: string, archived: boolean): Promise<string | null> => {
     const sock = socketRef.current;
@@ -501,11 +511,13 @@ export function useAttention(opts: UseAttentionOptions) {
     const sock = socketRef.current;
     if (!sock) return { applied: null, error: "not connected to the app-server" };
     try {
-      return { applied: await sock.updateModel(rt, selection), error: null };
+      const applied = await sock.updateModel(rt, selection);
+      opts.usage?.("model", { handle: applied.handle, effort: applied.reasoningEffort });
+      return { applied, error: null };
     } catch (err) {
       return { applied: null, error: err instanceof Error ? err.message : String(err) };
     }
-  }, []);
+  }, [opts]);
 
   /**
    * Letta's sleep-time reflection for an agent: its settings (per agent, though the protocol addresses a

@@ -141,9 +141,18 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
+    usage: attention.usage,
   });
   const route = useRoute();
   const lastTab = useLastTab(route);
+  // The usage log: the tab or page on screen, on change (a conversation page is "conversation", not which one).
+  const routeView = route.kind === "tab" ? route.tab : route.kind;
+  const prevView = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevView.current !== null && prevView.current !== routeView) attention.usage("view", { to: routeView, from: prevView.current });
+    prevView.current = routeView;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeView]);
 
   // A pairing QR opened while already paired: the code is not needed, drop it from the address (the route stays).
   useEffect(() => {

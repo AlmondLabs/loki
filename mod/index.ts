@@ -36,6 +36,7 @@ import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
+import { createUsageLog } from "./usage.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 
 /**
@@ -66,6 +67,8 @@ function loadOrCreateToken(): string {
 export default function activate(letta: LettaMod): (() => void) | void {
   if (!letta.capabilities?.tools && !letta.capabilities?.events) return; // nothing a desk needs
   initLog(paths.modLog);
+  // What you did in loki, one line per action, local only (core/usage.ts; `bun run usage` reads it). LOKI_USAGE_LOG=0 turns it off.
+  const usageLog = createUsageLog(process.env.LOKI_USAGE_LOG === "0" ? null : paths.usage);
   // Every harness loads this mod; only the one hosting an app-server serves the desk (mod/gate.ts).
   const gate = shouldServe(letta.capabilities);
   if (!gate.serve) {
@@ -264,6 +267,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     widgets,
     gestures,
     broadcast,
+    usage: (client, action, detail) => usageLog.record(client.deviceId ? "phone" : "mac", action, detail),
     listDesks,
     listInbox,
     recall: {
@@ -402,6 +406,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     }
     const scope = convId ? desks.remember(convId, runtime.agentId) : SHARED_SCOPE;
     activeScope = scope;
+    usageLog.record("mod", "turn", { desk: scope });
     // The return path: everything the user did on this desk (and the shared desk) rides along.
     const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
     log("event:turn_start", { desk: scope, attached: lines.length });
@@ -424,7 +429,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // Diagnostics: see whether Letta reaches the mod-tool dispatch at all.
   track("tool_start", (event) => {
     const e = event as { toolName?: string; args?: unknown } | undefined;
-    if (e?.toolName?.startsWith("desk_") || e?.toolName?.startsWith("loki_")) log("event:tool_start", { tool: e.toolName, args: e.args });
+    if (e?.toolName?.startsWith("desk_") || e?.toolName?.startsWith("loki_")) {
+      log("event:tool_start", { tool: e.toolName, args: e.args });
+      usageLog.record("mod", "tool", { tool: e.toolName });
+    }
     return undefined;
   });
   track("tool_end", (event) => {

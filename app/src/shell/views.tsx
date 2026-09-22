@@ -2,7 +2,7 @@ import type { MutableRefObject } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { runAction } from "./keymap";
-import { CatchUp as Inbox } from "../desk/CatchUp";
+import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Board } from "../board/Board";
 import { Agents } from "../agents/Agents";
@@ -38,11 +38,12 @@ export function RecallView({ recall, active, onOpenDesk, onBegin }: { recall: Re
 }
 
 /** The inbox: every conversation's cards, with the model and mode pickers per conversation. */
-export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, onPickMode, onOpenDesk, onClose }: { desk: Desk; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; onPickModel: PickModel; onPickMode: PickMode; onOpenDesk: OpenDesk; onClose: () => void }) {
+export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, onPickMode, onOpenDesk, onClose, onPass }: { desk: Desk; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; onPickModel: PickModel; onPickMode: PickMode; onOpenDesk: OpenDesk; onClose: () => void; onPass: PassSummaryHandler }) {
   return (
     <Inbox
       open
       onClose={onClose}
+      onPass={onPass}
       items={catchUp.items}
       onSeen={catchUp.seen}
       onUnread={catchUp.unread}

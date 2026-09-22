@@ -62,7 +62,11 @@ interface CatchUpProps {
   /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
+  /** The deck closed: what this pass did, for the usage log. Not called for a pass that decided nothing. */
+  onPass?: PassSummaryHandler;
 }
+
+export type PassSummaryHandler = (pass: { decided: number; next: number; later: number; approve: number; deny: number; replies: number }) => void;
 
 type DeckProps = CatchUpProps & { showSnoozed: boolean; setShowSnoozed: (update: (v: boolean) => boolean) => void };
 
@@ -110,6 +114,21 @@ function CatchUpDeck(props: DeckProps) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
+
+  // The pass's tally, read when the deck unmounts (closing it is what ends a pass).
+  const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass });
+  useEffect(() => {
+    passRef.current = { decided, replies: actions.replies, onPass: props.onPass };
+  });
+  useEffect(
+    () => () => {
+      const { decided: d, replies, onPass } = passRef.current;
+      if (!onPass || (!d.length && !replies)) return;
+      const by = (via: Decision["via"]) => d.filter((x) => x.via === via).length;
+      onPass({ decided: d.length, next: by("next"), later: by("later"), approve: by("approve"), deny: by("deny"), replies });
+    },
+    [],
+  );
 
   const total = queue.length + decided.length;
   const snoozed = snoozedItems(items);
