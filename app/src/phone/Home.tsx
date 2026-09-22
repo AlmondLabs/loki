@@ -345,8 +345,8 @@ export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: Desk
   );
 }
 
-/** One row of a sheet's list, the More row's shape without the chevron. */
-function SheetRow({ icon, label, aside = null, disabled = false, onClick }: { icon: IconName; label: string; aside?: string | null; disabled?: boolean; onClick: () => void }) {
+/** One row of a sheet's list, the More row's shape without the chevron (the conversation's actions sheet uses it too). */
+export function SheetRow({ icon, label, aside = null, disabled = false, onClick }: { icon: IconName; label: string; aside?: string | null; disabled?: boolean; onClick: () => void }) {
   return (
     <li>
       <button type="button" className="loki-phone-menu-row" disabled={disabled} onClick={onClick}>
@@ -402,16 +402,6 @@ function HomeMenu({ query, onQuery, agents, agentFilter, onAgent, onNew, onRefre
         Done
       </Button>
     </Sheet>
-  );
-}
-
-/** A drawing pin: filled when the desk is pinned. The conversation header still draws it (U5 moves it to the icon set). */
-export function Pin({ filled, size = 16 }: { filled: boolean; size?: number }) {
-  return (
-    <svg viewBox="0 0 20 20" width={size} height={size} fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12.5 2.5 17.5 7.5 14 9l-1.5 4.5-6-6L11 6z" />
-      <path d="M6.5 13.5 3 17" fill="none" />
-    </svg>
   );
 }
 

@@ -93,6 +93,7 @@ export function Conversation({
   notice,
   placeholder,
   attach = false,
+  icons,
 }: {
   view: ConversationView;
   actions: ConversationActions;
@@ -135,6 +136,8 @@ export function Conversation({
   placeholder?: string;
   /** A button in the box that picks images from the device (the phone has no drag and drop). */
   attach?: boolean;
+  /** The host's glyphs (the phone's icon set): with `send`, the send button is that icon, named for screen readers, instead of the word. */
+  icons?: { send?: ReactNode; attach?: ReactNode; mic?: ReactNode };
 }) {
   const approval = view.approval ?? null;
   const question = view.question ?? null;
@@ -211,15 +214,22 @@ export function Conversation({
           onImages={setImages}
           placeholder={placeholder ?? composerPlaceholder(view, agentName)}
           attach={attach}
+          icons={icons}
           {...palette.aria}
         />
-        <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
-          {view.status === "idle" ? "send" : "queue"}
-        </Button>
+        {icons?.send ? (
+          <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} className="loki-composer-send" aria-label={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"} data-queue={view.status === "idle" ? undefined : "true"}>
+            {icons.send}
+          </Button>
+        ) : (
+          <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
+            {view.status === "idle" ? "send" : "queue"}
+          </Button>
+        )}
       </div>
 
       {hasFooter && (
-        <div style={{ position: "relative", display: "flex", gap: 8, padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})`, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="loki-conversation-footer" style={{ position: "relative", display: "flex", gap: 8, padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})`, alignItems: "center", flexWrap: "wrap" }}>
           {hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
           {hasModelPicker && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
           {hasEffortPicker && (
@@ -232,8 +242,8 @@ export function Conversation({
           {hasModeMenu && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
           {canApprove && (
             <>
-              <Button size={touch ? "touch" : "sm"} tone="positive" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>
-              <Button size={touch ? "touch" : "sm"} tone="negative" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>
+              <Button size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>
+              <Button size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>
             </>
           )}
           {footer}

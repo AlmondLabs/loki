@@ -43,3 +43,23 @@
 .loki-bubble-copy { opacity: 0; transition: opacity 120ms ease-out; flex: none; margin: 0 6px -8px; } /* rides into the next row's top margin: 16px of rhythm, not 24 */
 .loki-bubble:hover .loki-bubble-copy, .loki-bubble:focus-within .loki-bubble-copy, .loki-bubble-copy[data-copied="true"] { opacity: 1; }
 @media (hover: none) { .loki-bubble-copy { opacity: 0.55; } }
+
+/* Tool and event rows between messages (Transcript.tsx): the desktop's mono meta. The phone restyles them
+   under its own root (phone/phone.css). */
+.loki-tool-row { font-size: 10.5px; color: var(--loki-muted); font-family: var(--loki-mono); margin: 2px 0 2px 14px; overflow-wrap: anywhere; }
+.loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }
+.loki-event-summary { font-family: var(--loki-mono); letter-spacing: 0.06em; }
+.loki-event-aside { color: var(--loki-fg); opacity: 0.75; margin-left: 8px; font-family: var(--loki-font); letter-spacing: 0; }
+.loki-event-detail {
+  margin: 6px 0 0 14px; padding: 8px 10px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: 6px;
+  font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; color: var(--loki-fg);
+}
+
+/* The agent's open question and the tool it is paused on (QuestionCard.tsx, ApprovalCard.tsx): a brass-edged
+   panel between the thread and the box. */
+.loki-question { padding: 8px 20px 10px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); display: grid; gap: 8px; max-height: 38%; overflow-y: auto; flex: 0 0 auto; }
+.loki-approval { padding: 12px 20px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); }
+.loki-approval-input {
+  margin: 0; padding: 10px 12px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: 8px;
+  font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; color: var(--loki-fg);
+}

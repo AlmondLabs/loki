@@ -26,28 +26,26 @@ type SubmitContext = {
 };
 
 /**
- * What submitting a draft does, apart from React: nothing when it is empty; otherwise `clear` first (only
- * this draft — the host's clear knows which), then a known "/command" runs as one, a typed reply while one
- * question is open answers it, and anything else goes to the agent. True when something went.
+ * What submitting a draft does, apart from React: nothing when it is empty; otherwise a known "/command"
+ * runs as one, a typed reply while one question is open answers it, and anything else goes to the agent —
+ * then `clear` (only this draft — the host's clear knows which). A send or answer that throws keeps the
+ * draft for another try. True when something went.
  */
 export function submitDraft(value: DraftValue, { question, onAnswer, onSend, commands = [], onCommand, onSent }: SubmitContext, clear: () => void): boolean {
   const text = value.text.trim();
   const images = value.images;
   if (!text && !images.length) return false;
-  clear();
   // "/reload", "/compact all": a command the box knows runs as one (with images attached it is a message).
   const cmd = !images.length ? parseSlash(text) : null;
   if (cmd && onCommand && commands.some((c) => c.id === cmd.id)) {
+    clear(); // first, as before: a command may open something that writes to the box
     onCommand(cmd.id, cmd.args);
     return true;
   }
   // A typed reply while one question is open is the answer to it.
-  if (question && onAnswer && question.questions.length === 1 && text && !images.length) {
-    onAnswer({ [question.questions[0].question]: text });
-    onSent?.();
-    return true;
-  }
-  onSend(text, images);
+  if (question && onAnswer && question.questions.length === 1 && text && !images.length) onAnswer({ [question.questions[0].question]: text });
+  else onSend(text, images);
+  clear();
   onSent?.();
   return true;
 }
@@ -71,7 +69,7 @@ export function draftWriter(latest: { current: DraftValue }, onChange: (next: Dr
 
 /**
  * The message being typed: its text, the images pasted or dropped in, and the send.
- * Submitting clears the box first; a typed reply while one question is open is the
+ * Submitting sends, then clears the box; a typed reply while one question is open is the
  * answer to it, a known "/command" runs as one, anything else goes to the agent.
  * With `controlled` the host keeps the draft (see ControlledDraft); without it, the box does, as before.
  */

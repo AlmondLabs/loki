@@ -1,8 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { AttentionItem, PendingQuestion } from "../core/attention/model.ts";
 import { draftWriter, submitDraft } from "../app/src/chat/useDraft.ts";
-import { EMPTY_DECK, commitCard, undoCard } from "../app/src/phone/deck.ts";
-import { EMPTY_DRAFT, createDrafts, createFocusMemory, createRecents, createScrollMemory, draftKey, pushRecent, sanitizeRecents, type RecentEntry } from "../app/src/phone/session.ts";
+import { EMPTY_DECK, commitCard, threadNotice, undoCard } from "../app/src/phone/deck.ts";
+import { threadLine } from "../app/src/phone/model.ts";
+import { formatRoute, parseRoute } from "../app/src/phone/router.ts";
+import { keyboardInset } from "../app/src/phone/viewport.ts";
+import { EMPTY_DRAFT, createDrafts, drafts, createFocusMemory, createRecents, createScrollMemory, draftKey, pushRecent, sanitizeRecents, type RecentEntry } from "../app/src/phone/session.ts";
 
 /**
  * The phone's session layer (app/src/phone/session.ts): drafts keyed by conversation, bounded recent
@@ -235,5 +238,76 @@ describe("drafts through the shared composer", () => {
     s = commitCard(s, a, "seen");
     expect(s.pass.seen).toBe(1);
     expect(d.get(k).text).toBe("half a thought");
+  });
+});
+
+/**
+ * The full conversation page (U5): the same draft as the Inbox card, kept through everything but a send;
+ * the header's live line; the notice over the box; and how much of the screen the keyboard takes.
+ */
+describe("the conversation page", () => {
+  const card = (over: Partial<AttentionItem> = {}) => ({ id: "c:1/x", agentId: "agent-1", agentName: "friday", title: "Loki mobile", status: "done", ...over }) as unknown as AttentionItem;
+
+  test("an Inbox card and the page it opens share one draft key, through the address and back", () => {
+    const item = card();
+    const opened = parseRoute(formatRoute({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null }));
+    expect(opened.kind).toBe("conversation");
+    if (opened.kind !== "conversation") return;
+    expect(draftKey(opened.agentId, opened.conversationId)).toBe(draftKey(item.agentId, item.id));
+  });
+  test("the draft outlives the screens that show it: tab changes, child routes and a disconnect unmount readers, nothing clears it", () => {
+    const k = draftKey("agent-1", "survives");
+    drafts.set(k, { text: "half a thought", images: [img("p")] });
+    const offCard = drafts.subscribe(k, () => {});
+    offCard(); // the Inbox card leaves (a tab change, the page opening over it)
+    const offPage = drafts.subscribe(k, () => {});
+    expect(drafts.get(k)).toEqual({ text: "half a thought", images: [img("p")] });
+    offPage(); // back out of the page, or the socket drops and the screen re-renders without it
+    expect(drafts.get(k).text).toBe("half a thought");
+    drafts.clear(k);
+  });
+  test("a send that fails keeps the draft; it clears only once the message went", () => {
+    const d = createDrafts();
+    const k = draftKey("a1", "c1");
+    d.set(k, { text: "keep me", images: [img("q")] });
+    expect(() =>
+      submitDraft(d.get(k), { question: null, onSend: () => { throw new Error("socket closed"); } }, () => d.clear(k)),
+    ).toThrow("socket closed");
+    expect(d.get(k)).toEqual({ text: "keep me", images: [img("q")] });
+    submitDraft(d.get(k), { question: null, onSend: () => {} }, () => d.clear(k));
+    expect(d.get(k)).toEqual(EMPTY_DRAFT);
+  });
+
+  test("the header's live line: what the agent is doing, then the desk", () => {
+    const base = { status: "idle" as const, approval: null, question: null, waiting: false, desk: "Loki mobile" };
+    expect(threadLine({ ...base, status: "thinking" })).toBe("working · Loki mobile");
+    expect(threadLine({ ...base, status: "streaming" })).toBe("writing · Loki mobile");
+    expect(threadLine({ ...base, approval: {} })).toBe("needs approval · Loki mobile");
+    expect(threadLine({ ...base, question: {} })).toBe("asked you · Loki mobile");
+    expect(threadLine({ ...base, waiting: true })).toBe("waiting on you · Loki mobile");
+    expect(threadLine(base)).toBe("Loki mobile");
+    expect(threadLine({ ...base, desk: null, status: "thinking" })).toBe("working");
+    expect(threadLine({ ...base, desk: null })).toBe("");
+  });
+  test("the notice over the box: the card's words while it waits, the agent at work, else nothing", () => {
+    expect(threadNotice(card(), true, "idle", "friday")).toBe("friday is waiting for your reply");
+    expect(threadNotice(card({ status: "approval" }), true, "idle", "friday")).toBe("friday needs your approval");
+    expect(threadNotice(null, false, "thinking", "friday")).toBe("friday is working");
+    expect(threadNotice(card(), false, "streaming", "friday")).toBe("friday is writing");
+    expect(threadNotice(card(), false, "idle", "friday")).toBeNull();
+    expect(threadNotice(null, false, "idle", null)).toBeNull();
+  });
+
+  test("keyboard inset: the layout height the visual viewport no longer shows, nothing without one", () => {
+    expect(keyboardInset(844, null)).toBe(0);
+    expect(keyboardInset(844, { height: 844, offsetTop: 0, scale: 1 })).toBe(0);
+    expect(keyboardInset(844, { height: 508, offsetTop: 0, scale: 1 })).toBe(336);
+    // iOS scrolls the visual viewport to show the caret: the band under it is still the keyboard's
+    expect(keyboardInset(844, { height: 508, offsetTop: 120, scale: 1 })).toBe(216);
+    // pinch zoom shrinks the visual viewport too; that is not a keyboard
+    expect(keyboardInset(844, { height: 400, offsetTop: 0, scale: 2 })).toBe(0);
+    // a browser that resizes the layout for the keyboard: nothing left to make up
+    expect(keyboardInset(508, { height: 508, offsetTop: 0, scale: 1 })).toBe(0);
+    expect(keyboardInset(844, { height: 843.4, offsetTop: 0, scale: 1 })).toBe(0);
   });
 });

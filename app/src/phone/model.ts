@@ -389,3 +389,12 @@ export function linkState(mod: "connecting" | "open" | "closed", appServer: "off
   if (mod === "closed" || appServer === "closed") return "offline";
   return mod === "open" && (appServer === "open" || !available) ? "online" : "connecting";
 }
+
+/**
+ * The conversation header's second line, under the agent's name: what the agent is doing (it waits on
+ * your approval or answer, is writing, working, or is waiting on you), then the desk. Either may be absent.
+ */
+export function threadLine({ status, approval, question, waiting, desk }: { status: "idle" | "thinking" | "streaming"; approval: unknown; question: unknown; waiting: boolean; desk: string | null }): string {
+  const live = approval ? "needs approval" : question ? "asked you" : status === "streaming" ? "writing" : status === "thinking" ? "working" : waiting ? "waiting on you" : null;
+  return [live, desk].filter(Boolean).join(" · ");
+}

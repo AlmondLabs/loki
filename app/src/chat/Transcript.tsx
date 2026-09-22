@@ -101,9 +101,10 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued }: { r
   );
 }
 
+/** A tool the agent ran: one quiet line (chat.css; the phone sets it in its sans meta). */
 function ToolRow({ row: m }: { row: TranscriptRow }) {
   return (
-    <div data-row="tool" style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", margin: "2px 0 2px 14px", overflowWrap: "anywhere" }}>
+    <div data-row="tool" className="loki-tool-row">
       · {m.text}
     </div>
   );
@@ -111,16 +112,12 @@ function ToolRow({ row: m }: { row: TranscriptRow }) {
 
 function EventRow({ row: m }: { row: TranscriptRow }) {
   return (
-    <details data-row="event" style={{ margin: "8px 0", fontSize: 12, color: "var(--loki-muted)" }}>
-      <summary style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>
+    <details data-row="event" className="loki-event-row">
+      <summary className="loki-event-summary" style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none" }}>
         ⟳ {m.text}
-        {m.summary && <span style={{ color: "var(--loki-fg)", opacity: 0.75, marginLeft: 8, fontFamily: "var(--loki-font)", letterSpacing: 0 }}>{m.summary}</span>}
+        {m.summary && <span className="loki-event-aside">{m.summary}</span>}
       </summary>
-      {m.detail && (
-        <pre style={{ margin: "6px 0 0 14px", padding: "8px 10px", background: "var(--loki-well)", border: "1px solid var(--loki-border)", borderRadius: 6, fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 220, overflow: "auto", color: "var(--loki-fg)" }}>
-          {m.detail}
-        </pre>
-      )}
+      {m.detail && <pre className="loki-event-detail">{m.detail}</pre>}
     </details>
   );
 }

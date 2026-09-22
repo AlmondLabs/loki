@@ -22,6 +22,7 @@ import { UpdateBar } from "./UpdateBar";
 import { agentNameOf, archiveList, lastSeen, linkState, threadFor } from "./model";
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { recentPlaces, useFocusOnRoute } from "./session";
+import { useKeyboardInset } from "./viewport";
 import { Banner, Button } from "../components";
 import "./phone.css";
 
@@ -213,6 +214,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // Focus follows the route: the control you left from when you come back, the new screen's heading otherwise.
   const shellRef = useRef<HTMLDivElement>(null);
   useFocusOnRoute(shellRef, place, arrival === "pop");
+  // The on-screen keyboard: where it only shrinks the visual viewport, the shell fits what is visible (viewport.ts).
+  useKeyboardInset(shellRef);
   // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
   useEffect(() => {
     if (!nav && route.kind !== "search") recentPlaces.add(place);
@@ -259,11 +262,13 @@ function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, pref
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
+  const item = catchUp.items.find((i) => i.agentId === thread.agentId && i.id === thread.conversationId) ?? null;
   return (
     <ConversationScreen
       thread={thread}
       view={catchUp.conversation(thread.agentId, thread.conversationId)}
-      waiting={catchUp.items.some((i) => i.agentId === thread.agentId && i.id === thread.conversationId && catchUpQueue([i]).length > 0)}
+      item={item}
+      waiting={!!item && catchUpQueue([item]).length > 0}
       banner={banner}
       backLabel={backLabel}
       prefill={prefill}

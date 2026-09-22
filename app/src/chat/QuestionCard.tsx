@@ -45,16 +45,16 @@ function QuestionCardFor({ question, onAnswer }: { question: PendingQuestion; on
     });
 
   return (
-    <div data-question style={{ padding: "8px 20px 10px", borderTop: "1px solid var(--loki-accent)", background: "var(--loki-brass-soft)", display: "grid", gap: 8, maxHeight: "38%", overflowY: "auto", flex: "0 0 auto" }}>
+    <div data-question className="loki-question">
       {question.questions.map((q, qi) => {
         const sel = picked[q.question] ?? [];
         const shown = q.options.find((o) => o.label === peek) ?? q.options.find((o) => sel.includes(o.label));
         return (
           <div key={qi} style={{ display: "grid", gap: 6 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <span className="loki-label" style={{ color: "var(--loki-accent)", fontSize: 9.5 }}>{qi === 0 ? (many ? `asks you · ${question.questions.length}` : "asks you") : `${qi + 1}`}</span>
+              <span className="loki-label loki-question-kicker" style={{ color: "var(--loki-accent)", fontSize: 9.5 }}>{qi === 0 ? (many ? `asks you · ${question.questions.length}` : "asks you") : `${qi + 1}`}</span>
               {q.header && <span className="loki-label" style={{ fontSize: 9.5 }}>{q.header}</span>}
-              <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, color: "var(--loki-fg)" }}>{q.question}</span>
+              <span className="loki-question-text" style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, color: "var(--loki-fg)" }}>{q.question}</span>
             </div>
             <div role={q.multiSelect ? "group" : "radiogroup"} aria-label={q.question} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }} onMouseLeave={() => setPeek(null)}>
               {q.options.map((o) => {
@@ -91,7 +91,7 @@ function QuestionCardFor({ question, onAnswer }: { question: PendingQuestion; on
               {qi === question.questions.length - 1 && (
                 <>
                   <span style={{ flex: 1 }} />
-                  <Button size="sm" tone="brass" onClick={submit} disabled={!complete} title={complete ? "send these answers" : many ? "answer every question" : "pick one, or type below"}>
+                  <Button size="sm" tone="brass" className="loki-question-answer" onClick={submit} disabled={!complete} title={complete ? "send these answers" : many ? "answer every question" : "pick one, or type below"}>
                     answer
                   </Button>
                 </>

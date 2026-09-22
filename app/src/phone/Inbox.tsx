@@ -8,6 +8,7 @@ import type { TranscriptRow } from "../chat/Transcript";
 import { Conversation, Thread } from "../chat/Conversation";
 import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
+import { COMPOSER_ICONS } from "./Conversation";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, RowSection } from "./rows";
@@ -576,6 +577,7 @@ function CardConversation({ item, view, banner, card, onHold }: { item: Attentio
       notice={notice}
       placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
       draft={{ value: draft, onChange: setDraft }}
+      icons={COMPOSER_ICONS}
       onSent={onHold}
     />
   );

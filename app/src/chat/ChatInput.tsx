@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
@@ -31,12 +31,14 @@ export const ChatInput = forwardRef<
     disabled?: boolean;
     /** A "+" before the box that picks images from the device, for hosts without paste or drop (the phone). */
     attach?: boolean;
+    /** The host's own glyphs for attach and dictate (the phone's icon set); omitted, the box's own. */
+    icons?: { attach?: ReactNode; mic?: ReactNode };
     style?: CSSProperties;
     "aria-controls"?: string;
     "aria-activedescendant"?: string;
     "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, attach = false, style, ...aria }, ref) {
+>(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, attach = false, icons, style, ...aria }, ref) {
   const addBlobs = async (blobs: Blob[]) => {
     if (!onImages || !blobs.length) return;
     const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
@@ -122,13 +124,15 @@ export const ChatInput = forwardRef<
           ))}
         </div>
       )}
-      <div style={{ position: "relative", display: "flex", minWidth: 0, ...(attach ? { alignItems: "flex-end", gap: 6 } : null) }}>
+      <div className="loki-composer-field" style={{ position: "relative", display: "flex", minWidth: 0, ...(attach ? { alignItems: "flex-end", gap: 6 } : null) }}>
       {attach && onImages && (
         <>
           <IconButton size={36} label="attach images" onClick={() => picker.current?.click()} disabled={disabled} className="loki-composer-attach">
-            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-              <path d="M8 3v10M3 8h10" />
-            </svg>
+            {icons?.attach ?? (
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+            )}
           </IconButton>
           <input
             ref={picker}
@@ -146,6 +150,7 @@ export const ChatInput = forwardRef<
       )}
       <TextArea
         ref={setRef}
+        className="loki-composer-text"
         value={value}
         rows={1}
         name="message"
@@ -223,12 +228,15 @@ export const ChatInput = forwardRef<
           label={listening ? "stop dictating" : "dictate"}
           aria-pressed={listening}
           title={listening ? "stop dictating" : "dictate (⌘D)"}
+          className="loki-composer-mic"
           style={{ position: "absolute", right: 6, bottom: 6 }}
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-            <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
-            <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
-          </svg>
+          {icons?.mic ?? (
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
+              <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
+            </svg>
+          )}
           {listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
         </IconButton>
       )}
