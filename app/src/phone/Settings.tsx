@@ -9,7 +9,7 @@ import { ThemeChoice } from "../settings/ThemeChoice";
 import { useTheme } from "../theme";
 
 /**
- * Settings on the phone, in the desktop's Section / Fact voice: this device's appearance and pairing,
+ * You on the phone, in the desktop's Section / Fact voice: this device's appearance and pairing,
  * what the Mac is and whether the two links are up, and what remains on the desktop. No brass here —
  * nothing on this page waits for you.
  */
@@ -49,7 +49,7 @@ export function Settings({
   };
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <TopBar title="Settings" sub={sub} />
+      <TopBar title="You" sub={sub} />
       {banner}
       <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} 32px ${GUTTER.left}` }}>
         <Section title="appearance" hint="kept on this phone; system follows its display setting">
@@ -179,4 +179,3 @@ function ViewportFact() {
   }, []);
   return <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{text}</span>;
 }
-

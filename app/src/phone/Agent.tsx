@@ -11,7 +11,7 @@ import { Chevron, useAgentDetails, type PhoneAgentsApi } from "./Agents";
 import { lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, modelBits, stripFrontmatter, type MemoryFolder } from "./model";
 import { navigate, type Route } from "./router";
 import { Button, Meta, Row, Title } from "../components";
-import { BackButton, GUTTER, Heading, Scroll, TopBar } from "./ui";
+import { BackButton, GUTTER, Heading, SAFE, Scroll, TopBar } from "./ui";
 
 /**
  * The last ten memory commits and the diff of the one opened. Diffs are fetched once per sha and kept;
@@ -54,12 +54,15 @@ export function AgentPage({ agentId, name, desks, api, banner, onBack }: { agent
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <TopBar left={<BackButton onClick={onBack} label="agents" />} title={title} sub={d?.lastCommit ? <span>last change {lastSeen(d.lastCommit.at)}</span> : undefined} />
       {banner}
-      <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} 32px ${GUTTER.left}` }}>
+      <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} calc(32px + ${SAFE.bottom}) ${GUTTER.left}` }}>
         {d === undefined && <div style={{ fontSize: 13.5, color: "var(--loki-muted)" }}>reading the agent…</div>}
         {d === null && <div style={{ fontSize: 13.5, color: "var(--loki-muted)", lineHeight: 1.5 }}>This agent has no local record on the Mac (a remote or hidden agent). Its chats still work from Home.</div>}
         {d && (
           <>
-            <Profile agentId={agentId} details={d} desks={desks} />
+            <section>
+              <Heading>agent</Heading>
+              <Profile agentId={agentId} details={d} desks={desks} />
+            </section>
             <MemoryTree folders={folders} folded={folded} onFold={(name, closed) => setFolded((x) => ({ ...x, [name]: closed }))} onOpen={(path) => navigate(file(path))} />
             {/* Two lists, as on the desktop: the agent's own skills, then the ones installed from elsewhere. Read-only here; refresh is a desktop action. */}
             {(["self", "other"] as const).map((origin) => (

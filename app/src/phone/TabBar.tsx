@@ -2,24 +2,24 @@ import { SAFE } from "./ui";
 import { TABS, navigate, type Tab } from "./router";
 
 /**
- * The bottom bar, the way Slack's phone app has one: five tabs, icons in the rail's line, condensed
+ * The bottom bar, the way Slack's phone app has one: four tabs, icons in the rail's line, condensed
  * caps beneath. The active tab is paper; brass appears only on the inbox count, which is the same
  * number the desktop rail and the dock badge show. 52px plus the home indicator.
  */
 export const TAB_BAR_HEIGHT = 52;
 
-export function TabBar({ active, waiting, due = 0 }: { active: Tab | null; waiting: number; due?: number }) {
+export function TabBar({ active, waiting }: { active: Tab | null; waiting: number }) {
   return (
     <nav aria-label="tabs" style={{ flex: "0 0 auto", display: "flex", alignItems: "stretch", height: `calc(${TAB_BAR_HEIGHT}px + ${SAFE.bottom})`, paddingBottom: SAFE.bottom, paddingLeft: SAFE.left, paddingRight: SAFE.right, boxSizing: "border-box", background: "var(--loki-panel)", borderTop: "1px solid var(--loki-border)" }}>
       {TABS.map((t) => {
         const on = t === active;
-        const n = t === "inbox" ? waiting : t === "learn" ? due : 0;
+        const n = t === "inbox" ? waiting : 0;
         return (
           <button
             key={t}
             type="button"
             onClick={() => navigate({ kind: "tab", tab: t })}
-            aria-label={n > 0 ? `${t}, ${n} ${t === "learn" ? "due" : "waiting"}` : t}
+            aria-label={n > 0 ? `${t}, ${n} waiting` : t}
             aria-current={on ? "page" : undefined}
             style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, border: "none", background: "transparent", color: on ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
           >
@@ -65,16 +65,6 @@ function Icon({ tab }: { tab: Tab }) {
       </svg>
     );
   }
-  if (tab === "learn") {
-    // two cards, one behind the other
-    return (
-      <svg {...common} aria-hidden>
-        <rect x="4.5" y="2.5" width="12" height="9" rx="1.2" />
-        <path d="M2.5 7.5v8a2 2 0 0 0 2 2h9.5" />
-        <path d="M8 6.5h5M8 8.75h3" />
-      </svg>
-    );
-  }
   if (tab === "agents") {
     // two faces
     return (
@@ -86,11 +76,11 @@ function Icon({ tab }: { tab: Tab }) {
       </svg>
     );
   }
-  // settings: the set square
+  // you: one person, kept quieter than the agent group
   return (
     <svg {...common} aria-hidden>
-      <path d="M3.5 16.5 12 3.5l4.5 13z" />
-      <path d="M8.5 16.5 12 9l2.5 7.5" />
+      <circle cx="10" cy="7" r="3.2" />
+      <path d="M4 17c0-3.5 2.6-5.5 6-5.5s6 2 6 5.5" />
     </svg>
   );
 }

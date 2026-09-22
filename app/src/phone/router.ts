@@ -2,18 +2,20 @@ import { useEffect, useState } from "react";
 
 /**
  * The phone's routes live in the hash, so a home-screen icon has history and swipe-back:
- *   #/home  #/inbox  #/learn  #/agents  #/settings   the five tabs
+ *   #/home  #/inbox  #/agents  #/you                  the four tabs
+ *   #/learn                                           Learn, opened from Home
  *   #/agents/<agentId>                             an agent's page
  *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
  *   #/c/<agentId>/<conversationId>[?prefill=…]     a conversation; `prefill` starts the reply box
  * parse/format are pure (test/phone-router.test.ts); useRoute() follows hashchange.
  */
 
-export type Tab = "home" | "inbox" | "learn" | "agents" | "settings";
-export const TABS: readonly Tab[] = ["home", "inbox", "learn", "agents", "settings"];
+export type Tab = "home" | "inbox" | "agents" | "you";
+export const TABS: readonly Tab[] = ["home", "inbox", "agents", "you"];
 
 export type Route =
   | { kind: "tab"; tab: Tab }
+  | { kind: "learn" }
   | { kind: "agent"; agentId: string }
   | { kind: "file"; agentId: string; path: string }
   | { kind: "conversation"; agentId: string; conversationId: string; prefill: string | null };
@@ -42,6 +44,8 @@ export function parseRoute(hash: string): Route {
   const parts = h.split("/").filter(Boolean);
   if (parts.length === 0) return HOME;
   const [head, a, b, ...rest] = parts;
+  if (parts.length === 1 && head === "settings") return { kind: "tab", tab: "you" };
+  if (parts.length === 1 && head === "learn") return { kind: "learn" };
   if (parts.length === 1 && isTab(head)) return { kind: "tab", tab: head };
   if (head === "agents" && a) {
     const agentId = dec(a);
@@ -61,6 +65,8 @@ export function formatRoute(r: Route): string {
   switch (r.kind) {
     case "tab":
       return `#/${r.tab}`;
+    case "learn":
+      return "#/learn";
     case "agent":
       return `#/agents/${encodeURIComponent(r.agentId)}`;
     case "file":
@@ -75,6 +81,7 @@ export function formatRoute(r: Route): string {
 /** The tab a route belongs to; a conversation belongs to none (it is reached from home or the inbox). */
 export function tabOf(r: Route): Tab | null {
   if (r.kind === "tab") return r.tab;
+  if (r.kind === "learn") return "home";
   if (r.kind === "agent" || r.kind === "file") return "agents";
   return null;
 }

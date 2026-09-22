@@ -312,18 +312,17 @@ export function Inbox({
   const swipe = useSwipe({ width, approval, current, onCommit: commit, onRefuse: flashRefused, onOpen });
 
   const total = passTotal(pass) + visible.length;
-  const position = current ? passTotal(pass) + 1 : total;
   const progress = total > 0 ? passTotal(pass) / total : 0;
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
       <TopBar
-        title="Catch Up"
+        title="Inbox"
         height={44}
         right={
           total > 0 ? (
             <Meta aria-live="polite">
-              {position} of {total}
+              {visible.length} left
             </Meta>
           ) : null
         }
@@ -346,16 +345,22 @@ export function Inbox({
             reduced={reduced}
             conversation={conversation}
             handlers={swipe.handlers}
-            onApprove={(item, behavior) => {
-              if (!item.pendingApproval) return;
-              onApprove(item, item.pendingApproval.requestId, behavior);
-              commit(item, behavior === "allow" ? "approve" : "deny");
-            }}
             onOpen={onOpen}
-            onLater={(item) => commit(item, "later")}
-            onSeen={(item) => commit(item, "seen")}
           />
         </div>
+      )}
+
+      {current && (
+        <ThumbActionRow
+          item={current}
+          onLater={() => commit(current, "later")}
+          onSeen={() => commit(current, "seen")}
+          onApprove={(behavior) => {
+            if (!current.pendingApproval) return;
+            onApprove(current, current.pendingApproval.requestId, behavior);
+            commit(current, behavior === "allow" ? "approve" : "deny");
+          }}
+        />
       )}
 
       {undo && <UndoPill via={undo.via} onUndo={undoLast} />}
@@ -366,7 +371,7 @@ export function Inbox({
 /** Nothing on the deck: why (no harness, still reading, caught up), the pass so far, and the deferred cards behind a toggle. */
 function EmptyDeck({ available, loaded, running, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze }: { available: boolean; loaded: boolean; running: number; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void }) {
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) calc(24px + ${SAFE.bottom}) calc(12px + ${SAFE.left})`, display: "grid", gap: 10, alignContent: "start" }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) 24px calc(12px + ${SAFE.left})`, display: "grid", gap: 10, alignContent: "start" }}>
       <Empty card title={!available ? "No harness on the Mac." : loaded ? "You're caught up." : "Reading the inbox…"} style={{ marginTop: 24 }}>
         {passTotal(pass) > 0 && <div style={{ fontSize: 10.5, color: "var(--loki-fg)", marginTop: 10, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{summaryLine(pass)}</div>}
         <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>{!available ? "loki's mod has not found Letta's app-server; open loki on the Mac" : !loaded ? "the Mac is listing conversations" : running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
@@ -417,7 +422,7 @@ function Reveal({ dx, width, approval }: { dx: number; width: number; approval: 
 }
 
 /** One keyed list, one component: a card keeps its DOM node as it goes shell → top → leaving, so its transform transitions between poses. */
-function Stack({ visible, leaving, drag, width, approval, refused, reduced, conversation, handlers, onApprove, onOpen, onLater, onSeen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; onApprove: (item: AttentionItem, behavior: "allow" | "deny") => void; onOpen: (item: AttentionItem) => void; onLater: (item: AttentionItem) => void; onSeen: (item: AttentionItem) => void }) {
+function Stack({ visible, leaving, drag, width, approval, refused, reduced, conversation, handlers, onOpen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; onOpen: (item: AttentionItem) => void }) {
   const dx = drag?.dx ?? 0;
   const move = reduced ? "none" : `transform ${FLY_MS}ms ${FLY_EASE}, opacity ${FLY_MS}ms ${FLY_EASE}`;
   return cardsToDraw(visible, leaving?.item ?? null).map(({ item, role, index }) => {
@@ -438,10 +443,7 @@ function Stack({ visible, leaving, drag, width, approval, refused, reduced, conv
             transition: drag ? "none" : move,
           }}
           handlers={handlers}
-          onApprove={(behavior) => onApprove(item, behavior)}
           onOpen={() => onOpen(item)}
-          onLater={() => onLater(item)}
-          onSeen={() => onSeen(item)}
         />
       );
     }
@@ -453,7 +455,7 @@ function Stack({ visible, leaving, drag, width, approval, refused, reduced, conv
 /** The pill under the deck after a swipe: one tap puts the card back. */
 function UndoPill({ via, onUndo }: { via: Swipe; onUndo: () => void }) {
   return (
-    <div style={{ position: "absolute", left: 0, right: 0, bottom: 20, display: "flex", justifyContent: "center", zIndex: 8, pointerEvents: "none" }}>
+    <div style={{ position: "absolute", left: 0, right: 0, bottom: 64, display: "flex", justifyContent: "center", zIndex: 8, pointerEvents: "none" }}>
       <Button size="touch" tone="brass" onClick={onUndo} className="loki-sheet" style={{ pointerEvents: "auto", background: "var(--loki-panel)", borderRadius: 999, padding: "0 18px", boxShadow: "var(--loki-shadow-low)" }}>
         undo {via === "seen" ? "seen" : "later"}
       </Button>
@@ -510,10 +512,7 @@ function Card({
   veil = 0,
   style,
   handlers,
-  onApprove,
   onOpen,
-  onLater,
-  onSeen,
 }: {
   item: AttentionItem;
   role: Role;
@@ -523,10 +522,7 @@ function Card({
   veil?: number;
   style: CSSProperties;
   handlers?: CardHandlers;
-  onApprove?: (behavior: "allow" | "deny") => void;
   onOpen?: () => void;
-  onLater?: () => void;
-  onSeen?: () => void;
 }) {
   const badge = BADGE[item.status];
   const top = role === "top";
@@ -538,7 +534,7 @@ function Card({
       style={frame(item, { ...style, touchAction: "pan-y", userSelect: "none", WebkitUserSelect: "none", WebkitTapHighlightColor: "transparent", cursor: top ? "grab" : "default", outline: refused ? "2px solid var(--loki-accent)" : "none", outlineOffset: -1 })}
     >
       <Head item={item} />
-      {role === "shell" ? <div style={{ flex: 1 }} /> : <CardBody item={item} view={view} onApprove={onApprove} onOpen={onOpen} onLater={onLater} onSeen={onSeen} />}
+      {role === "shell" ? <div style={{ flex: 1 }} /> : <CardBody item={item} view={view} onOpen={onOpen} />}
       {/* Cards behind the top one are dimmed by an opaque veil, not opacity, so the stack does not show through itself. */}
       {veil > 0 && <div aria-hidden style={{ position: "absolute", inset: 0, background: "var(--loki-veil)", opacity: veil, pointerEvents: "none" }} />}
     </article>
@@ -546,7 +542,7 @@ function Card({
 }
 
 /** A live card below its head: the thread, the approval's details, and the footer row. Shells draw none of it. */
-function CardBody({ item, view, onApprove, onOpen, onLater, onSeen }: { item: AttentionItem; view?: CardView; onApprove?: (behavior: "allow" | "deny") => void; onOpen?: () => void; onLater?: () => void; onSeen?: () => void }) {
+function CardBody({ item, view, onOpen }: { item: AttentionItem; view?: CardView; onOpen?: () => void }) {
   return (
     <>
       {/* The thread spans the card: the phone's column is the reading measure (PhoneStyles lifts the desktop's 78% cap). */}
@@ -556,15 +552,13 @@ function CardBody({ item, view, onApprove, onOpen, onLater, onSeen }: { item: At
         </div>
       )}
       {item.pendingApproval && <ApprovalCard approval={item.pendingApproval} />}
-      <CardFooter item={item} onApprove={onApprove} onOpen={onOpen} onLater={onLater} onSeen={onSeen} />
+      <CardFooter item={item} onOpen={onOpen} />
     </>
   );
 }
 
 /** One footer row: when, then what you can do about it. Approvals decide here; questions answer in the thread. */
-function CardFooter({ item, onApprove, onOpen, onLater, onSeen }: { item: AttentionItem; onApprove?: (behavior: "allow" | "deny") => void; onOpen?: () => void; onLater?: () => void; onSeen?: () => void }) {
-  /** A structured AskUserQuestion, or the last message read as a question: either way, the answer is in the conversation. */
-  const asks = !!item.pendingQuestion || item.status === "question";
+function CardFooter({ item, onOpen }: { item: AttentionItem; onOpen?: () => void }) {
   /** The one word that explains the card's place in the queue; blocked cards say it with the badge. */
   const reason = REASON_LABEL[item.reason];
   return (
@@ -573,30 +567,32 @@ function CardFooter({ item, onApprove, onOpen, onLater, onSeen }: { item: Attent
         {reason && `${reason} · `}
         {waitingSince(item)}
       </Meta>
+      <Button size="touch" bare onClick={onOpen} aria-label="open conversation">
+        open
+      </Button>
+    </div>
+  );
+}
+
+/** Persistent thumb controls below the card; every swipe has a visible button equivalent. */
+function ThumbActionRow({ item, onLater, onSeen, onApprove }: { item: AttentionItem; onLater: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
+  return (
+    <div style={{ flex: "0 0 auto", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, padding: `8px calc(12px + ${SAFE.right}) 10px calc(12px + ${SAFE.left})`, borderTop: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}>
       {item.pendingApproval ? (
         <>
-          <Button size="touch" tone="negative" onClick={() => onApprove?.("deny")}>
+          <Button size="touch" tone="negative" block onClick={() => onApprove("deny")}>
             deny
           </Button>
-          <Button size="touch" tone="brass" onClick={() => onApprove?.("allow")}>
+          <Button size="touch" tone="positive" block onClick={() => onApprove("allow")}>
             approve
           </Button>
         </>
       ) : (
         <>
-          <Button size="touch" onClick={onLater} title="comes back later, later each time">
+          <Button size="touch" tone="paper" block onClick={onLater} title="comes back later, later each time">
             <Clock /> later
           </Button>
-          {asks ? (
-            <Button size="touch" tone="brass" onClick={onOpen}>
-              answer
-            </Button>
-          ) : (
-            <Button size="touch" onClick={onOpen}>
-              open
-            </Button>
-          )}
-          <Button size="touch" onClick={onSeen}>
+          <Button size="touch" tone="positive" block onClick={onSeen}>
             <Check /> seen
           </Button>
         </>

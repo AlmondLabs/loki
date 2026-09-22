@@ -10,10 +10,13 @@ const roundTrip = (r: Route) => expect(parseRoute(formatRoute(r))).toEqual(r);
 
 describe("tabs", () => {
   test("each tab formats and parses", () => {
-    for (const tab of ["home", "inbox", "learn", "agents", "settings"] as const) {
+    for (const tab of ["home", "inbox", "agents", "you"] as const) {
       expect(formatRoute({ kind: "tab", tab })).toBe(`#/${tab}`);
       roundTrip({ kind: "tab", tab });
     }
+  });
+  test("legacy settings links open You", () => {
+    expect(parseRoute("#/settings")).toEqual({ kind: "tab", tab: "you" });
   });
   test("an empty or unknown hash is home", () => {
     expect(parseRoute("")).toEqual(HOME);
@@ -80,14 +83,24 @@ describe("conversations", () => {
 
 describe("tab of / overlay", () => {
   test("pages belong to their tab; a conversation to none", () => {
-    expect(tabOf({ kind: "tab", tab: "settings" })).toBe("settings");
+    expect(tabOf({ kind: "tab", tab: "you" })).toBe("you");
+    expect(tabOf({ kind: "learn" })).toBe("home");
     expect(tabOf({ kind: "agent", agentId: "a" })).toBe("agents");
     expect(tabOf({ kind: "file", agentId: "a", path: "x" })).toBe("agents");
     expect(tabOf({ kind: "conversation", agentId: "a", conversationId: "c", prefill: null })).toBeNull();
   });
-  test("only the four tabs show the bar", () => {
+  test("only tabs show the bar", () => {
     expect(isOverlay(HOME)).toBe(false);
+    expect(isOverlay({ kind: "learn" })).toBe(true);
     expect(isOverlay({ kind: "agent", agentId: "a" })).toBe(true);
     expect(isOverlay({ kind: "conversation", agentId: "a", conversationId: "c", prefill: null })).toBe(true);
+  });
+});
+
+describe("learn", () => {
+  test("is a full-screen Home child with a stable direct link", () => {
+    const route: Route = { kind: "learn" };
+    expect(formatRoute(route)).toBe("#/learn");
+    roundTrip(route);
   });
 });

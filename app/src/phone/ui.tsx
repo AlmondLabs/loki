@@ -28,7 +28,7 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
           <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
           {sub && <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", marginTop: 2, display: "flex", alignItems: "center", gap: 8, overflow: "hidden", whiteSpace: "nowrap" }}>{sub}</div>}
         </div>
-        {right}
+        {right && <div style={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 6 }}>{right}</div>}
       </div>
       {progress !== null && (
         <div aria-hidden style={{ height: 2, background: "var(--loki-border)", overflow: "hidden" }}>
@@ -65,7 +65,7 @@ html, body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hid
 /** The phone's side margin, with the safe inset: every surface uses the same twelve pixels. */
 export const GUTTER = { left: `calc(12px + ${SAFE.left})`, right: `calc(12px + ${SAFE.right})` };
 
-/** A scrolling surface under a TopBar and over the tab bar; the bar carries the bottom inset. */
+/** A scrolling surface under a TopBar and over the tab bar; full-screen children add their own bottom inset. */
 export function Scroll({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: `12px ${GUTTER.right} 24px ${GUTTER.left}`, ...style }}>

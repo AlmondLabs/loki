@@ -6,7 +6,7 @@ import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallIntro, SourceLine } from "../recall/RecallParts";
 import { useDeckPass } from "../recall/useDeckPass";
 import { Button, Empty, Meta } from "../components";
-import { GUTTER, Scroll, TopBar } from "./ui";
+import { BackButton, GUTTER, SAFE, Scroll, TopBar } from "./ui";
 
 /**
  * Recall on the phone: the same deck, thumb-sized. The front, one button for the answer, then again or
@@ -14,15 +14,15 @@ import { GUTTER, Scroll, TopBar } from "./ui";
  */
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
 
-export function Recall({ recall, banner }: { recall: RecallModel; banner: ReactNode }) {
+export function Recall({ recall, banner, onBack }: { recall: RecallModel; banner: ReactNode; onBack: () => void }) {
   const cards = recall.snap?.cards ?? [];
   const pass = useDeckPass(cards);
   const { current } = pass;
   return (
     <>
-      <TopBar title="learn" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}`} progress={pass.total ? pass.passed.size / pass.total : null} />
+      <TopBar left={<BackButton onClick={onBack} label="home" />} title="Learn" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}`} progress={pass.total ? pass.passed.size / pass.total : null} />
       {banner}
-      <Scroll style={{ padding: `16px ${GUTTER.right} 24px ${GUTTER.left}` }}>
+      <Scroll style={{ padding: `16px ${GUTTER.right} calc(24px + ${SAFE.bottom}) ${GUTTER.left}` }}>
         {!recall.snap ? <Meta>loading…</Meta> : !current && cards.length === 0 && !recall.snap.worker.enabled ? <RecallIntro worker={recall.snap.worker} /> : !current ? <Rest cards={cards.length} passed={pass.passed.size} nextDue={pass.nextDue} /> : (
           <PhoneCard
             c={current}
@@ -75,8 +75,8 @@ function PhoneCard({ c, position, total, revealed, onReveal, onAnswer, onDelete,
         </div>
       )}
       <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-        <Button size="sm" onClick={onDelete}>delete</Button>
-        <Button size="sm" onClick={onUndo}>undo delete</Button>
+        <Button size="touch" onClick={onDelete}>delete</Button>
+        <Button size="touch" onClick={onUndo}>undo delete</Button>
       </div>
     </section>
   );

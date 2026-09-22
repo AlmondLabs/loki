@@ -25,8 +25,8 @@ import { PhoneStyles, SAFE } from "./ui";
  * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
  * lets the device in by cookie. `GET /me` decides between Pair and the app; once paired, the same
  * two hooks the desktop shell uses (useDesk for the mod, useAttention for the app-server tunnel)
- * feed four tabs on a bottom bar — Home (the desks), Inbox (the deck), Agents, Settings — and the
- * full-screen pages over them: a conversation, an agent, a memory file. Routes live in the hash.
+ * feed four tabs on a bottom bar — Home, Inbox, Agents, You — and the full-screen pages over them:
+ * Learn, a conversation, an agent, and a memory file. Routes live in the hash.
  */
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
 
@@ -181,7 +181,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // thread is fetched once when it arrives, and live rows stream in on top.
   const deck = useDeck(catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
-  const recall = useRecall(desk, route.kind === "tab" && route.tab === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
+  const recall = useRecall(desk, route.kind === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
   useEffect(() => {
     if (!recallNote) return;
     const t = setTimeout(() => setRecallNote(null), 4000);
@@ -204,13 +204,14 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     <div style={{ position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)", color: "var(--loki-fg)", fontFamily: "var(--loki-font)" }}>
       <PhoneStyles />
       {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} lastTab={lastTab} prefill={prefill} />}
+      {route.kind === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} onBack={() => back({ kind: "tab", tab: "home" })} />}
       {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} onBack={() => back({ kind: "tab", tab: "agents" })} />}
       {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={() => back({ kind: "agent", agentId: route.agentId })} />}
 
-      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} recall={recall} recallNote={recallNote} banner={banner} recentFolders={recentFolders} onUnpaired={onUnpaired} />
+      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onUnpaired={onUnpaired} />
 
       <UpdateBar servedBuild={desk.servedBuild} withTabBar={onTab} />
-      {onTab && <TabBar active={tab} waiting={waiting} due={recall.due} />}
+      {onTab && <TabBar active={tab} waiting={waiting} />}
     </div>
   );
 }
@@ -240,8 +241,8 @@ function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { c
   );
 }
 
-/** The four tabs. Home, Agents and Settings mount on their tab; the deck stays mounted under the other tabs and pages so the pass (n of N, dismissed cards) survives the round trip. */
-function Screen({ tab, me, desk, catchUp, deck, recall, recallNote, banner, recentFolders, onUnpaired }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; recall: ReturnType<typeof useRecall>; recallNote: string | null; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onUnpaired: () => void }) {
+/** The four tabs. The deck stays mounted under other tabs and pages so the current pass survives a round trip. */
+function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onUnpaired }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onUnpaired: () => void }) {
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -249,9 +250,7 @@ function Screen({ tab, me, desk, catchUp, deck, recall, recallNote, banner, rece
   };
   return (
     <>
-      {tab === "home" && (
-        <Home desks={desk.desks.list} agents={catchUp.agents} items={catchUp.items} banner={banner} onRefresh={desk.desks.request} onPin={desk.desks.pin} recentFolders={recentFolders} onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))} />
-      )}
+      <Home hidden={tab !== "home"} desks={desk.desks.list} agents={catchUp.agents} items={catchUp.items} waiting={catchUpQueue(catchUp.items).length} due={due} banner={banner} onOpenInbox={() => navigate({ kind: "tab", tab: "inbox" })} onOpenLearn={() => navigate({ kind: "learn" })} onRefresh={desk.desks.request} onPin={desk.desks.pin} recentFolders={recentFolders} onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))} />
       <Inbox
         hidden={tab !== "inbox"}
         items={catchUp.items}
@@ -267,9 +266,8 @@ function Screen({ tab, me, desk, catchUp, deck, recall, recallNote, banner, rece
         onUnsnooze={catchUp.unsnooze}
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
-      {tab === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} />}
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
-      {tab === "settings" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
+      {tab === "you" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
     </>
   );
 }

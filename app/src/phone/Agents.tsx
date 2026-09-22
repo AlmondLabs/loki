@@ -6,7 +6,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { liveDeskCount, liveDesksLabel } from "./model";
 import { navigate } from "./router";
 import { Meta, Row } from "../components";
-import { Scroll, TopBar } from "./ui";
+import { GUTTER, Scroll, TopBar } from "./ui";
 
 /** What the phone reads about agents: the mod's `agent_get`, `memory_read`, `memory_log`, `memory_diff`. */
 export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
@@ -54,13 +54,13 @@ export function Agents({ agents, loaded, desks, api, sub, banner }: { agents: Ar
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <TopBar title="Agents" sub={sub} />
       {banner}
-      <Scroll style={{ padding: 0 }}>
+      <Scroll style={{ padding: `4px ${GUTTER.right} 24px ${GUTTER.left}` }}>
         <ul aria-label="agents" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {agents.map((a) => (
             <AgentRow key={a.id} agent={a} api={api} live={liveDeskCount(desks, a.id)} />
           ))}
         </ul>
-        {agents.length === 0 && <div style={{ padding: "32px 16px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>{loaded ? "No agents yet. Make one in loki on the Mac." : "asking the Mac…"}</div>}
+        {agents.length === 0 && <div style={{ padding: "32px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>{loaded ? "No agents yet. Make one in loki on the Mac." : "asking the Mac…"}</div>}
       </Scroll>
     </div>
   );

@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
+import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { ago } from "../board/model";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
+import { BADGE } from "../desk/CatchUp";
 import { Mark, agentChips, archivedDesks, liveDesks } from "../shell/DeskTree";
 import { navigate } from "./router";
 import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../components";
-import { GUTTER, SAFE, Scroll, TopBar } from "./ui";
+import { GUTTER, Heading, SAFE, Scroll, TopBar } from "./ui";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 function openDesk(d: DeskSummary) {
   if (d.agentId && d.conversationId) navigate({ kind: "conversation", agentId: d.agentId, conversationId: d.conversationId, prefill: null });
+}
+
+function openAttention(item: AttentionItem) {
+  navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
 }
 
 /** A list drawn as rows: no bullets, no indent (Tailwind's preflight resets these too; stated here so the phone does not depend on it). */
@@ -28,8 +34,13 @@ export function Home({
   desks,
   agents,
   items,
+  waiting,
+  due,
+  hidden = false,
   sub,
   banner,
+  onOpenInbox,
+  onOpenLearn,
   onRefresh,
   onPin,
   recentFolders,
@@ -38,8 +49,14 @@ export function Home({
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
+  waiting: number;
+  due: number;
+  /** Keep Home mounted under child pages so search, filters, and scroll state survive the round trip. */
+  hidden?: boolean;
   sub?: ReactNode;
   banner?: ReactNode;
+  onOpenInbox: () => void;
+  onOpenLearn: () => void;
   /** Ask the mod for the list again (on mount, and when the socket reopens). */
   onRefresh: () => void;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
@@ -66,9 +83,9 @@ export function Home({
   // The shared sheet has no conversation to open on a phone, so it stays out of the archive fold here.
   const archive = useMemo(() => archivedDesks(desks, agentFilter, q).filter((d) => d.agentId && d.conversationId), [desks, agentFilter, q]);
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
+    <div style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
       <TopBar
-        title="Desks"
+        title="Home"
         sub={sub}
         height={sub ? 48 : 44}
         right={
@@ -78,6 +95,11 @@ export function Home({
         }
       />
       {banner}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, padding: `8px ${GUTTER.right} 0 ${GUTTER.left}` }}>
+        <Shortcut label="Inbox" count={waiting} onClick={onOpenInbox} />
+        <Shortcut label="Learn" count={due} onClick={onOpenLearn} />
+      </div>
 
       {/* The filter and the agent chips, kept short: the list below is what the screen is for. */}
       <div style={{ flex: "0 0 auto", padding: `8px ${GUTTER.right} 0 ${GUTTER.left}`, display: "grid", gap: 6 }}>
@@ -111,6 +133,9 @@ export function Home({
       </div>
 
       <Scroll style={{ padding: `0 ${GUTTER.right} 12px ${GUTTER.left}` }}>
+        {waiting > 0 && <AttentionList items={catchUpQueue(items)} onOpen={openAttention} />}
+
+        <Heading aside={live.length}>{query || agentFilter ? "matching desks" : "desks"}</Heading>
         <ul aria-label="desks" style={PLAIN_LIST}>
           {live.map((d) => (
             <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => openDesk(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
@@ -140,6 +165,44 @@ export function Home({
 
       {sheet && <NewSheet agents={chips} defaultAgentId={agentFilter} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(false)} />}
     </div>
+  );
+}
+
+function Shortcut({ label, count, onClick }: { label: string; count: number; onClick: () => void }) {
+  return (
+    <Row touch onClick={onClick} aria-label={`${label}${count > 0 ? `, ${count} ${label === "Learn" ? "due" : "waiting"}` : ""}`} style={{ minWidth: 0, minHeight: 52, padding: "7px 10px", border: "1px solid var(--loki-border)", borderRadius: 8, justifyContent: "space-between", background: "var(--loki-panel)" }}>
+      <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      {count > 0 && <span style={{ flex: "0 0 auto", minWidth: 24, color: "var(--loki-accent)", fontFamily: "var(--loki-mono)", fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{count > 99 ? "99+" : count}</span>}
+    </Row>
+  );
+}
+
+function AttentionList({ items, onOpen }: { items: AttentionItem[]; onOpen: (item: AttentionItem) => void }) {
+  if (items.length === 0) return null;
+  return (
+    <section aria-label="waiting on you" style={{ marginBottom: 14 }}>
+      <div className="loki-label" style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 9.5, padding: "8px 4px 6px" }}>
+        waiting on you
+        <Meta>· {items.length}</Meta>
+      </div>
+      <ul aria-label="attention" style={PLAIN_LIST}>
+        {items.map((item) => {
+          const badge = BADGE[item.status];
+          return (
+            <li key={`${item.agentId}/${item.id}`} style={{ borderBottom: "1px solid var(--loki-border)" }}>
+              <Row touch onClick={() => onOpen(item)} aria-label={`${item.title ?? item.id}, ${badge.label}`} style={{ minWidth: 0, padding: "7px 4px" }}>
+                <Mark item={item} status="live" size={8} />
+                <AgentFace name={item.agentName} src={avatarUrl(item.agentId)} size={20} />
+                <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 1 }}>
+                  <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title ?? item.id}</span>
+                  <Meta>{item.agentName ?? "agent"} · {badge.label}</Meta>
+                </span>
+              </Row>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
