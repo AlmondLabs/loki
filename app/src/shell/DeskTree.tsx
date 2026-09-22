@@ -239,7 +239,8 @@ function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, he
     if (row.kind === "new") onNew?.(row.agentId, row.name);
     else if (onPickDesk) onPickDesk(row.desk);
     else if (chat && onSwitchChat) onSwitchChat(row.desk.scope);
-    else if (row.desk.scope !== current) onSwitch(row.desk.scope);
+    // The current desk too: chosen from the inbox or another view, it is the way back to the desk.
+    else onSwitch(row.desk.scope);
   };
   const cycleAgent = (dir: 1 | -1) => {
     const order: Array<string | null> = [null, ...chips.map((c) => c.id)];
