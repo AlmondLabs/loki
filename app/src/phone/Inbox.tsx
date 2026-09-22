@@ -366,7 +366,7 @@ export function Inbox({
 /** Nothing on the deck: why (no harness, still reading, caught up), the pass so far, and the deferred cards behind a toggle. */
 function EmptyDeck({ available, loaded, running, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze }: { available: boolean; loaded: boolean; running: number; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void }) {
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) calc(24px + ${SAFE.bottom}) calc(12px + ${SAFE.left})`, display: "grid", gap: 10, alignContent: "start" }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: `12px calc(12px + ${SAFE.right}) calc(24px + ${SAFE.bottom}) calc(12px + ${SAFE.left})`, display: "grid", gap: 10, alignContent: "start" }}>
       <Empty card title={!available ? "No harness on the Mac." : loaded ? "You're caught up." : "Reading the inbox…"} style={{ marginTop: 24 }}>
         {passTotal(pass) > 0 && <div style={{ fontSize: 10.5, color: "var(--loki-fg)", marginTop: 10, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{summaryLine(pass)}</div>}
         <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>{!available ? "loki's mod has not found Letta's app-server; open loki on the Mac" : !loaded ? "the Mac is listing conversations" : running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>

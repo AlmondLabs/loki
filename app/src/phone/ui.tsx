@@ -40,13 +40,17 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
 }
 
 /**
- * The desktop's transcript caps a bubble at 78% of the column — a reading measure for a wide sheet.
- * On a phone the column is the measure: bubbles span the card, 13.5 on 1.45. The bubble's width is an
- * inline style in chat/Transcript.tsx, so this is the one place the phone reaches past it. Rendered once.
+ * The phone's page-level rules, rendered once. The document itself never scrolls: iOS lets the body
+ * rubber-band behind a fixed shell when a drag starts outside a list or a list reaches its end, and the whole
+ * shell — tab bar included — drags with it; the keyboard can leave it scrolled, too, so the bar no longer sits
+ * at the bottom. Pinning html and body stops that; the lists inside contain their own overscroll (Scroll below).
+ * Also the reading measure: the desktop's transcript caps a bubble at 78% of the column; on a phone the column
+ * is the measure, so bubbles span the card, 13.5 on 1.45 (the cap is an inline style in chat/Transcript.tsx).
  */
 export function PhoneStyles() {
   return (
     <style>{`
+html, body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
 .loki-phone-thread [data-row="user"] > div, .loki-phone-thread [data-row="assistant"] > div { max-width: 100% !important; font-size: 13.5px; line-height: 1.45; }
 .loki-phone-thread [data-row="user"], .loki-phone-thread [data-row="assistant"] { margin: 6px 0 !important; }
 .loki-phone-md p, .loki-phone-md ul, .loki-phone-md ol, .loki-phone-md pre, .loki-phone-md blockquote { margin: 0 0 12px; }
@@ -64,7 +68,7 @@ export const GUTTER = { left: `calc(12px + ${SAFE.left})`, right: `calc(12px + $
 /** A scrolling surface under a TopBar and over the tab bar; the bar carries the bottom inset. */
 export function Scroll({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: `12px ${GUTTER.right} 24px ${GUTTER.left}`, ...style }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch", padding: `12px ${GUTTER.right} 24px ${GUTTER.left}`, ...style }}>
       {children}
     </div>
   );
