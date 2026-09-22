@@ -28,13 +28,20 @@ const css = files.filter((f) => f.path.endsWith(".css"));
 const tokens = readFileSync(TOKENS, "utf8");
 
 type Rgb = [number, number, number];
-const themeBlock = (theme: "dark" | "light") => {
-  const pattern = theme === "dark" ? /:root\s*\{([\s\S]*?)\n\}/ : /:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/;
-  return tokens.match(pattern)?.[1] ?? "";
+type Theme = "dark" | "light";
+/** The colour families in tokens.css; loki's own is the bare :root, the others sit under data-palette. */
+const PALETTES = ["loki", "tokyo-night"] as const;
+type Palette = (typeof PALETTES)[number];
+const THEMES: Theme[] = ["dark", "light"];
+const selectorFor = (palette: Palette, theme: Theme) => `:root${palette === "loki" ? "" : `[data-palette="${palette}"]`}${theme === "light" ? '[data-theme="light"]' : ""}`;
+const themeBlock = (palette: Palette, theme: Theme) => {
+  const start = tokens.indexOf(`${selectorFor(palette, theme)} {`);
+  if (start < 0) throw new Error(`no block for ${selectorFor(palette, theme)}`);
+  return tokens.slice(start, tokens.indexOf("\n}", start));
 };
-const themeColor = (theme: "dark" | "light", name: string): Rgb => {
-  const raw = themeBlock(theme).match(new RegExp(`--loki-${name}:\\s*([^;]+)`))?.[1].trim();
-  if (!raw) throw new Error(`missing --loki-${name} in ${theme}`);
+const themeColor = (palette: Palette, theme: Theme, name: string): Rgb => {
+  const raw = themeBlock(palette, theme).match(new RegExp(`--loki-${name}:\\s*([^;]+)`))?.[1].trim();
+  if (!raw) throw new Error(`missing --loki-${name} in ${palette} ${theme}`);
   if (raw.startsWith("#")) return [1, 3, 5].map((i) => Number.parseInt(raw.slice(i, i + 2), 16) / 255) as Rgb;
   const hit = raw.match(/^oklch\(([\d.]+)%\s+([\d.]+)\s+([\d.]+)/);
   if (!hit) throw new Error(`cannot read ${raw}`);
@@ -130,17 +137,23 @@ describe("design tokens: definitions and uses agree", () => {
     const ruled = new Set(files.flatMap((f) => [...f.text.matchAll(/\.(loki-[a-z0-9-]+)/g)].map((m) => m[1])));
     expect([...named].filter((c) => !ruled.has(c))).toEqual([]);
   });
-  test("the page's own colour is --loki-bg in index.html, the manifest and the native window, in both themes", () => {
-    const bg = tokens.match(/--loki-bg:\s*(#[0-9a-fA-F]{6})/)![1];
-    const light = tokens.slice(tokens.indexOf('[data-theme="light"]')).match(/--loki-bg:\s*(#[0-9a-fA-F]{6})/)![1];
+  test("the page's own colour is --loki-bg in index.html, the manifest and the native window, for every family and both sides", () => {
+    const ground = (palette: Palette, theme: Theme) => themeBlock(palette, theme).match(/--loki-bg:\s*(#[0-9a-fA-F]{6})/)![1];
+    const bg = ground("loki", "dark");
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     const manifest = readFileSync(join(APP, "..", "public", "manifest.webmanifest"), "utf8");
     const rust = readFileSync(join(APP, "..", "..", "src-tauri", "src", "lib.rs"), "utf8");
     expect(html.match(/name="theme-color" content="(#[0-9a-fA-F]{6})"/)?.[1]).toBe(bg);
-    // the prepaint script picks the theme-color per theme, before any stylesheet
-    expect(html.match(/theme === "dark" \? "(#[0-9a-fA-F]{6})" : "(#[0-9a-fA-F]{6})"/)?.slice(1)).toEqual([bg, light]);
-    expect(html.match(/html \{ background: (#[0-9a-fA-F]{6})/)?.[1]).toBe(bg); // the fallback's ground
-    expect(html.match(/html\[data-theme="light"\] \{ background: (#[0-9a-fA-F]{6})/)?.[1]).toBe(light);
+    for (const palette of PALETTES) {
+      // the prepaint script picks the theme-color per family and theme, before any stylesheet
+      const grounds = html.match(new RegExp(`"${palette}": \\{ dark: "(#[0-9a-fA-F]{6})", light: "(#[0-9a-fA-F]{6})" \\}`));
+      expect(grounds?.slice(1)).toEqual([ground(palette, "dark"), ground(palette, "light")]);
+      // the fallback stylesheet's ground, for a page whose CSS never arrived
+      for (const theme of THEMES) {
+        const selector = `html${palette === "loki" ? "" : `\\[data-palette="${palette}"\\]`}${theme === "light" ? '\\[data-theme="light"\\]' : ""}`;
+        expect(html.match(new RegExp(`${selector} \\{ background: (#[0-9a-fA-F]{6})`))?.[1]).toBe(ground(palette, theme));
+      }
+    }
     expect([...manifest.matchAll(/"(?:background_color|theme_color)":\s*"(#[0-9a-fA-F]{6})"/g)].map((m) => m[1])).toEqual([bg, bg]);
     // the window is created in the dark ground; the page applies the saved preference after it loads
     const native = rust.match(/background_color\(tauri::window::Color\(0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0x([0-9a-f]{2}), 0xff\)\)/i);
@@ -148,22 +161,32 @@ describe("design tokens: definitions and uses agree", () => {
   });
 });
 
-describe("design tokens: both themes remain readable", () => {
-  for (const theme of ["dark", "light"] as const) {
-    test(`${theme}: text and semantic colors meet AA on working surfaces`, () => {
-      const surfaces = ["bg", "panel", "panel-header", "well"];
-      const inks = ["fg", "muted", "accent", "positive", "negative"];
-      const failures = inks.flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(themeColor(theme, ink), themeColor(theme, surface)) }))).filter(({ ratio }) => ratio < 4.5);
-      expect(failures).toEqual([]);
-    });
+describe("design tokens: every family remains readable on both sides", () => {
+  const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !["radius", "font", "display", "label", "mono"].includes(t));
+  for (const palette of PALETTES) {
+    for (const theme of THEMES) {
+      const color = (name: string) => themeColor(palette, theme, name);
 
-    test(`${theme}: controls and special surfaces keep their intended contrast`, () => {
-      expect(contrast(themeColor(theme, "control-border"), themeColor(theme, "panel"))).toBeGreaterThanOrEqual(3);
-      expect(contrast(themeColor(theme, "control-border"), themeColor(theme, "well"))).toBeGreaterThanOrEqual(3);
-      for (const surface of ["bubble", "user-bubble", "hover", "selection"]) {
-        expect(contrast(themeColor(theme, "fg"), themeColor(theme, surface))).toBeGreaterThanOrEqual(4.5);
-      }
-      expect(contrast(themeColor(theme, "accent"), themeColor(theme, "brass-soft"))).toBeGreaterThanOrEqual(4.5);
-    });
+      test(`${palette} ${theme}: defines every colour token the default does`, () => {
+        const defined = new Set([...themeBlock(palette, theme).matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]));
+        expect(colourTokens.filter((t) => !defined.has(t))).toEqual([]);
+      });
+
+      test(`${palette} ${theme}: text and semantic colors meet AA on working surfaces`, () => {
+        const surfaces = ["bg", "panel", "panel-header", "well"];
+        const inks = ["fg", "muted", "accent", "positive", "negative"];
+        const failures = inks.flatMap((ink) => surfaces.map((surface) => ({ pair: `${ink}/${surface}`, ratio: contrast(color(ink), color(surface)) }))).filter(({ ratio }) => ratio < 4.5);
+        expect(failures).toEqual([]);
+      });
+
+      test(`${palette} ${theme}: controls and special surfaces keep their intended contrast`, () => {
+        expect(contrast(color("control-border"), color("panel"))).toBeGreaterThanOrEqual(3);
+        expect(contrast(color("control-border"), color("well"))).toBeGreaterThanOrEqual(3);
+        for (const surface of ["bubble", "user-bubble", "hover", "selection"]) {
+          expect(contrast(color("fg"), color(surface))).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(contrast(color("accent"), color("brass-soft"))).toBeGreaterThanOrEqual(4.5);
+      });
+    }
   }
 });

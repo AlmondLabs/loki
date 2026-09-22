@@ -1,22 +1,11 @@
-import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { ChatInput } from "../chat/ChatInput";
-import { SlashPalette } from "../chat/SlashPalette";
-import { useSlashPalette } from "../chat/useSlashPalette";
-import type { SlashCommand } from "../../../core/attention/commands.ts";
-import { AgentChip, AgentFace } from "./AgentChip";
-import { avatarUrl } from "./env";
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
-import { Button, Chip, Empty, Meta, Title } from "../components";
-import { EffortChip, EffortMenu, ModelChip, ModelPicker, effortEntriesFor, type ModelEntry } from "../chat/ModelPicker";
-import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "../chat/PermissionMode";
-import type { AttentionStatus } from "../../../core/attention/model.ts";
-import { selectionOf, type ModelSelection, type ReasoningEffort } from "../../../core/models.ts";
+import { Button, Chip, Empty, Meta } from "../components";
+import { ConversationHeader } from "../chat/Conversation";
 
-/** The pieces of a Catch Up card. State lives in CatchUpDeck; these only draw it and call back. */
+/** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
 
 /** Status → label and colour for an attention item; the phone inbox (app/src/phone/Inbox.tsx) uses the same table. */
 export const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
@@ -91,31 +80,6 @@ export function passSummary(decided: Decision[], replies: number): string {
   ].join(" · ");
 }
 
-/** The open/busy flags of the two chips in the card's last row. They belong to the deck, not the card, so a switch in flight survives a move. */
-export function useChipState() {
-  const [modelPicker, setModelPicker] = useState(false);
-  const [switching, setSwitching] = useState(false);
-  const [effortMenu, setEffortMenu] = useState(false);
-  const [changingEffort, setChangingEffort] = useState(false);
-  const [modeMenu, setModeMenu] = useState(false);
-  const [changingMode, setChangingMode] = useState(false);
-  return { modelPicker, setModelPicker, switching, setSwitching, effortMenu, setEffortMenu, changingEffort, setChangingEffort, modeMenu, setModeMenu, changingMode, setChangingMode };
-}
-export type ChipState = ReturnType<typeof useChipState>;
-
-/** The conversation's switchers on a card: its mode and model, whether each can be changed, and the chips' state. */
-export interface ChipControls {
-  threadMode: string | null | undefined;
-  chips: ChipState;
-  modelFor?: (agentId: string, conversationId: string) => string | null;
-  reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null;
-  models: ModelEntry[] | null;
-  onLoadModels?: () => void;
-  onPickModel?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
-  modeFor?: (agentId: string, conversationId: string) => string | null;
-  onPickMode?: (item: AttentionItem, mode: PermissionMode) => Promise<void>;
-}
-
 export interface CardHeaderProps {
   current: AttentionItem;
   cameBack: boolean;
@@ -130,171 +94,28 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)" }}>
-      <div style={{ minWidth: 0 }}>
-        <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{current.title ?? current.id}</Title>
-        <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10 }}>
-          <AgentFace name={current.agentName} src={avatarUrl(current.agentId)} size={18} />
-          <AgentChip name={current.agentName} />
-          <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
-          {reason && <Meta brass={reason === "warm"}>{reason}</Meta>}
-          {cameBack && <Meta brass>back · new since you moved on</Meta>}
-          {timesAround > 1 && <Meta brass>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
-          {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}
-        </div>
-      </div>
-      <Chip tone={badge.color}>{flash ?? badge.label}</Chip>
-    </div>
-  );
-}
-
-/** The permission-mode chip and its menu (opening upward) for the card's conversation; the live thread's mode wins over the record's. */
-function ModeChips({ current, threadMode, chips, modeFor, onPickMode }: { current: AttentionItem; threadMode: string | null | undefined; chips: ChipState; modeFor: (agentId: string, conversationId: string) => string | null; onPickMode: (item: AttentionItem, mode: PermissionMode) => Promise<void> }) {
-  const recorded = modeFor(current.agentId, current.id);
-  const mode = isPermissionMode(threadMode) ? threadMode : isPermissionMode(recorded) ? (recorded as PermissionMode) : null;
-  return (
-    <>
-      <ModeChip
-        mode={mode}
-        busy={chips.changingMode}
-        onClick={() => {
-          chips.setModelPicker(false);
-          chips.setEffortMenu(false);
-          chips.setModeMenu((v) => !v);
-        }}
-      />
-      <ModeMenu
-        open={chips.modeMenu}
-        side="above"
-        current={mode}
-        onClose={() => chips.setModeMenu(false)}
-        onPick={(m) => {
-          chips.setModeMenu(false);
-          chips.setChangingMode(true);
-          void onPickMode(current, m).finally(() => chips.setChangingMode(false));
-        }}
-      />
-    </>
-  );
-}
-
-/** The model chip and its picker (opening upward) for the card's conversation. */
-function ModelChips({ current, chips, modelFor, reasoningEffortFor, models, onLoadModels, onPickModel }: { current: AttentionItem; chips: ChipState; modelFor: (agentId: string, conversationId: string) => string | null; reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null; models: ModelEntry[] | null; onLoadModels?: () => void; onPickModel: (item: AttentionItem, selection: ModelSelection) => Promise<void> }) {
-  const model = modelFor(current.agentId, current.id);
-  const effort = reasoningEffortFor?.(current.agentId, current.id) ?? null;
-  const effortEntries = effortEntriesFor(models ?? [], model);
-  useEffect(() => onLoadModels?.(), [onLoadModels]);
-  return (
-    <>
-      <ModelChip
-        model={model}
-        busy={chips.switching}
-        onClick={() => {
-          onLoadModels?.();
-          chips.setEffortMenu(false);
-          chips.setModeMenu(false);
-          chips.setModelPicker((v) => !v);
-        }}
-      />
-      <ModelPicker
-        open={chips.modelPicker}
-        side="above"
-        current={model}
-        currentEffort={effort}
-        entries={models}
-        loading={!models}
-        onClose={() => chips.setModelPicker(false)}
-        onPick={(selection) => {
-          chips.setModelPicker(false);
-          chips.setSwitching(true);
-          void onPickModel(current, selection).finally(() => chips.setSwitching(false));
-        }}
-      />
-      {effortEntries.length > 1 && (
-        <>
-          <EffortChip
-            effort={effort}
-            busy={chips.changingEffort}
-            onClick={() => {
-              chips.setModelPicker(false);
-              chips.setModeMenu(false);
-              chips.setEffortMenu((v) => !v);
-            }}
-          />
-          <EffortMenu
-            open={chips.effortMenu}
-            side="above"
-            entries={effortEntries}
-            current={effort}
-            onClose={() => chips.setEffortMenu(false)}
-            onPick={(entry) => {
-              chips.setEffortMenu(false);
-              chips.setChangingEffort(true);
-              void onPickModel(current, selectionOf(entry)).finally(() => chips.setChangingEffort(false));
-            }}
-          />
-        </>
-      )}
-    </>
+    <ConversationHeader title={current.title ?? current.id} agentName={current.agentName} agentId={current.agentId} right={<Chip tone={badge.color}>{flash ?? badge.label}</Chip>}>
+      <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
+      {reason && <Meta brass={reason === "warm"}>{reason}</Meta>}
+      {cameBack && <Meta brass>back · new since you moved on</Meta>}
+      {timesAround > 1 && <Meta brass>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
+      {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}
+    </ConversationHeader>
   );
 }
 
 /**
- * The reply box and its send button. Esc keeps a draft and hands the keys back, or closes an untouched deck.
- * A draft that starts with "/" opens the same command palette the desk chat has (useSlashPalette).
+ * The deck's moves, at the end of the card's last row (the Conversation puts the switchers and approve /
+ * deny before them). The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type.
  */
-export function ReplyBox({ current, replyRef, draft, setDraft, images, setImages, sendReply, setTyping, onClose, commands = [], onCommand }: { current: AttentionItem; replyRef: RefObject<HTMLTextAreaElement | null>; draft: string; setDraft: (v: string) => void; images: ImageAttachment[]; setImages: Dispatch<SetStateAction<ImageAttachment[]>>; sendReply: () => void; setTyping: (v: boolean) => void; onClose: () => void; commands?: SlashCommand[]; onCommand?: (id: string, args: string) => void }) {
-  const palette = useSlashPalette({ draft, onDraft: setDraft, commands, onCommand, inputRef: replyRef });
+export function CardActions({ current, typing, advance, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
   return (
-    <div style={{ position: "relative", display: "flex", gap: 8, padding: "12px 12px 8px", borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
-      {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
-      <ChatInput
-        ref={replyRef}
-        value={draft}
-        onChange={setDraft}
-        onSubmit={sendReply}
-        onKeyDown={palette.onKeyDown}
-        images={images}
-        onImages={setImages}
-        onEscape={() => (draft.trim() ? replyRef.current?.blur() : onClose())} // esc: keep a draft and hand keys back, or close an untouched deck
-        onFocus={() => setTyping(true)}
-        onBlur={() => setTyping(false)}
-        placeholder={replyPlaceholder(current)}
-        {...palette.aria}
-      />
-      <Button size="md" tone="brass" onClick={sendReply} disabled={!draft.trim() && !images.length}>send</Button>
-    </div>
-  );
-}
-
-function replyPlaceholder(current: AttentionItem): string {
-  if (current.pendingApproval) return "reply, or approve / deny below…";
-  if (current.pendingQuestion) return current.pendingQuestion.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…";
-  return "reply… (enter to send · ⇧↵ new line)";
-}
-
-/**
- * The card's last row: the conversation's model and mode chips on the left (their popovers open upward,
- * as in the desk chat), then the actions. The kbd hints switch grammar: letters when nothing has focus,
- * ⌘ chords while you type.
- */
-export function CardFooter({ current, typing, approve, advance, onOpenDesk, onClose, controls }: { current: AttentionItem; typing: boolean; approve: (behavior: "allow" | "deny") => void; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void; controls: ChipControls }) {
-  const { threadMode, chips, modelFor, reasoningEffortFor, models, onLoadModels, onPickModel, modeFor, onPickMode } = controls;
-  return (
-    <div style={{ position: "relative", display: "flex", gap: 8, padding: "0 12px 12px", alignItems: "center", flexWrap: "wrap" }}>
-      {onPickModel && modelFor && <ModelChips current={current} chips={chips} modelFor={modelFor} reasoningEffortFor={reasoningEffortFor} models={models} onLoadModels={onLoadModels} onPickModel={onPickModel} />}
-      {onPickMode && modeFor && <ModeChips current={current} threadMode={threadMode} chips={chips} modeFor={modeFor} onPickMode={onPickMode} />}
-      {current.pendingApproval && (
-        <>
-          <Button size="sm" tone="positive" onClick={() => approve("allow")} kbd={typing ? "⌘↵" : "A"}>approve</Button>
-          <Button size="sm" tone="negative" onClick={() => approve("deny")} kbd={typing ? "⌘⇧D" : "D"}>deny</Button>
-        </>
-      )}
+    <>
       <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={typing ? "⌘O" : "O"}>open desk</Button>
       <span style={{ flex: 1 }} />
       <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={typing ? "⌘[" : "←"}>← later</Button>
       <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={typing ? "⌘]" : "→"}>next →</Button>
-    </div>
+    </>
   );
 }
 

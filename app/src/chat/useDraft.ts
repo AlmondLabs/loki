@@ -14,6 +14,7 @@ export function useDraft({
   onSend,
   commands = [],
   onCommand,
+  onSent,
 }: {
   question: PendingQuestion | null;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
@@ -21,6 +22,8 @@ export function useDraft({
   /** Slash commands the box knows; a typed one runs instead of being sent. */
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
+  /** A message or an answer went out (a command did not). */
+  onSent?: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
@@ -38,9 +41,11 @@ export function useDraft({
     // A typed reply while one question is open is the answer to it.
     if (question && onAnswer && question.questions.length === 1 && text && !images.length) {
       onAnswer({ [question.questions[0].question]: text });
+      onSent?.();
       return;
     }
     onSend(text, images);
+    onSent?.();
   };
   return { draft, setDraft, images, setImages, submit };
 }
