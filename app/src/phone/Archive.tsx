@@ -11,7 +11,7 @@ import { BackButton, Scroll, TopBar } from "./ui";
  * press (or a row's actions button) restores one to Desks while the app-server is reachable — offline,
  * the action stays visible and says why it cannot run. Back returns to wherever the page was opened from.
  */
-export function Archive({ desks, banner, backLabel, onBack, onArchive }: { desks: DeskSummary[]; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the app-server cannot take it. */ onArchive: ArchiveDesk | null }) {
+export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive }: { desks: DeskSummary[]; /** The mod has answered with the desk list. */ loaded: boolean; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the app-server cannot take it. */ onArchive: ArchiveDesk | null }) {
   const [query, setQuery] = useState("");
   const [acting, setActing] = useState<DeskSummary | null>(null);
   const all = useMemo(() => archiveList(desks, null, ""), [desks]);
@@ -31,7 +31,7 @@ export function Archive({ desks, banner, backLabel, onBack, onArchive }: { desks
             <DeskRow key={d.scope} desk={d} mark={undefined} onActions={() => setActing(d)} />
           ))}
         </ul>
-        {desks.length === 0 ? (
+        {!loaded && desks.length === 0 ? (
           <p className="loki-phone-empty">Reading the desks…</p>
         ) : all.length === 0 ? (
           <div className="loki-phone-empty">

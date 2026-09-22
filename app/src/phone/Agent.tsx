@@ -214,6 +214,9 @@ function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
   );
 }
 
+/** The file's own headings sit under the page's one h1 (the file name): a "# Persona" becomes an h2. */
+const SHIFTED_HEADINGS = { h1: "h2", h2: "h3", h3: "h4", h4: "h5", h5: "h6" } as const;
+
 /**
  * One memory file. Markdown renders the way the desktop viewer draws it; anything else is shown as code.
  * The only action is to hand the change to the agent: the button opens its main chat with the request started.
@@ -244,7 +247,7 @@ export function FilePage({ agentId, path, name, api, banner, onBack }: { agentId
           {content === null && <p className="loki-phone-meta">Nothing to show here (binary, too large, or gone).</p>}
           {typeof content === "string" && markdown && (
             <div className="loki-phone-md loki-phone-body">
-              <Markdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]} components={SHIFTED_HEADINGS}>{stripFrontmatter(content)}</Markdown>
             </div>
           )}
           {typeof content === "string" && !markdown && <pre className="loki-phone-file-code">{content}</pre>}

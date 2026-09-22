@@ -39,6 +39,8 @@ export function useDeskSocket() {
   const [connection, setConnection] = useState<Connection>("connecting");
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
   const [deskList, setDeskList] = useState<DeskSummary[]>([]);
+  /** A desks frame has arrived: an empty list is then "no desks", not "not asked yet" (the phone's Home says which). */
+  const [desksLoaded, setDesksLoaded] = useState(false);
   const [titles, setTitles] = useState<Record<Scope, string>>({});
   const [statuses, setStatuses] = useState<Record<Scope, DeskStatus>>({});
   const [agentNames, setAgentNames] = useState<Record<Scope, string>>({});
@@ -144,6 +146,7 @@ export function useDeskSocket() {
           }
           case "desks":
             setDeskList(msg.desks as DeskSummary[]);
+            setDesksLoaded(true);
             break;
           case "config":
             setAppServer(msg.appServer === true);
@@ -267,6 +270,7 @@ export function useDeskSocket() {
     connection,
     cameraTarget,
     deskList,
+    desksLoaded,
     setDeskList,
     titles,
     statuses,

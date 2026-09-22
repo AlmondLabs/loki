@@ -57,14 +57,6 @@ const PATHS = {
       <path d="M21 3 10 13" />
     </>
   ),
-  attach: <path d="m20 11.5-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4L15 7" />,
-  image: (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <circle cx="8.5" cy="9.5" r="1.5" />
-      <path d="m21 16-5-5-9 9" />
-    </>
-  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -98,7 +90,6 @@ const PATHS = {
       <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />
     </>
   ),
-  external: <path d="M7 17 17 7M9 7h8v8" />,
   info: (
     <>
       <circle cx="12" cy="12" r="9" />
@@ -175,7 +166,6 @@ const PATHS = {
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;
-export const ICON_NAMES = Object.keys(PATHS) as IconName[];
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name" | "children"> {
   name: IconName;

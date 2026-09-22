@@ -29,7 +29,8 @@ export function readSession(): { token: string; desk: string | null } {
       changed = true;
     }
   }
-  if (changed) history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
+  // Keep the hash and the entry's state: the phone's routes and their Back stamps live there (phone/router.ts).
+  if (changed) history.replaceState(history.state, "", `${location.pathname}?${params.toString()}${location.hash}`);
   return { token, desk };
 }
 

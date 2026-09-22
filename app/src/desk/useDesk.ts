@@ -73,6 +73,7 @@ export function useDesk() {
     connection,
     cameraTarget,
     deskList,
+    desksLoaded,
     setDeskList,
     titles,
     statuses,
@@ -380,6 +381,8 @@ export function useDesk() {
     loaded,
     desks: {
       list: deskList,
+      /** False until the mod first answered with the list. */
+      loaded: desksLoaded,
       request: requestDesks,
       switchTo: switchDesk,
       /** Pin or unpin; the mod rewrites Letta's file and broadcasts the list back. */

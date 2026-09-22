@@ -67,14 +67,19 @@ export function Phone() {
     void check();
   }, [check]);
 
-  if (gate.kind === "checking") return <Splash>opening…</Splash>;
+  if (gate.kind === "checking")
+    return (
+      <Splash>
+        <p className="loki-phone-body">Opening…</p>
+      </Splash>
+    );
   if (gate.kind === "unreachable")
     return (
       <Splash>
-        <h1 className="loki-phone-large-title">The Mac did not answer.</h1>
-        <div className="loki-phone-body" style={{ color: "var(--loki-muted)", marginTop: 8 }}>Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</div>
-        <Button size="touch" tone="paper" onClick={() => void check()} style={{ marginTop: 18 }}>
-          try again
+        <h1 className="loki-phone-large-title">The Mac did not answer</h1>
+        <p className="loki-phone-body loki-phone-splash-line">Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</p>
+        <Button size="touch" tone="paper" onClick={() => void check()} className="loki-phone-splash-action">
+          Try again
         </Button>
       </Splash>
     );
@@ -243,17 +248,20 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const update = <UpdateBar servedBuild={desk.servedBuild} />;
   return (
     <div ref={shellRef} className="loki-phone loki-phone-shell">
-      {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
-      {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "archive" && <Archive desks={desk.desks.list} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
-      {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "about" && <AboutPage version={catchUp.server?.version ?? null} servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
+      {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
+      <main className="loki-phone-main">
+        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+        {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
+        {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "about" && <AboutPage version={catchUp.server?.version ?? null} servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-      <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
+        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
+      </main>
 
       {nav ? (
         <TabBar active={tab} waiting={waiting}>
@@ -311,6 +319,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         me={me}
         link={link}
         desks={desk.desks.list}
+        desksLoaded={desk.desks.loaded}
         agents={catchUp.agents}
         items={catchUp.items}
         due={due}

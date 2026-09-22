@@ -81,6 +81,41 @@ edge to edge, and is treated as a viewport **inset**: framing centres in the
 uncovered part, and toggling the chat slides the sheet by its width. The inbox
 is a view, not a veil — the sheet stays mounted behind it.
 
+## Phone (Slack mode, 2026-09-23)
+
+The phone is its own presentation, not the drafting table shrunk: Slack's September 2026 mobile app is the
+reference for type, colour, rows, sheets and navigation (plan `docs/plans/2026-09-22-012`). The boundary is
+the `.loki-phone` root. Everything below applies under it and nowhere else; the desk, its palettes and its
+title-block lettering are untouched, and shared chat pieces take phone looks only through optional props
+(`touch`, `layout`, `draft`, `icons`, `attach`) that default to the desk's behaviour.
+
+- **Tokens.** `app/src/phone/phone.css` owns them. `.loki-phone` redeclares every `--loki-*` role with Slack's
+  dark values and `:root[data-theme="light"] .loki-phone` with its light ones, and adds the `--phone-*` scales
+  (text 11 · 13 · 15 · 17 · 20 · 28, radii 8 · 12 · 24 · pill, space 4–24, the 44 touch size, layers, durations).
+  The accent is link blue, the unread badge is red, affirmative is green; the faces are the system sans, mono
+  only for code. `data-palette` never reaches the phone: System, Light and Dark are its only choices.
+  `test/tokens.test.ts` fences the file (literal colours only in custom properties, sizes and radii on the
+  scales, every selector under `.loki-phone`, no serif or mono presentation).
+- **Safe areas.** Each bottom inset has one owner. On a tab the floating dock (TabBar.tsx) sits on the home
+  indicator and publishes `--phone-nav-clearance`; the one scroll owner adds it once at its end
+  (`.loki-phone-scroll::after`) and a fixed bottom stops above it (`.loki-phone-above-nav`). With the navigation
+  hidden — a conversation, the Inbox pass, any page — the composer or the decide buttons pad themselves with
+  `--phone-safe-bottom`. Nothing else adds bottom space, so there is never a band under the capsule.
+- **One scroll owner.** The document never scrolls (`html:has(.loki-phone-shell)` pins it); the shell is
+  `100dvh` over `100svh` over fixed inset. Each screen has exactly one vertical scroller: the page's
+  `Scroll`, or the thread inside a conversation or card. Headers, notices, composers and decide buttons are
+  intrinsic flex rows outside it, with `min-height: 0` on the column so the scroller is the part that gives.
+- **Keyboard.** Where the on-screen keyboard only shrinks the visual viewport (iOS), `viewport.ts` sets
+  `data-keyboard` with `--phone-viewport-top` and `--phone-viewport-height` from `visualViewport`, and the shell
+  fits the visible part with no bottom inset; the notice steps aside and a question or approval scrolls inside
+  itself before the box would leave the screen. Without `visualViewport` the layout still works at the
+  shrunken layout height.
+- **Controls.** One outlined icon set (`icons.tsx`, 24 box, 1.8 stroke); no text glyphs or emoji as controls.
+  Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus is a 2px ring in the
+  link colour; a field's ring goes round its whole pill (Search, the composer). The routes' one `main` holds
+  whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
+  row) always have a visible button that does the same.
+
 ## Rules
 
 - Brass is spent only on things that need the human. No brass decoration.
@@ -112,6 +147,6 @@ sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
 forget / remove / disable and an undo on archive; a breakpoint layer for the desktop (the inbox at 1100 wide
-still clips the rail's width) and the phone's remaining sub-44px targets; `.loki-label` back to title-block
+still clips the rail's width); `.loki-label` back to title-block
 facts only; the jargon and error-string pass; the archive fold inside the tree's listbox is still unreachable
 while the search box owns Tab.

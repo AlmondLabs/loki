@@ -10,7 +10,7 @@ import { activeControl, focusMemory } from "./session";
  *   #/agents/<agentId>                             an agent's page
  *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
  *   #/c/<agentId>/<conversationId>[?prefill=…]     a conversation; `prefill` starts the reply box
- * Legacy addresses still land: #/you is More, #/settings is preferences (useRoute swaps the address).
+ * Legacy addresses still land: #/you is More, #/settings is preferences (useRouteState swaps the address).
  *
  * Every route has an owning tab (ownerOf) and a direct-link parent (parentOf). A page opened from inside
  * the app also carries where it was opened from, in its history entry: navigate() stamps the entry with
@@ -251,7 +251,3 @@ export function useRouteState(): RouteState {
   return state;
 }
 
-/** Just the route. */
-export function useRoute(): Route {
-  return useRouteState().route;
-}

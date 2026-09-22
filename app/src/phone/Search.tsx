@@ -65,7 +65,7 @@ export function Search({ q, fresh, sources, link, loaded, onBack, backLabel }: {
   return (
     <div className="loki-phone-page">
       <header className="loki-phone-search-bar">
-        <button type="button" className="loki-phone-icon-btn" aria-label={`back to ${backLabel}`} onClick={onBack}>
+        <button type="button" className="loki-phone-icon-btn" aria-label={`Back to ${backLabel}`} onClick={onBack}>
           <Icon name="back" size={22} />
         </button>
         <h1 className="loki-phone-sr-only" data-phone-heading tabIndex={-1}>

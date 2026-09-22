@@ -174,6 +174,8 @@ html:has(.loki-phone-shell) body {
 @supports (height: 100dvh) {
   .loki-phone-shell { height: 100dvh; }
 }
+/* The main landmark holds whatever route is on screen and passes the column through; the dock floats over it. */
+.loki-phone-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* Checking, unreachable: one centred message on the ground. */
 .loki-phone-splash {
@@ -184,6 +186,8 @@ html:has(.loki-phone-shell) body {
   text-align: center;
 }
 .loki-phone-splash-inner { max-width: 360px; }
+.loki-phone-splash-line { margin: var(--phone-space-2) 0 0; color: var(--loki-muted); }
+.loki-phone-splash-action { margin-top: var(--phone-space-5); }
 
 /* ---- Type ---------------------------------------------------------------------------------------- */
 .loki-phone-large-title { margin: 0; font-size: var(--phone-text-large); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
@@ -276,6 +280,8 @@ html:has(.loki-phone-shell) body {
   padding: 0 calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-2) + var(--phone-safe-left));
 }
 .loki-phone-topbar-copy { flex: 1; min-width: 0; }
+/* With no back control the title starts on the list's gutter (16), not the control's 8. */
+.loki-phone-topbar-copy:first-child { padding-left: var(--phone-space-2); }
 .loki-phone-topbar-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loki-phone-topbar-sub {
   display: flex;
@@ -306,20 +312,7 @@ html:has(.loki-phone-shell) body {
 .loki-phone-scroll::after { content: ""; display: block; height: var(--phone-nav-clearance, 0px); }
 .loki-phone-above-nav { margin-bottom: var(--phone-nav-clearance, 0px); }
 
-/* A section heading: sentence case, bold sans, a count or a note on the right. */
-.loki-phone-heading {
-  display: flex;
-  align-items: baseline;
-  gap: var(--phone-space-2);
-  padding: var(--phone-space-2) 0 var(--phone-space-2);
-  font-size: var(--phone-text-emph);
-  font-weight: var(--phone-weight-strong);
-  line-height: var(--phone-leading-tight);
-  color: var(--loki-fg);
-}
-.loki-phone-heading-aside { margin-left: auto; font-size: var(--phone-text-meta); font-weight: 400; color: var(--loki-muted); font-variant-numeric: tabular-nums; }
 
-.loki-btn.loki-phone-back { padding-left: var(--phone-space-1); padding-right: var(--phone-space-3); gap: 2px; color: var(--loki-fg); }
 
 /* ---- The floating navigation (TabBar.tsx) ------------------------------------------------------- */
 /* The dock hovers over the bottom of the screen, just above the home indicator: nothing paints a band
@@ -773,6 +766,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-empty { display: grid; justify-items: center; gap: var(--phone-space-3); margin: 0; padding: var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left)); color: var(--loki-muted); text-align: center; font-size: var(--phone-text-body); }
 .loki-phone-empty p { margin: 0; }
 .loki-phone-empty .loki-phone-headline { color: var(--loki-fg); }
+.loki-phone-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--phone-space-2); }
 .loki-phone-error { margin: 0; color: var(--loki-negative); font-size: var(--phone-text-meta); overflow-wrap: anywhere; }
 .loki-phone-wrap { margin: 0; overflow-wrap: anywhere; }
 /* A filter field at the top of a list page. */
@@ -795,7 +789,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-sheet .loki-phone-menu-row:disabled { color: var(--loki-muted); cursor: default; }
 .loki-phone-chips { display: flex; gap: var(--phone-space-2); overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .loki-phone-chips--wrap { flex-wrap: wrap; overflow-x: visible; }
-.loki-phone .loki-phone-chips .loki-chip { flex: none; min-height: var(--phone-touch); }
+.loki-phone .loki-phone-chips .loki-chip { flex: none; min-height: var(--phone-touch); min-width: var(--phone-touch); justify-content: center; }
 .loki-phone-chip-count { color: var(--loki-muted); font-variant-numeric: tabular-nums; }
 
 /* ---- Inbox: the review pass ---------------------------------------------------------------------- */
@@ -808,12 +802,14 @@ span.loki-phone-section-btn { cursor: default; }
   padding: 0 var(--phone-space-4);
   border: none;
   border-radius: var(--phone-radius-pill);
-  background: var(--loki-hover);
+  /* A bare link-coloured word, as in an iOS bar: link blue on the hover grey is 4.3:1 in the dark, under AA. */
+  background: transparent;
   color: var(--phone-link);
   font: inherit;
   font-weight: var(--phone-weight-strong);
   cursor: pointer;
 }
+.loki-phone-undo:active { background: var(--loki-selection); }
 /* The deck: the card fills it, less the few pixels where the stack shows through below. */
 .loki-phone-deck { flex: 1; min-height: 0; position: relative; margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left)); }
 .loki-phone-card {
@@ -1020,6 +1016,9 @@ span.loki-phone-section-btn { cursor: default; }
   background: var(--loki-well);
 }
 .loki-phone .loki-composer-field:focus-within { border-color: var(--loki-muted); }
+/* Typing: the ring goes round the whole pill ("+", text, mic), as on Search's field, not the bare text inside it. */
+.loki-phone .loki-composer-field:has(.loki-composer-text:focus-visible) { outline: 2px solid var(--phone-focus); outline-offset: -1px; }
+.loki-phone .loki-composer-text:focus-visible { outline-color: transparent; }
 .loki-phone .loki-composer-text {
   min-height: 0;
   border: none;
@@ -1058,7 +1057,7 @@ span.loki-phone-section-btn { cursor: default; }
   font-weight: var(--phone-weight-strong);
   text-transform: capitalize;
 }
-.loki-phone .loki-conversation-footer .loki-deny { order: -1; border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-negative); }
+.loki-phone .loki-conversation-footer .loki-deny { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-negative); }
 .loki-phone .loki-conversation-footer .loki-approve { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
 
 /* The open question and the approval: a quiet panel on the ground, sentence case, not the desktop's brass slab. */
@@ -1089,6 +1088,9 @@ span.loki-phone-section-btn { cursor: default; }
 }
 .loki-phone .loki-question-answer:disabled { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-muted); opacity: 1; }
 .loki-phone .loki-question .loki-chip { min-height: var(--phone-touch); font-size: var(--phone-text-body); }
+/* The desk caps the question at 38% of the column; on a phone that cuts the options in half at 320×568. The
+   question is what the card asks for, so it may take most of the height and the thread above gives way. */
+.loki-phone .loki-question { max-height: 70%; }
 .loki-phone .loki-approval-tool { overflow-wrap: anywhere; }
 .loki-phone .loki-approval-input { max-height: 30vh; border-radius: var(--phone-radius-sm); font-size: var(--phone-text-meta); }
 
@@ -1098,6 +1100,12 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-event-summary { font-family: var(--loki-font); letter-spacing: normal; min-height: var(--phone-touch); display: flex; align-items: center; gap: var(--phone-space-1); flex-wrap: wrap; }
 .loki-phone .loki-event-aside { margin-left: 0; font-family: var(--loki-font); }
 .loki-phone .loki-event-detail { margin-left: 0; font-size: var(--phone-text-meta); border-radius: var(--phone-radius-sm); }
+
+/* "Jump to latest" floats over the thread at the desk's chip height; its target is a fingertip tall. */
+.loki-phone-thread .loki-chip--float::after { content: ""; position: absolute; inset: -9px 0; }
+
+/* A failed turn's message: the desk's mono line becomes a sans meta line, still in the negative colour. */
+.loki-phone .loki-thread-error { font-family: var(--loki-font) !important; font-size: var(--phone-text-meta) !important; line-height: var(--phone-leading); margin-left: 44px; }
 
 /* Reading: links in the link colour and breakable anywhere; a code block scrolls inside itself, the page never does. */
 .loki-phone .loki-msg-body .loki-md a, .loki-phone-thread .loki-md a { color: var(--phone-link); overflow-wrap: anywhere; }

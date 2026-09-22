@@ -42,6 +42,7 @@ export function Home({
   me,
   link,
   desks,
+  desksLoaded,
   agents,
   items,
   due,
@@ -56,6 +57,8 @@ export function Home({
   me: Me;
   link: LinkState;
   desks: DeskSummary[];
+  /** The mod has answered with the list: an empty one then means no desks yet. */
+  desksLoaded: boolean;
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   due: number;
@@ -89,7 +92,6 @@ export function Home({
   const counts = useMemo(() => homeCounts({ items, due, agents: chips, desks }), [items, due, chips, desks]);
   const sections = useMemo(() => homeSections(desks, items, agentFilter, query), [desks, items, agentFilter, query]);
   const filtered = !!query.trim() || !!agentFilter;
-  const scopeName = agentFilter ? (chips.find((c) => c.id === agentFilter)?.name ?? "agent") : null;
 
   return (
     <div className="loki-phone-page" hidden={hidden}>
@@ -97,55 +99,22 @@ export function Home({
       {banner}
       <Scroll memory="home" flush>
         <ShortcutRail counts={counts} />
-        {filtered && (
-          <div className="loki-phone-pills" role="group" aria-label="filters on">
-            {query.trim() && <FilterPill label={`\u201c${query.trim()}\u201d`} onClear={() => setQuery("")} />}
-            {scopeName && <FilterPill label={scopeName} onClear={() => setAgentFilter(null)} />}
-          </div>
-        )}
+        <FilterPills query={query} agentFilter={agentFilter} agents={chips} onClearQuery={() => setQuery("")} onClearAgent={() => setAgentFilter(null)} />
 
-        {sections.attention.length > 0 && (
-          <RowSection icon="inbox" title="Needs your attention" count={counts.inbox} onTitle={() => navigate({ kind: "tab", tab: "inbox" })} titleLabel={`Needs your attention, ${counts.inbox} waiting. Open Inbox`}>
-            <ul className="loki-phone-list" aria-label="needs your attention">
-              {sections.attention.map((a) => (
-                <AttentionRow key={`${a.item.agentId}/${a.item.id}`} entry={a} />
-              ))}
-              {sections.more > 0 && (
-                <li>
-                  <button type="button" className="loki-phone-row loki-phone-row--quiet" data-launch="home:inbox-more" onClick={() => navigate({ kind: "tab", tab: "inbox" })}>
-                    <RowIcon name="inbox" />
-                    <span className="loki-phone-row-copy loki-phone-link">{sections.more} more in Inbox</span>
-                  </button>
-                </li>
-              )}
-            </ul>
-          </RowSection>
-        )}
-
-        <RowSection icon="desk" title={filtered ? "Matching desks" : "Desks"} open={open.desks || filtered} onToggle={filtered ? undefined : () => setOpen((o) => ({ ...o, desks: !o.desks }))}>
-          <ul className="loki-phone-list" aria-label="desks">
-            {sections.desks.map((d) => (
-              <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} onActions={() => setActing(d)} />
-            ))}
-            {!filtered && (
-              <li>
-                <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={() => setSheet("new")}>
-                  <RowIcon name="plus" />
-                  <span className="loki-phone-row-copy">New desk</span>
-                </button>
-              </li>
-            )}
-          </ul>
-          {desks.length === 0 && <p className="loki-phone-empty">Reading the desks…</p>}
-          {desks.length > 0 && filtered && sections.desks.length === 0 && sections.attention.length === 0 && (
-            <div className="loki-phone-empty">
-              <p>No desks match.</p>
-              <Button size="touch" tone="paper" onClick={() => (setQuery(""), setAgentFilter(null))}>
-                Clear filters
-              </Button>
-            </div>
-          )}
-        </RowSection>
+        <AttentionSection attention={sections.attention} more={sections.more} waiting={counts.inbox} />
+        <DeskSection
+          shown={sections.desks}
+          marks={marks}
+          empty={desks.length === 0}
+          loaded={desksLoaded}
+          nothingMatches={desks.length > 0 && filtered && sections.desks.length === 0 && sections.attention.length === 0}
+          filtered={filtered}
+          open={open.desks || filtered}
+          onToggle={filtered ? undefined : () => setOpen((o) => ({ ...o, desks: !o.desks }))}
+          onActions={setActing}
+          onNew={() => setSheet("new")}
+          onClearFilters={() => (setQuery(""), setAgentFilter(null))}
+        />
       </Scroll>
 
       {sheet === "menu" && (
@@ -161,15 +130,80 @@ export function Home({
         />
       )}
       {sheet === "new" && <NewSheet agents={chips} defaultAgentId={agentFilter} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(null)} />}
-      {acting && (
-        <DeskActions
-          desk={acting}
-          onClose={() => setActing(null)}
-          onPin={acting.agentId && acting.conversationId && acting.status === "live" ? (p) => onPin(acting.agentId!, acting.conversationId!, p) : null}
-          onArchive={onArchive ? (archived) => onArchive(acting, archived) : null}
-        />
-      )}
+      {acting && <ActingDesk desk={acting} onPin={onPin} onArchive={onArchive} onClose={() => setActing(null)} />}
     </div>
+  );
+}
+
+/** The filters in force, each a pill that clears it; nothing while none is on. */
+function FilterPills({ query, agentFilter, agents, onClearQuery, onClearAgent }: { query: string; agentFilter: string | null; agents: Array<{ id: string; name: string | null }>; onClearQuery: () => void; onClearAgent: () => void }) {
+  const q = query.trim();
+  if (!q && !agentFilter) return null;
+  const scopeName = agentFilter ? (agents.find((c) => c.id === agentFilter)?.name ?? "agent") : null;
+  return (
+    <div className="loki-phone-pills" role="group" aria-label="filters on">
+      {q && <FilterPill label={`\u201c${q}\u201d`} onClear={onClearQuery} />}
+      {scopeName && <FilterPill label={scopeName} onClear={onClearAgent} />}
+    </div>
+  );
+}
+
+/** A desk's actions sheet from Home: pin only for a live desk with a conversation, archive while the app-server takes it. */
+function ActingDesk({ desk, onPin, onArchive, onClose }: { desk: DeskSummary; onPin: (agentId: string, conversationId: string, pinned: boolean) => void; onArchive: ArchiveDesk | null; onClose: () => void }) {
+  const { agentId, conversationId } = desk;
+  const pin = agentId && conversationId && desk.status === "live" ? (p: boolean) => onPin(agentId, conversationId, p) : null;
+  return <DeskActions desk={desk} onClose={onClose} onPin={pin} onArchive={onArchive ? (archived) => onArchive(desk, archived) : null} />;
+}
+
+/** "Needs your attention": the first of the ready queue, then "n more in Inbox"; absent when nothing waits. */
+function AttentionSection({ attention, more, waiting }: { attention: HomeAttention[]; more: number; waiting: number }) {
+  if (attention.length === 0) return null;
+  return (
+    <RowSection icon="inbox" title="Needs your attention" count={waiting} onTitle={() => navigate({ kind: "tab", tab: "inbox" })} titleLabel={`Needs your attention, ${waiting} waiting. Open Inbox`}>
+      <ul className="loki-phone-list" aria-label="needs your attention">
+        {attention.map((a) => (
+          <AttentionRow key={`${a.item.agentId}/${a.item.id}`} entry={a} />
+        ))}
+        {more > 0 && (
+          <li>
+            <button type="button" className="loki-phone-row loki-phone-row--quiet" data-launch="home:inbox-more" onClick={() => navigate({ kind: "tab", tab: "inbox" })}>
+              <RowIcon name="inbox" />
+              <span className="loki-phone-row-copy loki-phone-link">{more} more in Inbox</span>
+            </button>
+          </li>
+        )}
+      </ul>
+    </RowSection>
+  );
+}
+
+/** "Desks": the live desks not already above, New desk at the end, and what to say when there are none (yet) or none match. */
+function DeskSection({ shown, marks, empty, loaded, nothingMatches, filtered, open, onToggle, onActions, onNew, onClearFilters }: { shown: DeskSummary[]; marks: Map<string, AttentionItem>; empty: boolean; loaded: boolean; nothingMatches: boolean; filtered: boolean; open: boolean; onToggle?: () => void; onActions: (d: DeskSummary) => void; onNew: () => void; onClearFilters: () => void }) {
+  return (
+    <RowSection icon="desk" title={filtered ? "Matching desks" : "Desks"} open={open} onToggle={onToggle}>
+      <ul className="loki-phone-list" aria-label="desks">
+        {shown.map((d) => (
+          <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} onActions={() => onActions(d)} />
+        ))}
+        {!filtered && (
+          <li>
+            <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={onNew}>
+              <RowIcon name="plus" />
+              <span className="loki-phone-row-copy">New desk</span>
+            </button>
+          </li>
+        )}
+      </ul>
+      {empty && <p className="loki-phone-empty">{loaded ? "No desks yet. New desk starts one: an agent in a folder." : "Reading the desks…"}</p>}
+      {nothingMatches && (
+        <div className="loki-phone-empty">
+          <p>No desks match.</p>
+          <Button size="touch" tone="paper" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        </div>
+      )}
+    </RowSection>
   );
 }
 

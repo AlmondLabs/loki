@@ -5,17 +5,9 @@ import { useScrollMemory } from "./session";
 
 /**
  * The phone's few shared pieces: a top bar that clears the notch, the scrolling surface under it,
- * the section heading, the back chevron. Controls (buttons, chips, fields, rows, the sheet, the
+ * the back chevron, the confirmation sheet. Controls (buttons, chips, fields, rows, the sheet, the
  * banner) are the app's primitives in components/, dressed for the phone by phone.css.
  */
-
-/** The notch and the home indicator: iOS reports them as env() insets once the viewport is `viewport-fit=cover`. */
-export const SAFE = {
-  top: "env(safe-area-inset-top, 0px)",
-  bottom: "env(safe-area-inset-bottom, 0px)",
-  left: "env(safe-area-inset-left, 0px)",
-  right: "env(safe-area-inset-right, 0px)",
-};
 
 /**
  * `progress` (0..1) swaps the bottom hairline for a 2px bar that fills as a pass goes; the deck uses it
@@ -45,9 +37,6 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
   );
 }
 
-/** The phone's side margin, with the safe inset: every surface uses the same gutter (--phone-gutter, Slack's 16). */
-export const GUTTER = { left: `calc(var(--phone-gutter) + ${SAFE.left})`, right: `calc(var(--phone-gutter) + ${SAFE.right})` };
-
 /**
  * A scrolling surface under a TopBar. Its end clears the floating navigation when that is on screen
  * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
@@ -63,24 +52,12 @@ export function Scroll({ children, style, memory, flush = false }: { children: R
   );
 }
 
-/** A section heading, sentence case in bold sans, with room for a count or a note on the right. */
-export function Heading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+/** The back chevron for the top bar: Slack's bare chevron, named for where it goes ("Back to home"). */
+export function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <div className="loki-phone-heading">
-      {children}
-      {/* a count of 0 is still an aside, not a stray "0" beside the title */}
-      {aside != null && aside !== false && <span className="loki-phone-heading-aside">{aside}</span>}
-    </div>
-  );
-}
-
-/** The back chevron for the top bar. */
-export function BackButton({ onClick, label = "inbox" }: { onClick: () => void; label?: string }) {
-  return (
-    <Button bare size="touch" tone="paper" onClick={onClick} aria-label={`back to ${label}`} className="loki-phone-back">
+    <button type="button" className="loki-phone-icon-btn" onClick={onClick} aria-label={`Back to ${label}`}>
       <Icon name="back" size={22} />
-      {label}
-    </Button>
+    </button>
   );
 }
 

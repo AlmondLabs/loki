@@ -13,7 +13,6 @@ import { threadLine } from "./model";
 import { navigate } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "./session";
-import { SAFE } from "./ui";
 
 /** The conversation a card opened; kept apart from the item so the screen survives the card clearing. */
 export interface Thread {
@@ -116,7 +115,7 @@ export function ConversationScreen({
           touch
           dim={false}
           attach
-          gutter={{ left: SAFE.left, right: SAFE.right, bottom: "var(--phone-safe-bottom)" }}
+          gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
           view={{ rows: view.rows, status: view.status, error: view.error, approval: view.pending, question: view.question }}
           actions={{
             onSend: (text, images = []) => onSend(rt, text, images, thread.title),

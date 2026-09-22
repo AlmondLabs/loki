@@ -10,12 +10,12 @@ import { Button, Chip, Dot, Field } from "../components";
  * when there are several; with one question the host's message box is the
  * "in your own words" path.
  */
-export function QuestionCard(props: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void }) {
+export function QuestionCard(props: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void; /** A touch screen: there is no hover, so the hint says tap. */ touch?: boolean }) {
   // A new request is a new card: picks and typed answers start empty with it.
   return <QuestionCardFor key={props.question.requestId} {...props} />;
 }
 
-function QuestionCardFor({ question, onAnswer }: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void }) {
+function QuestionCardFor({ question, onAnswer, touch = false }: { question: PendingQuestion; onAnswer: (answers: Record<string, string | string[]>) => void; touch?: boolean }) {
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
   const [peek, setPeek] = useState<string | null>(null); // hovered option label, for its description
@@ -100,7 +100,7 @@ function QuestionCardFor({ question, onAnswer }: { question: PendingQuestion; on
             {q.options.some((o) => o.description) && (
               // Always one line tall, so hovering the pills never moves the thread above.
               <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4, marginLeft: 2, minHeight: "1.4em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} aria-live="polite">
-                {shown?.description ?? (sel.length ? "" : "hover an option for details")}
+                {shown?.description ?? (sel.length ? "" : touch ? "tap an option for details" : "hover an option for details")}
               </div>
             )}
           </div>

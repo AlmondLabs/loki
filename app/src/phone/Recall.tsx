@@ -3,7 +3,6 @@ import { useNow } from "../components/useNow";
 import { ANSWERS, describeGap, isNew, previews, type Grade } from "../../../core/recall/fsrs.ts";
 import { updatedSinceReview, type CardWithSchedule } from "../../../core/recall/model.ts";
 import type { Recall as RecallModel } from "../shell/useRecall";
-import { RecallIntro } from "../recall/RecallParts";
 import type { useDeckPass } from "../recall/useDeckPass";
 import { ago } from "../board/model";
 import { avatarUrl } from "../desk/env";
@@ -33,7 +32,7 @@ export function Recall({ recall, pass, banner, backLabel = "home", onBack }: { r
           {!recall.snap ? (
             <p className="loki-phone-empty">Loading the cards…</p>
           ) : !current && cards.length === 0 && !recall.snap.worker.enabled ? (
-            <RecallIntro worker={recall.snap.worker} />
+            <Off dailyCap={recall.snap.worker.dailyCap} />
           ) : !current ? (
             <Rest cards={cards.length} passed={pass.passed.size} nextDue={pass.nextDue} />
           ) : (
@@ -56,6 +55,17 @@ export function Recall({ recall, pass, banner, backLabel = "home", onBack }: { r
           )}
         </div>
       </Scroll>
+    </div>
+  );
+}
+
+/** The writer is off and nothing is written: what Learn is, what it costs, and where it is switched on (the Mac). */
+function Off({ dailyCap }: { dailyCap: number }) {
+  return (
+    <div className="loki-phone-empty">
+      <p className="loki-phone-headline">Learn is off</p>
+      <p>Once it is on, a writer on the Mac turns conversations that have gone quiet into flashcards, and they wait here on a schedule. Each run spends a little of your provider budget, up to {dailyCap} cards a day.</p>
+      <p className="loki-phone-meta">Turn it on from the Mac: Learn, or Settings › learn.</p>
     </div>
   );
 }

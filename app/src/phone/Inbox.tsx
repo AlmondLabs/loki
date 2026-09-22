@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
-import { idOf, snoozedItems } from "../../../core/attention/queue.ts";
+import { catchUpQueue, idOf, snoozedItems } from "../../../core/attention/queue.ts";
 import { formatIn } from "../../../core/attention/snooze.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -90,6 +90,8 @@ export interface Deck {
   undo: (item: AttentionItem, via: Via, wasHeld: boolean) => void;
   /** Something went out from this card: keep it on top until it is decided. */
   hold: (item: AttentionItem) => void;
+  /** A fresh pass: the cards passed over in this one (a question sent to Later, which never snoozes) come back. */
+  again: () => void;
 }
 
 export function useDeck(items: AttentionItem[]): Deck {
@@ -113,6 +115,7 @@ export function useDeck(items: AttentionItem[]): Deck {
     },
     undo: (item, via, wasHeld) => setState((s) => undoCard(s, item, via, wasHeld)),
     hold: (item) => setState((s) => holdCard(s, item)),
+    again: () => setState(EMPTY_DECK),
   };
 }
 
@@ -333,8 +336,21 @@ export function Inbox({
   const done = passTotal(deck.pass);
   const total = done + visible.length;
 
+  // The last card going (or a new pass starting) takes the pressed button with it; focus would fall to the
+  // page body, so it moves to the pass's heading instead, where the next thing to read or press starts.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hasCard = !!current;
+  const settled = useRef(false);
+  useEffect(() => {
+    const a = document.activeElement;
+    const first = !settled.current;
+    settled.current = true;
+    if (first || hidden || (a && a !== document.body && a.isConnected)) return; // not on first load (session.ts leaves that alone too)
+    rootRef.current?.querySelector<HTMLElement>("[data-phone-heading]")?.focus({ preventScroll: true });
+  }, [hasCard, hidden]);
+
   return (
-    <div className="loki-phone-inbox loki-phone-above-nav" data-away={hidden || undefined} aria-hidden={hidden || undefined}>
+    <div ref={rootRef} className="loki-phone-inbox loki-phone-above-nav" data-away={hidden || undefined} aria-hidden={hidden || undefined}>
       <TopBar
         left={
           current ? (
@@ -358,7 +374,7 @@ export function Inbox({
       </div>
 
       {!current ? (
-        <EmptyDeck available={available} loaded={loaded} banner={banner} running={running} pass={deck.pass} snoozed={snoozed} showDeferred={showDeferred} onToggleDeferred={() => setShowDeferred((v) => !v)} onOpen={onOpen} onUnsnooze={onUnsnooze} backLabel={backLabel} onClose={onClose} onConnection={onConnection} />
+        <EmptyDeck available={available} loaded={loaded} banner={banner} running={running} passedOver={catchUpQueue(items).length} onAgain={deck.again} pass={deck.pass} snoozed={snoozed} showDeferred={showDeferred} onToggleDeferred={() => setShowDeferred((v) => !v)} onOpen={onOpen} onUnsnooze={onUnsnooze} backLabel={backLabel} onClose={onClose} onConnection={onConnection} />
       ) : (
         <>
           <div ref={deckRef} className="loki-phone-deck">
@@ -385,17 +401,21 @@ export function Inbox({
  * No card up: why (no harness, the Mac unreachable, still reading, caught up), what this pass did, and
  * what to do next; the deferred cards follow as a folded section, each with Bring back.
  */
-function EmptyDeck({ available, loaded, banner, running, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void; backLabel: string; onClose: () => void; onConnection: () => void }) {
+function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; /** Ready cards this pass went past; the badge still counts them. */ passedOver: number; onAgain: () => void; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void; backLabel: string; onClose: () => void; onConnection: () => void }) {
   const summary = summaryLine(pass);
   const macProblem = !available || !!banner;
-  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : loaded ? "You're caught up" : "Reading the inbox…";
+  // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
+  const again = loaded && !macProblem && passedOver > 0;
+  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : !loaded ? "Reading the inbox…" : again ? "End of this pass" : "You're caught up";
   const line = !available
     ? "Open loki on the Mac so its mod can find Letta's app-server."
     : banner
       ? "Cards come back when it reconnects; nothing in this pass is lost."
       : !loaded
         ? "The Mac is listing conversations."
-        : running > 0
+        : again
+          ? `${passedOver === 1 ? "1 card is" : `${passedOver} cards are`} still waiting on you: a question stays until it is answered.`
+          : running > 0
           ? `${running} still running. They land here when they finish.`
           : "Nothing is waiting on you.";
   return (
@@ -412,9 +432,16 @@ function EmptyDeck({ available, loaded, banner, running, pass, snoozed, showDefe
               Connection details
             </Button>
           ) : loaded ? (
-            <Button size="touch" tone="paper" onClick={onClose}>
-              Back to {backLabel}
-            </Button>
+            <div className="loki-phone-empty-actions">
+              {again && (
+                <Button size="touch" tone="paper" onClick={onAgain}>
+                  Go through again
+                </Button>
+              )}
+              <Button size="touch" tone="paper" onClick={onClose}>
+                Back to {backLabel}
+              </Button>
+            </div>
           ) : null}
         </div>
         {snoozed.length > 0 && (
