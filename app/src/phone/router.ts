@@ -6,7 +6,7 @@ import { activeControl, focusMemory } from "./session";
  *   #/home  #/inbox  #/agents  #/more                 the four tabs
  *   #/search                                          Search, from the round button beside the tabs
  *   #/learn  #/archive                                Learn and the archived desks (Home's shortcuts, More's rows)
- *   #/preferences                                     preferences and connection, under More
+ *   #/preferences  #/connection  #/about            appearance, the paired Mac and pairing, About — under More
  *   #/agents/<agentId>                             an agent's page
  *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
  *   #/c/<agentId>/<conversationId>[?prefill=…]     a conversation; `prefill` starts the reply box
@@ -28,6 +28,8 @@ export type Route =
   | { kind: "search" }
   | { kind: "archive" }
   | { kind: "preferences" }
+  | { kind: "connection" }
+  | { kind: "about" }
   | { kind: "agent"; agentId: string }
   | { kind: "file"; agentId: string; path: string }
   | { kind: "conversation"; agentId: string; conversationId: string; prefill: string | null };
@@ -36,7 +38,7 @@ export const HOME: Route = { kind: "tab", tab: "home" };
 
 const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
 /** Single-segment pages that are not tabs. */
-const CHILDREN = ["learn", "search", "archive", "preferences"] as const;
+const CHILDREN = ["learn", "search", "archive", "preferences", "connection", "about"] as const;
 type Child = (typeof CHILDREN)[number];
 const isChild = (s: string): s is Child => (CHILDREN as readonly string[]).includes(s);
 /** Old addresses, from saved links and installed clients, to where they live now. */
@@ -87,6 +89,8 @@ export function formatRoute(r: Route): string {
     case "search":
     case "archive":
     case "preferences":
+    case "connection":
+    case "about":
       return `#/${r.kind}`;
     case "agent":
       return `#/agents/${encodeURIComponent(r.agentId)}`;
@@ -99,12 +103,14 @@ export function formatRoute(r: Route): string {
   }
 }
 
-/** The tab a route lives under. Learn, Archive and Search hang off Home; preferences off More; a conversation is Home's. */
+/** The tab a route lives under. Learn, Archive and Search hang off Home; preferences, connection and About off More; a conversation is Home's. */
 export function ownerOf(r: Route): Tab {
   switch (r.kind) {
     case "tab":
       return r.tab;
     case "preferences":
+    case "connection":
+    case "about":
       return "more";
     case "agent":
     case "file":

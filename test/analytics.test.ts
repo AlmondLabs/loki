@@ -200,6 +200,8 @@ describe("analytics: the phone's screen names", () => {
     [{ kind: "search" }, "search"],
     [{ kind: "archive" }, "archive"],
     [{ kind: "preferences" }, "preferences"],
+    [{ kind: "connection" }, "connection"],
+    [{ kind: "about" }, "about"],
     [{ kind: "agent", agentId: "agent-secret-1" }, "agent"],
     [{ kind: "file", agentId: "agent-secret-1", path: "system/persona.md" }, "file"],
     [{ kind: "conversation", agentId: "agent-secret-1", conversationId: "conv-secret-2", prefill: "hi" }, "conversation"],

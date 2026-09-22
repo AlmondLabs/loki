@@ -174,3 +174,58 @@ export function RowSection({ icon, title, count, open = true, onToggle, onTitle,
     </section>
   );
 }
+
+/**
+ * A group of utility rows, Slack's You and Preferences grammar: an optional quiet heading, then rows on
+ * hairlines. More, Preferences, the connection and About are built from these and the rows below.
+ */
+export function RowGroup({ title, radio = false, children }: { title?: string; /** The rows are one choice (MenuRow `checked`): the list is a radio group named by the title. */ radio?: boolean; children: ReactNode }) {
+  return (
+    <section className="loki-phone-group" aria-label={title}>
+      {title && <h2 className="loki-phone-group-title">{title}</h2>}
+      <ul className="loki-phone-list" role={radio ? "radiogroup" : undefined} aria-label={radio ? title : undefined}>
+        {children}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * One utility row: an icon, the name, a quiet aside, and a chevron when it opens a page (`page`). A row that
+ * opens a sheet says so with aria-haspopup; `danger` draws a destructive one in the negative colour, and
+ * `checked` turns the row into one choice of a radio group. `launch` brings focus back to it (session.ts).
+ */
+export function MenuRow({ icon, label, aside = null, page = false, sheet = false, danger = false, checked, disabled = false, launch, onClick }: { icon: IconName; label: string; aside?: ReactNode; page?: boolean; sheet?: boolean; danger?: boolean; checked?: boolean; disabled?: boolean; launch?: string; onClick: () => void }) {
+  const cls = danger ? "loki-phone-menu-row loki-phone-menu-row--danger" : "loki-phone-menu-row";
+  return (
+    <li role={checked === undefined ? undefined : "none"}>
+      <button type="button" className={cls} data-launch={launch} role={checked === undefined ? undefined : "radio"} aria-checked={checked} aria-haspopup={sheet ? "dialog" : undefined} disabled={disabled} onClick={onClick}>
+        <Icon name={icon} size={22} />
+        <span className="loki-phone-menu-row-label">{label}</span>
+        {aside != null && aside !== false && <span className="loki-phone-menu-row-aside">{aside}</span>}
+        {page && <Icon name="chevron-right" size={18} className="loki-phone-menu-row-chev" />}
+        {checked !== undefined && <Icon name="check" size={20} className="loki-phone-menu-row-check" />}
+      </button>
+    </li>
+  );
+}
+
+/** A fact, not a control: its name on the left, the value on the right, wrapping under it when long. */
+export function FactRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <li className="loki-phone-fact">
+      <span className="loki-phone-fact-label">{label}</span>
+      <span className="loki-phone-fact-value">{value}</span>
+    </li>
+  );
+}
+
+/** A link's state: a dot and its word, so it is never told by colour alone. `on` fills the dot, `off` rings it red. */
+export function StateWord({ state, children }: { state: "on" | "wait" | "off"; children: ReactNode }) {
+  return (
+    <span className="loki-phone-state">
+      <span aria-hidden className="loki-phone-state-dot" data-state={state} />
+      {children}
+    </span>
+  );
+}

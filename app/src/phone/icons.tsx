@@ -147,6 +147,31 @@ const PATHS = {
     </>
   ),
   moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />,
+  // an agent's memory: a page with its corner folded, and the folder that holds pages
+  file: (
+    <>
+      <path d="M6 3h8l4 4v14H6z" />
+      <path d="M14 3v4h4M9 12h6M9 16h6" />
+    </>
+  ),
+  folder: <path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2.5h8.5A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" />,
+  // a skill: a four-point spark
+  skill: <path d="M12 3c.8 4.6 2.4 6.2 7 7-4.6.8-6.2 2.4-7 7-.8-4.6-2.4-6.2-7-7 4.6-.8 6.2-2.4 7-7z" />,
+  // memory commits: a clock with the arrow that turns it back
+  history: (
+    <>
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+      <path d="M3 4v4h4M12 8v4l3 2" />
+    </>
+  ),
+  // leaving the pairing: the link's two halves pulled apart, with the break marked
+  unlink: (
+    <>
+      <path d="M13 5.6 13.9 4.6a4.5 4.5 0 0 1 6.4 6.4l-2.4 2.4" />
+      <path d="M11 18.4l-.9 1a4.5 4.5 0 0 1-6.4-6.4l2.4-2.4" />
+      <path d="M4 4l16 16" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

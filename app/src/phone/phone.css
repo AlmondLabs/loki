@@ -1042,6 +1042,132 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-shell[data-keyboard] .loki-phone-notice { display: none; }
 .loki-phone .loki-question, .loki-phone .loki-approval { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 
+/* ---- More, Preferences, the connection and About (More.tsx, Settings.tsx; rows.tsx RowGroup) --------- */
+/* Slack's You sheet: the profile, then groups of rows split by one hairline each — no rule under every row. */
+.loki-phone-me {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-4);
+  padding: var(--phone-space-5) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+.loki-phone-me-face {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--phone-radius-md);
+  background: var(--phone-affirm);
+  color: var(--phone-on-affirm);
+  font-size: var(--phone-text-title);
+  font-weight: var(--phone-weight-heavy);
+}
+.loki-phone-me .loki-phone-presence { right: -3px; bottom: -3px; width: 16px; height: 16px; box-shadow: 0 0 0 3px var(--loki-bg); }
+.loki-phone-me-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.loki-phone-me-name { font-size: var(--phone-text-title); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); overflow-wrap: anywhere; }
+.loki-phone-me-line { font-size: var(--phone-text-body); color: var(--loki-muted); }
+.loki-phone-groups { display: grid; }
+.loki-phone-group { padding: var(--phone-space-2) 0; border-top: 1px solid var(--loki-border); }
+.loki-phone-group-title { margin: 0; padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-1) calc(var(--phone-gutter) + var(--phone-safe-left)); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone-group-note { margin: 0; padding: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left)); font-size: var(--phone-text-meta); line-height: var(--phone-leading); color: var(--loki-muted); }
+.loki-phone-group .loki-phone-menu-row { padding: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left)); border-bottom: none; }
+.loki-phone-menu-row-chev { color: var(--loki-muted); }
+.loki-phone-menu-row-check { color: var(--phone-link); visibility: hidden; }
+.loki-phone-menu-row[aria-checked="true"] .loki-phone-menu-row-check { visibility: visible; }
+.loki-phone-menu-row[aria-checked="true"] .loki-phone-menu-row-label { font-weight: var(--phone-weight-strong); }
+.loki-phone-menu-row--danger { color: var(--loki-negative); }
+.loki-phone-menu-row:disabled { color: var(--loki-muted); cursor: default; }
+/* A fact: its name, then the value on the right; a long value (an address, the screen line) wraps under it. */
+.loki-phone-fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--phone-space-1) var(--phone-space-4);
+  min-height: var(--phone-touch);
+  box-sizing: border-box;
+  padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left));
+  font-size: var(--phone-text-body);
+}
+.loki-phone-fact-label { flex: none; color: var(--loki-fg); }
+.loki-phone-fact-value { flex: 1 1 6em; min-width: 0; text-align: right; color: var(--loki-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.loki-phone-fact--prose { display: block; line-height: var(--phone-leading); color: var(--loki-muted); }
+.loki-phone-state { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
+.loki-phone-state-dot { width: 10px; height: 10px; box-sizing: border-box; border: 2px solid var(--loki-muted); border-radius: var(--phone-radius-pill); }
+.loki-phone-state-dot[data-state="on"] { border-color: var(--phone-presence); background: var(--phone-presence); }
+.loki-phone-state-dot[data-state="off"] { border-color: var(--loki-negative); }
+/* A confirmation sheet (ui.tsx ConfirmSheet): the question, what follows, then Cancel beside the action. */
+.loki-phone-confirm-title { margin: 0; }
+.loki-phone-confirm-body { color: var(--loki-muted); }
+
+/* ---- An agent's profile and its files (Agent.tsx) ---------------------------------------------------- */
+.loki-phone-hero {
+  display: grid;
+  justify-items: start;
+  gap: var(--phone-space-1);
+  padding: var(--phone-space-5) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left));
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-phone-hero .loki-phone-avatar { margin-bottom: var(--phone-space-2); }
+.loki-phone-hero .loki-phone-presence { right: 0; bottom: 0; width: 18px; height: 18px; border-width: 3px; box-shadow: 0 0 0 3px var(--loki-bg); }
+.loki-phone-hero-name { font-size: var(--phone-text-large); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); overflow-wrap: anywhere; }
+.loki-phone-hero-state { font-size: var(--phone-text-body); color: var(--loki-fg); }
+.loki-phone-hero-about { margin: var(--phone-space-1) 0 0; font-size: var(--phone-text-body); line-height: var(--phone-leading); color: var(--loki-fg); overflow-wrap: anywhere; }
+.loki-phone-hero-actions { display: flex; gap: var(--phone-space-2); margin-top: var(--phone-space-3); }
+.loki-phone-hero-actions .loki-btn { gap: var(--phone-space-2); border-radius: var(--phone-radius-sm); }
+/* A memory folder's head inside the Memory section: it folds the files under it. */
+.loki-phone-subhead {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  width: 100%;
+  min-height: var(--phone-touch);
+  padding: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left));
+  border: none;
+  background: transparent;
+  color: var(--loki-muted);
+  font: inherit;
+  font-size: var(--phone-text-body);
+  font-weight: var(--phone-weight-strong);
+  text-align: left;
+  cursor: pointer;
+}
+.loki-phone-subhead .loki-phone-ellipsis { flex: 1; }
+.loki-phone-subhead:active { background: var(--loki-hover); }
+/* A memory commit: the message may wrap to two lines; opened, its diff follows in a well that scrolls on its own. */
+.loki-phone-change[data-open] { background: var(--loki-well); }
+.loki-phone-change-row { align-items: flex-start; }
+.loki-phone-change-message { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--phone-text-body); line-height: var(--phone-leading-tight); overflow-wrap: anywhere; }
+.loki-phone-diff { max-height: 360px; overflow: auto; overscroll-behavior: contain; margin: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left)); padding: var(--phone-space-2) var(--phone-space-3); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-sm); background: var(--loki-code); }
+.loki-phone-file { overflow-wrap: anywhere; }
+.loki-phone-file pre.loki-phone-file-code { margin: 0; font-family: var(--loki-mono); font-size: var(--phone-text-meta); line-height: var(--phone-leading); white-space: pre-wrap; color: var(--loki-fg); }
+.loki-phone-file-bar { flex: none; padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) calc(var(--phone-space-2) + var(--phone-safe-bottom)) calc(var(--phone-gutter) + var(--phone-safe-left)); border-top: 1px solid var(--loki-border); background: var(--loki-bg); }
+
+/* ---- Learn (Recall.tsx) ----------------------------------------------------------------------------- */
+.loki-phone-learn { display: grid; gap: var(--phone-space-4); padding-bottom: var(--phone-safe-bottom); }
+.loki-phone-learn-card { display: grid; gap: var(--phone-space-4); padding: var(--phone-space-4); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-md); background: var(--loki-panel); }
+.loki-phone-learn-source { display: flex; align-items: center; gap: var(--phone-space-3); min-width: 0; }
+.loki-phone-learn-who { display: flex; align-items: center; gap: var(--phone-space-2); min-width: 0; font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
+.loki-phone-learn-tag { flex: none; padding: 0 var(--phone-space-2); border-radius: var(--phone-radius-pill); background: var(--loki-accent-soft); color: var(--phone-link); font-size: var(--phone-text-micro); font-weight: var(--phone-weight-strong); line-height: 18px; }
+.loki-phone-learn-front { font-size: var(--phone-text-title); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-phone-learn-back { padding-top: var(--phone-space-3); border-top: 1px solid var(--loki-border); font-size: var(--phone-text-body); line-height: var(--phone-leading); white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-phone-learn-grades { display: grid; grid-template-columns: 1fr 1fr; gap: var(--phone-space-2); }
+.loki-phone-learn-grades .loki-phone-decide-btn { display: grid; place-content: center; gap: 2px; }
+.loki-phone-learn-grade { font-size: var(--phone-text-emph); }
+.loki-phone-learn-gap { font-size: var(--phone-text-meta); font-weight: 400; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.loki-phone-learn-foot { display: flex; justify-content: space-between; gap: var(--phone-space-2); flex-wrap: wrap; }
+
+/* ---- Pairing (Pair.tsx) ----------------------------------------------------------------------------- */
+.loki-phone-pair { justify-content: center; padding: calc(var(--phone-space-6) + var(--phone-safe-top)) calc(var(--phone-space-6) + var(--phone-safe-right)) calc(var(--phone-space-6) + var(--phone-safe-bottom)) calc(var(--phone-space-6) + var(--phone-safe-left)); overflow-y: auto; }
+.loki-phone-pair-inner { display: grid; gap: var(--phone-space-5); width: 100%; max-width: 420px; margin: 0 auto; }
+.loki-phone-pair-title { margin-top: var(--phone-space-4); }
+.loki-phone-pair-lead { margin: var(--phone-space-2) 0 0; font-size: var(--phone-text-body); line-height: var(--phone-leading); color: var(--loki-muted); }
+.loki-phone-pair-form { display: grid; gap: var(--phone-space-3); }
+.loki-phone-pair-label { display: grid; gap: var(--phone-space-2); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone .loki-field.loki-phone-pair-code { width: 100%; box-sizing: border-box; min-height: 56px; font-size: var(--phone-text-large); font-weight: var(--phone-weight-strong); text-align: center; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.loki-phone-pair-cta.loki-btn { justify-content: center; border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone-pair-cta.loki-btn:disabled { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-muted); }
+.loki-phone-pair-foot { margin: 0; font-size: var(--phone-text-meta); line-height: var(--phone-leading); color: var(--loki-muted); }
+
 /* ---- Motion -------------------------------------------------------------------------------------- */
 /* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with
    it, so a transition written with them never moves. Focus rings, selection and state colours stay. */

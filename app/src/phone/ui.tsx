@@ -1,5 +1,5 @@
 import { useRef, type CSSProperties, type ReactNode } from "react";
-import { Button } from "../components";
+import { Button, Sheet } from "../components";
 import { Icon } from "./icons";
 import { useScrollMemory } from "./session";
 
@@ -81,5 +81,35 @@ export function BackButton({ onClick, label = "inbox" }: { onClick: () => void; 
       <Icon name="back" size={22} />
       {label}
     </Button>
+  );
+}
+
+/**
+ * A confirmation for anything that cannot be taken back or changes the link to the Mac (unpair, reload):
+ * a bottom sheet naming the action, what follows and how to recover, then Cancel beside the action. While
+ * it runs the action says so and both stay put; a failure keeps the sheet open with the error and the
+ * action to try again.
+ */
+export function ConfirmSheet({ title, children, action, busyAction, tone = "negative", busy = false, error = null, onConfirm, onClose }: { title: string; children: ReactNode; action: string; busyAction?: string; tone?: "negative" | "brass"; busy?: boolean; error?: string | null; onConfirm: () => void; onClose: () => void }) {
+  return (
+    <Sheet label={title} onClose={busy ? undefined : onClose} placement="bottom" className="loki-phone-sheet">
+      <div className="loki-phone-sheet-copy">
+        <h2 className="loki-phone-title loki-phone-confirm-title">{title}</h2>
+        <div className="loki-phone-body loki-phone-confirm-body">{children}</div>
+      </div>
+      {error && (
+        <p role="alert" className="loki-phone-error">
+          {error}
+        </p>
+      )}
+      <div className="loki-phone-sheet-actions">
+        <Button size="touch" tone="paper" disabled={busy} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button size="touch" tone={tone} disabled={busy} onClick={onConfirm}>
+          {busy ? (busyAction ?? action) : error ? "Try again" : action}
+        </Button>
+      </div>
+    </Sheet>
   );
 }

@@ -12,6 +12,9 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { archivedDesks, liveDesks } from "../shell/DeskTree";
+import type { ThemePreference } from "../theme";
+import type { IconName } from "./icons";
+import type { Route } from "./router";
 
 /** The mod's own types: what `lan_status` and `devices` carry (mod/lan.ts, mod/devices.ts). */
 export type { LanStatus };
@@ -397,4 +400,107 @@ export function linkState(mod: "connecting" | "open" | "closed", appServer: "off
 export function threadLine({ status, approval, question, waiting, desk }: { status: "idle" | "thinking" | "streaming"; approval: unknown; question: unknown; waiting: boolean; desk: string | null }): string {
   const live = approval ? "needs approval" : question ? "asked you" : status === "streaming" ? "writing" : status === "thinking" ? "working" : waiting ? "waiting on you" : null;
   return [live, desk].filter(Boolean).join(" · ");
+}
+
+/* ---- Agents (Agents.tsx) ----------------------------------------------------------------------------- */
+
+/** One Agents row before its record arrives: live desks, a turn running now, and the ready cards that wait on you. */
+export interface AgentRowModel {
+  id: string;
+  name: string;
+  live: number;
+  /** A turn in progress in one of its conversations — the row's presence dot, Home's "n running". */
+  running: boolean;
+  /** Its conversations in the Inbox's ready queue (snoozed ones left out): the row's unread badge. */
+  waiting: number;
+}
+
+/** The Agents list in the app-server's order, so rows keep their place while states change under them. */
+export function agentRows(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; status: string }>, items: AttentionItem[]): AgentRowModel[] {
+  const ready = catchUpQueue(items);
+  return agents.map((a) => ({
+    id: a.id,
+    name: a.name,
+    live: liveDeskCount(desks, a.id),
+    running: items.some((i) => i.agentId === a.id && i.status === "running"),
+    waiting: ready.filter((i) => i.agentId === a.id).length,
+  }));
+}
+
+export type AgentFilter = "all" | "running" | "waiting";
+export const AGENT_FILTERS: ReadonlyArray<{ id: AgentFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "running", label: "Running" },
+  { id: "waiting", label: "Waiting on you" },
+];
+
+export function agentsShown(rows: AgentRowModel[], filter: AgentFilter): AgentRowModel[] {
+  if (filter === "running") return rows.filter((r) => r.running);
+  if (filter === "waiting") return rows.filter((r) => r.waiting > 0);
+  return rows;
+}
+
+/** The row's preview: what waits on you and whether it works now, then the description (else its live desks). */
+export function agentLine(r: AgentRowModel, description: string | null | undefined): string {
+  return [r.waiting ? `${r.waiting} waiting` : null, r.running ? "Working" : null, description || liveDesksLabel(r.live)].filter(Boolean).join(" · ");
+}
+
+/* ---- More (More.tsx), preferences and updates --------------------------------------------------------- */
+
+/** The paired Mac in one word, beside its presence dot (so the state is never told by colour alone). */
+export function linkWord(link: LinkState): string {
+  return link === "online" ? "Online" : link === "connecting" ? "Connecting" : "Unreachable";
+}
+
+/** A newer canvas on the Mac ("ready"), the one this page runs ("current"), or an unstamped page with nothing to compare. */
+export type UpdateState = "ready" | "current" | "unknown";
+export function updateState(served: string | null | undefined, current: string | null | undefined): UpdateState {
+  if (!current) return "unknown";
+  return needsReload(served, current) ? "ready" : "current";
+}
+
+/** Appearance on the phone: the global light/dark preference only; the desktop's palettes never recolour the phone. */
+export const PHONE_APPEARANCE: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+export type MoreRowId = "mac" | "agents" | "learn" | "archive" | "preferences" | "updates" | "about" | "connection";
+export interface MoreRow {
+  id: MoreRowId;
+  icon: IconName;
+  label: string;
+  /** The quiet word on the right: a count or a state; null when there is nothing to say. */
+  aside: string | null;
+  /** The page the row opens; null for Updates, which opens its reload sheet in place. */
+  to: Route | null;
+}
+
+/**
+ * More's rows, in Slack's You-sheet groups: the paired Mac under the profile, then the places (Agents,
+ * Learn, the archive, preferences), then the utilities (updates, About, the connection). Every secondary
+ * capability the phone had under You and Settings is one of these rows or a page behind one.
+ */
+export function moreSections(s: { link: LinkState; agents: number; running: number; due: number; archived: number; appearance: string; update: UpdateState }): Array<{ label: string; rows: MoreRow[] }> {
+  return [
+    { label: "Paired Mac", rows: [{ id: "mac", icon: "laptop", label: "Paired Mac", aside: linkWord(s.link), to: { kind: "connection" } }] },
+    {
+      label: "Places",
+      rows: [
+        { id: "agents", icon: "agents", label: "Agents", aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null, to: { kind: "tab", tab: "agents" } },
+        { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
+        { id: "archive", icon: "archive", label: "Archived desks", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
+        { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },
+      ],
+    },
+    {
+      label: "loki",
+      rows: [
+        { id: "updates", icon: "refresh", label: "Updates", aside: s.update === "ready" ? "Update ready" : s.update === "current" ? "Up to date" : null, to: null },
+        { id: "about", icon: "info", label: "About loki", aside: null, to: { kind: "about" } },
+        { id: "connection", icon: "link", label: "Connection details", aside: null, to: { kind: "connection" } },
+      ],
+    },
+  ];
 }

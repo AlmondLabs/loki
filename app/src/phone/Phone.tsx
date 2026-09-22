@@ -14,12 +14,13 @@ import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { More } from "./More";
 import { Search } from "./Search";
-import { Settings } from "./Settings";
+import { AboutPage, ConnectionPage, Preferences } from "./Settings";
 import { Recall as RecallTab } from "./Recall";
 import { useRecall } from "../shell/useRecall";
+import { useDeckPass } from "../recall/useDeckPass";
 import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
-import { agentNameOf, archiveList, lastSeen, linkState, threadFor } from "./model";
+import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, type LinkState } from "./model";
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { recentPlaces, useFocusOnRoute } from "./session";
 import { useKeyboardInset } from "./viewport";
@@ -31,8 +32,8 @@ import "./phone.css";
  * lets the device in by cookie. `GET /me` decides between Pair and the app; once paired, the same
  * two hooks the desktop shell uses (useDesk for the mod, useAttention for the app-server tunnel)
  * feed four tabs in a floating capsule — Home, Inbox, Agents, More, with Search beside it — and the
- * full-screen pages over them: Search, Learn, Archive, preferences, a conversation, an agent, and a
- * memory file. Routes live in the hash; each page knows where it was opened from (router.ts), and
+ * full-screen pages over them: Search, Learn, Archive, Preferences, the connection, About, a
+ * conversation, an agent, and a memory file. Routes live in the hash; each page knows where it was opened from (router.ts), and
  * what a person was in the middle of — drafts, scroll, the control they left from — is kept by session.ts.
  */
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
@@ -184,6 +185,9 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const deck = useDeck(catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
   const recall = useRecall(desk, route.kind === "learn" ? "learn" : "desk", (m) => setRecallNote(m));
+  // Learn's sitting (the card under your hands, the ones answered) lives here, above the routes, so
+  // leaving Learn for Home or More and coming back resumes the same pass instead of starting over.
+  const learnPass = useDeckPass(recall.snap?.cards ?? []);
   useEffect(() => {
     if (!recallNote) return;
     const t = setTimeout(() => setRecallNote(null), 4000);
@@ -233,18 +237,21 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         }
       : null;
 
+  const link = linkState(desk.connection, catchUp.status, attention.available);
   const update = <UpdateBar servedBuild={desk.servedBuild} />;
   return (
     <div ref={shellRef} className="loki-phone loki-phone-shell">
       {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
-      {route.kind === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "search" && <Search backLabel={backLabel} onBack={onBack} />}
       {route.kind === "archive" && <Archive desks={desk.desks.list} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
-      {route.kind === "preferences" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "about" && <AboutPage version={catchUp.server?.version ?? null} servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
+      <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
 
       {nav ? (
         <TabBar active={tab} waiting={waiting}>
@@ -289,7 +296,7 @@ function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, pref
  * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
  * place back from the scroll memory (their data is cached above them).
  */
-function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string }) {
+function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string }) {
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -300,7 +307,7 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onAr
       <Home
         hidden={tab !== "home"}
         me={me}
-        link={linkState(desk.connection, catchUp.status, attention.available)}
+        link={link}
         desks={desk.desks.list}
         agents={catchUp.agents}
         items={catchUp.items}
@@ -323,7 +330,7 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onAr
         backLabel={inboxBack}
         onClose={closeInbox}
         onOpen={openItem}
-        onConnection={() => navigate({ kind: "preferences" })}
+        onConnection={() => navigate({ kind: "connection" })}
         card={{
           onSend: (item, text, images) => catchUp.reply(item, text, images),
           onAnswer: (item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers),
@@ -335,8 +342,8 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onAr
         onUnsnooze={catchUp.unsnooze}
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
-      {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
-      {tab === "more" && <More me={me} due={due} archived={archiveList(desk.desks.list, null, "").length} banner={banner} />}
+      {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} link={link} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} />}
+      {tab === "more" && <More me={me} link={link} agents={catchUp.agents.length} running={homeCounts({ items: catchUp.items, due, agents: catchUp.agents, desks: desk.desks.list }).running} due={due} archived={archiveList(desk.desks.list, null, "").length} servedBuild={desk.servedBuild} banner={banner} />}
     </>
   );
 }

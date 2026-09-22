@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { CODE_LENGTH, codeFromUrl, deviceName, normalizeCode } from "./model";
 import { Button, Field } from "../components";
-import { SAFE } from "./ui";
 
 export interface Me {
   deviceId: string;
@@ -37,10 +36,10 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
         onPaired((await r.json()) as Me);
         return;
       }
-      if (r.status === 404) setError("that code has expired; open Settings › phone on the Mac for a new one");
-      else setError(`the Mac answered ${r.status}; try again from Settings › phone`);
+      if (r.status === 404) setError("That code has expired. Open Settings › phone on the Mac for a new one.");
+      else setError(`The Mac answered ${r.status}. Try again from Settings › phone.`);
     } catch {
-      setError("the Mac did not answer — same Wi‑Fi, and is it awake?");
+      setError("The Mac did not answer. Same Wi‑Fi, and is it awake?");
     } finally {
       setBusy(false);
     }
@@ -60,27 +59,31 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
   };
 
   return (
-    <main className="loki-phone loki-phone-shell" style={{ justifyContent: "center", padding: `calc(24px + ${SAFE.top}) calc(24px + ${SAFE.right}) calc(24px + ${SAFE.bottom}) calc(24px + ${SAFE.left})` }}>
-      <div style={{ maxWidth: 420, width: "100%", margin: "0 auto", display: "grid", gap: 18 }}>
+    <main className="loki-phone loki-phone-shell loki-phone-pair">
+      <div className="loki-phone-pair-inner">
         <div>
-          <div className="loki-label">loki · phone</div>
-          <h1 className="loki-phone-large-title" style={{ marginTop: 6 }}>Pair with the Mac</h1>
-          <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)" }}>Open Settings › phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
+          <span aria-hidden className="loki-phone-workspace">
+            L
+          </span>
+          <h1 className="loki-phone-large-title loki-phone-pair-title">
+            Pair with the Mac
+          </h1>
+          <p className="loki-phone-pair-lead">Open Settings › phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
         </div>
         <form
+          className="loki-phone-pair-form"
           onSubmit={(e) => {
             e.preventDefault();
             void submit(code);
           }}
-          style={{ display: "grid", gap: 12 }}
         >
-          <label htmlFor="pair-code" style={{ display: "grid", gap: 6 }}>
-            <span className="loki-label">pairing code</span>
+          <label htmlFor="pair-code" className="loki-phone-pair-label">
+            Pairing code
             <Field
               id="pair-code"
               ref={inputRef}
               size="touch"
-              mono
+              className="loki-phone-pair-code"
               value={code}
               onChange={(e) => onChange(e.target.value)}
               disabled={busy}
@@ -93,19 +96,18 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
               placeholder="ABC234"
               aria-label="six-character pairing code"
               aria-invalid={!!error}
-              style={{ fontSize: 28, letterSpacing: "0.14em", textTransform: "uppercase", textAlign: "center" }}
             />
           </label>
           {error && (
-            <div role="alert" style={{ fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-negative)" }}>
+            <p role="alert" className="loki-phone-error">
               {error}
-            </div>
+            </p>
           )}
-          <Button type="submit" size="touch" tone="brass" disabled={busy || code.length !== CODE_LENGTH}>
-            {busy ? "pairing…" : "Pair"}
+          <Button type="submit" size="touch" block className="loki-phone-pair-cta" disabled={busy || code.length !== CODE_LENGTH}>
+            {busy ? "Pairing…" : "Pair"}
           </Button>
         </form>
-        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "var(--loki-muted)" }}>Same Wi‑Fi as the Mac, and the Mac awake. Nothing is installed; this page is served by loki itself.</p>
+        <p className="loki-phone-pair-foot">Same Wi‑Fi as the Mac (or its Tailscale address), and the Mac awake. Nothing is installed; this page is served by loki itself.</p>
       </div>
     </main>
   );

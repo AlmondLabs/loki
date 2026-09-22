@@ -94,6 +94,17 @@ describe("child routes", () => {
       roundTrip(r);
     }
   });
+  test("More's connection and About pages have stable direct links, owned by More", () => {
+    for (const kind of ["connection", "about"] as const) {
+      const r = { kind } as Route;
+      expect(formatRoute(r)).toBe(`#/${kind}`);
+      roundTrip(r);
+      expect(ownerOf(r)).toBe("more");
+      expect(parentOf(r)).toEqual({ kind: "tab", tab: "more" });
+      expect(showsNav(r)).toBe(false);
+      expect(labelOf(r)).toBe(kind);
+    }
+  });
   test("a child with extra segments is not a child", () => {
     expect(parseRoute("#/search/x")).toEqual(HOME);
     expect(parseRoute("#/preferences/x")).toEqual(HOME);
