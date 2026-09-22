@@ -19,6 +19,8 @@ export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
  */
 const cache = new Map<string, AgentDetails | null>();
 const inflight = new Map<string, Promise<AgentDetails | null>>();
+/** An agent's description when its record is already here; Search reads it and never asks the Mac. */
+export const knownDescription = (agentId: string): string | null => cache.get(agentId)?.agent.description ?? null;
 export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): AgentDetails | null | undefined {
   const [d, setD] = useState<AgentDetails | null | undefined>(() => (agentId ? cache.get(agentId) : undefined));
   useEffect(() => {

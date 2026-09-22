@@ -449,16 +449,100 @@ html:has(.loki-phone-shell) body {
 .loki-phone-menu-row-aside { color: var(--loki-muted); font-size: var(--phone-text-body); }
 
 /* ---- Search (Search.tsx): the field stays put, results scroll beneath it -------------------------- */
+/* The bar is intrinsic and the list takes the rest: with the keyboard up the shell is fitted to the visible
+   viewport (viewport.ts), so the field stays in view and only the results give up height. */
 .loki-phone-search-bar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: var(--phone-space-2);
-  padding: calc(var(--phone-space-2) + var(--phone-safe-top)) calc(var(--phone-space-3) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-space-2) + var(--phone-safe-left));
+  gap: var(--phone-space-1);
+  padding: calc(var(--phone-space-2) + var(--phone-safe-top)) calc(var(--phone-space-3) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-space-1) + var(--phone-safe-left));
   border-bottom: 1px solid var(--loki-border);
   background: var(--loki-bg);
 }
-.loki-phone-search-bar .loki-field { flex: 1; min-width: 0; }
+.loki-phone-search-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: var(--phone-touch);
+  padding-left: var(--phone-space-3);
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-well);
+  color: var(--loki-muted);
+}
+/* The focus ring goes round the whole field (icon, text, clear), not the bare input inside it. */
+.loki-phone-search-field:focus-within { outline: 2px solid var(--phone-focus); outline-offset: -1px; }
+.loki-phone .loki-phone-search-input:focus-visible { outline-color: transparent; }
+.loki-phone-search-glass { margin-right: var(--phone-space-2); }
+/* 17px, Slack's field size (and above the 16px under which iOS zooms into a focused field). */
+.loki-phone .loki-phone-search-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 var(--phone-space-3) 0 0;
+  border: none;
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.loki-phone .loki-phone-search-input::placeholder { color: var(--loki-muted); opacity: 1; }
+/* The clear control is ours (44 wide, keeps the keyboard); the browser's own goes. */
+.loki-phone .loki-phone-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.loki-phone-search-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--phone-touch);
+  min-height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: var(--phone-radius-md);
+  background: transparent;
+  color: var(--loki-muted);
+  cursor: pointer;
+}
+.loki-phone-search-clear .loki-phone-icon { padding: 2px; border-radius: var(--phone-radius-pill); background: var(--loki-border); color: var(--loki-fg); }
+
+/* Recents: a quiet heading with Clear on the right, then rows. */
+.loki-phone-search-recents { padding-bottom: var(--phone-space-2); }
+.loki-phone-search-head {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: var(--phone-space-2) calc(var(--phone-space-1) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+.loki-phone-search-head-title { flex: 1; min-width: 0; margin: 0; font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone-search-clear-all {
+  min-width: var(--phone-touch);
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-3);
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--phone-link);
+  font: inherit;
+  font-size: var(--phone-text-body);
+  cursor: pointer;
+}
+.loki-phone-search-recents .loki-phone-row--quiet { color: var(--loki-fg); padding-right: 0; }
+.loki-phone-search-remove { align-self: center; margin-right: calc(var(--phone-space-1) + var(--phone-safe-right)); color: var(--loki-muted); }
+
+/* Notes about coverage and the link: quiet lines on the gutter, wrapping for long words and large text. */
+.loki-phone-search-note, .loki-phone-search-coverage {
+  margin: 0;
+  padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-left));
+  font-size: var(--phone-text-meta);
+  line-height: var(--phone-leading);
+  color: var(--loki-muted);
+  overflow-wrap: anywhere;
+}
+.loki-phone-search-coverage { padding-top: var(--phone-space-4); }
+.loki-phone-search-miss { overflow-wrap: anywhere; }
 
 /* ---- Reading ------------------------------------------------------------------------------------- */
 /* The desktop's transcript caps a bubble at 78% of the column; on a phone the column is the measure, so

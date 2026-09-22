@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAttention } from "../../../core/attention/useAttention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
@@ -6,7 +6,7 @@ import { makeTransport } from "../shell/transport";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/useDesk";
 import { AgentPage, FilePage } from "./Agent";
-import { Agents } from "./Agents";
+import { Agents, knownDescription } from "./Agents";
 import { ConversationScreen, type Thread } from "./Conversation";
 import { Archive } from "./Archive";
 import { Home, type ArchiveDesk } from "./Home";
@@ -238,12 +238,14 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       : null;
 
   const link = linkState(desk.connection, catchUp.status, attention.available);
+  // What Search looks through: only what the phone already holds (searchIndex.ts), agent descriptions from the Agents cache.
+  const searchSources = useMemo(() => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, describe: knownDescription }), [desk.desks.list, catchUp.agents, catchUp.items]);
   const update = <UpdateBar servedBuild={desk.servedBuild} />;
   return (
     <div ref={shellRef} className="loki-phone loki-phone-shell">
       {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
       {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "search" && <Search backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "archive" && <Archive desks={desk.desks.list} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
       {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}

@@ -135,6 +135,16 @@ export function createRecents({ storage = safeStorage(), key, max, maxAgeMs = 30
         /* full or blocked: the history is a convenience */
       }
     },
+    /** One entry out (a recent search's ×). */
+    remove(value: string) {
+      try {
+        const kept = load().filter((e) => e.v !== value);
+        if (kept.length) storage?.setItem(key, JSON.stringify(kept));
+        else storage?.removeItem(key);
+      } catch {
+        /* as above */
+      }
+    },
     clear() {
       try {
         storage?.removeItem(key);

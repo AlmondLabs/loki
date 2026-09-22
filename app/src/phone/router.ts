@@ -4,7 +4,7 @@ import { activeControl, focusMemory } from "./session";
 /**
  * The phone's routes live in the hash, so a home-screen icon has history and swipe-back:
  *   #/home  #/inbox  #/agents  #/more                 the four tabs
- *   #/search                                          Search, from the round button beside the tabs
+ *   #/search[?q=…]                                    Search, from the round button beside the tabs; `q` is its query
  *   #/learn  #/archive                                Learn and the archived desks (Home's shortcuts, More's rows)
  *   #/preferences  #/connection  #/about            appearance, the paired Mac and pairing, About — under More
  *   #/agents/<agentId>                             an agent's page
@@ -25,7 +25,7 @@ export const TABS: readonly Tab[] = ["home", "inbox", "agents", "more"];
 export type Route =
   | { kind: "tab"; tab: Tab }
   | { kind: "learn" }
-  | { kind: "search" }
+  | { kind: "search"; q?: string }
   | { kind: "archive" }
   | { kind: "preferences" }
   | { kind: "connection" }
@@ -38,7 +38,7 @@ export const HOME: Route = { kind: "tab", tab: "home" };
 
 const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
 /** Single-segment pages that are not tabs. */
-const CHILDREN = ["learn", "search", "archive", "preferences", "connection", "about"] as const;
+const CHILDREN = ["learn", "archive", "preferences", "connection", "about"] as const;
 type Child = (typeof CHILDREN)[number];
 const isChild = (s: string): s is Child => (CHILDREN as readonly string[]).includes(s);
 /** Old addresses, from saved links and installed clients, to where they live now. */
@@ -66,6 +66,10 @@ export function parseRoute(hash: string): Route {
   const [head, a, b, ...rest] = parts;
   if (parts.length === 1 && Object.hasOwn(LEGACY, head)) return LEGACY[head];
   if (parts.length === 1 && isChild(head)) return { kind: head };
+  if (parts.length === 1 && head === "search") {
+    const q = new URLSearchParams(query).get("q");
+    return q ? { kind: "search", q } : { kind: "search" };
+  }
   if (parts.length === 1 && isTab(head)) return { kind: "tab", tab: head };
   if (head === "agents" && a) {
     const agentId = dec(a);
@@ -85,8 +89,9 @@ export function formatRoute(r: Route): string {
   switch (r.kind) {
     case "tab":
       return `#/${r.tab}`;
-    case "learn":
     case "search":
+      return r.q ? `#/search?q=${encodeURIComponent(r.q)}` : "#/search";
+    case "learn":
     case "archive":
     case "preferences":
     case "connection":
@@ -202,6 +207,16 @@ export function replace(r: Route, arrival: Arrival = "replace"): void {
   history.replaceState(history.state, "", url(formatRoute(r)));
   pending = arrival;
   window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+/**
+ * Rewrite the current entry's address without telling the app: Search writes its query into its own
+ * entry just before it opens a result, so Back (history) lands on the same query. No hashchange, so
+ * nothing re-renders; the next navigate() reads the new address as its origin.
+ */
+export function rewrite(r: Route): void {
+  const hash = formatRoute(r);
+  if (location.hash !== hash) history.replaceState(history.state, "", url(hash));
 }
 
 /** Back to where this page was opened from; to its parent when the app was opened on it. */

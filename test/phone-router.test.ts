@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HOME, TABS, backTarget, depthOf, entryState, formatRoute, isOverlay, labelOf, originOf, ownerOf, parentOf, parseRoute, showsNav, type Route } from "../app/src/phone/router.ts";
+import { HOME, TABS, backTarget, depthOf, entryState, formatRoute, isOverlay, labelOf, originOf, ownerOf, parentOf, parseRoute, screenOf, showsNav, type Route } from "../app/src/phone/router.ts";
 
 /**
  * The phone's hash routes (app/src/phone/router.ts): every route both ways, file paths with slashes
@@ -104,6 +104,19 @@ describe("child routes", () => {
       expect(showsNav(r)).toBe(false);
       expect(labelOf(r)).toBe(kind);
     }
+  });
+  test("Search keeps its query in its own entry, so Back from a result returns to it", () => {
+    expect(formatRoute({ kind: "search", q: "loki mobile" })).toBe("#/search?q=loki%20mobile");
+    roundTrip({ kind: "search", q: "loki mobile" });
+    roundTrip({ kind: "search", q: "a&b=c?/#%" });
+    expect(parseRoute("#/search?q=loki+mobile")).toEqual({ kind: "search", q: "loki mobile" });
+    // an empty query is the bare address
+    expect(formatRoute({ kind: "search", q: "" })).toBe("#/search");
+    expect(parseRoute("#/search?q=")).toEqual({ kind: "search" });
+    expect(parseRoute("#/search")).toEqual({ kind: "search" });
+    // the query never reaches analytics or the Back label
+    expect(screenOf({ kind: "search", q: "secret" })).toBe("search");
+    expect(labelOf({ kind: "search", q: "secret" })).toBe("search");
   });
   test("a child with extra segments is not a child", () => {
     expect(parseRoute("#/search/x")).toEqual(HOME);
