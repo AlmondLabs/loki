@@ -1,6 +1,8 @@
 /* loki design tokens — a drafting table by day or night.
    Slate ground, paper data, brass for anything that needs you
    (approvals, unread), verdigris for live/positive, oxblood for failure.
+   data-theme picks day or night; data-palette picks the family — loki's own
+   (the default, below) or Tokyo Night (further down), each with both sides.
    Type: New York (display) for room names, Avenir Next Condensed (label)
    for title-block lettering, the system face for reading, SF Mono for data. */
 :root {
@@ -76,6 +78,69 @@
   --loki-shadow-float: 0 6px 8px oklch(25% 0.018 255 / 0.14);
   --loki-shadow-panel: 0 4px 8px oklch(25% 0.018 255 / 0.1);
   --loki-shadow-low: 0 3px 6px oklch(25% 0.018 255 / 0.09);
+}
+
+/* Tokyo Night (enkia, MIT). Night by night, Day by day; the roles are loki's, the colours are the
+   palette's own: its yellow takes the brass role, its teal the positive, its red the negative. Canonical
+   values stay in hex. The few tints loki derives from its accent (soft brass, the user's speech, the glow)
+   are OKLCH in the yellow's hue, and the Day inks that miss AA at their canonical values are darkened
+   along their own hue — test/tokens.test.ts holds every family to the same contrast. */
+:root[data-palette="tokyo-night"] {
+  color-scheme: dark;
+  --loki-bg: #1a1b26;
+  --loki-panel: #1f2335;
+  --loki-panel-header: #24283b;
+  --loki-hover: #292e42;
+  --loki-selection: #343a55;
+  --loki-border: #3b4261;
+  --loki-control-border: #737aa2;
+  --loki-fg: #c0caf5;
+  --loki-muted: #a9b1d6;
+  --loki-accent: #e0af68;
+  --loki-accent-soft: oklch(34% 0.06 75);
+  --loki-brass-soft: oklch(26% 0.03 75);
+  --loki-positive: #1abc9c;
+  --loki-negative: #f7768e;
+  --loki-grid: #24283b;
+  --loki-well: #16161e;
+  --loki-bubble: #1f2335;
+  --loki-user-bubble: oklch(28% 0.035 75);
+  --loki-code: #292e42;
+  --loki-veil: oklch(10% 0.02 280 / 0.62);
+  --loki-brass-glow: oklch(80% 0.12 75 / 0.25);
+  --loki-shadow-sheet: 0 8px 8px oklch(5% 0.02 280 / 0.5);
+  --loki-shadow-float: 0 6px 8px oklch(5% 0.02 280 / 0.42);
+  --loki-shadow-panel: 0 4px 8px oklch(5% 0.02 280 / 0.28);
+  --loki-shadow-low: 0 3px 6px oklch(5% 0.02 280 / 0.24);
+}
+
+:root[data-palette="tokyo-night"][data-theme="light"] {
+  color-scheme: light;
+  --loki-bg: #e1e2e7;
+  --loki-panel: oklch(95.5% 0.006 270);
+  --loki-panel-header: oklch(92.5% 0.01 270);
+  --loki-hover: #d0d5e3;
+  --loki-selection: #c4c8da;
+  --loki-border: #a8aecb;
+  --loki-control-border: #68709a;
+  --loki-fg: #343b59;
+  --loki-muted: #565f89;
+  --loki-accent: oklch(47% 0.1 70);
+  --loki-accent-soft: oklch(89% 0.05 75);
+  --loki-brass-soft: oklch(94% 0.025 75);
+  --loki-positive: oklch(45% 0.1 170);
+  --loki-negative: oklch(48% 0.19 15);
+  --loki-grid: #d0d5e3;
+  --loki-well: oklch(98% 0.004 270);
+  --loki-bubble: oklch(93.5% 0.008 270);
+  --loki-user-bubble: oklch(93% 0.025 75);
+  --loki-code: #d0d5e3;
+  --loki-veil: oklch(25% 0.03 275 / 0.28);
+  --loki-brass-glow: oklch(47% 0.1 70 / 0.16);
+  --loki-shadow-sheet: 0 8px 8px oklch(30% 0.03 275 / 0.16);
+  --loki-shadow-float: 0 6px 8px oklch(30% 0.03 275 / 0.14);
+  --loki-shadow-panel: 0 4px 8px oklch(30% 0.03 275 / 0.1);
+  --loki-shadow-low: 0 3px 6px oklch(30% 0.03 275 / 0.09);
 }
 
 /* Title-block lettering: condensed caps, tracked. */

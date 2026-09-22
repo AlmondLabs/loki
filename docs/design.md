@@ -19,8 +19,11 @@ working surface. Brass `--loki-accent` is for anything that needs the human, wit
 attention and glow values; verdigris is positive and oxblood is negative. Inputs, agent speech, user
 speech and inline code each have their own surface token instead of borrowing selection or accent.
 No literal colour appears in a component; the agent chip's hue is the one computed colour. `data-theme`
-selects dark or light values, and the saved `system` preference follows the operating system. An inline
-initializer applies it before first paint.
+selects dark or light values, and the saved `system` preference follows the operating system. `data-palette`
+selects the colour family: loki's own drafting table (the default) or Tokyo Night, each with a day and a
+night side that fill the same roles — the family's yellow is the brass, its teal the positive, its red the
+negative — and each held to the same contrast by the tokens test. An inline initializer applies both before
+first paint.
 
 Type scale, in px, used as plain numbers in inline styles: **9.5** micro (labels, kbd, rail) ·
 **10.5** meta (mono details) · **11** label (`.loki-label`) · **12** small · **13.5** body · **15** row title ·
