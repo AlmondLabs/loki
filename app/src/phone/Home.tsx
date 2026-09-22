@@ -70,6 +70,7 @@ export function Home({
       <TopBar
         title="Desks"
         sub={sub}
+        height={sub ? 48 : 44}
         right={
           <IconButton label="new conversation" title="a new conversation" size={40} tone="paper" onClick={() => setSheet(true)} style={{ fontSize: 22, lineHeight: 1 }}>
             +
@@ -78,10 +79,11 @@ export function Home({
       />
       {banner}
 
-      <div style={{ flex: "0 0 auto", padding: `10px ${GUTTER.right} 0 ${GUTTER.left}`, display: "grid", gap: 8 }}>
+      {/* The filter and the agent chips, kept short: the list below is what the screen is for. */}
+      <div style={{ flex: "0 0 auto", padding: `8px ${GUTTER.right} 0 ${GUTTER.left}`, display: "grid", gap: 6 }}>
         <Field
           type="search"
-          size="touch"
+          size="md"
           name="desk-filter"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -95,7 +97,7 @@ export function Home({
           data-1p-ignore
           data-form-type="other"
         />
-        <div role="group" aria-label="agent" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none", borderBottom: "1px solid var(--loki-border)" }}>
+        <div role="group" aria-label="agent" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", borderBottom: "1px solid var(--loki-border)" }}>
           <Chip touch active={agentFilter === null} aria-pressed={agentFilter === null} onClick={() => setAgentFilter(null)}>
             all <span style={{ opacity: 0.7 }}>{desks.filter((d) => d.status === "live" && d.scope !== "shared").length}</span>
           </Chip>
@@ -108,7 +110,7 @@ export function Home({
         </div>
       </div>
 
-      <Scroll style={{ padding: `4px ${GUTTER.right} 24px ${GUTTER.left}` }}>
+      <Scroll style={{ padding: `0 ${GUTTER.right} 12px ${GUTTER.left}` }}>
         <ul aria-label="desks" style={PLAIN_LIST}>
           {live.map((d) => (
             <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => openDesk(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
@@ -176,11 +178,11 @@ function useHold(onHold: (() => void) | null) {
   return { start, end, tap };
 }
 
-/** One desk: the mark, the face, the title over agent and time, the pin. 56px tall; a long press pins too. */
+/** One desk: the mark, the face, the title over agent and time, the pin. 46px tall — a touch row with a hairline; a long press pins too. */
 function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
   const hold = useHold(onPin);
   return (
-    <li style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 56, padding: "6px 4px 6px 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
+    <li style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 46, padding: "0 4px 0 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
       <Row
         touch
         onClick={hold.tap(onOpen)}
@@ -190,7 +192,7 @@ function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary
         onPointerLeave={hold.end}
         onContextMenu={(e) => e.preventDefault()}
         aria-label={`${deskName(d)}, ${d.agentName ?? "agent"}${mark ? `, ${mark.status}` : ""}`}
-        style={{ flex: 1, minWidth: 0, touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}
+        style={{ flex: 1, minWidth: 0, padding: "3px 6px", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}
       >
         <Mark item={mark} status={d.status} size={8} />
         {showFace && <AgentFace name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={20} />}
@@ -208,8 +210,8 @@ function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary
 /** The row's text: the title on one line, then agent, time and (when not live) status underneath. */
 function DeskTitle({ desk: d }: { desk: DeskSummary }) {
   return (
-    <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 3 }}>
-      <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deskName(d)}</span>
+    <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 1 }}>
+      <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, lineHeight: 1.25, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deskName(d)}</span>
       <Meta>
         {d.agentName ?? "agent"}
         {d.lastActive ? ` · ${ago(d.lastActive)}` : ""}
