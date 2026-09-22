@@ -12,16 +12,22 @@
       // Resolve the saved preference before CSS or React paints. The provider repeats this logic after
       // mount so system mode follows later OS changes and the theme-color meta stays in sync.
       (function () {
+        // Each family's --loki-bg, night and day, repeated from kit/tokens.css (test/tokens.test.ts keeps them equal).
+        var grounds = { "loki": { dark: "#0e1217", light: "#e8eced" }, "tokyo-night": { dark: "#1a1b26", light: "#e1e2e7" } };
         var preference = "system";
+        var palette = "loki";
         try {
           var saved = localStorage.getItem("loki.theme");
           if (saved === "light" || saved === "dark" || saved === "system") preference = saved;
+          var family = localStorage.getItem("loki.palette");
+          if (family && grounds[family]) palette = family;
         } catch (_) {}
         var theme = preference === "system" ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : preference;
         document.documentElement.dataset.theme = theme;
         document.documentElement.dataset.themePreference = preference;
+        document.documentElement.dataset.palette = palette;
         document.documentElement.style.colorScheme = theme;
-        document.querySelector('meta[name="theme-color"]').content = theme === "dark" ? "#0e1217" : "#e8eced";
+        document.querySelector('meta[name="theme-color"]').content = grounds[palette][theme];
       })();
     </script>
     <!-- Added to the Home Screen on iOS: no browser chrome, the status bar over our own background. -->
@@ -39,6 +45,8 @@
     <style>
       html { background: #0e1217; color: #e8e4dc; font: 15px/1.5 -apple-system, system-ui, sans-serif; }
       html[data-theme="light"] { background: #e8eced; color: #1c222a; }
+      html[data-palette="tokyo-night"] { background: #1a1b26; color: #c0caf5; }
+      html[data-palette="tokyo-night"][data-theme="light"] { background: #e1e2e7; color: #343b59; }
       body { margin: 0; }
       #loki-fallback { position: fixed; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; }
       #loki-fallback[hidden] { display: none; }

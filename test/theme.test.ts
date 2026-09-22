@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isThemePreference, resolvedTheme, storedTheme, THEME_STORAGE_KEY } from "../app/src/theme.tsx";
+import { isPalette, isThemePreference, PALETTE_STORAGE_KEY, PALETTES, resolvedTheme, storedPalette, storedTheme, THEME_STORAGE_KEY } from "../app/src/theme.tsx";
 
 describe("theme preference", () => {
   test("accepts only the three preferences", () => {
@@ -13,6 +13,15 @@ describe("theme preference", () => {
     expect(storedTheme({ getItem: () => "sepia" })).toBe("system");
     expect(storedTheme({ getItem: () => { throw new Error("blocked"); } })).toBe("system");
     expect(storedTheme(null)).toBe("system");
+  });
+
+  test("the palette is a known family and falls back to loki's own", () => {
+    expect(PALETTES.map(isPalette)).toEqual([true, true]);
+    expect(isPalette("dracula")).toBe(false);
+    expect(storedPalette({ getItem: (key) => (key === PALETTE_STORAGE_KEY ? "tokyo-night" : null) })).toBe("tokyo-night");
+    expect(storedPalette({ getItem: () => "dracula" })).toBe("loki");
+    expect(storedPalette({ getItem: () => { throw new Error("blocked"); } })).toBe("loki");
+    expect(storedPalette(null)).toBe("loki");
   });
 
   test("system resolves with the OS while explicit choices stay fixed", () => {
