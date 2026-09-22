@@ -315,7 +315,8 @@ export function Inbox({
   const progress = total > 0 ? passTotal(pass) / total : 0;
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
+    // A tab with a fixed bottom (the thumb buttons): it stops above the floating navigation rather than under it.
+    <div className="loki-phone-above-nav" style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
       <TopBar
         title="Inbox"
         height={44}

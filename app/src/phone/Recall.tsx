@@ -14,13 +14,13 @@ import { BackButton, GUTTER, SAFE, Scroll, TopBar } from "./ui";
  */
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
 
-export function Recall({ recall, banner, onBack }: { recall: RecallModel; banner: ReactNode; onBack: () => void }) {
+export function Recall({ recall, banner, backLabel = "home", onBack }: { recall: RecallModel; banner: ReactNode; backLabel?: string; onBack: () => void }) {
   const cards = recall.snap?.cards ?? [];
   const pass = useDeckPass(cards);
   const { current } = pass;
   return (
     <>
-      <TopBar left={<BackButton onClick={onBack} label="home" />} title="Learn" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}`} progress={pass.total ? pass.passed.size / pass.total : null} />
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Learn" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}`} progress={pass.total ? pass.passed.size / pass.total : null} />
       {banner}
       <Scroll style={{ padding: `16px ${GUTTER.right} calc(24px + ${SAFE.bottom}) ${GUTTER.left}` }}>
         {!recall.snap ? <Meta>loading…</Meta> : !current && cards.length === 0 && !recall.snap.worker.enabled ? <RecallIntro worker={recall.snap.worker} /> : !current ? <Rest cards={cards.length} passed={pass.passed.size} nextDue={pass.nextDue} /> : (

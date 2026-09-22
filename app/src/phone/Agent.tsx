@@ -42,7 +42,7 @@ function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
  * its memory as a tree of folders that fold, its skills, and what it learned recently — the last ten
  * memory commits, each opening its diff. A file row opens the file on its own page.
  */
-export function AgentPage({ agentId, name, desks, api, banner, onBack }: { agentId: string; name: string | null; desks: DeskSummary[]; api: PhoneAgentsApi; banner?: ReactNode; onBack: () => void }) {
+export function AgentPage({ agentId, name, desks, api, banner, backLabel = "agents", onBack }: { agentId: string; name: string | null; desks: DeskSummary[]; api: PhoneAgentsApi; banner?: ReactNode; backLabel?: string; onBack: () => void }) {
   const d = useAgentDetails(api, agentId);
   const log = useMemoryLog(api, agentId);
   const [folded, setFolded] = useState<Record<string, boolean>>({});
@@ -52,7 +52,7 @@ export function AgentPage({ agentId, name, desks, api, banner, onBack }: { agent
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <TopBar left={<BackButton onClick={onBack} label="agents" />} title={title} sub={d?.lastCommit ? <span>last change {lastSeen(d.lastCommit.at)}</span> : undefined} />
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title={title} sub={d?.lastCommit ? <span>last change {lastSeen(d.lastCommit.at)}</span> : undefined} />
       {banner}
       <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} calc(32px + ${SAFE.bottom}) ${GUTTER.left}` }}>
         {d === undefined && <div style={{ fontSize: 13.5, color: "var(--loki-muted)" }}>reading the agent…</div>}

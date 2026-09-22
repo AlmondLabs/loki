@@ -13,7 +13,7 @@ import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../com
 import { GUTTER, Heading, SAFE, Scroll, TopBar } from "./ui";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
-function openDesk(d: DeskSummary) {
+export function openDesk(d: DeskSummary) {
   if (d.agentId && d.conversationId) navigate({ kind: "conversation", agentId: d.agentId, conversationId: d.conversationId, prefill: null });
 }
 
@@ -132,7 +132,7 @@ export function Home({
         </div>
       </div>
 
-      <Scroll style={{ padding: `0 ${GUTTER.right} 12px ${GUTTER.left}` }}>
+      <Scroll memory="home" style={{ padding: `0 ${GUTTER.right} 12px ${GUTTER.left}` }}>
         {waiting > 0 && <AttentionList items={catchUpQueue(items)} onOpen={openAttention} />}
 
         <Heading aside={live.length}>{query || agentFilter ? "matching desks" : "desks"}</Heading>
@@ -242,7 +242,7 @@ function useHold(onHold: (() => void) | null) {
 }
 
 /** One desk: the mark, the face, the title over agent and time, the pin. 46px tall — a touch row with a hairline; a long press pins too. */
-function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
+export function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
   const hold = useHold(onPin);
   return (
     <li style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 46, padding: "0 4px 0 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>

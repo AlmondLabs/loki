@@ -1,46 +1,78 @@
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Icon, type IconName } from "./icons";
-import { SAFE } from "./ui";
 import { TABS, navigate, type Tab } from "./router";
 
 /**
- * The bottom bar, the way Slack's phone app has one: four tabs, icons from the phone's registry, a
- * label beneath. The active tab is paper; the inbox count sits in the unread badge, the same number
- * the desktop rail and the dock badge show. 52px plus the home indicator.
+ * The navigation, the way Slack's phone app floats it: a rounded capsule with Home, Inbox, Agents and
+ * More — icon over a small label, the current one on a raised pill — and a round Search button beside
+ * it, both hovering over the content just above the home indicator. The inbox count sits on Inbox in
+ * the unread badge, the same number the desktop rail and the dock badge show.
+ *
+ * The dock owns the bottom inset while it is on screen, and only it: it measures how much of the shell
+ * it covers and publishes that as --phone-nav-clearance on the shell. Scroll owners add it once at the
+ * end of their content (phone.css), so the last row scrolls clear of the capsule; screens with a fixed
+ * bottom (the Inbox's buttons) stop above it with .loki-phone-above-nav. `children` dock above the
+ * capsule — the update bar — and are counted in the clearance.
  */
-export const TAB_BAR_HEIGHT = 52;
-
-export function TabBar({ active, waiting }: { active: Tab | null; waiting: number }) {
+export function TabBar({ active, waiting, children }: { active: Tab | null; waiting: number; children?: ReactNode }) {
+  const dock = useNavClearance();
   return (
-    <nav aria-label="tabs" style={{ flex: "0 0 auto", display: "flex", alignItems: "stretch", height: `calc(${TAB_BAR_HEIGHT}px + ${SAFE.bottom})`, paddingBottom: SAFE.bottom, paddingLeft: SAFE.left, paddingRight: SAFE.right, boxSizing: "border-box", background: "var(--loki-panel)", borderTop: "1px solid var(--loki-border)" }}>
-      {TABS.map((t) => {
-        const on = t === active;
-        const n = t === "inbox" ? waiting : 0;
-        return (
-          <button
-            key={t}
-            type="button"
-            onClick={() => navigate({ kind: "tab", tab: t })}
-            aria-label={n > 0 ? `${t}, ${n} waiting` : t}
-            aria-current={on ? "page" : undefined}
-            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, border: "none", background: "transparent", color: on ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
-          >
-            <span style={{ position: "relative", display: "grid", placeItems: "center", width: 28, height: 24 }}>
-              <Icon name={TAB_ICON[t]} size={22} />
-              {n > 0 && (
-                <span aria-hidden style={{ position: "absolute", top: -4, right: -8, minWidth: 16, height: 16, padding: "0 4px", boxSizing: "border-box", borderRadius: 999, background: "var(--phone-unread)", color: "var(--phone-on-unread)", border: "2px solid var(--loki-panel)", fontFamily: "var(--loki-font)", fontSize: 11, fontWeight: 700, lineHeight: "12px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
-                  {n > 99 ? "99+" : n}
+    <div ref={dock} className="loki-phone-dock">
+      {children}
+      <div className="loki-phone-dock-row">
+        <nav aria-label="primary" className="loki-phone-nav">
+          {TABS.map((t) => {
+            const n = t === "inbox" ? waiting : 0;
+            return (
+              <button key={t} type="button" className="loki-phone-nav-item" onClick={() => navigate({ kind: "tab", tab: t })} aria-label={navLabel(t, n)} aria-current={t === active ? "page" : undefined}>
+                <span className="loki-phone-nav-icon">
+                  <Icon name={TAB_ICON[t]} size={24} />
+                  {n > 0 && (
+                    <span aria-hidden className="loki-phone-nav-badge">
+                      {badgeText(n)}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-            <span className="loki-label" style={{ fontSize: 11, color: "inherit" }}>
-              {t}
-            </span>
-          </button>
-        );
-      })}
-    </nav>
+                <span aria-hidden className="loki-phone-nav-label">
+                  {TAB_LABEL[t]}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+        <button type="button" className="loki-phone-search-btn" aria-label="Search" onClick={() => navigate({ kind: "search" })}>
+          <Icon name="search" size={24} />
+        </button>
+      </div>
+    </div>
   );
 }
 
-/** Each tab's glyph from the phone's icon registry. */
-const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", you: "person" };
+export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Inbox", agents: "Agents", more: "More" };
+const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", more: "more" };
+
+/** The badge's text: the count, capped at 99+ so a big queue never widens the capsule. */
+export const badgeText = (n: number): string => (n > 99 ? "99+" : String(n));
+
+/** A tab's accessible name: "Inbox" or "Inbox, 3 waiting". */
+export const navLabel = (t: Tab, n: number): string => (n > 0 ? `${TAB_LABEL[t]}, ${badgeText(n)} waiting` : TAB_LABEL[t]);
+
+/** Sets --phone-nav-clearance on the shell to the height the dock covers, from its top to the shell's bottom; removed with the dock. */
+function useNavClearance() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const shell = el?.closest<HTMLElement>(".loki-phone-shell");
+    if (!el || !shell) return;
+    const measure = () => shell.style.setProperty("--phone-nav-clearance", `${Math.max(0, Math.ceil(shell.getBoundingClientRect().bottom - el.getBoundingClientRect().top))}px`);
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    ro?.observe(shell);
+    return () => {
+      ro?.disconnect();
+      shell.style.removeProperty("--phone-nav-clearance");
+    };
+  }, []);
+  return ref;
+}

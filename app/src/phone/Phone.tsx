@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useAttention } from "../../../core/attention/useAttention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
@@ -8,16 +8,21 @@ import { useDesk } from "../desk/useDesk";
 import { AgentPage, FilePage } from "./Agent";
 import { Agents } from "./Agents";
 import { ConversationScreen, type Thread } from "./Conversation";
+import { Archive } from "./Archive";
 import { Home } from "./Home";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
+import { More } from "./More";
+import { Search } from "./Search";
 import { Settings } from "./Settings";
 import { Recall as RecallTab } from "./Recall";
 import { useRecall } from "../shell/useRecall";
+import { archivedDesks } from "../shell/DeskTree";
 import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
 import { agentNameOf, lastSeen, threadFor } from "./model";
-import { back, formatRoute, navigate, replace, tabOf, useRoute, type Route, type Tab } from "./router";
+import { back, backTarget, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
+import { recentPlaces, useFocusOnRoute } from "./session";
 import { Banner, Button } from "../components";
 import "./phone.css";
 
@@ -25,8 +30,10 @@ import "./phone.css";
  * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
  * lets the device in by cookie. `GET /me` decides between Pair and the app; once paired, the same
  * two hooks the desktop shell uses (useDesk for the mod, useAttention for the app-server tunnel)
- * feed four tabs on a bottom bar — Home, Inbox, Agents, You — and the full-screen pages over them:
- * Learn, a conversation, an agent, and a memory file. Routes live in the hash.
+ * feed four tabs in a floating capsule — Home, Inbox, Agents, More, with Search beside it — and the
+ * full-screen pages over them: Search, Learn, Archive, preferences, a conversation, an agent, and a
+ * memory file. Routes live in the hash; each page knows where it was opened from (router.ts), and
+ * what a person was in the middle of — drafts, scroll, the control they left from — is kept by session.ts.
  */
 type Gate = { kind: "checking" } | { kind: "unpaired" } | { kind: "paired"; me: Me } | { kind: "unreachable" };
 
@@ -66,16 +73,6 @@ export function Phone() {
     );
   if (gate.kind === "unpaired") return <Pair onPaired={(me) => setGate({ kind: "paired", me })} />;
   return <Paired me={gate.me} onUnpaired={() => setGate({ kind: "unpaired" })} />;
-}
-
-/** The tab under the page you are on; where a conversation's back goes when the app opened on it. */
-function useLastTab(route: Route) {
-  const lastTab = useRef<Tab>(tabOf(route) ?? "home");
-  useEffect(() => {
-    const t = tabOf(route);
-    if (t) lastTab.current = t;
-  }, [route]);
-  return lastTab;
 }
 
 /**
@@ -147,10 +144,9 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     listConversations: attention.listInbox,
     capture,
   });
-  const route = useRoute();
-  const lastTab = useLastTab(route);
+  const { route, from, arrival } = useRouteState();
   // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).
-  const routeView = route.kind === "tab" ? route.tab : route.kind;
+  const routeView = screenOf(route);
   const prevView = useRef<string | null>(null);
   useEffect(() => {
     if (prevView.current !== null && prevView.current !== routeView) capture("view_opened", { view: routeView, from: prevView.current });
@@ -197,26 +193,50 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const prefill = usePrefill(conv);
 
   const recentFolders = useCallback(() => attention.folders.recent().then((r) => r.byAgent), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const onTab = route.kind === "tab";
-  const tab = onTab ? route.tab : null;
+  const tab = route.kind === "tab" ? route.tab : null;
+  const nav = showsNav(route);
 
+  // Back from the page on screen, and what its control says: where it was opened from, else its parent.
+  const onBack = () => back(route);
+  const backLabel = labelOf(backTarget(route, from));
+
+  // Where a page is, without a one-shot prefill: the key for focus and for the recently visited list.
+  const place = formatRoute(conv ? { ...conv, prefill: null } : route);
+  // Focus follows the route: the control you left from when you come back, the new screen's heading otherwise.
+  const shellRef = useRef<HTMLDivElement>(null);
+  useFocusOnRoute(shellRef, place, arrival === "pop");
+  // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
+  useEffect(() => {
+    if (!nav && route.kind !== "search") recentPlaces.add(place);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [place]);
+
+  const update = <UpdateBar servedBuild={desk.servedBuild} />;
   return (
-    <div className="loki-phone loki-phone-shell">
-      {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} lastTab={lastTab} prefill={prefill} />}
-      {route.kind === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} onBack={() => back({ kind: "tab", tab: "home" })} />}
-      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} onBack={() => back({ kind: "tab", tab: "agents" })} />}
-      {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={() => back({ kind: "agent", agentId: route.agentId })} />}
+    <div ref={shellRef} className="loki-phone loki-phone-shell">
+      {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+      {route.kind === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "search" && <Search backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "archive" && <Archive desks={desk.desks.list} banner={banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "preferences" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onUnpaired={onUnpaired} />
+      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} />
 
-      <UpdateBar servedBuild={desk.servedBuild} withTabBar={onTab} />
-      {onTab && <TabBar active={tab} waiting={waiting} />}
+      {nav ? (
+        <TabBar active={tab} waiting={waiting}>
+          {update}
+        </TabBar>
+      ) : (
+        update
+      )}
     </div>
   );
 }
 
 /** The conversation the route names, full screen over the tabs, wired to the tunnel and the mod's desk list. */
-function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; banner: ReactNode; lastTab: RefObject<Tab>; prefill: { text: string; tick: number } | null }) {
+function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
@@ -226,11 +246,11 @@ function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { c
       view={catchUp.conversation(thread.agentId, thread.conversationId)}
       waiting={catchUp.items.some((i) => i.agentId === thread.agentId && i.id === thread.conversationId && catchUpQueue([i]).length > 0)}
       banner={banner}
-      backLabel={lastTab.current}
+      backLabel={backLabel}
       prefill={prefill}
       pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
-      onBack={() => back({ kind: "tab", tab: lastTab.current })}
+      onBack={onBack}
       onLoad={(rt) => void catchUp.loadThread(rt)}
       onDecide={catchUp.decide}
       onAnswer={catchUp.answer}
@@ -240,8 +260,12 @@ function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { c
   );
 }
 
-/** The four tabs. The deck stays mounted under other tabs and pages so the current pass survives a round trip. */
-function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onUnpaired }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onUnpaired: () => void }) {
+/**
+ * The four tabs. Home and the deck stay mounted under other tabs and pages, so their filters, the
+ * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
+ * place back from the scroll memory (their data is cached above them).
+ */
+function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>> }) {
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -266,7 +290,7 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onUn
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
-      {tab === "you" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} />}
+      {tab === "more" && <More me={me} due={due} archived={archivedDesks(desk.desks.list, null, "").filter((d) => d.agentId && d.conversationId).length} banner={banner} />}
     </>
   );
 }

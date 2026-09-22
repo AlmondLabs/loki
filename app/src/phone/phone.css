@@ -41,6 +41,10 @@
   --phone-affirm: #007a5a;
   --phone-on-affirm: #ffffff;
   --phone-focus: #1d9bd1;
+  /* the floating navigation: a near-opaque raised surface, a hairline a step lighter, the current tab's pill */
+  --phone-nav-surface: rgba(34, 37, 41, 0.96);
+  --phone-nav-border: #484c53;
+  --phone-nav-active: #50535a;
   /* one sans stack for everything the phone presents; mono is left for code */
   --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   --loki-display: var(--loki-font);
@@ -130,6 +134,9 @@
   --phone-affirm: #007a5a;
   --phone-on-affirm: #ffffff;
   --phone-focus: #1264a3;
+  --phone-nav-surface: rgba(255, 255, 255, 0.96);
+  --phone-nav-border: #dddddd;
+  --phone-nav-active: #ebebeb;
 }
 
 /* The document never scrolls on the phone. iOS rubber-bands the body behind a fixed shell when a drag starts
@@ -180,6 +187,8 @@ html:has(.loki-phone-shell) body {
 .loki-phone-body { font-size: var(--phone-text-body); line-height: var(--phone-leading); }
 .loki-phone-meta { font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); color: var(--loki-muted); font-variant-numeric: tabular-nums; }
 .loki-phone-link { color: var(--phone-link); text-decoration: none; }
+/* Named for screen readers, not drawn: a heading the layout has no room to show. */
+.loki-phone-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .loki-phone-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The shared primitives, in the phone's voice: no mono metadata, no condensed caps, bold sans titles. */
@@ -262,7 +271,7 @@ html:has(.loki-phone-shell) body {
   padding: 0 calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-2) + var(--phone-safe-left));
 }
 .loki-phone-topbar-copy { flex: 1; min-width: 0; }
-.loki-phone-topbar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-phone-topbar-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .loki-phone-topbar-sub {
   display: flex;
   align-items: center;
@@ -286,6 +295,11 @@ html:has(.loki-phone-shell) body {
   -webkit-overflow-scrolling: touch;
   padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left));
 }
+/* The end of every scroll owner clears the floating navigation once, so its last row can scroll out from
+   under the capsule; --phone-nav-clearance is set on the shell by the dock (TabBar.tsx) and absent — zero —
+   while the navigation is hidden. A screen with a fixed bottom stops above the dock instead. */
+.loki-phone-scroll::after { content: ""; display: block; height: var(--phone-nav-clearance, 0px); }
+.loki-phone-above-nav { margin-bottom: var(--phone-nav-clearance, 0px); }
 
 /* A section heading: sentence case, bold sans, a count or a note on the right. */
 .loki-phone-heading {
@@ -301,6 +315,145 @@ html:has(.loki-phone-shell) body {
 .loki-phone-heading-aside { margin-left: auto; font-size: var(--phone-text-meta); font-weight: 400; color: var(--loki-muted); font-variant-numeric: tabular-nums; }
 
 .loki-btn.loki-phone-back { padding-left: var(--phone-space-1); padding-right: var(--phone-space-3); gap: 2px; color: var(--loki-fg); }
+
+/* ---- The floating navigation (TabBar.tsx) ------------------------------------------------------- */
+/* The dock hovers over the bottom of the screen, just above the home indicator: nothing paints a band
+   under it; the space around the capsule is the screen behind. Only its controls take touches. */
+.loki-phone-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--phone-layer-nav);
+  display: grid;
+  gap: var(--phone-space-2);
+  padding: 0 calc(var(--phone-space-3) + var(--phone-safe-right)) max(var(--phone-space-3), var(--phone-safe-bottom)) calc(var(--phone-space-3) + var(--phone-safe-left));
+  pointer-events: none;
+}
+.loki-phone-dock > * { pointer-events: auto; }
+.loki-phone-dock-row { display: flex; align-items: stretch; gap: var(--phone-space-2); }
+.loki-phone-nav {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: var(--phone-space-1);
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-nav-surface);
+  box-shadow: var(--loki-shadow-float);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.loki-phone-nav-item {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  min-width: var(--phone-touch);
+  min-height: calc(var(--phone-touch) + var(--phone-space-2));
+  padding: var(--phone-space-1) 0;
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--phone-dur-fast) var(--phone-ease), color var(--phone-dur-fast) var(--phone-ease);
+}
+/* the current tab: a raised pill and full ink, so it is never told by colour alone */
+.loki-phone-nav-item[aria-current="page"] { background: var(--phone-nav-active); color: var(--loki-fg); }
+.loki-phone-nav-item:active { background: var(--loki-hover); }
+.loki-phone-nav-icon { position: relative; display: grid; place-items: center; width: 28px; height: 24px; }
+.loki-phone-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--phone-text-micro);
+  font-weight: var(--phone-weight-strong);
+  line-height: var(--phone-leading-tight);
+}
+.loki-phone-nav-badge {
+  position: absolute;
+  top: -4px;
+  left: 16px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-unread);
+  color: var(--phone-on-unread);
+  box-shadow: 0 0 0 2px var(--phone-nav-surface);
+  font-size: var(--phone-text-micro);
+  font-weight: var(--phone-weight-strong);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Search: its own circle beside the capsule, as tall as the capsule */
+.loki-phone-search-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(var(--phone-touch) + var(--phone-space-4) + 2px);
+  min-height: var(--phone-touch);
+  padding: 0;
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-nav-surface);
+  box-shadow: var(--loki-shadow-float);
+  color: var(--loki-fg);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.loki-phone-search-btn:active { background: var(--loki-hover); }
+
+/* The update notice: a strip at the bottom of a full-screen page, or docked above the capsule on a tab. */
+.loki-phone-update {
+  flex: 0 0 auto;
+  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-2) + var(--phone-safe-bottom)) calc(var(--phone-space-3) + var(--phone-safe-left));
+  border-top: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+}
+.loki-phone-dock .loki-phone-update { padding: 0; border-top: none; background: transparent; }
+
+/* ---- More (More.tsx): named rows, a chevron on each ---------------------------------------------- */
+.loki-phone-list { list-style: none; margin: 0; padding: 0; }
+.loki-phone-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-3);
+  width: 100%;
+  min-height: calc(var(--phone-touch) + var(--phone-space-2));
+  padding: 0 var(--phone-space-1);
+  border: none;
+  border-bottom: 1px solid var(--loki-border);
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  text-align: left;
+  cursor: pointer;
+}
+.loki-phone-menu-row:active { background: var(--loki-hover); }
+.loki-phone-menu-row-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-phone-menu-row-aside { color: var(--loki-muted); font-size: var(--phone-text-body); }
+
+/* ---- Search (Search.tsx): the field stays put, results scroll beneath it -------------------------- */
+.loki-phone-search-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: calc(var(--phone-space-2) + var(--phone-safe-top)) calc(var(--phone-space-3) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-space-2) + var(--phone-safe-left));
+  border-bottom: 1px solid var(--loki-border);
+  background: var(--loki-bg);
+}
+.loki-phone-search-bar .loki-field { flex: 1; min-width: 0; }
 
 /* ---- Reading ------------------------------------------------------------------------------------- */
 /* The desktop's transcript caps a bubble at 78% of the column; on a phone the column is the measure, so

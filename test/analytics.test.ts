@@ -9,6 +9,7 @@ import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { Client } from "../mod/server.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
+import { TABS, screenOf, type Route } from "../app/src/phone/router.ts";
 
 const NOW = Date.parse("2026-09-22T18:00:00Z");
 const at = (daysAgo: number, hour = 10, minute = 0) => new Date(NOW - daysAgo * 86_400_000 - (18 - hour) * 3_600_000 + minute * 60_000).toISOString();
@@ -188,5 +189,30 @@ describe("analytics: through the bridge", () => {
     bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" });
     bridge.onMessage(c, { type: "snooze_clear", agentId: "a", conversationId: "x" });
     expect(recorded).toEqual(["conversation_marked_seen", 'card_deferred {"skips":2}', "conversation_kept_unread", "deferral_cleared"]);
+  });
+});
+
+describe("analytics: the phone's screen names", () => {
+  // `view` and `$screen` carry these: a word per destination, never which desk, agent or file
+  const routes: Array<[Route, string]> = [
+    ...TABS.map((tab) => [{ kind: "tab", tab }, tab] as [Route, string]),
+    [{ kind: "learn" }, "learn"],
+    [{ kind: "search" }, "search"],
+    [{ kind: "archive" }, "archive"],
+    [{ kind: "preferences" }, "preferences"],
+    [{ kind: "agent", agentId: "agent-secret-1" }, "agent"],
+    [{ kind: "file", agentId: "agent-secret-1", path: "system/persona.md" }, "file"],
+    [{ kind: "conversation", agentId: "agent-secret-1", conversationId: "conv-secret-2", prefill: "hi" }, "conversation"],
+  ];
+  test("each route has a stable name, More included and You gone", () => {
+    for (const [route, name] of routes) expect(screenOf(route)).toBe(name);
+    expect(routes.map(([r]) => screenOf(r))).not.toContain("you");
+  });
+  test("names are plain words with no entity ids", () => {
+    for (const [route] of routes) {
+      const name = screenOf(route);
+      expect(name).toMatch(/^[a-z]+$/);
+      expect(name).not.toMatch(/secret|persona/);
+    }
   });
 });

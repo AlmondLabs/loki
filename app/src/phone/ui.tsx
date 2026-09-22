@@ -1,6 +1,7 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { Button } from "../components";
 import { Icon } from "./icons";
+import { useScrollMemory } from "./session";
 
 /**
  * The phone's few shared pieces: a top bar that clears the notch, the scrolling surface under it,
@@ -19,7 +20,8 @@ export const SAFE = {
 /**
  * `progress` (0..1) swaps the bottom hairline for a 2px bar that fills as a pass goes; the deck uses it
  * for "n of N". null keeps the hairline. Static looks are classes in phone.css; only the row height and
- * the fill are inline, since they come from the caller.
+ * the fill are inline, since they come from the caller. The title is the screen's heading: the one
+ * element focus moves to when a route opens (session.ts restoreFocus), hence tabIndex -1.
  */
 export function TopBar({ left, title, sub, right, progress = null, height = 48 }: { left?: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode; progress?: number | null; /** The row's height; 44 for a bar with no second line. */ height?: number }) {
   return (
@@ -27,7 +29,9 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
       <div className="loki-phone-topbar-row" style={{ minHeight: height }}>
         {left}
         <div className="loki-phone-topbar-copy">
-          <div className="loki-phone-title loki-phone-topbar-title">{title}</div>
+          <h1 className="loki-phone-title loki-phone-topbar-title" data-phone-heading tabIndex={-1}>
+            {title}
+          </h1>
           {sub && <div className="loki-phone-topbar-sub">{sub}</div>}
         </div>
         {right && <div className="loki-phone-topbar-actions">{right}</div>}
@@ -44,10 +48,16 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
 /** The phone's side margin, with the safe inset: every surface uses the same gutter (--phone-gutter, Slack's 16). */
 export const GUTTER = { left: `calc(var(--phone-gutter) + ${SAFE.left})`, right: `calc(var(--phone-gutter) + ${SAFE.right})` };
 
-/** A scrolling surface under a TopBar and over the tab bar; full-screen children add their own bottom inset. */
-export function Scroll({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+/**
+ * A scrolling surface under a TopBar. Its end clears the floating navigation when that is on screen
+ * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
+ * offset it keeps, so a tab switch or a page and back returns to the same place (session.ts).
+ */
+export function Scroll({ children, style, memory }: { children: ReactNode; style?: CSSProperties; memory?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useScrollMemory(ref, memory);
   return (
-    <div className="loki-phone-scroll" style={style}>
+    <div ref={ref} className="loki-phone-scroll" style={style}>
       {children}
     </div>
   );

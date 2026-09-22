@@ -54,7 +54,7 @@ export function Agents({ agents, loaded, desks, api, sub, banner }: { agents: Ar
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <TopBar title="Agents" sub={sub} />
       {banner}
-      <Scroll style={{ padding: `4px ${GUTTER.right} 24px ${GUTTER.left}` }}>
+      <Scroll memory="agents" style={{ padding: `4px ${GUTTER.right} 24px ${GUTTER.left}` }}>
         <ul aria-label="agents" style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {agents.map((a) => (
             <AgentRow key={a.id} agent={a} api={api} live={liveDeskCount(desks, a.id)} />

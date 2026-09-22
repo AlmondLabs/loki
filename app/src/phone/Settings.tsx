@@ -4,12 +4,12 @@ import type { Me } from "./Pair";
 import { routeOf } from "./model";
 import { currentBuild } from "./UpdateBar";
 import { Button, Dot, Title } from "../components";
-import { GUTTER, Scroll, TopBar } from "./ui";
+import { BackButton, GUTTER, SAFE, Scroll, TopBar } from "./ui";
 import { ThemeChoice } from "../settings/ThemeChoice";
 import { useTheme } from "../theme";
 
 /**
- * You on the phone, in the desktop's Section / Fact voice: this device's appearance and pairing,
+ * Preferences on the phone, a page under More, in the desktop's Section / Fact voice: this device's appearance and pairing,
  * what the Mac is and whether the two links are up, and what remains on the desktop. No brass here —
  * nothing on this page waits for you.
  */
@@ -21,6 +21,8 @@ export function Settings({
   sub,
   banner,
   onUnpaired,
+  onBack,
+  backLabel = "more",
 }: {
   me: Me;
   /** Letta Code's version, from app_server_info; null until it answered. */
@@ -30,6 +32,8 @@ export function Settings({
   sub?: ReactNode;
   banner?: ReactNode;
   onUnpaired: () => void;
+  onBack: () => void;
+  backLabel?: string;
 }) {
   const theme = useTheme();
   const [busy, setBusy] = useState(false);
@@ -49,9 +53,9 @@ export function Settings({
   };
   return (
     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <TopBar title="You" sub={sub} />
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Preferences" sub={sub} />
       {banner}
-      <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} 32px ${GUTTER.left}` }}>
+      <Scroll style={{ display: "grid", gap: 24, alignContent: "start", padding: `18px ${GUTTER.right} calc(32px + ${SAFE.bottom}) ${GUTTER.left}` }}>
         <Section title="appearance" hint="kept on this phone; system follows its display setting">
           <Fact label="theme" value={<ThemeChoice touch />} />
           <Fact label="using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
