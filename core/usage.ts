@@ -17,7 +17,7 @@ export interface UsageLine {
   detail?: Record<string, unknown>;
 }
 
-/** Every action recorded, with what its detail carries. The report lists the ones that did not happen in the window. */
+/** Every action recorded, with what its detail carries. The report lists the ones that did not happen in the period asked about. */
 export const USAGE_ACTIONS: Record<string, string> = {
   view: "a view opened { to, from } — the Mac's segments, the phone's tabs and pages",
   desk: "the desk on screen changed { scope }",
@@ -90,7 +90,7 @@ export interface UsageReport {
   /** Lines by local hour of day (24) and by weekday (7, Sunday first). */
   hours: number[];
   weekdays: number[];
-  /** Known actions with no line in the window. */
+  /** Known actions with no line in the period. */
   unused: string[];
 }
 
