@@ -8,7 +8,8 @@ import { ApprovalCard } from "../chat/ApprovalCard";
 import type { TranscriptRow } from "../chat/Transcript";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
-import { BADGE, CardThread } from "../desk/CatchUp";
+import { BADGE } from "../desk/CatchUp";
+import { Thread } from "../chat/Conversation";
 import { waitingSince } from "./model";
 import { Button, Chip, Empty, Meta, Row } from "../components";
 import { SAFE, TopBar } from "./ui";
@@ -551,7 +552,7 @@ function CardBody({ item, view, onApprove, onOpen, onLater, onSeen }: { item: At
       {/* The thread spans the card: the phone's column is the reading measure (PhoneStyles lifts the desktop's 78% cap). */}
       {view && (
         <div className="loki-phone-thread" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardThread rows={view.rows} status={view.status} error={item.status === "failed" ? item.error : null} style={{ padding: "8px 12px" }} />
+          <Thread rows={view.rows} status={view.status} error={item.status === "failed" ? item.error : null} agentName={item.agentName} style={{ padding: "8px 12px" }} />
         </div>
       )}
       {item.pendingApproval && <ApprovalCard approval={item.pendingApproval} />}

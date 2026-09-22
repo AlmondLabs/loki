@@ -7,7 +7,7 @@ import { modBase } from "../desk/env";
 import { useDesk } from "../desk/useDesk";
 import { AgentPage, FilePage } from "./Agent";
 import { Agents } from "./Agents";
-import { Conversation, type Thread } from "./Conversation";
+import { ConversationScreen, type Thread } from "./Conversation";
 import { Home } from "./Home";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
@@ -208,7 +208,7 @@ function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { c
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
   return (
-    <Conversation
+    <ConversationScreen
       thread={thread}
       view={catchUp.conversation(thread.agentId, thread.conversationId)}
       waiting={catchUp.items.some((i) => i.agentId === thread.agentId && i.id === thread.conversationId && catchUpQueue([i]).length > 0)}
@@ -221,7 +221,7 @@ function ConversationPage({ conv, desk, catchUp, banner, lastTab, prefill }: { c
       onLoad={(rt) => void catchUp.loadThread(rt)}
       onDecide={catchUp.decide}
       onAnswer={catchUp.answer}
-      onSend={(rt, text, deskTitle) => catchUp.send(rt, text, [], { desk: deskTitle })}
+      onSend={(rt, text, images, deskTitle) => catchUp.send(rt, text, images, { desk: deskTitle })}
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
     />
   );
