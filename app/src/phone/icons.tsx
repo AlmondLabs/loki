@@ -112,6 +112,7 @@ const PATHS = {
     </>
   ),
   filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   refresh: (
     <>
       <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" />

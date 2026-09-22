@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
-import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { ago } from "../board/model";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
 import { BADGE } from "../desk/CatchUp";
-import { Mark, agentChips, archivedDesks, liveDesks } from "../shell/DeskTree";
-import { navigate } from "./router";
-import { Button, Chip, Field, IconButton, Meta, Row, Sheet, Title } from "../components";
-import { GUTTER, Heading, SAFE, Scroll, TopBar } from "./ui";
+import { agentChips, deskMark } from "../shell/DeskTree";
+import { Button, Chip, Field, Sheet } from "../components";
+import { Icon, type IconName } from "./icons";
+import { homeCounts, homeSections, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
+import type { Me } from "./Pair";
+import { navigate, type Route } from "./router";
+import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
+import { Scroll } from "./ui";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
@@ -21,45 +24,49 @@ function openAttention(item: AttentionItem) {
   navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
 }
 
-/** A list drawn as rows: no bullets, no indent (Tailwind's preflight resets these too; stated here so the phone does not depend on it). */
-const PLAIN_LIST = { listStyle: "none", margin: 0, padding: 0 } as const;
+/** Archive or restore a desk's conversation through the app-server; resolves to an error, or null when done. */
+export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
+
+/** What the presence dot and its name say about the paired Mac. */
+const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecting: "connecting to the Mac", offline: "Mac unreachable" };
 
 /**
- * Home is the desks tree on one column: every live conversation of every agent, pinned first then by
- * recency, each with its face, title, agent and time, and the same attention dot the desktop tree
- * gives it. A field filters by text, the chips by agent; the archive is folded at the bottom. The
- * plus starts a conversation with an agent in its most recent folder — the phone has no folder picker.
+ * Home, Slack's orientation screen with loki's content: the workspace header (loki, the menu, the
+ * profile with the Mac's presence), a rail of shortcuts with their counts, then "Needs your attention"
+ * — the head of the Inbox queue — and the live desks, each conversation in one of the two, never both
+ * (model.ts homeSections). The filter, the agent scope, refresh and a new desk live in the menu; while a
+ * filter is on it shows as a pill that clears it. A long press on a desk (or its actions button) pins or
+ * archives it. Home stays mounted under other pages, so all of this — and the scroll — survives a round trip.
  */
 export function Home({
+  me,
+  link,
   desks,
   agents,
   items,
-  waiting,
   due,
   hidden = false,
-  sub,
   banner,
-  onOpenInbox,
-  onOpenLearn,
   onRefresh,
   onPin,
+  onArchive,
   recentFolders,
   onCreate,
 }: {
+  me: Me;
+  link: LinkState;
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
-  waiting: number;
   due: number;
-  /** Keep Home mounted under child pages so search, filters, and scroll state survive the round trip. */
+  /** Keep Home mounted under child pages so the filter, the folds and the scroll survive the round trip. */
   hidden?: boolean;
-  sub?: ReactNode;
   banner?: ReactNode;
-  onOpenInbox: () => void;
-  onOpenLearn: () => void;
-  /** Ask the mod for the list again (on mount, and when the socket reopens). */
+  /** Ask the mod for the list again (on mount, from the menu, and when the socket reopens). */
   onRefresh: () => void;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
+  /** Null while the app-server cannot take it (not reachable, or not on this Mac). */
+  onArchive: ArchiveDesk | null;
   /** `folders_get`: the folders each agent worked in, most recent first. */
   recentFolders: () => Promise<Record<string, string[]>>;
   /** A new conversation through the app-server; resolves to its runtime. */
@@ -67,8 +74,9 @@ export function Home({
 }) {
   const [query, setQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState<string | null>(null);
-  const [showArchive, setShowArchive] = useState(false);
-  const [sheet, setSheet] = useState(false);
+  const [open, setOpen] = useState({ attention: true, desks: true });
+  const [sheet, setSheet] = useState<"menu" | "new" | null>(null);
+  const [acting, setActing] = useState<DeskSummary | null>(null);
 
   useEffect(onRefresh, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -78,213 +86,326 @@ export function Home({
     return m;
   }, [items]);
   const chips = useMemo(() => agentChips(agents, desks), [agents, desks]);
-  const q = query.trim().toLowerCase();
-  const live = useMemo(() => liveDesks(desks, agentFilter, q), [desks, agentFilter, q]);
-  // The shared sheet has no conversation to open on a phone, so it stays out of the archive fold here.
-  const archive = useMemo(() => archivedDesks(desks, agentFilter, q).filter((d) => d.agentId && d.conversationId), [desks, agentFilter, q]);
+  const counts = useMemo(() => homeCounts({ items, due, agents: chips, desks }), [items, due, chips, desks]);
+  const sections = useMemo(() => homeSections(desks, items, agentFilter, query), [desks, items, agentFilter, query]);
+  const filtered = !!query.trim() || !!agentFilter;
+  const scopeName = agentFilter ? (chips.find((c) => c.id === agentFilter)?.name ?? "agent") : null;
+
   return (
-    <div style={{ flex: 1, minHeight: 0, display: hidden ? "none" : "flex", flexDirection: "column", position: "relative" }}>
-      <TopBar
-        title="Home"
-        sub={sub}
-        height={sub ? 48 : 44}
-        right={
-          <IconButton label="new conversation" title="a new conversation" size={40} tone="paper" onClick={() => setSheet(true)} style={{ fontSize: 22, lineHeight: 1 }}>
-            +
-          </IconButton>
-        }
-      />
+    <div className="loki-phone-page" hidden={hidden}>
+      <HomeHeader me={me} link={link} filtered={filtered} onMenu={() => setSheet("menu")} />
       {banner}
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, padding: `8px ${GUTTER.right} 0 ${GUTTER.left}` }}>
-        <Shortcut label="Inbox" count={waiting} onClick={onOpenInbox} />
-        <Shortcut label="Learn" count={due} onClick={onOpenLearn} />
-      </div>
-
-      {/* The filter and the agent chips, kept short: the list below is what the screen is for. */}
-      <div style={{ flex: "0 0 auto", padding: `8px ${GUTTER.right} 0 ${GUTTER.left}`, display: "grid", gap: 6 }}>
-        <Field
-          type="search"
-          size="md"
-          name="desk-filter"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="type to filter"
-          aria-label="filter desks"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          enterKeyHint="search"
-          data-1p-ignore
-          data-form-type="other"
-        />
-        <div role="group" aria-label="agent" style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6, scrollbarWidth: "none", borderBottom: "1px solid var(--loki-border)" }}>
-          <Chip touch active={agentFilter === null} aria-pressed={agentFilter === null} onClick={() => setAgentFilter(null)}>
-            all <span style={{ opacity: 0.7 }}>{desks.filter((d) => d.status === "live" && d.scope !== "shared").length}</span>
-          </Chip>
-          {chips.map((c) => (
-            <Chip key={c.id} touch active={agentFilter === c.id} aria-pressed={agentFilter === c.id} onClick={() => setAgentFilter(agentFilter === c.id ? null : c.id)}>
-              <AgentFace name={c.name} src={avatarUrl(c.id)} size={16} />
-              {c.name ?? "agent"} <span style={{ opacity: 0.7 }}>{c.count}</span>
-            </Chip>
-          ))}
-        </div>
-      </div>
-
-      <Scroll memory="home" style={{ padding: `0 ${GUTTER.right} 12px ${GUTTER.left}` }}>
-        {waiting > 0 && <AttentionList items={catchUpQueue(items)} onOpen={openAttention} />}
-
-        <Heading aside={live.length}>{query || agentFilter ? "matching desks" : "desks"}</Heading>
-        <ul aria-label="desks" style={PLAIN_LIST}>
-          {live.map((d) => (
-            <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} showFace={!agentFilter} onOpen={() => openDesk(d)} onPin={d.agentId && d.conversationId ? () => onPin(d.agentId!, d.conversationId!, !d.pinned) : null} />
-          ))}
-        </ul>
-        {live.length === 0 && desks.length > 0 && <div style={{ padding: "24px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>no desks match</div>}
-        {desks.length === 0 && <div style={{ padding: "24px 4px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>reading the desks…</div>}
-        {archive.length > 0 && (
-          <div style={{ marginTop: 14, borderTop: "1px solid var(--loki-border)" }}>
-            <Row touch onClick={() => setShowArchive((v) => !v)} aria-expanded={showArchive || !!q} style={{ gap: 8 }}>
-              <span className="loki-label" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 9.5 }}>
-                <span aria-hidden style={{ display: "inline-block", transform: showArchive || q ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>▸</span>
-                archived
-              </span>
-              <Meta>· {archive.length}</Meta>
-            </Row>
-            {(showArchive || q) && (
-              <ul aria-label="archived desks" style={PLAIN_LIST}>
-                {archive.map((d) => (
-                  <DeskRow key={d.scope} desk={d} mark={undefined} showFace={!agentFilter} onOpen={() => openDesk(d)} onPin={null} />
-                ))}
-              </ul>
-            )}
+      <Scroll memory="home" flush>
+        <ShortcutRail counts={counts} />
+        {filtered && (
+          <div className="loki-phone-pills" role="group" aria-label="filters on">
+            {query.trim() && <FilterPill label={`\u201c${query.trim()}\u201d`} onClear={() => setQuery("")} />}
+            {scopeName && <FilterPill label={scopeName} onClear={() => setAgentFilter(null)} />}
           </div>
         )}
+
+        {sections.attention.length > 0 && (
+          <RowSection icon="inbox" title="Needs your attention" count={counts.inbox} onTitle={() => navigate({ kind: "tab", tab: "inbox" })} titleLabel={`Needs your attention, ${counts.inbox} waiting. Open Inbox`}>
+            <ul className="loki-phone-list" aria-label="needs your attention">
+              {sections.attention.map((a) => (
+                <AttentionRow key={`${a.item.agentId}/${a.item.id}`} entry={a} />
+              ))}
+              {sections.more > 0 && (
+                <li>
+                  <button type="button" className="loki-phone-row loki-phone-row--quiet" data-launch="home:inbox-more" onClick={() => navigate({ kind: "tab", tab: "inbox" })}>
+                    <RowIcon name="inbox" />
+                    <span className="loki-phone-row-copy loki-phone-link">{sections.more} more in Inbox</span>
+                  </button>
+                </li>
+              )}
+            </ul>
+          </RowSection>
+        )}
+
+        <RowSection icon="desk" title={filtered ? "Matching desks" : "Desks"} open={open.desks || filtered} onToggle={filtered ? undefined : () => setOpen((o) => ({ ...o, desks: !o.desks }))}>
+          <ul className="loki-phone-list" aria-label="desks">
+            {sections.desks.map((d) => (
+              <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} onActions={() => setActing(d)} />
+            ))}
+            {!filtered && (
+              <li>
+                <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={() => setSheet("new")}>
+                  <RowIcon name="plus" />
+                  <span className="loki-phone-row-copy">New desk</span>
+                </button>
+              </li>
+            )}
+          </ul>
+          {desks.length === 0 && <p className="loki-phone-empty">Reading the desks…</p>}
+          {desks.length > 0 && filtered && sections.desks.length === 0 && sections.attention.length === 0 && (
+            <div className="loki-phone-empty">
+              <p>No desks match.</p>
+              <Button size="touch" tone="paper" onClick={() => (setQuery(""), setAgentFilter(null))}>
+                Clear filters
+              </Button>
+            </div>
+          )}
+        </RowSection>
       </Scroll>
 
-      {sheet && <NewSheet agents={chips} defaultAgentId={agentFilter} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(false)} />}
+      {sheet === "menu" && (
+        <HomeMenu
+          query={query}
+          onQuery={setQuery}
+          agents={chips}
+          agentFilter={agentFilter}
+          onAgent={setAgentFilter}
+          onNew={() => setSheet("new")}
+          onRefresh={() => (onRefresh(), setSheet(null))}
+          onClose={() => setSheet(null)}
+        />
+      )}
+      {sheet === "new" && <NewSheet agents={chips} defaultAgentId={agentFilter} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(null)} />}
+      {acting && (
+        <DeskActions
+          desk={acting}
+          onClose={() => setActing(null)}
+          onPin={acting.agentId && acting.conversationId && acting.status === "live" ? (p) => onPin(acting.agentId!, acting.conversationId!, p) : null}
+          onArchive={onArchive ? (archived) => onArchive(acting, archived) : null}
+        />
+      )}
     </div>
   );
 }
 
-function Shortcut({ label, count, onClick }: { label: string; count: number; onClick: () => void }) {
+/** loki's mark, the name as the large title, and on the right the menu and the profile with the Mac's presence. */
+function HomeHeader({ me, link, filtered, onMenu }: { me: Me; link: LinkState; filtered: boolean; onMenu: () => void }) {
   return (
-    <Row touch onClick={onClick} aria-label={`${label}${count > 0 ? `, ${count} ${label === "Learn" ? "due" : "waiting"}` : ""}`} style={{ minWidth: 0, minHeight: 52, padding: "7px 10px", border: "1px solid var(--loki-border)", borderRadius: 8, justifyContent: "space-between", background: "var(--loki-panel)" }}>
-      <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-      {count > 0 && <span style={{ flex: "0 0 auto", minWidth: 24, color: "var(--loki-accent)", fontFamily: "var(--loki-mono)", fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{count > 99 ? "99+" : count}</span>}
-    </Row>
+    <header className="loki-phone-topbar loki-phone-home-top">
+      <div className="loki-phone-home-bar">
+        <span aria-hidden className="loki-phone-workspace">
+          L
+        </span>
+        <h1 className="loki-phone-large-title loki-phone-home-title" data-phone-heading tabIndex={-1}>
+          loki
+        </h1>
+        <div className="loki-phone-home-actions">
+          <button type="button" className="loki-phone-icon-btn loki-phone-home-menu" aria-label={filtered ? "Home menu, filters on" : "Home menu"} aria-haspopup="dialog" data-on={filtered || undefined} onClick={onMenu}>
+            <Icon name="menu" size={22} />
+          </button>
+          <button type="button" className="loki-phone-profile" aria-label={`More, ${me.name}, ${LINK_WORD[link]}`} data-launch="home:profile" onClick={() => navigate({ kind: "tab", tab: "more" })}>
+            <span aria-hidden className="loki-phone-profile-face">
+              {(me.name || "?").slice(0, 1).toUpperCase()}
+            </span>
+            <span aria-hidden className="loki-phone-presence" data-link={link} data-on={link === "online"} />
+          </button>
+        </div>
+      </div>
+    </header>
   );
 }
 
-function AttentionList({ items, onOpen }: { items: AttentionItem[]; onOpen: (item: AttentionItem) => void }) {
-  if (items.length === 0) return null;
+const SHORTCUTS: Array<{ kind: Shortcut; label: string; icon: IconName; to: Route }> = [
+  { kind: "inbox", label: "Inbox", icon: "inbox", to: { kind: "tab", tab: "inbox" } },
+  { kind: "learn", label: "Learn", icon: "learn", to: { kind: "learn" } },
+  { kind: "agents", label: "Agents", icon: "agents", to: { kind: "tab", tab: "agents" } },
+  { kind: "archive", label: "Archive", icon: "archive", to: { kind: "archive" } },
+];
+
+/** The rail: one tile per shortcut, scrolling sideways, a red dot on the icon when there is something to do there. */
+function ShortcutRail({ counts }: { counts: HomeCounts }) {
   return (
-    <section aria-label="waiting on you" style={{ marginBottom: 14 }}>
-      <div className="loki-label" style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 9.5, padding: "8px 4px 6px" }}>
-        waiting on you
-        <Meta>· {items.length}</Meta>
-      </div>
-      <ul aria-label="attention" style={PLAIN_LIST}>
-        {items.map((item) => {
-          const badge = BADGE[item.status];
-          return (
-            <li key={`${item.agentId}/${item.id}`} style={{ borderBottom: "1px solid var(--loki-border)" }}>
-              <Row touch onClick={() => onOpen(item)} aria-label={`${item.title ?? item.id}, ${badge.label}`} style={{ minWidth: 0, padding: "7px 4px" }}>
-                <Mark item={item} status="live" size={8} />
-                <AgentFace name={item.agentName} src={avatarUrl(item.agentId)} size={20} />
-                <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 1 }}>
-                  <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title ?? item.id}</span>
-                  <Meta>{item.agentName ?? "agent"} · {badge.label}</Meta>
-                </span>
-              </Row>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+    <nav className="loki-phone-rail" aria-label="shortcuts">
+      {SHORTCUTS.map((s) => {
+        const line = shortcutLine(s.kind, counts);
+        const lit = (s.kind === "inbox" && counts.inbox > 0) || (s.kind === "learn" && counts.learn > 0);
+        return (
+          <button key={s.kind} type="button" className="loki-phone-tile" data-lit={lit || undefined} data-launch={`home:${s.kind}`} aria-label={`${s.label}, ${line}`} onClick={() => navigate(s.to)}>
+            <span className="loki-phone-tile-icon">
+              <Icon name={s.icon} size={22} />
+              {lit && <span aria-hidden className="loki-phone-tile-dot" />}
+            </span>
+            <span className="loki-phone-tile-label">{s.label}</span>
+            <span className="loki-phone-tile-line">{line}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** An active filter, said out loud, with the × that clears it. */
+function FilterPill({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <button type="button" className="loki-phone-pill" aria-label={`Clear filter ${label}`} onClick={onClear}>
+      <span className="loki-phone-pill-face">
+        <span className="loki-phone-ellipsis">{label}</span>
+        <Icon name="close" size={14} />
+      </span>
+    </button>
+  );
+}
+
+/** The first words of the agent's last reply, on one line. */
+const snippet = (text: string | null | undefined) => (text ? text.replace(/\s+/g, " ").trim().slice(0, 160) : null);
+
+/** A waiting conversation: the agent's face, the desk's name (else the item's), agent · what it waits on, the time, a dot when unread. */
+function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
+  const title = desk?.title ?? item.title ?? "new desk";
+  const word = BADGE[item.status].label;
+  return (
+    <PhoneRow
+      lead={<Avatar name={item.agentName} src={avatarUrl(item.agentId)} />}
+      title={title}
+      preview={`${item.agentName ?? "agent"} · ${word}`}
+      time={ago(item.lastMessageAt)}
+      badge={item.unread || item.status === "approval" || item.status === "question"}
+      unread
+      label={`${title}, ${item.agentName ?? "agent"}, ${word}`}
+      launch={`attention:${item.agentId}/${item.id}`}
+      onOpen={() => openAttention(item)}
+    />
   );
 }
 
 /** What a desk row is called: its title, or "new desk" while it is live and untitled, or its scope once archived. */
-function deskName(d: DeskSummary): string {
+export function deskName(d: DeskSummary): string {
   return d.title ?? (d.status === "live" ? "new desk" : d.scope);
 }
 
 /**
- * A long press: `onHold` fires after 550ms with the finger still down, and the tap that ends that press
- * is swallowed so the row does not also open. Owns the timer and the "held" flag; hands back the row's
- * pointer handlers and a wrapper for its click.
+ * One desk: the #, its name (bold while something in it is new), agent · the last reply or what it is
+ * doing, the time or a dot. The same row draws an archived desk, quieter. `onActions` opens DeskActions.
  */
-function useHold(onHold: (() => void) | null) {
-  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const held = useRef(false);
-  const start = () => {
-    if (!onHold) return;
-    held.current = false;
-    hold.current = setTimeout(() => {
-      held.current = true;
-      onHold();
-    }, 550);
-  };
-  const end = () => {
-    if (hold.current) clearTimeout(hold.current);
-    hold.current = null;
-  };
-  const tap = (fn: () => void) => () => {
-    if (held.current) {
-      held.current = false;
-      return;
-    }
-    fn();
-  };
-  return { start, end, tap };
+export function DeskRow({ desk: d, mark, onActions }: { desk: DeskSummary; mark: AttentionItem | undefined; onActions: (() => void) | null }) {
+  const m = deskMark(mark, d.status);
+  const fresh = m.kind === "waits" || m.kind === "finished" || m.kind === "failed";
+  const doing = m.kind === "running" ? "running…" : m.kind === "waits" || m.kind === "failed" ? BADGE[mark!.status].label : null;
+  const said = doing ?? snippet(mark?.lastAssistantText) ?? (d.status !== "live" ? d.status : null);
+  const name = deskName(d);
+  return (
+    <PhoneRow
+      lead={<RowIcon name={d.status === "live" ? "desk" : "archive"} />}
+      title={name}
+      flags={d.pinned ? <Icon name="pin" size={14} title="pinned" className="loki-phone-row-flag" /> : null}
+      preview={said ? `${d.agentName ?? "agent"} · ${said}` : (d.agentName ?? "agent")}
+      time={ago(d.lastActive)}
+      badge={fresh}
+      unread={fresh}
+      dim={d.status !== "live"}
+      label={`${name}, ${d.agentName ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${m.title}` : ""}`}
+      launch={`desk:${d.scope}`}
+      onOpen={() => openDesk(d)}
+      onActions={onActions}
+      actionsLabel={`Actions for ${name}`}
+    />
+  );
 }
 
-/** One desk: the mark, the face, the title over agent and time, the pin. 46px tall — a touch row with a hairline; a long press pins too. */
-export function DeskRow({ desk: d, mark, showFace, onOpen, onPin }: { desk: DeskSummary; mark: AttentionItem | undefined; showFace: boolean; onOpen: () => void; onPin: (() => void) | null }) {
-  const hold = useHold(onPin);
+/** A main chat cannot be archived, nor a deleted conversation (DeskTree's canArchiveDesk). */
+const canArchive = (d: DeskSummary) => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+
+/**
+ * A desk's actions, as a bottom sheet: open it, pin or unpin (live desks), archive or restore. Archive
+ * waits for the app-server and stays open with its error when it fails; `onArchive` null means the
+ * app-server cannot take it now, and the row says so instead of vanishing.
+ */
+export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: DeskSummary; onClose: () => void; onPin: ((pinned: boolean) => void) | null; onArchive: ((archived: boolean) => Promise<string | null>) | null }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const archived = d.status === "archived";
+  const archive = async () => {
+    if (!onArchive) return;
+    setBusy(true);
+    setError(null);
+    const err = await onArchive(!archived);
+    if (err) {
+      setError(err);
+      setBusy(false);
+    } else onClose();
+  };
   return (
-    <li style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 46, padding: "0 4px 0 0", borderBottom: "1px solid var(--loki-border)", opacity: d.status === "live" ? 1 : 0.7 }}>
-      <Row
-        touch
-        onClick={hold.tap(onOpen)}
-        onPointerDown={hold.start}
-        onPointerUp={hold.end}
-        onPointerCancel={hold.end}
-        onPointerLeave={hold.end}
-        onContextMenu={(e) => e.preventDefault()}
-        aria-label={`${deskName(d)}, ${d.agentName ?? "agent"}${mark ? `, ${mark.status}` : ""}`}
-        style={{ flex: 1, minWidth: 0, padding: "3px 6px", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}
-      >
-        <Mark item={mark} status={d.status} size={8} />
-        {showFace && <AgentFace name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={20} />}
-        <DeskTitle desk={d} />
-      </Row>
-      {onPin && (
-        <IconButton label={d.pinned ? "unpin" : "pin"} size={40} onClick={onPin} aria-pressed={!!d.pinned} title={d.pinned ? "unpin" : "pin to the top"}>
-          <Pin filled={!!d.pinned} />
-        </IconButton>
+    <Sheet label={`${deskName(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
+      <div className="loki-phone-sheet-head">
+        <AgentFace name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={36} />
+        <div className="loki-phone-sheet-copy">
+          <div className="loki-phone-title loki-phone-ellipsis">{deskName(d)}</div>
+          <div className="loki-phone-meta loki-phone-ellipsis">{d.agentName ?? "agent"}{d.status !== "live" ? ` · ${d.status}` : ""}</div>
+        </div>
+      </div>
+      <ul className="loki-phone-list">
+        <SheetRow icon="chevron-right" label="Open desk" onClick={() => (onClose(), openDesk(d))} />
+        {onPin && <SheetRow icon="pin" label={d.pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!d.pinned), onClose())} />}
+        {canArchive(d) && <SheetRow icon="archive" label={busy ? (archived ? "Restoring…" : "Archiving…") : archived ? "Restore to Desks" : "Archive"} aside={onArchive ? null : "Not connected"} disabled={!onArchive || busy} onClick={() => void archive()} />}
+      </ul>
+      {error && (
+        <p role="alert" className="loki-phone-error">
+          {error}
+        </p>
       )}
+      <Button size="touch" tone="paper" block onClick={onClose}>
+        Cancel
+      </Button>
+    </Sheet>
+  );
+}
+
+/** One row of a sheet's list, the More row's shape without the chevron. */
+function SheetRow({ icon, label, aside = null, disabled = false, onClick }: { icon: IconName; label: string; aside?: string | null; disabled?: boolean; onClick: () => void }) {
+  return (
+    <li>
+      <button type="button" className="loki-phone-menu-row" disabled={disabled} onClick={onClick}>
+        <Icon name={icon} size={22} />
+        <span className="loki-phone-menu-row-label">{label}</span>
+        {aside && <span className="loki-phone-menu-row-aside">{aside}</span>}
+      </button>
     </li>
   );
 }
 
-/** The row's text: the title on one line, then agent, time and (when not live) status underneath. */
-function DeskTitle({ desk: d }: { desk: DeskSummary }) {
+/**
+ * Home's menu: the filter and the agent scope that used to sit over the list, then a new desk and a
+ * refresh. The filter applies as you type, so closing the sheet shows the narrowed list at once.
+ */
+function HomeMenu({ query, onQuery, agents, agentFilter, onAgent, onNew, onRefresh, onClose }: { query: string; onQuery: (q: string) => void; agents: Array<{ id: string; name: string | null; count: number }>; agentFilter: string | null; onAgent: (id: string | null) => void; onNew: () => void; onRefresh: () => void; onClose: () => void }) {
   return (
-    <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 1 }}>
-      <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, lineHeight: 1.25, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deskName(d)}</span>
-      <Meta>
-        {d.agentName ?? "agent"}
-        {d.lastActive ? ` · ${ago(d.lastActive)}` : ""}
-        {d.status !== "live" ? ` · ${d.status}` : ""}
-      </Meta>
-    </span>
+    <Sheet label="Home menu" onClose={onClose} placement="bottom" className="loki-phone-sheet">
+      <Field
+        type="search"
+        size="touch"
+        name="desk-filter"
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+        placeholder="Filter desks"
+        aria-label="Filter desks"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
+        enterKeyHint="done"
+        onKeyDown={(e) => e.key === "Enter" && onClose()}
+        data-1p-ignore
+        data-form-type="other"
+      />
+      <div role="group" aria-label="Agent" className="loki-phone-chips">
+        <Chip touch active={agentFilter === null} aria-pressed={agentFilter === null} onClick={() => onAgent(null)}>
+          All agents
+        </Chip>
+        {agents.map((c) => (
+          <Chip key={c.id} touch active={agentFilter === c.id} aria-pressed={agentFilter === c.id} onClick={() => onAgent(agentFilter === c.id ? null : c.id)}>
+            <AgentFace name={c.name} src={avatarUrl(c.id)} size={18} />
+            {c.name ?? "agent"} <span className="loki-phone-chip-count">{c.count}</span>
+          </Chip>
+        ))}
+      </div>
+      <ul className="loki-phone-list">
+        <SheetRow icon="plus" label="New desk" onClick={onNew} />
+        <SheetRow icon="refresh" label="Refresh desks" onClick={onRefresh} />
+        <SheetRow icon="archive" label="Archived desks" onClick={() => (onClose(), navigate({ kind: "archive" }))} />
+      </ul>
+      <Button size="touch" tone="paper" block onClick={onClose}>
+        Done
+      </Button>
+    </Sheet>
   );
 }
 
-/** A drawing pin: filled when the desk is pinned. */
+/** A drawing pin: filled when the desk is pinned. The conversation header still draws it (U5 moves it to the icon set). */
 export function Pin({ filled, size = 16 }: { filled: boolean; size?: number }) {
   return (
     <svg viewBox="0 0 20 20" width={size} height={size} fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -348,21 +469,25 @@ function useNewDesk(agents: Array<{ id: string; name: string | null }>, defaultA
 function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: { agents: Array<{ id: string; name: string | null }>; defaultAgentId: string | null; recentFolders: () => Promise<Record<string, string[]>>; onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>; onClose: () => void }) {
   const { agentId, setAgentId, name, setName, recent, agentName, folder, busy, error, canStart, start } = useNewDesk(agents, defaultAgentId, recentFolders, onCreate, onClose);
   return (
-    <Sheet label="new conversation" onClose={onClose} placement="bottom" style={{ padding: `14px ${GUTTER.right} calc(14px + ${SAFE.bottom}) ${GUTTER.left}`, display: "grid", gap: 14 }}>
-      <div>
-        <div className="loki-label" style={{ fontSize: 9.5 }}>new conversation</div>
-        <Title style={{ marginTop: 4 }}>{agentName ? `with ${agentName}` : "with an agent"}</Title>
+    <Sheet label="New desk" onClose={onClose} placement="bottom" className="loki-phone-sheet">
+      <div className="loki-phone-sheet-copy">
+        <div className="loki-phone-meta">New desk</div>
+        <div className="loki-phone-title">{agentName ? `With ${agentName}` : "With an agent"}</div>
       </div>
       <AgentPicker agents={agents} agentId={agentId} onPick={setAgentId} />
-      <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="name · optional" aria-label="conversation name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
+      <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" aria-label="Desk name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
       <FolderLine recent={recent} folder={folder} agentName={agentName} />
-      {error && <div role="alert" style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</div>}
-      <div style={{ display: "flex", gap: 8 }}>
-        <Button size="touch" onClick={onClose} style={{ flex: 1 }}>
-          cancel
+      {error && (
+        <p role="alert" className="loki-phone-error">
+          {error}
+        </p>
+      )}
+      <div className="loki-phone-sheet-actions">
+        <Button size="touch" tone="paper" onClick={onClose}>
+          Cancel
         </Button>
-        <Button size="touch" tone="brass" onClick={() => void start()} disabled={!canStart} style={{ flex: 2 }}>
-          {busy ? "starting…" : "start"}
+        <Button size="touch" tone="brass" onClick={() => void start()} disabled={!canStart}>
+          {busy ? "Starting…" : "Start"}
         </Button>
       </div>
     </Sheet>
@@ -372,14 +497,14 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
 /** The agent chips, one lit; a line instead when the harness has no agents yet. */
 function AgentPicker({ agents, agentId, onPick }: { agents: Array<{ id: string; name: string | null }>; agentId: string | null; onPick: (id: string) => void }) {
   return (
-    <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+    <div role="radiogroup" aria-label="Agent" className="loki-phone-chips loki-phone-chips--wrap">
       {agents.map((a) => (
-        <Chip key={a.id} touch active={a.id === agentId} aria-pressed={a.id === agentId} onClick={() => onPick(a.id)}>
-          <AgentFace name={a.name} src={avatarUrl(a.id)} size={16} />
+        <Chip key={a.id} touch role="radio" active={a.id === agentId} aria-checked={a.id === agentId} onClick={() => onPick(a.id)}>
+          <AgentFace name={a.name} src={avatarUrl(a.id)} size={18} />
           {a.name ?? "agent"}
         </Chip>
       ))}
-      {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Letta Code running on the Mac?</span>}
+      {agents.length === 0 && <span className="loki-phone-meta">No agents yet. Is Letta Code running on the Mac?</span>}
     </div>
   );
 }
@@ -388,8 +513,8 @@ function AgentPicker({ agents, agentId, onPick }: { agents: Array<{ id: string; 
 function FolderLine({ recent, folder, agentName }: { recent: Record<string, string[]> | null; folder: string | null; agentName: string | null }) {
   const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
   return (
-    <div style={{ fontSize: 12, lineHeight: 1.5, color: folder ? "var(--loki-muted)" : "var(--loki-negative)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", overflowWrap: "anywhere" }}>
-      {recent === null ? "asking the Mac for folders…" : folder ? `in ${short}` : `${agentName ?? "this agent"} has no recent folder on the Mac; start its first desk there`}
-    </div>
+    <p className={folder || recent === null ? "loki-phone-meta loki-phone-wrap" : "loki-phone-error"}>
+      {recent === null ? "Asking the Mac for folders…" : folder ? `In ${short}` : `${agentName ?? "This agent"} has no recent folder on the Mac; start its first desk there.`}
+    </p>
   );
 }

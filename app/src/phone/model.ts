@@ -8,6 +8,10 @@
 import type { LanStatus } from "../../../mod/lan.ts";
 import type { DeviceSummary } from "../../../mod/devices.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../core/pairing-code.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue } from "../../../core/attention/queue.ts";
+import type { DeskSummary } from "../desk/useDesk";
+import { archivedDesks, liveDesks } from "../shell/DeskTree";
 
 /** The mod's own types: what `lan_status` and `devices` carry (mod/lan.ts, mod/devices.ts). */
 export type { LanStatus };
@@ -300,4 +304,88 @@ export function countdown(iso: string, now: number = Date.now()): string {
   const s = Math.floor((new Date(iso).getTime() - now) / 1000);
   if (!Number.isFinite(s) || s <= 0) return "expired";
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/* ---- Home (Home.tsx) and the archive (Archive.tsx) ------------------------------------------------ */
+
+/** How many waiting conversations Home lists above the desks; the rest stay in the desk list, marked, and in Inbox. */
+export const HOME_ATTENTION_MAX = 5;
+
+/** The filter as typed, the way deskMatches wants it: trimmed and lowercased. */
+const norm = (q: string) => q.trim().toLowerCase();
+
+/**
+ * The archived desks a phone can reopen: every desk no longer live that has a conversation (the shared
+ * sheet has none on a phone), in the desk list's order, narrowed by the agent scope and the filter.
+ */
+export function archiveList(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
+  return archivedDesks(desks, agentFilter, norm(q)).filter((d) => d.agentId && d.conversationId);
+}
+
+export interface HomeCounts {
+  /** Inbox: the ready queue (catchUpQueue), snoozed cards left out. */
+  inbox: number;
+  learn: number;
+  agents: number;
+  /** Agents with a turn running now. */
+  running: number;
+  archive: number;
+}
+
+/** The shortcut rail's numbers, from the same derivations the destinations use. */
+export function homeCounts({ items, due, agents, desks }: { items: AttentionItem[]; due: number; agents: Array<{ id: string }>; desks: DeskSummary[] }): HomeCounts {
+  return {
+    inbox: catchUpQueue(items).length,
+    learn: due,
+    agents: agents.length,
+    running: new Set(items.filter((i) => i.status === "running").map((i) => i.agentId)).size,
+    archive: archiveList(desks, null, "").length,
+  };
+}
+
+export type Shortcut = "inbox" | "learn" | "agents" | "archive";
+
+/** The line under a shortcut's name: its count, or a calm word when there is nothing. */
+export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
+  const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+  if (kind === "inbox") return c.inbox ? `${c.inbox} waiting` : "All caught up";
+  if (kind === "learn") return c.learn ? `${c.learn} due` : "Nothing due";
+  if (kind === "agents") return c.running ? `${c.running} running` : n(c.agents, "agent");
+  return c.archive ? n(c.archive, "desk") : "None yet";
+}
+
+/** A waiting conversation on Home, with its desk when it has one (the desk names it better than the item). */
+export interface HomeAttention {
+  item: AttentionItem;
+  desk: DeskSummary | undefined;
+}
+
+/**
+ * Home's two lists, each conversation once (R16): "Needs your attention" takes the first
+ * HOME_ATTENTION_MAX of the ready queue, in its priority order; "Desks" is the live list (pinned first,
+ * then by recency) without them. Actionable desks past the cap stay in the desk list with their mark.
+ * The agent scope and the filter narrow both; an item matches by its desk's name, its own title or its agent.
+ */
+export function homeSections(desks: DeskSummary[], items: AttentionItem[], agentFilter: string | null, query: string, max = HOME_ATTENTION_MAX): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
+  const q = norm(query);
+  const byKey = new Map<string, DeskSummary>();
+  for (const d of desks) if (d.agentId && d.conversationId) byKey.set(`${d.agentId}/${d.conversationId}`, d);
+  const waiting = catchUpQueue(items)
+    .map((item) => ({ item, desk: byKey.get(`${item.agentId}/${item.id}`) }))
+    .filter(({ item, desk }) => (!agentFilter || item.agentId === agentFilter) && (!q || [desk?.title, item.title, item.agentName ?? desk?.agentName].some((s) => (s ?? "").toLowerCase().includes(q))));
+  const attention = waiting.slice(0, max);
+  const shown = new Set(attention.map(({ item }) => `${item.agentId}/${item.id}`));
+  return { attention, more: waiting.length - attention.length, desks: liveDesks(desks, agentFilter, q).filter((d) => !shown.has(`${d.agentId}/${d.conversationId}`)) };
+}
+
+export type LinkState = "online" | "connecting" | "offline";
+
+/**
+ * The paired Mac in one word, for Home's presence dot: offline when either socket is closed (the same
+ * rule as the "Mac unreachable" banner), online when the mod is up and so is the app-server tunnel — or
+ * there is none to reach — and connecting in between.
+ */
+export function linkState(mod: "connecting" | "open" | "closed", appServer: "off" | "connecting" | "open" | "closed", available: boolean): LinkState {
+  if (mod === "closed" || appServer === "closed") return "offline";
+  return mod === "open" && (appServer === "open" || !available) ? "online" : "connecting";
 }

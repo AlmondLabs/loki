@@ -9,7 +9,7 @@ import { AgentPage, FilePage } from "./Agent";
 import { Agents } from "./Agents";
 import { ConversationScreen, type Thread } from "./Conversation";
 import { Archive } from "./Archive";
-import { Home } from "./Home";
+import { Home, type ArchiveDesk } from "./Home";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { More } from "./More";
@@ -17,10 +17,9 @@ import { Search } from "./Search";
 import { Settings } from "./Settings";
 import { Recall as RecallTab } from "./Recall";
 import { useRecall } from "../shell/useRecall";
-import { archivedDesks } from "../shell/DeskTree";
 import { TabBar } from "./TabBar";
 import { UpdateBar } from "./UpdateBar";
-import { agentNameOf, lastSeen, threadFor } from "./model";
+import { agentNameOf, archiveList, lastSeen, linkState, threadFor } from "./model";
 import { back, backTarget, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { recentPlaces, useFocusOnRoute } from "./session";
 import { Banner, Button } from "../components";
@@ -211,18 +210,29 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place]);
 
+  // Archive and restore go through the app-server, the way the desktop tree does; null while it cannot take them.
+  const onArchive: ArchiveDesk | null =
+    attention.available && catchUp.status === "open"
+      ? async (d, archived) => {
+          if (!d.conversationId) return "this desk has no conversation";
+          const err = await catchUp.archiveConversation(d.conversationId, archived);
+          if (!err) desk.desks.request();
+          return err;
+        }
+      : null;
+
   const update = <UpdateBar servedBuild={desk.servedBuild} />;
   return (
     <div ref={shellRef} className="loki-phone loki-phone-shell">
       {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
       {route.kind === "learn" && <RecallTab recall={recall} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "search" && <Search backLabel={backLabel} onBack={onBack} />}
-      {route.kind === "archive" && <Archive desks={desk.desks.list} banner={banner} backLabel={backLabel} onBack={onBack} />}
+      {route.kind === "archive" && <Archive desks={desk.desks.list} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
       {route.kind === "preferences" && <Settings me={me} version={catchUp.server?.version ?? null} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
       {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} />
+      <Screen tab={tab} me={me} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} />
 
       {nav ? (
         <TabBar active={tab} waiting={waiting}>
@@ -265,7 +275,7 @@ function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, pref
  * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
  * place back from the scroll memory (their data is cached above them).
  */
-function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>> }) {
+function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders, onArchive }: { tab: Tab | null; me: Me; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null }) {
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -273,7 +283,21 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders }: { 
   };
   return (
     <>
-      <Home hidden={tab !== "home"} desks={desk.desks.list} agents={catchUp.agents} items={catchUp.items} waiting={catchUpQueue(catchUp.items).length} due={due} banner={banner} onOpenInbox={() => navigate({ kind: "tab", tab: "inbox" })} onOpenLearn={() => navigate({ kind: "learn" })} onRefresh={desk.desks.request} onPin={desk.desks.pin} recentFolders={recentFolders} onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))} />
+      <Home
+        hidden={tab !== "home"}
+        me={me}
+        link={linkState(desk.connection, catchUp.status, attention.available)}
+        desks={desk.desks.list}
+        agents={catchUp.agents}
+        items={catchUp.items}
+        due={due}
+        banner={banner}
+        onRefresh={desk.desks.request}
+        onPin={desk.desks.pin}
+        onArchive={onArchive}
+        recentFolders={recentFolders}
+        onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
+      />
       <Inbox
         hidden={tab !== "inbox"}
         items={catchUp.items}
@@ -290,7 +314,7 @@ function Screen({ tab, me, desk, catchUp, deck, due, banner, recentFolders }: { 
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
       />
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} desks={desk.desks.list} api={desk.agents} banner={banner} />}
-      {tab === "more" && <More me={me} due={due} archived={archivedDesks(desk.desks.list, null, "").filter((d) => d.agentId && d.conversationId).length} banner={banner} />}
+      {tab === "more" && <More me={me} due={due} archived={archiveList(desk.desks.list, null, "").length} banner={banner} />}
     </>
   );
 }

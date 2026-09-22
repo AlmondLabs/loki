@@ -53,11 +53,11 @@ export const GUTTER = { left: `calc(var(--phone-gutter) + ${SAFE.left})`, right:
  * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
  * offset it keeps, so a tab switch or a page and back returns to the same place (session.ts).
  */
-export function Scroll({ children, style, memory }: { children: ReactNode; style?: CSSProperties; memory?: string }) {
+export function Scroll({ children, style, memory, flush = false }: { children: ReactNode; style?: CSSProperties; memory?: string; /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useScrollMemory(ref, memory);
   return (
-    <div ref={ref} className="loki-phone-scroll" style={style}>
+    <div ref={ref} className={flush ? "loki-phone-scroll loki-phone-scroll--flush" : "loki-phone-scroll"} style={style}>
       {children}
     </div>
   );

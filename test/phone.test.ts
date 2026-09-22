@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
+import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, HOME_ATTENTION_MAX, archiveList, homeCounts, homeSections, linkState, shortcutLine, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
+import type { DeskSummary } from "../app/src/desk/useDesk.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 
 /**
@@ -265,5 +266,92 @@ describe("reloading a newer canvas", () => {
     expect(shouldAutoReload(5_000, true)).toBe(false);
     expect(shouldAutoReload(120_000, false)).toBe(false);
     expect(shouldAutoReload(NaN, true)).toBe(false);
+  });
+});
+
+describe("Home: shortcuts, attention and desks (U3)", () => {
+  const desk = (over: Partial<DeskSummary>): DeskSummary =>
+    ({ scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`, title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
+  const item = (over: Partial<AttentionItem>): AttentionItem =>
+    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+  const desks = [
+    desk({ conversationId: "c1", title: "Loki mobile", lastActive: "2026-09-20T10:00:00Z" }),
+    desk({ conversationId: "c2", title: "QuizUp", agentId: "a2", agentName: "jira", lastActive: "2026-09-21T10:00:00Z" }),
+    desk({ conversationId: "c3", title: "DSPy", lastActive: "2026-09-19T10:00:00Z", pinned: true }),
+    desk({ conversationId: "c4", title: "Old one", status: "archived" }),
+    desk({ conversationId: "c5", title: "Older", status: "archived", agentId: "a2", agentName: "jira" }),
+    desk({ scope: "shared", title: null, status: "archived", agentId: null, agentName: null, conversationId: null }),
+  ];
+  const items = [
+    item({ id: "c1", status: "approval" }),
+    item({ id: "c9", agentId: "a2", agentName: "jira", status: "question", title: "Main chat" }),
+    item({ id: "c2", agentId: "a2", agentName: "jira", status: "running", unread: false }),
+    item({ id: "c3", status: "done", snooze: { until: "2026-09-30T00:00:00Z" } as unknown as AttentionItem["snooze"] }),
+  ];
+
+  test("shortcut counts: waiting inbox items, due cards, agents running, archived desks with a conversation", () => {
+    const c = homeCounts({ items, due: 31, agents: [{ id: "a1" }, { id: "a2" }, { id: "a3" }], desks });
+    expect(c).toEqual({ inbox: 2, learn: 31, agents: 3, running: 1, archive: 2 });
+  });
+  test("shortcut lines say the count, or a calm state when there is none", () => {
+    const c = { inbox: 12, learn: 31, agents: 3, running: 2, archive: 85 };
+    expect(shortcutLine("inbox", c)).toBe("12 waiting");
+    expect(shortcutLine("learn", c)).toBe("31 due");
+    expect(shortcutLine("agents", c)).toBe("2 running");
+    expect(shortcutLine("archive", c)).toBe("85 desks");
+    const none = { inbox: 0, learn: 0, agents: 1, running: 0, archive: 1 };
+    expect(shortcutLine("inbox", none)).toBe("All caught up");
+    expect(shortcutLine("learn", none)).toBe("Nothing due");
+    expect(shortcutLine("agents", none)).toBe("1 agent");
+    expect(shortcutLine("archive", none)).toBe("1 desk");
+    expect(shortcutLine("archive", { ...none, archive: 0 })).toBe("None yet");
+  });
+  test("an actionable desk appears once: in attention, not again in the desk list", () => {
+    const s = homeSections(desks, items, null, "");
+    expect(s.attention.map((a) => a.item.id)).toEqual(["c1", "c9"]);
+    expect(s.desks.map((d) => d.conversationId)).toEqual(["c3", "c2"]); // pinned first, then by recency; c1 is above
+    expect(s.more).toBe(0);
+    const keys = [...s.attention.map((a) => `${a.item.agentId}/${a.item.id}`), ...s.desks.map((d) => `${d.agentId}/${d.conversationId}`)];
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+  test("attention past the cap stays in the desk list, marked, rather than vanishing", () => {
+    const many = Array.from({ length: HOME_ATTENTION_MAX + 2 }, (_, n) => item({ id: `k${n}`, status: "question" }));
+    const lots = many.map((i) => desk({ conversationId: i.id, title: i.id }));
+    const s = homeSections(lots, many, null, "");
+    expect(s.attention.length).toBe(HOME_ATTENTION_MAX);
+    expect(s.more).toBe(2);
+    expect(s.desks.map((d) => d.conversationId).sort()).toEqual([`k${HOME_ATTENTION_MAX}`, `k${HOME_ATTENTION_MAX + 1}`]);
+  });
+  test("the agent scope and the filter narrow both sections", () => {
+    const scoped = homeSections(desks, items, "a2", "");
+    expect(scoped.attention.map((a) => a.item.id)).toEqual(["c9"]);
+    expect(scoped.desks.map((d) => d.conversationId)).toEqual(["c2"]);
+    const typed = homeSections(desks, items, null, "loki");
+    // the approval's own title is "t"; it matches by its desk's name, and stays in attention only
+    expect(typed.attention.map((a) => [a.item.id, a.desk?.title])).toEqual([["c1", "Loki mobile"]]);
+    expect(typed.desks).toEqual([]);
+    expect(homeSections(desks, items, null, "main").attention.map((a) => [a.item.id, a.desk])).toEqual([["c9", undefined]]);
+  });
+  test("the archive list: no shared sheet, the agent scope and the filter apply", () => {
+    expect(archiveList(desks, null, "").map((d) => d.conversationId)).toEqual(["c4", "c5"]);
+    expect(archiveList(desks, "a2", "").map((d) => d.conversationId)).toEqual(["c5"]);
+    expect(archiveList(desks, null, "old ").map((d) => d.conversationId)).toEqual(["c4", "c5"]);
+    expect(archiveList(desks, null, "older").map((d) => d.conversationId)).toEqual(["c5"]);
+    expect(archiveList([], null, "")).toEqual([]);
+  });
+});
+
+describe("Home's presence dot: the paired Mac's two links in one word", () => {
+  test("both up, or the mod up with no app-server to reach: online", () => {
+    expect(linkState("open", "open", true)).toBe("online");
+    expect(linkState("open", "off", false)).toBe("online");
+  });
+  test("either link closed: offline, as the banner says", () => {
+    expect(linkState("closed", "open", true)).toBe("offline");
+    expect(linkState("open", "closed", true)).toBe("offline");
+  });
+  test("otherwise still connecting", () => {
+    expect(linkState("connecting", "open", true)).toBe("connecting");
+    expect(linkState("open", "connecting", true)).toBe("connecting");
   });
 });
