@@ -960,6 +960,14 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-msg-divider-day { color: var(--loki-fg); }
 .loki-phone .loki-msg-divider-rule { flex: 1; height: 1px; background: var(--phone-unread); }
 .loki-phone .loki-msg-divider-new { color: var(--loki-negative); }
+/* Message times: quiet after the author's name; a touch screen has no hover, so a run's later rows show none. */
+.loki-phone .loki-msg-time { margin-left: var(--phone-space-2); font-size: var(--phone-text-meta); font-weight: 400; color: var(--loki-muted); }
+.loki-phone .loki-msg-gutter-time { display: none; }
+/* Day pills: a hairline across the day's top, the pill sticky at the thread's top until the next day's pushes it off. */
+.loki-phone .loki-msg-day { position: relative; }
+.loki-phone .loki-msg-day::before { content: ""; position: absolute; top: 13px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
+.loki-phone .loki-msg-day-pill-wrap { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: var(--phone-space-2); pointer-events: none; }
+.loki-phone .loki-msg-day-pill { padding: 2px var(--phone-space-3); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-pill); background: var(--loki-bg); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
 .loki-phone .loki-composer-attach { flex: none; }
 
 /* ---- The full conversation (Conversation.tsx) ------------------------------------------------------ */

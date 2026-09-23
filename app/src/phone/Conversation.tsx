@@ -94,7 +94,7 @@ export function ConversationScreen({
 
   const agentName = thread.agentName ?? "the agent";
   const people = useMemo(() => ({ assistant: { name: thread.agentName ?? "agent", avatar: avatarUrl(thread.agentId) }, user: { name: "You" } }), [thread.agentName, thread.agentId]);
-  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false);
+  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt);
   const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt) }), [people, dividerAt, item?.lastMessageAt]);
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =

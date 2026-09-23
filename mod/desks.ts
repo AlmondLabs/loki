@@ -205,6 +205,8 @@ export interface LocalTranscriptMessage {
   text: string;
   summary?: string | null;
   detail?: string | null;
+  /** When the log line was written (its ISO `timestamp`); absent on lines without one. */
+  at?: string;
 }
 
 /**
@@ -250,7 +252,7 @@ export function readLocalTranscriptSince(
 /** One log line → its transcript rows: user and assistant text, harness notices as events, tool calls as markers. */
 function transcriptRows(line: string): LocalTranscriptMessage[] {
   if (!line.trim()) return [];
-  let entry: { type?: string; message?: { role?: string; content?: unknown } };
+  let entry: { type?: string; timestamp?: unknown; message?: { role?: string; content?: unknown; metadata?: { created_at?: unknown } } };
   try {
     entry = JSON.parse(line) as typeof entry;
   } catch {
@@ -260,13 +262,16 @@ function transcriptRows(line: string): LocalTranscriptMessage[] {
   const role = entry.message.role;
   if (role !== "user" && role !== "assistant") return [];
   const out: LocalTranscriptMessage[] = [];
+  // Letta's local backend writes the time on every message line; older lines may lack it.
+  const stamp = typeof entry.timestamp === "string" ? entry.timestamp : typeof entry.message.metadata?.created_at === "string" ? entry.message.metadata.created_at : null;
+  const at = stamp && Number.isFinite(Date.parse(stamp)) ? { at: stamp } : {};
   const raw = textParts(entry.message.content);
   if (role === "user") {
-    for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
+    for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...at });
   }
   const text = (role === "user" ? stripHarnessMarkup(raw) : raw).trim();
-  if (text) out.push({ role, text });
-  if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t });
+  if (text) out.push({ role, text, ...at });
+  if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t, ...at });
   return out;
 }
 

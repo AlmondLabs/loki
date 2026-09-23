@@ -5,7 +5,7 @@ import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
 import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
-import type { TranscriptRow } from "./transcript.ts";
+import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
 import type { SnoozeLadder } from "./ladder.ts";
@@ -34,7 +34,7 @@ export interface UseAttentionOptions {
   /** How long "later" hides a card (the mod's setting; ladder.ts has the defaults). */
   ladder?: SnoozeLadder;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
-  loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null }>>;
+  loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null }>>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
@@ -216,11 +216,13 @@ export function useAttention(opts: UseAttentionOptions) {
     if (loading.current.has(key)) return;
     loading.current.add(key);
     try {
-      let rows: TranscriptRow[] = ((await opts.loadLocalHistory?.(rt.agent_id, rt.conversation_id)) ?? []).map((m) => ({ ...m }));
-      if (!rows.length && socketRef.current) rows = toTranscript(await socketRef.current.listMessages(rt, 60)).map((m) => ({ role: m.role, text: m.text, summary: m.summary, detail: m.detail }));
+      let rows: TranscriptRow[] = ((await opts.loadLocalHistory?.(rt.agent_id, rt.conversation_id)) ?? []).map(fromHistory);
+      if (!rows.length && socketRef.current) rows = toTranscript(await socketRef.current.listMessages(rt, 60)).map(fromHistory);
       const l = liveRef.current.get(key);
+      const tail = l?.tail ?? [];
       if (l) l.tail = []; // the transcript now covers what streamed in before
-      setHistories((h) => ({ ...h, [key]: rows }));
+      // Live rows were stamped on arrival; history that has no times of its own keeps theirs (and the last load's).
+      setHistories((h) => ({ ...h, [key]: carryTimes(rows, [...(h[key] ?? []), ...tail]) }));
     } catch (err) {
       console.warn("loki: thread", err);
     } finally {
@@ -261,7 +263,7 @@ export function useAttention(opts: UseAttentionOptions) {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
       const base = histories[key];
-      const liveRows: TranscriptRow[] = l ? [...l.tail, ...(l.streamingText ? [{ role: "assistant" as const, text: l.streamingText }] : [])] : [];
+      const liveRows: TranscriptRow[] = l ? [...l.tail, ...(l.streamingText ? [{ role: "assistant" as const, text: l.streamingText, ...(l.streamingAt ? { at: l.streamingAt } : {}) }] : [])] : [];
       return { rows: base === undefined && !liveRows.length ? undefined : [...(base ?? []), ...liveRows], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
     },
     [histories, live],
@@ -289,7 +291,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (!l || !was) return;
     l.pendingAsk = null;
     const summary = Object.values(answers).map((a) => (Array.isArray(a) ? a.join(", ") : a)).join(" · ");
-    if (summary.trim()) l.tail.push({ role: "user", text: summary });
+    if (summary.trim()) l.tail.push({ role: "user", text: summary, at: new Date().toISOString() });
     opts.markSeen(rt.agent_id, rt.conversation_id);
     opts.capture?.("question_answered");
     bump();
@@ -313,11 +315,11 @@ export function useAttention(opts: UseAttentionOptions) {
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, context });
-      l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, queued: true });
+      l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, queued: true, at: new Date().toISOString() });
       bump();
       return;
     }
-    l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined });
+    l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, at: new Date().toISOString() });
     if (text.trim()) l.ownSends.push(text);
     l.lastRole = "user";
     bump();

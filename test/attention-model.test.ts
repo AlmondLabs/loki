@@ -65,21 +65,21 @@ describe("live transcript tail", () => {
     l.tail.push({ role: "user", text: "hello" });
     l.ownSends.push("hello");
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "hello" } });
-    expect(l.tail).toEqual([{ role: "user", text: "hello" }]); // echo recognised
+    expect(l.tail).toMatchObject([{ role: "user", text: "hello" }]); // echo recognised
     applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
     expect(chatStatusOf(l)).toBe("thinking");
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "Let me " } });
     expect(chatStatusOf(l)).toBe("streaming");
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } });
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } }); // same call, more deltas
-    expect(l.tail).toEqual([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
+    expect(l.tail).toMatchObject([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "done." } });
     applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "WAITING_ON_INPUT" } });
-    expect(l.tail.at(-1)).toEqual({ role: "assistant", text: "done." });
+    expect(l.tail.at(-1)).toMatchObject({ role: "assistant", text: "done." });
     expect(chatStatusOf(l)).toBe("idle");
     // a message typed elsewhere (Desktop) shows up as a user row
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "from desktop" } });
-    expect(l.tail.at(-1)).toEqual({ role: "user", text: "from desktop" });
+    expect(l.tail.at(-1)).toMatchObject({ role: "user", text: "from desktop" });
   });
 });
 
@@ -107,7 +107,7 @@ describe("a finished reply re-queues a decided card", () => {
     applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "here is the answer" } });
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(l.lastAssistantText).toBe("here is the answer");
-    expect(l.tail.at(-1)).toEqual({ role: "assistant", text: "here is the answer" });
+    expect(l.tail.at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
     applyEvent(l, { type: "turn_finished", runtime: rt }); // arrives late, with nothing left to settle
     expect(l.lastAssistantText).toBe("here is the answer");
     expect(l.tail.length).toBe(1);
@@ -180,14 +180,14 @@ describe("harness machinery in a live user message", () => {
     const l = emptyLive();
     const rt = { agent_id: "a", conversation_id: "c" };
     applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: 'build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>' } });
-    expect(l.tail).toEqual([
+    expect(l.tail).toMatchObject([
       { role: "event", text: "desk activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
       { role: "user", text: "build it" },
     ]);
     // a message that is only machinery changes the tail but is not the user speaking
     const r = applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } });
     expect(r).toEqual({ changed: true, userSpoke: false });
-    expect(l.tail[2]).toEqual({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
+    expect(l.tail[2]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
   });
 });
 

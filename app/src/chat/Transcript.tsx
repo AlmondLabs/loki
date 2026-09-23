@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
+import { clockLabel, dayPills } from "../shared/thread";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -16,25 +17,50 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  */
 export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
-  const firsts = people ? runStarts(rows, dividerAt) : null;
+  // Day pills only in the message layout, and only where rows carry times; then the pills name the day and the New line does not.
+  const pills = people ? dayPills(rows) : null;
+  const timed = pills?.some(Boolean) ?? false;
+  const firsts = people ? runStarts(rows, dividerAt, pills) : null;
+  const row = (m: TranscriptRow, i: number) => (
+    <Fragment key={i}>
+      {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
+      <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} />
+    </Fragment>
+  );
+  if (!timed || !pills) return <>{rows.map(row)}</>;
+  // Each day is its own block, so its sticky pill is pushed off by the next day's rather than stacking under it.
+  const days: Array<{ label: string | null; start: number; end: number }> = [];
+  pills.forEach((label, i) => {
+    if (label || !days.length) days.push({ label, start: i, end: i + 1 });
+    else days[days.length - 1].end = i + 1;
+  });
   return (
     <>
-      {rows.map((m, i) => (
-        <Fragment key={i}>
-          {dividerAt === i && <Divider day={dividerDay} />}
-          <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} />
-        </Fragment>
-      ))}
+      {days.map((d) =>
+        d.label ? (
+          <section key={`day-${d.start}`} className="loki-msg-day" aria-label={d.label}>
+            <div className="loki-msg-day-pill-wrap">
+              <span className="loki-msg-day-pill">{d.label}</span>
+            </div>
+            {rows.slice(d.start, d.end).map((m, k) => row(m, d.start + k))}
+          </section>
+        ) : (
+          <Fragment key={`lead-${d.start}`}>{rows.slice(d.start, d.end).map((m, k) => row(m, d.start + k))}</Fragment>
+        ),
+      )}
     </>
   );
 });
 
-/** Which rows start a run: a message whose author differs from the last message's, or the first after the divider. Tool and event rows neither start nor break one. */
-export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null): boolean[] {
+/**
+ * Which rows start a run: a message whose author differs from the last message's, or the first after the
+ * divider or a day pill (`pills`, from dayPills). Tool and event rows neither start nor break one.
+ */
+export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null, pills: Array<string | null> | null = null): boolean[] {
   const out: boolean[] = [];
   let author: TranscriptRow["role"] | null = null;
   rows.forEach((m, i) => {
-    if (i === dividerAt) author = null;
+    if (i === dividerAt || pills?.[i]) author = null;
     const speaks = m.role === "user" || m.role === "assistant";
     out.push(speaks && m.role !== author);
     if (speaks) author = m.role;
@@ -52,7 +78,9 @@ export interface Person {
 /**
  * The optional message layout (the phone's, Slack's): with `people`, messages are avatar-led rows — face,
  * bold name, then the body at full width — instead of bubbles. `dividerAt` draws the "New" line before that
- * row, with `dividerDay` ("Today") on its left. Without them the transcript is the desktop's, unchanged.
+ * row, with `dividerDay` ("Today") on its left. When rows carry times (`TranscriptRow.at`), author rows show
+ * theirs and a sticky day pill opens each calendar day; the pills then name the day and `dividerDay` is not
+ * drawn. Without `people` the transcript is the desktop's, unchanged.
  * The host keeps `people` stable (memo), as with the take-back handler.
  */
 export interface MessageLayout {
@@ -80,15 +108,30 @@ const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, pe
   return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} />;
 });
 
-/** A message in the avatar-led layout: the face and bold name at the start of a run, the body under the name. */
+/**
+ * A message in the avatar-led layout: the face and bold name at the start of a run, with the message's
+ * quiet time after the name; later messages in the run keep their time in the face's column, shown on
+ * hover (desktop). A message with no known time shows none.
+ */
 function Message({ row: m, last, streaming, person, first, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+  const time = clockLabel(m.at);
   return (
     <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} className="loki-msg">
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={person.face ?? person.name} src={person.avatar ?? null} size={36} />}
+        {!first && time && <span className="loki-msg-gutter-time">{time}</span>}
       </span>
       <div className="loki-msg-copy">
-        {first && <div className="loki-msg-name">{person.name}</div>}
+        {first && (
+          <div className="loki-msg-name">
+            {person.name}
+            {time && (
+              <time className="loki-msg-time" dateTime={m.at}>
+                {time}
+              </time>
+            )}
+          </div>
+        )}
         {!first && <span className="sr-only">{person.name}: </span>}
         <div className="loki-msg-body">{m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}</div>
         {m.queued && (

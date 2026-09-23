@@ -98,3 +98,13 @@
 .loki-msg-divider-day:not(.loki-phone *) { color: var(--loki-fg); }
 .loki-msg-divider-rule:not(.loki-phone *) { flex: 1; height: 1px; background: var(--loki-attention); }
 .loki-msg-divider-new:not(.loki-phone *) { color: var(--loki-negative); }
+/* Message times (TranscriptRow.at): quiet after the author's name; on a run's later rows, in the face's column on hover. */
+.loki-msg-time:not(.loki-phone *) { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+.loki-msg-gutter-time:not(.loki-phone *) { display: block; visibility: hidden; padding-top: 3px; font-size: 10.5px; line-height: 1.3; color: var(--loki-muted); text-align: right; white-space: nowrap; }
+.loki-msg:not(.loki-phone *):hover .loki-msg-gutter-time { visibility: visible; }
+/* A day's block and its pill: the hairline runs across the day's top; the pill rides the thread's top edge
+   until the next day's block pushes it off. */
+.loki-msg-day:not(.loki-phone *) { position: relative; }
+.loki-msg-day:not(.loki-phone *)::before { content: ""; position: absolute; top: 12px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
+.loki-msg-day-pill-wrap:not(.loki-phone *) { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: 4px; pointer-events: none; }
+.loki-msg-day-pill:not(.loki-phone *) { padding: 2px 12px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: var(--loki-bg); font-size: 12px; font-weight: 700; line-height: 1.5; color: var(--loki-fg); }
