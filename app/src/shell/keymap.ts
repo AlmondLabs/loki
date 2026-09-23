@@ -25,6 +25,8 @@ export interface Binding {
   menuAccel?: boolean;
   /** Not dispatched by the keymap (documented only): the view or the OS owns it. */
   note?: string;
+  /** What the key did before a redesign changed its job, and where that job went; the keys sheet and Settings › keys say it (R30). */
+  was?: string;
 }
 
 export const MENUS = ["Desk", "Chat", "Inbox", "Board", "Learn", "View"] as const;
@@ -38,7 +40,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
-  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk" },
+  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk", was: "was the desks tree: desks are in the sidebar now (⌘⇧D shows or hides it)" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins).

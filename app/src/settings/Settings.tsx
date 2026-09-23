@@ -552,6 +552,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
               <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
                 {b.label}
                 {b.typing ? "" : b.where === "inbox" || b.where === "desk" ? <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span> : null}
+                {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{b.was}</span>}
               </td>
             </tr>
           ))}

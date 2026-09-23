@@ -24,13 +24,15 @@ export function useColumn(segment: Segment) {
       saveColumn(localStorage, next.pref);
     }
   }, [pref, windowWidth, peek]);
-  const setWidth = useCallback((w: number, commit: boolean) => {
-    setPref((p) => {
-      const next = { ...p, width: clampColumn(w) };
-      if (commit) saveColumn(localStorage, next);
-      return next;
-    });
-  }, []);
+  const setWidth = useCallback(
+    (w: number, commit: boolean) => {
+      const width = clampColumn(w);
+      setPref((p) => ({ ...p, width }));
+      // Saved outside the updater (React may run updaters twice); a drag never changes the fold, so this pref's is current.
+      if (commit) saveColumn(localStorage, { ...pref, width });
+    },
+    [pref],
+  );
   const open = columnShown(pref, windowWidth, peek);
   return { width: pref.width, open, shown: hasColumn(segment) && open, has: hasColumn(segment), toggle, setWidth };
 }

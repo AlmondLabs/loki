@@ -89,25 +89,44 @@ Requirements); the harness loki launches never updates itself.
 
 ## The window
 
-The native title bar carries the desk's name (or "Inbox · n waiting", "Board · n open", "Agents", "Settings"), a
-rail of six segments sits on the left, and one view fills the rest:
+The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
+window (double-click zooms). The window title still names what shows — the desk's name, "Inbox · n waiting",
+"Board · n open", "Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of six
+sections with a red count on what needs you; beside it, for Desk, Board, Agents and Learn, a **sidebar** listing
+that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
+sidebar; drag its edge (or focus it and use the arrows) for a width between 220 and 420. A window under 1100
+wide starts with it hidden.
 
-- **Desk** (⌘1): the sheet edge to edge, the chat stacked over it on the left, centred and wider, or on the
-  right (⌘← and ⌘→ move it, ⌥⌘ from inside a text box, ⌘/ toggles it, ⌘W closes it, ⌘L focuses the message box,
-  ⌘F finds in the transcript; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget move).
-  Under the chat's message box sit two chips for the conversation: its **permission mode** (strict, standard, accept
-  edits, unrestricted; ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply
-  per conversation through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips in their actions row.
-  A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part, and
-  opening or closing a left chat slides the sheet so nothing ends up under it. An empty desk opens the chat
-  centred until its first widget lands. Clicking the desk icon again (or ⌘K) opens the **desks tree**: one centred list of every
-  desk, pinned first then by recency, each with its agent's face and attention dot; a chip row filters to one
-  agent (click, or Tab / ⇧Tab); type to filter, ↑↓, ↵; ⌘P pins, ⌘E archives; "new desk" at the bottom, the
-  archive folded under it. Picking a desk closes it. On the desk, ⌘[ and ⌘] step through live desks without opening anything.
+- **Desk** (⌘1): the sidebar lists your desks — **Pinned** first, then one section per agent (each folds, each
+  with a "+" for a new desk with that agent), then **Archived**, folded. A desk's name goes bold when its agent
+  wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. "Find a
+  desk…" at the top filters by desk or agent name (↓ into the list, ↑↓ between desks, ↵ opens the first match).
+  Hover a row for pin and archive, right-click it for the same with open and restore. When a desk that waits on
+  you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
+  its scroll and folds across restarts.
+  Opening a desk — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
+  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (find, model, permission mode,
+  new desk, and on the Desk tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
+  conversation, the message box focused: each message with the author's face, name and time, a pill for each
+  day, a red **New** line where you stopped reading, a copy button on hover, and a line each time the agent
+  adds, changes or removes a widget ("friday added Revenue chart"). Click that line and the **Desk** tab opens
+  framed on the widget. The Desk tab is the sheet edge to edge with the chat over it, the sidebar hidden, the
+  rail kept: the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
+  box, ⌘/ toggles it, ⌘W closes it; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget
+  move). A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part,
+  and opening or closing a left chat slides the sheet so nothing ends up under it. Esc (outside a text box) or
+  the Messages tab goes back to the conversation where you left it. Both tabs are the same conversation with the
+  same draft. ⌘L focuses the message box and ⌘F finds in the transcript, on whichever tab shows. Under the message
+  box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
+  ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply per conversation
+  through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips in their actions
+  row. ⌘[ and ⌘] step through live desks, each on the tab you left it on.
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
 - **Board** (⌘3): tasks for later, see below.
-- **Agents** (⌘4): one tab per agent, then five pages down the left. **profile**: face, name, description and model
+- **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
+  one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
+  a tab per page. **profile**: face, name, description and model
   (editable), effort and context, where it is working (its live desks, each a link, and its open tasks), and delete at
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
   this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
@@ -125,18 +144,24 @@ rail of six segments sits on the left, and one view fills the rest:
   and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
-- **Settings** (⌘6, ⌘,): eight pages down the left, one showing at a time, the last one remembered for the
-  window. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six hours; `brew upgrade --cask loki` is the way up), which harness the app is on, how it reaches the mod, requirements and install status.
+- **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window, ten pages down the
+  left, one showing at a time, the last one remembered for the window. ⌘, closes it again, ⌘[ and ⌘] step its
+  pages, ⌘1-5 close it and go to that section, Esc closes it. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six hours; `brew upgrade --cask loki` is the way up), which harness the app is on, how it reaches the mod, requirements and install status.
   the harness's **scratch** folder (see Requirements) with apply, back to the default, and the line for a terminal. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
   with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
   switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
   **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), sweep every N minutes (how often the writer looks for quiet conversations; ten by default, one to 1440; each sweep that finds some is one model call per agent over the agent's whole fixed prompt), the model it asks, run now, and the leads it proposes. **files**: where
   everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
 
+**⌘K** opens search from anywhere: desks, agents, what waits on you in the Inbox, and the app's pages (each
+section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
+places you visited last; ↑↓ move, ↵ opens the top result (a desk on Messages), Esc or ⌘K again closes it. ⌘K
+used to open the desks tree; the sidebar holds that list now.
+
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere; `?` or Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: desks on the desk, cards in the inbox, columns
-on the board, views in Learn, agents in Agents, pages in Settings — the same two keys everywhere, never a jump
-back to the desk. Esc peels one layer: the tree, then a view back to the desk. Every shortcut lives in one table
+on the board, views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump
+back to the desk. Esc peels one layer: a sheet or menu, then the Desk tab back to Messages, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
 menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the board, the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
@@ -281,13 +306,13 @@ in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:517
 
 ## New desk
 
-Press ⌘N, pick "new desk" under an agent in the tree, or
-type a name that matches nothing in the tree's filter. The sheet asks for the agent (chips),
+Press ⌘N, or the "+" at the top of the desk sidebar or beside an agent's section (that agent is then
+chosen for you). The sheet asks for the agent (chips),
 the folder (defaults to that agent's most recent one; recents, typed paths with
 completion, or Browse… for the Finder chooser; the git branch shows when the
 folder is a checkout) and an optional name. Start creates the conversation
 through Letta's app-server, so it appears in Desktop too, and the canvas
-switches to the empty desk with the chat open.
+opens the empty desk on Messages with the message box focused.
 
 ## Questions from the agent
 
@@ -315,7 +340,7 @@ recognition is available, so treat it like any other cloud dictation.
 
 The app knows which conversations are waiting on you. The inbox icon on the rail shows the count; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers), highest score first (see "The order" below). → or ⌘] marks seen, ← or ⌘[ keeps unread, A or ⌘↵ approves, D or ⌘⇧D denies, O or ⌘O opens that desk with its chat focused, S or ⌘S shows snoozed, Z undoes (the ⌘ forms work while typing a reply), Esc returns to the desk.
+tool calls as muted markers), highest score first (see "The order" below). → or ⌘] marks seen, ← or ⌘[ keeps unread, A or ⌘↵ approves, D or ⌘⇧D denies, O or ⌘O opens that desk on Messages with the message box focused, S or ⌘S shows snoozed, Z undoes (the ⌘ forms work while typing a reply), Esc returns to the desk.
 Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents read from the local
 backend on disk (`inbox_list`), main chats included, with who spoke last taken from the tail of each log — nothing is
 windowed by age or capped by count, so a conversation only leaves the inbox when it is archived (main chats are
@@ -357,8 +382,8 @@ for a rewrite. E edits in place, O opens the desk it came from, Z undoes a delet
 card with search and holds the worker's knobs — on/off, cards a day, sweep every N minutes, the model it asks, run now — and an
 export in Anki's plain-text import format. Everything is files: `~/.letta/loki/recall/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the worker's edits never touch your schedule. The worker's own
-conversation with each agent — one per agent, named "recall", for the life of the agent — is a desk in the tree
-(⌘K), so you can read what it asked and what came back; it stays out of the inbox. After each answer the worker
+conversation with each agent — one per agent, named "recall", for the life of the agent — is a desk in the
+sidebar (and in ⌘K), so you can read what it asked and what came back; it stays out of the inbox. After each answer the worker
 compacts it (`/compact all`), so the next question starts from a short summary of the earlier ones rather than
 every transcript ever sent, while the transcript on disk keeps everything. Its working directory is
 `~/.letta/loki/recall/` itself: the prompt quotes only the existing cards whose wording overlaps the stretches
@@ -369,17 +394,17 @@ settings file is the worker's; it puts the trigger back to off if it finds it ch
 
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a
-lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — under the
-**leads** tab, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
+lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — listed under
+**Leads** in the sidebar, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
 with the agent that was there, puts an info card with the lead on its desk, opens the desk with the chat and sends
 the brief as your first message: open with why this matters to you, furnish the desk with the outline as a list you
 can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
 conversation is still empty) is listed under "lessons under way" with **send the brief**.
 **not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
-**deleted**). Learn conversations are desks in the tree and never inbox cards. Files: `~/.letta/loki/recall/{leads,leads-dismissed,lessons}/`.
+**deleted**). Learn conversations are desks in the sidebar and never inbox cards. Files: `~/.letta/loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
-Every desk, tree group, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
+Every desk, sidebar section, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
 conversation, so multi-agent setups stay legible.
 
 ### The order
@@ -418,8 +443,9 @@ Tasks you or an agent want to come back to live on one shared board, backed by
 [beads](https://github.com/steveyegge/beads) (`bd`, embedded Dolt) at
 `~/.letta/loki/board`. Agents file tasks only when asked, through the `loki_task`
 tool, which stamps the source conversation, desk and folder; you file them from
-the board's "+" or ⌘T anywhere. The Board segment (⌘3) shows open, in progress,
-blocked and recently done columns. Select tasks (X, ⇧-click) and press ⏎ to
+the board's "+" or ⌘T anywhere. The Board segment (⌘3) lists its views in the sidebar —
+all tasks, each status with its count, each agent — and "all tasks" shows open, in progress, blocked and
+recently done columns; any other view is one list. Select tasks (X, ⇧-click) and press ⏎ to
 **assign** them to a desk: the agent becomes the assignee and the tasks ride
 along inside `<loki-tasks>` on your next message in that conversation; nothing is
 sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent

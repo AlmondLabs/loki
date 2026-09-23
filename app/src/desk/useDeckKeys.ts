@@ -56,7 +56,7 @@ export function useDeckKeys({
   // Esc with the box idle closes the deck (the box handles its own Esc: keep a draft, or close when empty).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // A layer over the inbox (the desks tree, a dialog) owns Esc while it is up: it closes, the inbox stays.
+      // A layer over the inbox (search, a dialog) owns Esc while it is up: it closes, the inbox stays.
       if (e.key === "Escape" && !typing && !document.querySelector('[role="dialog"]')) onClose();
     };
     window.addEventListener("keydown", onKey);

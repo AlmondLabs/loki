@@ -231,12 +231,9 @@ a:focus-visible {
 
 /* Inbox: cards move the way you did. */
 @keyframes loki-veil { from { opacity: 0; } to { opacity: 1; } }
-/* The desks tree rises into the centre. */
+/* Sheets rise into place. */
 .loki-sheet { animation: loki-sheet 160ms ease-out both; }
 @keyframes loki-sheet { from { opacity: 0; transform: translateY(10px) scale(0.99); } to { opacity: 1; transform: none; } }
-/* Tree rows: hover (or the keyboard highlight) swaps the timestamp for the pin / archive actions. */
-.loki-tree-row:hover .loki-tree-meta, .loki-tree-row[aria-selected="true"] .loki-tree-meta { display: none; }
-.loki-tree-row:hover .loki-tree-actions, .loki-tree-row[aria-selected="true"] .loki-tree-actions { display: inline-flex !important; }
 /* Rail buttons. */
 .loki-rail:hover { background: var(--loki-hover) !important; color: var(--loki-fg) !important; }
 @keyframes loki-card-next { from { opacity: 0; transform: translateX(28px) scale(0.99); } to { opacity: 1; transform: none; } }

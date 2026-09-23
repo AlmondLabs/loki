@@ -44,7 +44,7 @@ export interface RowState {
 export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): RowState {
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
-  // Waiting is news too, so its title goes bold beside the badge, as the tree's did.
+  // Waiting is news too, so its title goes bold beside the badge, as the old tree's did.
   return { kind: mark.kind, badge: waits ? 1 : null, badgeNoun: waits ? mark.title : undefined, unread: waits || mark.kind === "finished", live: mark.kind === "running" };
 }
 

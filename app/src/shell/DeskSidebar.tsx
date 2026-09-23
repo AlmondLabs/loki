@@ -187,6 +187,19 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
     }
   };
 
+  // ↑↓ between the rows, as from the filter into the first: one key per desk instead of a Tab through each row's actions. ↑ from the first row goes back to the filter.
+  const onRowsKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((e.key !== "ArrowDown" && e.key !== "ArrowUp") || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    const target = e.target as HTMLElement;
+    if (!target.classList.contains("loki-list-row")) return;
+    const rows = [...(scrollRef.current?.querySelectorAll<HTMLElement>(".loki-list-row") ?? [])];
+    const i = rows.indexOf(target);
+    const next = e.key === "ArrowDown" ? rows[i + 1] : i > 0 ? rows[i - 1] : fieldRef.current;
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+  };
+
   return (
     <>
       <ColumnHeader
@@ -218,7 +231,7 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
         />
       </div>
       <div className="loki-sidebar-body">
-        <div ref={scrollRef} className="loki-column-scroll" onScroll={onScroll}>
+        <div ref={scrollRef} className="loki-column-scroll" onScroll={onScroll} onKeyDown={onRowsKey}>
           {model.sections.map((s) => {
             const shut = folded(s.id);
             return (
@@ -291,12 +304,19 @@ function RowMenu({ desk: d, x, y, connected, onClose, onOpen, onPin, onArchive }
     closeRef.current = onClose;
   });
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    const node = ref.current;
+    node?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
     const away = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) closeRef.current();
+      if (!node?.contains(e.target as Node)) closeRef.current();
     };
     window.addEventListener("pointerdown", away);
-    return () => window.removeEventListener("pointerdown", away);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      // Closed with Esc or a pick that moves focus nowhere: focus goes back to the desk's row, not the page.
+      const a = document.activeElement;
+      if (!a || a === document.body || node?.contains(a)) document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const archived = d.status === "archived";
   const pick = (fn: () => void) => () => {
@@ -342,7 +362,7 @@ function RowMenu({ desk: d, x, y, connected, onClose, onOpen, onPin, onArchive }
 }
 
 /**
- * The sidebar wired to the window's models, as the tree was (views.tsx SwitcherTree): pin through the mod,
+ * The sidebar wired to the window's models, as the tree drawer it replaced was: pin through the mod,
  * archive through the app-server and then a fresh desks list, each with a notice.
  */
 export function DeskSidebarView({ desk, catchUp, notice, onOpen, onNew }: { desk: Desk; catchUp: CatchUp; notice: (m: string) => void; onOpen: (scope: string) => void; onNew: (agentId: string | null) => void }) {

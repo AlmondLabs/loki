@@ -30,7 +30,7 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
       {skills?.length === 0 && <div className="loki-meta loki-meta--wrap">none</div>}
       <div style={{ display: "grid", gap: 2 }}>
         {(skills ?? []).map((g) => (
-          <div key={g.name} className="loki-tree-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0 3px 8px", borderRadius: "var(--loki-radius-sm)" }} title={g.description ?? g.path}>
+          <div key={g.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0 3px 8px", borderRadius: "var(--loki-radius-sm)" }} title={g.description ?? g.path}>
             <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
             <span className="loki-meta" style={{ maxWidth: "45%" }}>{g.source ?? (g.isLink ? "link" : "copy")}</span>
             <Button size="sm" onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))}>disable</Button>

@@ -4,7 +4,7 @@ import { KEYMAP, formatKeys, type Binding, type Segment, type Where } from "./ke
 /**
  * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
  * then the ones that work everywhere — and closes on `?` or Escape. The rows are the keymap's (keymap.ts), so
- * the sheet cannot drift from the handler or the menu; the full table with the global key lives in Settings › keys.
+ * the sheet cannot drift from the handler or the menu; the full table with the global key lives in Preferences › Keys.
  */
 export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; onClose: () => void; onSettings: () => void }) {
   const groups = keysFor(segment);
@@ -38,15 +38,16 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                 <span style={{ color: "var(--loki-fg)" }}>
                   {b.label}
                   {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>not while typing</span>}
+                  {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{b.was}</span>}
                 </span>
               </div>
             ))}
           </section>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Meta wrap>the whole table, and the system-wide key, are in Settings › keys</Meta>
+          <Meta wrap>the whole table, and the system-wide key, are in Preferences › Keys</Meta>
           <span style={{ flex: 1 }} />
-          <Button size="sm" onClick={onSettings} kbd="⌘6">open</Button>
+          <Button size="sm" onClick={onSettings} kbd="⌘,">open</Button>
         </div>
       </div>
     </Sheet>

@@ -118,6 +118,8 @@
 .loki-widget-row:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 4px -20px; padding: 2px 20px; font-size: 13.5px; line-height: 1.5; color: var(--loki-muted); }
 .loki-widget-row-icon:not(.loki-phone *) { flex: none; display: flex; justify-content: flex-end; width: 36px; color: var(--loki-muted); }
 .loki-widget-row-text:not(.loki-phone *) { min-width: 0; overflow-wrap: anywhere; }
+/* Tool and event lines among avatar-led messages sit in the message column (face 36px + gap 8px), under the text they follow. */
+:is(.loki-msg, .loki-widget-row) ~ :is(.loki-tool-row, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
 .loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
 .loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }

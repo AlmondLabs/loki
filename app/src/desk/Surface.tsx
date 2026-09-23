@@ -103,17 +103,18 @@ export function Surface(props: SurfaceProps) {
   useEffect(() => {
     if (!active || !frameRequest || frameRequest.nonce === framed.current) return;
     const { widgetId, nonce } = frameRequest;
-    let tries = 0;
-    let timer: ReturnType<typeof setTimeout>;
-    const go = () => {
-      if (document.getElementById(`widget-${widgetId.replace("/", "--")}`)) {
-        framed.current = nonce;
-        focusWidget(widgetId);
-      } else if (tries++ < 20) timer = setTimeout(go, 100);
-      else framed.current = nonce;
-    };
-    timer = setTimeout(go, FRAME_SETTLE_MS);
-    return () => clearTimeout(timer);
+    // One timer, cleared on the way out: the first look after the settle, then every 100ms for two seconds.
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const waited = Date.now() - started;
+      if (waited < FRAME_SETTLE_MS) return;
+      const found = !!document.getElementById(`widget-${widgetId.replace("/", "--")}`);
+      if (!found && waited < FRAME_SETTLE_MS + 2000) return;
+      clearInterval(timer);
+      framed.current = nonce;
+      if (found) focusWidget(widgetId);
+    }, 60);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, frameRequest?.nonce]);
 

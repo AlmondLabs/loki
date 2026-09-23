@@ -85,7 +85,7 @@ export function Shell() {
     capture,
   });
   const { message: boardNotice, notice } = useNotice();
-  // The inbox lists what is open on disk; when the tree archives or restores a conversation, re-read it now rather than at the next minute.
+  // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
   const archivedKey = desk.desks.list.filter((d) => d.status === "archived").map((d) => d.scope).sort().join("\n");
   const reloadInbox = catchUp.reload;
   useEffect(() => {
@@ -174,17 +174,22 @@ export function Shell() {
     setSearchOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  /** Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, a new desk): its Messages tab with the box focused. `_opts.chat` predates the tabs and is kept for callers. */
+  /**
+   * Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, search, a new desk): its Messages tab with the box focused.
+   * `_opts.chat` predates the tabs and is kept for callers. `switchTo` is a dependency: it compares against the desk showing,
+   * and a stale copy took the desk it was made on for the current one, so opening that desk again did nothing.
+   */
+  const switchTo = desk.desks.switchTo;
+  const paneOpen = pane.open;
   const openDesk = useCallback(
     (agentId: string, conversationId: string, _opts: { chat?: boolean } = {}) => {
       const scope = scopeFor(conversationId, agentId);
-      desk.desks.switchTo(scope);
-      pane.open(scope);
+      switchTo(scope);
+      paneOpen(scope);
       setSegment("desk");
       setFocusChat((n) => n + 1);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setSegment, pane.open],
+    [setSegment, paneOpen, switchTo],
   );
   /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message, the way a dispatched task does. */
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
@@ -358,7 +363,8 @@ export function Shell() {
           }}
         />
 
-        <div style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
+        {/* The main pane: one main landmark for whichever section shows; the rail is the navigation, the list column the sidebar. */}
+        <main style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
           {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? "visible" : "hidden" }} aria-hidden={segment !== "desk"}>
             <DeskPane
@@ -423,12 +429,12 @@ export function Shell() {
 
           <PickerTree picker={picker} onClose={() => setPicker(null)} desk={desk} catchUp={catchUp} onAssign={board.assignTo} pendingAssignRef={pendingAssign} onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })} />
 
-        </div>
+        </main>
       </div>
 
       <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={board.createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
       {searchOpen && <SearchSheet sources={searchSources} here={segment === "desk" ? deskPlace(desk.scope) : segment === "settings" ? null : sectionPlace(segment)} avatar={avatarUrl} onOpen={openHit} onClose={() => setSearchOpen(false)} />}
-      {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), setPrefsOpen(true))} />}
+      {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), sessionStorage.setItem(SETTINGS_PAGE_KEY, "keys"), setPrefsOpen(true))} />}
       {/* Preferences covers the whole window, rail included, like Slack's. */}
       {prefsOpen && <SettingsView onClose={() => setPrefsOpen(false)} update={update} shortcut={shortcut} recall={recall} scratch={scratch} desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
       {boardNotice && <Toast>{boardNotice}</Toast>}

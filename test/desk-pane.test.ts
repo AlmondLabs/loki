@@ -168,3 +168,14 @@ describe("desk pane: the hover toolbar holds only what loki does to a message", 
     expect(renderToStaticMarkup(createElement(Transcript, { rows, people }))).not.toContain('role="toolbar"');
   });
 });
+
+describe("desk pane: hidden behind other sections", () => {
+  // The shell hides the whole pane with visibility while the Inbox or Board shows; a panel that set itself
+  // "visible" overrode that, and the thread's day pills showed through the Inbox (U13).
+  test("the tab panels inherit visibility, never force it on", async () => {
+    const src = await Bun.file(new URL("../app/src/desk/DeskPane.tsx", import.meta.url)).text();
+    const panels = src.match(/visibility: tab === "(messages|desk)" \? "[a-z]+"/g) ?? [];
+    expect(panels).toHaveLength(2);
+    for (const p of panels) expect(p).toEndWith('"inherit"');
+  });
+});

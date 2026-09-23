@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type RefObject } from "react";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
@@ -102,11 +102,15 @@ export function DeskPane(props: DeskPaneProps) {
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), toolbar: true, widgets, onFrameWidget: frameWidget };
 
   const summary = desk.desks.list.find((d) => d.scope === scope) ?? null;
+  // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
+  const paneRef = useRef<HTMLDivElement>(null);
+  const threadFocus = useRef<HTMLElement | null>(null);
+  useTabFocus(visible, paneRef, threadFocus);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Desk";
 
   return (
-    <div className="loki-desk-pane">
+    <div className="loki-desk-pane" ref={paneRef}>
       <PaneHeader
         title={name}
         lead={<Icon name="desk" size={18} />}
@@ -129,8 +133,9 @@ export function DeskPane(props: DeskPaneProps) {
         tabsLabel={`${name} views`}
         panelId={panelId}
       />
+      {/* The showing panel inherits its visibility, never sets "visible": the shell hides the whole pane behind other sections, and a child marked visible would show through them. */}
       <div className="loki-desk-pane-body">
-        <div id={panelId("messages")} role="tabpanel" aria-label="Messages" className="loki-desk-pane-panel loki-desk-pane-messages" style={{ visibility: tab === "messages" ? "visible" : "hidden" }} aria-hidden={tab !== "messages"}>
+        <div id={panelId("messages")} role="tabpanel" aria-label="Messages" className="loki-desk-pane-panel loki-desk-pane-messages" style={{ visibility: tab === "messages" ? "inherit" : "hidden" }} aria-hidden={tab !== "messages"} onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}>
           <Conversation
             key={scope}
             view={view}
@@ -148,7 +153,7 @@ export function DeskPane(props: DeskPaneProps) {
             prefill={prefillFor("messages")}
           />
         </div>
-        <div id={panelId("desk")} role="tabpanel" aria-label="Desk" className="loki-desk-pane-panel" style={{ visibility: tab === "desk" ? "visible" : "hidden" }} aria-hidden={tab !== "desk"}>
+        <div id={panelId("desk")} role="tabpanel" aria-label="Desk" className="loki-desk-pane-panel" style={{ visibility: tab === "desk" ? "inherit" : "hidden" }} aria-hidden={tab !== "desk"}>
           <Surface
             {...props}
             chat={chat}
@@ -167,7 +172,27 @@ export function DeskPane(props: DeskPaneProps) {
 }
 
 /**
- * The header's actions: pin / unpin and archive / restore (what the desk tree offers on a row), then a menu
+ * Focus across the tab switch. Hiding a panel drops the focus it held to the page, so leaving Messages for the
+ * Desk tab from a widget row puts it on the selected tab, and coming back with Esc returns it to what it last
+ * held in the thread (the widget row, the box). Focus on a tab of the tab row stays where it is.
+ */
+function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | null>, last: RefObject<HTMLElement | null>) {
+  const prev = useRef(visible);
+  useEffect(() => {
+    const was = prev.current;
+    prev.current = visible;
+    const el = root.current;
+    if (!el || was === visible) return;
+    const active = document.activeElement as HTMLElement | null;
+    // The panel just hidden may still hold the focus until the browser moves it off: count that as dropped too.
+    const inPanel = (t: DeskTab) => !active || active === document.body || !!document.getElementById(panelId(t))?.contains(active) || active.getAttribute("aria-controls") === panelId(t);
+    if (was === "messages" && visible === "inset" && inPanel("messages")) el.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+    else if (was === "inset" && visible === "messages" && inPanel("desk") && last.current?.isConnected) last.current.focus({ preventScroll: true });
+  }, [visible, root, last]);
+}
+
+/**
+ * The header's actions: pin / unpin and archive / restore (what the sidebar offers on a row), then a menu
  * for the rest of what the desk does today, each through its keymap action so the key and the menu agree.
  */
 function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType<typeof useDesk>; catchUp: ReturnType<typeof useAttention>; summary: ReturnType<typeof useDesk>["desks"]["list"][number] | null; tab: DeskTab; notice: (m: string) => void }) {
@@ -236,13 +261,20 @@ function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label
     closeRef.current = onClose;
   });
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const node = ref.current;
+    const anchor = node?.parentElement ?? null;
+    node?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     // a press outside the menu and its button closes it (the button toggles it itself)
     const away = (e: PointerEvent) => {
-      if (!ref.current?.parentElement?.contains(e.target as Node)) closeRef.current();
+      if (!anchor?.contains(e.target as Node)) closeRef.current();
     };
     window.addEventListener("pointerdown", away);
-    return () => window.removeEventListener("pointerdown", away);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      // Esc, or a pick whose action takes no focus of its own: back to the "More desk actions" button.
+      const a = document.activeElement;
+      if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    };
   }, []);
   return (
     <Popover

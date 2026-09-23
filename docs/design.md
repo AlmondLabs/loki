@@ -11,8 +11,9 @@ table outright, by the user's decision; it is not a second option. Three recorde
 the user's approval: (1) brass for needs-you became blue for interaction, red for attention and green for
 affirmation; (2) chrome is rounded, where plates used to be square and only sheet things rounded; (3) the
 condensed uppercase tracked labels and the mono meta became sentence-case sans, with mono kept only for code,
-data (diffs, file bodies) and key hints. The layout did not change (see Shell). The foundation (tokens,
-primitives, chat classes) moved first; the inline styles in the desktop views followed in a sweep the same day.
+data (diffs, file bodies) and key hints. The foundation (tokens, primitives, chat classes) moved first; the
+inline styles in the desktop views followed in a sweep the same day, and the layout followed with plan 013
+(see Signature and Shell).
 
 ## Tokens (`app/src/kit/tokens.css`)
 
@@ -89,29 +90,79 @@ stays mono. Selection and hover use distinct neutral steps; neither the accent n
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
 Button and Field share one height scale (sm 28 · md 36 · touch 44); a field and the button beside it always
 share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into that surface. What stays
-hand-built: the rail (`.loki-rail`), the chat bubble, the tree's rows (the hover swap CSS needs the div), tabs
-with an underline, the phone's tab bar, the switch.
+hand-built: the rail (`.loki-rail`), the chat bubble, the board picker's rows, the phone's tab bar, the switch.
+The Slack layout added its own blocks (2026-09-23): **ListRow** (a lead, the title bold when unread, a preview,
+the time or the red badge, hover actions; `aria-current` on the chosen one), **ListSection** (a folding
+heading with a count and actions), **TabRow** (an ARIA tablist with roving focus, the underline tabs),
+**PaneHeader** (the pane's name line and tab row) and **EmptyPane**.
 
 ## Signature
 
-There is no top chrome of our own. The **native title bar** shows the desk's
-name (with "· archived" or "· deleted" when that is the case), "Inbox · n
-waiting", or "Settings", and changes as you move. Who drew the desk is in the
-tree and the chat; the sheet's actions are on the keys (⌘⇧A arrange, ⌘0 fit,
-⌘⇧0 1:1) and listed in Settings. Two earlier forms were dropped on 2026-09-06:
-a drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom
-40px bar with a header line — both were chrome justifying itself.
+The window has no native title bar (2026-09-23): the title bar is an overlay with its title hidden, the
+traffic lights sit over the rail, and loki draws the top edge itself — a 28px **title strip** that drags the
+window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). The
+window title is still set, for the Window menu, Mission Control and screen readers: the desk's name (with
+"· archived" or "· deleted"), "Inbox · n waiting", "Board · n open", "Agents", or "Settings" while Preferences
+is up. There is no top bar of search or history. Each pane draws its own header instead, Slack's: a 48px name
+line (a `#` and the desk's name, or the agent's face and name) with a quiet aside and the actions on the
+right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
+button. A desk's header carries its agent with the live word (working, writing, needs approval, asked you), pin,
+archive and a "More desk actions" menu that lists the rest with their keys; the sheet's own actions (⌘⇧A
+arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Desk tab. Two earlier forms were dropped on 2026-09-06: a
+drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
-## Shell (2026-09-06)
+The conversation is the signature surface. The Messages tab draws the thread in Slack's anatomy: a 36px face
+and bold name at the start of each run, the body under the name, the message's **time** quiet after the name
+(and in the face's column on hover for a run's later rows), a sticky **day pill** ("Today", "Yesterday", a date)
+opening each calendar day, a red **New** line before the first message you have not seen, and a small hover
+toolbar that holds only what loki does to a message (copy as markdown). A message with no known time shows none.
+**Widget rows** sit among the messages by time, one quiet line with a tile icon in the face's column: "friday
+added Revenue chart · 14:49", the widget's title in the link blue while it is still on the desk; choosing one
+opens the Desk tab framed on that widget. Tool and event lines sit in the message column under the text they
+follow. The composer is Slack's rounded box with its pickers (model, permission mode) and send under it.
 
-Under the native title bar, a 48px **rail** of three segments (desk, inbox,
-settings; icons only, a small label beneath), one view in the rest. The desks
-**tree** is a drawer over the sheet, grouped by agent, with the same attention
-dot the inbox would give each desk (red filled: waits on you; a ring: finished
-unread; muted ring: running). The layout is unchanged by the Slack look. The chat stacks on the sheet's left edge,
-edge to edge, and is treated as a viewport **inset**: framing centres in the
-uncovered part, and toggling the chat slides the sheet by its width. The inbox
-is a view, not a veil — the sheet stays mounted behind it.
+## Shell (2026-09-06; Slack layout 2026-09-23)
+
+List and detail, as Slack's desktop: a 48px **rail**, a **list column** beside it, and the **pane** in the rest.
+
+- **Rail.** Six sections in Slack's labelled-icon style (Desk, Inbox, Board, Agents, Learn, Settings), a red
+  count badge on what needs you (the inbox's waiting count, open tasks, due cards), and at the foot the column
+  toggle and Settings. The pane is the window's one `main`; the rail is its navigation.
+- **List column.** Desk, Board, Agents and Learn list their items in a second column (`ListColumn`), 260px by
+  default, dragged or arrowed on its edge between 220 and 420, shown or hidden with ⌘⇧D or the rail's toggle.
+  A window under 1100 wide folds it away until asked for, without touching the saved choice. Each section's
+  list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. The column's
+  48px header (the section's name and a "+") sits level with the pane's header. Inbox has no column: the pass
+  is the whole pane. Settings has none either: it is a sheet.
+- **Desk sidebar.** A filter ("Find a desk…", by desk or agent name; ↓ into the rows, ↑↓ between them, ↵ opens
+  the first match), then **Pinned**, then one folding section per agent with its own "+", then a folded
+  **Archived**. A row is `#` and the desk's name: bold when the agent wrote since you looked, a red badge when it
+  waits on you, a green dot while its agent works. Hover shows pin and archive; a right click opens the row
+  menu (open, pin, archive or restore). When a desk that waits on you is scrolled out of view, a red "Needs you"
+  pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
+  replaced the desks tree drawer (2026-09-23, approved by the user); the tree lives on only as the Board's
+  assign-to-desk picker.
+- **Desk pane.** A desk opens on **Messages** with the composer focused, from anywhere (the sidebar, search,
+  the Inbox's Enter or O, Agents, Learn). **Desk** is the tab beside it: today's sheet edge to edge with the
+  chat as a viewport **inset** (framing centres in the uncovered part, toggling the chat slides the sheet by its
+  width), the camera, arranging and the widget keys unchanged. The Desk tab hides the list column and keeps the
+  rail. Esc, or the Messages tab, returns to the thread at the scroll it was left at, and focus to what it last
+  held there. Both views are one conversation with one draft: a half-written reply follows you across the tabs.
+  Only the view on screen draws the composer. Each desk remembers its tab for ⌘[ ⌘]; an open always lands on
+  Messages. The pane stays mounted, hidden, behind the other sections, so the desk link, the camera and the
+  thread's scroll keep their state; its panels inherit that hiding and never set themselves visible.
+- **Agents** is Slack's DMs: the column lists agents (face, name, live dot, the last thing it said, a red badge
+  for what waits in the Inbox); the pane shows the chosen agent with a tab row for its pages (Profile, Memory,
+  Changes, Reflection, Skills). **Board** lists its views (all tasks, each status with its count, each agent);
+  "all" is the four-column board, the rest a single list, with today's keys. **Learn** lists Review, Leads, All
+  cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick.
+- **Search (⌘K).** A sheet from anywhere over desks, agents, waiting Inbox items and the app's pages
+  (sections and each Preferences page), from what the app already has; it does not search message text, and
+  says so. An empty query lists recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
+- **Preferences.** Settings opens as a large sheet over the whole window, rail included: a named page list on
+  the left, the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1-5 close it
+  and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
+- **Inbox** keeps its screen (the Slack look only); Enter or O on a card opens its desk on Messages.
 
 ## Phone (Slack mode, 2026-09-23)
 
@@ -176,6 +227,15 @@ behaviour.
 - Side stripes (a 3px red border on the phone's banner, a 2px accent one on a settings note): a leading
   dot or nothing carries the same meaning.
 - "arrange" as a title-block cell labelled "sheet": an action inside a block of facts; moved to a plate.
+- The native title bar as the only header (2026-09-06 to 2026-09-23): the window's own bar named the view and
+  loki drew no chrome above the sheet. Retired with the Slack layout, by the user's decision: the title bar is
+  hidden, loki draws a drag strip, and each pane has a header with its name, actions and tabs.
+- The desks tree as a drawer over the sheet (2026-09-06 to 2026-09-23): ⌘K or the rail's desk icon opened a
+  centred list of every desk (waiting, pinned, recent, the rest), filtered by agent chips, with ⌘P pin, ⌘E
+  archive and ⇧↵ open-with-chat. Replaced by the always-there desk sidebar (grouped by agent, pinned on top) and
+  ⌘K search; the tree survives only as the Board's picker, without the switching, pinning or archiving.
+- A desk that opened on its canvas (to 2026-09-23): the conversation floated on the widgets and switching
+  desks meant summoning the drawer. A desk now opens on Messages; the canvas is its Desk tab.
 
 ## Backlog
 
@@ -185,6 +245,6 @@ mod's desk block and Letta's skill bodies rendering as the user's words (they ar
 sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on the desks tree and the model
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
-forget / remove / disable and an undo on archive; a breakpoint layer for the desktop (the inbox at 1100 wide
-still clips the rail's width); the jargon and error-string pass; the archive fold inside the tree's listbox is still unreachable
-while the search box owns Tab.
+forget / remove / disable and an undo on archive; the jargon and error-string pass; the archive fold inside
+the board picker's listbox is still unreachable while its search box owns Tab. The desktop's 1100-wide floor
+(R31 of plan 013) now holds: the inbox card and the four board columns fit beside the rail and the list column.

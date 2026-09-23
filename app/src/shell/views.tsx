@@ -131,7 +131,7 @@ export function WelcomeView({ step, catchUp, boot, onInstallLetta, models, onLoa
 /** ⏎ / ⌘⏎ on the board: which tasks, and whether to dispatch. Consumed by the picker (or a new desk). */
 export type Picker = { ids: string[]; start: boolean };
 
-/** The board's target picker: the same tree, choosing instead of switching. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
+/** The board's target picker: the desks tree (DeskTree), choosing a target. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
 export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAssignRef, onNewDesk }: { picker: Picker | null; onClose: () => void; desk: Desk; catchUp: CatchUp; onAssign: (target: AssignTarget, ids: string[], start: boolean) => Promise<void>; pendingAssignRef: MutableRefObject<Picker | null>; onNewDesk: (agentId: string | null, name: string) => void }) {
   return (
     <DeskTree
@@ -142,7 +142,6 @@ export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAs
       agents={catchUp.agents}
       items={catchUp.items}
       current={desk.scope}
-      onSwitch={() => {}}
       onPickDesk={(d) => {
         const p = picker;
         onClose();

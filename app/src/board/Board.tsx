@@ -234,7 +234,8 @@ export function Board({
         </Button>
       </div>
 
-      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: columns.length > 1 ? `repeat(${columns.length}, minmax(220px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
+      {/* 168px columns: the four fit beside the list column in a 1100-wide window (1100 − rail − 260) without scrolling sideways. */}
+      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: columns.length > 1 ? `repeat(${columns.length}, minmax(168px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
         {columns.map((col) => (
           <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
             <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>

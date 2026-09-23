@@ -70,7 +70,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** The link dropped since it was last open: when it reopens, commands left running are settled (see settleCommands). */
   const linkDropped = useRef(false);
 
-  /** Re-read the list now (the tree archived or restored something); otherwise it refreshes each minute. Stable, so effects can depend on it. */
+  /** Re-read the list now (the sidebar archived or restored something); otherwise it refreshes each minute. Stable, so effects can depend on it. */
   const reload = useCallback(() => reloadRef.current?.(), []);
 
   const bump = useCallback(() => {
