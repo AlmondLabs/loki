@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { SIDEBAR_KEY, canArchive, canPin, deskRowState, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
+import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canPin, canRename, cleanDeskName, deskRowState, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
 import type { DeskSummary } from "../app/src/desk/useDesk";
 import type { AttentionItem } from "../core/attention/model.ts";
 
@@ -127,6 +127,26 @@ describe("pin and archive rules (scenario 4)", () => {
   });
 });
 
+describe("rename rules", () => {
+  test("any desk with its own conversation can be renamed, archived ones too; not the main chat, a deleted desk or the shared sheet", () => {
+    expect(canRename(desk("jira"))).toBe(true);
+    expect(canRename(desk("gone", { status: "archived" }))).toBe(true);
+    expect(canRename(desk("default-a1", { conversationId: "default" }))).toBe(false);
+    expect(canRename(desk("dead", { status: "deleted" }))).toBe(false);
+    expect(canRename(desk("shared", { conversationId: null }))).toBe(false);
+  });
+  test("a name is trimmed, its runs of whitespace (a pasted newline) made one space, and capped; blank is no name", () => {
+    expect(cleanDeskName("  Q3 plan  ")).toBe("Q3 plan");
+    expect(cleanDeskName("Q3\n  plan\tdraft")).toBe("Q3 plan draft");
+    expect(cleanDeskName("")).toBeNull();
+    expect(cleanDeskName("   \n ")).toBeNull();
+    const long = "x".repeat(DESK_NAME_MAX + 20);
+    expect(cleanDeskName(long)).toBe("x".repeat(DESK_NAME_MAX));
+    // Capping never leaves a trailing space behind.
+    expect(cleanDeskName(`${"y".repeat(DESK_NAME_MAX - 1)} tail`)).toBe("y".repeat(DESK_NAME_MAX - 1));
+  });
+});
+
 describe("the needs-you pills (scenario 5, AE4)", () => {
   const view = { top: 100, bottom: 400 };
   test("a waiting desk below the fold: the bottom pill, aimed at the nearest one below", () => {
@@ -186,7 +206,7 @@ describe("the sidebar, rendered", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { DeskSidebar } = await import("../app/src/shell/DeskSidebar.tsx");
     const noop = () => {};
-    const html = renderToStaticMarkup(createElement(DeskSidebar, { desks, agents: [], items: [item("a1", "jira", "approval")], current: "aws", connected: false, onOpen: noop, onNew: noop, onPin: noop, onArchive: noop, avatar: () => null }));
+    const html = renderToStaticMarkup(createElement(DeskSidebar, { desks, agents: [], items: [item("a1", "jira", "approval")], current: "aws", connected: false, onOpen: noop, onNew: noop, onPin: noop, onArchive: noop, onRename: async () => null, avatar: () => null }));
     expect(html).toContain('aria-label="New desk"');
     expect(html).toContain('placeholder="Find a desk…"');
     expect(html.indexOf(">Pinned<")).toBeLessThan(html.indexOf(">ira<"));
@@ -200,5 +220,19 @@ describe("the sidebar, rendered", () => {
     // Not connected: archive is there but disabled, with the reason.
     expect(html).toMatch(/aria-label="Archive"[^>]*disabled|disabled[^>]*aria-label="Archive"/);
     expect(html).toContain("Archiving needs the app-server");
+  });
+});
+
+describe("the rename dialog, rendered", () => {
+  test("titled Rename desk, the field holds the current name, Save waits for a change", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { RenameDesk } = await import("../app/src/desk/RenameDesk.tsx");
+    const html = renderToStaticMarkup(createElement(RenameDesk, { name: "Meeting notes", onClose: () => {}, onRename: async () => null }));
+    expect(html).toContain('aria-label="Rename desk"');
+    expect(html).toContain(">Rename desk<");
+    expect(html).toContain('value="Meeting notes"');
+    expect(html).toContain(`maxLength="${DESK_NAME_MAX}"`);
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>Save<\/button>/);
   });
 });

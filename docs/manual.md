@@ -101,11 +101,14 @@ wide starts with it hidden.
   with a "+" for a new desk with that agent), then **Archived**, folded. A desk's name goes bold when its agent
   wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. "Find a
   desk…" at the top filters by desk or agent name (↓ into the list, ↑↓ between desks, ↵ opens the first match).
-  Hover a row for pin and archive, right-click it for the same with open and restore. When a desk that waits on
+  Hover a row for pin and archive, right-click it for the same with open, rename and restore. **Rename…** (also in
+  the desk header's ⋯ menu) opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
+  most 80 characters. The name is the Letta conversation's own, so Letta Desktop sees it too; an agent's main
+  chat is named after the agent and cannot be renamed, and renaming needs the app-server. When a desk that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a desk — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (find, model, permission mode,
+  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (rename, find, model, permission mode,
   new desk, and on the Desk tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line where you stopped reading, a copy button on hover, and a line each time the agent

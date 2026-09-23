@@ -29,6 +29,20 @@ export function deskMark(item: AttentionItem | undefined, status: DeskSummary["s
 
 /** A conversation can be archived (or restored) unless it is the agent's main chat or already deleted. */
 export const canArchive = (d: DeskSummary): boolean => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+/**
+ * A desk with its own conversation can be renamed, archived or not: the name is Letta's summary. The main chat is
+ * called after its agent (it has no summary to set) and a deleted desk has no conversation left to write to.
+ */
+export const canRename = (d: DeskSummary): boolean => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+
+/** Longest desk name: Slack's channel-name cap; past it a name stops fitting the sidebar row, the header and ⌘K anyway. */
+export const DESK_NAME_MAX = 80;
+
+/** A typed or pasted name as it is saved: whitespace runs (a pasted newline) made one space, trimmed, capped. Blank is no name (null). */
+export function cleanDeskName(raw: string): string | null {
+  const name = raw.replace(/\s+/g, " ").trim().slice(0, DESK_NAME_MAX).trimEnd();
+  return name || null;
+}
 /** A live desk with an agent and a conversation can be pinned. */
 export const canPin = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status === "live";
 

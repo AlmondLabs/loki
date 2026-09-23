@@ -15,6 +15,8 @@ import type { useDesk } from "./useDesk";
 import { useDeskChat } from "./useDeskChat";
 import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
 import { widgetMarks } from "./widgetRows";
+import { NO_RENAME_REASON, RenameDesk, renameDesk } from "./RenameDesk";
+import { canRename } from "../shell/sidebarModel";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
 const TABS: readonly Tab<DeskTab>[] = [
@@ -191,13 +193,19 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
   }, [visible, root, last]);
 }
 
+/** A line of the header's menu: a keymap action (run through runAction, its key shown), or the rename dialog. */
+type MenuItem = { id: string; label: string; keys?: string; disabled?: boolean; title?: string };
+const RENAME = "desk.rename";
+
 /**
- * The header's actions: pin / unpin and archive / restore (what the sidebar offers on a row), then a menu
- * for the rest of what the desk does today, each through its keymap action so the key and the menu agree.
+ * The header's actions: pin / unpin and archive / restore (what the sidebar offers on a row), then a menu:
+ * rename first, then the rest of what the desk does today, each through its keymap action so the key and the menu agree.
  */
 function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType<typeof useDesk>; catchUp: ReturnType<typeof useAttention>; summary: ReturnType<typeof useDesk>["desks"]["list"][number] | null; tab: DeskTab; notice: (m: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const { agentId, conversationId } = desk;
+  const connected = catchUp.status === "open";
   const canPin = !!summary && !!agentId && !!conversationId && summary.status === "live";
   const canArchive = !!summary && desk.attention.available && !!conversationId && conversationId !== "default" && summary.status !== "deleted";
   const archived = summary?.status === "archived";
@@ -209,7 +217,8 @@ function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType
       desk.desks.request();
     });
   };
-  const items: Array<{ id: string; label: string; keys: string }> = [
+  const items: MenuItem[] = [
+    ...(summary && canRename(summary) ? [{ id: RENAME, label: "Rename…", disabled: !connected, title: connected ? undefined : NO_RENAME_REASON }] : []),
     { id: "chat.find", label: "Find in conversation…", keys: "⌘F" },
     { id: "chat.model", label: "Change model…", keys: "⌘⇧M" },
     { id: "chat.mode", label: "Change permission mode…", keys: "⌘⇧P" },
@@ -243,12 +252,14 @@ function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType
             items={items}
             onPick={(id) => {
               setMenuOpen(false);
-              runAction(id);
+              if (id === RENAME) setRenaming(true);
+              else runAction(id);
             }}
             onClose={() => setMenuOpen(false)}
           />
         )}
       </span>
+      {renaming && summary && <RenameDesk name={desk.title ?? summary.title ?? ""} onClose={() => setRenaming(false)} onRename={(name) => renameDesk(desk, catchUp, notice)(summary, name)} />}
     </>
   );
 }
@@ -259,7 +270,7 @@ function useWidgetMarks(rows: Parameters<typeof widgetMarks>[0], log: Parameters
 }
 
 /** The overflow menu: ↑↓ / Enter / Esc, or click; a click outside closes it. */
-function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label: string; keys: string }>; onPick: (id: string) => void; onClose: () => void }) {
+function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: string) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -268,7 +279,7 @@ function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label
   useEffect(() => {
     const node = ref.current;
     const anchor = node?.parentElement ?? null;
-    node?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    node?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
     // a press outside the menu and its button closes it (the button toggles it itself)
     const away = (e: PointerEvent) => {
       if (!anchor?.contains(e.target as Node)) closeRef.current();
@@ -292,7 +303,7 @@ function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label
       // hung from a 28px button: the popover's own cap (its parent's width) would crush it
       style={{ padding: 4, right: 0, maxWidth: "none" }}
       onKeyDown={(e) => {
-        const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+        const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
         const i = all.indexOf(document.activeElement as HTMLElement);
         if (e.key === "ArrowDown") all[Math.min(all.length - 1, i + 1)]?.focus();
         else if (e.key === "ArrowUp") all[Math.max(0, i - 1)]?.focus();
@@ -303,9 +314,9 @@ function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label
       }}
     >
       {items.map((it) => (
-        <Row key={it.id} dense role="menuitem" onClick={() => onPick(it.id)} className="loki-desk-pane-menu-item">
+        <Row key={it.id} dense role="menuitem" disabled={it.disabled} title={it.title} onClick={() => onPick(it.id)} className="loki-desk-pane-menu-item">
           <span>{it.label}</span>
-          <Kbd>{it.keys}</Kbd>
+          {it.keys && <Kbd>{it.keys}</Kbd>}
         </Row>
       ))}
     </Popover>

@@ -311,6 +311,11 @@ export class AppServerSocket {
     if (res.success === false) throw new Error(String(res.error ?? "conversation update refused"));
   }
 
+  /** Rename a conversation: Letta keeps its name as `summary` (what runtime_start's create set), the field a desk's title is read from. */
+  async renameConversation(conversationId: string, name: string): Promise<void> {
+    await this.updateConversation(conversationId, { summary: name });
+  }
+
   /**
    * execute_command: a slash command run by the harness for this conversation (/reload, /compact, …),
    * the path Letta Desktop and the channels use. The harness streams slash_command_start / _end for

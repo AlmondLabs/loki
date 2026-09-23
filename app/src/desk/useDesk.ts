@@ -77,6 +77,7 @@ export function useDesk() {
     desksLoaded,
     setDeskList,
     titles,
+    setTitles,
     statuses,
     agentNames,
     agentIds,
@@ -363,6 +364,11 @@ export function useDesk() {
     setModes((t) => ({ ...t, [s]: m }));
     setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, mode: m } : d)));
   };
+  /** After a rename the mod only broadcasts desk_title at the next turn end; show the new name in the header and the list now. */
+  const setDeskTitle = (s: Scope, title: string) => {
+    setTitles((t) => ({ ...t, [s]: title }));
+    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, title } : d)));
+  };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
   const agentId = agentIds[scope] ?? null;
   /** The conversation behind this desk, as the app-server names it. */
@@ -383,6 +389,7 @@ export function useDesk() {
     mode,
     modeOf,
     setDeskMode,
+    setDeskTitle,
     connection,
     visible,
     closed,

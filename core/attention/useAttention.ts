@@ -508,6 +508,18 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, []);
+  /** Rename a conversation (a desk); resolves to an error message or null. Main chats are named after their agent and cannot be renamed. */
+  const renameConversation = useCallback(async (conversationId: string, name: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    if (conversationId === "default") return "a main chat cannot be renamed";
+    try {
+      await sock.renameConversation(conversationId, name);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
   /** Switch a conversation's model; returns the applied handle/effort or an error. */
   const updateModel = useCallback(async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const sock = socketRef.current;
@@ -582,6 +594,7 @@ export function useAttention(opts: UseAttentionOptions) {
     updateModel,
     setMode,
     archiveConversation,
+    renameConversation,
     createDesk,
     items,
     loadHistory,

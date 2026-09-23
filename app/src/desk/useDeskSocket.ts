@@ -282,6 +282,7 @@ export function useDeskSocket() {
     desksLoaded,
     setDeskList,
     titles,
+    setTitles,
     statuses,
     agentNames,
     agentIds,
