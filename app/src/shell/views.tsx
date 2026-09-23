@@ -161,39 +161,6 @@ export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAs
   );
 }
 
-/** ⌘K: the desks tree as the quick switcher, with pin and archive on each row. */
-export function SwitcherTree({ open, onClose, desk, catchUp, visited, onSwitch, onSwitchChat, onNewDesk, notice }: { open: boolean; onClose: () => void; desk: Desk; catchUp: CatchUp; visited: string[]; onSwitch: (scope: string) => void; onSwitchChat: (scope: string) => void; onNewDesk: (agentId: string | null, name: string) => void; notice: (m: string) => void }) {
-  return (
-    <DeskTree
-      open={open}
-      onClose={onClose}
-      desks={desk.desks.list}
-      agents={catchUp.agents}
-      items={catchUp.items}
-      current={desk.scope}
-      onSwitch={onSwitch}
-      onSwitchChat={onSwitchChat}
-      visited={visited}
-      onNew={desk.attention.available ? onNewDesk : undefined}
-      onPin={(d, pinned) => {
-        if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
-      }}
-      onArchive={
-        desk.attention.available
-          ? (d, archived) => {
-              if (!d.conversationId) return;
-              void catchUp.archiveConversation(d.conversationId, archived).then((err) => {
-                if (err) return notice(`archive: ${err}`);
-                notice(`${d.title ?? d.scope} ${archived ? "archived" : "restored"}`);
-                desk.desks.request();
-              });
-            }
-          : undefined
-      }
-    />
-  );
-}
-
 /** The new-desk dialog inherits the open desk's working folder when the mod knows it. */
 export function NewDeskSheet({ state, inheritCurrentDesk, onClose, desk, catchUp, onCreate }: { state: { open: boolean; name: string; agentId: string | null }; inheritCurrentDesk: boolean; onClose: () => void; desk: Desk; catchUp: CatchUp; onCreate: (agent: string, folder: string, name: string) => Promise<void> }) {
   const currentConversationKey = inheritCurrentDesk && desk.conversationId ? conversationDirName(desk.conversationId, desk.agentId) : null;

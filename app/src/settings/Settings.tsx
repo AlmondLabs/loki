@@ -19,7 +19,7 @@ import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attenti
 import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { within, type Range } from "../../../core/range.ts";
 import { ThemeChoice } from "./ThemeChoice";
-import { PAGES, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
+import { PAGES, SETTINGS_PAGE_KEY, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 import { useTheme } from "../theme";
 
 const HOME = "~/.letta/loki";
@@ -31,7 +31,7 @@ export interface InboxSettingsApi {
   ladder: SnoozeLadder;
   onLadder: (input: Partial<SnoozeLadder>) => void;
 }
-const PAGE_KEY = "loki.settingsPage";
+const PAGE_KEY = SETTINGS_PAGE_KEY;
 
 type AppServerStatus = "connecting" | "open" | "closed" | "unavailable";
 type ModConnection = "connecting" | "open" | "closed";

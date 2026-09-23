@@ -25,7 +25,7 @@ import { isLanVia } from "./lan.ts";
     widget_change { entry }                 the agent added/changed/removed a widget on any desk; sent to every socket (mod/widget-log.ts).
                                             A row with an id already seen replaces it (a repeat edit folded in); apps ignore it if unknown
  *    switch_desk { scope }                   the active conversation changed; the tab follows
- *    desks       { desks }                   reply to list_desks (the ⌘K switcher)
+ *    desks       { desks }                   reply to list_desks (the sidebar, ⌘K search)
  *  client → server
  *    gesture       { gesture }
  *    measure       { id, size }              rendered size of a widget (drives placement)

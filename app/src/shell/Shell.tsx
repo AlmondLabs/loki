@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toast } from "../components";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { useAttention } from "../../../core/attention/useAttention.ts";
@@ -19,7 +19,6 @@ import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
 import type { Segment } from "./shortcuts";
 import { useNotice } from "./useNotice";
-import { useVisitedDesks } from "./useVisitedDesks";
 import { useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
@@ -32,7 +31,11 @@ import { KeysSheet } from "./KeysSheet";
 import { useColumn } from "./useColumn";
 import { ListColumn } from "./ListColumn";
 import { DeskSidebarView } from "./DeskSidebar";
-import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
+import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, WelcomeView, type Picker, RecallView } from "./views";
+import { SearchSheet } from "./SearchSheet";
+import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./searchModel";
+import { agentsSelection } from "../agents/selection";
+import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel } from "../chat/ModelPicker";
 import type { ModelSelection } from "../../../core/models.ts";
@@ -57,7 +60,7 @@ function welcomeFor(boot: BootstrapStatus | null, catchUp: Pick<CatchUp, "status
 /**
  * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, the
  * section's list column (ListColumn; Desk, Board, Agents, Learn) and one view in the space they leave. The desk and attention models live here so the desk view, the
- * inbox, the tree and settings all read the same state.
+ * inbox, ⌘K search and settings all read the same state.
  */
 export function Shell() {
   const desk = useDesk();
@@ -94,7 +97,8 @@ export function Shell() {
     setSegmentRaw(s);
     sessionStorage.setItem(SEGMENT_KEY, s);
   }, []);
-  const [treeOpen, setTreeOpen] = useState(false);
+  /** ⌘K search (SearchSheet): a sheet over whatever shows. */
+  const [searchOpen, setSearchOpen] = useState(false);
   /** Preferences: the Settings sheet over the section showing (KTD11). The rail keeps that section highlighted underneath. */
   const [prefsOpen, setPrefsOpen] = useState(false);
   // The view on screen, the desk under it, the chat open or closed — an event on each change.
@@ -165,9 +169,9 @@ export function Shell() {
   /** A request another view wants typed into the chat ("ask ira to update this"). */
   const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
 
-  const openTree = useCallback(() => {
-    desk.desks.request();
-    setTreeOpen(true);
+  const openSearch = useCallback(() => {
+    desk.desks.request(); // the freshest desk titles to search
+    setSearchOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /** Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, a new desk): its Messages tab with the box focused. `_opts.chat` predates the tabs and is kept for callers. */
@@ -241,7 +245,7 @@ export function Shell() {
   }, [segment]);
   useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, board.openTasks, recall.due);
 
-  // The desks list feeds the tree and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
+  // The desks list feeds the sidebar, search and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
   // status too, so the rail's green dot is right before Settings is ever opened.
   useEffect(() => {
     if (desk.connection === "open") {
@@ -250,7 +254,12 @@ export function Shell() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
-  const visited = useVisitedDesks(desk.scope);
+  // Search's recent places: every desk opened and every section visited, not only what search opened.
+  useEffect(() => {
+    if (segment === "desk") {
+      if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
+    } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
+  }, [segment, desk.scope]);
   // The list column between the rail and the main pane (Desk, Board, Agents, Learn); the pane starts where it ends.
   const column = useColumn(segment);
   // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
@@ -268,10 +277,9 @@ export function Shell() {
     const next = afterSegmentKey(id, { segment, preferences: prefsOpen });
     setPrefsOpen(next.preferences);
     setSegment(next.segment);
-    setTreeOpen(false);
   };
   useShellKeys(
-    { segment, treeOpen },
+    { segment },
     {
       "segment.desk": () => segmentKey("segment.desk"),
       "segment.inbox": () => segmentKey("segment.inbox"),
@@ -279,7 +287,7 @@ export function Shell() {
       "segment.learn": () => segmentKey("segment.learn"),
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
-      "tree.toggle": () => (treeOpen ? setTreeOpen(false) : openTree()),
+      "search.open": () => (searchOpen ? setSearchOpen(false) : openSearch()),
       "desk.new": () => setNewDesk({ open: true, name: "", agentId: null }),
       "task.new": () => setCaptureOpen(true),
       "keys.sheet": () => setKeysOpen((v) => !v),
@@ -300,10 +308,10 @@ export function Shell() {
       "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
       "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
     },
-    { closeTree: () => setTreeOpen(false), toDesk: () => setSegment("desk"), toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
+    { toDesk: () => setSegment("desk"), toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
   );
 
-  /** A desk chosen in the sidebar or the tree: an open, so its Messages tab with the box focused. */
+  /** A desk chosen in the sidebar: an open, so its Messages tab with the box focused. */
   const switchDesk = (scope: string) => {
     desk.desks.switchTo(scope);
     pane.open(scope);
@@ -312,11 +320,30 @@ export function Shell() {
   };
   const forgetModels = () => setModels(null);
 
+  /** A search result: its section, and for a desk or a waiting item the desk on Messages (searchModel.ts SearchTarget). */
+  const searchSources = useMemo(() => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items }), [desk.desks.list, catchUp.agents, catchUp.items]);
+  const openHit = ({ target: t }: SearchHit) => {
+    setSearchOpen(false);
+    if (t.kind === "preferences") {
+      // Preferences mounts on its saved page: set it first.
+      if (t.page) sessionStorage.setItem(SETTINGS_PAGE_KEY, t.page);
+      setPrefsOpen(true);
+      return;
+    }
+    setPrefsOpen(false);
+    if (t.kind === "desk") return openDesk(t.agentId, t.conversationId);
+    if (t.kind === "agent") {
+      agentsSelection.pickAgent(t.agentId);
+      return setSegment("agents");
+    }
+    setSegment(t.segment);
+  };
+
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
         <TitleStrip />
-        <Sidebar segment={segment} onSelect={(s) => (s === "settings" ? (setTreeOpen(false), setPrefsOpen(true)) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))} waiting={waiting} tick={tick} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null} />
 
         <ListColumn
           segment={segment}
@@ -324,7 +351,7 @@ export function Shell() {
           width={column.width}
           onWidth={column.setWidth}
           sections={{
-            desk: <DeskSidebarView desk={desk} catchUp={catchUp} notice={notice} onOpen={(scope) => (setTreeOpen(false), switchDesk(scope))} onNew={(agentId) => setNewDesk({ open: true, name: "", agentId })} />,
+            desk: <DeskSidebarView desk={desk} catchUp={catchUp} notice={notice} onOpen={switchDesk} onNew={(agentId) => setNewDesk({ open: true, name: "", agentId })} />,
             board: <BoardColumn tasks={board.tasks} onNew={() => setCaptureOpen(true)} />,
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
             learn: <LearnColumn recall={recall} />,
@@ -371,11 +398,11 @@ export function Shell() {
                 setPicker({ ids, start });
               }}
               onNew={() => setCaptureOpen(true)}
-              active={segment === "board" && !picker && !captureOpen}
+              active={segment === "board" && !picker && !captureOpen && !searchOpen}
             />
           )}
 
-          {segment === "learn" && <RecallView recall={recall} active={segment === "learn" && !picker && !captureOpen && !treeOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
+          {segment === "learn" && <RecallView recall={recall} active={segment === "learn" && !picker && !captureOpen && !searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
 
           {segment === "agents" && (
             <AgentsView
@@ -396,25 +423,11 @@ export function Shell() {
 
           <PickerTree picker={picker} onClose={() => setPicker(null)} desk={desk} catchUp={catchUp} onAssign={board.assignTo} pendingAssignRef={pendingAssign} onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })} />
 
-          <SwitcherTree
-            open={treeOpen}
-            onClose={() => setTreeOpen(false)}
-            desk={desk}
-            catchUp={catchUp}
-            visited={visited}
-            onSwitch={switchDesk}
-            onSwitchChat={(scope) => {
-              switchDesk(scope);
-              setChatOpen(true);
-              setFocusChat((n) => n + 1);
-            }}
-            onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })}
-            notice={notice}
-          />
         </div>
       </div>
 
       <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={board.createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
+      {searchOpen && <SearchSheet sources={searchSources} here={segment === "desk" ? deskPlace(desk.scope) : segment === "settings" ? null : sectionPlace(segment)} avatar={avatarUrl} onOpen={openHit} onClose={() => setSearchOpen(false)} />}
       {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), setPrefsOpen(true))} />}
       {/* Preferences covers the whole window, rail included, like Slack's. */}
       {prefsOpen && <SettingsView onClose={() => setPrefsOpen(false)} update={update} shortcut={shortcut} recall={recall} scratch={scratch} desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}

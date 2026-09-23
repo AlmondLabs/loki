@@ -4,9 +4,10 @@ import type { DeskSummary } from "../app/src/desk/useDesk";
 import type { AttentionItem } from "../core/attention/model.ts";
 
 /**
- * The switcher's order (app/src/shell/DeskTree.tsx): waiting on you, pinned, recent in visit order,
- * the rest by last message — each desk once — and the row the highlight starts on: the desk before
- * this one, so ⌘K ↵ goes back.
+ * The desk tree's order (app/src/shell/DeskTree.tsx), now the Board's assign-to-desk picker (⌘K is
+ * search): waiting on you, pinned, recent in visit order when given, the rest by last message — each
+ * desk once — and the row the highlight starts on: the desk before this one when visits are given, else
+ * the current desk.
  */
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>

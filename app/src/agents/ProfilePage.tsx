@@ -72,7 +72,7 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       </div>
       <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
         <Button tone="brass" onClick={() => onOpen("default")}>main chat</Button>
-        <Button onClick={onShowDesks} kbd="⌘K">the desk tree</Button>
+        <Button onClick={onShowDesks} kbd="⌘1">all desks</Button>
       </div>
     </section>
   );

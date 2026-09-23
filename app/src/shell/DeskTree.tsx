@@ -74,8 +74,8 @@ export function sectionDesks(desks: DeskSummary[], agentFilter: string | null, i
 }
 
 /**
- * Where the highlight starts: the desk you were on before this one, so ⌘K then ↵ goes back; else the
- * current desk; else the top. `visited` is most recent first and its head is the current desk.
+ * Where the highlight starts: the desk you were on before this one, when the caller passes visits; else
+ * the current desk; else the top. `visited` is most recent first and its head is the current desk.
  */
 export function initialIndex(rowScopes: Array<string | null>, visited: string[], current: string): number {
   const previous = visited.find((sc) => sc !== current);
@@ -95,9 +95,9 @@ export { deskMark, type MarkKind } from "./sidebarModel";
 const NO_VISITS: string[] = [];
 
 /**
- * The desks tree, which is also the quick switcher. Nothing typed: sections — waiting on you, pinned,
- * recent (in the order you visited), everything else — and the highlight starts on the desk you were on
- * before this one, so ⌘K ↵ goes back. Type to filter into one flat list. ↑↓ move, ↵ open, ⇧↵ open with
+ * The desks tree, now the Board's assign-to-desk picker (PickerTree in views.tsx; ⌘K is search, plan 013
+ * U9). Nothing typed: sections — waiting on you, pinned, recent (in the order you visited, when given),
+ * everything else — and the highlight starts on the current desk. Type to filter into one flat list. ↑↓ move, ↵ open, ⇧↵ open with
  * the chat focused, Tab / ⇧Tab cycle the agent chips, ⌘P pin, ⌘E archive, esc close. Archived and
  * deleted conversations sit under a folded "archive" group at the bottom. Each desk carries the same
  * attention mark the inbox gives it.
@@ -105,7 +105,7 @@ const NO_VISITS: string[] = [];
 export function DeskTree({ open, visited = NO_VISITS, ...props }: TreeProps & { open: boolean }) {
   /** The archive group's fold; it outlives the sheet, unlike the filter, so it stays with the wrapper. */
   const [showArchive, setShowArchive] = useState(false);
-  // The sheet mounts on ⌘K with a blank filter and the highlight on the last desk, and goes away with it.
+  // The sheet mounts with a blank filter each time it opens, and goes away with it.
   if (!open) return null;
   return <TreeSheet {...props} visited={visited} showArchive={showArchive} onToggleArchive={() => setShowArchive((v) => !v)} />;
 }

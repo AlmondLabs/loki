@@ -37,7 +37,8 @@ export const KEYMAP: Binding[] = [
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
-  { id: "tree.toggle", keys: ["cmd+k"], where: "anywhere", label: "Desks Tree", typing: true, menu: "Desk" },
+  // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
+  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins).
@@ -287,22 +288,27 @@ export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
 }
 
 /**
- * The dialogs up, for the shell's keys: none, only Preferences (the sheet marked data-preferences), or some
- * other dialog, which wins even over Preferences (a sheet opened from a settings page). The tree is not a
- * dialog here: it owns its keys but lets ⌘K and the segments through (useShellKeys).
+ * The dialogs up, for the shell's keys: none, only Preferences (the sheet marked data-preferences), only
+ * search (data-search), or some other dialog, which wins over both (a sheet opened from a settings page).
+ * The Board's desk picker is not a dialog here: it owns its keys (data-tree).
  */
-export type DialogState = "none" | "preferences" | "other";
+export type DialogState = "none" | "preferences" | "search" | "other";
 export function dialogState(root: ParentNode = document): DialogState {
   const up = [...root.querySelectorAll('[role="dialog"]:not([data-tree])')];
   if (up.length === 0) return "none";
-  return up.every((d) => d.hasAttribute("data-preferences")) ? "preferences" : "other";
+  if (up.every((d) => d.hasAttribute("data-preferences"))) return "preferences";
+  return up.every((d) => d.hasAttribute("data-search")) ? "search" : "other";
 }
 
-/** Preferences lets the segment keys (⌘1-6, ⌘,) and its own page steps (⌘[ ⌘]) through; every other dialog blocks every shell key. */
+/**
+ * Preferences lets the segment keys (⌘1-6, ⌘,) and its own page steps (⌘[ ⌘]) through; search lets only ⌘K
+ * through, which closes it (Esc too, from the sheet), as Slack's does; every other dialog blocks every shell key.
+ */
 const PREFERENCES_KEYS = new Set(["settings.prevPage", "settings.nextPage"]);
 export function shellKeyAllowed(dialog: DialogState, id: string): boolean {
   if (dialog === "none") return true;
   if (dialog === "other") return false;
+  if (dialog === "search") return id === "search.open";
   return id.startsWith("segment.") || PREFERENCES_KEYS.has(id);
 }
 

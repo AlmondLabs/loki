@@ -23,15 +23,13 @@ export function TitleStrip() {
 /**
  * The rail under the top strip: six segments and nothing else. The inbox icon carries
  * the waiting count — the same number the tray title and the dock badge show — and ticks
- * when it grows. The desk icon is also the tree's toggle, so it reads pressed while the
- * tree is out.
+ * when it grows.
  */
 export function Sidebar({
   segment,
   onSelect,
   waiting,
   tick,
-  treeOpen,
   openTasks = 0,
   dueCards = 0,
   lanOn = false,
@@ -42,7 +40,6 @@ export function Sidebar({
   onSelect: (s: Segment) => void;
   waiting: number;
   tick: boolean;
-  treeOpen: boolean;
   /** Open tasks on the board, shown quietly under its icon. */
   openTasks?: number;
   /** Cards due in Learn, the same quiet way. */
@@ -76,7 +73,7 @@ export function Sidebar({
       }}
     >
       {SEGMENTS.map((s) => {
-        const active = segment === s.id || (s.id === "desk" && treeOpen);
+        const active = segment === s.id;
         const isInbox = s.id === "inbox";
         return (
           <span key={s.id} style={{ display: "contents" }}>

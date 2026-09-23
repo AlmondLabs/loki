@@ -9,3 +9,6 @@ export const pageTitle = (p: SettingsPage): string => TITLES[p];
 export function isSettingsPage(v: unknown): v is SettingsPage {
   return PAGES.some((p) => p.id === v);
 }
+
+/** The page Preferences opens on, kept for the window; ⌘K search sets it to open Preferences on a page. */
+export const SETTINGS_PAGE_KEY = "loki.settingsPage";

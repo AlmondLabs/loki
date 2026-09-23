@@ -104,7 +104,29 @@ describe("keymap: presentation", () => {
   });
   test("a chord names every binding it could mean, so the menu's echo of the other one is dropped", () => {
     expect(chordIds(ev("]", { meta: true })).sort()).toEqual(["agents.next", "board.nextColumn", "desk.next", "inbox.next", "learn.nextView", "settings.nextPage"]);
-    expect(chordIds(ev("k", { meta: true }))).toEqual(["tree.toggle"]);
+    expect(chordIds(ev("k", { meta: true }))).toEqual(["search.open"]);
+  });
+});
+
+describe("keymap: ⌘K is search (plan 013 U9)", () => {
+  test("⌘K opens search from anywhere, the message box included, and the native menu lists it as Search", () => {
+    expect(resolve(ev("k", { meta: true }), "desk")?.id).toBe("search.open");
+    expect(resolve(ev("k", { meta: true }, true), "desk")?.id).toBe("search.open"); // typing in the composer
+    expect(resolve(ev("k", { meta: true }, true), "board")?.id).toBe("search.open");
+    expect(KEYMAP.some((b) => b.id === "tree.toggle")).toBe(false);
+    const item = menuSpec()
+      .flatMap((m) => m.items.map((i) => ({ menu: m.title, ...i })))
+      .find((i) => "id" in i && i.id === "search.open") as { menu: string; label: string; accelerator: string | null };
+    expect(item).toMatchObject({ menu: "Desk", label: "Search", accelerator: "CmdOrCtrl+K" });
+  });
+  test("search up lets only ⌘K through (it closes it); a sheet over it wins", () => {
+    const el = (attrs: string[]) => ({ hasAttribute: (a: string) => attrs.includes(a) });
+    const root = (...dialogs: string[][]) => ({ querySelectorAll: () => dialogs.map(el) }) as unknown as ParentNode;
+    expect(dialogState(root(["data-search"]))).toBe("search");
+    expect(dialogState(root(["data-search"], []))).toBe("other");
+    expect(shellKeyAllowed("search", "search.open")).toBe(true);
+    for (const id of ["segment.desk", "desk.new", "keys.sheet", "chat.focus"]) expect(shellKeyAllowed("search", id)).toBe(false);
+    expect(keySegment("board", "search")).toBe("board");
   });
 });
 
@@ -123,7 +145,7 @@ describe("keymap: Preferences over the shell (KTD11)", () => {
       expect(shellKeyAllowed("other", id)).toBe(false);
       expect(shellKeyAllowed("none", id)).toBe(true);
     }
-    for (const id of ["desk.new", "task.new", "keys.sheet", "column.toggle", "tree.toggle", "desk.next", "chat.focus"]) {
+    for (const id of ["desk.new", "task.new", "keys.sheet", "column.toggle", "search.open", "desk.next", "chat.focus"]) {
       expect(shellKeyAllowed("preferences", id)).toBe(false);
     }
   });
