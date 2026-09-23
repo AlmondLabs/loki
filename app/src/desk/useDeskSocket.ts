@@ -8,6 +8,7 @@ import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../../../core/at
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
+import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
 
 const NO_YANK_MS = 2000;
 
@@ -39,6 +40,8 @@ export function useDeskSocket() {
   const [connection, setConnection] = useState<Connection>("connecting");
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
   const [deskList, setDeskList] = useState<DeskSummary[]>([]);
+  /** A desks frame has arrived: an empty list is then "no desks", not "not asked yet" (the phone's Home says which). */
+  const [desksLoaded, setDesksLoaded] = useState(false);
   const [titles, setTitles] = useState<Record<Scope, string>>({});
   const [statuses, setStatuses] = useState<Record<Scope, DeskStatus>>({});
   const [agentNames, setAgentNames] = useState<Record<Scope, string>>({});
@@ -49,6 +52,8 @@ export function useDeskSocket() {
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   const [appServer, setAppServer] = useState(false);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+  /** When each conversation was last looked at: apart from seen, which is "done". */
+  const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
   /** How long "later" hides a card (Settings › inbox); the mod keeps it beside the markers. */
   const [ladder, setLadder] = useState<SnoozeLadder>(DEFAULT_LADDER);
@@ -62,6 +67,8 @@ export function useDeskSocket() {
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
+  /** Each desk's widget change log (desk/widgetRows.ts): from history replies and live `widget_change` frames, for any desk. */
+  const [widgetLogs, setWidgetLogs] = useState<WidgetLogs>({});
   /** Pending request/reply exchanges with the mod, by requestId. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
@@ -144,6 +151,7 @@ export function useDeskSocket() {
           }
           case "desks":
             setDeskList(msg.desks as DeskSummary[]);
+            setDesksLoaded(true);
             break;
           case "config":
             setAppServer(msg.appServer === true);
@@ -169,6 +177,12 @@ export function useDeskSocket() {
           case "app_build":
             if (typeof msg.build === "string") setServedBuild(msg.build);
             break;
+          case "widget_change": {
+            // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
+            const entry = parseWidgetEntry(msg.entry);
+            if (entry) setWidgetLogs((s) => withEntry(s, entry));
+            break;
+          }
           case "agent":
           case "memory_file":
           case "memory_commits":
@@ -202,6 +216,8 @@ export function useDeskSocket() {
           }
           case "seen":
             setSeenMap((msg.seen as Record<string, string>) ?? {});
+            // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
+            if (msg.viewed && typeof msg.viewed === "object") setViewedMap(msg.viewed as Record<string, string>);
             setSnoozeMap((msg.snooze as Record<string, Snooze>) ?? {});
             {
               // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
@@ -267,8 +283,10 @@ export function useDeskSocket() {
     connection,
     cameraTarget,
     deskList,
+    desksLoaded,
     setDeskList,
     titles,
+    setTitles,
     statuses,
     agentNames,
     agentIds,
@@ -280,6 +298,7 @@ export function useDeskSocket() {
     setModes,
     appServer,
     seenMap,
+    viewedMap,
     snoozeMap,
     ladder,
     tasksVersion,
@@ -289,6 +308,8 @@ export function useDeskSocket() {
     devices,
     pairCode,
     servedBuild,
+    widgetLogs,
+    setWidgetLogs,
     waiters,
     lastInteractionRef,
     pendingRef,

@@ -70,6 +70,8 @@ describe("scan + watch", () => {
       rmSync(join(root, "conv1"), { recursive: true });
       await w.rescan();
       expect(diffs[diffs.length - 1].removed).toEqual(["conv1/trip"]);
+      expect(diffs[diffs.length - 1].removedEntries.map((e) => e.title)).toEqual(["trip"]);
+      expect(diffs.map((x) => x.initial)).toEqual([true, ...diffs.slice(1).map(() => false)]);
       expect(w.entries("conv1")).toEqual([]);
       w.close();
     } finally {

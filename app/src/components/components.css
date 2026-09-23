@@ -1,9 +1,13 @@
-/* loki app primitives — the one vocabulary for chrome.
+/* loki app primitives — the one vocabulary for chrome, in Slack's voice (2026-09-23).
    Every control here has default, hover, focus (kit/tokens.css), active and disabled states in CSS, so a
-   component never re-invents them inline. Sizes: sm 28 · md 36 · touch 44 (the phone's floor). Radii:
-   6 field · 8 button, row · 12 sheet, popover · 999 chip, toast. Tones: quiet (muted) · paper (fg) ·
-   brass (needs the human) · positive · negative. Widgets keep their own kit (kit/index.tsx); this file is
-   for the shell, the chat, the inbox, the board, the agents pages, settings and the phone. */
+   component never re-invents them inline. Sizes: sm 28 · md 36 · touch 44 (the phone's floor). Radii come
+   from the tokens: sm 6 field, icon button, dense row · md 8 button, row · lg 12 sheet, popover, card ·
+   pill chip, toast. Tones (the API names are kept): quiet (muted ink) · paper (fg ink) · brass → the
+   interactive blue (accent ink on a hairline; no longer "needs you") · positive → Slack's green affirmative,
+   filled · negative (red ink). Needs-you is the red attention badge (Chip `attention`), never a button tone.
+   The type is the sans reading face throughout; mono is left for key hints and fields that hold code.
+   Widgets keep their own kit (kit/index.tsx); this file is for the shell, the chat, the inbox, the board,
+   the agents pages, settings and the phone (which restyles some of it under .loki-phone). */
 
 /* ---- Button -------------------------------------------------------------------------------------- */
 .loki-btn {
@@ -13,10 +17,11 @@
   gap: 6px;
   box-sizing: border-box;
   border: 1px solid var(--loki-control-border);
-  border-radius: 8px;
+  border-radius: var(--loki-radius-md);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
+  font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
@@ -32,16 +37,20 @@
 .loki-btn--md { min-height: 36px; padding: 0 14px; font-size: 13.5px; }
 .loki-btn--touch { min-height: 44px; padding: 0 14px; font-size: 13.5px; }
 .loki-btn--paper { color: var(--loki-fg); }
+/* brass (the kept name): the interactive blue — a link-coloured action on a hairline. */
 .loki-btn--brass { color: var(--loki-accent); }
-.loki-btn--positive { color: var(--loki-positive); }
-.loki-btn--negative { color: var(--loki-negative); }
 .loki-btn--brass[aria-pressed="true"], .loki-btn--brass[aria-current] { border-color: var(--loki-accent); background: var(--loki-brass-soft); color: var(--loki-accent); }
+/* positive: Slack's affirmative button — green filled, white ink. The one commit on a surface. */
+.loki-btn--positive { border-color: var(--loki-affirm); background: var(--loki-affirm); color: var(--loki-on-affirm); }
+.loki-btn--positive:hover:not(:disabled), .loki-btn--positive:active:not(:disabled) { background: var(--loki-affirm); filter: brightness(1.1); }
+.loki-btn--positive.loki-btn--bare { border-color: var(--loki-affirm); }
+.loki-btn--negative { color: var(--loki-negative); }
 /* No hairline: header actions, inline links-that-act. */
 .loki-btn--bare { border-color: transparent; }
-/* Destroys something: oxblood only once the pointer commits to it. */
+/* Destroys something: red only once the pointer commits to it. */
 .loki-btn--danger:hover:not(:disabled) { color: var(--loki-negative); }
 /* A square glyph button; the size is set inline (24, 28, 36, 40). */
-.loki-btn--icon { padding: 0; border-radius: 6px; font-size: 12px; }
+.loki-btn--icon { padding: 0; border-radius: var(--loki-radius-sm); font-size: 12px; }
 /* Fills its row; the label sits left. */
 .loki-btn--block { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; }
 .loki-btn--block.loki-btn--center { justify-content: center; text-align: center; }
@@ -53,7 +62,7 @@
   text-align: left;
   padding: 8px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--loki-radius-md);
   background: transparent;
   color: var(--loki-muted);
   font-family: var(--loki-font);
@@ -62,7 +71,8 @@
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 .loki-nav:hover { background: var(--loki-hover); color: var(--loki-fg); }
-.loki-nav[aria-current] { background: var(--loki-selection); border-color: var(--loki-control-border); color: var(--loki-fg); }
+.loki-nav[aria-current],
+.loki-nav[aria-selected="true"] { background: var(--loki-selection); border-color: var(--loki-control-border); color: var(--loki-fg); }
 
 /* ---- Chip ---------------------------------------------------------------------------------------- */
 .loki-chip {
@@ -73,12 +83,12 @@
   min-height: 24px;
   padding: 2px 10px;
   border: 1px solid var(--loki-control-border);
-  border-radius: 999px;
+  border-radius: var(--loki-radius-pill);
   background: transparent;
   color: var(--loki-muted);
-  font-family: var(--loki-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
+  font-family: var(--loki-font);
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
@@ -88,23 +98,25 @@
 }
 .loki-chip:hover:not(:disabled):not(.loki-chip--static) { border-color: var(--loki-muted); color: var(--loki-fg); }
 .loki-chip:disabled { opacity: 0.5; cursor: default; }
-/* Chosen: paper. A filter or a choice never spends brass. */
+/* Chosen: neutral. A filter or a choice is a selection, not an alert. */
 .loki-chip--active { border-color: var(--loki-fg); background: var(--loki-selection); color: var(--loki-fg); }
-/* Brass: the one that needs you (an open permission mode, the agent filter you picked in the tree). */
+/* brass (the kept name): the blue pick — a chosen agent, an open permission mode. Blue ink on a blue wash. */
 .loki-chip--brass { border-color: var(--loki-accent); background: var(--loki-brass-soft); color: var(--loki-accent); }
+/* Needs you: Slack's red badge — a filled pill, white ink, bold. Unread and waiting counts. */
+.loki-chip--attention { border-color: var(--loki-attention); background: var(--loki-attention); color: var(--loki-on-attention); font-weight: 700; }
 /* A status badge in its own colour: set --chip-tone inline. */
 .loki-chip--tone { color: var(--chip-tone); border-color: var(--chip-tone); }
 /* Reads only: a tag, a badge. */
 .loki-chip--static { cursor: default; }
 .loki-chip--touch { min-height: 32px; padding: 4px 12px; }
 /* A tag inside a meta line: as tall as the line. */
-.loki-chip--tag { min-height: 0; padding: 1px 6px; font-size: 9.5px; }
+.loki-chip--tag { min-height: 0; padding: 1px 6px; font-size: 11px; }
 /* Floating over the sheet or the transcript: opaque, with the low shadow. */
 .loki-chip--float { background: var(--loki-panel); box-shadow: var(--loki-shadow-low); }
 /* Mid-change ("switching…"): quiet and waiting, never dimmed text. */
 .loki-chip[aria-busy="true"] { color: var(--loki-muted); border-color: var(--loki-control-border); cursor: progress; }
-/* Condensed caps instead of mono: the tree's agent chips, Settings' choices. */
-.loki-chip--label { font-family: var(--loki-label); font-size: 9.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; }
+/* A name chip (the board picker's agents, Settings' choices): the chip, a touch bolder. It was condensed caps until 2026-09-23. */
+.loki-chip--label { font-weight: 600; }
 
 /* ---- Field --------------------------------------------------------------------------------------- */
 /* A field and the button beside it share a size (sm with sm, md with md, touch with touch). */
@@ -115,7 +127,7 @@
   min-height: 36px; /* sm 28 · md 36 · touch 44 — the same three heights as Button, so a field and the button beside it line up */
   padding: 7px 10px;
   border: 1px solid var(--loki-control-border);
-  border-radius: 6px;
+  border-radius: var(--loki-radius-sm);
   background: var(--loki-well);
   color: var(--loki-fg);
   font-family: var(--loki-font);
@@ -142,7 +154,7 @@
 textarea.loki-field { resize: none; overflow-y: auto; }
 
 /* ---- Row ----------------------------------------------------------------------------------------- */
-/* A pickable line in a list: neutral hover and selection states, never brass. */
+/* A pickable line in a list: neutral hover and selection states, never the accent or the badge. */
 .loki-row {
   display: flex;
   align-items: center;
@@ -152,7 +164,7 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   text-align: left;
   padding: 7px 10px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--loki-radius-md);
   background: transparent;
   color: var(--loki-fg);
   font: inherit;
@@ -163,7 +175,7 @@ textarea.loki-field { resize: none; overflow-y: auto; }
 }
 .loki-row:hover { background: var(--loki-hover); }
 .loki-row[aria-selected="true"], .loki-row[aria-checked="true"], .loki-row[data-selected], .loki-row[aria-current] { background: var(--loki-selection); }
-.loki-row--dense { padding: 5px 8px; border-radius: 6px; }
+.loki-row--dense { padding: 5px 8px; border-radius: var(--loki-radius-sm); }
 .loki-row--touch { min-height: 44px; }
 /* Rows inside one bordered group: square, hairlines between, two-line content top-aligned. */
 .loki-row--flush { border-radius: 0; align-items: flex-start; }
@@ -191,11 +203,11 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   flex-direction: column;
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: 12px;
+  border-radius: var(--loki-radius-lg);
   box-shadow: var(--loki-shadow-sheet);
   overflow: hidden;
 }
-.loki-sheet-card--bottom { width: 100%; max-width: none; max-height: 92vh; border-radius: 12px 12px 0 0; border-width: 1px 0 0; }
+.loki-sheet-card--bottom { width: 100%; max-width: none; max-height: 92vh; border-radius: var(--loki-radius-lg) var(--loki-radius-lg) 0 0; border-width: 1px 0 0; }
 .loki-popover {
   position: absolute;
   top: 30px;
@@ -204,7 +216,7 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   max-width: calc(100% - 16px);
   background: var(--loki-panel);
   border: 1px solid var(--loki-border);
-  border-radius: 12px;
+  border-radius: var(--loki-radius-lg);
   box-shadow: var(--loki-shadow-float);
   overflow: hidden;
 }
@@ -216,7 +228,7 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   transform: translateX(-50%);
   max-width: 70%;
   padding: 8px 14px;
-  border-radius: 999px;
+  border-radius: var(--loki-radius-pill);
   border: 1px solid var(--loki-border);
   background: var(--loki-panel);
   color: var(--loki-fg);
@@ -235,9 +247,8 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   background: var(--loki-panel-header);
   border-bottom: 1px solid var(--loki-border);
   color: var(--loki-muted);
-  font-family: var(--loki-mono);
+  font-family: var(--loki-font);
   font-size: 12px;
-  letter-spacing: 0.06em;
 }
 
 /* ---- Text ---------------------------------------------------------------------------------------- */
@@ -249,24 +260,27 @@ textarea.loki-field { resize: none; overflow-y: auto; }
   border: 1px solid var(--loki-border);
   border-radius: 4px;
   padding: 0 4px;
-  letter-spacing: 0;
+  font-weight: 400;
+  letter-spacing: normal;
   text-transform: none;
 }
 .loki-meta {
-  font-family: var(--loki-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
+  font-family: var(--loki-font);
+  font-size: 12px;
   color: var(--loki-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* brass (the kept name): a meta line worth a look, in the accent blue. */
 .loki-meta--brass { color: var(--loki-accent); }
 .loki-meta--wrap { white-space: normal; overflow: visible; }
-.loki-title { font-family: var(--loki-display); font-size: 17px; color: var(--loki-fg); }
+/* A small line that went wrong (a failed save, a refused install): the same meta, in the negative ink. */
+.loki-meta--negative { color: var(--loki-negative); }
+.loki-title { font-family: var(--loki-font); font-size: 17px; font-weight: 700; color: var(--loki-fg); }
 .loki-title--page { font-size: 22px; }
 .loki-empty { text-align: center; color: var(--loki-muted); max-width: 460px; margin: 0 auto; }
-.loki-empty--card { max-width: none; background: var(--loki-panel); border: 1px solid var(--loki-border); border-radius: 12px; padding: 36px 28px; }
+.loki-empty--card { max-width: none; background: var(--loki-panel); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-lg); padding: 36px 28px; }
 .loki-empty > .loki-title { font-size: 22px; line-height: 1.25; }
 .loki-empty > p { font-size: 13.5px; margin: 10px 0 0; line-height: 1.6; }
 .loki-empty > .loki-btn { margin-top: 14px; }
@@ -275,3 +289,162 @@ textarea.loki-field { resize: none; overflow-y: auto; }
 .loki-dot { display: inline-block; flex: 0 0 auto; box-sizing: border-box; border-radius: 50%; }
 /* Lifted off whatever it sits on (a rail icon) by a panel-coloured ring. */
 .loki-dot--halo { outline: 1px solid var(--loki-panel); }
+
+/* ---- Slack building blocks (plan 013) ------------------------------------------------------------- */
+/* The icon family (shared/icons.tsx): a block, so it sits on the line box's centre, never its baseline. */
+.loki-icon { display: block; flex: none; }
+
+/* A list of rows (ListRow): no markers, no indent. */
+.loki-list { list-style: none; margin: 0; padding: 0; }
+.loki-list-item { position: relative; }
+.loki-list-item[data-dim] { opacity: 0.6; }
+.loki-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.loki-list-row:hover { background: var(--loki-hover); color: var(--loki-fg); }
+.loki-list-row[aria-current] { background: var(--loki-selection); color: var(--loki-fg); }
+/* Unread: bold, in full ink. The status words in the row say it too (rowStatus), so weight is not the only sign. */
+.loki-list-row--unread { color: var(--loki-fg); font-weight: 700; }
+.loki-list-row-lead { position: relative; display: inline-flex; flex: none; }
+.loki-list-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; color: inherit; }
+/* The agent is working: Slack's green presence dot, at the lead's corner (or before the title when there is no lead). */
+.loki-list-row-live { width: 8px; height: 8px; flex: none; box-sizing: border-box; border-radius: 50%; background: var(--loki-positive); }
+.loki-list-row-lead > .loki-list-row-live { position: absolute; right: -2px; bottom: -2px; outline: 2px solid var(--loki-panel); }
+.loki-list-row-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.loki-list-row-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.loki-list-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-list-row-preview { font-size: 12px; font-weight: 400; color: var(--loki-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-list-row-time { flex: none; font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+/* Needs you: Slack's red count pill. */
+.loki-list-badge {
+  flex: none;
+  min-width: 18px;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-attention);
+  color: var(--loki-on-attention);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+/* Row actions: out of sight until the row is hovered or one of them has focus, then over the row's right edge. */
+.loki-list-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: var(--loki-radius-sm);
+  background: var(--loki-hover);
+  transition: opacity 120ms ease-out;
+}
+.loki-list-item:hover .loki-list-row-actions, .loki-list-row-actions:focus-within { opacity: 1; pointer-events: auto; }
+.loki-list-item[data-current] .loki-list-row-actions { background: var(--loki-selection); }
+
+/* A sidebar section (ListSection): a folding heading with its actions on the right, then the rows. */
+.loki-list-section { margin: 0 0 10px; }
+.loki-list-section-head { display: flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 4px 0 0; }
+.loki-list-section-heading { flex: 1; min-width: 0; margin: 0; font: inherit; }
+.loki-list-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+}
+button.loki-list-section-toggle { cursor: pointer; }
+button.loki-list-section-toggle:hover { background: var(--loki-hover); color: var(--loki-fg); }
+.loki-list-section-chev { transition: transform 120ms ease-out; }
+.loki-list-section-chev--folded { transform: rotate(-90deg); }
+.loki-list-section-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-list-section-count { font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+.loki-list-section-actions { display: flex; gap: 2px; flex: none; opacity: 0; transition: opacity 120ms ease-out; }
+.loki-list-section-head:hover .loki-list-section-actions, .loki-list-section-actions:focus-within { opacity: 1; }
+
+/* The window's top edge in the app (TitleStrip): the rail's colour across the width, the traffic lights over its left end. */
+.loki-title-strip { position: absolute; top: 0; left: 0; right: 0; background: var(--loki-panel); user-select: none; -webkit-user-select: none; }
+
+/* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
+.loki-pane-header { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--loki-border); background: var(--loki-bg); }
+.loki-pane-header-line { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px 0 20px; }
+.loki-pane-header-lead { display: inline-flex; flex: none; color: var(--loki-fg); }
+.loki-pane-title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--loki-font); font-size: 17px; font-weight: 700; color: var(--loki-fg); }
+.loki-pane-header-aside { min-width: 0; }
+.loki-pane-header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
+
+/* A tab row (TabRow): Slack's Messages | Canvas | Files. The chosen tab is full ink over a 2px rule. */
+.loki-tabs { display: flex; gap: 4px; padding: 0 12px; }
+.loki-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out;
+}
+.loki-tab:hover { color: var(--loki-fg); }
+.loki-tab[aria-selected="true"] { color: var(--loki-fg); border-bottom-color: var(--loki-fg); }
+.loki-tab-count { font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+
+/* The desk pane (desk/DeskPane.tsx): the header over two stacked tab panels; the hidden one keeps its layout (visibility), so the thread keeps its scroll and the sheet its camera. */
+.loki-desk-pane { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--loki-bg); }
+.loki-desk-pane-body { position: relative; flex: 1; min-height: 0; }
+.loki-desk-pane-panel { position: absolute; inset: 0; }
+.loki-desk-pane-messages { display: flex; flex-direction: column; }
+.loki-desk-pane-agent { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.loki-desk-pane-live { width: 8px; height: 8px; border-radius: var(--loki-radius-pill); background: var(--loki-positive); flex: none; }
+.loki-desk-pane-menu-anchor { position: relative; display: inline-flex; }
+.loki-desk-pane-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 13.5px; }
+
+/* A pane with nothing in it (EmptyPane): the Empty block, centred in whatever space the pane has. */
+.loki-empty-pane { flex: 1; min-height: 0; display: grid; place-items: center; padding: 40px 24px; box-sizing: border-box; }
+.loki-empty-pane-icon { margin: 0 auto 12px; color: var(--loki-muted); }
+
+/* The list column (shell/ListColumn): Slack's second column, the rail's colour, between the rail and the main pane. */
+.loki-column { position: absolute; bottom: 0; box-sizing: border-box; border-right: 1px solid var(--loki-border); background: var(--loki-panel); }
+.loki-column-body { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+.loki-column-header { flex: none; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--loki-border); }
+.loki-column-title { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--loki-font); font-size: 15px; font-weight: 700; color: var(--loki-fg); }
+.loki-column-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.loki-column-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 6px; }
+/* The resize edge: a few px over the hairline, the accent while dragged or focused. */
+.loki-column-edge { position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; touch-action: none; z-index: 1; }
+.loki-column-edge:hover, .loki-column-edge:active, .loki-column-edge:focus-visible { background: linear-gradient(to right, transparent 2px, var(--loki-accent) 2px, var(--loki-accent) 4px, transparent 4px); }

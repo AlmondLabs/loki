@@ -1,4 +1,4 @@
-/* Markdown inside assistant bubbles: compact, dark, token-driven. */
+/* Markdown inside assistant bubbles: compact, token-driven. Links are the accent blue; code is the one mono. */
 .loki-md > :first-child { margin-top: 0; }
 .loki-md > :last-child { margin-bottom: 0; }
 .loki-md p { margin: 0 0 8px; white-space: pre-wrap; }
@@ -23,7 +23,7 @@
   margin: 8px 0; padding: 10px 12px; background: var(--loki-well);
   /* Wrap long lines rather than growing a scrollbar per block: the bubbles are narrow and this is prose-adjacent output, not an editor. */
   white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden;
-  border: 1px solid var(--loki-border); border-radius: 8px;
+  border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md);
 }
 .loki-md pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.5; }
 .loki-md blockquote { margin: 6px 0; padding: 2px 10px; border-left: 2px solid var(--loki-border); color: var(--loki-muted); }
@@ -32,7 +32,7 @@
 .loki-md hr { border: 0; border-top: 1px solid var(--loki-border); margin: 10px 0; }
 .loki-md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; max-width: 100%; overflow-x: auto; }
 .loki-md th, .loki-md td { border: 1px solid var(--loki-border); padding: 4px 8px; text-align: left; }
-.loki-md th { color: var(--loki-muted); font-weight: 500; }
+.loki-md th { color: var(--loki-muted); font-weight: 600; }
 .loki-md strong { color: var(--loki-fg); }
 
 /* Copy as markdown: a glyph under the bubble, at its outer corner (the agent's on the left, yours on the right), shown
@@ -43,3 +43,87 @@
 .loki-bubble-copy { opacity: 0; transition: opacity 120ms ease-out; flex: none; margin: 0 6px -8px; } /* rides into the next row's top margin: 16px of rhythm, not 24 */
 .loki-bubble:hover .loki-bubble-copy, .loki-bubble:focus-within .loki-bubble-copy, .loki-bubble-copy[data-copied="true"] { opacity: 1; }
 @media (hover: none) { .loki-bubble-copy { opacity: 0.55; } }
+
+/* Tool and event rows between messages (Transcript.tsx): muted sans meta, the way Slack sets an app's
+   notice in a thread. The detail a row opens is data and keeps its own box. The phone restyles them under
+   its own root (phone/phone.css). */
+.loki-tool-row { font-size: 12px; color: var(--loki-muted); font-family: var(--loki-font); margin: 2px 0 2px 14px; overflow-wrap: anywhere; }
+.loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }
+.loki-event-summary { font-family: var(--loki-font); }
+.loki-event-aside { color: var(--loki-fg); opacity: 0.75; margin-left: 8px; font-family: var(--loki-font); }
+.loki-event-detail {
+  margin: 6px 0 0 14px; padding: 8px 10px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-sm);
+  font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; color: var(--loki-fg);
+}
+
+/* The agent's open question and the tool it is paused on (QuestionCard.tsx, ApprovalCard.tsx): a panel between
+   the thread and the box, edged in the accent blue on its blue wash. The phone draws its own card. */
+.loki-question { padding: 8px 20px 10px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); display: grid; gap: 8px; max-height: 38%; overflow-y: auto; flex: 0 0 auto; }
+.loki-approval { padding: 12px 20px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); }
+.loki-approval-input {
+  margin: 0; padding: 10px 12px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md);
+  font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; color: var(--loki-fg);
+}
+
+/* The box and what sits under it (Conversation.tsx, ChatInput.tsx). Static values live here so the phone
+   restyles them by class (phone/phone.css); the gutters stay inline, since the host sets them at runtime.
+   The attach layout is :where() so it adds no specificity over the phone's own field. */
+.loki-composer { position: relative; display: flex; gap: 8px; border-top: 1px solid var(--loki-border); align-items: flex-end; }
+.loki-composer-field { position: relative; display: flex; min-width: 0; }
+.loki-composer-field:where([data-attach]) { align-items: flex-end; gap: 6px; }
+.loki-composer-mic { position: absolute; right: 6px; bottom: 6px; }
+.loki-conversation-footer { position: relative; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.loki-approval-kicker { color: var(--loki-accent); margin-bottom: 8px; }
+.loki-question-kicker { color: var(--loki-accent); font-size: 12px; font-weight: 700; }
+.loki-question-text { font-family: var(--loki-font); font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
+.loki-thread-error { color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+
+/* The avatar-led message layout (Transcript's Message and Divider), on the desktop: Slack's anatomy — the face
+   and bold name at a run's start, the body under the name, the whole row tinted on hover. These classes render
+   only when a host passes `layout.people`, so bubbles stay the desktop default; `:not(.loki-phone *)` keeps
+   every rule off the phone, which draws the same classes its own way (phone/phone.css). The row bleeds into
+   the thread's 20px gutter so the hover tint runs edge to edge. */
+.loki-msg:not(.loki-phone *) { display: flex; align-items: flex-start; gap: 8px; margin: 0 -20px; padding: 2px 20px; transition: background-color 120ms ease-out; }
+.loki-msg[data-first]:not(.loki-phone *) { margin-top: 8px; padding-top: 6px; }
+.loki-msg:not(.loki-phone *):hover { background: var(--loki-hover); }
+.loki-msg[data-queued]:not(.loki-phone *) .loki-msg-body { opacity: 0.7; }
+.loki-msg-face:not(.loki-phone *) { flex: none; width: 36px; }
+.loki-msg-copy:not(.loki-phone *) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.loki-msg-name:not(.loki-phone *) { font-size: 13.5px; font-weight: 700; line-height: 1.3; color: var(--loki-fg); }
+.loki-msg-body:not(.loki-phone *) { font-size: 13.5px; line-height: 1.5; color: var(--loki-fg); }
+.loki-msg-body:not(.loki-phone *) img { max-width: 100%; height: auto; }
+.loki-msg-queued:not(.loki-phone *) { margin-top: 4px; }
+/* The red "New" line: the day on the left, a hairline in the badge red, "New" on the right in the negative ink (AA as text; the badge red is for fills). */
+.loki-msg-divider:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; font-size: 12px; font-weight: 700; }
+.loki-msg-divider-day:not(.loki-phone *) { color: var(--loki-fg); }
+.loki-msg-divider-rule:not(.loki-phone *) { flex: 1; height: 1px; background: var(--loki-attention); }
+.loki-msg-divider-new:not(.loki-phone *) { color: var(--loki-negative); }
+/* Message times (TranscriptRow.at): quiet after the author's name; on a run's later rows, in the face's column on hover. */
+.loki-msg-time:not(.loki-phone *) { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+.loki-msg-gutter-time:not(.loki-phone *) { display: block; visibility: hidden; padding-top: 3px; font-size: 10.5px; line-height: 1.3; color: var(--loki-muted); text-align: right; white-space: nowrap; }
+.loki-msg:not(.loki-phone *):hover .loki-msg-gutter-time { visibility: visible; }
+/* The hover action bar (Slack's): a small raised strip at the row's top right, only while the row is hovered or holds focus. */
+.loki-msg:not(.loki-phone *) { position: relative; }
+.loki-msg-toolbar:not(.loki-phone *) { position: absolute; top: -12px; right: 20px; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); box-shadow: var(--loki-shadow-panel); visibility: hidden; z-index: 2; }
+.loki-msg:not(.loki-phone *):hover .loki-msg-toolbar, .loki-msg:not(.loki-phone *):focus-within .loki-msg-toolbar { visibility: visible; }
+.loki-msg-action[data-copied="true"] { color: var(--loki-positive); }
+/* A day's block and its pill: the hairline runs across the day's top; the pill rides the thread's top edge
+   until the next day's block pushes it off. */
+.loki-msg-day:not(.loki-phone *) { position: relative; }
+.loki-msg-day:not(.loki-phone *)::before { content: ""; position: absolute; top: 12px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
+.loki-msg-day-pill-wrap:not(.loki-phone *) { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: 4px; pointer-events: none; }
+.loki-msg-day-pill:not(.loki-phone *) { padding: 2px 12px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: var(--loki-bg); font-size: 12px; font-weight: 700; line-height: 1.5; color: var(--loki-fg); }
+/* A widget row (plan 013 U8): one quiet line in the message column, a tile icon in the face's column. Still on
+   the desk, the line is a button (the widget's title in the link blue) that opens the Desk tab framed on it. */
+.loki-widget-row:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 4px -20px; padding: 2px 20px; font-size: 13.5px; line-height: 1.5; color: var(--loki-muted); }
+.loki-widget-row-icon:not(.loki-phone *) { flex: none; display: flex; justify-content: flex-end; width: 36px; color: var(--loki-muted); }
+.loki-widget-row-text:not(.loki-phone *) { min-width: 0; overflow-wrap: anywhere; }
+/* Tool and event lines among avatar-led messages sit in the message column (face 36px + gap 8px), under the text they follow. */
+:is(.loki-msg, .loki-widget-row) ~ :is(.loki-tool-row, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
+.loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
+.loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
+.loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
+.loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title { text-decoration: underline; }
+.loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-accent); outline-offset: 2px; }
+.loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title { text-decoration: line-through; }
+.loki-widget-row .loki-msg-time:not(.loki-phone *) { margin-left: 0; }

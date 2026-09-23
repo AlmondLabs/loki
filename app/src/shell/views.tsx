@@ -2,7 +2,7 @@ import type { MutableRefObject } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { runAction } from "./keymap";
-import { CatchUp as Inbox } from "../desk/CatchUp";
+import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Board } from "../board/Board";
 import { Agents } from "../agents/Agents";
@@ -13,7 +13,7 @@ import type { ModelEntry } from "../chat/ModelPicker";
 import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
 import type { DeskSummary } from "../desk/useDesk";
 import { DeskTree } from "./DeskTree";
-import { Settings } from "../settings/Settings";
+import { Preferences } from "../settings/Settings";
 import { Welcome } from "./Welcome";
 import type { BootstrapStatus } from "./bootstrap";
 import type { LokiUpdate } from "./useLokiUpdate";
@@ -38,11 +38,12 @@ export function RecallView({ recall, active, onOpenDesk, onBegin }: { recall: Re
 }
 
 /** The inbox: every conversation's cards, with the model and mode pickers per conversation. */
-export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, onPickMode, onOpenDesk, onClose }: { desk: Desk; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; onPickModel: PickModel; onPickMode: PickMode; onOpenDesk: OpenDesk; onClose: () => void }) {
+export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, onPickMode, onOpenDesk, onClose, onPass }: { desk: Desk; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; onPickModel: PickModel; onPickMode: PickMode; onOpenDesk: OpenDesk; onClose: () => void; onPass: PassSummaryHandler }) {
   return (
     <Inbox
       open
       onClose={onClose}
+      onPass={onPass}
       items={catchUp.items}
       onSeen={catchUp.seen}
       onUnread={catchUp.unread}
@@ -82,6 +83,7 @@ export function BoardView({ board, desks, onAssign, onNew, active }: { board: Re
 export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, onShowDesks, onShowBoard }: { desk: Desk; catchUp: CatchUp; tasks: ReturnType<typeof useBoard>["tasks"]; onOpenDesk: OpenDesk; onAskToUpdate: (agentId: string, text: string) => void; onShowDesks: () => void; onShowBoard: () => void }) {
   return (
     <Agents
+      columnOutside
       agents={catchUp.agents}
       api={desk.agents}
       avatar={avatarUrl}
@@ -100,10 +102,10 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
   );
 }
 
-/** Settings: the harness and mod facts come from the two models; the chat preferences from useChatLayout. */
-export function SettingsView({ desk, catchUp, boot, onInstallLetta, onCheckLetta, onUpdateLetta, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut, recall, scratch }: { update: LokiUpdate; shortcut: GlobalShortcut; recall: RecallModel; scratch: Scratch; desk: Desk; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
+/** Preferences (the Settings sheet): the harness and mod facts come from the two models; the chat preferences from useChatLayout. */
+export function SettingsView({ desk, catchUp, boot, onInstallLetta, onCheckLetta, onUpdateLetta, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut, recall, scratch, onClose }: { onClose: () => void; update: LokiUpdate; shortcut: GlobalShortcut; recall: RecallModel; scratch: Scratch; desk: Desk; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
   const { attention } = desk;
-  return <Settings appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} scratch={scratch} inbox={{ ladder: attention.ladder, onLadder: attention.setLadder }} />;
+  return <Preferences onClose={onClose} appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} scratch={scratch} inbox={{ ladder: attention.ladder, onLadder: attention.setLadder }} />;
 }
 
 /** First launch, over the empty desk: the provider, the first agent, its desk. */
@@ -129,18 +131,17 @@ export function WelcomeView({ step, catchUp, boot, onInstallLetta, models, onLoa
 /** ⏎ / ⌘⏎ on the board: which tasks, and whether to dispatch. Consumed by the picker (or a new desk). */
 export type Picker = { ids: string[]; start: boolean };
 
-/** The board's target picker: the same tree, choosing instead of switching. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
+/** The board's target picker: the desks tree (DeskTree), choosing a target. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
 export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAssignRef, onNewDesk }: { picker: Picker | null; onClose: () => void; desk: Desk; catchUp: CatchUp; onAssign: (target: AssignTarget, ids: string[], start: boolean) => Promise<void>; pendingAssignRef: MutableRefObject<Picker | null>; onNewDesk: (agentId: string | null, name: string) => void }) {
   return (
     <DeskTree
       open={!!picker}
       onClose={onClose}
-      heading={picker ? `${picker.start ? "dispatch" : "assign"} ${picker.ids.length === 1 ? "1 task" : `${picker.ids.length} tasks`} to…${picker.start ? " (the agent starts now)" : ""}` : null}
+      heading={picker ? `${picker.start ? "Dispatch" : "Assign"} ${picker.ids.length === 1 ? "1 task" : `${picker.ids.length} tasks`} to…${picker.start ? " (the agent starts now)" : ""}` : null}
       desks={desk.desks.list}
       agents={catchUp.agents}
       items={catchUp.items}
       current={desk.scope}
-      onSwitch={() => {}}
       onPickDesk={(d) => {
         const p = picker;
         onClose();
@@ -152,39 +153,6 @@ export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAs
               pendingAssignRef.current = picker;
               onClose();
               onNewDesk(agentId, name);
-            }
-          : undefined
-      }
-    />
-  );
-}
-
-/** ⌘K: the desks tree as the quick switcher, with pin and archive on each row. */
-export function SwitcherTree({ open, onClose, desk, catchUp, visited, onSwitch, onSwitchChat, onNewDesk, notice }: { open: boolean; onClose: () => void; desk: Desk; catchUp: CatchUp; visited: string[]; onSwitch: (scope: string) => void; onSwitchChat: (scope: string) => void; onNewDesk: (agentId: string | null, name: string) => void; notice: (m: string) => void }) {
-  return (
-    <DeskTree
-      open={open}
-      onClose={onClose}
-      desks={desk.desks.list}
-      agents={catchUp.agents}
-      items={catchUp.items}
-      current={desk.scope}
-      onSwitch={onSwitch}
-      onSwitchChat={onSwitchChat}
-      visited={visited}
-      onNew={desk.attention.available ? onNewDesk : undefined}
-      onPin={(d, pinned) => {
-        if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
-      }}
-      onArchive={
-        desk.attention.available
-          ? (d, archived) => {
-              if (!d.conversationId) return;
-              void catchUp.archiveConversation(d.conversationId, archived).then((err) => {
-                if (err) return notice(`archive: ${err}`);
-                notice(`${d.title ?? d.scope} ${archived ? "archived" : "restored"}`);
-                desk.desks.request();
-              });
             }
           : undefined
       }

@@ -107,15 +107,15 @@ function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
           ))}
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px", fontSize: 10.5, color: "var(--loki-muted)" }}>
+      <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px" }}>
         <span>
           filed by you{context.desk ? ` · from ${context.desk === "shared" ? "the shared desk" : `desk ${context.desk}`}` : ""}
           {context.agentName ? ` · ${context.agentName}'s thread` : ""}
         </span>
-        {error && <span style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span style={{ color: "var(--loki-negative)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
         <Button size="sm" kbd="esc" onClick={onClose}>cancel</Button>
-        <Button size="sm" tone="brass" kbd="↵" onClick={() => void submit()} disabled={!title.trim() || busy}>
+        <Button size="sm" tone="positive" kbd="↵" onClick={() => void submit()} disabled={!title.trim() || busy}>
           {busy ? "filing…" : "file"}
         </Button>
       </div>

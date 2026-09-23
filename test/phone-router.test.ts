@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HOME, formatRoute, isOverlay, parseRoute, tabOf, type Route } from "../app/src/phone/router.ts";
+import { HOME, TABS, backTarget, depthOf, entryState, formatRoute, isOverlay, labelOf, originOf, ownerOf, parentOf, parseRoute, screenOf, showsNav, type Route } from "../app/src/phone/router.ts";
 
 /**
  * The phone's hash routes (app/src/phone/router.ts): every route both ways, file paths with slashes
@@ -10,10 +10,18 @@ const roundTrip = (r: Route) => expect(parseRoute(formatRoute(r))).toEqual(r);
 
 describe("tabs", () => {
   test("each tab formats and parses", () => {
-    for (const tab of ["home", "inbox", "learn", "agents", "settings"] as const) {
+    expect(TABS).toEqual(["home", "inbox", "agents", "more"]);
+    for (const tab of ["home", "inbox", "agents", "more"] as const) {
       expect(formatRoute({ kind: "tab", tab })).toBe(`#/${tab}`);
       roundTrip({ kind: "tab", tab });
     }
+  });
+  test("legacy You and Settings links land on More and preferences", () => {
+    expect(parseRoute("#/you")).toEqual({ kind: "tab", tab: "more" });
+    expect(parseRoute("#/settings")).toEqual({ kind: "preferences" });
+    // and they format to the canonical address, so the shell can swap the legacy one out
+    expect(formatRoute(parseRoute("#/you"))).toBe("#/more");
+    expect(formatRoute(parseRoute("#/settings"))).toBe("#/preferences");
   });
   test("an empty or unknown hash is home", () => {
     expect(parseRoute("")).toEqual(HOME);
@@ -78,16 +86,124 @@ describe("conversations", () => {
   });
 });
 
-describe("tab of / overlay", () => {
-  test("pages belong to their tab; a conversation to none", () => {
-    expect(tabOf({ kind: "tab", tab: "settings" })).toBe("settings");
-    expect(tabOf({ kind: "agent", agentId: "a" })).toBe("agents");
-    expect(tabOf({ kind: "file", agentId: "a", path: "x" })).toBe("agents");
-    expect(tabOf({ kind: "conversation", agentId: "a", conversationId: "c", prefill: null })).toBeNull();
+describe("child routes", () => {
+  test("search, archive and preferences have stable direct links", () => {
+    for (const [kind, hash] of [["search", "#/search"], ["archive", "#/archive"], ["preferences", "#/preferences"], ["learn", "#/learn"]] as const) {
+      const r = { kind } as Route;
+      expect(formatRoute(r)).toBe(hash);
+      roundTrip(r);
+    }
   });
-  test("only the four tabs show the bar", () => {
+  test("More's connection and About pages have stable direct links, owned by More", () => {
+    for (const kind of ["connection", "about"] as const) {
+      const r = { kind } as Route;
+      expect(formatRoute(r)).toBe(`#/${kind}`);
+      roundTrip(r);
+      expect(ownerOf(r)).toBe("more");
+      expect(parentOf(r)).toEqual({ kind: "tab", tab: "more" });
+      expect(showsNav(r)).toBe(false);
+      expect(labelOf(r)).toBe(kind);
+    }
+  });
+  test("Search keeps its query in its own entry, so Back from a result returns to it", () => {
+    expect(formatRoute({ kind: "search", q: "loki mobile" })).toBe("#/search?q=loki%20mobile");
+    roundTrip({ kind: "search", q: "loki mobile" });
+    roundTrip({ kind: "search", q: "a&b=c?/#%" });
+    expect(parseRoute("#/search?q=loki+mobile")).toEqual({ kind: "search", q: "loki mobile" });
+    // an empty query is the bare address
+    expect(formatRoute({ kind: "search", q: "" })).toBe("#/search");
+    expect(parseRoute("#/search?q=")).toEqual({ kind: "search" });
+    expect(parseRoute("#/search")).toEqual({ kind: "search" });
+    // the query never reaches analytics or the Back label
+    expect(screenOf({ kind: "search", q: "secret" })).toBe("search");
+    expect(labelOf({ kind: "search", q: "secret" })).toBe("search");
+  });
+  test("a child with extra segments is not a child", () => {
+    expect(parseRoute("#/search/x")).toEqual(HOME);
+    expect(parseRoute("#/preferences/x")).toEqual(HOME);
+  });
+});
+
+describe("ownership and Back", () => {
+  const conv: Route = { kind: "conversation", agentId: "a", conversationId: "c", prefill: null };
+  const file: Route = { kind: "file", agentId: "a", path: "x.md" };
+  test("every route has an owning tab", () => {
+    for (const tab of TABS) expect(ownerOf({ kind: "tab", tab })).toBe(tab);
+    expect(ownerOf({ kind: "learn" })).toBe("home");
+    expect(ownerOf({ kind: "archive" })).toBe("home");
+    expect(ownerOf({ kind: "search" })).toBe("home");
+    expect(ownerOf({ kind: "preferences" })).toBe("more");
+    expect(ownerOf({ kind: "agent", agentId: "a" })).toBe("agents");
+    expect(ownerOf(file)).toBe("agents");
+    expect(ownerOf(conv)).toBe("home");
+  });
+  test("direct links fall back deterministically: a file to its agent, the rest to their owner", () => {
+    expect(parentOf({ kind: "search" })).toEqual({ kind: "tab", tab: "home" });
+    expect(parentOf({ kind: "archive" })).toEqual({ kind: "tab", tab: "home" });
+    expect(parentOf({ kind: "learn" })).toEqual({ kind: "tab", tab: "home" });
+    expect(parentOf({ kind: "preferences" })).toEqual({ kind: "tab", tab: "more" });
+    expect(parentOf({ kind: "agent", agentId: "a" })).toEqual({ kind: "tab", tab: "agents" });
+    expect(parentOf(file)).toEqual({ kind: "agent", agentId: "a" });
+    expect(parentOf(conv)).toEqual({ kind: "tab", tab: "home" });
+    expect(parentOf({ kind: "tab", tab: "inbox" })).toEqual({ kind: "tab", tab: "inbox" });
+  });
+  test("Back goes to the launching destination when there is one", () => {
+    const inbox: Route = { kind: "tab", tab: "inbox" };
+    expect(backTarget(conv, inbox)).toEqual(inbox);
+    expect(backTarget(conv, null)).toEqual({ kind: "tab", tab: "home" });
+    expect(backTarget({ kind: "archive" }, { kind: "tab", tab: "more" })).toEqual({ kind: "tab", tab: "more" });
+    // an origin equal to the page itself (a reload of a typed address) is no origin
+    expect(backTarget(conv, conv)).toEqual({ kind: "tab", tab: "home" });
+  });
+  test("the origin rides in the history entry and survives foreign state", () => {
+    const s = entryState({ other: 1 }, "#/inbox");
+    expect(s).toMatchObject({ other: 1, lokiFrom: "#/inbox", lokiDepth: 1 });
+    expect(originOf(s)).toEqual({ kind: "tab", tab: "inbox" });
+    expect(depthOf(s)).toBe(1);
+    expect(depthOf(entryState(s, "#/c/a/c"))).toBe(2);
+    for (const junk of [null, undefined, 3, "x", {}, { lokiFrom: 4, lokiDepth: "2" }]) {
+      expect(originOf(junk)).toBeNull();
+      expect(depthOf(junk)).toBe(0);
+    }
+  });
+  test("labels for Back read as destinations", () => {
+    expect(labelOf({ kind: "tab", tab: "inbox" })).toBe("inbox");
+    expect(labelOf({ kind: "tab", tab: "more" })).toBe("more");
+    expect(labelOf({ kind: "search" })).toBe("search");
+    expect(labelOf({ kind: "archive" })).toBe("archive");
+    expect(labelOf({ kind: "preferences" })).toBe("preferences");
+  });
+});
+
+describe("navigation / overlay", () => {
+  test("only tabs show the navigation", () => {
+    for (const tab of TABS) expect(showsNav({ kind: "tab", tab })).toBe(true);
+    for (const kind of ["learn", "search", "archive", "preferences"] as const) expect(showsNav({ kind } as Route)).toBe(false);
     expect(isOverlay(HOME)).toBe(false);
+    expect(isOverlay({ kind: "learn" })).toBe(true);
     expect(isOverlay({ kind: "agent", agentId: "a" })).toBe(true);
     expect(isOverlay({ kind: "conversation", agentId: "a", conversationId: "c", prefill: null })).toBe(true);
+  });
+});
+
+describe("learn", () => {
+  test("is a full-screen Home child with a stable direct link", () => {
+    const route: Route = { kind: "learn" };
+    expect(formatRoute(route)).toBe("#/learn");
+    roundTrip(route);
+  });
+});
+
+describe("navigation labels", () => {
+  test("names, counts and the 99+ cap read the same to eyes and screen readers", async () => {
+    const { badgeText, navLabel, TAB_LABEL } = await import("../app/src/phone/TabBar.tsx");
+    expect(TABS.map((t) => TAB_LABEL[t])).toEqual(["Home", "Inbox", "Agents", "More"]);
+    expect(navLabel("inbox", 0)).toBe("Inbox");
+    expect(navLabel("inbox", 1)).toBe("Inbox, 1 waiting");
+    expect(navLabel("inbox", 3)).toBe("Inbox, 3 waiting");
+    expect(navLabel("inbox", 100)).toBe("Inbox, 99+ waiting");
+    expect(badgeText(99)).toBe("99");
+    expect(badgeText(250)).toBe("99+");
+    expect(navLabel("home", 0)).toBe("Home");
   });
 });

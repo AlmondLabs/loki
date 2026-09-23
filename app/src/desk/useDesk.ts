@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, emptyDesk } from "../../../core/desk-core.ts";
+import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor } from "../../../core/desk-core.ts";
 import { readSession } from "./session";
 import { inTauri, modWsBase } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { deskView } from "./view";
+import { withHistoryLog } from "./widgetRows";
 import type { Task } from "../board/model";
 import type { AgentDetails } from "../agents/Agents";
 import type { GlobalSkill } from "../../../mod/skills.ts";
@@ -73,8 +74,10 @@ export function useDesk() {
     connection,
     cameraTarget,
     deskList,
+    desksLoaded,
     setDeskList,
     titles,
+    setTitles,
     statuses,
     agentNames,
     agentIds,
@@ -86,6 +89,7 @@ export function useDesk() {
     setModes,
     appServer,
     seenMap,
+    viewedMap,
     snoozeMap,
     ladder,
     tasksVersion,
@@ -95,6 +99,8 @@ export function useDesk() {
     devices,
     pairCode,
     servedBuild,
+    widgetLogs,
+    setWidgetLogs,
     waiters,
     lastInteractionRef,
     pendingRef,
@@ -261,22 +267,41 @@ export function useDesk() {
       request("skill_refresh", { agentId, name, source }, 130_000).then((m): RefreshOutcome | { error: string } => (m && m.type === "skill_refreshed" ? (m as unknown as RefreshOutcome) : { error: m && m.type === "agent_error" ? String(m.message ?? "refresh failed") : "refresh timed out" })),
   };
 
+  // Analytics (core/analytics.ts): best effort, dropped while the socket is down. Stable, so hosts can hang effects on it.
+  const sendRef = useRef(send);
+  useEffect(() => {
+    sendRef.current = send;
+  });
+  const capture = useCallback((event: string, properties?: Record<string, unknown>) => {
+    sendRef.current({ type: "capture", event, ...(properties ? { properties } : {}) });
+  }, []);
+
   const attention = {
     available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab
+    capture,
     tunnelUrl,
     seen: seenMap,
     snooze: snoozeMap,
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
+    /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */
+    viewed: viewedMap,
+    markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
     setSnooze: (agentId: string, conversationId: string, rec: Snooze) => send({ type: "snooze_set", agentId, conversationId, ...rec }),
     /** How long "later" hides a card, and the setter (Settings › inbox): the mod clamps and broadcasts. */
     ladder,
     setLadder: (input: Partial<SnoozeLadder>) => send({ type: "snooze_ladder", ...input }),
     /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((m) => ((m?.conversations as InboxConversation[] | undefined) ?? [])),
-    /** The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame). */
+    /**
+     * The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame).
+     * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
+     */
     loadHistory: (agentId: string, conversationId: string): Promise<TranscriptRow[]> =>
-      request("history_get", { agentId, conversationId }, 4000).then((m) => ((m?.messages as TranscriptRow[] | undefined) ?? [])),
+      request("history_get", { agentId, conversationId }, 4000).then((m) => {
+        if (m && Array.isArray(m.widgetLog)) setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), m.widgetLog));
+        return (m?.messages as TranscriptRow[] | undefined) ?? [];
+      }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
       recent: () => request("folders_get", {}, 4000).then((m) => ({ byAgent: ((m?.byAgent as Record<string, string[]>) ?? {}), byConversation: ((m?.byConversation as Record<string, string>) ?? {}) })),
@@ -343,6 +368,11 @@ export function useDesk() {
     setModes((t) => ({ ...t, [s]: m }));
     setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, mode: m } : d)));
   };
+  /** After a rename the mod only broadcasts desk_title at the next turn end; show the new name in the header and the list now. */
+  const setDeskTitle = (s: Scope, title: string) => {
+    setTitles((t) => ({ ...t, [s]: title }));
+    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, title } : d)));
+  };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
   const agentId = agentIds[scope] ?? null;
   /** The conversation behind this desk, as the app-server names it. */
@@ -363,6 +393,7 @@ export function useDesk() {
     mode,
     modeOf,
     setDeskMode,
+    setDeskTitle,
     connection,
     visible,
     closed,
@@ -370,6 +401,8 @@ export function useDesk() {
     loaded,
     desks: {
       list: deskList,
+      /** False until the mod first answered with the list. */
+      loaded: desksLoaded,
       request: requestDesks,
       switchTo: switchDesk,
       /** Pin or unpin; the mod rewrites Letta's file and broadcasts the list back. */
@@ -390,5 +423,7 @@ export function useDesk() {
     trash,
     reportWidgetError,
     cameraTarget,
+    /** This desk's widget change log, oldest first (desk/widgetRows.ts); undefined before any arrived. */
+    widgetLog: widgetLogs[scope],
   };
 }

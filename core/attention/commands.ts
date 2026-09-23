@@ -34,7 +34,7 @@ export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki", action: "chat.model" },
   { id: "mode", description: "choose the permission mode for this conversation", where: "loki", action: "chat.mode" },
   { id: "inbox", description: "open the inbox", where: "loki", action: "segment.inbox" },
-  { id: "desks", description: "open the desks tree", where: "loki", action: "tree.toggle" },
+  { id: "desks", description: "search desks, agents and pages (⌘K)", where: "loki", action: "search.open" },
 ];
 
 /** A command the harness advertised in app_server_info that the table above does not know. */

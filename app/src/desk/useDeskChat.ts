@@ -5,21 +5,22 @@ import type { useAttention } from "../../../core/attention/useAttention.ts";
 
 /**
  * The desk's conversation, from the same model the inbox uses: subscribed while the desk is open,
- * transcript loaded when the chat opens, streaming rows and approvals shared with the deck. Also
+ * transcript loaded whenever a view of it shows (the Messages tab, or the Desk tab's open inset), streaming rows and approvals shared with the deck. Also
  * keeps the conversation's working folder, sent along with each message; only the send handler reads it.
  */
 export function useDeskChat({
   agentId,
   conversationId,
   connection,
-  chatOpen,
+  showing,
   catchUp,
   attention,
 }: {
   agentId: string | null;
   conversationId: string | null;
   connection: ReturnType<typeof useDesk>["connection"];
-  chatOpen: boolean;
+  /** A view of the conversation is on screen: the desk pane, or the inset chat. */
+  showing: boolean;
   catchUp: ReturnType<typeof useAttention>;
   attention: ReturnType<typeof useDesk>["attention"];
 }) {
@@ -45,9 +46,9 @@ export function useDeskChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, conversationId, connection]);
   useEffect(() => {
-    if (chatOpen && deskRuntime && catchUp.status === "open") void catchUp.loadThread(deskRuntime);
+    if (showing && deskRuntime && catchUp.status === "open") void catchUp.loadThread(deskRuntime);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatOpen, agentId, conversationId, catchUp.status]);
+  }, [showing, agentId, conversationId, catchUp.status]);
 
   return { deskRuntime, deskChat, pendingApproval, pendingQuestion, deskFolder };
 }

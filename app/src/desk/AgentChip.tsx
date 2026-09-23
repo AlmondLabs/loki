@@ -10,7 +10,7 @@ export function AgentFace({ name, src, size = 20 }: { name: string | null | unde
   const style: React.CSSProperties = { width: size, height: size, borderRadius: "50%", flex: "0 0 auto", objectFit: "cover", background: `hsl(${hue} 45% 22%)`, border: `1px solid hsl(${hue} 50% 40% / 0.6)`, boxSizing: "border-box" };
   if (!src || broken) {
     return (
-      <span aria-hidden style={{ ...style, display: "inline-grid", placeItems: "center", color: `hsl(${hue} 60% 78%)`, fontFamily: "var(--loki-display)", fontSize: Math.max(9, Math.round(size * 0.5)), lineHeight: 1 }}>
+      <span aria-hidden style={{ ...style, display: "inline-grid", placeItems: "center", color: `hsl(${hue} 60% 78%)`, fontWeight: 700, fontSize: Math.max(9, Math.round(size * 0.5)), lineHeight: 1 }}>
         {(name ?? "?").slice(0, 1).toUpperCase()}
       </span>
     );
@@ -36,13 +36,12 @@ export function AgentChip({ name, size = 10.5 }: { name: string | null | undefin
         alignItems: "center",
         gap: 5,
         fontSize: size,
-        letterSpacing: "0.06em",
+        fontWeight: 600,
         padding: "1px 8px",
-        borderRadius: 999,
+        borderRadius: "var(--loki-radius-pill)",
         color: `hsl(${hue} 60% 78%)`,
         background: `hsl(${hue} 45% 22% / 0.55)`,
         border: `1px solid hsl(${hue} 50% 40% / 0.6)`,
-        fontFamily: "var(--loki-mono)",
         whiteSpace: "nowrap",
       }}
     >

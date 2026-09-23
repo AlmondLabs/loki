@@ -1,12 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AgentChip } from "../desk/AgentChip";
+import { AgentChip, AgentFace } from "../desk/AgentChip";
 import type { DeskSummary } from "../desk/useDesk";
-import { Button, Chip, Field } from "../components";
-import { PRIORITY_LABEL, ago, columnsOf, filterTasks, type ColumnId, type Task } from "./model";
+import { Button, Chip, Field, ListIcon, ListRow, ListSection } from "../components";
+import { PRIORITY_LABEL, ago, boardViews, columnOf, filterTasks, missingAgentLine, resolveBoardView, stepCursor, viewColumns, type BoardView, type Column, type ColumnId, type Dir, type Task } from "./model";
+import { useBoardView } from "./useBoardView";
 import { registerActions, typingIn } from "../shell/keymap";
 
 /**
- * The board: four columns of tasks for later. Select (X, click, ⇧-click for a range), then ⏎ assigns
+ * The board: four columns of tasks for later, or one of them, or one agent's tasks as a single list — the
+ * view chosen in the Board's list column (useBoardView); the keys are the same in every view. Select (X, click, ⇧-click for a range), then ⏎ assigns
  * the selection to a desk and ⌘⏎ dispatches it (assign, then post the tasks so the agent starts now).
  * D closes as done, B toggles blocked, N or + files a new task without an agent, / filters.
  *
@@ -40,6 +42,9 @@ export function Board({
   active: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [stored, setView] = useBoardView();
+  // A remembered agent view with nothing left for that agent asks for a new pick; nothing is stored until one is made.
+  const { view, missing } = useMemo(() => resolveBoardView(stored, tasks), [stored, tasks]);
   const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
   const [cursorRaw, setCursor] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -48,7 +53,8 @@ export function Board({
   /** Set by a keyboard move: the next render focuses the cursor card. Data changes never steal focus. */
   const focusCursor = useRef(false);
 
-  const columns = useMemo(() => columnsOf(filterTasks(tasks ?? [], query)), [tasks, query]);
+  // No cards while the picked agent is missing: the keys have nothing to act on until the new pick.
+  const columns = useMemo(() => (missing ? [] : viewColumns(filterTasks(tasks ?? [], query), view)), [tasks, query, view, missing]);
   const all = useMemo(() => columns.flatMap((c) => c.tasks), [columns]);
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all]);
   const deskTitle = useMemo(() => new Map(desks.map((d) => [d.scope, d.title ?? d.scope])), [desks]);
@@ -92,26 +98,8 @@ export function Board({
     setCursor(id);
   };
 
-  type Dir = "up" | "down" | "left" | "right";
-
-  /** The card the cursor would land on, or null when there is nowhere to go. */
-  const nextOf = (dir: Dir): string | null => {
-    if (!cursor) return all[0]?.id ?? null;
-    const ci = columns.findIndex((c) => c.tasks.some((t) => t.id === cursor));
-    if (ci < 0) return null;
-    const col = columns[ci];
-    const i = col.tasks.findIndex((t) => t.id === cursor);
-    if (dir === "up" || dir === "down") {
-      const next = col.tasks[Math.max(0, Math.min(col.tasks.length - 1, i + (dir === "down" ? 1 : -1)))];
-      return next && next.id !== cursor ? next.id : null;
-    }
-    // Sideways: the nearest non-empty column, same row or the last one there.
-    let j = ci;
-    do j += dir === "right" ? 1 : -1;
-    while (j >= 0 && j < columns.length && columns[j].tasks.length === 0);
-    const target = columns[j];
-    return target ? target.tasks[Math.min(i, target.tasks.length - 1)].id : null;
-  };
+  /** The card the cursor would land on, or null when there is nowhere to go (a single list has no sideways). */
+  const nextOf = (dir: Dir): string | null => stepCursor(columns, cursor, dir);
 
   const move = (dir: Dir) => {
     const next = nextOf(dir);
@@ -238,23 +226,25 @@ export function Board({
           aria-label="filter tasks"
           style={{ width: 280 }}
         />
-        <span className="loki-label" style={{ fontSize: 9.5 }}>
-          {tasks === null ? (loading ? "loading the board…" : "") : `${openCount} open`}
+        <span className="loki-label">
+          {tasks === null ? (loading ? "Loading the board…" : "") : `${openCount} open`}
           {loading && tasks !== null ? " · refreshing" : ""}
         </span>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button size="md" tone="brass" kbd="⌘T" onClick={onNew} title="file a task yourself (⌘T)">
           + task
         </Button>
       </div>
 
-      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(220px, 1fr))", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
+      {missing && <MissingAgent agent={missing} tasks={tasks ?? []} onPick={setView} />}
+      {/* 168px columns: the four fit beside the list column in a 1100-wide window (1100 − rail − 260) without scrolling sideways. */}
+      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: missing ? "none" : "grid", gridTemplateColumns: columns.length > 1 ? `repeat(${columns.length}, minmax(168px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
         {columns.map((col) => (
           <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
-            <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", fontSize: 9.5, color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+            <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
               <span>{col.label}</span>
-              <span style={{ fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{col.tasks.length || ""}</span>
+              <span>{col.tasks.length || ""}</span>
             </header>
             {col.tasks.length > 0 ? (
               <div role="listbox" aria-label={col.label} aria-multiselectable="true" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "grid", alignContent: "start", gap: 8, paddingBottom: 8 }}>
@@ -262,7 +252,7 @@ export function Board({
                   <TaskCard
                     key={t.id}
                     task={t}
-                    column={col.id}
+                    column={columnOf(t) ?? "open"}
                     selected={selected.has(t.id)}
                     focused={cursor === t.id}
                     // Roving tabindex: the cursor card is the Tab stop; before there is one, the first card is.
@@ -276,8 +266,8 @@ export function Board({
               </div>
             ) : (
               tasks !== null && (
-                <p role="status" style={{ margin: 0, fontSize: 12, color: "var(--loki-muted)", padding: "10px 6px" }}>
-                  {emptyLine(col.id, query)}
+                <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0, padding: "10px 6px" }}>
+                  {emptyLine(col, query)}
                 </p>
               )
             )}
@@ -285,27 +275,48 @@ export function Board({
         ))}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px 12px", borderTop: "1px solid var(--loki-border)", fontSize: 12, color: "var(--loki-muted)" }}>
+      <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px 12px", borderTop: "1px solid var(--loki-border)" }}>
         {sel.length > 0 ? (
           <>
             <span style={{ color: "var(--loki-fg)" }}>{sel.length} selected</span>
             <Button size="sm" tone="paper" kbd="↵" onClick={() => onAssign(sel, false)}>assign to a desk</Button>
-            <Button size="sm" tone="brass" kbd="⌘↵" onClick={() => onAssign(sel, true)}>dispatch now</Button>
-            <Button size="sm" tone="positive" kbd="⌫" onClick={() => onClose(sel)}>done</Button>
+            <Button size="sm" tone="positive" kbd="⌘↵" onClick={() => onAssign(sel, true)}>dispatch now</Button>
+            <Button size="sm" tone="paper" kbd="⌫" onClick={() => onClose(sel)}>done</Button>
             <Button size="sm" kbd="esc" onClick={() => setSelected(new Set())}>clear</Button>
           </>
         ) : (
-          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, letterSpacing: "0.06em" }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
+          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
         )}
       </div>
     </div>
   );
 }
 
+/** In place of the columns when the remembered agent has gone: the agent's name, and the agents on the board to pick again (or all tasks). */
+function MissingAgent({ agent, tasks, onPick }: { agent: string; tasks: Task[]; onPick: (view: BoardView) => void }) {
+  const { views, agents } = useMemo(() => boardViews(tasks), [tasks]);
+  const all = views[0];
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 24px", display: "grid", alignContent: "start", gap: 12, width: 360, maxWidth: "100%" }}>
+      <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0 }}>
+        {missingAgentLine(agent)}
+      </p>
+      <ListSection title="Agents">
+        {agents.map((v) => (
+          <ListRow key={v.view} lead={<AgentFace name={v.label} src={null} size={20} />} title={v.label} time={String(v.count)} label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`} onOpen={() => onPick(v.view)} />
+        ))}
+        <ListRow lead={<ListIcon name="menu" />} title={all.label} time={String(all.count)} label={`${all.label}, ${all.count} task${all.count === 1 ? "" : "s"}`} onOpen={() => onPick("all")} />
+      </ListSection>
+    </div>
+  );
+}
+
 /** What an empty column says for itself. */
-function emptyLine(id: ColumnId, query: string): string {
+function emptyLine(col: Column, query: string): string {
   if (query.trim()) return "no matches";
-  switch (id) {
+  switch (col.id) {
+    case "agent":
+      return `nothing on the board for ${col.label}`;
     case "open":
       return "nothing waiting — ask an agent to park something, or press ⌘T";
     case "in_progress":
@@ -358,7 +369,7 @@ function TaskCard({
       style={{
         background: selected ? "var(--loki-selection)" : "var(--loki-panel)",
         border: `1px solid ${focused ? "var(--loki-accent)" : selected ? "var(--loki-control-border)" : "var(--loki-border)"}`,
-        borderRadius: 12,
+        borderRadius: "var(--loki-radius-lg)",
         padding: "10px 12px",
         cursor: "pointer",
         display: "grid",
@@ -366,7 +377,7 @@ function TaskCard({
       }}
     >
       <TaskTitle task={t} column={column} selected={selected} />
-      {showDesc && <div id={`${uid}-desc`} style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
+      {showDesc && <div id={`${uid}-desc`} className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
       <TaskMeta id={`${uid}-meta`} task={t} column={column} />
       {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle!} />}
     </div>
@@ -378,18 +389,18 @@ function TaskTitle({ task: t, column, selected }: { task: Task; column: ColumnId
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
       <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
-      <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
     </div>
   );
 }
 
-/** The meta line: priority (brass when urgent), id, who filed it, labels, and when it last moved. */
+/** The meta line: priority (red ink when urgent), id, who filed it, labels, and when it last moved. */
 function TaskMeta({ id, task: t, column }: { id: string; task: Task; column: ColumnId }) {
   const urgent = t.priority <= 1 && column !== "done";
   return (
-    <div id={id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
-      <span style={{ color: urgent ? "var(--loki-accent)" : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
-      <span>{t.id}</span>
+    <div id={id} className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <span style={{ color: urgent ? "var(--loki-negative)" : undefined, fontWeight: urgent ? 600 : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
+      <span style={{ fontFamily: "var(--loki-mono)" }}>{t.id}</span>
       {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}
       {t.labels.map((l) => (
         <Chip key={l} static tag>{l}</Chip>

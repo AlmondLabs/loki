@@ -1,0 +1,29 @@
+/* ⌘K search (SearchSheet.tsx, plan 013 U9): Slack's switcher — the field across the top, grouped rows, the coverage line at the foot. */
+.loki-search { max-height: min(560px, 80vh); overflow: hidden; }
+.loki-search-bar { flex: none; display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--loki-border); }
+.loki-search-glass { color: var(--loki-muted); }
+.loki-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: 17px;
+  line-height: 1.3;
+}
+.loki-search-input::placeholder { color: var(--loki-muted); opacity: 1; }
+.loki-search-body { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 8px; }
+.loki-search-group { padding: 4px 0; }
+.loki-search-group-head { display: flex; align-items: baseline; gap: 8px; min-height: 24px; padding: 4px 10px 2px; }
+.loki-search-group-title { font-size: 12px; font-weight: 700; color: var(--loki-muted); }
+.loki-search-clear { border: none; background: transparent; padding: 0 4px; color: var(--loki-muted); font-family: var(--loki-font); font-size: 12px; cursor: pointer; border-radius: var(--loki-radius-sm); }
+.loki-search-clear:hover { color: var(--loki-fg); }
+.loki-search-row { min-height: 36px; }
+/* The highlighted option: the hover's colour, so pointer and keys agree on which row Enter opens. */
+.loki-list-item[aria-selected="true"] > .loki-search-row { background: var(--loki-selection); color: var(--loki-fg); }
+.loki-search-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px 10px; }
+.loki-search-miss { margin: 0; font-size: 15px; font-weight: 700; color: var(--loki-fg); }
+.loki-search-coverage { flex: none; margin: 0; padding: 8px 16px 10px; border-top: 1px solid var(--loki-border); }
+.loki-search-empty p { margin: 0; }

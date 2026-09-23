@@ -4,9 +4,10 @@ import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
 /**
- * The window title is the only chrome: the desk's name on the desk, the inbox with its count, the board
- * with its open count, agents, settings. macOS draws it in the native title bar; a browser tab shows it
- * as the tab title. A waiting count prefixes the tab title everywhere but the inbox.
+ * The window title: the desk's name on the desk, the inbox with its count, the board with its open
+ * count, agents, Preferences (while its sheet is up). The native title bar is hidden, so macOS no longer draws it, but it still names
+ * the window in the Window menu, Mission Control and to screen readers; a browser tab shows it as the tab
+ * title. A waiting count prefixes the tab title everywhere but the inbox.
  */
 export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "agentName">, segment: Segment, waiting: number, openTasks: number, dueCards = 0): void {
   useEffect(() => {
@@ -14,7 +15,7 @@ export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "
     // "agent · title", the way Letta names a main chat ("ira · main chat"); no repeat when the title already leads with it.
     const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
     const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
-    const name = segment === "inbox" ? (waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox") : segment === "board" ? (openTasks > 0 ? `Board · ${openTasks} open` : "Board") : segment === "learn" ? (dueCards > 0 ? `Learn · ${dueCards} due` : "Learn") : segment === "agents" ? "Agents" : segment === "settings" ? "Settings" : `${who}${deskName}${state}`;
+    const name = segment === "inbox" ? (waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox") : segment === "board" ? (openTasks > 0 ? `Board · ${openTasks} open` : "Board") : segment === "learn" ? (dueCards > 0 ? `Learn · ${dueCards} due` : "Learn") : segment === "agents" ? "Agents" : segment === "settings" ? "Preferences" : `${who}${deskName}${state}`;
     document.title = waiting > 0 && segment !== "inbox" ? `(${waiting}) ${name}` : name;
     if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name)).catch((e) => console.warn("loki: window title", e));
   }, [waiting, desk.title, desk.status, desk.scope, desk.agentName, segment, openTasks, dueCards]);

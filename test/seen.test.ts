@@ -30,3 +30,28 @@ describe("seen store", () => {
     }
   });
 });
+
+describe("viewed markers", () => {
+  test("a look is kept beside seen, survives a reload, is left alone by unmark, and is only written once there is one", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const path = join(dir, "attention.json");
+      const store = new SeenStore(path);
+      store.mark("a", "c1");
+      expect(JSON.parse(readFileSync(path, "utf8")).viewed).toBeUndefined();
+      expect(store.viewedAll()).toEqual({});
+      store.view("a", "c1");
+      const at = store.viewedAll()["a/c1"];
+      expect(typeof at).toBe("string");
+      expect(Number.isFinite(Date.parse(at))).toBe(true);
+      expect(JSON.parse(readFileSync(path, "utf8")).viewed).toEqual({ "a/c1": at });
+      // "not done" undoes done, never the look
+      store.unmark("a", "c1");
+      const again = new SeenStore(path);
+      expect(again.all()).toEqual({});
+      expect(again.viewedAll()).toEqual({ "a/c1": at });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

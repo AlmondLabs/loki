@@ -9,7 +9,7 @@ import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, liveWaitingCount } from "./CatchUpParts";
+import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, liveWaitingCount, needsYou } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
 import { useDeckKeys } from "./useDeckKeys";
 import { useDeckQueue } from "./useDeckQueue";
@@ -62,7 +62,11 @@ interface CatchUpProps {
   /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
+  /** The deck closed: what this pass did, for analytics. Not called for a pass that decided nothing. */
+  onPass?: PassSummaryHandler;
 }
+
+export type PassSummaryHandler = (pass: { decided: number; next: number; later: number; approve: number; deny: number; replies: number }) => void;
 
 type DeckProps = CatchUpProps & { showSnoozed: boolean; setShowSnoozed: (update: (v: boolean) => boolean) => void };
 
@@ -111,14 +115,30 @@ function CatchUpDeck(props: DeckProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
 
+  // The pass's tally, read when the deck unmounts (closing it is what ends a pass).
+  const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass });
+  useEffect(() => {
+    passRef.current = { decided, replies: actions.replies, onPass: props.onPass };
+  });
+  useEffect(
+    () => () => {
+      const { decided: d, replies, onPass } = passRef.current;
+      if (!onPass || (!d.length && !replies)) return;
+      const by = (via: Decision["via"]) => d.filter((x) => x.via === via).length;
+      onPass({ decided: d.length, next: by("next"), later: by("later"), approve: by("approve"), deny: by("deny"), replies });
+    },
+    [],
+  );
+
   const total = queue.length + decided.length;
   const snoozed = snoozedItems(items);
   const nextDue = snoozed.map((i) => i.snooze!.until).sort()[0] ?? null;
 
+  // One column capped at the pane (minmax(0, 1fr)): an auto column grew to the card's 1100px and clipped it in a 1100-wide window.
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ position: "absolute", inset: 0, background: "var(--loki-bg)", display: "grid", gridTemplateRows: "100%", justifyItems: "center", padding: "20px 24px 16px", boxSizing: "border-box", animation: "loki-veil 160ms ease-out both" }}
+      style={{ position: "absolute", inset: 0, background: "var(--loki-bg)", display: "grid", gridTemplateRows: "100%", gridTemplateColumns: "minmax(0, 1fr)", justifyItems: "center", padding: "20px 24px 16px", boxSizing: "border-box", animation: "loki-veil 160ms ease-out both" }}
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
         <DeckHeader current={current} position={total - queue.length + 1} total={total} left={queue.length} liveWaiting={liveWaitingCount(items)} snoozedCount={snoozed.length} showSnoozed={showSnoozed} />
@@ -138,7 +158,8 @@ function CatchUpDeck(props: DeckProps) {
  * last row. Keyed on the card by the deck, so the box and the chips start fresh with each conversation.
  */
 function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyRef, actions, deck, onCommand, modelTick, modeTick }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; priorSnooze: Snooze | undefined; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; actions: ReturnType<typeof useDeckActions>; deck: DeckProps; onCommand: (id: string, args: string) => void; modelTick: number; modeTick: number }) {
-  const badgeColor = BADGE[current.status].color;
+  // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
+  const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   /** Today's deferral history for the current card, expired or not. */
   const timesAround = priorSnooze && priorSnooze.stamp === stampOf(current) ? priorSnooze.skips + 1 : 0;
   const { agentId, id } = current;
@@ -152,7 +173,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         flexDirection: "column",
         background: "var(--loki-panel)",
         border: `1px solid ${badgeColor}`,
-        borderRadius: 12,
+        borderRadius: "var(--loki-radius-lg)",
         boxShadow: "var(--loki-shadow-sheet)",
         overflow: "hidden",
         animation: `${actions.dir === "back" ? "loki-card-back" : "loki-card-next"} 200ms ease-out`,

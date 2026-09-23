@@ -8,6 +8,7 @@ import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
+import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
@@ -22,7 +23,7 @@ import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
-import { conversationDirName } from "../core/desk-core.ts";
+import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
 import { sortDesks } from "./bridge.ts";
 import { join } from "node:path";
@@ -36,6 +37,7 @@ import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
+import { appVersion, createAnalytics } from "./analytics.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 
 /**
@@ -66,6 +68,8 @@ function loadOrCreateToken(): string {
 export default function activate(letta: LettaMod): (() => void) | void {
   if (!letta.capabilities?.tools && !letta.capabilities?.events) return; // nothing a desk needs
   initLog(paths.modLog);
+  // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
+  const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
   // Every harness loads this mod; only the one hosting an app-server serves the desk (mod/gate.ts).
   const gate = shouldServe(letta.capabilities);
   if (!gate.serve) {
@@ -99,6 +103,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   // --- the agent's half: files ------------------------------------------
   mkdirSync(paths.widgets, { recursive: true });
+  const widgetLog = new WidgetLog(join(paths.state, "widget-log"));
   const widgets = watchWidgets(paths.widgets, (diff) => {
     log("widgets:diff", { added: diff.added.map((e) => e.id), changed: diff.changed.map((e) => e.id), removed: diff.removed });
     // Shared widgets first: they appear on every desk, so they claim space before desk widgets flow around them.
@@ -116,6 +121,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (landed && !landed.error) {
       broadcast({ type: "camera", widgetId: landed.id }, landed.scope === SHARED_SCOPE ? undefined : landed.scope);
     }
+    broadcastWidgetChanges(widgetLog, diff, broadcast);
   });
 
   // --- app-server ---------------------------------------------------------
@@ -229,6 +235,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (!entry) return null;
     const abs = join(paths.widgets, entry.file);
     try {
+      widgetLog.expect(id, "removed", "you"); // the person's trash, not the agent's removal
       unlinkSync(abs);
       log("widget:trashed", { id, file: abs });
       void widgets.rescan();
@@ -264,13 +271,14 @@ export default function activate(letta: LettaMod): (() => void) | void {
     widgets,
     gestures,
     broadcast,
+    capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
     listDesks,
     listInbox,
     recall: {
       store: recallStore,
       run: () => recall.tick(),
       reschedule: scheduleRecall,
-      startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets }),
+      startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets, expect: (id, change) => widgetLog.expect(id, change, "loki") }),
       lessonEmpty: (l) => lookupLocalConversation(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
     deskInfo,
@@ -279,6 +287,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     appServerAvailable: () => appServerUrl !== null,
     appServerUrl: () => appServerUrl,
     transcript: (agentId, conversationId) => readLocalTranscript(conversationId, agentId, 400),
+    widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     tasks: tasks.ready() ? tasks : undefined,
@@ -402,12 +411,13 @@ export default function activate(letta: LettaMod): (() => void) | void {
     }
     const scope = convId ? desks.remember(convId, runtime.agentId) : SHARED_SCOPE;
     activeScope = scope;
+    analytics.capture("mod", "turn_started", { desk: scope });
     // The return path: everything the user did on this desk (and the shared desk) rides along.
     const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
     log("event:turn_start", { desk: scope, attached: lines.length });
     if (convId) {
       seen.mark(runtime.agentId, convId); // you just spoke in this conversation
-      broadcast({ type: "seen", seen: seen.all(), snooze: seen.snoozes(), appServer: appServerUrl !== null });
+      broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), snooze: seen.snoozes(), ladder: seen.ladder(), appServer: appServerUrl !== null });
     }
     // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation.
     const blocks: string[] = [];
@@ -424,7 +434,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // Diagnostics: see whether Letta reaches the mod-tool dispatch at all.
   track("tool_start", (event) => {
     const e = event as { toolName?: string; args?: unknown } | undefined;
-    if (e?.toolName?.startsWith("desk_") || e?.toolName?.startsWith("loki_")) log("event:tool_start", { tool: e.toolName, args: e.args });
+    if (e?.toolName?.startsWith("desk_") || e?.toolName?.startsWith("loki_")) {
+      log("event:tool_start", { tool: e.toolName, args: e.args });
+      analytics.capture("mod", "tool_used", { tool: e.toolName });
+    }
     return undefined;
   });
   track("tool_end", (event) => {

@@ -6,7 +6,7 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, stampOf } from "../../../core/attention/queue.ts";
 
-/** Which way a swipe went: right is "seen", left is "later". */
+/** Which way a swipe went: right is "seen" (Mark as done), left is "later" (Later). */
 export type Swipe = "seen" | "later";
 /** How a card left the deck this pass. */
 export type Via = Swipe | "approve" | "deny";
@@ -102,11 +102,11 @@ export function passTotal(s: PassSummary): number {
   return s.seen + s.later + s.approved + s.denied;
 }
 
-/** "4 seen · 1 deferred · 2 approved" — only the parts that happened; "" when nothing did. */
+/** "4 marked as read · 1 for later · 2 approved" — only the parts that happened, in the buttons' words; "" when nothing did. */
 export function summaryLine(s: PassSummary): string {
   const parts: string[] = [];
-  if (s.seen) parts.push(`${s.seen} seen`);
-  if (s.later) parts.push(`${s.later} deferred`);
+  if (s.seen) parts.push(`${s.seen} marked as read`);
+  if (s.later) parts.push(`${s.later} for later`);
   if (s.approved) parts.push(`${s.approved} approved`);
   if (s.denied) parts.push(`${s.denied} denied`);
   return parts.join(" · ");
@@ -175,4 +175,99 @@ export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | n
       .filter((i) => !leaving || idOf(i) !== idOf(leaving))
       .map((item, index) => ({ item, role: (index === 0 ? "top" : "shell") as Role, index })),
   ];
+}
+
+// ---- The pass as one state -------------------------------------------------------------------------
+
+/**
+ * What a review pass remembers, as one value the parent keeps (useDeck): the cards sent away (until
+ * their marker lands), the card on top, the card held because you replied to it, and the tally.
+ */
+export interface DeckState {
+  dismissed: Dismissed;
+  /** The card under your thumb stays on top while the list re-sorts beneath it. */
+  topId: string | null;
+  /**
+   * A reply, or an answer, from the card marks it seen and starts the agent, which takes it out of the
+   * actionable queue; the card stays in hand anyway until you decide it (Later or Mark as done), so the
+   * pass does not jump under the message you just sent. Only ever the top card; gone with the item.
+   */
+  held: AttentionItem | null;
+  pass: PassSummary;
+}
+export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS }) as DeckState;
+
+/** The ways off a card: an approval only by its decision, anything else only by Later or Mark as done. */
+export function canCommit(item: AttentionItem, via: Via): boolean {
+  return item.pendingApproval ? via === "approve" || via === "deny" : via === "seen" || via === "later";
+}
+
+const same = (a: AttentionItem) => (b: AttentionItem) => idOf(a) === idOf(b);
+
+/** The cards in this pass, in order: the queue minus what went, the held card (its live copy) if it left the queue, the top card first. */
+export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[] {
+  const visible = visibleQueue(catchUpQueue(items), s.dismissed);
+  const held = s.held ? (items.find(same(s.held)) ?? null) : null;
+  return toFront(held && !visible.some(same(held)) ? [held, ...visible] : visible, s.topId);
+}
+
+/** A card taken off by one of the four ways; a way it does not have (Later on an approval) changes nothing — the same state comes back. */
+export function commitCard(s: DeckState, item: AttentionItem, via: Via): DeckState {
+  if (!canCommit(item, via)) return s;
+  return { dismissed: dismiss(s.dismissed, item), topId: null, held: null, pass: tally(s.pass, via) };
+}
+
+/** Undo: the card returns on top, the tally takes it back, and a card that was held is held again. */
+export function undoCard(s: DeckState, item: AttentionItem, via: Via, wasHeld = false): DeckState {
+  return { dismissed: restore(s.dismissed, item), topId: idOf(item), held: wasHeld ? item : s.held, pass: tally(s.pass, via, -1) };
+}
+
+/** Something went out from the card: keep it in hand (see `held`). */
+export function holdCard(s: DeckState, item: AttentionItem): DeckState {
+  return { ...s, held: item, topId: idOf(item) };
+}
+
+/** After the live list changes: forget dismissals it has outgrown, pin whatever is now on top. The same object when nothing moved. */
+export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
+  const pruned = pruneDismissed(s.dismissed, items);
+  const dismissed = pruned.size === s.dismissed.size ? s.dismissed : pruned;
+  const held = s.held && items.some(same(s.held)) ? s.held : null;
+  const next = dismissed === s.dismissed && held === s.held ? s : { ...s, dismissed, held };
+  const top = deckQueue(items, next)[0];
+  const topId = top ? idOf(top) : null;
+  return topId === next.topId ? next : { ...next, topId };
+}
+
+// ---- What the card says -----------------------------------------------------------------------------
+
+// Shared with the desktop (shared/thread.ts); the phone keeps its names.
+export { dayLabel, unreadBoundary } from "../shared/thread";
+
+/** The line above the card's message box: what the agent is waiting on, or what it is doing after your reply. */
+export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string {
+  const who = item.agentName ?? "The agent";
+  if (chat === "streaming") return `${who} is writing`;
+  if (chat === "thinking" || item.status === "running") return `${who} is working`;
+  if (item.status === "approval") return `${who} needs your approval`;
+  if (item.status === "question") return `${who} asked you something`;
+  if (item.status === "failed") return `${who}'s last turn failed`;
+  return `${who} is waiting for your reply`;
+}
+
+/**
+ * The same line over the full page's box: the card's words while the conversation waits on you, what the
+ * agent is doing while it works, and nothing on a quiet conversation.
+ */
+export function threadNotice(item: Pick<AttentionItem, "status" | "agentName"> | null | undefined, waiting: boolean, chat: "idle" | "thinking" | "streaming", agentName: string | null): string | null {
+  if (item && waiting) return cardNotice(item, chat);
+  if (chat !== "idle") return cardNotice({ status: "done", agentName: item?.agentName ?? agentName }, chat);
+  return null;
+}
+
+const DONE: Record<Via, string> = { seen: "Marked as read", later: "Moved to Later", approve: "Approved", deny: "Denied" };
+
+/** What a screen reader hears after a card goes: the outcome, the next card, how many are left. */
+export function reviewAnnouncement(via: Via, next: Pick<AttentionItem, "title" | "id"> | undefined, left: number): string {
+  if (!next || left <= 0) return `${DONE[via]}. You're caught up.`;
+  return `${DONE[via]}. Next: ${next.title ?? next.id}. ${left} left.`;
 }

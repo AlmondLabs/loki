@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
+import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
+import { THEME_PREFERENCES } from "../app/src/theme.tsx";
+import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, HOME_ATTENTION_MAX, archiveList, homeCounts, homeSections, linkState, shortcutLine, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
+import type { DeskSummary } from "../app/src/desk/useDesk.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 
 /**
@@ -210,18 +213,18 @@ describe("agents on the phone", () => {
 describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)", () => {
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({ id: "c", agentId: "a", agentName: "ira", title: "t", status: "done", unread: false, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a", conversation_id: "c" }, ...over }) as AttentionItem;
-  test("waits on you: brass, filled", () => {
+  test("waits on you: the red attention dot, filled", () => {
     const m = deskMark(item({ status: "approval" }), "live");
     expect(m.kind).toBe("waits");
-    expect(m.color).toBe("var(--loki-accent)");
-    expect(m.border).toBe("var(--loki-accent)");
+    expect(m.color).toBe("var(--loki-attention)");
+    expect(m.border).toBe("var(--loki-attention)");
     expect(deskMark(item({ status: "question" }), "live").kind).toBe("waits");
   });
-  test("finished unread: a brass ring", () => {
+  test("finished unread: an fg ring (the row goes bold), never red", () => {
     const m = deskMark(item({ status: "done", unread: true }), "live");
     expect(m.kind).toBe("finished");
     expect(m.color).toBe("transparent");
-    expect(m.border).toBe("var(--loki-accent)");
+    expect(m.border).toBe("var(--loki-fg)");
   });
   test("finished and read, or snoozed: nothing", () => {
     expect(deskMark(item({ status: "done", unread: false }), "live").kind).toBe("none");
@@ -265,5 +268,188 @@ describe("reloading a newer canvas", () => {
     expect(shouldAutoReload(5_000, true)).toBe(false);
     expect(shouldAutoReload(120_000, false)).toBe(false);
     expect(shouldAutoReload(NaN, true)).toBe(false);
+  });
+});
+
+describe("Home: shortcuts, attention and desks (U3)", () => {
+  const desk = (over: Partial<DeskSummary>): DeskSummary =>
+    ({ scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`, title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
+  const item = (over: Partial<AttentionItem>): AttentionItem =>
+    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+  const desks = [
+    desk({ conversationId: "c1", title: "Loki mobile", lastActive: "2026-09-20T10:00:00Z" }),
+    desk({ conversationId: "c2", title: "QuizUp", agentId: "a2", agentName: "jira", lastActive: "2026-09-21T10:00:00Z" }),
+    desk({ conversationId: "c3", title: "DSPy", lastActive: "2026-09-19T10:00:00Z", pinned: true }),
+    desk({ conversationId: "c4", title: "Old one", status: "archived" }),
+    desk({ conversationId: "c5", title: "Older", status: "archived", agentId: "a2", agentName: "jira" }),
+    desk({ scope: "shared", title: null, status: "archived", agentId: null, agentName: null, conversationId: null }),
+  ];
+  const items = [
+    item({ id: "c1", status: "approval" }),
+    item({ id: "c9", agentId: "a2", agentName: "jira", status: "question", title: "Main chat" }),
+    item({ id: "c2", agentId: "a2", agentName: "jira", status: "running", unread: false }),
+    item({ id: "c3", status: "done", snooze: { until: "2026-09-30T00:00:00Z" } as unknown as AttentionItem["snooze"] }),
+  ];
+
+  test("shortcut counts: waiting inbox items, due cards, agents running, archived desks with a conversation", () => {
+    const c = homeCounts({ items, due: 31, agents: [{ id: "a1" }, { id: "a2" }, { id: "a3" }], desks });
+    expect(c).toEqual({ inbox: 2, learn: 31, agents: 3, running: 1, archive: 2 });
+  });
+  test("shortcut lines say the count, or a calm state when there is none", () => {
+    const c = { inbox: 12, learn: 31, agents: 3, running: 2, archive: 85 };
+    expect(shortcutLine("inbox", c)).toBe("12 waiting");
+    expect(shortcutLine("learn", c)).toBe("31 due");
+    expect(shortcutLine("agents", c)).toBe("2 running");
+    expect(shortcutLine("archive", c)).toBe("85 desks");
+    const none = { inbox: 0, learn: 0, agents: 1, running: 0, archive: 1 };
+    expect(shortcutLine("inbox", none)).toBe("All caught up");
+    expect(shortcutLine("learn", none)).toBe("Nothing due");
+    expect(shortcutLine("agents", none)).toBe("1 agent");
+    expect(shortcutLine("archive", none)).toBe("1 desk");
+    expect(shortcutLine("archive", { ...none, archive: 0 })).toBe("None yet");
+  });
+  test("an actionable desk appears once: in attention, not again in the desk list", () => {
+    const s = homeSections(desks, items, null, "");
+    expect(s.attention.map((a) => a.item.id)).toEqual(["c1", "c9"]);
+    expect(s.desks.map((d) => d.conversationId)).toEqual(["c3", "c2"]); // pinned first, then by recency; c1 is above
+    expect(s.more).toBe(0);
+    const keys = [...s.attention.map((a) => `${a.item.agentId}/${a.item.id}`), ...s.desks.map((d) => `${d.agentId}/${d.conversationId}`)];
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+  test("attention past the cap stays in the desk list, marked, rather than vanishing", () => {
+    const many = Array.from({ length: HOME_ATTENTION_MAX + 2 }, (_, n) => item({ id: `k${n}`, status: "question" }));
+    const lots = many.map((i) => desk({ conversationId: i.id, title: i.id }));
+    const s = homeSections(lots, many, null, "");
+    expect(s.attention.length).toBe(HOME_ATTENTION_MAX);
+    expect(s.more).toBe(2);
+    expect(s.desks.map((d) => d.conversationId).sort()).toEqual([`k${HOME_ATTENTION_MAX}`, `k${HOME_ATTENTION_MAX + 1}`]);
+  });
+  test("the agent scope and the filter narrow both sections", () => {
+    const scoped = homeSections(desks, items, "a2", "");
+    expect(scoped.attention.map((a) => a.item.id)).toEqual(["c9"]);
+    expect(scoped.desks.map((d) => d.conversationId)).toEqual(["c2"]);
+    const typed = homeSections(desks, items, null, "loki");
+    // the approval's own title is "t"; it matches by its desk's name, and stays in attention only
+    expect(typed.attention.map((a) => [a.item.id, a.desk?.title])).toEqual([["c1", "Loki mobile"]]);
+    expect(typed.desks).toEqual([]);
+    expect(homeSections(desks, items, null, "main").attention.map((a) => [a.item.id, a.desk])).toEqual([["c9", undefined]]);
+  });
+  test("the archive list: no shared sheet, the agent scope and the filter apply", () => {
+    expect(archiveList(desks, null, "").map((d) => d.conversationId)).toEqual(["c4", "c5"]);
+    expect(archiveList(desks, "a2", "").map((d) => d.conversationId)).toEqual(["c5"]);
+    expect(archiveList(desks, null, "old ").map((d) => d.conversationId)).toEqual(["c4", "c5"]);
+    expect(archiveList(desks, null, "older").map((d) => d.conversationId)).toEqual(["c5"]);
+    expect(archiveList([], null, "")).toEqual([]);
+  });
+});
+
+describe("Home's presence dot: the paired Mac's two links in one word", () => {
+  test("both up, or the mod up with no app-server to reach: online", () => {
+    expect(linkState("open", "open", true)).toBe("online");
+    expect(linkState("open", "off", false)).toBe("online");
+  });
+  test("either link closed: offline, as the banner says", () => {
+    expect(linkState("closed", "open", true)).toBe("offline");
+    expect(linkState("open", "closed", true)).toBe("offline");
+  });
+  test("otherwise still connecting", () => {
+    expect(linkState("connecting", "open", true)).toBe("connecting");
+    expect(linkState("open", "connecting", true)).toBe("connecting");
+  });
+});
+
+describe("Agents: Slack's DM list, one row per agent (U6)", () => {
+  const desk = (over: Partial<DeskSummary>): DeskSummary =>
+    ({ scope: "s", title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
+  const item = (over: Partial<AttentionItem>): AttentionItem =>
+    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+  const agents = [
+    { id: "a1", name: "ira" },
+    { id: "a2", name: "jira" },
+    { id: "a3", name: "a very long agent name that will not fit on one line of a phone" },
+  ];
+  const desks = [desk({ scope: "a1/c1" }), desk({ scope: "a1/c2" }), desk({ scope: "a1/c3", status: "archived" }), desk({ scope: "a2/c4", agentId: "a2" })];
+  const items = [
+    item({ id: "c1", status: "question" }),
+    item({ id: "c2", status: "approval" }),
+    item({ id: "c4", agentId: "a2", status: "running", unread: false }),
+    item({ id: "c5", status: "done", snooze: { until: "2099-01-01T00:00:00Z" } as unknown as AttentionItem["snooze"] }),
+  ];
+  const rows = agentRows(agents, desks, items);
+
+  test("each agent in the app-server's order: live desks, a turn running, and what waits on you (snoozed left out)", () => {
+    expect(rows.map((r) => [r.id, r.live, r.running, r.waiting])).toEqual([
+      ["a1", 2, false, 2],
+      ["a2", 1, true, 0],
+      ["a3", 0, false, 0],
+    ]);
+    expect(rows[2].name).toBe(agents[2].name); // a long name is kept whole; the row ellipsizes it
+  });
+  test("the filters: all, running, waiting on you", () => {
+    expect(AGENT_FILTERS.map((f) => f.id)).toEqual(["all", "running", "waiting"]);
+    expect(agentsShown(rows, "all").map((r) => r.id)).toEqual(["a1", "a2", "a3"]);
+    expect(agentsShown(rows, "running").map((r) => r.id)).toEqual(["a2"]);
+    expect(agentsShown(rows, "waiting").map((r) => r.id)).toEqual(["a1"]);
+  });
+  test("the preview says what is going on first, then who the agent is", () => {
+    expect(agentLine(rows[0], "writes the plans")).toBe("2 waiting · writes the plans");
+    expect(agentLine(rows[1], null)).toBe("Working · 1 desk live");
+    expect(agentLine(rows[2], "")).toBe("no desks live");
+    expect(agentLine(rows[2], undefined)).toBe("no desks live");
+  });
+});
+
+describe("More: the profile, the paired Mac, then named rows for every secondary capability (U6)", () => {
+  const base: Parameters<typeof moreSections>[0] = { link: "online", agents: 3, running: 1, due: 31, archived: 85, appearance: "System", update: "current" };
+  const all = (s: ReturnType<typeof moreSections>) => s.flatMap((g) => g.rows);
+
+  test("every capability formerly under You and Settings has a named row, plus Learn and the archive", () => {
+    const ids = all(moreSections(base)).map((r) => r.id);
+    expect(ids).toEqual(["mac", "agents", "learn", "archive", "preferences", "updates", "about", "connection"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  test("rows open pages, the Agents tab, or (Updates) the reload sheet", () => {
+    const to = Object.fromEntries(all(moreSections(base)).map((r) => [r.id, r.to]));
+    expect(to).toEqual({
+      mac: { kind: "connection" },
+      agents: { kind: "tab", tab: "agents" },
+      learn: { kind: "learn" },
+      archive: { kind: "archive" },
+      preferences: { kind: "preferences" },
+      updates: null,
+      about: { kind: "about" },
+      connection: { kind: "connection" },
+    });
+  });
+  test("asides carry the counts and states, and fall quiet when there is nothing", () => {
+    const aside = (over: Partial<typeof base>) => Object.fromEntries(all(moreSections({ ...base, ...over })).map((r) => [r.id, r.aside]));
+    expect(aside({})).toMatchObject({ mac: "Online", agents: "1 running", learn: "31 due", archive: "85", preferences: "System", updates: "Up to date", about: null, connection: null });
+    expect(aside({ link: "offline", running: 0, due: 0, archived: 0, update: "ready" })).toMatchObject({ mac: "Unreachable", agents: "3", learn: null, archive: null, updates: "Update ready" });
+    expect(aside({ update: "unknown" }).updates).toBeNull();
+  });
+  test("the paired Mac in one word, never by colour alone", () => {
+    expect(linkWord("online")).toBe("Online");
+    expect(linkWord("connecting")).toBe("Connecting");
+    expect(linkWord("offline")).toBe("Unreachable");
+  });
+  test("the update state: a newer build on the Mac, the same one, or nothing to compare", () => {
+    expect(updateState("b2", "b1")).toBe("ready");
+    expect(updateState("b1", "b1")).toBe("current");
+    expect(updateState(null, "b1")).toBe("current");
+    expect(updateState("b2", null)).toBe("unknown");
+  });
+});
+
+describe("Preferences: appearance on the phone is System, Light or Dark — no palette (R38)", () => {
+  test("the three modes, in the global preference's own values", () => {
+    expect(PHONE_APPEARANCE.map((a) => a.value)).toEqual([...THEME_PREFERENCES]);
+    expect(PHONE_APPEARANCE.map((a) => a.label)).toEqual(["System", "Light", "Dark"]);
+  });
+  test("the phone's Preferences page does not render the palette picker; the desktop's control keeps it", async () => {
+    const { readFileSync } = await import("node:fs");
+    const settings = readFileSync(new URL("../app/src/phone/Settings.tsx", import.meta.url), "utf8");
+    expect(settings).not.toMatch(/ThemeChoice|PALETTES|setPalette/);
+    const desktop = readFileSync(new URL("../app/src/settings/ThemeChoice.tsx", import.meta.url), "utf8");
+    expect(desktop).toMatch(/PALETTES\.map/);
   });
 });

@@ -26,6 +26,9 @@ export const paths = {
   devices: join(stateDir, "devices.json"),
   token: join(homedir(), ".letta", "loki", "token"),
   modLog: join(homedir(), ".letta", "loki", "mod.log"),
+  /** Product analytics (core/analytics.ts): one event per line, local only; and the install's distinct_id. */
+  events: join(homedir(), ".letta", "loki", "logs", "events.jsonl"),
+  analytics: join(stateDir, "analytics.json"),
 } as const;
 
 export const DEFAULT_MOD_PORT = 41414;

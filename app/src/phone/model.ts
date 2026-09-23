@@ -8,6 +8,13 @@
 import type { LanStatus } from "../../../mod/lan.ts";
 import type { DeviceSummary } from "../../../mod/devices.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../core/pairing-code.ts";
+import type { AttentionItem } from "../../../core/attention/model.ts";
+import { catchUpQueue } from "../../../core/attention/queue.ts";
+import type { DeskSummary } from "../desk/useDesk";
+import { archivedDesks, liveDesks } from "../shell/DeskTree";
+import type { ThemePreference } from "../theme";
+import type { IconName } from "./icons";
+import type { Route } from "./router";
 
 /** The mod's own types: what `lan_status` and `devices` carry (mod/lan.ts, mod/devices.ts). */
 export type { LanStatus };
@@ -300,4 +307,200 @@ export function countdown(iso: string, now: number = Date.now()): string {
   const s = Math.floor((new Date(iso).getTime() - now) / 1000);
   if (!Number.isFinite(s) || s <= 0) return "expired";
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/* ---- Home (Home.tsx) and the archive (Archive.tsx) ------------------------------------------------ */
+
+/** How many waiting conversations Home lists above the desks; the rest stay in the desk list, marked, and in Inbox. */
+export const HOME_ATTENTION_MAX = 5;
+
+/** The filter as typed, the way deskMatches wants it: trimmed and lowercased. */
+const norm = (q: string) => q.trim().toLowerCase();
+
+/**
+ * The archived desks a phone can reopen: every desk no longer live that has a conversation (the shared
+ * sheet has none on a phone), in the desk list's order, narrowed by the agent scope and the filter.
+ */
+export function archiveList(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
+  return archivedDesks(desks, agentFilter, norm(q)).filter((d) => d.agentId && d.conversationId);
+}
+
+export interface HomeCounts {
+  /** Inbox: the ready queue (catchUpQueue), snoozed cards left out. */
+  inbox: number;
+  learn: number;
+  agents: number;
+  /** Agents with a turn running now. */
+  running: number;
+  archive: number;
+}
+
+/** The shortcut rail's numbers, from the same derivations the destinations use. */
+export function homeCounts({ items, due, agents, desks }: { items: AttentionItem[]; due: number; agents: Array<{ id: string }>; desks: DeskSummary[] }): HomeCounts {
+  return {
+    inbox: catchUpQueue(items).length,
+    learn: due,
+    agents: agents.length,
+    running: new Set(items.filter((i) => i.status === "running").map((i) => i.agentId)).size,
+    archive: archiveList(desks, null, "").length,
+  };
+}
+
+export type Shortcut = "inbox" | "learn" | "agents" | "archive";
+
+/** The line under a shortcut's name: its count, or a calm word when there is nothing. */
+export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
+  const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+  if (kind === "inbox") return c.inbox ? `${c.inbox} waiting` : "All caught up";
+  if (kind === "learn") return c.learn ? `${c.learn} due` : "Nothing due";
+  if (kind === "agents") return c.running ? `${c.running} running` : n(c.agents, "agent");
+  return c.archive ? n(c.archive, "desk") : "None yet";
+}
+
+/** A waiting conversation on Home, with its desk when it has one (the desk names it better than the item). */
+export interface HomeAttention {
+  item: AttentionItem;
+  desk: DeskSummary | undefined;
+}
+
+/**
+ * Home's two lists, each conversation once (R16): "Needs your attention" takes the first
+ * HOME_ATTENTION_MAX of the ready queue, in its priority order; "Desks" is the live list (pinned first,
+ * then by recency) without them. Actionable desks past the cap stay in the desk list with their mark.
+ * The agent scope and the filter narrow both; an item matches by its desk's name, its own title or its agent.
+ */
+export function homeSections(desks: DeskSummary[], items: AttentionItem[], agentFilter: string | null, query: string, max = HOME_ATTENTION_MAX): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
+  const q = norm(query);
+  const byKey = new Map<string, DeskSummary>();
+  for (const d of desks) if (d.agentId && d.conversationId) byKey.set(`${d.agentId}/${d.conversationId}`, d);
+  const waiting = catchUpQueue(items)
+    .map((item) => ({ item, desk: byKey.get(`${item.agentId}/${item.id}`) }))
+    .filter(({ item, desk }) => (!agentFilter || item.agentId === agentFilter) && (!q || [desk?.title, item.title, item.agentName ?? desk?.agentName].some((s) => (s ?? "").toLowerCase().includes(q))));
+  const attention = waiting.slice(0, max);
+  const shown = new Set(attention.map(({ item }) => `${item.agentId}/${item.id}`));
+  return { attention, more: waiting.length - attention.length, desks: liveDesks(desks, agentFilter, q).filter((d) => !shown.has(`${d.agentId}/${d.conversationId}`)) };
+}
+
+export type LinkState = "online" | "connecting" | "offline";
+
+/**
+ * The paired Mac in one word, for Home's presence dot: offline when either socket is closed (the same
+ * rule as the "Mac unreachable" banner), online when the mod is up and so is the app-server tunnel — or
+ * there is none to reach — and connecting in between.
+ */
+export function linkState(mod: "connecting" | "open" | "closed", appServer: "off" | "connecting" | "open" | "closed", available: boolean): LinkState {
+  if (mod === "closed" || appServer === "closed") return "offline";
+  return mod === "open" && (appServer === "open" || !available) ? "online" : "connecting";
+}
+
+/**
+ * The conversation header's second line, under the agent's name: what the agent is doing (it waits on
+ * your approval or answer, is writing, working, or is waiting on you), then the desk. Either may be absent.
+ */
+export function threadLine({ status, approval, question, waiting, desk }: { status: "idle" | "thinking" | "streaming"; approval: unknown; question: unknown; waiting: boolean; desk: string | null }): string {
+  const live = approval ? "needs approval" : question ? "asked you" : status === "streaming" ? "writing" : status === "thinking" ? "working" : waiting ? "waiting on you" : null;
+  return [live, desk].filter(Boolean).join(" · ");
+}
+
+/* ---- Agents (Agents.tsx) ----------------------------------------------------------------------------- */
+
+/** One Agents row before its record arrives: live desks, a turn running now, and the ready cards that wait on you. */
+export interface AgentRowModel {
+  id: string;
+  name: string;
+  live: number;
+  /** A turn in progress in one of its conversations — the row's presence dot, Home's "n running". */
+  running: boolean;
+  /** Its conversations in the Inbox's ready queue (snoozed ones left out): the row's unread badge. */
+  waiting: number;
+}
+
+/** The Agents list in the app-server's order, so rows keep their place while states change under them. */
+export function agentRows(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; status: string }>, items: AttentionItem[]): AgentRowModel[] {
+  const ready = catchUpQueue(items);
+  return agents.map((a) => ({
+    id: a.id,
+    name: a.name,
+    live: liveDeskCount(desks, a.id),
+    running: items.some((i) => i.agentId === a.id && i.status === "running"),
+    waiting: ready.filter((i) => i.agentId === a.id).length,
+  }));
+}
+
+export type AgentFilter = "all" | "running" | "waiting";
+export const AGENT_FILTERS: ReadonlyArray<{ id: AgentFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "running", label: "Running" },
+  { id: "waiting", label: "Waiting on you" },
+];
+
+export function agentsShown(rows: AgentRowModel[], filter: AgentFilter): AgentRowModel[] {
+  if (filter === "running") return rows.filter((r) => r.running);
+  if (filter === "waiting") return rows.filter((r) => r.waiting > 0);
+  return rows;
+}
+
+/** The row's preview: what waits on you and whether it works now, then the description (else its live desks). */
+export function agentLine(r: AgentRowModel, description: string | null | undefined): string {
+  return [r.waiting ? `${r.waiting} waiting` : null, r.running ? "Working" : null, description || liveDesksLabel(r.live)].filter(Boolean).join(" · ");
+}
+
+/* ---- More (More.tsx), preferences and updates --------------------------------------------------------- */
+
+/** The paired Mac in one word, beside its presence dot (so the state is never told by colour alone). */
+export function linkWord(link: LinkState): string {
+  return link === "online" ? "Online" : link === "connecting" ? "Connecting" : "Unreachable";
+}
+
+/** A newer canvas on the Mac ("ready"), the one this page runs ("current"), or an unstamped page with nothing to compare. */
+export type UpdateState = "ready" | "current" | "unknown";
+export function updateState(served: string | null | undefined, current: string | null | undefined): UpdateState {
+  if (!current) return "unknown";
+  return needsReload(served, current) ? "ready" : "current";
+}
+
+/** Appearance on the phone: the global light/dark preference only; the desktop's palettes never recolour the phone. */
+export const PHONE_APPEARANCE: ReadonlyArray<{ value: ThemePreference; label: string }> = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
+export type MoreRowId = "mac" | "agents" | "learn" | "archive" | "preferences" | "updates" | "about" | "connection";
+export interface MoreRow {
+  id: MoreRowId;
+  icon: IconName;
+  label: string;
+  /** The quiet word on the right: a count or a state; null when there is nothing to say. */
+  aside: string | null;
+  /** The page the row opens; null for Updates, which opens its reload sheet in place. */
+  to: Route | null;
+}
+
+/**
+ * More's rows, in Slack's You-sheet groups: the paired Mac under the profile, then the places (Agents,
+ * Learn, the archive, preferences), then the utilities (updates, About, the connection). Every secondary
+ * capability the phone had under You and Settings is one of these rows or a page behind one.
+ */
+export function moreSections(s: { link: LinkState; agents: number; running: number; due: number; archived: number; appearance: string; update: UpdateState }): Array<{ label: string; rows: MoreRow[] }> {
+  return [
+    { label: "Paired Mac", rows: [{ id: "mac", icon: "laptop", label: "Paired Mac", aside: linkWord(s.link), to: { kind: "connection" } }] },
+    {
+      label: "Places",
+      rows: [
+        { id: "agents", icon: "agents", label: "Agents", aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null, to: { kind: "tab", tab: "agents" } },
+        { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
+        { id: "archive", icon: "archive", label: "Archived desks", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
+        { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },
+      ],
+    },
+    {
+      label: "loki",
+      rows: [
+        { id: "updates", icon: "refresh", label: "Updates", aside: s.update === "ready" ? "Update ready" : s.update === "current" ? "Up to date" : null, to: null },
+        { id: "about", icon: "info", label: "About loki", aside: null, to: { kind: "about" } },
+        { id: "connection", icon: "link", label: "Connection details", aside: null, to: { kind: "connection" } },
+      ],
+    },
+  ];
 }

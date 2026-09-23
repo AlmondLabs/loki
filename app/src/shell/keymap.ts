@@ -25,6 +25,8 @@ export interface Binding {
   menuAccel?: boolean;
   /** Not dispatched by the keymap (documented only): the view or the OS owns it. */
   note?: string;
+  /** What the key did before a redesign changed its job, and where that job went; the keys sheet and Settings › keys say it (R30). */
+  was?: string;
 }
 
 export const MENUS = ["Desk", "Chat", "Inbox", "Board", "Learn", "View"] as const;
@@ -37,9 +39,12 @@ export const KEYMAP: Binding[] = [
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
-  { id: "tree.toggle", keys: ["cmd+k"], where: "anywhere", label: "Desks Tree", typing: true, menu: "Desk" },
+  // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
+  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk", was: "was the desks tree: desks are in the sidebar now (⌘⇧D shows or hides it)" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
+  // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
+  { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
   { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", typing: true },
   { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
@@ -49,6 +54,8 @@ export const KEYMAP: Binding[] = [
   // board, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
   { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Desk", typing: true, menu: "Desk/step" },
   { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Desk", typing: true, menu: "Desk/step" },
+  // Done is the Inbox's clear (seen); opening a desk only views it. The desk's header menu offers the same, and Mark as Not Done.
+  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Done", typing: true, menu: "Desk/done" },
   { id: "chat.toggle", keys: ["cmd+/"], where: "desk", label: "Show / Hide Chat", typing: true, menu: "Chat" },
   { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
   { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },
@@ -63,6 +70,7 @@ export const KEYMAP: Binding[] = [
   { id: "view.zoomOut", keys: ["cmd+-"], where: "desk", label: "Zoom Out", typing: true, menu: "View" },
   { id: "desk.arrange", keys: ["cmd+shift+a"], where: "desk", label: "Arrange Widgets", typing: true, menu: "Desk/sheet" },
   { id: "desk.undo", keys: ["cmd+z"], where: "desk", label: "Undo Widget Move", menu: "Desk/sheet", menuAccel: false },
+  { id: "desk.messages", keys: ["escape"], where: "desk", label: "back to Messages from the Desk tab", note: "handled by the shell" },
 
   // --- chat (the box owns these) ---------------------------------------
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
@@ -109,6 +117,7 @@ export const KEYMAP: Binding[] = [
   { id: "learn.nextView", keys: ["cmd+]"], where: "learn", label: "Next View", typing: true, menu: "Learn/step" },
 
   // --- agents / settings: the tabs across the top, the pages down the left ------------------------------
+  // "settings" is Preferences, a sheet over the section showing: its keys resolve there while it is up (keySegment).
   { id: "agents.prev", keys: ["cmd+["], where: "agents", label: "previous agent", typing: true },
   { id: "agents.next", keys: ["cmd+]"], where: "agents", label: "next agent", typing: true },
   { id: "settings.prevPage", keys: ["cmd+["], where: "settings", label: "previous page", typing: true },
@@ -217,6 +226,15 @@ export function resolve(e: KeyboardEvent, segment: Segment): Binding | null {
   return hit(segment) ?? hit("anywhere");
 }
 
+/**
+ * Where a view's own binding takes a key that works everywhere (resolve lets the view's win): ⌘⇧D is Deny in the
+ * inbox, not the sidebar. The keys sheet leaves such a key out of that view's "everywhere" group; Settings says it.
+ */
+export function takenBy(b: Binding, map: Binding[] = KEYMAP): Array<{ where: Where; key: string; id: string; label: string }> {
+  if (b.where !== "anywhere" || b.note) return [];
+  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : b.keys.filter((k) => o.keys.includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: o.label }))));
+}
+
 /** Bindings that share a key inside one scope — a mistake to catch in tests. */
 export function conflicts(map: Binding[] = KEYMAP): string[] {
   const seen = new Map<string, string>();
@@ -280,6 +298,36 @@ export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);
+}
+
+/**
+ * The dialogs up, for the shell's keys: none, only Preferences (the sheet marked data-preferences), only
+ * search (data-search), or some other dialog, which wins over both (a sheet opened from a settings page).
+ * The Board's desk picker is not a dialog here: it owns its keys (data-tree).
+ */
+export type DialogState = "none" | "preferences" | "search" | "other";
+export function dialogState(root: ParentNode = document): DialogState {
+  const up = [...root.querySelectorAll('[role="dialog"]:not([data-tree])')];
+  if (up.length === 0) return "none";
+  if (up.every((d) => d.hasAttribute("data-preferences"))) return "preferences";
+  return up.every((d) => d.hasAttribute("data-search")) ? "search" : "other";
+}
+
+/**
+ * Preferences lets the segment keys (⌘1-6, ⌘,) and its own page steps (⌘[ ⌘]) through; search lets only ⌘K
+ * through, which closes it (Esc too, from the sheet), as Slack's does; every other dialog blocks every shell key.
+ */
+const PREFERENCES_KEYS = new Set(["settings.prevPage", "settings.nextPage"]);
+export function shellKeyAllowed(dialog: DialogState, id: string): boolean {
+  if (dialog === "none") return true;
+  if (dialog === "other") return false;
+  if (dialog === "search") return id === "search.open";
+  return id.startsWith("segment.") || PREFERENCES_KEYS.has(id);
+}
+
+/** The scope keys resolve in: with Preferences up, "settings" (its bindings are its page steps), else the section showing. */
+export function keySegment(segment: Segment, dialog: DialogState): Segment {
+  return dialog === "preferences" ? "settings" : segment;
 }
 
 /** Rows for Settings, grouped by scope in display order. */

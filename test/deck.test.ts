@@ -4,15 +4,24 @@ import { stampOf } from "../core/attention/queue.ts";
 import {
   COMMIT_FRACTION,
   DRAG_SLOP,
+  EMPTY_DECK,
   EMPTY_PASS,
   FLICK_VELOCITY,
   MAX_ROTATION,
+  canCommit,
+  cardNotice,
+  commitCard,
+  dayLabel,
+  deckQueue,
   dismiss,
+  holdCard,
   isHorizontalDrag,
   passTotal,
   pruneDismissed,
+  reconcileDeck,
   refusedOffset,
   restore,
+  reviewAnnouncement,
   revealOpacity,
   rotationFor,
   stackPose,
@@ -20,6 +29,8 @@ import {
   swipeDecision,
   tally,
   toFront,
+  undoCard,
+  unreadBoundary,
   velocityOf,
   visibleQueue,
 } from "../app/src/phone/deck.ts";
@@ -46,6 +57,7 @@ const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => (
   error: null,
   seenAt: null,
   unread: true,
+  viewedAt: null,
   lastAsk: null,
   score: 0,
   reason: "report",
@@ -157,10 +169,10 @@ describe("pass summary", () => {
     s = tally(s, "later");
     s = tally(s, "approve");
     expect(s).toEqual({ seen: 2, later: 1, approved: 1, denied: 0 });
-    expect(summaryLine(s)).toBe("2 seen · 1 deferred · 1 approved");
+    expect(summaryLine(s)).toBe("2 marked as read · 1 for later · 1 approved");
     expect(passTotal(s)).toBe(4);
     s = tally(s, "deny");
-    expect(summaryLine(s)).toBe("2 seen · 1 deferred · 1 approved · 1 denied");
+    expect(summaryLine(s)).toBe("2 marked as read · 1 for later · 1 approved · 1 denied");
   });
   test("undo takes one back and never goes below zero", () => {
     let s = tally(EMPTY_PASS, "seen");
@@ -218,5 +230,129 @@ describe("the top card stays on top", () => {
     expect(toFront([a, b, c], "a1/a").map((i) => i.id)).toEqual(["a", "b", "c"]);
     expect(toFront([a, b, c], null).map((i) => i.id)).toEqual(["a", "b", "c"]);
     expect(toFront([a, b, c], "a1/zz").map((i) => i.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+/**
+ * The deck as one state (U4): the pass a person is in the middle of — what went, what is on top, the card
+ * held after a reply, the tally — as pure steps, so Later, Mark as done, undo and the approval refusal are
+ * checked here rather than in a browser.
+ */
+describe("the review pass: Later, Mark as done, undo, approvals", () => {
+  const three = () => [item("a"), item("b"), item("c")];
+  const ask = item("q", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } });
+
+  test("Later advances once: the next card is on top and one fewer is left", () => {
+    const items = three();
+    let s = EMPTY_DECK;
+    expect(deckQueue(items, s).map((i) => i.id)).toEqual(["a", "b", "c"]);
+    s = commitCard(s, items[0], "later");
+    expect(deckQueue(items, s).map((i) => i.id)).toEqual(["b", "c"]);
+    expect(s.pass).toEqual({ ...EMPTY_PASS, later: 1 });
+  });
+  test("Mark as done advances once, and undo puts the same card back on top with the count restored", () => {
+    const items = three();
+    let s = commitCard(EMPTY_DECK, items[0], "seen");
+    expect(deckQueue(items, s)).toHaveLength(2);
+    s = undoCard(s, items[0], "seen");
+    expect(deckQueue(items, s).map((i) => i.id)).toEqual(["a", "b", "c"]);
+    expect(passTotal(s.pass)).toBe(0);
+  });
+  test("an undone card returns on top even when the list has re-sorted under it", () => {
+    const [a, b, c] = three();
+    let s = commitCard(EMPTY_DECK, b, "later");
+    s = undoCard(s, b, "later");
+    expect(deckQueue([a, b, c], s)[0].id).toBe("b");
+  });
+  test("an approval refuses Later and Mark as done: the state does not move", () => {
+    const s = EMPTY_DECK;
+    expect(canCommit(ask, "later")).toBe(false);
+    expect(canCommit(ask, "seen")).toBe(false);
+    expect(commitCard(s, ask, "later")).toBe(s);
+    expect(commitCard(s, ask, "seen")).toBe(s);
+    expect(deckQueue([ask], s).map((i) => i.id)).toEqual(["q"]);
+  });
+  test("only approve or deny takes an approval off; a plain card cannot be approved", () => {
+    expect(canCommit(ask, "approve")).toBe(true);
+    expect(canCommit(ask, "deny")).toBe(true);
+    expect(canCommit(item("a"), "approve")).toBe(false);
+    const s = commitCard(EMPTY_DECK, ask, "approve");
+    expect(deckQueue([ask], s)).toEqual([]);
+    expect(s.pass.approved).toBe(1);
+  });
+  test("an approval's swipe never becomes a decision, however far", () => {
+    expect(swipeDecision(W, W, 3, { approval: canCommit(ask, "seen") === false })).toBeNull();
+  });
+  test("a card replied to stays on top until you decide it, even as the reply takes it out of the queue", () => {
+    const [a, b, c] = three();
+    let s = holdCard(EMPTY_DECK, a);
+    // the reply marked it seen and the agent is working: no longer actionable, but still the card in hand
+    const running = item("a", { status: "running", unread: false, lastRole: "user" });
+    expect(deckQueue([running, b, c], s).map((i) => i.id)).toEqual(["a", "b", "c"]);
+    expect(deckQueue([running, b, c], s)[0]).toBe(running); // the live copy, so the thread and state are current
+    s = commitCard(s, running, "later");
+    expect(deckQueue([running, b, c], s).map((i) => i.id)).toEqual(["b", "c"]);
+    expect(s.held).toBeNull();
+  });
+  test("a held card that disappears from the list (archived, deleted) goes with it", () => {
+    const [a, b] = three();
+    const s = holdCard(EMPTY_DECK, a);
+    expect(deckQueue([b], s).map((i) => i.id)).toEqual(["b"]);
+  });
+  test("undoing a held card holds it again", () => {
+    const [a, b] = three();
+    const running = item("a", { status: "running", unread: false });
+    let s = holdCard(EMPTY_DECK, a);
+    s = commitCard(s, a, "seen");
+    s = undoCard(s, a, "seen", true);
+    expect(deckQueue([running, b], s).map((i) => i.id)).toEqual(["a", "b"]);
+  });
+  test("reconciling pins the card on top and forgets dismissals the list has outgrown", () => {
+    const [a, b, c] = three();
+    let s = commitCard(EMPTY_DECK, a, "seen");
+    s = reconcileDeck(s, [b, c]);
+    expect(s.dismissed.size).toBe(0);
+    expect(s.topId).toBe("a1/b");
+    // the list re-sorts: b stays under the thumb
+    expect(deckQueue([c, b], s).map((i) => i.id)).toEqual(["b", "c"]);
+    // nothing changed: the same state object, so React does not re-render
+    expect(reconcileDeck(s, [c, b])).toBe(s);
+  });
+});
+
+describe("what the card says", () => {
+  const r = (role: "user" | "assistant" | "tool") => ({ role, text: role });
+  test("New goes after your last message, when the agent has written since", () => {
+    expect(unreadBoundary([r("assistant"), r("user"), r("tool"), r("assistant")], true)).toBe(2);
+    expect(unreadBoundary([r("assistant"), r("assistant")], true)).toBe(0); // you never spoke: all of it is new
+  });
+  test("no New line on a read card, an unloaded thread, or when the last word is yours", () => {
+    expect(unreadBoundary([r("user"), r("assistant")], false)).toBeNull();
+    expect(unreadBoundary(undefined, true)).toBeNull();
+    expect(unreadBoundary([r("assistant"), r("user")], true)).toBeNull();
+    expect(unreadBoundary([r("user"), r("tool")], true)).toBeNull();
+  });
+  test("days read Today, Yesterday, the weekday, then the date", () => {
+    const now = new Date(2026, 8, 23, 10, 0).getTime();
+    expect(dayLabel(new Date(2026, 8, 23, 0, 5).toISOString(), now)).toBe("Today");
+    expect(dayLabel(new Date(2026, 8, 22, 23, 50).toISOString(), now)).toBe("Yesterday");
+    expect(dayLabel(new Date(2026, 8, 19, 9).toISOString(), now)).toBe("Saturday");
+    expect(dayLabel(new Date(2026, 7, 2, 9).toISOString(), now)).toMatch(/2 Aug/);
+    expect(dayLabel(new Date(2025, 7, 2, 9).toISOString(), now)).toMatch(/2025/);
+    expect(dayLabel(null, now)).toBeNull();
+    expect(dayLabel("not a date", now)).toBeNull();
+  });
+  test("the notice says what the agent waits on, or what it is doing after your reply", () => {
+    expect(cardNotice({ status: "done", agentName: "friday" }, "idle")).toBe("friday is waiting for your reply");
+    expect(cardNotice({ status: "approval", agentName: "friday" }, "idle")).toBe("friday needs your approval");
+    expect(cardNotice({ status: "question", agentName: "friday" }, "idle")).toBe("friday asked you something");
+    expect(cardNotice({ status: "failed", agentName: null }, "idle")).toBe("The agent's last turn failed");
+    expect(cardNotice({ status: "running", agentName: "friday" }, "idle")).toBe("friday is working");
+    expect(cardNotice({ status: "done", agentName: "friday" }, "streaming")).toBe("friday is writing");
+  });
+  test("screen readers hear the outcome, the next card and the count", () => {
+    expect(reviewAnnouncement("seen", { id: "b", title: "Fix the shell" }, 2)).toBe("Marked as read. Next: Fix the shell. 2 left.");
+    expect(reviewAnnouncement("later", { id: "b", title: null }, 1)).toBe("Moved to Later. Next: b. 1 left.");
+    expect(reviewAnnouncement("approve", undefined, 0)).toBe("Approved. You're caught up.");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, beginCommand, buildItems, cancelQueued, chatStatusOf, commandIdOf, commandRunning, emptyLive, finishCommand, keyOf, settleCommands, takeQueued, type ConversationInfo } from "../core/attention/model.ts";
+import { applyEvent, beginCommand, buildItems, cancelQueued, chatStatusOf, commandIdOf, commandRunning, emptyLive, finishCommand, keyOf, settleCommands, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
 import { toTranscript } from "../core/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
@@ -65,21 +65,21 @@ describe("live transcript tail", () => {
     l.tail.push({ role: "user", text: "hello" });
     l.ownSends.push("hello");
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "hello" } });
-    expect(l.tail).toEqual([{ role: "user", text: "hello" }]); // echo recognised
+    expect(l.tail).toMatchObject([{ role: "user", text: "hello" }]); // echo recognised
     applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
     expect(chatStatusOf(l)).toBe("thinking");
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "Let me " } });
     expect(chatStatusOf(l)).toBe("streaming");
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } });
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } }); // same call, more deltas
-    expect(l.tail).toEqual([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
+    expect(l.tail).toMatchObject([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "done." } });
     applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "WAITING_ON_INPUT" } });
-    expect(l.tail.at(-1)).toEqual({ role: "assistant", text: "done." });
+    expect(l.tail.at(-1)).toMatchObject({ role: "assistant", text: "done." });
     expect(chatStatusOf(l)).toBe("idle");
     // a message typed elsewhere (Desktop) shows up as a user row
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "from desktop" } });
-    expect(l.tail.at(-1)).toEqual({ role: "user", text: "from desktop" });
+    expect(l.tail.at(-1)).toMatchObject({ role: "user", text: "from desktop" });
   });
 });
 
@@ -107,7 +107,7 @@ describe("a finished reply re-queues a decided card", () => {
     applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "here is the answer" } });
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(l.lastAssistantText).toBe("here is the answer");
-    expect(l.tail.at(-1)).toEqual({ role: "assistant", text: "here is the answer" });
+    expect(l.tail.at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
     applyEvent(l, { type: "turn_finished", runtime: rt }); // arrives late, with nothing left to settle
     expect(l.lastAssistantText).toBe("here is the answer");
     expect(l.tail.length).toBe(1);
@@ -180,14 +180,14 @@ describe("harness machinery in a live user message", () => {
     const l = emptyLive();
     const rt = { agent_id: "a", conversation_id: "c" };
     applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: 'build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>' } });
-    expect(l.tail).toEqual([
+    expect(l.tail).toMatchObject([
       { role: "event", text: "desk activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
       { role: "user", text: "build it" },
     ]);
     // a message that is only machinery changes the tail but is not the user speaking
     const r = applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } });
     expect(r).toEqual({ changed: true, userSpoke: false });
-    expect(l.tail[2]).toEqual({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
+    expect(l.tail[2]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
   });
 });
 
@@ -223,5 +223,38 @@ describe("slash command rows", () => {
     expect(l.tail[1].summary).toBe("failed");
     expect(l.tail[1].detail).toMatch(/link.*dropped/);
     expect(settleCommands(l)).toBe(false);
+  });
+});
+
+describe("viewed, apart from done", () => {
+  const conv: ConversationInfo = { id: "c", agentId: "a", agentName: "ira", title: "C", lastMessageAt: "2026-09-05T08:00:00Z", archived: false };
+  const digests = new Map([[keyOf("a", "c"), { lastRole: "assistant" as const, lastAssistantText: "Finished.", lastAsk: null }]]);
+  const now = new Date("2026-09-05T10:00:00Z").getTime();
+
+  test("buildItems carries the look; a look does not make the item read", () => {
+    const [i] = buildItems([conv], digests, new Map(), {}, now, { [keyOf("a", "c")]: "2026-09-05T09:00:00Z" });
+    expect(i.viewedAt).toBe("2026-09-05T09:00:00Z");
+    expect(i.unread).toBe(true);
+    expect(i.status).toBe("done");
+    expect(buildItems([conv], digests, new Map(), {}, now)[0].viewedAt).toBeNull();
+  });
+
+  test("unviewed: unread with something newer than the last look", () => {
+    const base = { unread: true, lastMessageAt: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
+    expect(unviewed(base)).toBe(true);
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T07:59:59Z" })).toBe(true);
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00Z" })).toBe(false);
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00.000+00:00" })).toBe(false); // times compared as instants
+    expect(unviewed({ ...base, unread: false })).toBe(false);
+    expect(unviewed({ ...base, lastMessageAt: null, viewedAt: "2026-09-05T08:00:00Z" })).toBe(true); // nothing to compare: still new
+  });
+
+  test("viewStamp: one look per new last message, only while it is unread and unviewed", () => {
+    const base = { agentId: "a", id: "c", unread: true, lastMessageAt: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
+    expect(viewStamp(base)).toBe("a/c@2026-09-05T08:00:00Z");
+    expect(viewStamp({ ...base, viewedAt: "2026-09-05T09:00:00Z" })).toBeNull();
+    expect(viewStamp({ ...base, unread: false })).toBeNull();
+    expect(viewStamp({ ...base, lastMessageAt: null })).toBeNull();
+    expect(viewStamp(null)).toBeNull();
   });
 });

@@ -5,28 +5,115 @@ export type { Task };
 export type ColumnId = "open" | "in_progress" | "blocked" | "done";
 
 export interface Column {
-  id: ColumnId;
+  /** A status column, or "agent" for the one list an agent's view shows. */
+  id: ColumnId | "agent";
   label: string;
   tasks: Task[];
 }
 
 export const PRIORITY_LABEL = ["P0", "P1", "P2", "P3", "P4"] as const;
 
+/** The column a task's status puts it in: open takes deferred and pinned, in progress takes hooked, closed is done whatever its age. Any other status is off the board. */
+export function columnOf(t: Task): ColumnId | null {
+  if (t.status === "open" || t.status === "deferred" || t.status === "pinned") return "open";
+  if (t.status === "in_progress" || t.status === "hooked") return "in_progress";
+  if (t.status === "blocked") return "blocked";
+  if (t.status === "closed") return "done";
+  return null;
+}
+
+const COLUMN_LABEL: Record<ColumnId, string> = { open: "Open", in_progress: "In progress", blocked: "Blocked", done: "Done · 7d" };
+const COLUMN_IDS: ColumnId[] = ["open", "in_progress", "blocked", "done"];
+
 /** Four columns: open (and deferred), in progress, blocked, and what was closed in the last week. */
 export function columnsOf(tasks: Task[], now = Date.now(), doneWindowMs = 7 * 24 * 3600_000): Column[] {
   const byPriorityThenAge = (a: Task, b: Task) => a.priority - b.priority || (b.updatedAt || "").localeCompare(a.updatedAt || "");
-  const open = tasks.filter((t) => t.status === "open" || t.status === "deferred" || t.status === "pinned").sort(byPriorityThenAge);
-  const inProgress = tasks.filter((t) => t.status === "in_progress" || t.status === "hooked").sort(byPriorityThenAge);
-  const blocked = tasks.filter((t) => t.status === "blocked").sort(byPriorityThenAge);
-  const done = tasks
-    .filter((t) => t.status === "closed" && (!t.closedAt || now - new Date(t.closedAt).getTime() < doneWindowMs))
-    .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? ""));
-  return [
-    { id: "open", label: "open", tasks: open },
-    { id: "in_progress", label: "in progress", tasks: inProgress },
-    { id: "blocked", label: "blocked", tasks: blocked },
-    { id: "done", label: "done · 7d", tasks: done },
-  ];
+  const byClosed = (a: Task, b: Task) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "");
+  const recent = (t: Task) => !t.closedAt || now - new Date(t.closedAt).getTime() < doneWindowMs;
+  return COLUMN_IDS.map((id) => ({
+    id,
+    label: COLUMN_LABEL[id],
+    tasks: tasks.filter((t) => columnOf(t) === id && (id !== "done" || recent(t))).sort(id === "done" ? byClosed : byPriorityThenAge),
+  }));
+}
+
+/**
+ * What the board pane shows (plan 013 U11): every task as the four columns, one status column, or one
+ * agent's tasks as a single list. An agent view is keyed by the name the task is assigned to.
+ */
+export type BoardView = "all" | ColumnId | `agent:${string}`;
+
+export interface ViewRow {
+  view: BoardView;
+  label: string;
+  count: number;
+}
+
+const agentOf = (view: BoardView): string | null => (view.startsWith("agent:") ? view.slice("agent:".length) : null);
+
+/** The board's views for the list column, each with the number of tasks it shows: all, each status, then each agent with tasks on the board (by name). */
+export function boardViews(tasks: Task[], now = Date.now()): { views: ViewRow[]; agents: ViewRow[] } {
+  const columns = columnsOf(tasks, now);
+  const onBoard = columns.flatMap((c) => c.tasks);
+  const perAgent = new Map<string, number>();
+  for (const t of onBoard) if (t.assignee) perAgent.set(t.assignee, (perAgent.get(t.assignee) ?? 0) + 1);
+  return {
+    views: [{ view: "all", label: "All tasks", count: onBoard.length }, ...columns.map((c) => ({ view: c.id as ColumnId, label: c.label, count: c.tasks.length }))],
+    agents: [...perAgent].sort(([a], [b]) => a.localeCompare(b)).map(([name, count]) => ({ view: `agent:${name}` as const, label: name, count })),
+  };
+}
+
+/** The columns a view shows: all four for "all", else a single one — the status's, or the agent's tasks in board order. */
+export function viewColumns(tasks: Task[], view: BoardView, now = Date.now()): Column[] {
+  const columns = columnsOf(tasks, now);
+  const agent = agentOf(view);
+  if (agent !== null) return [{ id: "agent", label: agent, tasks: columns.flatMap((c) => c.tasks.filter((t) => t.assignee === agent)) }];
+  if (view === "all") return columns;
+  return columns.filter((c) => c.id === view);
+}
+
+/**
+ * The view to show, and the agent it names when that agent no longer has a task on the board (its column lists
+ * no such row): the view stands and the board asks for a new pick, rather than switching to the whole board
+ * behind your back. Null tasks are still loading, so nothing is missing until they arrive.
+ */
+export function resolveBoardView(view: BoardView, tasks: Task[] | null, now = Date.now()): { view: BoardView; missing: string | null } {
+  const agent = agentOf(view);
+  if (!tasks || agent === null) return { view, missing: null };
+  return { view, missing: boardViews(tasks, now).agents.some((a) => a.view === view) ? null : agent };
+}
+
+/** What the board says in place of a missing agent's list. */
+export const missingAgentLine = (agent: string): string => `${agent} isn't here any more — pick an agent`;
+
+/** A stored view read back; anything unknown is the whole board. */
+export function parseBoardView(raw: string | null | undefined): BoardView {
+  if (raw === "all" || COLUMN_IDS.includes(raw as ColumnId)) return raw as BoardView;
+  if (raw?.startsWith("agent:") && raw.length > "agent:".length) return raw as BoardView;
+  return "all";
+}
+
+export type Dir = "up" | "down" | "left" | "right";
+
+/**
+ * The card the cursor would land on, or null when there is nowhere to go: up and down within its column,
+ * sideways to the nearest non-empty column, same row or the last one there. A single list has no sideways.
+ */
+export function stepCursor(columns: Column[], cursor: string | null, dir: Dir): string | null {
+  if (!cursor) return columns.flatMap((c) => c.tasks)[0]?.id ?? null;
+  const ci = columns.findIndex((c) => c.tasks.some((t) => t.id === cursor));
+  if (ci < 0) return null;
+  const col = columns[ci];
+  const i = col.tasks.findIndex((t) => t.id === cursor);
+  if (dir === "up" || dir === "down") {
+    const next = col.tasks[Math.max(0, Math.min(col.tasks.length - 1, i + (dir === "down" ? 1 : -1)))];
+    return next && next.id !== cursor ? next.id : null;
+  }
+  let j = ci;
+  do j += dir === "right" ? 1 : -1;
+  while (j >= 0 && j < columns.length && columns[j].tasks.length === 0);
+  const target = columns[j];
+  return target ? target.tasks[Math.min(i, target.tasks.length - 1)].id : null;
 }
 
 /** Type-to-filter over title, id, labels, and who filed it. */

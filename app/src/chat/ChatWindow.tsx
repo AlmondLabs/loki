@@ -3,6 +3,7 @@ import { LAYER } from "../kit/layers";
 import { IconButton } from "../components";
 import type { ModelEntry } from "./ModelPicker";
 import { Conversation, ConversationHeader, type ConversationActions, type ConversationView } from "./Conversation";
+import type { ControlledDraft } from "./useDraft";
 import { useAttentive } from "./useAttentive";
 
 export type { ChatStatus } from "./Conversation";
@@ -35,6 +36,7 @@ export function ChatWindow({
   prefill = null,
   modelPickerTick = 0,
   modeMenuTick = 0,
+  draft,
   onClose,
 }: {
   /** The desk's name, over the agent's face in the header. */
@@ -53,6 +55,8 @@ export function ChatWindow({
   prefill?: { text: string; tick: number } | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
+  /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
+  draft?: ControlledDraft;
   onClose: () => void;
 }) {
   const waiting = !!view.approval || !!view.question;
@@ -98,6 +102,7 @@ export function ChatWindow({
         findTick={findTick}
         modelPickerTick={modelPickerTick}
         modeMenuTick={modeMenuTick}
+        draft={draft}
       />
     </div>
   );
@@ -120,7 +125,7 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
   return {
     position: "absolute",
     ...(placement === "center"
-      ? { top: 20, bottom: 16, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border)", borderRadius: 12 }
+      ? { top: 20, bottom: 16, left: "50%", transform: "translateX(-50%)", width: CHAT_CENTER_WIDTH, maxWidth: "calc(100% - 48px)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }
       : placement === "right"
         ? { top: 0, right: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderLeft: "1px solid var(--loki-border)" }
         : { top: 0, left: 0, bottom: 0, width: CHAT_WIDTHS[width], maxWidth: "100%", borderRight: "1px solid var(--loki-border)" }),
@@ -163,7 +168,7 @@ export function ChatBubble({ open, onToggle, alert = false, side = "left" }: { o
       {alert && !open && (
         <span
           aria-label="permission waiting"
-          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, background: "var(--loki-accent)", border: "2px solid var(--loki-bg)" }}
+          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: "var(--loki-radius-sm)", background: "var(--loki-attention)", border: "2px solid var(--loki-bg)" }}
         />
       )}
     </button>

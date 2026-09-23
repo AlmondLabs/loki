@@ -5,9 +5,11 @@ description: Furnish the user's loki canvas (browser widget desk) by writing wid
 
 # loki — the desk is a directory
 
-The canvas is the loki app (or a browser tab) that renders files. There is no render tool. To put
-something on the desk, write a file. To change it, edit the file. To remove it,
-delete the file. Vite hot-reloads the tab within a second.
+The canvas is the loki app (or a browser tab) that renders files: each conversation's
+desk is its **Desk** tab, beside the **Messages** tab that shows the conversation.
+There is no render tool. To put something on the desk, write a file. To change
+it, edit the file. To remove it, delete the file. Vite hot-reloads the tab
+within a second.
 
 ```text
 ~/.letta/loki/widgets/<desk>/<name>.json    # a kit widget
@@ -68,7 +70,11 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   not a layout.
 - Compose `@loki/kit` components where they fit. Tailwind classes work.
   Prefer the tokens: `bg-loki-panel text-loki-fg text-loki-muted text-loki-accent
-  text-loki-positive text-loki-negative`, or CSS vars `--loki-*`.
+  text-loki-positive text-loki-negative`, or CSS vars `--loki-*`. The accent is the
+  link / interactive blue (links, toggles, the one series in a chart). Red
+  `bg-loki-attention text-loki-on-attention` is only for a badge that needs the
+  user; green `bg-loki-affirm text-loki-on-affirm` fills the one go button.
+  Use the sans reading face; `font-loki-mono` only for code and raw data.
 - No network calls from widgets. Data comes from you, through the file.
 
 ## How you hear back
@@ -81,6 +87,9 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
 - **Camera:** `loki_camera({ widgetId })` glides the user's view to a widget;
   `{ widgetIds: [...] }` frames several together. Targets are highlighted
   briefly. New files glide automatically.
+- **In the thread:** each widget you add, change or remove shows as a line in the
+  user's Messages tab; clicking it opens the Desk tab on that widget. No need to
+  narrate where a widget went.
 
 There is no `loki_render` or `loki_author` tool. If you remember them from an
 earlier version, forget them: write the file.
@@ -111,7 +120,7 @@ file tasks silently in the middle of unrelated work.
 
 ```
 loki_task { action: "create", title, description, labels?, priority? }   → { filed: "lk-…" }
-loki_task { action: "list", all? }         tasks assigned to this conversation (all: the whole board)
+loki_task { action: "list", all? }         tasks assigned to this conversation, or filed here unassigned (all: every open task)
 loki_task { action: "comment", id, text }  progress note
 loki_task { action: "close", id, reason }  done
 ```

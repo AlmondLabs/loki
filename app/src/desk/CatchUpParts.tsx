@@ -2,15 +2,18 @@ import type { AttentionItem, AttentionStatus } from "../../../core/attention/mod
 import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
 import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
-import { Button, Chip, Empty, Meta } from "../components";
+import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { ConversationHeader } from "../chat/Conversation";
 
 /** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
 
-/** Status → label and colour for an attention item; the phone inbox (app/src/phone/Inbox.tsx) uses the same table. */
+/**
+ * Status → label and colour for an attention item; the phone inbox (app/src/phone/Inbox.tsx) uses the same table.
+ * Needs-you statuses take the red attention colour, which is only ever a dot or a badge: their words stay fg.
+ */
 export const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
-  approval: { label: "needs approval", color: "var(--loki-accent)" },
-  question: { label: "asked you", color: "var(--loki-accent)" },
+  approval: { label: "needs approval", color: "var(--loki-attention)" },
+  question: { label: "asked you", color: "var(--loki-attention)" },
   failed: { label: "failed", color: "var(--loki-negative)" },
   done: { label: "finished", color: "var(--loki-positive)" },
   running: { label: "running", color: "var(--loki-muted)" },
@@ -32,7 +35,7 @@ export function DeckHeader({ current, position, total, left, liveWaiting, snooze
   return (
     <>
       <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
-        <span>catch up</span>
+        <span>Catch up</span>
         <span>
           {current ? `${position} of ${total} · ${left} left in this pass` : total ? `${total} of ${total}` : ""}
           <span style={{ marginLeft: 14, color: liveWaiting > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{liveWaiting} waiting</span>
@@ -53,17 +56,17 @@ export function CaughtUp({ items, snoozedCount, nextDue, decided, replies }: { i
   const running = items.filter((i) => i.status === "running").length;
   return (
     <Empty card title="You're caught up.">
-      <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>{running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>{running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
       {snoozedCount > 0 && nextDue && (
-        <div style={{ fontSize: 12, color: "var(--loki-accent)", marginTop: 6 }}>
+        <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 6 }}>
           {snoozedCount} snoozed · next back in {formatIn(nextDue)} · <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>S</span> to show them now
         </div>
       )}
       {(decided.length > 0 || replies > 0) && (
-        <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{passSummary(decided, replies)}</div>
+        <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
-      <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 6 }}>anything new lands here while this stays open</div>
-      <div style={{ marginTop: 18, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>anything new lands here while this stays open</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
     </Empty>
   );
 }
@@ -80,6 +83,12 @@ export function passSummary(decided: Decision[], replies: number): string {
   ].join(" · ");
 }
 
+/** The statuses that wait on you: a red dot beside fg words, never red text (red text is not AA). */
+export const needsYou = (status: AttentionStatus) => status === "approval" || status === "question";
+
+/** A meta word worth noticing (warm, came back, deferred again): fg semibold instead of the old brass. */
+const NOTED = { color: "var(--loki-fg)", fontWeight: 600 } as const;
+
 export interface CardHeaderProps {
   current: AttentionItem;
   cameBack: boolean;
@@ -94,11 +103,11 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
   return (
-    <ConversationHeader title={current.title ?? current.id} agentName={current.agentName} agentId={current.agentId} right={<Chip tone={badge.color}>{flash ?? badge.label}</Chip>}>
+    <ConversationHeader title={current.title ?? current.id} agentName={current.agentName} agentId={current.agentId} right={needsYou(current.status) ? <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}><Dot color={badge.color} />{flash ?? badge.label}</Chip> : <Chip tone={badge.color}>{flash ?? badge.label}</Chip>}>
       <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
-      {reason && <Meta brass={reason === "warm"}>{reason}</Meta>}
-      {cameBack && <Meta brass>back · new since you moved on</Meta>}
-      {timesAround > 1 && <Meta brass>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
+      {reason && <Meta style={reason === "warm" ? NOTED : undefined}>{reason}</Meta>}
+      {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
+      {timesAround > 1 && <Meta style={NOTED}>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
       {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}
     </ConversationHeader>
   );
@@ -122,7 +131,7 @@ export function CardActions({ current, typing, advance, onOpenDesk, onClose }: {
 /** The key legend under the deck, in whichever grammar applies right now. */
 export function KeysHint({ typing }: { typing: boolean }) {
   return (
-    <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
+    <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
       {typing ? "enter send (you stay on the card) · ⌘] next · ⌘[ later · ⌘↵ approve · ⌘⇧D deny · ⌘O open · ⌘S snoozed · esc back to the deck's keys" : "→ next · ← later · A approve · D deny · R reply · O open · S snoozed · Z undo · esc close"}
     </div>
   );

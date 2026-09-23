@@ -1,11 +1,13 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails, AgentsApi } from "../agents/Agents";
-import { AgentFace } from "../desk/AgentChip";
+import { ago } from "../board/model";
 import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
-import { liveDeskCount, liveDesksLabel } from "./model";
+import { AGENT_FILTERS, agentLine, agentRows, agentsShown, type AgentFilter, type AgentRowModel, type LinkState } from "./model";
 import { navigate } from "./router";
-import { Meta, Row } from "../components";
+import { Avatar, PhoneRow } from "./rows";
+import { Button, Chip } from "../components";
 import { Scroll, TopBar } from "./ui";
 
 /** What the phone reads about agents: the mod's `agent_get`, `memory_read`, `memory_log`, `memory_diff`. */
@@ -17,6 +19,8 @@ export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
  */
 const cache = new Map<string, AgentDetails | null>();
 const inflight = new Map<string, Promise<AgentDetails | null>>();
+/** An agent's description when its record is already here; Search reads it and never asks the Mac. */
+export const knownDescription = (agentId: string): string | null => cache.get(agentId)?.agent.description ?? null;
 export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): AgentDetails | null | undefined {
   const [d, setD] = useState<AgentDetails | null | undefined>(() => (agentId ? cache.get(agentId) : undefined));
   useEffect(() => {
@@ -46,54 +50,86 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
 }
 
 /**
- * The Agents tab: one row per agent the app-server lists — face, name, a line about it, its model,
- * how many desks are live. Everything here is read-only; the row opens the agent's page.
+ * The filter chosen on the Agents tab, kept for the session like the records: the tab mounts afresh each
+ * visit, and its place in the list comes back from the scroll memory, so its filter comes back from here.
  */
-export function Agents({ agents, loaded, desks, api, sub, banner }: { agents: Array<{ id: string; name: string }>; loaded: boolean; desks: DeskSummary[]; api: PhoneAgentsApi; sub?: ReactNode; banner?: ReactNode }) {
+const kept = new Map<"filter", AgentFilter>();
+
+/**
+ * The Agents tab, Slack's DM list with loki's agents: one avatar-led row each — its name (bold while
+ * something of it waits on you), what it is doing and who it is on one line, when its memory last
+ * changed, the count waiting on you as the badge, and a presence dot while a turn runs. Chips narrow the
+ * list to the agents running or waiting on you. A row opens the agent's profile; the list's place and the
+ * filter survive the trip.
+ */
+export function Agents({ agents, loaded, link, desks, items, api, banner }: { agents: Array<{ id: string; name: string }>; loaded: boolean; link: LinkState; desks: DeskSummary[]; items: AttentionItem[]; api: PhoneAgentsApi; banner?: ReactNode }) {
+  const [filter, setFilterState] = useState<AgentFilter>(() => kept.get("filter") ?? "all");
+  const setFilter = (f: AgentFilter) => {
+    kept.set("filter", f);
+    setFilterState(f);
+  };
+  const rows = useMemo(() => agentRows(agents, desks, items), [agents, desks, items]);
+  const shown = agentsShown(rows, filter);
+  const running = rows.filter((r) => r.running).length;
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <TopBar title="Agents" sub={sub} />
+    <div className="loki-phone-page">
+      <TopBar title="Agents" sub={rows.length ? <span>{rows.length === 1 ? "1 agent" : `${rows.length} agents`}{running ? ` · ${running} running` : ""}</span> : undefined} />
       {banner}
-      <Scroll style={{ padding: 0 }}>
-        <ul aria-label="agents" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {agents.map((a) => (
-            <AgentRow key={a.id} agent={a} api={api} live={liveDeskCount(desks, a.id)} />
+      <Scroll memory="agents" flush>
+        {rows.length > 0 && (
+          <div role="group" aria-label="Show" className="loki-phone-chips loki-phone-filter">
+            {AGENT_FILTERS.map((f) => (
+              <Chip key={f.id} touch active={filter === f.id} aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
+                {f.label}
+              </Chip>
+            ))}
+          </div>
+        )}
+        <ul aria-label="agents" className="loki-phone-list">
+          {shown.map((r) => (
+            <AgentRow key={r.id} row={r} api={api} />
           ))}
         </ul>
-        {agents.length === 0 && <div style={{ padding: "32px 16px", fontSize: 13.5, color: "var(--loki-muted)", textAlign: "center" }}>{loaded ? "No agents yet. Make one in loki on the Mac." : "asking the Mac…"}</div>}
+        {rows.length === 0 ? (
+          !loaded ? (
+            <p className="loki-phone-empty">{link === "offline" ? "The Mac is unreachable. Agents show once it answers." : "Asking the Mac…"}</p>
+          ) : (
+            <div className="loki-phone-empty">
+              <p className="loki-phone-headline">No agents yet</p>
+              <p>Make one in loki on the Mac; it shows here at once.</p>
+            </div>
+          )
+        ) : (
+          shown.length === 0 && (
+            <div className="loki-phone-empty">
+              <p>{filter === "running" ? "No agent is working right now." : "Nothing waits on you."}</p>
+              <Button size="touch" tone="paper" onClick={() => setFilter("all")}>
+                Show all agents
+              </Button>
+            </div>
+          )
+        )}
       </Scroll>
     </div>
   );
 }
 
-function AgentRow({ agent, api, live }: { agent: { id: string; name: string }; api: PhoneAgentsApi; live: number }) {
-  const d = useAgentDetails(api, agent.id);
-  const description = d?.agent.description ?? null;
-  const model = d?.agent.model ?? null;
+/** One agent: its record (description, last memory change) arrives from the shared cache and fills the row in. */
+function AgentRow({ row, api }: { row: AgentRowModel; api: PhoneAgentsApi }) {
+  const d = useAgentDetails(api, row.id);
+  const name = d?.agent.name ?? row.name;
+  const line = d === null ? agentLine(row, "No local record on this Mac") : agentLine(row, d?.agent.description);
   return (
-    <li style={{ borderBottom: "1px solid var(--loki-border)" }}>
-      <Row touch onClick={() => navigate({ kind: "agent", agentId: agent.id })} style={{ alignItems: "flex-start", gap: 12, padding: `12px calc(12px + env(safe-area-inset-right, 0px)) 12px calc(12px + env(safe-area-inset-left, 0px))`, touchAction: "manipulation" }}>
-        <AgentFace name={agent.name} src={avatarUrl(agent.id)} size={28} />
-        <span style={{ flex: 1, minWidth: 0, display: "grid", gap: 4 }}>
-          <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)" }}>{d?.agent.name ?? agent.name}</span>
-          {description && <span style={{ fontSize: 13.5, lineHeight: 1.45, color: "var(--loki-muted)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{description}</span>}
-          {d === null && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no local record on this Mac</span>}
-          <Meta style={{ marginTop: 2 }}>
-            {model ? `${model} · ` : ""}
-            {liveDesksLabel(live)}
-          </Meta>
-        </span>
-        <Chevron />
-      </Row>
-    </li>
-  );
-}
-
-/** The "there is a page behind this row" chevron. */
-export function Chevron() {
-  return (
-    <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="var(--loki-muted)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flex: "0 0 auto", alignSelf: "center" }}>
-      <path d="m7.5 4 6 6-6 6" />
-    </svg>
+    <PhoneRow
+      lead={<Avatar name={name} src={avatarUrl(row.id)} presence={row.running} />}
+      title={name}
+      preview={line}
+      time={d?.lastCommit ? ago(d.lastCommit.at) : null}
+      badge={row.waiting || null}
+      unread={row.waiting > 0}
+      label={`${name}, ${line}`}
+      launch={`agent:${row.id}`}
+      onOpen={() => navigate({ kind: "agent", agentId: row.id })}
+    />
   );
 }

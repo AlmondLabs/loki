@@ -186,8 +186,8 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
       }}
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
-        <div className="loki-label">new desk</div>
-        <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", marginTop: 4 }}>a fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
+        <div className="loki-label">New desk</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>A fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
       </div>
 
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
@@ -215,11 +215,11 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
         />
 
         <div>
-          <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>name <span style={{ textTransform: "none", letterSpacing: 0 }}>· optional, Letta names it from the first exchange otherwise</span></div>
+          <div className="loki-label" style={{ marginBottom: 6 }}>Name <span style={{ fontWeight: 400 }}>· optional, Letta names it from the first exchange otherwise</span></div>
           <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this desk is about" aria-label="desk name" autoComplete="off" />
         </div>
 
-        {error && <div style={{ color: "var(--loki-negative)", fontSize: 12, fontFamily: "var(--loki-mono)" }}>{error}</div>}
+        {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}
       </div>
 
       <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
@@ -227,19 +227,19 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
   );
 }
 
-/** The agent row: one radio chip per agent, the chosen one in brass. */
+/** The agent row: one radio chip per agent, the chosen one pressed (active). */
 function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"]; agentId: string | null; onPick: (id: string) => void }) {
   return (
     <div>
-      <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6 }}>agent</div>
+      <div className="loki-label" style={{ marginBottom: 6 }}>Agent</div>
       <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {agents.map((a) => (
-          <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} brass={a.id === agentId} onClick={() => onPick(a.id)}>
+          <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} active={a.id === agentId} onClick={() => onPick(a.id)}>
             <AgentFace name={a.name} src={avatarUrl(a.id)} size={14} />
             {a.name}
           </Chip>
         ))}
-        {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
+        {agents.length === 0 && <span className="loki-meta loki-meta--wrap">no agents yet — is Desktop running?</span>}
       </div>
     </div>
   );
@@ -248,7 +248,7 @@ function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"
 /** The folder's verdict beside its label: the branch when it is a repo, "folder ok" otherwise, the reason when it is not. */
 function FolderVerdict({ status }: { status: FolderStatus }) {
   return (
-    <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: "var(--loki-mono)", color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
+    <span style={{ fontWeight: 400, color: status ? (status.ok ? "var(--loki-positive)" : "var(--loki-negative)") : "var(--loki-muted)" }}>
       {status ? (status.ok ? (status.branch ? `⎇ ${status.branch}` : "folder ok") : status.reason) : ""}
     </span>
   );
@@ -290,10 +290,10 @@ function FolderPicker({
   const [hi, setHi] = useState(0);
   return (
     <div style={{ position: "relative" }}>
-      <div className="loki-label" style={{ fontSize: 10.5, marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+      <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
         <span>
-          folder
-          {source && <span style={{ textTransform: "none", letterSpacing: 0, marginLeft: 6, fontFamily: "var(--loki-mono)" }}>· {source === "current" ? "current desk" : `recent for ${agentName ?? "this agent"}`}</span>}
+          Folder
+          {source && <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current desk" : `recent for ${agentName ?? "this agent"}`}</span>}
         </span>
         <FolderVerdict status={status} />
       </div>
@@ -340,13 +340,13 @@ function FolderPicker({
 /** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
 function FolderList({ options, hi, onHover, onChoose, agentName }: { options: FolderOption[]; hi: number; onHover: (i: number) => void; onChoose: (path: string) => void; agentName: string | null }) {
   return (
-    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
       {options.map((o, i) => {
         const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
         const first = i === 0 || options[i - 1].group !== o.group;
         return (
           <div key={o.path}>
-            {first && o.group !== "match" && <div className="loki-label" style={{ fontSize: 9.5, padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "this agent"}'s recent folders` : "other agents' folders"}</div>}
+            {first && o.group !== "match" && <div className="loki-label" style={{ padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "This agent"}'s recent folders` : "Other agents' folders"}</div>}
             <Row
               dense
               role="option"
@@ -360,7 +360,7 @@ function FolderList({ options, hi, onHover, onChoose, agentName }: { options: Fo
               style={{ display: "grid", gap: 0 }}
             >
               <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
-              <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
+              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>{o.path}</div>
             </Row>
           </div>
         );
@@ -372,10 +372,10 @@ function FolderList({ options, hi, onHover, onChoose, agentName }: { options: Fo
 function NewDeskFooter({ canStart, busy, onClose, onStart }: { canStart: boolean; busy: false | "creating" | "picking"; onClose: () => void; onStart: () => void }) {
   return (
     <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
-      <span className="loki-label" style={{ fontSize: 10.5 }}>enter start · esc close</span>
+      <span className="loki-label">Enter start · esc close</span>
       <span style={{ flex: 1 }} />
       <Button size="sm" onClick={onClose}>cancel</Button>
-      <Button size="sm" tone="brass" onClick={onStart} disabled={!canStart}>
+      <Button size="sm" tone="positive" onClick={onStart} disabled={!canStart}>
         {busy === "creating" ? "starting…" : "start"}
       </Button>
     </div>

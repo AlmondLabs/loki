@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
@@ -29,18 +29,23 @@ export const ChatInput = forwardRef<
     onImages?: (images: ImageAttachment[]) => void;
     placeholder?: string;
     disabled?: boolean;
+    /** A "+" before the box that picks images from the device, for hosts without paste or drop (the phone). */
+    attach?: boolean;
+    /** The host's own glyphs for attach and dictate (the phone's icon set); omitted, the box's own. */
+    icons?: { attach?: ReactNode; mic?: ReactNode };
     style?: CSSProperties;
     "aria-controls"?: string;
     "aria-activedescendant"?: string;
     "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, style, ...aria }, ref) {
+>(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, attach = false, icons, style, ...aria }, ref) {
   const addBlobs = async (blobs: Blob[]) => {
     if (!onImages || !blobs.length) return;
     const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
     onImages([...images, ...added.filter((a): a is ImageAttachment => !!a)]);
   };
   const inner = useRef<HTMLTextAreaElement | null>(null);
+  const picker = useRef<HTMLInputElement | null>(null);
   const setRef = (el: HTMLTextAreaElement | null) => {
     inner.current = el;
     if (typeof ref === "function") ref(el);
@@ -106,7 +111,7 @@ export const ChatInput = forwardRef<
         <div data-attachments style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {images.map((img) => (
             <span key={img.id} style={{ position: "relative", display: "inline-block" }}>
-              <img src={img.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: 6, border: "1px solid var(--loki-border)", display: "block" }} />
+              <img src={img.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
               <button
                 type="button"
                 onClick={() => onImages?.(images.filter((i) => i.id !== img.id))}
@@ -119,9 +124,33 @@ export const ChatInput = forwardRef<
           ))}
         </div>
       )}
-      <div style={{ position: "relative", display: "flex", minWidth: 0 }}>
+      <div className="loki-composer-field" data-attach={attach || undefined}>
+      {attach && onImages && (
+        <>
+          <IconButton size={36} label="attach images" onClick={() => picker.current?.click()} disabled={disabled} className="loki-composer-attach">
+            {icons?.attach ?? (
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+            )}
+          </IconButton>
+          <input
+            ref={picker}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+              e.target.value = ""; // the same photo can be picked again
+              void addBlobs(files);
+            }}
+          />
+        </>
+      )}
       <TextArea
         ref={setRef}
+        className="loki-composer-text"
         value={value}
         rows={1}
         name="message"
@@ -185,7 +214,7 @@ export const ChatInput = forwardRef<
           flex: 1,
           lineHeight: "20px",
           padding: dictation.supported ? "7px 40px 7px 12px" : "7px 12px",
-          // Listening: the box's edge turns brass until the recogniser stops.
+          // Listening: the box's edge turns the accent until the recogniser stops.
           ...(listening ? { borderColor: "var(--loki-accent)" } : null),
           ...style,
         }}
@@ -199,18 +228,20 @@ export const ChatInput = forwardRef<
           label={listening ? "stop dictating" : "dictate"}
           aria-pressed={listening}
           title={listening ? "stop dictating" : "dictate (⌘D)"}
-          style={{ position: "absolute", right: 6, bottom: 6 }}
+          className="loki-composer-mic"
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-            <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
-            <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
-          </svg>
+          {icons?.mic ?? (
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
+              <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
+            </svg>
+          )}
           {listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
         </IconButton>
       )}
       </div>
       {dictation.error && (
-        <span id="loki-dictation-error" role="status" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6, fontSize: 10.5, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
+        <span id="loki-dictation-error" role="status" className="loki-meta loki-meta--negative" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6 }}>
           {dictation.error}
         </span>
       )}

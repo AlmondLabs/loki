@@ -26,19 +26,19 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
   };
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      {skills === null && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>reading…</div>}
-      {skills?.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>none</div>}
+      {skills === null && <div className="loki-meta loki-meta--wrap">reading…</div>}
+      {skills?.length === 0 && <div className="loki-meta loki-meta--wrap">none</div>}
       <div style={{ display: "grid", gap: 2 }}>
         {(skills ?? []).map((g) => (
-          <div key={g.name} className="loki-tree-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0 3px 8px", borderRadius: 6 }} title={g.description ?? g.path}>
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
-            <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "45%" }}>{g.source ?? (g.isLink ? "link" : "copy")}</span>
+          <div key={g.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "3px 0 3px 8px", borderRadius: "var(--loki-radius-sm)" }} title={g.description ?? g.path}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
+            <span className="loki-meta" style={{ maxWidth: "45%" }}>{g.source ?? (g.isLink ? "link" : "copy")}</span>
             <Button size="sm" onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))}>disable</Button>
           </div>
         ))}
       </div>
       <PathAdd onAdd={(path) => api.enable(path).then((err) => (err ? err : (flash("enabled"), load(), null)))} />
-      {notice && <div style={{ fontSize: 12, color: "var(--loki-accent)" }}>{notice}</div>}
+      {notice && <div className="loki-meta loki-meta--wrap">{notice}</div>}
     </div>
   );
 }
@@ -66,7 +66,7 @@ function PathAdd({ onAdd }: { onAdd: (path: string) => Promise<string | null> })
         <Field size="sm" mono value={path} onChange={(e) => setPath(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="enable a folder: /path/to/skill (holding a SKILL.md)" autoComplete="off" data-form-type="other" style={{ flex: 1 }} />
         <Button size="sm" onClick={() => void go()} disabled={busy || !path.trim()}>{busy ? "enabling…" : "enable"}</Button>
       </div>
-      {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+      {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
     </div>
   );
 }

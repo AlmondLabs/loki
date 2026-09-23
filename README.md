@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/desk.png" width="900" alt="A desk: a plan for Saturday, last night's sleep, the week's runs as a bar chart, a packing list, a run streak, a thermostat slider">
+  <img src="docs/images/desk.png" width="900" alt="A desk's Desk tab, beside its Messages tab: a plan for Saturday, last night's sleep, the week's runs as a bar chart, a packing list, a run streak, a thermostat slider">
 </p>
 
 Agents talk in text. loki gives yours a desk. Ask for a chart, a checklist, a slider, a plan for the day, and
@@ -49,19 +49,19 @@ that provider charges. Everything else, including the Homebrew install of the fi
 
 | | | |
 |---|---|---|
-| **Desk** | ⌘1 | One desk per conversation, furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Pan, zoom, arrange, undo. |
-| **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards, highest score first: blocked agents, then warm replies to you (their prompt is still cached, so answering now is cheap), then the rest. Approve and reply inline; a reply keeps the card while the answer streams in. ⌥Space opens it from anywhere on the Mac. |
+| **Desk** | ⌘1 | One desk per conversation, furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Desks sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Desk** is the canvas, to pan, zoom, arrange, undo. ⌘K finds any desk, agent or page. |
+| **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards, highest score first: blocked agents, then warm replies to you (their prompt is still cached, so answering now is cheap), then the rest. Approve and reply inline; a reply keeps the card while the answer streams in. Opening a desk only marks it viewed: its card stays until you act or **Mark as done** (⌘⇧↵). ⌥Space opens it from anywhere on the Mac. |
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a desk, or dispatch so the agent starts now. |
-| **Agents** | ⌘4 | A page per agent: profile and model, its memory files as a tree, what it learned as a timeline of commits, and its skills with one-click refresh from upstream. |
+| **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, Letta's reflection settings, and its skills with one-click refresh from upstream. |
 | **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
-| **Phone** | | The inbox and the desks on your phone over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. |
+| **Phone** | | The inbox, every desk's conversation, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and done agree with the Mac. |
 
 <p align="center">
-  <img src="docs/images/board.png" width="900" alt="The board: open, in progress, blocked and done columns, each task stamped with who filed it and which agent holds it">
+  <img src="docs/images/board.png" width="900" alt="The board: a sidebar of views and agents, then open, in progress, blocked and done columns, each task stamped with who filed it and which desk holds it">
 </p>
 
 <p align="center">
-  <img src="docs/images/recall.png" width="900" alt="A card in Learn: the question, the answer revealed, and two buttons, again or got it">
+  <img src="docs/images/recall.png" width="900" alt="A card in Learn, beside its views (review, leads, all cards, deleted): the question, the answer revealed, and two buttons, again or got it">
 </p>
 
 ## Install
@@ -101,7 +101,7 @@ your Mac — the same `letta` a terminal runs — or installs it with `npm insta
 a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and others; you pay that provider, loki never
 sees the key), and helps you name your first agent. Then ask it to put something on the desk. If Letta Desktop
 or a `letta server` is already running, loki attaches to that harness instead of launching one. loki runs
-whatever Letta Code is on the Mac; it was last tested with 0.32.10, and Settings › letta says where yours stands
+whatever Letta Code is on the Mac; it was last tested with 0.32.10, and Settings › Letta says where yours stands
 against that and offers the update.
 
 ## Your first widget
@@ -147,13 +147,14 @@ chose. [docs/architecture.md](docs/architecture.md) has the long version.
 
 ```text
 mod/            Letta mod, plain TypeScript; boot.ts bundles it fresh on each /reload (no manual build)
-core/           desk-core (types + the pure gesture reducer both halves use), attention, recall — portable, no browser globals
-app/            Vite + React canvas
+core/           desk-core (types + the pure gesture reducer both halves use), attention, recall, compat (the Letta Code range) — portable, no browser globals
+app/            Vite + React: the desktop views, the canvas and the phone
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
 src-tauri/      the macOS shell (Rust): finds or installs Letta Code, launches or attaches to the harness, hosts the canvas
-scripts/        build-mod (the bundle the app ships), harness (run the mod without Letta), cask (Homebrew)
+scripts/        dev (`bun start`), build-mod (the bundle the app ships), harness (run the mod without Letta), cask (Homebrew),
+                release (date versions, notes), analytics (the local usage report)
 test/           bun tests
-docs/           the manual, learn (the mental model), architecture, design direction, dated plans; CONTRIBUTING, SECURITY and RELEASING
+docs/           the manual, learn (the mental model), architecture, design direction, dated plans and research; CONTRIBUTING, SECURITY and RELEASING
 ```
 
 ## Development
@@ -185,7 +186,7 @@ of the installed mod, see the manual's [Install (development)](docs/manual.md#in
 - [The manual](docs/manual.md): every view, every key, every file loki writes.
 - [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a sweep costs.
 - [Architecture](docs/architecture.md): Letta's four layers and the journey of a message.
-- [Design](docs/design.md): a drafting table at night, and the token contract that keeps it so.
+- [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/RELEASING.md).
 
 Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever; and widget code

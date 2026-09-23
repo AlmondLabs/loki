@@ -5,7 +5,9 @@ import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../core/attentio
 /**
  * Catch Up state the mod keeps on disk, keyed by agent + conversation (every
  * agent's main chat is called "default"):
- *  - seen:   when the user last looked at a conversation (Letta has no read marker we can see)
+ *  - seen:   when the user last finished with a conversation, "done" (Letta has no read marker we can see)
+ *  - viewed: when the user last looked at it (opened it, a new message arrived while it was open); a look
+ *            is not done, so the two move apart: the sidebar's bold follows viewed, the Inbox follows seen
  *  - snooze: "later" deferrals with their backoff count (see core/attention/snooze.ts)
  *  - ladder: how long "later" hides a card — the first deferral in minutes and the growth per further one
  *            (core/attention/ladder.ts); absent means the defaults
@@ -20,6 +22,7 @@ export interface SnoozeRecord {
 
 export class SeenStore {
   private seen: Record<string, string> = {};
+  private viewed: Record<string, string> = {};
   private snooze: Record<string, SnoozeRecord> = {};
   private ladderSetting: SnoozeLadder | null = null;
   private readonly path: string;
@@ -30,6 +33,7 @@ export class SeenStore {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
       if (parsed && typeof parsed.seen === "object" && parsed.seen) {
         this.seen = parsed.seen as Record<string, string>;
+        if (parsed.viewed && typeof parsed.viewed === "object") this.viewed = parsed.viewed as Record<string, string>;
         if (parsed.snooze && typeof parsed.snooze === "object") this.snooze = parsed.snooze as Record<string, SnoozeRecord>;
         if (parsed.ladder && typeof parsed.ladder === "object") this.ladderSetting = clampLadder(parsed.ladder as Partial<Record<keyof SnoozeLadder, unknown>>);
       } else {
@@ -46,6 +50,10 @@ export class SeenStore {
 
   all(): Record<string, string> {
     return { ...this.seen };
+  }
+
+  viewedAll(): Record<string, string> {
+    return { ...this.viewed };
   }
 
   snoozes(): Record<string, SnoozeRecord> {
@@ -69,6 +77,12 @@ export class SeenStore {
     this.persist();
   }
 
+  /** A look: opening the conversation, or a message arriving while it is open. Never touches seen. */
+  view(agentId: string | null | undefined, conversationId: string): void {
+    this.viewed[SeenStore.key(agentId, conversationId)] = new Date().toISOString();
+    this.persist();
+  }
+
   unmark(agentId: string | null | undefined, conversationId: string): void {
     delete this.seen[SeenStore.key(agentId, conversationId)];
     this.persist();
@@ -87,7 +101,7 @@ export class SeenStore {
   private persist(): void {
     try {
       mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(`${this.path}.tmp`, JSON.stringify({ seen: this.seen, snooze: this.snooze, ...(this.ladderSetting ? { ladder: this.ladderSetting } : {}) }, null, 2));
+      writeFileSync(`${this.path}.tmp`, JSON.stringify({ seen: this.seen, snooze: this.snooze, ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}), ...(this.ladderSetting ? { ladder: this.ladderSetting } : {}) }, null, 2));
       renameSync(`${this.path}.tmp`, this.path);
     } catch {
       // best effort

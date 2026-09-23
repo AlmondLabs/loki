@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { needsReload, shouldAutoReload } from "./model";
 import { Button } from "../components";
-import { SAFE } from "./ui";
 
 /** The build id index.html was served with; undefined on an index.html from before builds were stamped. */
 export const currentBuild = (): string | null => window.__LOKI__?.build ?? null;
@@ -22,10 +21,11 @@ async function servedBuildNow(): Promise<string | null> {
 /**
  * A home-screen web app has no reload button, so the page watches for a newer canvas: the mod says so
  * over the socket (`app_build`), and /health is asked when the app comes back to the front and once a
- * minute while it is. A change shows a thin bar — brass, because this one needs a tap — and a change
- * found after more than thirty seconds in the background reloads at once, since nothing is mid-flight.
+ * minute while it is. A change found after more than thirty seconds in the background reloads at once,
+ * since nothing is mid-flight. This hook is the /health half, called once by the shell (Phone.tsx) so the
+ * bar's remounts neither lose what it heard nor restart the minute.
  */
-export function UpdateBar({ servedBuild, withTabBar }: { servedBuild: string | null; withTabBar: boolean }) {
+export function useHealthBuild(): string | null {
   const current = currentBuild();
   const [health, setHealth] = useState<string | null>(null);
   const hiddenAt = useRef<number | null>(null);
@@ -63,9 +63,20 @@ export function UpdateBar({ servedBuild, withTabBar }: { servedBuild: string | n
     };
   }, [current]);
 
+  return health;
+}
+
+/**
+ * A change shows a thin bar — brass, because this one needs a tap. On a tab it rides in the navigation's
+ * dock, above the capsule; on a full-screen page it is the strip at the bottom and clears the home
+ * indicator itself (phone.css, .loki-phone-update).
+ */
+export function UpdateBar({ servedBuild, health }: { servedBuild: string | null; /** From useHealthBuild. */ health: string | null }) {
+  const current = currentBuild();
+
   if (!needsReload(servedBuild, current) && !needsReload(health, current)) return null;
   return (
-    <div style={{ flex: "0 0 auto", padding: `6px calc(12px + ${SAFE.right}) ${withTabBar ? "6px" : `calc(6px + ${SAFE.bottom})`} calc(12px + ${SAFE.left})`, borderTop: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}>
+    <div className="loki-phone-update">
       <Button block size="touch" tone="brass" onClick={() => location.reload()}>
         loki updated · tap to reload
       </Button>

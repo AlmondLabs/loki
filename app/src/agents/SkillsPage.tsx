@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { MemorySkillInfo } from "../../../mod/skill-sources.ts";
-import { Button, Chip, Field, Row, TextArea } from "../components";
+import { Button, Chip, Field, Row, TextArea, sentence } from "../components";
 import { Head, ListPane, Pane, Prose } from "./bits";
 import type { AgentDetails } from "./types";
 import type { AgentStore } from "./useAgentDetails";
@@ -19,16 +19,16 @@ export function SkillsPage({ d, store, viewSkill, onPickSkill, adding, setAdding
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(260px, 340px) 1fr" }}>
       <ListPane>
         <Head>
-          skills
+          Skills
           <span style={{ marginLeft: "auto", display: "inline-flex", gap: 8 }}>
             <Chip label active={adding === "write"} aria-pressed={adding === "write"} onClick={() => setAdding(adding === "write" ? null : "write")}>write</Chip>
             <Chip label active={adding === "install"} aria-pressed={adding === "install"} onClick={() => setAdding(adding === "install" ? null : "install")}>install</Chip>
           </span>
         </Head>
         {adding && <SkillAdd key={adding} mode={adding} onWrite={store.addSkill} onInstall={store.installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
-        {d.skills.length === 0 && !adding && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none in memory</div>}
+        {d.skills.length === 0 && !adding && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>none in memory</div>}
         <SkillList skills={d.skills} shown={viewSkill} onPick={onPickSkill} />
-        <div style={{ fontSize: 10.5, color: "var(--loki-muted)", padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
+        <div className="loki-meta loki-meta--wrap" style={{ padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
       </ListPane>
       <Pane>
         <SkillView d={d} store={store} skill={viewSkill} reading={reading} />
@@ -46,14 +46,14 @@ function SkillList({ skills, shown, onPick }: { skills: MemorySkillInfo[]; shown
         if (list.length === 0) return null;
         return (
           <div key={origin} style={{ minWidth: 0 }}>
-            <div className="loki-label" style={{ fontSize: 9.5, padding: "2px 8px" }}>{origin} · {list.length}</div>
+            <div className="loki-label" style={{ padding: "2px 8px" }}>{sentence(origin)} · {list.length}</div>
             {list.map((x) => {
               const on = shown?.name === x.name;
               return (
                 <Row dense key={x.name} selected={on} onClick={() => onPick(x.name)} title={x.description ?? x.name} style={{ justifyContent: "space-between", gap: 8, fontSize: 13.5 }}>
-                  <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--loki-mono)" }}>{x.name}</span>
+                  <span style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.name}</span>
                   {origin === "other" && (
-                    <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: x.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 1 auto", minWidth: 0, maxWidth: "50%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={x.source ? `from ${x.source.label}` : "source unknown"}>
+                    <span style={{ fontSize: 10.5, color: x.source ? "var(--loki-muted)" : "var(--loki-accent)", flex: "0 1 auto", minWidth: 0, maxWidth: "50%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={x.source ? `from ${x.source.label}` : "source unknown"}>
                       {x.source ? x.source.label : "source?"}
                     </span>
                   )}
@@ -70,7 +70,7 @@ function SkillList({ skills, shown, onPick }: { skills: MemorySkillInfo[]; shown
 /** The picked skill, read: its path and actions above, where it came from, its description, then the SKILL.md. */
 function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: AgentStore; skill: MemorySkillInfo | null; reading: ReadingState }) {
   const { content, loadingView } = reading;
-  if (!skill) return <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>;
+  if (!skill) return <div className="loki-meta loki-meta--wrap">{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>;
   return (
     <>
       <SkillActions d={d} store={store} skill={skill} loadingView={loadingView} />
@@ -88,9 +88,9 @@ function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: Agent
 function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store: AgentStore; skill: MemorySkillInfo; loadingView: boolean }) {
   const { refreshing, refreshSkill, removeSkill, flash } = store;
   return (
-    <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 6 }}>
-      <span style={{ color: "var(--loki-fg)", letterSpacing: 0, fontFamily: "var(--loki-mono)", textTransform: "none" }}>{skill.path}</span>
-      {loadingView && <span>loading…</span>}
+    <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+      <span style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)" }}>{skill.path}</span>
+      {loadingView && <span>Loading…</span>}
       <span style={{ flex: 1 }} />
       {skill.origin === "other" && (
         <Button tone="brass" onClick={() => void refreshSkill(skill).then((err) => err && flash(err))} disabled={refreshing === skill.name} title={skill.source ? `pull the latest from ${skill.source.label} and reconcile with ${d.agent.name}'s copy` : "say where this skill came from, then pull the latest"}>
@@ -107,7 +107,7 @@ function SkillActions({ d, store, skill, loadingView }: { d: AgentDetails; store
 /** Where the skill came from: written by the agent, from a source, or installed with the source unknown (in the accent, as a nudge). */
 function SkillOrigin({ skill, agentName }: { skill: MemorySkillInfo; agentName: string }) {
   return (
-    <div style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+    <div style={{ fontSize: 10.5, color: skill.origin === "other" && !skill.source ? "var(--loki-accent)" : "var(--loki-muted)" }}>
       {skill.origin === "self" ? `written by ${agentName}` : skill.source ? `from ${skill.source.label}` : "installed · source unknown"}
       {skill.origin === "other" && skill.edited ? ` · edited by ${agentName} since` : ""}
     </div>
@@ -136,7 +136,7 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
     onClose();
   };
   return (
-    <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
+    <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
       {mode === "write" ? (
         <>
           <Field size="sm" mono autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="skill name (becomes skills/<name>/SKILL.md)" autoComplete="off" data-form-type="other" />
@@ -145,14 +145,14 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
       ) : (
         <>
           <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · official/finance/stocks · clawhub/<slug> · a GitHub or SKILL.md URL" autoComplete="off" data-form-type="other" />
-          <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>runs <code style={{ fontFamily: "var(--loki-mono)" }}>letta install</code> for {agentName}; can take a minute</span>
+          <span className="loki-meta loki-meta--wrap">runs <code style={{ fontFamily: "var(--loki-mono)" }}>letta install</code> for {agentName}; can take a minute</span>
         </>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button onClick={onClose}>cancel</Button>
-        <Button tone="brass" onClick={() => void go()} disabled={busy}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</Button>
+        <Button tone="positive" onClick={() => void go()} disabled={busy}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</Button>
       </div>
     </div>
   );
@@ -175,11 +175,11 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     }
   };
   return (
-    <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
-      <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
+    <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
+      <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
       <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)} placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder" autoComplete="off" data-form-type="other" />
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button onClick={onCancel}>cancel</Button>
         <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>{busy ? "refreshing…" : "refresh"}</Button>

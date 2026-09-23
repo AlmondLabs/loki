@@ -17,6 +17,7 @@ export const attentionItem = (id: string, over: Partial<AttentionItem> = {}): At
   error: null,
   seenAt: null,
   unread: true,
+  viewedAt: null,
   lastAsk: null,
   score: 0,
   reason: "report",

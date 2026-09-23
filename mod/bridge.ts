@@ -1,5 +1,6 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { DEFAULT_LADDER } from "../core/attention/ladder.ts";
+import { isEventName } from "../core/analytics.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 import type { InboxRow } from "./desks.ts";
@@ -21,17 +22,21 @@ import { isLanVia } from "./lan.ts";
  *    state       { scope, state }            geometry/overlay changed
  *    widgets     { scope, widgets }          files changed
  *    camera      { widgetId }
+    widget_change { entry }                 the agent added/changed/removed a widget on any desk; sent to every socket (mod/widget-log.ts).
+                                            A row with an id already seen replaces it (a repeat edit folded in); apps ignore it if unknown
  *    switch_desk { scope }                   the active conversation changed; the tab follows
- *    desks       { desks }                   reply to list_desks (the ⌘K switcher)
+ *    desks       { desks }                   reply to list_desks (the sidebar, ⌘K search)
  *  client → server
  *    gesture       { gesture }
  *    measure       { id, size }              rendered size of a widget (drives placement)
  *    arrange       {}                        tidy this desk into a grid
  *    trash         { id }                    delete the widget's file (the agent's work is gone for good)
- *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, snooze, appServer }
+ *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, snooze, appServer }
+ *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
  *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
- *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages }
+ *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
+                                            (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
  *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
  *    recall_grade { requestId, id, grade 1-4 } / recall_edit { requestId, id, front?, back?, tags? }   reply: recall_card { requestId, card }
@@ -135,6 +140,8 @@ export interface BridgeDeps {
   appServerUrl?: () => string | null;
   /** A conversation's transcript from the local backend log (survives compaction), for Catch Up threads. */
   transcript?: (agentId: string | null, conversationId: string) => import("./desks.ts").LocalTranscriptMessage[];
+  /** That conversation's desk's widget change log (mod/widget-log.ts), served with its history. */
+  widgetLog?: (agentId: string | null, conversationId: string) => import("../core/desk-core.ts").WidgetLogEntry[];
   /** Working folders for "new desk" (see mod/folders.ts). */
   folders?: {
     recent: () => import("./folders.ts").RecentFolders;
@@ -193,6 +200,8 @@ export interface BridgeDeps {
     forget: (id: string) => boolean;
   };
   broadcast(msg: object, scope?: Scope): void;
+  /** Analytics (mod/analytics.ts): an event this client caused, or a `capture` frame it sent about one the mod cannot see. */
+  capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
 }
 
 export function scopeOfId(id: string): Scope {
@@ -229,13 +238,13 @@ const isPoint = (v: unknown): boolean =>
  * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
  * skills, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
   /** The seen markers, the deferrals and the "later" ladder, as one frame; sent on request and broadcast on every change. */
-  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
+  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
 
   const deskFrame = (scope: Scope) => {
     const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
@@ -257,7 +266,17 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       if (client.deviceId && !PHONE_FRAMES.has(String(msg.type))) {
         return client.send({ type: "error", requestId: msg.requestId, message: `${String(msg.type)} is not available on the phone` });
       }
+      const track = (event: string, properties?: Record<string, unknown>) => deps.capture?.(client, event, properties);
       switch (msg.type) {
+        case "capture": {
+          // The app's own events (views, desk switches, sends…): a snake_case name and an optional properties object.
+          if (!isEventName(msg.event)) {
+            client.send({ type: "error", message: "malformed capture" });
+            return;
+          }
+          track(msg.event, msg.properties && typeof msg.properties === "object" && !Array.isArray(msg.properties) ? (msg.properties as Record<string, unknown>) : undefined);
+          return;
+        }
         case "gesture": {
           const g = msg.gesture;
           if (!isGesture(g)) {
@@ -268,6 +287,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const entry = widgets.get(g.id);
           const before = entry ? mergeData(entry.data, store.get(wScope).overlay[g.id]) : undefined;
           store.gesture(wScope, g); // store subscribers broadcast the new state
+          track("widget_gestured", { kind: g.kind });
           const d = describeGesture(g, entry, before);
           if (d) gestures.record(client.scope, d.line, d.key);
           return;
@@ -284,6 +304,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           if (after !== before) {
             const ids = Object.entries(after.layout).filter(([, l]) => !l.hidden).map(([id]) => id);
             gestures.record(client.scope, `tidied the desk (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
+            track("desk_arranged");
             broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, client.scope === SHARED_SCOPE ? undefined : client.scope);
           }
           return;
@@ -295,12 +316,21 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "seen_mark":
           if (typeof msg.conversationId === "string") {
             seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
+            track("conversation_marked_seen");
+            broadcast(seenFrame());
+          }
+          return;
+        case "viewed_mark":
+          // Not tracked: a look happens on every open, it is not a decision.
+          if (typeof msg.conversationId === "string") {
+            seen?.view(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
             broadcast(seenFrame());
           }
           return;
         case "seen_unmark":
           if (typeof msg.conversationId === "string") {
             seen?.unmark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
+            track("conversation_kept_unread");
             broadcast(seenFrame());
           }
           return;
@@ -309,6 +339,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const skips = Number(msg.skips);
           if (typeof msg.conversationId === "string" && Number.isFinite(skips) && typeof msg.until === "string" && typeof msg.stamp === "string" && typeof msg.at === "string") {
             seen?.setSnooze(agentId, msg.conversationId, { skips, until: msg.until, stamp: msg.stamp, at: msg.at });
+            track("card_deferred", { skips });
             broadcast(seenFrame());
           }
           break;
@@ -316,6 +347,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "snooze_clear":
           if (typeof msg.conversationId === "string") {
             seen?.clearSnooze(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
+            track("deferral_cleared");
             broadcast(seenFrame());
           }
           break;
@@ -335,6 +367,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           store.forget(scopeOfId(msg.id), msg.id);
           const name = entry ? `"${entry.title}" (${entry.id})` : `"${msg.id}"`;
           gestures.record(client.scope, `trashed ${name} — its file was deleted`, `trash:${msg.id}`);
+          track("widget_trashed");
           return;
         }
         case "widget_status": {
@@ -357,6 +390,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "pin_set": {
           if (typeof msg.agentId !== "string" || typeof msg.conversationId !== "string" || !deps.setPin) return;
           deps.setPin(msg.agentId, msg.conversationId, msg.pinned === true);
+          track("desk_pinned", { pinned: msg.pinned === true });
           deps.broadcast({ type: "desks", desks: listDesks?.() ?? [] }); // every tab's tree follows
           return;
         }
@@ -592,7 +626,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "history_get": {
           if (typeof msg.conversationId !== "string") return;
           const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [] });
+          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [], widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
           return;
         }
         case "lan_get":

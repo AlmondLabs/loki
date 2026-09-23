@@ -12,11 +12,11 @@ import { QuestionCard } from "./QuestionCard";
 import { ChatInput } from "./ChatInput";
 import { FindBar } from "./FindBar";
 import { SlashPalette } from "./SlashPalette";
-import { Transcript, type TranscriptRow } from "./Transcript";
+import { Transcript, type MessageLayout, type TranscriptRow } from "./Transcript";
 import { EffortChip, EffortMenu, ModelChip, ModelPicker, effortEntriesFor, type ModelEntry } from "./ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./PermissionMode";
 import { useChatTicks } from "./useChatTicks";
-import { useDraft } from "./useDraft";
+import { useDraft, type ControlledDraft } from "./useDraft";
 import { useModelAndMode } from "./useModelAndMode";
 import { useSlashPalette } from "./useSlashPalette";
 import { useTranscriptScroll } from "./useTranscriptScroll";
@@ -88,6 +88,13 @@ export function Conversation({
   onTyping,
   onEscapeEmpty,
   onSent,
+  draft: controlledDraft,
+  layout,
+  notice,
+  placeholder,
+  attach = false,
+  icons,
+  composer = true,
 }: {
   view: ConversationView;
   actions: ConversationActions;
@@ -120,6 +127,24 @@ export function Conversation({
   onEscapeEmpty?: () => void;
   /** A message or an answer went out from the box. */
   onSent?: () => void;
+  /** The host keeps the draft (the phone's per-conversation store); omitted, the box keeps its own, as on the desktop. */
+  draft?: ControlledDraft;
+  /** The avatar-led message layout and the unread divider (Transcript's MessageLayout); omitted, bubbles. */
+  layout?: MessageLayout;
+  /** A line between the thread and the box: "friday is waiting for your reply", the link state. */
+  notice?: ReactNode;
+  /** The empty box's words, in place of composerPlaceholder's. */
+  placeholder?: string;
+  /** A button in the box that picks images from the device (the phone has no drag and drop). */
+  attach?: boolean;
+  /** The host's glyphs (the phone's icon set): with `send`, the send button is that icon, named for screen readers, instead of the word. */
+  icons?: { send?: ReactNode; attach?: ReactNode; mic?: ReactNode };
+  /**
+   * False keeps only the header, find and the thread: a view that is hidden but must keep its scroll (the
+   * desk's Messages tab while the Desk tab shows), so the box, its switchers and the open question or
+   * approval are drawn once, by the view on screen.
+   */
+  composer?: boolean;
 }) {
   const approval = view.approval ?? null;
   const question = view.question ?? null;
@@ -132,7 +157,7 @@ export function Conversation({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
   const threadRef = useRef<ThreadHandle>(null);
-  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer: actions.onAnswer, onSend: actions.onSend, commands: actions.commands, onCommand: actions.onCommand, onSent });
+  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer: actions.onAnswer, onSend: actions.onSend, commands: actions.commands, onCommand: actions.onCommand, onSent, controlled: controlledDraft });
   const { findOpen, setFindOpen, findRef } = useChatTicks({ focusTick, findTick, inputRef });
   useEffect(() => {
     if (!prefill || prefill.tick <= 0) return;
@@ -171,56 +196,70 @@ export function Conversation({
           onClose={() => setFindOpen(false)}
         />
       )}
-      <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
+      <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
 
-      {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} />}
-      {approval && <ApprovalCard approval={approval} />}
+      {composer && (
+        <>
+          {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
+          {approval && <ApprovalCard approval={approval} />}
+          {notice}
 
-      {/* The message box with send beside it; a draft that starts with "/" opens the command palette above. */}
-      <div style={{ position: "relative", display: "flex", gap: 8, padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})`, borderTop: "1px solid var(--loki-border)", alignItems: "flex-end" }}>
-        {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
-        <ChatInput
-          ref={inputRef}
-          value={draft}
-          onChange={setDraft}
-          onSubmit={submit}
-          onKeyDown={palette.onKeyDown}
-          onEscape={() => {
-            inputRef.current?.blur();
-            if (!draft.trim()) onEscapeEmpty?.();
-          }}
-          onFocus={() => onTyping?.(true)}
-          onBlur={() => onTyping?.(false)}
-          images={images}
-          onImages={setImages}
-          placeholder={composerPlaceholder(view, agentName)}
-          {...palette.aria}
-        />
-        <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
-          {view.status === "idle" ? "send" : "queue"}
-        </Button>
-      </div>
+          {/* The message box with send beside it; a draft that starts with "/" opens the command palette above. */}
+          <div className="loki-composer" style={{ padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})` }}>
+            {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
+            <ChatInput
+              ref={inputRef}
+              value={draft}
+              onChange={setDraft}
+              onSubmit={submit}
+              onKeyDown={palette.onKeyDown}
+              onEscape={() => {
+                inputRef.current?.blur();
+                if (!draft.trim()) onEscapeEmpty?.();
+              }}
+              onFocus={() => onTyping?.(true)}
+              onBlur={() => onTyping?.(false)}
+              images={images}
+              onImages={setImages}
+              placeholder={placeholder ?? composerPlaceholder(view, agentName)}
+              attach={attach}
+              icons={icons}
+              {...palette.aria}
+            />
+            {icons?.send ? (
+              <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} className="loki-composer-send" aria-label={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"} data-queue={view.status === "idle" ? undefined : "true"}>
+                {icons.send}
+              </Button>
+            ) : (
+              <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
+                {view.status === "idle" ? "send" : "queue"}
+              </Button>
+            )}
+          </div>
 
-      {hasFooter && (
-        <div style={{ position: "relative", display: "flex", gap: 8, padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})`, alignItems: "center", flexWrap: "wrap" }}>
-          {hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
-          {hasModelPicker && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
-          {hasEffortPicker && (
-            <>
-              <EffortChip effort={reasoningEffort} busy={controls.changingEffort} onClick={controls.toggleEffort} />
-              <EffortMenu open={controls.effortOpen} side="above" entries={effortEntries} current={reasoningEffort} onPick={(entry) => void controls.pickEffort(selectionOf(entry))} onClose={controls.closeEffort} />
-            </>
+          {hasFooter && (
+            <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
+              {hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
+              {hasModelPicker && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
+              {hasEffortPicker && (
+                <>
+                  <EffortChip effort={reasoningEffort} busy={controls.changingEffort} onClick={controls.toggleEffort} />
+                  <EffortMenu open={controls.effortOpen} side="above" entries={effortEntries} current={reasoningEffort} onPick={(entry) => void controls.pickEffort(selectionOf(entry))} onClose={controls.closeEffort} />
+                </>
+              )}
+              {hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
+              {hasModeMenu && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
+              {canApprove &&
+                (() => {
+                  const approve = <Button key="approve" size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>;
+                  const deny = <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>;
+                  // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
+                  return touch ? [deny, approve] : [approve, deny];
+                })()}
+              {footer}
+            </div>
           )}
-          {hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
-          {hasModeMenu && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
-          {canApprove && (
-            <>
-              <Button size={touch ? "touch" : "sm"} tone="positive" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>
-              <Button size={touch ? "touch" : "sm"} tone="negative" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>
-            </>
-          )}
-          {footer}
-        </div>
+        </>
       )}
     </>
   );
@@ -261,7 +300,7 @@ export interface ThreadHandle {
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, style }, ref) {
+export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const { unpinned, onScroll, jumpToLatest, unpin } = useTranscriptScroll(scrollRef, list, status);
@@ -276,12 +315,12 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
   const who = agentName ?? "the agent";
   return (
     <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
+      <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} />}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />}
         {status === "thinking" && !waiting && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
-        {error && <div style={{ color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", fontSize: 12, marginTop: 12, overflowWrap: "anywhere" }}>{error}</div>}
+        {error && <div className="loki-thread-error">{error}</div>}
       </div>
       {unpinned && (
         <Chip float onClick={jumpToLatest} aria-label="jump to latest" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>

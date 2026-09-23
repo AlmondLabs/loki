@@ -1,96 +1,78 @@
-import { SAFE } from "./ui";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { Icon, type IconName } from "./icons";
 import { TABS, navigate, type Tab } from "./router";
 
 /**
- * The bottom bar, the way Slack's phone app has one: five tabs, icons in the rail's line, condensed
- * caps beneath. The active tab is paper; brass appears only on the inbox count, which is the same
- * number the desktop rail and the dock badge show. 52px plus the home indicator.
+ * The navigation, the way Slack's phone app floats it: a rounded capsule with Home, Inbox, Agents and
+ * More — icon over a small label, the current one on a raised pill — and a round Search button beside
+ * it, both hovering over the content just above the home indicator. The inbox count sits on Inbox in
+ * the unread badge, the same number the desktop rail and the dock badge show.
+ *
+ * The dock owns the bottom inset while it is on screen, and only it: it measures how much of the shell
+ * it covers and publishes that as --phone-nav-clearance on the shell. Scroll owners add it once at the
+ * end of their content (phone.css), so the last row scrolls clear of the capsule; screens with a fixed
+ * bottom (the Inbox's buttons) stop above it with .loki-phone-above-nav. `children` dock above the
+ * capsule — the update bar — and are counted in the clearance.
  */
-export const TAB_BAR_HEIGHT = 52;
-
-export function TabBar({ active, waiting, due = 0 }: { active: Tab | null; waiting: number; due?: number }) {
+export function TabBar({ active, waiting, children }: { active: Tab | null; waiting: number; children?: ReactNode }) {
+  const dock = useNavClearance();
   return (
-    <nav aria-label="tabs" style={{ flex: "0 0 auto", display: "flex", alignItems: "stretch", height: `calc(${TAB_BAR_HEIGHT}px + ${SAFE.bottom})`, paddingBottom: SAFE.bottom, paddingLeft: SAFE.left, paddingRight: SAFE.right, boxSizing: "border-box", background: "var(--loki-panel)", borderTop: "1px solid var(--loki-border)" }}>
-      {TABS.map((t) => {
-        const on = t === active;
-        const n = t === "inbox" ? waiting : t === "learn" ? due : 0;
-        return (
-          <button
-            key={t}
-            type="button"
-            onClick={() => navigate({ kind: "tab", tab: t })}
-            aria-label={n > 0 ? `${t}, ${n} ${t === "learn" ? "due" : "waiting"}` : t}
-            aria-current={on ? "page" : undefined}
-            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, border: "none", background: "transparent", color: on ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", padding: 0, WebkitTapHighlightColor: "transparent", touchAction: "manipulation" }}
-          >
-            <span style={{ position: "relative", display: "grid", placeItems: "center", width: 28, height: 24 }}>
-              <Icon tab={t} />
-              {n > 0 && (
-                <span aria-hidden style={{ position: "absolute", top: -4, right: -8, minWidth: 16, height: 16, padding: "0 4px", boxSizing: "border-box", borderRadius: 999, background: "var(--loki-accent)", color: "var(--loki-bg)", border: "2px solid var(--loki-panel)", fontFamily: "var(--loki-mono)", fontSize: 9.5, fontWeight: 600, lineHeight: "12px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
-                  {n > 99 ? "99+" : n}
+    <div ref={dock} className="loki-phone-dock">
+      {children}
+      <div className="loki-phone-dock-row">
+        <nav aria-label="primary" className="loki-phone-nav">
+          {TABS.map((t) => {
+            const n = t === "inbox" ? waiting : 0;
+            return (
+              <button key={t} type="button" className="loki-phone-nav-item" onClick={() => navigate({ kind: "tab", tab: t })} aria-label={navLabel(t, n)} aria-current={t === active ? "page" : undefined}>
+                <span className="loki-phone-nav-icon">
+                  <Icon name={TAB_ICON[t]} size={24} />
+                  {n > 0 && (
+                    <span aria-hidden className="loki-phone-nav-badge">
+                      {badgeText(n)}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-            <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", color: "inherit" }}>
-              {t}
-            </span>
-          </button>
-        );
-      })}
-    </nav>
+                <span aria-hidden className="loki-phone-nav-label">
+                  {TAB_LABEL[t]}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+        <button type="button" className="loki-phone-search-btn" aria-label="Search" onClick={() => navigate({ kind: "search" })}>
+          <Icon name="search" size={24} />
+        </button>
+      </div>
+    </div>
   );
 }
 
-/** Icons in the rail's line: 20-unit box, 1.4 stroke, round joins. */
-const common = { width: 20, height: 20, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Inbox", agents: "Agents", more: "More" };
+const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", more: "more" };
 
-function Icon({ tab }: { tab: Tab }) {
-  if (tab === "home") {
-    // the sheet with two plates: the desks
-    return (
-      <svg {...common} aria-hidden>
-        <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
-        <rect x="5" y="6" width="5" height="4" rx="0.8" />
-        <rect x="11.5" y="6" width="3.5" height="8" rx="0.8" />
-      </svg>
-    );
-  }
-  if (tab === "inbox") {
-    // a tray
-    return (
-      <svg {...common} aria-hidden>
-        <path d="M3 11.5V15a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 17 15v-3.5" />
-        <path d="M3 11.5h4l1.2 2h3.6l1.2-2h4" />
-        <path d="M5.5 11.5 7 4.5h6l1.5 7" />
-      </svg>
-    );
-  }
-  if (tab === "learn") {
-    // two cards, one behind the other
-    return (
-      <svg {...common} aria-hidden>
-        <rect x="4.5" y="2.5" width="12" height="9" rx="1.2" />
-        <path d="M2.5 7.5v8a2 2 0 0 0 2 2h9.5" />
-        <path d="M8 6.5h5M8 8.75h3" />
-      </svg>
-    );
-  }
-  if (tab === "agents") {
-    // two faces
-    return (
-      <svg {...common} aria-hidden>
-        <circle cx="7" cy="7.5" r="3" />
-        <path d="M2.5 16.5c0-2.8 2-4.5 4.5-4.5s4.5 1.7 4.5 4.5" />
-        <circle cx="14" cy="8.5" r="2.4" />
-        <path d="M13 12.6c2.6 0 4.5 1.6 4.5 3.9" />
-      </svg>
-    );
-  }
-  // settings: the set square
-  return (
-    <svg {...common} aria-hidden>
-      <path d="M3.5 16.5 12 3.5l4.5 13z" />
-      <path d="M8.5 16.5 12 9l2.5 7.5" />
-    </svg>
-  );
+/** The badge's text: the count, capped at 99+ so a big queue never widens the capsule. */
+export const badgeText = (n: number): string => (n > 99 ? "99+" : String(n));
+
+/** A tab's accessible name: "Inbox" or "Inbox, 3 waiting". */
+export const navLabel = (t: Tab, n: number): string => (n > 0 ? `${TAB_LABEL[t]}, ${badgeText(n)} waiting` : TAB_LABEL[t]);
+
+/** Sets --phone-nav-clearance on the shell to the height the dock covers, from its top to the shell's bottom; removed with the dock. */
+function useNavClearance() {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const shell = el?.closest<HTMLElement>(".loki-phone-shell");
+    if (!el || !shell) return;
+    const measure = () => shell.style.setProperty("--phone-nav-clearance", `${Math.max(0, Math.ceil(shell.getBoundingClientRect().bottom - el.getBoundingClientRect().top))}px`);
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(el);
+    ro?.observe(shell);
+    return () => {
+      ro?.disconnect();
+      shell.style.removeProperty("--phone-nav-clearance");
+    };
+  }, []);
+  return ref;
 }

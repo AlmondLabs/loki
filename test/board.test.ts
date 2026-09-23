@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { columnsOf, dispatchMessage, filterTasks, type Task } from "../app/src/board/model.ts";
+import { boardViews, columnsOf, dispatchMessage, filterTasks, missingAgentLine, parseBoardView, resolveBoardView, stepCursor, viewColumns, type Task } from "../app/src/board/model.ts";
 
 const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 2, labels: [], assignee: null, createdAt: "2026-09-06T10:00:00Z", updatedAt: "2026-09-06T10:00:00Z", closedAt: null, metadata: {}, ...over });
 const NOW = new Date("2026-09-06T12:00:00Z").getTime();
@@ -11,6 +11,9 @@ describe("board: columns", () => {
       NOW,
     );
     expect(cols.map((c) => c.tasks.map((x) => x.id))).toEqual([["e", "b", "a"], ["c"], ["d"], ["f"]]);
+  });
+  test("a status the board does not know stays off it", () => {
+    expect(columnsOf([t({ id: "x", status: "tombstone" })], NOW).flatMap((c) => c.tasks)).toEqual([]);
   });
   test("done keeps only the last week", () => {
     const cols = columnsOf([t({ id: "old", status: "closed", closedAt: "2026-08-01T00:00:00Z" }), t({ id: "new", status: "closed", closedAt: "2026-09-05T00:00:00Z" })], NOW);
@@ -39,5 +42,99 @@ describe("board: dispatch message", () => {
     expect(msg).toContain("(filed by me)");
     expect(msg).toContain("- lk-b2 · P0 · second");
     expect(msg).toContain("Work them in order");
+  });
+});
+
+describe("board: views (the list column)", () => {
+  const tasks = [
+    t({ id: "a", priority: 3 }),
+    t({ id: "b", priority: 1, assignee: "friday" }),
+    t({ id: "c", status: "in_progress", assignee: "friday" }),
+    t({ id: "d", status: "blocked", assignee: "ira" }),
+    t({ id: "e", status: "deferred", priority: 0 }),
+    t({ id: "f", status: "closed", closedAt: "2026-09-06T11:00:00Z", assignee: "friday" }),
+    t({ id: "old", status: "closed", closedAt: "2026-08-01T00:00:00Z", assignee: "ira" }),
+  ];
+  const shown = (view: Parameters<typeof viewColumns>[1]) => viewColumns(tasks, view, NOW).flatMap((c) => c.tasks.map((x) => x.id));
+
+  test("all tasks, then each status, then each agent that has tasks on the board, by name", () => {
+    const { views, agents } = boardViews(tasks, NOW);
+    expect(views.map((v) => [v.view, v.label, v.count])).toEqual([
+      ["all", "All tasks", 6],
+      ["open", "Open", 3],
+      ["in_progress", "In progress", 1],
+      ["blocked", "Blocked", 1],
+      ["done", "Done · 7d", 1],
+    ]);
+    // ira's only other task closed a month ago: it is off the board, so it does not count.
+    expect(agents.map((v) => [v.view, v.label, v.count])).toEqual([
+      ["agent:friday", "friday", 3],
+      ["agent:ira", "ira", 1],
+    ]);
+  });
+
+  test("every count is the number of tasks its view shows", () => {
+    const { views, agents } = boardViews(tasks, NOW);
+    for (const v of [...views, ...agents]) expect(shown(v.view)).toHaveLength(v.count);
+  });
+
+  test("all keeps the four columns; a status is its one column; an agent is one list in board order", () => {
+    expect(viewColumns(tasks, "all", NOW).map((c) => c.id)).toEqual(["open", "in_progress", "blocked", "done"]);
+    expect(viewColumns(tasks, "blocked", NOW).map((c) => [c.id, c.tasks.map((x) => x.id)])).toEqual([["blocked", ["d"]]]);
+    const friday = viewColumns(tasks, "agent:friday", NOW);
+    expect(friday.map((c) => [c.id, c.label])).toEqual([["agent", "friday"]]);
+    expect(shown("agent:friday")).toEqual(["b", "c", "f"]);
+  });
+
+  test("an agent with nothing left shows an empty list, not the board", () => {
+    expect(viewColumns(tasks, "agent:nobody", NOW)).toEqual([{ id: "agent", label: "nobody", tasks: [] }]);
+  });
+
+  test("an agent view whose agent has no tasks on the board any more says so and stands (no quiet switch to all); while the tasks load it stands", () => {
+    expect(resolveBoardView("agent:friday", tasks, NOW)).toEqual({ view: "agent:friday", missing: null });
+    expect(resolveBoardView("agent:nobody", tasks, NOW)).toEqual({ view: "agent:nobody", missing: "nobody" });
+    expect(resolveBoardView("agent:nobody", [], NOW)).toEqual({ view: "agent:nobody", missing: "nobody" });
+    expect(resolveBoardView("blocked", tasks, NOW)).toEqual({ view: "blocked", missing: null });
+    expect(resolveBoardView("all", [], NOW)).toEqual({ view: "all", missing: null });
+    expect(resolveBoardView("agent:nobody", null, NOW)).toEqual({ view: "agent:nobody", missing: null });
+  });
+
+  test("a missing agent's note names it and asks for a pick", () => {
+    expect(missingAgentLine("nobody")).toBe("nobody isn't here any more — pick an agent");
+  });
+
+  test("a stored view reads back, anything else is all", () => {
+    expect(parseBoardView("blocked")).toBe("blocked");
+    expect(parseBoardView("agent:friday")).toBe("agent:friday");
+    expect(parseBoardView("agent:")).toBe("all");
+    expect(parseBoardView("nope")).toBe("all");
+    expect(parseBoardView(null)).toBe("all");
+  });
+});
+
+describe("board: cursor keys over any view", () => {
+  const tasks = [t({ id: "a" }), t({ id: "b" }), t({ id: "c", status: "in_progress" }), t({ id: "d", status: "blocked", assignee: "ira" }), t({ id: "e", status: "blocked" })];
+
+  test("all: up and down within a column, sideways to the nearest non-empty column", () => {
+    const cols = viewColumns(tasks, "all", NOW);
+    expect(stepCursor(cols, null, "down")).toBe("a");
+    expect(stepCursor(cols, "a", "down")).toBe("b");
+    expect(stepCursor(cols, "b", "down")).toBeNull();
+    expect(stepCursor(cols, "a", "up")).toBeNull();
+    expect(stepCursor(cols, "b", "right")).toBe("c");
+    expect(stepCursor(cols, "c", "right")).toBe("d");
+    expect(stepCursor(cols, "d", "right")).toBeNull(); // done is empty and last
+    expect(stepCursor(cols, "e", "left")).toBe("c");
+  });
+
+  test("a single list: the same up and down, and sideways (the column step) has nowhere to go", () => {
+    const cols = viewColumns(tasks, "blocked", NOW);
+    expect(stepCursor(cols, null, "down")).toBe("d");
+    expect(stepCursor(cols, "d", "down")).toBe("e");
+    expect(stepCursor(cols, "e", "up")).toBe("d");
+    expect(stepCursor(cols, "d", "left")).toBeNull();
+    expect(stepCursor(cols, "d", "right")).toBeNull();
+    // A cursor left over from another view is not in this one: nowhere to step from.
+    expect(stepCursor(cols, "a", "down")).toBeNull();
   });
 });

@@ -59,20 +59,20 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   return (
     <section>
       <Head>
-        desks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
+        Desks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
       </Head>
-      {myDesks.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no live desks</div>}
+      {myDesks.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>no live desks</div>}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
         {myDesks.map((x) => (
           <Row dense key={x.scope} onClick={() => onOpen(x.conversationId ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
-            <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
+            <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
           </Row>
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
         <Button tone="brass" onClick={() => onOpen("default")}>main chat</Button>
-        <Button onClick={onShowDesks} kbd="⌘K">the desk tree</Button>
+        <Button onClick={onShowDesks} kbd="⌘1">desks</Button>
       </div>
     </section>
   );
@@ -82,7 +82,7 @@ function TasksSection({ count, onShowBoard }: { count: number; onShowBoard: () =
   return (
     <section>
       <Head>
-        tasks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{count ? `${count} open` : ""}</span>
+        Tasks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{count ? `${count} open` : ""}</span>
       </Head>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
         <span>{count === 0 ? "nothing assigned" : `${count} assigned on the board`}</span>
@@ -95,7 +95,7 @@ function TasksSection({ count, onShowBoard }: { count: number; onShowBoard: () =
 /** The last step before deleting: what closes (live desks) and what stays (open tasks, unassigned). */
 function ConfirmDelete({ d, myDesks, taskCount, onRemove, onKeep }: { d: AgentDetails; myDesks: DeskSummary[]; taskCount: number; onRemove: () => Promise<void>; onKeep: () => void }) {
   return (
-    <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
+    <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: "var(--loki-radius-md)", fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
       <span>
         Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live desk${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.` : ""}
         {taskCount ? ` ${taskCount} open task${taskCount === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
@@ -130,7 +130,7 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
           onBlur={() => name.trim() && name.trim() !== d.agent.name && void onSave({ name: name.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           aria-label="agent name"
-          style={{ fontFamily: "var(--loki-display)", fontSize: 22 }}
+          style={{ fontSize: 22, fontWeight: 700 }}
         />
         <Field
           inline
@@ -142,7 +142,7 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
           aria-label="agent description"
           style={{ fontSize: 13.5, color: "var(--loki-muted)" }}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", flexWrap: "wrap" }}>
+        <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <Field
             inline
             mono

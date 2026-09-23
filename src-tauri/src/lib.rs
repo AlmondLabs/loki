@@ -351,15 +351,19 @@ pub fn run() {
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move { link.run(handle).await });
 
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("loki")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(900.0, 600.0)
-                // macOS draws the desk's name (the page sets it) with the lights inline. It starts on
-                // the system theme; the page applies the saved light/dark preference after it loads.
-                .background_color(tauri::window::Color(0x0e, 0x12, 0x17, 0xff))
-                .initialization_script(&script)
-                .build()?;
+                // It starts on the system theme; the page applies the saved light/dark preference after it loads.
+                .background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff))
+                .initialization_script(&script);
+            // Slack style: no native title bar. The lights float over loki's own top strip (Sidebar.tsx,
+            // TITLEBAR_HEIGHT, a drag region) at their standard spot; the title stays set for the Window menu,
+            // Mission Control and screen readers, just not drawn.
+            #[cfg(target_os = "macos")]
+            let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            window.build()?;
             menu::listen(app.handle());
             native::setup_tray(app.handle())?;
             if let Err(e) = native::setup_shortcut(app.handle()) { eprintln!("loki: global shortcut unavailable: {e}"); }

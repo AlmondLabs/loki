@@ -34,7 +34,7 @@ export function Providers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers === null]);
 
-  if (providers === null) return <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>asking the harness…</div>;
+  if (providers === null) return <div className="loki-meta loki-meta--wrap">asking the harness…</div>;
   const sorted = sortProviders(providers, filter);
   const shown = more || filter ? sorted : sorted.filter((p) => isConnected(p) || SHORTLIST.includes(p.id));
   const connectedCount = providers.filter(isConnected).length;
@@ -54,13 +54,13 @@ export function Providers({
           data-form-type="other"
           style={{ flex: 1 }}
         />
-        <span style={{ fontSize: 12, color: "var(--loki-muted)", whiteSpace: "nowrap" }}>{connectedCount === 0 ? "none connected" : `${connectedCount} connected`}</span>
+        <span className="loki-meta">{connectedCount === 0 ? "none connected" : `${connectedCount} connected`}</span>
       </div>
       <div style={{ display: "grid", gap: 2 }}>
         {shown.map((p) => (
           <ProviderRow key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onChanged} />
         ))}
-        {shown.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "6px 8px" }}>nothing matches</div>}
+        {shown.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>nothing matches</div>}
       </div>
       {!more && !filter && sorted.length > shown.length && (
         <Button size="sm" onClick={() => setMore(true)} style={{ justifySelf: "start" }}>
@@ -123,21 +123,21 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
   const state = useProviderConnect(p, onConnect, onDisconnect, onChanged, onToggle);
 
   return (
-    <div style={{ border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`, borderRadius: 8, background: open ? "var(--loki-panel)" : "transparent" }}>
+    <div style={{ border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`, borderRadius: "var(--loki-radius-md)", background: open ? "var(--loki-panel)" : "transparent" }}>
       <Row onClick={onToggle} aria-expanded={open}>
         <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
         <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: 13.5 }}>
             {p.display_name}
-            {connected && <span className="loki-label" style={{ marginLeft: 8, fontSize: 9.5, color: "var(--loki-positive)" }}>connected</span>}
+            {connected && <span className="loki-label" style={{ marginLeft: 8, color: "var(--loki-positive)" }}>Connected</span>}
           </span>
-          {p.description && !open && <span style={{ fontSize: 12, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</span>}
+          {p.description && !open && <span className="loki-meta">{p.description}</span>}
         </span>
-        <span style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>{p.id}</span>
+        <span className="loki-meta loki-meta--wrap">{p.id}</span>
       </Row>
       {open && (
         <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
-          {p.description && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</div>}
+          {p.description && <div className="loki-meta loki-meta--wrap">{p.description}</div>}
           {terminal ? <TerminalNote id={p.id} /> : <ConnectForm p={p} connected={connected} state={state} />}
         </div>
       )}
@@ -150,7 +150,7 @@ function TerminalNote({ id }: { id: string }) {
   return (
     <div style={{ fontSize: 12, color: "var(--loki-fg)", display: "grid", gap: 6 }}>
       <span>This one signs in through the browser. Connect it from a terminal, then come back:</span>
-      <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12, padding: "6px 10px", background: "var(--loki-well)", borderRadius: 6, justifySelf: "start" }}>letta connect {id}</code>
+      <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12, padding: "6px 10px", background: "var(--loki-well)", borderRadius: "var(--loki-radius-sm)", justifySelf: "start" }}>letta connect {id}</code>
     </div>
   );
 }
@@ -194,7 +194,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         </label>
       ))}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Button size="sm" tone="brass" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
+        <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
           {busy ? "checking…" : connected ? "replace the key" : "connect"}
         </Button>
         {connected && (
@@ -202,7 +202,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             disconnect
           </Button>
         )}
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       </div>
     </>
   );

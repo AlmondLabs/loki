@@ -3,7 +3,7 @@
 // `bun run build:mod`; tauri runs it before dev and build.
 // node_modules are bundled in (ws), except esbuild, which the mod treats as optional.
 import { build } from "esbuild";
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -11,8 +11,12 @@ const out = here("../src-tauri/resources");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(`${out}/mod`, { recursive: true });
 
+const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string };
+
 await build({
   entryPoints: [here("../mod/index.ts")],
+  // The bundle knows its version (analytics stamps it on every event); a checkout reads package.json instead.
+  define: { "process.env.LOKI_VERSION": JSON.stringify(version) },
   outfile: `${out}/mod/loki-mod.mjs`,
   bundle: true,
   platform: "node",

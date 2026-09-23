@@ -1,38 +1,36 @@
-import type { CSSProperties, ReactNode } from "react";
-import { Button } from "../components";
+import { useRef, type CSSProperties, type ReactNode } from "react";
+import { Button, Sheet } from "../components";
+import { Icon } from "./icons";
+import { useScrollMemory } from "./session";
 
 /**
  * The phone's few shared pieces: a top bar that clears the notch, the scrolling surface under it,
- * the section heading, the back chevron. Controls (buttons, chips, fields, rows, the sheet, the
- * banner) are the app's primitives in ui/; brass is spent only on what waits for you.
+ * the back chevron, the confirmation sheet. Controls (buttons, chips, fields, rows, the sheet, the
+ * banner) are the app's primitives in components/, dressed for the phone by phone.css.
  */
 
-/** The notch and the home indicator: iOS reports them as env() insets once the viewport is `viewport-fit=cover`. */
-export const SAFE = {
-  top: "env(safe-area-inset-top, 0px)",
-  bottom: "env(safe-area-inset-bottom, 0px)",
-  left: "env(safe-area-inset-left, 0px)",
-  right: "env(safe-area-inset-right, 0px)",
-};
-
 /**
- * `progress` (0..1) swaps the bottom hairline for a 2px brass bar that fills as a pass goes; the
- * deck uses it for "n of N". null keeps the hairline.
+ * `progress` (0..1) swaps the bottom hairline for a 2px bar that fills as a pass goes; the deck uses it
+ * for "n of N". null keeps the hairline. Static looks are classes in phone.css; only the row height and
+ * the fill are inline, since they come from the caller. The title is the screen's heading: the one
+ * element focus moves to when a route opens (session.ts restoreFocus), hence tabIndex -1.
  */
 export function TopBar({ left, title, sub, right, progress = null, height = 48 }: { left?: ReactNode; title: ReactNode; sub?: ReactNode; right?: ReactNode; progress?: number | null; /** The row's height; 44 for a bar with no second line. */ height?: number }) {
   return (
-    <header style={{ flex: "0 0 auto", paddingTop: SAFE.top, background: "var(--loki-panel)", borderBottom: progress === null ? "1px solid var(--loki-border)" : "none" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: height, padding: `0 calc(12px + ${SAFE.right}) 0 calc(8px + ${SAFE.left})` }}>
+    <header className={progress === null ? "loki-phone-topbar" : "loki-phone-topbar loki-phone-topbar--progress"}>
+      <div className="loki-phone-topbar-row" style={{ minHeight: height }}>
         {left}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 17, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
-          {sub && <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em", marginTop: 2, display: "flex", alignItems: "center", gap: 8, overflow: "hidden", whiteSpace: "nowrap" }}>{sub}</div>}
+        <div className="loki-phone-topbar-copy">
+          <h1 className="loki-phone-title loki-phone-topbar-title" data-phone-heading tabIndex={-1}>
+            {title}
+          </h1>
+          {sub && <div className="loki-phone-topbar-sub">{sub}</div>}
         </div>
-        {right}
+        {right && <div className="loki-phone-topbar-actions">{right}</div>}
       </div>
       {progress !== null && (
-        <div aria-hidden style={{ height: 2, background: "var(--loki-border)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`, background: "var(--loki-accent)", transition: "width 240ms ease-out" }} />
+        <div aria-hidden className="loki-phone-progress">
+          <div className="loki-phone-progress-fill" style={{ width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` }} />
         </div>
       )}
     </header>
@@ -40,54 +38,55 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
 }
 
 /**
- * The desktop's transcript caps a bubble at 78% of the column — a reading measure for a wide sheet.
- * On a phone the column is the measure: bubbles span the card, 13.5 on 1.45. The bubble's width is an
- * inline style in chat/Transcript.tsx, so this is the one place the phone reaches past it. Rendered once.
+ * A scrolling surface under a TopBar. Its end clears the floating navigation when that is on screen
+ * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
+ * offset it keeps, so a tab switch or a page and back returns to the same place (session.ts).
  */
-export function PhoneStyles() {
+export function Scroll({ children, style, memory, flush = false }: { children: ReactNode; style?: CSSProperties; memory?: string; /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useScrollMemory(ref, memory);
   return (
-    <style>{`
-.loki-phone-thread [data-row="user"] > div, .loki-phone-thread [data-row="assistant"] > div { max-width: 100% !important; font-size: 13.5px; line-height: 1.45; }
-.loki-phone-thread [data-row="user"], .loki-phone-thread [data-row="assistant"] { margin: 6px 0 !important; }
-.loki-phone-md p, .loki-phone-md ul, .loki-phone-md ol, .loki-phone-md pre, .loki-phone-md blockquote { margin: 0 0 12px; }
-.loki-phone-md h1, .loki-phone-md h2, .loki-phone-md h3 { font-family: var(--loki-display); font-weight: 400; margin: 18px 0 8px; }
-.loki-phone-md h1 { font-size: 22px; } .loki-phone-md h2 { font-size: 17px; } .loki-phone-md h3 { font-size: 15px; }
-.loki-phone-md code { font-family: var(--loki-mono); font-size: 12px; }
-.loki-phone-md pre { background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; }
-`}</style>
-  );
-}
-
-/** The phone's side margin, with the safe inset: every surface uses the same twelve pixels. */
-export const GUTTER = { left: `calc(12px + ${SAFE.left})`, right: `calc(12px + ${SAFE.right})` };
-
-/** A scrolling surface under a TopBar and over the tab bar; the bar carries the bottom inset. */
-export function Scroll({ children, style }: { children: ReactNode; style?: CSSProperties }) {
-  return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: `12px ${GUTTER.right} 24px ${GUTTER.left}`, ...style }}>
+    <div ref={ref} className={flush ? "loki-phone-scroll loki-phone-scroll--flush" : "loki-phone-scroll"} style={style}>
       {children}
     </div>
   );
 }
 
-/** A section heading in the condensed caps, with room for a count or a note on the right. */
-export function Heading({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+/** The back chevron for the top bar: Slack's bare chevron, named for where it goes ("Back to home"). */
+export function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <div className="loki-label" style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: 9.5, padding: "0 4px 6px" }}>
-      {children}
-      {aside && <span style={{ marginLeft: "auto", letterSpacing: "0.06em", textTransform: "none", fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>{aside}</span>}
-    </div>
+    <button type="button" className="loki-phone-icon-btn" onClick={onClick} aria-label={`Back to ${label}`}>
+      <Icon name="back" size={22} />
+    </button>
   );
 }
 
-/** The back chevron for the top bar. */
-export function BackButton({ onClick, label = "inbox" }: { onClick: () => void; label?: string }) {
+/**
+ * A confirmation for anything that cannot be taken back or changes the link to the Mac (unpair, reload):
+ * a bottom sheet naming the action, what follows and how to recover, then Cancel beside the action. While
+ * it runs the action says so and both stay put; a failure keeps the sheet open with the error and the
+ * action to try again.
+ */
+export function ConfirmSheet({ title, children, action, busyAction, tone = "negative", busy = false, error = null, onConfirm, onClose }: { title: string; children: ReactNode; action: string; busyAction?: string; tone?: "negative" | "brass"; busy?: boolean; error?: string | null; onConfirm: () => void; onClose: () => void }) {
   return (
-    <Button bare size="touch" tone="paper" onClick={onClick} aria-label={`back to ${label}`} style={{ paddingLeft: 4, paddingRight: 10 }}>
-      <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M12.5 4 6.5 10l6 6" />
-      </svg>
-      {label}
-    </Button>
+    <Sheet label={title} onClose={busy ? undefined : onClose} placement="bottom" className="loki-phone-sheet">
+      <div className="loki-phone-sheet-copy">
+        <h2 className="loki-phone-title loki-phone-confirm-title">{title}</h2>
+        <div className="loki-phone-body loki-phone-confirm-body">{children}</div>
+      </div>
+      {error && (
+        <p role="alert" className="loki-phone-error">
+          {error}
+        </p>
+      )}
+      <div className="loki-phone-sheet-actions">
+        <Button size="touch" tone="paper" disabled={busy} onClick={onClose}>
+          Cancel
+        </Button>
+        <Button size="touch" tone={tone} disabled={busy} onClick={onConfirm}>
+          {busy ? (busyAction ?? action) : error ? "Try again" : action}
+        </Button>
+      </div>
+    </Sheet>
   );
 }

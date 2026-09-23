@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
-import { isLearnTitle, learnTitle, type Card, type Lead } from "../core/recall/model.ts";
+import { isLearnTitle, learnTitle, type Card, type Lead, type RecallSnapshot } from "../core/recall/model.ts";
+import { learnViews, parseLearnView, stepLearnView } from "../app/src/recall/views.ts";
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const card = (id: string, over: Partial<Card> = {}): Card => ({
@@ -126,5 +127,35 @@ describe("leads and lessons", () => {
     expect(isLearnTitle(" [Learn] · x")).toBe(true);
     expect(isLearnTitle("Learn about x")).toBe(false);
     expect(isLearnTitle(null)).toBe(false);
+  });
+});
+
+describe("learn: the views in the list column", () => {
+  const snap = (over: Partial<RecallSnapshot> = {}): RecallSnapshot => ({ cards: [], rejected: [], leads: [], dismissedLeads: [], lessons: [], worker: { enabled: true, model: null, dailyCap: 20, tickMinutes: 30, lastRunAt: null, lastRunNote: null } as RecallSnapshot["worker"], ...over });
+
+  test("the four views in order, each with what it shows: due cards, leads, every card, and the deleted cards and leads", () => {
+    const rows = learnViews(snap({ cards: [{}, {}, {}] as RecallSnapshot["cards"], leads: [{}] as RecallSnapshot["leads"], rejected: [{}] as RecallSnapshot["rejected"], dismissedLeads: [{}, {}] as RecallSnapshot["dismissedLeads"] }), 2);
+    expect(rows.map((r) => [r.view, r.label, r.count])).toEqual([
+      ["review", "Review", 2],
+      ["leads", "Leads", 1],
+      ["all", "All cards", 3],
+      ["deleted", "Deleted", 3],
+    ]);
+  });
+
+  test("before the snapshot there are no counts", () => {
+    expect(learnViews(null, 0).map((r) => r.count)).toEqual([0, 0, 0, 0]);
+  });
+
+  test("⌘[ and ⌘] step round the four", () => {
+    expect(stepLearnView("review", 1)).toBe("leads");
+    expect(stepLearnView("deleted", 1)).toBe("review");
+    expect(stepLearnView("review", -1)).toBe("deleted");
+  });
+
+  test("a stored view reads back, anything else is review", () => {
+    expect(parseLearnView("deleted")).toBe("deleted");
+    expect(parseLearnView("cards")).toBe("review");
+    expect(parseLearnView(null)).toBe("review");
   });
 });

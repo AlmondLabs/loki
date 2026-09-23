@@ -41,15 +41,15 @@ describe("slash commands", () => {
     const l = emptyLive();
     const delta = (d: Record<string, unknown>) => ({ type: "stream_delta", delta: d });
     applyEvent(l, delta({ message_type: "slash_command_start", command_id: "reload", input: "/reload" }));
-    expect(l.tail).toEqual([{ role: "event", text: "/reload", summary: "running…" }]);
+    expect(l.tail).toMatchObject([{ role: "event", text: "/reload", summary: "running…" }]);
     applyEvent(l, delta({ message_type: "slash_command_end", command_id: "reload", input: "/reload", output: "Reloaded 2 mods.", success: true }));
-    expect(l.tail).toEqual([{ role: "event", text: "/reload", summary: "Reloaded 2 mods.", detail: null }]);
+    expect(l.tail).toMatchObject([{ role: "event", text: "/reload", summary: "Reloaded 2 mods.", detail: null }]);
     // A long output goes behind the disclosure; a failure says so.
     applyEvent(l, delta({ message_type: "slash_command_start", command_id: "compact", input: "/compact all" }));
     applyEvent(l, delta({ message_type: "slash_command_end", command_id: "compact", input: "/compact all", output: "line one\nline two", success: false }));
-    expect(l.tail[1]).toEqual({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
+    expect(l.tail[1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
     // An end without a start still lands as a row.
     applyEvent(l, delta({ message_type: "slash_command_end", command_id: "clear", input: "/clear", output: "Cleared.", success: true }));
-    expect(l.tail[2]).toEqual({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
+    expect(l.tail[2]).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
   });
 });

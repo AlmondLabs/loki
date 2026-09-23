@@ -57,6 +57,8 @@ export interface LiveRow {
   images?: string[];
   /** Typed while the turn ran: shown in the transcript, sent when the turn ends. */
   queued?: boolean;
+  /** When the row arrived (ISO), the same field as TranscriptRow.at. */
+  at?: string;
 }
 
 /** A message typed mid-turn, waiting for the conversation to go idle. */
@@ -72,6 +74,8 @@ export interface Live {
   pendingAsk: PendingQuestion | null;
   error: string | null;
   streamingText: string;
+  /** When the streaming reply began: the time its row keeps once it settles. */
+  streamingAt: string | null;
   lastAssistantText: string | null;
   lastRole: "user" | "assistant" | null;
   lastMessageAt: string | null;
@@ -108,6 +112,8 @@ export interface AttentionItem extends ConversationInfo {
   error: string | null;
   seenAt: string | null;
   unread: boolean;
+  /** When you last looked at it (the mod's viewed marker): a look is not done, so it never clears `unread`. */
+  viewedAt: string | null;
   /** Who sent the last message into the conversation (live if seen, else from the log); null when unknown. */
   lastAsk: AskedBy | null;
   /** The card's place in the list, stamped by buildItems at one instant for every item (priority.ts). */
@@ -121,7 +127,7 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
 const TEXT_LIMIT = 700;
 
 export function emptyLive(): Live {
-  return { pending: null, pendingAsk: null, error: null, streamingText: "", lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
+  return { pending: null, pendingAsk: null, error: null, streamingText: "", streamingAt: null, lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
 }
 
 /**
@@ -130,21 +136,22 @@ export function emptyLive(): Live {
  * or turn_finished arrive, so this is where "the agent said something new" has
  * to be recorded — Catch Up re-queues a decided card on exactly that.
  */
-function settle(l: Live): void {
+function settle(l: Live, now = new Date().toISOString()): void {
   const t = l.streamingText.trim();
   if (t) {
-    l.tail.push({ role: "assistant", text: t });
+    l.tail.push({ role: "assistant", text: t, at: l.streamingAt ?? now });
     l.lastAssistantText = t.slice(-TEXT_LIMIT);
   }
   l.streamingText = "";
+  l.streamingAt = null;
 }
 
 const RUNNING = "running…";
 
 /** A slash command has started: one quiet row with the command line, marked running until its end arrives. */
-export function beginCommand(l: Live, input: string): void {
-  settle(l);
-  l.tail.push({ role: "event", text: input, summary: RUNNING });
+export function beginCommand(l: Live, input: string, now = new Date().toISOString()): void {
+  settle(l, now);
+  l.tail.push({ role: "event", text: input, summary: RUNNING, at: now });
 }
 
 /** The command a row's text names: "/reload", "reload", "/compact all" → "reload", "reload", "compact". */
@@ -173,7 +180,7 @@ function runningRow(l: Live, input: string): LiveRow | undefined {
  * A slash command finished: the running row (or a fresh one, if the start was never seen) gets the
  * outcome — a one-line output inline, a longer one behind the disclosure, "failed" when it did not work.
  */
-export function finishCommand(l: Live, input: string, success: boolean, output: string): void {
+export function finishCommand(l: Live, input: string, success: boolean, output: string, now = new Date().toISOString()): void {
   const text = output.trim();
   const lines = text.split("\n");
   const oneLine = lines.length === 1 && text.length <= 90;
@@ -183,7 +190,7 @@ export function finishCommand(l: Live, input: string, success: boolean, output: 
   if (row) {
     row.summary = summary;
     row.detail = detail;
-  } else l.tail.push({ role: "event", text: input, summary, detail });
+  } else l.tail.push({ role: "event", text: input, summary, detail, at: now });
 }
 
 /** True while a slash command's row is still waiting for its end. */
@@ -222,11 +229,14 @@ export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "stream
  * The next queued message, once the turn has ended: removed from the queue and its transcript row
  * un-flagged, so the caller can send it. Null while the turn runs or when nothing waits.
  */
-export function takeQueued(l: Live): QueuedSend | null {
+export function takeQueued(l: Live, now = new Date().toISOString()): QueuedSend | null {
   if (l.inTurn || l.queued.length === 0) return null;
   const next = l.queued.shift()!;
   const row = l.tail.find((r) => r.queued && r.role === "user" && r.text === next.text);
-  if (row) delete row.queued;
+  if (row) {
+    delete row.queued;
+    row.at = now; // its time is when it went out, not when it was typed
+  }
   return next;
 }
 
@@ -271,7 +281,7 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
       l.loop = status;
       if (status && status !== "WAITING_ON_INPUT" && status !== "WAITING_ON_APPROVAL") l.inTurn = true;
       if (status === "WAITING_ON_INPUT") {
-        settle(l);
+        settle(l, now);
         if (l.inTurn) {
           l.turns += 1;
           l.inTurn = false;
@@ -288,6 +298,7 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
       const d = ev.delta as Record<string, unknown> | undefined;
       const mt = d?.message_type;
       if (mt === "assistant_message") {
+        if (!l.streamingText) l.streamingAt = now;
         l.streamingText += messageText(d?.content);
         l.lastRole = "assistant";
         l.lastMessageAt = now;
@@ -297,14 +308,14 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         const raw = messageText(d?.content);
         // Harness machinery in the message (desk activity, a loaded skill, a task result) is its own quiet row.
         const events = extractHarnessEvents(raw);
-        for (const ev of events) l.tail.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail });
+        for (const ev of events) l.tail.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, at: now });
         const text = stripHarnessMarkup(raw).trim();
         if (!text) return { changed: events.length > 0, userSpoke: false };
         l.lastAsk = isScheduledPrompt(text) ? "schedule" : "person";
-        settle(l);
+        settle(l, now);
         const own = l.ownSends.indexOf(text);
         if (own >= 0) l.ownSends.splice(own, 1); // shown when it was sent
-        else l.tail.push({ role: "user", text });
+        else l.tail.push({ role: "user", text, at: now });
         l.lastRole = "user";
         l.lastAssistantText = null;
         return { changed: true, userSpoke: true };
@@ -319,8 +330,8 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         // (with its own id, or none): one marker is enough.
         const last = l.tail[l.tail.length - 1];
         if (last?.role === "tool" && last.text === tc.name && !l.streamingText.trim()) return { changed: false, userSpoke: false };
-        settle(l); // assistant text may resume after the tool; this closes the current bubble
-        l.tail.push({ role: "tool", text: tc.name });
+        settle(l, now); // assistant text may resume after the tool; this closes the current bubble
+        l.tail.push({ role: "tool", text: tc.name, at: now });
         return { changed: true, userSpoke: false };
       }
       if (mt === "error_message" || mt === "loop_error") {
@@ -330,18 +341,18 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
       if (mt === "slash_command_start" || mt === "slash_command_end") {
         const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
         const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;
-        if (mt === "slash_command_start") beginCommand(l, input);
-        else finishCommand(l, input, c.success !== false, typeof c.output === "string" ? c.output : "");
+        if (mt === "slash_command_start") beginCommand(l, input, now);
+        else finishCommand(l, input, c.success !== false, typeof c.output === "string" ? c.output : "", now);
         return { changed: true, userSpoke: false };
       }
       if (mt === "stop_reason") {
-        settle(l);
+        settle(l, now);
         return { changed: true, userSpoke: false };
       }
       return { changed: false, userSpoke: false };
     }
     case "turn_finished":
-      settle(l);
+      settle(l, now);
       if (l.inTurn) {
         l.turns += 1;
         l.inTurn = false;
@@ -355,6 +366,27 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
   }
 }
 
+const instant = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Number.NaN);
+
+/**
+ * Something came since you last looked: unread (not done) with a last message newer than the last look.
+ * With no time to compare, it stays new. The desk sidebar's bold follows this; the Inbox follows `unread`.
+ */
+export function unviewed(item: Pick<AttentionItem, "unread" | "lastMessageAt" | "viewedAt">): boolean {
+  if (!item.unread) return false;
+  const last = instant(item.lastMessageAt), looked = instant(item.viewedAt);
+  return !(Number.isFinite(last) && Number.isFinite(looked) && looked >= last);
+}
+
+/**
+ * The look to send while a conversation is open on screen, as a stamp ("<key>@<last message time>") so a
+ * host sends one viewed_mark per new last message; null when there is nothing new to look at.
+ */
+export function viewStamp(item: Pick<AttentionItem, "agentId" | "id" | "unread" | "lastMessageAt" | "viewedAt"> | null | undefined): string | null {
+  if (!item?.lastMessageAt || !unviewed(item)) return null;
+  return `${keyOf(item.agentId, item.id)}@${item.lastMessageAt}`;
+}
+
 /**
  * Combine everything into the item list, each item stamped with its score and reason at `now` and the
  * list ordered highest first (priority.ts): blocked agents, then warm replies to you, then colder ones,
@@ -366,6 +398,7 @@ export function buildItems(
   live: Map<string, Live>,
   seen: Record<string, string>,
   now = Date.now(),
+  viewed: Record<string, string> = {},
 ): AttentionItem[] {
   const out: Unscored[] = [];
   for (const c of conversations) {
@@ -396,6 +429,7 @@ export function buildItems(
       error: l?.error ?? null,
       seenAt,
       unread,
+      viewedAt: viewed[key] ?? null,
       lastAsk: l?.lastAsk ?? d?.lastAsk ?? null,
       runtime: { agent_id: c.agentId, conversation_id: c.id },
     });

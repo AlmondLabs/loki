@@ -1,0 +1,1294 @@
+/* loki on the phone — Slack mode.
+   The phone keeps loki's semantic roles (--loki-bg, --loki-fg, …) but redeclares them on the phone root
+   element, so every shared control inside inherits the mobile values. A declaration on the element beats
+   the one inherited from :root whatever its specificity, so data-palette never reaches the phone; only
+   data-theme picks night or day. The desktop never renders .loki-phone and is untouched.
+   The desktop's attention and affirm roles (the same Slack red and green) are redeclared too, so a shared
+   primitive that uses them never picks up the desktop's Tokyo Night values. Slack's extra roles live beside
+   them as --phone-*: links, the unread badge, presence, the affirmative button, the type scale, radii,
+   spacing, layers and motion. test/tokens.test.ts fences all of it. */
+
+/* Night: Slack's dark mobile ground, raised surfaces a step lighter. */
+.loki-phone {
+  color-scheme: dark;
+  --loki-bg: #1a1d21;
+  --loki-panel: #222529;
+  --loki-panel-header: #27292d;
+  --loki-hover: #2c2f34;
+  --loki-selection: #34373c;
+  --loki-border: #35383d;
+  --loki-control-border: #72767d;
+  --loki-fg: #e8e8e8;
+  --loki-muted: #ababad;
+  --loki-accent: #1d9bd1;
+  --loki-accent-soft: #163247;
+  --loki-brass-soft: #12293a;
+  --loki-positive: #2bac76;
+  --loki-negative: #f4738f;
+  --loki-attention: #e01e5a;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #007a5a;
+  --loki-on-affirm: #ffffff;
+  --loki-grid: #2c2f34;
+  --loki-well: #222529;
+  --loki-bubble: #222529;
+  --loki-user-bubble: #1f2833;
+  --loki-code: #2c2f34;
+  --loki-veil: rgba(0, 0, 0, 0.6);
+  --loki-brass-glow: rgba(29, 155, 209, 0.25);
+  --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.45);
+  --loki-shadow-float: 0 10px 28px rgba(0, 0, 0, 0.35);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.24);
+  --phone-link: #1d9bd1;
+  --phone-unread: #e01e5a;
+  --phone-on-unread: #ffffff;
+  --phone-presence: #2bac76;
+  --phone-affirm: #007a5a;
+  --phone-on-affirm: #ffffff;
+  --phone-focus: #1d9bd1;
+  /* the floating navigation: a near-opaque raised surface, a hairline a step lighter, the current tab's pill */
+  --phone-nav-surface: rgba(34, 37, 41, 0.96);
+  --phone-nav-border: #484c53;
+  --phone-nav-active: #50535a;
+  /* loki's workspace mark in Home's header: a cream tile with a green letter, in both themes */
+  --phone-workspace: #f4f0e7;
+  --phone-on-workspace: #2d6e63;
+  /* one sans stack for everything the phone presents; mono is left for code */
+  --loki-font: -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+  --loki-display: var(--loki-font);
+  --loki-label: var(--loki-font);
+  /* type (px): micro tab labels · meta timestamps · body previews · emph row titles and messages · title · large */
+  --phone-text-micro: 11px;
+  --phone-text-meta: 13px;
+  --phone-text-body: 15px;
+  --phone-text-emph: 17px;
+  --phone-text-title: 20px;
+  --phone-text-large: 28px;
+  --phone-leading: 1.4;
+  --phone-leading-tight: 1.25;
+  --phone-weight-strong: 700;
+  --phone-weight-heavy: 800;
+  /* radii: rows and buttons · cards and sheets · the floating capsule · pills and circles */
+  --phone-radius-sm: 8px;
+  --phone-radius-md: 12px;
+  --phone-radius-lg: 24px;
+  --phone-radius-pill: 999px;
+  /* spacing on a 4px step; the gutter is Slack's 16 */
+  --phone-space-1: 4px;
+  --phone-space-2: 8px;
+  --phone-space-3: 12px;
+  --phone-space-4: 16px;
+  --phone-space-5: 20px;
+  --phone-space-6: 24px;
+  --phone-gutter: 16px;
+  --phone-touch: 44px;
+  /* layers mirror kit/layers.ts: bars inside a screen, the floating navigation (rail), sheets (modal), toasts */
+  --phone-layer-bar: 10;
+  --phone-layer-nav: 110;
+  --phone-layer-sheet: 200;
+  --phone-layer-toast: 300;
+  /* motion: quick state changes, navigation pushes, sheets rising */
+  --phone-ease: cubic-bezier(0.2, 0, 0, 1);
+  --phone-dur-fast: 120ms;
+  --phone-dur: 220ms;
+  --phone-dur-sheet: 300ms;
+  --phone-safe-top: env(safe-area-inset-top, 0px);
+  --phone-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --phone-safe-left: env(safe-area-inset-left, 0px);
+  --phone-safe-right: env(safe-area-inset-right, 0px);
+
+  background: var(--loki-bg);
+  color: var(--loki-fg);
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-body);
+  line-height: var(--phone-leading);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Day: Slack's light mobile — white ground, grey hairlines, near-black ink. */
+:root[data-theme="light"] .loki-phone {
+  color-scheme: light;
+  --loki-bg: #ffffff;
+  --loki-panel: #ffffff;
+  --loki-panel-header: #f8f8f8;
+  --loki-hover: #f4f4f4;
+  --loki-selection: #e8f5fa;
+  --loki-border: #e2e2e2;
+  --loki-control-border: #868686;
+  --loki-fg: #1d1c1d;
+  --loki-muted: #616061;
+  --loki-accent: #1264a3;
+  --loki-accent-soft: #d6ebf7;
+  --loki-brass-soft: #e8f5fa;
+  --loki-positive: #007a5a;
+  --loki-negative: #c7174b;
+  --loki-attention: #e01e5a;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #007a5a;
+  --loki-on-affirm: #ffffff;
+  --loki-grid: #ebebeb;
+  --loki-well: #f8f8f8;
+  --loki-bubble: #f8f8f8;
+  --loki-user-bubble: #eef6fb;
+  --loki-code: #f4f4f4;
+  --loki-veil: rgba(29, 28, 29, 0.4);
+  --loki-brass-glow: rgba(18, 100, 163, 0.16);
+  --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.09);
+  --phone-link: #1264a3;
+  --phone-unread: #e01e5a;
+  --phone-on-unread: #ffffff;
+  --phone-presence: #1d9a67;
+  --phone-affirm: #007a5a;
+  --phone-on-affirm: #ffffff;
+  --phone-focus: #1264a3;
+  --phone-nav-surface: rgba(255, 255, 255, 0.96);
+  --phone-nav-border: #dddddd;
+  --phone-nav-active: #ebebeb;
+  --phone-workspace: #f4f0e7;
+  --phone-on-workspace: #2d6e63;
+}
+
+/* The document never scrolls on the phone. iOS rubber-bands the body behind a fixed shell when a drag starts
+   outside a list or a list reaches its end, and the whole shell — tab bar included — drags with it; the keyboard
+   can leave it scrolled, too. Pinning html and body stops that; the lists contain their own overscroll. Only
+   while a phone shell is on the page, so the desktop's document is left alone. */
+html:has(.loki-phone-shell),
+html:has(.loki-phone-shell) body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* The shell: the whole screen, one column. Fixed to the viewport (the fallback), then the small and the
+   dynamic viewport where supported, so browser toolbars never leave a band under the navigation. */
+.loki-phone-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+@supports (height: 100svh) {
+  .loki-phone-shell { height: 100svh; }
+}
+@supports (height: 100dvh) {
+  .loki-phone-shell { height: 100dvh; }
+}
+/* The main landmark holds whatever route is on screen and passes the column through; the dock floats over it. */
+.loki-phone-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Checking, unreachable: one centred message on the ground. */
+.loki-phone-splash {
+  display: grid;
+  place-items: center;
+  padding: calc(var(--phone-space-6) + var(--phone-safe-top)) var(--phone-space-6) calc(var(--phone-space-6) + var(--phone-safe-bottom));
+  color: var(--loki-muted);
+  text-align: center;
+}
+.loki-phone-splash-inner { max-width: 360px; }
+.loki-phone-splash-line { margin: var(--phone-space-2) 0 0; color: var(--loki-muted); }
+.loki-phone-splash-action { margin-top: var(--phone-space-5); }
+
+/* ---- Type ---------------------------------------------------------------------------------------- */
+.loki-phone-large-title { margin: 0; font-size: var(--phone-text-large); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone-title { font-size: var(--phone-text-emph); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone-headline { font-size: var(--phone-text-emph); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); }
+.loki-phone-body { font-size: var(--phone-text-body); line-height: var(--phone-leading); }
+.loki-phone-meta { font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+.loki-phone-link { color: var(--phone-link); text-decoration: none; }
+/* Named for screen readers, not drawn: a heading the layout has no room to show. */
+.loki-phone-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.loki-phone-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The shared primitives, in the phone's voice: no mono metadata, no condensed caps, bold sans titles. */
+.loki-phone .loki-label {
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-meta);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--loki-muted);
+}
+.loki-phone .loki-meta,
+.loki-phone .loki-banner {
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-meta);
+  letter-spacing: normal;
+}
+.loki-phone .loki-chip {
+  font-family: var(--loki-font);
+  font-size: var(--phone-text-meta);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.loki-phone .loki-chip--tag { font-size: var(--phone-text-micro); }
+.loki-phone .loki-title { font-family: var(--loki-font); font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-btn--touch,
+.loki-phone .loki-field--touch { font-size: var(--phone-text-body); }
+.loki-phone .loki-btn--touch { font-weight: 600; }
+
+/* ---- Focus and touch ----------------------------------------------------------------------------- */
+/* A 2px ring in the link colour, off the control so it never sits on the control's own hairline. Fields
+   keep it inside, since their containers clip. */
+.loki-phone :is(button, a, summary, select, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--phone-focus);
+  outline-offset: 2px;
+}
+.loki-phone :is(input, textarea):focus-visible {
+  outline: 2px solid var(--phone-focus);
+  outline-offset: -2px;
+}
+/* A page's heading is where focus lands when the page opens (tabindex -1, so screen readers start there); it is
+   not a control and is never tabbed to, and iOS Safari rings that programmatic focus. The controls inside it
+   (the conversation's agent pill) keep their own ring. */
+.loki-phone [data-phone-heading]:focus-visible { outline-color: transparent; }
+.loki-phone button, .loki-phone a, .loki-phone [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.loki-phone-icon { display: block; flex: none; }
+/* A bare icon control: the visible glyph can be small, the target is always 44. */
+.loki-phone-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: var(--phone-touch);
+  min-height: var(--phone-touch);
+  padding: 0;
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-fg);
+  cursor: pointer;
+  transition: background-color var(--phone-dur-fast) var(--phone-ease);
+}
+.loki-phone-icon-btn:active:not(:disabled) { background: var(--loki-hover); }
+.loki-phone-icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ---- The shared pieces in ui.tsx ------------------------------------------------------------------ */
+/* The top bar clears the notch and draws on the ground with a hairline, the way Slack's headers do. */
+.loki-phone-topbar {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: var(--phone-layer-bar);
+  padding-top: var(--phone-safe-top);
+  background: var(--loki-bg);
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-phone-topbar--progress { border-bottom: none; }
+.loki-phone-topbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: 0 calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-2) + var(--phone-safe-left));
+}
+.loki-phone-topbar-copy { flex: 1; min-width: 0; }
+/* With no back control the title starts on the list's gutter (16), not the control's 8. */
+.loki-phone-topbar-copy:first-child { padding-left: var(--phone-space-2); }
+.loki-phone-topbar-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-phone-topbar-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: var(--phone-text-meta);
+  color: var(--loki-muted);
+}
+.loki-phone-topbar-actions { flex: 0 0 auto; display: flex; align-items: center; gap: var(--phone-space-1); }
+.loki-phone-progress { height: 2px; background: var(--loki-border); overflow: hidden; }
+.loki-phone-progress-fill { height: 100%; background: var(--loki-accent); transition: width var(--phone-dur) var(--phone-ease); }
+
+/* One vertical scroll owner per screen; it contains its own overscroll so the page never moves. */
+.loki-phone-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+/* The end of every scroll owner clears the floating navigation once, so its last row can scroll out from
+   under the capsule; --phone-nav-clearance is set on the shell by the dock (TabBar.tsx) and absent — zero —
+   while the navigation is hidden. A screen with a fixed bottom stops above the dock instead. */
+.loki-phone-scroll::after { content: ""; display: block; height: var(--phone-nav-clearance, 0px); }
+.loki-phone-above-nav { margin-bottom: var(--phone-nav-clearance, 0px); }
+
+
+
+/* ---- The floating navigation (TabBar.tsx) ------------------------------------------------------- */
+/* The dock hovers over the bottom of the screen, just above the home indicator: nothing paints a band
+   under it; the space around the capsule is the screen behind. Only its controls take touches. */
+.loki-phone-dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--phone-layer-nav);
+  display: grid;
+  gap: var(--phone-space-2);
+  padding: 0 calc(var(--phone-space-3) + var(--phone-safe-right)) max(var(--phone-space-3), var(--phone-safe-bottom)) calc(var(--phone-space-3) + var(--phone-safe-left));
+  pointer-events: none;
+}
+.loki-phone-dock > * { pointer-events: auto; }
+.loki-phone-dock-row { display: flex; align-items: stretch; gap: var(--phone-space-2); }
+.loki-phone-nav {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: var(--phone-space-1);
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-nav-surface);
+  box-shadow: var(--loki-shadow-float);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.loki-phone-nav-item {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  min-width: var(--phone-touch);
+  min-height: calc(var(--phone-touch) + var(--phone-space-2));
+  padding: var(--phone-space-1) 0;
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--phone-dur-fast) var(--phone-ease), color var(--phone-dur-fast) var(--phone-ease);
+}
+/* the current tab: a raised pill and full ink, so it is never told by colour alone */
+.loki-phone-nav-item[aria-current="page"] { background: var(--phone-nav-active); color: var(--loki-fg); }
+.loki-phone-nav-item:active { background: var(--loki-hover); }
+.loki-phone-nav-icon { position: relative; display: grid; place-items: center; width: 28px; height: 24px; }
+.loki-phone-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--phone-text-micro);
+  font-weight: var(--phone-weight-strong);
+  line-height: var(--phone-leading-tight);
+}
+.loki-phone-nav-badge {
+  position: absolute;
+  top: -4px;
+  left: 16px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-unread);
+  color: var(--phone-on-unread);
+  box-shadow: 0 0 0 2px var(--phone-nav-surface);
+  font-size: var(--phone-text-micro);
+  font-weight: var(--phone-weight-strong);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Search: its own circle beside the capsule, as tall as the capsule */
+.loki-phone-search-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: calc(var(--phone-touch) + var(--phone-space-4) + 2px);
+  min-height: var(--phone-touch);
+  padding: 0;
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-nav-surface);
+  box-shadow: var(--loki-shadow-float);
+  color: var(--loki-fg);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.loki-phone-search-btn:active { background: var(--loki-hover); }
+
+/* The update notice: a strip at the bottom of a full-screen page, or docked above the capsule on a tab. */
+.loki-phone-update {
+  flex: 0 0 auto;
+  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-2) + var(--phone-safe-bottom)) calc(var(--phone-space-3) + var(--phone-safe-left));
+  border-top: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+}
+.loki-phone-dock .loki-phone-update { padding: 0; border-top: none; background: transparent; }
+
+/* ---- More (More.tsx): named rows, a chevron on each ---------------------------------------------- */
+.loki-phone-list { list-style: none; margin: 0; padding: 0; }
+.loki-phone-menu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-3);
+  width: 100%;
+  min-height: calc(var(--phone-touch) + var(--phone-space-2));
+  padding: 0 var(--phone-space-1);
+  border: none;
+  border-bottom: 1px solid var(--loki-border);
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  text-align: left;
+  cursor: pointer;
+}
+.loki-phone-menu-row:active { background: var(--loki-hover); }
+.loki-phone-menu-row-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-phone-menu-row-aside { color: var(--loki-muted); font-size: var(--phone-text-body); }
+
+/* ---- Search (Search.tsx): the field stays put, results scroll beneath it -------------------------- */
+/* The bar is intrinsic and the list takes the rest: with the keyboard up the shell is fitted to the visible
+   viewport (viewport.ts), so the field stays in view and only the results give up height. */
+.loki-phone-search-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-1);
+  padding: calc(var(--phone-space-2) + var(--phone-safe-top)) calc(var(--phone-space-3) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-space-1) + var(--phone-safe-left));
+  border-bottom: 1px solid var(--loki-border);
+  background: var(--loki-bg);
+}
+.loki-phone-search-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: var(--phone-touch);
+  padding-left: var(--phone-space-3);
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-well);
+  color: var(--loki-muted);
+}
+/* The focus ring goes round the whole field (icon, text, clear), not the bare input inside it. */
+.loki-phone-search-field:focus-within { outline: 2px solid var(--phone-focus); outline-offset: -1px; }
+.loki-phone .loki-phone-search-input:focus-visible { outline-color: transparent; }
+.loki-phone-search-glass { margin-right: var(--phone-space-2); }
+/* 17px, Slack's field size (and above the 16px under which iOS zooms into a focused field). */
+.loki-phone .loki-phone-search-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 var(--phone-space-3) 0 0;
+  border: none;
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.loki-phone .loki-phone-search-input::placeholder { color: var(--loki-muted); opacity: 1; }
+/* The clear control is ours (44 wide, keeps the keyboard); the browser's own goes. */
+.loki-phone .loki-phone-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.loki-phone-search-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--phone-touch);
+  min-height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: var(--phone-radius-md);
+  background: transparent;
+  color: var(--loki-muted);
+  cursor: pointer;
+}
+.loki-phone-search-clear .loki-phone-icon { padding: 2px; border-radius: var(--phone-radius-pill); background: var(--loki-border); color: var(--loki-fg); }
+
+/* Recents: a quiet heading with Clear on the right, then rows. */
+.loki-phone-search-recents { padding-bottom: var(--phone-space-2); }
+.loki-phone-search-head {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: var(--phone-space-2) calc(var(--phone-space-1) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+.loki-phone-search-head-title { flex: 1; min-width: 0; margin: 0; font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone-search-clear-all {
+  min-width: var(--phone-touch);
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-3);
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--phone-link);
+  font: inherit;
+  font-size: var(--phone-text-body);
+  cursor: pointer;
+}
+.loki-phone-search-recents .loki-phone-row--quiet { color: var(--loki-fg); padding-right: 0; }
+.loki-phone-search-remove { align-self: center; margin-right: calc(var(--phone-space-1) + var(--phone-safe-right)); color: var(--loki-muted); }
+
+/* Notes about coverage and the link: quiet lines on the gutter, wrapping for long words and large text. */
+.loki-phone-search-note, .loki-phone-search-coverage {
+  margin: 0;
+  padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-left));
+  font-size: var(--phone-text-meta);
+  line-height: var(--phone-leading);
+  color: var(--loki-muted);
+  overflow-wrap: anywhere;
+}
+.loki-phone-search-coverage { padding-top: var(--phone-space-4); }
+.loki-phone-search-miss { overflow-wrap: anywhere; }
+
+/* ---- Reading ------------------------------------------------------------------------------------- */
+/* The desktop's transcript caps a bubble at 78% of the column; on a phone the column is the measure, so
+   messages span it (the cap is an inline style in chat/Transcript.tsx). */
+.loki-phone-thread [data-row="user"] > div, .loki-phone-thread [data-row="assistant"] > div { max-width: 100% !important; font-size: var(--phone-text-body); line-height: var(--phone-leading); }
+.loki-phone-thread [data-row="user"], .loki-phone-thread [data-row="assistant"] { margin: 6px 0 !important; }
+.loki-phone-md p, .loki-phone-md ul, .loki-phone-md ol, .loki-phone-md pre, .loki-phone-md blockquote { margin: 0 0 12px; }
+.loki-phone-md h1, .loki-phone-md h2, .loki-phone-md h3 { font-family: var(--loki-font); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); margin: 18px 0 8px; }
+.loki-phone-md h1 { font-size: var(--phone-text-title); }
+.loki-phone-md h2 { font-size: var(--phone-text-emph); }
+.loki-phone-md h3 { font-size: var(--phone-text-body); }
+.loki-phone-md a { color: var(--phone-link); }
+.loki-phone-md code { font-family: var(--loki-mono); font-size: var(--phone-text-meta); }
+.loki-phone-md pre { background: var(--loki-code); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-sm); padding: 10px 12px; overflow-x: auto; }
+
+/* ---- Pages --------------------------------------------------------------------------------------- */
+/* A screen: one column under the shell. Home stays mounted while hidden, so `hidden` must win over flex. */
+.loki-phone-page { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.loki-phone-page[hidden] { display: none; }
+/* Edge-to-edge lists: the rows carry the gutter inside, so their pressed state spans the screen. */
+.loki-phone-scroll--flush { padding: 0 0 var(--phone-space-6); }
+
+/* ---- Home's header (Home.tsx) -------------------------------------------------------------------- */
+.loki-phone-home-top { border-bottom: none; background: var(--loki-panel-header); }
+.loki-phone-home-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-3);
+  min-height: 64px;
+  padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+.loki-phone-workspace {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-workspace);
+  color: var(--phone-on-workspace);
+  font-size: var(--phone-text-body);
+  font-weight: var(--phone-weight-heavy);
+}
+.loki-phone-home-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the menu and the profile share one pill, Slack's workspace switcher */
+.loki-phone-home-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0 var(--phone-space-1) 0 0;
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-panel);
+}
+.loki-phone-home-menu[data-on] { color: var(--phone-link); }
+.loki-phone-profile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--phone-touch);
+  height: var(--phone-touch);
+  padding: 0;
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+.loki-phone-profile-face {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-affirm);
+  color: var(--phone-on-affirm);
+  font-size: var(--phone-text-body);
+  font-weight: var(--phone-weight-strong);
+}
+/* Presence: filled when on, a hollow ring otherwise; the control's name says which, so colour is never alone. */
+.loki-phone-presence {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--loki-muted);
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-panel);
+  box-shadow: 0 0 0 2px var(--loki-panel);
+}
+.loki-phone-presence[data-on="true"] { border-color: var(--phone-presence); background: var(--phone-presence); }
+.loki-phone-presence[data-link="offline"] { border-color: var(--loki-negative); }
+
+/* ---- The shortcut rail ----------------------------------------------------------------------------- */
+.loki-phone-rail {
+  display: flex;
+  gap: var(--phone-space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left));
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-phone-rail::-webkit-scrollbar { display: none; }
+.loki-phone-tile {
+  flex: 0 0 auto;
+  width: 112px;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--phone-space-3);
+  box-sizing: border-box;
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-phone-tile[data-lit] { background: var(--loki-selection); }
+.loki-phone-tile:active { background: var(--loki-hover); }
+.loki-phone-tile-icon { position: relative; margin-bottom: var(--phone-space-1); }
+.loki-phone-tile-dot { position: absolute; top: -2px; right: -6px; width: 8px; height: 8px; border-radius: var(--phone-radius-pill); background: var(--phone-unread); }
+.loki-phone-tile-label { font-size: var(--phone-text-emph); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); }
+.loki-phone-tile-line { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--phone-text-meta); color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Filter pills: what narrows the list, and the tap that clears it ------------------------------- */
+.loki-phone-pills { display: flex; flex-wrap: wrap; gap: 0 var(--phone-space-2); padding: var(--phone-space-1) calc(var(--phone-gutter) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left)); }
+/* the target is 44 tall; the pill drawn inside it is 32 */
+.loki-phone-pill { display: flex; align-items: center; min-height: var(--phone-touch); max-width: 100%; padding: 0; border: none; background: transparent; color: var(--loki-fg); font: inherit; cursor: pointer; }
+.loki-phone-pill-face {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--phone-space-1);
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--phone-space-3);
+  box-sizing: border-box;
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-accent-soft);
+  font-size: var(--phone-text-meta);
+  font-weight: var(--phone-weight-strong);
+}
+
+/* ---- Sections and rows (rows.tsx) ---------------------------------------------------------------- */
+.loki-phone-section { padding-bottom: var(--phone-space-2); }
+.loki-phone-section-head { margin: 0; font: inherit; }
+.loki-phone-section-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  width: 100%;
+  min-height: var(--phone-touch);
+  padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-1) calc(var(--phone-gutter) + var(--phone-safe-left));
+  border: none;
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+span.loki-phone-section-btn { cursor: default; }
+.loki-phone-section-title { flex: 1; min-width: 0; font-size: var(--phone-text-emph); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); }
+.loki-phone-section-count { font-size: var(--phone-text-meta); color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+.loki-phone-section-chev { color: var(--loki-muted); transition: transform var(--phone-dur-fast) var(--phone-ease); }
+.loki-phone-section-chev--folded { transform: rotate(-90deg); }
+
+.loki-phone-row-item { position: relative; display: flex; align-items: stretch; }
+.loki-phone-row-item[data-dim] .loki-phone-row-copy, .loki-phone-row-item[data-dim] .loki-phone-row-icon { opacity: 0.75; }
+.loki-phone-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-3);
+  min-height: 60px;
+  width: 100%;
+  padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-left));
+  border: none;
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.loki-phone-row:active { background: var(--loki-hover); }
+.loki-phone-row--quiet { min-height: 52px; color: var(--loki-muted); }
+.loki-phone-avatar { position: relative; display: inline-grid; flex: none; }
+.loki-phone-avatar .loki-phone-presence { right: -2px; bottom: -2px; }
+.loki-phone-row-icon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; color: var(--loki-fg); }
+.loki-phone-row--quiet .loki-phone-row-icon { color: var(--loki-muted); }
+.loki-phone-row-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.loki-phone-row-title { display: flex; align-items: center; gap: var(--phone-space-1); min-width: 0; font-size: var(--phone-text-emph); font-weight: 400; line-height: var(--phone-leading-tight); }
+.loki-phone-row--unread .loki-phone-row-title { font-weight: var(--phone-weight-strong); }
+.loki-phone-row-flag { color: var(--loki-muted); }
+.loki-phone-row-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--phone-text-body); line-height: var(--phone-leading-tight); color: var(--loki-muted); }
+.loki-phone-row-time { flex: none; align-self: flex-start; padding-top: 2px; font-size: var(--phone-text-meta); color: var(--loki-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.loki-phone-badge {
+  flex: none;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 var(--phone-space-2);
+  box-sizing: border-box;
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-unread);
+  color: var(--phone-on-unread);
+  font-size: var(--phone-text-meta);
+  font-weight: var(--phone-weight-strong);
+  line-height: 22px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.loki-phone-badge--dot { min-width: 10px; width: 10px; height: 10px; padding: 0; }
+/* The row's actions for keyboards and screen readers: out of sight until focused, then over the row's end. */
+.loki-phone-row-more { position: absolute; right: calc(var(--phone-space-1) + var(--phone-safe-right)); top: 50%; transform: translateY(-50%); background: var(--loki-panel); opacity: 0; pointer-events: none; }
+.loki-phone-row-more:focus-visible { opacity: 1; pointer-events: auto; }
+
+/* Empty and failure lines, centred under a list. */
+.loki-phone-empty { display: grid; justify-items: center; gap: var(--phone-space-3); margin: 0; padding: var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left)); color: var(--loki-muted); text-align: center; font-size: var(--phone-text-body); }
+.loki-phone-empty p { margin: 0; }
+.loki-phone-empty .loki-phone-headline { color: var(--loki-fg); }
+.loki-phone-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--phone-space-2); }
+.loki-phone-error { margin: 0; color: var(--loki-negative); font-size: var(--phone-text-meta); overflow-wrap: anywhere; }
+.loki-phone-wrap { margin: 0; overflow-wrap: anywhere; }
+/* A filter field at the top of a list page. */
+.loki-phone-filter { padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-left)); }
+.loki-phone-filter .loki-field { width: 100%; box-sizing: border-box; }
+
+/* ---- Bottom sheets (Home's menu, a desk's actions, a new desk) ------------------------------------ */
+.loki-sheet-card.loki-phone-sheet {
+  display: grid;
+  gap: var(--phone-space-3);
+  padding: var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-right)) calc(var(--phone-space-4) + var(--phone-safe-bottom)) calc(var(--phone-gutter) + var(--phone-safe-left));
+  border-radius: var(--phone-radius-md) var(--phone-radius-md) 0 0;
+  overflow-y: auto;
+}
+.loki-phone-sheet .loki-field { width: 100%; box-sizing: border-box; }
+.loki-phone-sheet .loki-btn { justify-content: center; }
+.loki-phone-sheet-head { display: flex; align-items: center; gap: var(--phone-space-3); min-width: 0; }
+.loki-phone-sheet-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.loki-phone-sheet-actions { display: grid; grid-template-columns: 1fr 2fr; gap: var(--phone-space-2); }
+.loki-phone-sheet .loki-phone-menu-row:disabled { color: var(--loki-muted); cursor: default; }
+.loki-phone-chips { display: flex; gap: var(--phone-space-2); overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.loki-phone-chips--wrap { flex-wrap: wrap; overflow-x: visible; }
+.loki-phone .loki-phone-chips .loki-chip { flex: none; min-height: var(--phone-touch); min-width: var(--phone-touch); justify-content: center; }
+.loki-phone-chip-count { color: var(--loki-muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Inbox: the review pass ---------------------------------------------------------------------- */
+/* The Inbox stays mounted under other tabs and pages. Out of sight it keeps its boxes (visibility, not
+   display), so the card's thread keeps its scroll offset and the box its caret; nothing in it is reachable. */
+.loki-phone-inbox { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
+.loki-phone-inbox[data-away] { position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+.loki-phone-undo {
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-4);
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  /* A bare link-coloured word, as in an iOS bar: link blue on the hover grey is 4.3:1 in the dark, under AA. */
+  background: transparent;
+  color: var(--phone-link);
+  font: inherit;
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+.loki-phone-undo:active { background: var(--loki-selection); }
+/* The deck: the card fills it, less the few pixels where the stack shows through below. */
+.loki-phone-deck { flex: 1; min-height: 0; position: relative; margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left)); }
+.loki-phone-card {
+  position: absolute;
+  inset: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-lg);
+  transform-origin: 50% 100%;
+  will-change: transform;
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+.loki-phone-card[data-role="leaving"] { pointer-events: none; }
+.loki-phone-card[data-refused] { outline: 2px solid var(--loki-accent); outline-offset: -1px; }
+.loki-phone-card-head {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  gap: 0;
+  padding: var(--phone-space-1) var(--phone-space-4) var(--phone-space-2);
+  border-bottom: 1px solid var(--loki-border);
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
+}
+.loki-phone-card-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  max-width: 100%;
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-3);
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+.loki-phone-card-who:active { background: var(--loki-hover); }
+.loki-phone-card-who .loki-phone-icon { color: var(--loki-muted); }
+.loki-phone-card-desk { display: flex; gap: var(--phone-space-1); max-width: 100%; min-width: 0; font-size: var(--phone-text-meta); color: var(--loki-muted); white-space: nowrap; }
+.loki-phone-card-when { flex: none; font-variant-numeric: tabular-nums; }
+/* The card's conversation: the thread takes what is left and scrolls on its own; notice and box stay put. */
+.loki-phone-card-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.loki-phone-card [data-thread-scroll] { touch-action: pan-y; }
+.loki-phone-card .loki-banner { flex: none; margin: 0 var(--phone-space-3); }
+.loki-phone-card-veil { position: absolute; inset: 0; background: var(--loki-veil); pointer-events: none; }
+/* "friday is waiting for your reply": a quiet pill between the thread and the box. */
+.loki-phone-notice {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: var(--phone-space-1) var(--phone-space-3) 0;
+  padding: var(--phone-space-1) var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-pill);
+  color: var(--loki-muted);
+  font-size: var(--phone-text-meta);
+  line-height: var(--phone-leading);
+}
+/* What a drag reveals under the card: Mark as done on the left, Later on the right. */
+.loki-phone-reveal { position: absolute; inset: 0 0 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--phone-space-6); pointer-events: none; font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
+.loki-phone-reveal-read, .loki-phone-reveal-later { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
+.loki-phone-reveal-read { color: var(--loki-positive); }
+.loki-phone-reveal-later { color: var(--loki-muted); }
+/* Later and Mark as done (or Deny and Approve): two big buttons under the card, clear of the home indicator
+   (the navigation is hidden while a card is up, so this row owns the bottom inset). */
+.loki-phone-decide {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--phone-space-2);
+  padding: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) calc(var(--phone-space-3) + var(--phone-safe-bottom)) calc(var(--phone-space-3) + var(--phone-safe-left));
+}
+.loki-phone-decide-btn {
+  min-height: 52px;
+  padding: 0 var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-hover);
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: var(--phone-text-emph);
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+.loki-phone-decide-btn:active { background: var(--loki-selection); }
+.loki-phone-decide-btn--affirm, .loki-phone-decide-btn--affirm:active { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone-decide-btn--deny { color: var(--loki-negative); }
+/* A deferred card's row: Bring back beside it, visible, not behind a long press. */
+.loki-phone-row-action {
+  flex: none;
+  align-self: center;
+  min-height: var(--phone-touch);
+  margin-right: calc(var(--phone-gutter) + var(--phone-safe-right));
+  padding: 0 var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-sm);
+  background: transparent;
+  color: var(--loki-fg);
+  font: inherit;
+  font-weight: var(--phone-weight-strong);
+  cursor: pointer;
+}
+
+/* Short screens (landscape, the keyboard up): the head goes to one line and the buttons to touch height,
+   so the thread keeps the room. */
+@media (max-height: 500px) {
+  .loki-phone-card-head { display: flex; align-items: center; justify-content: center; gap: var(--phone-space-2); padding: 0 var(--phone-space-3); }
+  .loki-phone-card-who { flex: none; }
+  .loki-phone-decide-btn { min-height: var(--phone-touch); }
+  .loki-phone-decide { padding-top: var(--phone-space-1); padding-bottom: calc(var(--phone-space-2) + var(--phone-safe-bottom)); }
+}
+
+/* ---- Messages: the shared transcript's avatar-led layout (chat/Transcript.tsx, `people`) ---------- */
+.loki-phone-thread .loki-msg[data-row] { display: flex; align-items: flex-start; gap: var(--phone-space-2); margin: 2px 0 !important; }
+.loki-phone-thread .loki-msg[data-first] { margin-top: var(--phone-space-3) !important; }
+.loki-phone .loki-msg-face { flex: none; width: 36px; }
+.loki-phone .loki-msg-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.loki-phone .loki-msg-name { font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone .loki-msg-body { font-size: var(--phone-text-body); line-height: var(--phone-leading); color: var(--loki-fg); }
+.loki-phone .loki-msg-body img { max-width: 100%; height: auto; }
+.loki-phone .loki-msg-queued { margin-top: var(--phone-space-1); }
+.loki-phone .loki-msg-divider { display: flex; align-items: center; gap: var(--phone-space-2); margin: var(--phone-space-4) 0 var(--phone-space-1); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-msg-divider-day { color: var(--loki-fg); }
+.loki-phone .loki-msg-divider-rule { flex: 1; height: 1px; background: var(--phone-unread); }
+.loki-phone .loki-msg-divider-new { color: var(--loki-negative); }
+/* Message times: quiet after the author's name; a touch screen has no hover, so a run's later rows show none. */
+.loki-phone .loki-msg-time { margin-left: var(--phone-space-2); font-size: var(--phone-text-meta); font-weight: 400; color: var(--loki-muted); }
+.loki-phone .loki-msg-gutter-time { display: none; }
+/* Day pills: a hairline across the day's top, the pill sticky at the thread's top until the next day's pushes it off. */
+.loki-phone .loki-msg-day { position: relative; }
+.loki-phone .loki-msg-day::before { content: ""; position: absolute; top: 13px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
+.loki-phone .loki-msg-day-pill-wrap { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: var(--phone-space-2); pointer-events: none; }
+.loki-phone .loki-msg-day-pill { padding: 2px var(--phone-space-3); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-pill); background: var(--loki-bg); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
+.loki-phone .loki-composer-attach { flex: none; }
+
+/* ---- The full conversation (Conversation.tsx) ------------------------------------------------------ */
+/* Regions: the header, the thread (the one scroll owner), the question or approval, the notice, the box.
+   The navigation is hidden on this page, so the box owns the bottom inset (through the shared gutter). */
+.loki-phone-convo-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  padding: calc(var(--phone-space-2) + var(--phone-safe-top)) calc(var(--phone-space-3) + var(--phone-safe-right)) var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-left));
+  border-bottom: 1px solid var(--loki-border);
+  background: var(--loki-bg);
+}
+/* A round control with a hairline and a surface: back and the actions circle. */
+.loki-phone-circle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--phone-touch);
+  height: var(--phone-touch);
+  padding: 0;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  cursor: pointer;
+  transition: background-color var(--phone-dur-fast) var(--phone-ease);
+}
+.loki-phone-circle:active { background: var(--loki-hover); }
+.loki-phone-convo-heading { flex: 1; min-width: 0; margin: 0; font: inherit; }
+/* The identity pill: face with the working dot, bold name, "working · desk" under it. */
+.loki-phone-convo-who {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  max-width: 100%;
+  min-height: var(--phone-touch);
+  box-sizing: border-box;
+  padding: 2px var(--phone-space-4) 2px var(--phone-space-1);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-phone-convo-who:active { background: var(--loki-hover); }
+.loki-phone-convo-copy { min-width: 0; display: grid; }
+.loki-phone-convo-name { font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); }
+.loki-phone-convo-line { font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); color: var(--loki-muted); }
+.loki-phone-convo-body { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--loki-bg); }
+.loki-phone-convo-body .loki-banner { flex: none; margin: var(--phone-space-1) var(--phone-space-3) 0; }
+.loki-phone-convo-body [data-thread-scroll] { padding-left: calc(var(--phone-gutter) + var(--phone-safe-left)) !important; padding-right: calc(var(--phone-gutter) + var(--phone-safe-right)) !important; }
+
+/* The box, in both the page and the Inbox card: a rounded field with "+" at its start and the mic at its
+   end, send as a round icon beside it; no hairline over it (the notice pill separates). */
+.loki-phone .loki-composer { border-top: none; align-items: center; }
+.loki-phone .loki-composer-field {
+  align-items: center;
+  gap: 0;
+  min-height: var(--phone-touch);
+  box-sizing: border-box;
+  padding: 0 var(--phone-space-1);
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--phone-radius-lg);
+  background: var(--loki-well);
+}
+.loki-phone .loki-composer-field:focus-within { border-color: var(--loki-muted); }
+/* Typing: the ring goes round the whole pill ("+", text, mic), as on Search's field, not the bare text inside it. */
+.loki-phone .loki-composer-field:has(.loki-composer-text:focus-visible) { outline: 2px solid var(--phone-focus); outline-offset: -1px; }
+.loki-phone .loki-composer-text:focus-visible { outline-color: transparent; }
+.loki-phone .loki-composer-text {
+  min-height: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--phone-text-body);
+  line-height: 20px;
+  scrollbar-width: none;
+}
+/* The empty box stays one line at 320: a long placeholder ends in an ellipsis rather than wrapping. */
+.loki-phone .loki-composer-text::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loki-phone .loki-composer-attach { position: relative; color: var(--loki-fg); border-radius: var(--phone-radius-pill); }
+.loki-phone .loki-composer-mic { border-radius: var(--phone-radius-pill); bottom: auto; top: 50%; transform: translateY(-50%); }
+/* The glyphs are smaller than a fingertip; the target is not (44 around each). */
+.loki-phone .loki-composer-attach::after, .loki-phone .loki-composer-mic::after { content: ""; position: absolute; inset: -8px; }
+.loki-phone .loki-composer-attach::after { inset: -4px; }
+.loki-phone .loki-composer-send {
+  flex: none;
+  width: var(--phone-touch);
+  min-width: var(--phone-touch);
+  padding: 0;
+  border: none;
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-hover);
+  color: var(--loki-muted);
+}
+.loki-phone .loki-composer-send:not(:disabled) { background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone .loki-composer-send:disabled { opacity: 1; }
+
+/* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour. */
+.loki-phone .loki-conversation-footer { flex-wrap: nowrap; }
+.loki-phone .loki-conversation-footer .loki-approve, .loki-phone .loki-conversation-footer .loki-deny {
+  flex: 1;
+  min-height: var(--phone-touch);
+  border-radius: var(--phone-radius-md);
+  font-size: var(--phone-text-body);
+  font-weight: var(--phone-weight-strong);
+  text-transform: capitalize;
+}
+.loki-phone .loki-conversation-footer .loki-deny { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-negative); }
+.loki-phone .loki-conversation-footer .loki-approve { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+
+/* The open question and the approval: a quiet panel on the ground, sentence case, not the desktop's brass slab. */
+.loki-phone .loki-question, .loki-phone .loki-approval {
+  margin: var(--phone-space-2) calc(var(--phone-space-3) + var(--phone-safe-right)) 0 calc(var(--phone-space-3) + var(--phone-safe-left));
+  padding: var(--phone-space-3);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--phone-radius-md);
+  background: var(--loki-panel);
+}
+.loki-phone .loki-question-kicker, .loki-phone .loki-approval-kicker {
+  display: inline-block;
+  font-size: var(--phone-text-meta);
+  font-weight: var(--phone-weight-strong);
+  color: var(--loki-fg);
+}
+.loki-phone .loki-question-kicker::first-letter, .loki-phone .loki-approval-kicker::first-letter { text-transform: uppercase; }
+.loki-phone .loki-question-text { font-family: var(--loki-font); font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-question-answer {
+  min-height: var(--phone-touch);
+  padding: 0 var(--phone-space-4);
+  border-color: var(--phone-affirm);
+  background: var(--phone-affirm);
+  color: var(--phone-on-affirm);
+  font-size: var(--phone-text-body);
+  font-weight: var(--phone-weight-strong);
+  text-transform: capitalize;
+}
+.loki-phone .loki-question-answer:disabled { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-muted); opacity: 1; }
+.loki-phone .loki-question .loki-chip { min-height: var(--phone-touch); font-size: var(--phone-text-body); }
+/* The desk caps the question at 38% of the column; on a phone that cuts the options in half at 320×568. The
+   question is what the card asks for, so it may take most of the height and the thread above gives way. */
+.loki-phone .loki-question { max-height: 70%; }
+.loki-phone .loki-approval-tool { overflow-wrap: anywhere; }
+.loki-phone .loki-approval-input { max-height: 30vh; border-radius: var(--phone-radius-sm); font-size: var(--phone-text-meta); }
+
+/* Tool and event rows: quiet sans meta lines between messages, lined up with the message text. */
+.loki-phone .loki-tool-row { margin: 2px 0 2px 44px; font-family: var(--loki-font); font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); }
+.loki-phone .loki-event-row { margin: var(--phone-space-2) 0 var(--phone-space-2) 44px; font-size: var(--phone-text-meta); }
+.loki-phone .loki-event-summary { font-family: var(--loki-font); letter-spacing: normal; min-height: var(--phone-touch); display: flex; align-items: center; gap: var(--phone-space-1); flex-wrap: wrap; }
+.loki-phone .loki-event-aside { margin-left: 0; font-family: var(--loki-font); }
+.loki-phone .loki-event-detail { margin-left: 0; font-size: var(--phone-text-meta); border-radius: var(--phone-radius-sm); }
+
+/* "Jump to latest" floats over the thread at the desk's chip height; its target is a fingertip tall. */
+.loki-phone-thread .loki-chip--float::after { content: ""; position: absolute; inset: -9px 0; }
+
+/* A failed turn's message: the desk's mono line becomes a sans meta line, still in the negative colour. */
+.loki-phone .loki-thread-error { font-family: var(--loki-font); font-size: var(--phone-text-meta); line-height: var(--phone-leading); margin-left: 44px; }
+
+/* Reading: links in the link colour and breakable anywhere; a code block scrolls inside itself, the page never does. */
+.loki-phone .loki-msg-body .loki-md a, .loki-phone-thread .loki-md a { color: var(--phone-link); overflow-wrap: anywhere; }
+.loki-phone .loki-msg-body .loki-md pre { max-width: 100%; white-space: pre; overflow-wrap: normal; overflow-x: auto; border-radius: var(--phone-radius-sm); -webkit-overflow-scrolling: touch; }
+.loki-phone .loki-msg-body .loki-md pre code { font-size: var(--phone-text-meta); }
+.loki-phone .loki-msg-body .loki-md code { font-size: var(--phone-text-meta); overflow-wrap: anywhere; }
+.loki-phone .loki-msg-body .loki-md table { max-width: 100%; }
+
+/* Short screens (landscape, the keyboard up): the header tightens and the paused tool's input shrinks, so the thread keeps room. */
+@media (max-height: 500px) {
+  .loki-phone-convo-head { padding-top: calc(var(--phone-space-1) + var(--phone-safe-top)); padding-bottom: var(--phone-space-1); }
+  .loki-phone .loki-approval-input { max-height: 15vh; }
+  .loki-phone .loki-question, .loki-phone .loki-approval { padding: var(--phone-space-2) var(--phone-space-3); }
+}
+
+/* The keyboard up where the browser only shrinks the visual viewport (viewport.ts): the shell fits the
+   visible part, and the home indicator is under the keyboard, so no bottom inset. */
+.loki-phone-shell[data-keyboard] {
+  top: var(--phone-viewport-top, 0px);
+  bottom: auto;
+  height: var(--phone-viewport-height, 100%);
+  --phone-safe-bottom: 0px;
+}
+/* Typing on a short screen: the notice steps aside, and the question or approval gives up height (scrolling
+   inside itself) before the box or the decide buttons would be pushed off the visible part. */
+.loki-phone-shell[data-keyboard] .loki-phone-notice { display: none; }
+.loki-phone .loki-question, .loki-phone .loki-approval { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+
+/* ---- More, Preferences, the connection and About (More.tsx, Settings.tsx; rows.tsx RowGroup) --------- */
+/* Slack's You sheet: the profile, then groups of rows split by one hairline each — no rule under every row. */
+.loki-phone-me {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-4);
+  padding: var(--phone-space-5) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left));
+}
+.loki-phone-me-face {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--phone-radius-md);
+  background: var(--phone-affirm);
+  color: var(--phone-on-affirm);
+  font-size: var(--phone-text-title);
+  font-weight: var(--phone-weight-heavy);
+}
+.loki-phone-me .loki-phone-presence { right: -3px; bottom: -3px; width: 16px; height: 16px; box-shadow: 0 0 0 3px var(--loki-bg); }
+.loki-phone-me-copy { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.loki-phone-me-name { font-size: var(--phone-text-title); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); overflow-wrap: anywhere; }
+.loki-phone-me-line { font-size: var(--phone-text-body); color: var(--loki-muted); }
+.loki-phone-groups { display: grid; }
+.loki-phone-group { padding: var(--phone-space-2) 0; border-top: 1px solid var(--loki-border); }
+.loki-phone-group-title { margin: 0; padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-1) calc(var(--phone-gutter) + var(--phone-safe-left)); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone-group-note { margin: 0; padding: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left)); font-size: var(--phone-text-meta); line-height: var(--phone-leading); color: var(--loki-muted); }
+.loki-phone-group .loki-phone-menu-row { padding: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left)); border-bottom: none; }
+.loki-phone-menu-row-chev { color: var(--loki-muted); }
+.loki-phone-menu-row-check { color: var(--phone-link); visibility: hidden; }
+.loki-phone-menu-row[aria-checked="true"] .loki-phone-menu-row-check { visibility: visible; }
+.loki-phone-menu-row[aria-checked="true"] .loki-phone-menu-row-label { font-weight: var(--phone-weight-strong); }
+.loki-phone-menu-row--danger { color: var(--loki-negative); }
+.loki-phone-menu-row:disabled { color: var(--loki-muted); cursor: default; }
+/* A fact: its name, then the value on the right; a long value (an address, the screen line) wraps under it. */
+.loki-phone-fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--phone-space-1) var(--phone-space-4);
+  min-height: var(--phone-touch);
+  box-sizing: border-box;
+  padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left));
+  font-size: var(--phone-text-body);
+}
+.loki-phone-fact-label { flex: none; color: var(--loki-fg); }
+.loki-phone-fact-value { flex: 1 1 6em; min-width: 0; text-align: right; color: var(--loki-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.loki-phone-fact--prose { display: block; line-height: var(--phone-leading); color: var(--loki-muted); }
+.loki-phone-state { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
+.loki-phone-state-dot { width: 10px; height: 10px; box-sizing: border-box; border: 2px solid var(--loki-muted); border-radius: var(--phone-radius-pill); }
+.loki-phone-state-dot[data-state="on"] { border-color: var(--phone-presence); background: var(--phone-presence); }
+.loki-phone-state-dot[data-state="off"] { border-color: var(--loki-negative); }
+/* A confirmation sheet (ui.tsx ConfirmSheet): the question, what follows, then Cancel beside the action. */
+.loki-phone-confirm-title { margin: 0; }
+.loki-phone-confirm-body { color: var(--loki-muted); }
+
+/* ---- An agent's profile and its files (Agent.tsx) ---------------------------------------------------- */
+.loki-phone-hero {
+  display: grid;
+  justify-items: start;
+  gap: var(--phone-space-1);
+  padding: var(--phone-space-5) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-4) calc(var(--phone-gutter) + var(--phone-safe-left));
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-phone-hero .loki-phone-avatar { margin-bottom: var(--phone-space-2); }
+.loki-phone-hero .loki-phone-presence { right: 0; bottom: 0; width: 18px; height: 18px; border-width: 3px; box-shadow: 0 0 0 3px var(--loki-bg); }
+.loki-phone-hero-name { font-size: var(--phone-text-large); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); overflow-wrap: anywhere; }
+.loki-phone-hero-state { font-size: var(--phone-text-body); color: var(--loki-fg); }
+.loki-phone-hero-about { margin: var(--phone-space-1) 0 0; font-size: var(--phone-text-body); line-height: var(--phone-leading); color: var(--loki-fg); overflow-wrap: anywhere; }
+.loki-phone-hero-actions { display: flex; gap: var(--phone-space-2); margin-top: var(--phone-space-3); }
+.loki-phone-hero-actions .loki-btn { gap: var(--phone-space-2); border-radius: var(--phone-radius-sm); }
+/* A memory folder's head inside the Memory section: it folds the files under it. */
+.loki-phone-subhead {
+  display: flex;
+  align-items: center;
+  gap: var(--phone-space-2);
+  width: 100%;
+  min-height: var(--phone-touch);
+  padding: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) 0 calc(var(--phone-gutter) + var(--phone-safe-left));
+  border: none;
+  background: transparent;
+  color: var(--loki-muted);
+  font: inherit;
+  font-size: var(--phone-text-body);
+  font-weight: var(--phone-weight-strong);
+  text-align: left;
+  cursor: pointer;
+}
+.loki-phone-subhead .loki-phone-ellipsis { flex: 1; }
+.loki-phone-subhead:active { background: var(--loki-hover); }
+/* A memory commit: the message may wrap to two lines; opened, its diff follows in a well that scrolls on its own. */
+.loki-phone-change[data-open] { background: var(--loki-well); }
+.loki-phone-change-row { align-items: flex-start; }
+.loki-phone-change-message { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: var(--phone-text-body); line-height: var(--phone-leading-tight); overflow-wrap: anywhere; }
+.loki-phone-diff { max-height: 360px; overflow: auto; overscroll-behavior: contain; margin: 0 calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-left)); padding: var(--phone-space-2) var(--phone-space-3); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-sm); background: var(--loki-code); }
+.loki-phone-file { overflow-wrap: anywhere; }
+.loki-phone-file pre.loki-phone-file-code { margin: 0; font-family: var(--loki-mono); font-size: var(--phone-text-meta); line-height: var(--phone-leading); white-space: pre-wrap; color: var(--loki-fg); }
+.loki-phone-file-bar { flex: none; padding: var(--phone-space-2) calc(var(--phone-gutter) + var(--phone-safe-right)) calc(var(--phone-space-2) + var(--phone-safe-bottom)) calc(var(--phone-gutter) + var(--phone-safe-left)); border-top: 1px solid var(--loki-border); background: var(--loki-bg); }
+
+/* ---- Learn (Recall.tsx) ----------------------------------------------------------------------------- */
+.loki-phone-learn { display: grid; gap: var(--phone-space-4); padding-bottom: var(--phone-safe-bottom); }
+.loki-phone-learn-card { display: grid; gap: var(--phone-space-4); padding: var(--phone-space-4); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-md); background: var(--loki-panel); }
+.loki-phone-learn-source { display: flex; align-items: center; gap: var(--phone-space-3); min-width: 0; }
+.loki-phone-learn-who { display: flex; align-items: center; gap: var(--phone-space-2); min-width: 0; font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
+.loki-phone-learn-tag { flex: none; padding: 0 var(--phone-space-2); border-radius: var(--phone-radius-pill); background: var(--loki-accent-soft); color: var(--phone-link); font-size: var(--phone-text-micro); font-weight: var(--phone-weight-strong); line-height: 18px; }
+.loki-phone-learn-front { font-size: var(--phone-text-title); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-phone-learn-back { padding-top: var(--phone-space-3); border-top: 1px solid var(--loki-border); font-size: var(--phone-text-body); line-height: var(--phone-leading); white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-phone-learn-grades { display: grid; grid-template-columns: 1fr 1fr; gap: var(--phone-space-2); }
+.loki-phone-learn-grades .loki-phone-decide-btn { display: grid; place-content: center; gap: 2px; }
+.loki-phone-learn-grade { font-size: var(--phone-text-emph); }
+.loki-phone-learn-gap { font-size: var(--phone-text-meta); font-weight: 400; opacity: 0.85; font-variant-numeric: tabular-nums; }
+.loki-phone-learn-foot { display: flex; justify-content: space-between; gap: var(--phone-space-2); flex-wrap: wrap; }
+
+/* ---- Pairing (Pair.tsx) ----------------------------------------------------------------------------- */
+.loki-phone-pair { justify-content: center; padding: calc(var(--phone-space-6) + var(--phone-safe-top)) calc(var(--phone-space-6) + var(--phone-safe-right)) calc(var(--phone-space-6) + var(--phone-safe-bottom)) calc(var(--phone-space-6) + var(--phone-safe-left)); overflow-y: auto; }
+.loki-phone-pair-inner { display: grid; gap: var(--phone-space-5); width: 100%; max-width: 420px; margin: 0 auto; }
+.loki-phone-pair-title { margin-top: var(--phone-space-4); }
+.loki-phone-pair-lead { margin: var(--phone-space-2) 0 0; font-size: var(--phone-text-body); line-height: var(--phone-leading); color: var(--loki-muted); }
+.loki-phone-pair-form { display: grid; gap: var(--phone-space-3); }
+.loki-phone-pair-label { display: grid; gap: var(--phone-space-2); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone .loki-field.loki-phone-pair-code { width: 100%; box-sizing: border-box; min-height: 56px; font-size: var(--phone-text-large); font-weight: var(--phone-weight-strong); text-align: center; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.loki-phone-pair-cta.loki-btn { justify-content: center; border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone-pair-cta.loki-btn:disabled { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-muted); }
+.loki-phone-pair-foot { margin: 0; font-size: var(--phone-text-meta); line-height: var(--phone-leading); color: var(--loki-muted); }
+
+/* ---- Motion -------------------------------------------------------------------------------------- */
+/* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with
+   it, so a transition written with them never moves. Focus rings, selection and state colours stay. */
+@media (prefers-reduced-motion: reduce) {
+  .loki-phone {
+    --phone-dur-fast: 0ms;
+    --phone-dur: 0ms;
+    --phone-dur-sheet: 0ms;
+  }
+}
