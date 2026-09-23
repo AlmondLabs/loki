@@ -357,7 +357,7 @@ pub fn run() {
                 .min_inner_size(900.0, 600.0)
                 // macOS draws the desk's name (the page sets it) with the lights inline. It starts on
                 // the system theme; the page applies the saved light/dark preference after it loads.
-                .background_color(tauri::window::Color(0x0e, 0x12, 0x17, 0xff))
+                .background_color(tauri::window::Color(0x1a, 0x1d, 0x21, 0xff))
                 .initialization_script(&script)
                 .build()?;
             menu::listen(app.handle());

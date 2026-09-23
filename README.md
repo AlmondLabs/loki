@@ -185,7 +185,7 @@ of the installed mod, see the manual's [Install (development)](docs/manual.md#in
 - [The manual](docs/manual.md): every view, every key, every file loki writes.
 - [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a sweep costs.
 - [Architecture](docs/architecture.md): Letta's four layers and the journey of a message.
-- [Design](docs/design.md): a drafting table at night, and the token contract that keeps it so.
+- [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/RELEASING.md).
 
 Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever; and widget code

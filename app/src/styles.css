@@ -19,6 +19,10 @@
   --color-loki-accent-soft: var(--loki-accent-soft);
   --color-loki-positive: var(--loki-positive);
   --color-loki-negative: var(--loki-negative);
+  --color-loki-attention: var(--loki-attention);
+  --color-loki-on-attention: var(--loki-on-attention);
+  --color-loki-affirm: var(--loki-affirm);
+  --color-loki-on-affirm: var(--loki-on-affirm);
   --font-loki: var(--loki-font);
   --font-loki-display: var(--loki-display);
   --font-loki-label: var(--loki-label);

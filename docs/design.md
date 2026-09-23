@@ -3,62 +3,89 @@
 **Subject.** A memory palace your agent furnishes. One person's desks, seen at a
 glance: what the agent built here, who built it, what is waiting on you.
 
-**Direction: a drafting table, day or night.** The canvas is a sheet on an architect's
-table. Chrome is title-block lettering; the desk's identity is the window's own
-title, drawn by macOS; anything that needs a human is brass. The dark palette reads as
-lamplight on ink slate. The light palette uses cool drafting paper and darker brass,
-with the same semantic roles and contrast.
+**Direction: Slack, day or night (2026-09-23).** The desktop wears Slack's desktop look, the same system
+the phone adopted the same day: a neutral grey ground, raised panels a step lighter, near-white (or
+near-black) ink, one sans face, rounded chrome. Blue is for links, focus and anything interactive; the red
+badge is for what is unread or waits on you; green fills the affirmative button. This replaced the drafting
+table outright, by the user's decision; it is not a second option. Three recorded rules were reversed with
+the user's approval: (1) brass for needs-you became blue for interaction, red for attention and green for
+affirmation; (2) chrome is rounded, where plates used to be square and only sheet things rounded; (3) the
+condensed uppercase tracked labels and the mono meta became sentence-case sans, with mono kept only for code,
+data (diffs, file bodies) and key hints. The layout did not change (see Shell). The foundation (tokens,
+primitives, chat classes) moved first; the inline styles in the desktop views follow in a sweep.
 
 ## Tokens (`app/src/kit/tokens.css`)
 
-Colour uses matched OKLCH ramps in both themes. The structural stack is slate ground `--loki-bg`,
-panel `--loki-panel`, raised header `--loki-panel-header`, then `--loki-hover` and neutral
-`--loki-selection`. `--loki-border` is a quiet divider; `--loki-control-border` is deliberately stronger
-and stays at least 3:1 against control surfaces. Paper `--loki-fg` and `--loki-muted` stay AA on every
-working surface. Brass `--loki-accent` is for anything that needs the human, with separate chart,
-attention and glow values; verdigris is positive and oxblood is negative. Inputs, agent speech, user
-speech and inline code each have their own surface token instead of borrowing selection or accent.
+The structural stack is the ground `--loki-bg`, panel `--loki-panel`, raised header `--loki-panel-header`,
+then `--loki-hover` and neutral `--loki-selection`. `--loki-border` is a quiet divider; `--loki-control-border`
+is deliberately stronger and stays at least 3:1 against control surfaces. `--loki-fg` and `--loki-muted` stay
+AA on every working surface. The roles:
+
+- `--loki-accent` — the link / interactive blue (links, focus, toggles, a chosen pick, chart series), with
+  `--loki-accent-soft` (a pressed or chosen fill) and two tints whose names are kept from the drafting table
+  to avoid churn: `--loki-brass-soft` (the quiet blue wash behind accent ink) and `--loki-brass-glow` (the
+  highlight halo). The accent no longer means "needs you".
+- `--loki-attention` / `--loki-on-attention` — Slack's red badge and its ink: unread counts, the dot on a desk
+  that waits on you. Only a badge or dot, never a panel.
+- `--loki-affirm` / `--loki-on-affirm` — Slack's green, filled, and its ink: the one affirmative button on a
+  surface (approve, done).
+- `--loki-positive` / `--loki-negative` — status inks (a pass, a failure, a destructive action).
+- Inputs, agent speech, user speech and inline code each have their own surface token (`--loki-well`,
+  `--loki-bubble`, `--loki-user-bubble`, `--loki-code`) instead of borrowing selection or accent.
+
 No literal colour appears in a component; the agent chip's hue is the one computed colour. `data-theme`
 selects dark or light values, and the saved `system` preference follows the operating system. `data-palette`
-selects the colour family: loki's own drafting table (the default) or Tokyo Night, each with a day and a
-night side that fill the same roles — the family's yellow is the brass, its teal the positive, its red the
-negative — and each held to the same contrast by the tokens test. An inline initializer applies both before
-first paint.
+selects the colour family: loki's own (Slack's values, the default) or Tokyo Night, each with a day and a night
+side that fill the same roles — Tokyo Night's blue is the accent, its red the attention badge (and the
+negative), its green the affirm, its teal the positive; Day inks that miss AA are darkened along their own hue.
+Tokyo Night is colour only: it takes the same type, radii and roles. An inline initializer applies both before
+first paint; the grounds are repeated in `index.html`, the web manifest and the native window (`src-tauri`).
 
-Type scale, in px, used as plain numbers in inline styles: **9.5** micro (labels, kbd, rail) ·
-**10.5** meta (mono details) · **11** label (`.loki-label`) · **12** small · **13.5** body · **15** row title ·
-**17** card title · **22** display · **28** hero. Faces: New York for display, Avenir Next Condensed for labels, the
-system face for reading, SF Mono for data. Tracking: 0.06em on mono meta, 0.14em on labels.
+Type scale, in px, used as plain numbers in inline styles: **9.5** micro (kbd, rail) · **10.5** fine print ·
+**11** tag · **12** small, meta, label (`.loki-label`) · **13.5** body · **15** row title · **17** card title ·
+**22** display · **28** hero. One face: the system sans (`--loki-font`); `--loki-display` and `--loki-label`
+are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
+Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
 
-Radii: **6** controls · **8** rows · **12** cards and sheets · **999** pills; circles use half their size.
-Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers), `--loki-shadow-panel` (the
-chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in `app/src/kit/layers.ts` (panel 100,
-bubble 101, rail 110, modal 200, capture 210, toast 300), never arithmetic on one; small inline z-indexes
-are for stacking inside one component only.
+Radii: `--loki-radius-sm` **6** fields, icon buttons, dense rows · `--loki-radius-md` **8** buttons, rows,
+plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-radius-pill` **999** chips, badges,
+toasts; circles use half their size. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
+`--loki-shadow-panel` (the chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in
+`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, toast 300), never arithmetic
+on one; small inline z-indexes are for stacking inside one component only.
 
-Focus is one rule in `tokens.css`: a 1px brass outline, inset, on every button, field, link and tabindex.
-Nothing sets `outline: none`. Reduced motion zeroes every CSS duration *and delay*; JS-driven glides
-(the camera) go through `glide()` in `app/src/kit/motion.ts`.
+Focus is one rule in `tokens.css`: a 2px ring in the accent blue, inset on every button, field and tabindex
+(so a clipped list never cuts it off) and offset on links. Nothing sets `outline: none`. Reduced motion zeroes
+every CSS duration *and delay*; JS-driven glides (the camera) go through `glide()` in `app/src/kit/motion.ts`.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
-every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, and that `index.html` and
-the manifest carry `--loki-bg`.
+every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
+and the native window carry `--loki-bg`, that every family defines the attention and affirm roles with AA ink,
+and that no serif or condensed face, no tracking and no display/label face is left in a stylesheet. Inline
+styles still carry the retired tracking and face aliases until the sweep; the test's `LEGACY_INLINE_*` sets
+name them and shrink to nothing when it lands.
 
-## Primitives (`app/src/components/`, 2026-09-08)
+## Primitives (`app/src/components/`, 2026-09-08; Slack look 2026-09-23)
 
-The chrome is built from one vocabulary, with every state in `components/components.css` and never inline: **Button** (tone
-quiet · paper · brass · positive · negative; size sm 28 · md 36 · touch 44; bare, block, kbd), **IconButton**
-(24 · 28 · 36 · 40; danger goes oxblood on hover), **NavButton** (a page down the left; the reading face, not
-the serif), **Chip** (active is paper, brass only for what needs the human, tone for a status badge, static,
-tag, touch, label, float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row**
-(selected, dense, touch, flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or
-bottom), **Popover**, **Kbd**, **Meta**, **Title**, **Dot**, **Empty**, **Banner**, **Toast**. Selection and
-hover use distinct neutral steps; brass is never spent on a selection. A one-off is `className`/`style` on the
-primitive; a one-off that repeats becomes a modifier. Button and Field share one height scale (sm 28 · md 36 ·
-touch 44); a field and the button beside it always share a size. Widgets on the sheet keep `@loki/kit`; app chrome
-never ships into that surface. What stays hand-built: the rail (`.loki-rail`), the chat bubble, the tree's
-rows (the hover swap CSS needs the div), tabs with an underline, the phone's tab bar, the switch.
+The chrome is built from one vocabulary, with every state in `components/components.css` and never inline:
+**Button** (tone quiet · paper · brass · positive · negative; size sm 28 · md 36 · touch 44; bare, block,
+kbd), **IconButton** (24 · 28 · 36 · 40; danger goes red on hover), **NavButton**, **Chip** (active is
+neutral, brass the blue pick, attention the red badge, tone for a status badge, static, tag, touch, label,
+float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row** (selected, dense, touch,
+flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or bottom), **Popover**, **Kbd**,
+**Meta**, **Title**, **Dot**, **Empty**, **Banner**, **Toast**.
+
+The tone names predate the Slack look and are kept for compatibility. What they render now: `quiet` muted ink
+on a hairline · `paper` fg ink · `brass` the accent blue ink (an interactive action; it no longer means
+"needs you") · `positive` Slack's affirmative, green filled with white ink · `negative` red ink. Buttons are
+semibold. Chips, meta, banners and labels are the sans at 12, no caps, no tracking; titles are sans bold. Kbd
+stays mono. Selection and hover use distinct neutral steps; neither the accent nor the badge is spent on a
+selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
+Button and Field share one height scale (sm 28 · md 36 · touch 44); a field and the button beside it always
+share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into that surface. What stays
+hand-built: the rail (`.loki-rail`), the chat bubble, the tree's rows (the hover swap CSS needs the div), tabs
+with an underline, the phone's tab bar, the switch.
 
 ## Signature
 
@@ -73,21 +100,22 @@ a drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom
 ## Shell (2026-09-06)
 
 Under the native title bar, a 48px **rail** of three segments (desk, inbox,
-settings; icons only, condensed caps beneath), one view in the rest. The desks
+settings; icons only, a small label beneath), one view in the rest. The desks
 **tree** is a drawer over the sheet, grouped by agent, with the same attention
-dot the inbox would give each desk (brass filled: waits on you; brass ring:
-finished unread; muted ring: running). The chat stacks on the sheet's left edge,
+dot the inbox would give each desk (red filled: waits on you; a ring: finished
+unread; muted ring: running). The layout is unchanged by the Slack look. The chat stacks on the sheet's left edge,
 edge to edge, and is treated as a viewport **inset**: framing centres in the
 uncovered part, and toggling the chat slides the sheet by its width. The inbox
 is a view, not a veil — the sheet stays mounted behind it.
 
 ## Phone (Slack mode, 2026-09-23)
 
-The phone is its own presentation, not the drafting table shrunk: Slack's September 2026 mobile app is the
+The phone is its own presentation, not the desktop shrunk: Slack's September 2026 mobile app is the
 reference for type, colour, rows, sheets and navigation (plan `docs/plans/2026-09-22-012`). The boundary is
-the `.loki-phone` root. Everything below applies under it and nowhere else; the desk, its palettes and its
-title-block lettering are untouched, and shared chat pieces take phone looks only through optional props
-(`touch`, `layout`, `draft`, `icons`, `attach`) that default to the desk's behaviour.
+the `.loki-phone` root. Everything below applies under it and nowhere else. The desktop took the same Slack
+direction later that day (above), but keeps its own palettes and layout; shared chat pieces take phone looks
+only through optional props (`touch`, `layout`, `draft`, `icons`, `attach`) that default to the desk's
+behaviour.
 
 - **Tokens.** `app/src/phone/phone.css` owns them. `.loki-phone` redeclares every `--loki-*` role with Slack's
   dark values and `:root[data-theme="light"] .loki-phone` with its light ones, and adds the `--phone-*` scales
@@ -118,23 +146,29 @@ title-block lettering are untouched, and shared chat pieces take phone looks onl
 
 ## Rules
 
-- Brass is spent only on things that need the human. No brass decoration.
+- Blue is for interaction, red for attention, green for the affirmative. The red badge is spent only on what
+  is unread or waits on the human; no colour is decoration.
 - Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
-- Rounded corners belong to things on the sheet (widgets, panels). Sheet chrome (plates) is square.
-- Reduced motion is respected globally; focus rings are brass hairlines.
+- Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
+- Sentence-case sans for every label; mono only for code, data and keys.
+- Reduced motion is respected globally; focus rings are 2px accent-blue rings.
 - No real money amounts on screen, in the repo, or in recordings (R9).
 
 ## Tried and dropped
 
-- Blue `#5b7cfa` as the accent: read as any dark dashboard. Brass ties to the room-plate motif and leaves blue free for data.
-  (`app/public/icon.svg` and the PNG icons still carry it; redraw them in brass.)
-- Oxblood `#c0665b`: 4.20:1 on a panel, under AA for the 12px error strings it carried. Lifted to `#cf7266`
+- The drafting table (2026-09-06 to 2026-09-23): brass `--loki-accent` for anything that needs the human,
+  verdigris and oxblood, New York for display, Avenir Next Condensed caps tracked 0.14em for title-block
+  labels, mono meta tracked 0.06em, square plates with only sheet things rounded, a 1px inset brass focus
+  hairline. Retired on 2026-09-23 for Slack, by the user's decision, on the desktop as on the phone.
+- Blue `#5b7cfa` as the accent (before 2026-09-06): read as any dark dashboard next to the drafting table.
+  Slack's blue came back with Slack's whole system, where it reads as Slack, not as a dashboard.
+- Oxblood `#c0665b` (drafting table): 4.20:1 on a panel, under AA for the 12px error strings it carried. Lifted to `#cf7266`
   (4.97:1 on panel, 4.62:1 on panel-header) on 2026-09-08.
 - Dimming *text* with opacity (kbd hints at 0.6, done cards at 0.6): the muted grey fell to 2.75:1. Text that
   is secondary is `--loki-muted`; opacity is for icons at rest.
 - A blurred veil under the new-desk sheet, and a square sheet: the only glass and the only square dialog in
   the product; both fell in line with the other sheets.
-- Side stripes (a 3px oxblood border on the phone's banner, a 2px brass one on a settings note): a leading
+- Side stripes (a 3px red border on the phone's banner, a 2px accent one on a settings note): a leading
   dot or nothing carries the same meaning.
 - "arrange" as a title-block cell labelled "sheet": an action inside a block of facts; moved to a plate.
 
@@ -147,6 +181,6 @@ sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
 forget / remove / disable and an undo on archive; a breakpoint layer for the desktop (the inbox at 1100 wide
-still clips the rail's width); `.loki-label` back to title-block
-facts only; the jargon and error-string pass; the archive fold inside the tree's listbox is still unreachable
+still clips the rail's width); the desktop inline-style sweep to the Slack look (the tokens test's
+`LEGACY_INLINE_*` sets); the jargon and error-string pass; the archive fold inside the tree's listbox is still unreachable
 while the search box owns Tab.

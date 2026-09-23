@@ -9,6 +9,11 @@ import { LAYER } from "../kit/layers";
  * a one-off that repeats becomes a modifier here. Widgets on the sheet keep their own kit (kit/index.tsx).
  */
 
+/**
+ * Button tones. The names predate the Slack direction (2026-09-23) and are kept for compatibility:
+ * quiet muted ink · paper fg ink · brass the interactive blue (accent ink on a hairline) · positive Slack's
+ * green affirmative, filled · negative red ink. "Needs you" is the red attention badge, not a tone.
+ */
 export type Tone = "quiet" | "paper" | "brass" | "positive" | "negative";
 export type Size = "sm" | "md" | "touch";
 
@@ -31,7 +36,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   kbd?: ReactNode;
 }
 
-/** The button. Coloured text on a hairline; the tone says who it is for (brass: the human is needed). */
+/** The button. Coloured text on a hairline, or green filled for the affirmative (`positive`). */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button({ tone = "quiet", size = "sm", bare, block, kbd, className, children, type = "button", ...rest }, ref) {
   return (
     <button ref={ref} type={type} className={cx("loki-btn", BTN_SIZE[size], BTN_TONE[tone], bare && "loki-btn--bare", block && "loki-btn--block", className)} {...rest}>
@@ -49,7 +54,7 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   tone?: Tone;
   /** Keep the hairline (a standalone glyph button, not one in a header line). */
   hairline?: boolean;
-  /** Destroys something: goes oxblood on hover. */
+  /** Destroys something: goes red on hover. */
   danger?: boolean;
   children: ReactNode;
 }
@@ -65,15 +70,18 @@ export function NavButton({ current, className, type = "button", ...rest }: Butt
 }
 
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** paper when chosen; brass only when the chip itself needs the human. */
+  /** Neutral when chosen. */
   active?: boolean;
+  /** The blue pick: accent ink on a blue wash (a chosen agent, an open permission mode). */
   brass?: boolean;
+  /** Needs you: the red filled badge (unread, waiting counts). */
+  attention?: boolean;
   /** A status colour of its own (a token), for badges. */
   tone?: string;
   /** Reads only: renders a span, no hover. */
   static?: boolean;
   touch?: boolean;
-  /** Condensed caps instead of mono. */
+  /** A name chip: a touch bolder (was condensed caps until 2026-09-23). */
   label?: boolean;
   /** Floating over content: opaque, low shadow. */
   float?: boolean;
@@ -81,9 +89,9 @@ export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tag?: boolean;
 }
 
-/** A pill: a filter, a choice, a badge. Mono 10.5 tracked by default. */
-export function Chip({ active, brass, tone, static: isStatic, touch, label, float, tag, className, style, children, type = "button", ...rest }: ChipProps) {
-  const cls = cx("loki-chip", active && "loki-chip--active", brass && "loki-chip--brass", tone && "loki-chip--tone", (isStatic || tone) && "loki-chip--static", touch && "loki-chip--touch", label && "loki-chip--label", float && "loki-chip--float", tag && "loki-chip--tag", className);
+/** A pill: a filter, a choice, a badge. Sans 12. */
+export function Chip({ active, brass, attention, tone, static: isStatic, touch, label, float, tag, className, style, children, type = "button", ...rest }: ChipProps) {
+  const cls = cx("loki-chip", active && "loki-chip--active", brass && "loki-chip--brass", attention && "loki-chip--attention", tone && "loki-chip--tone", (isStatic || tone) && "loki-chip--static", touch && "loki-chip--touch", label && "loki-chip--label", float && "loki-chip--float", tag && "loki-chip--tag", className);
   const st = tone ? ({ "--chip-tone": tone, ...style } as CSSProperties) : style;
   if (isStatic || tone) {
     const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
@@ -128,7 +136,7 @@ export interface RowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   flush?: boolean;
 }
 
-/** A pickable line in a list. The header tint on hover and when selected; brass never. */
+/** A pickable line in a list. Neutral tints on hover and when selected; never the accent or the badge. */
 export const Row = forwardRef<HTMLButtonElement, RowProps>(function Row({ selected, dense, touch, flush, className, type = "button", ...rest }, ref) {
   return <button ref={ref} type={type} data-selected={selected || undefined} className={cx("loki-row", dense && "loki-row--dense", touch && "loki-row--touch", flush && "loki-row--flush", className)} {...rest} />;
 });
@@ -238,22 +246,22 @@ export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover
   );
 });
 
-/** A shortcut hint: mono, muted, hairlined. */
+/** A shortcut hint: mono (keys are data), muted, hairlined. */
 export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLSpanElement>) {
   return <span aria-hidden className={cx("loki-kbd", className)} {...rest}>{children}</span>;
 }
 
-/** Mono meta: agent, time, model — 10.5, tracked, muted. `brass` when the line needs the human; `wrap` for a sentence. */
+/** Meta: agent, time, model — sans 12, muted. `brass` (kept name) tints it the accent blue; `wrap` for a sentence. */
 export function Meta({ brass, wrap, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { brass?: boolean; wrap?: boolean }) {
   return <span className={cx("loki-meta", brass && "loki-meta--brass", wrap && "loki-meta--wrap", className)} {...rest} />;
 }
 
-/** A section's title in the display face (17); `page` for the one title on a view (22). */
+/** A section's title: sans bold 17; `page` for the one title on a view (22). */
 export function Title({ page, className, ...rest }: HTMLAttributes<HTMLDivElement> & { page?: boolean }) {
   return <div className={cx("loki-title", page && "loki-title--page", className)} {...rest} />;
 }
 
-/** The status dot: brass filled waits on you, a ring finished unread, muted ring running, oxblood failed. */
+/** The status dot, coloured by the caller: attention red filled waits on you, a ring finished unread, muted ring running, negative failed. */
 export function Dot({ size = 6, color, ring, pulse, halo, className, style, ...rest }: HTMLAttributes<HTMLSpanElement> & { size?: number; color: string; ring?: boolean; pulse?: boolean; /** A panel-coloured ring, to sit on an icon. */ halo?: boolean }) {
   return <span className={cx("loki-dot", pulse && "loki-pulse", halo && "loki-dot--halo", className)} style={{ width: size, height: size, background: ring ? "transparent" : color, border: `1px solid ${color}`, ...style }} {...rest} />;
 }

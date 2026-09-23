@@ -1,90 +1,109 @@
-/* loki design tokens — a drafting table by day or night.
-   Slate ground, paper data, brass for anything that needs you
-   (approvals, unread), verdigris for live/positive, oxblood for failure.
-   data-theme picks day or night; data-palette picks the family — loki's own
-   (the default, below) or Tokyo Night (further down), each with both sides.
-   Type: New York (display) for room names, Avenir Next Condensed (label)
-   for title-block lettering, the system face for reading, SF Mono for data. */
+/* loki design tokens — Slack mode on the desktop (2026-09-23), day or night.
+   Neutral grey ground, raised panels a step lighter, near-white ink. Blue (--loki-accent) is for links,
+   focus and anything interactive; red (--loki-attention) is the unread / needs-you badge; green
+   (--loki-affirm) fills the affirmative button; --loki-positive and --loki-negative stay as status inks.
+   data-theme picks day or night; data-palette picks the family — loki's own (Slack's values, the default,
+   below) or Tokyo Night (further down), each with both sides and the same roles.
+   Type: one sans stack for everything the app presents (--loki-display and --loki-label are aliases of it,
+   kept so older call sites resolve); SF Mono only for code, data (diffs, file bodies) and key hints.
+   The phone redeclares these roles under .loki-phone (phone/phone.css). */
 :root {
   color-scheme: dark;
   /* The two backgrounds stay in hex because the manifest, native window and prepaint script repeat them. */
-  --loki-bg: #0e1217;
-  --loki-panel: oklch(22% 0.014 255);
-  --loki-panel-header: oklch(25.5% 0.015 255);
-  --loki-hover: oklch(27.5% 0.016 255);
-  --loki-selection: oklch(29.5% 0.019 255);
-  --loki-border: oklch(34% 0.018 255);
-  --loki-control-border: oklch(51% 0.018 255);
-  --loki-fg: oklch(92% 0.012 83);
-  --loki-muted: oklch(68% 0.016 255);
-  --loki-accent: oklch(75% 0.115 82);
-  --loki-accent-soft: oklch(30% 0.05 82);
-  --loki-brass-soft: oklch(23.5% 0.025 82);
-  --loki-positive: oklch(73% 0.1 166);
-  --loki-negative: oklch(70% 0.14 27);
-  --loki-grid: oklch(27% 0.014 255);
+  --loki-bg: #1a1d21;
+  --loki-panel: #222529;
+  --loki-panel-header: #27292d;
+  --loki-hover: #2c2f34;
+  --loki-selection: #34373c;
+  --loki-border: #35383d;
+  --loki-control-border: #72767d;
+  --loki-fg: #e8e8e8;
+  --loki-muted: #ababad;
+  /* Link / interactive blue. Its tints: accent-soft a pressed or chosen fill, brass-soft (name kept) the
+     quiet blue wash behind accent ink, brass-glow (name kept) the highlight halo. */
+  --loki-accent: #1d9bd1;
+  --loki-accent-soft: #163247;
+  --loki-brass-soft: #12293a;
+  --loki-positive: #2bac76;
+  --loki-negative: #f4738f;
+  /* The red badge (unread, waits on you) and the green affirmative fill, each with the ink that sits on it. */
+  --loki-attention: #e01e5a;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #007a5a;
+  --loki-on-affirm: #ffffff;
+  --loki-grid: #2c2f34;
   /* Wells, speech, inline code, veils and glows are the few surfaces outside the main elevation ramp. */
-  --loki-well: oklch(15% 0.012 255);
-  --loki-bubble: oklch(24% 0.014 255);
-  --loki-user-bubble: oklch(25.5% 0.03 82);
-  --loki-code: oklch(27% 0.014 255);
-  --loki-veil: oklch(8% 0.01 255 / 0.62);
-  --loki-brass-glow: oklch(75% 0.115 82 / 0.25);
+  --loki-well: #222529;
+  --loki-bubble: #222529;
+  --loki-user-bubble: #1f2833;
+  --loki-code: #2c2f34;
+  --loki-veil: rgba(0, 0, 0, 0.6);
+  --loki-brass-glow: rgba(29, 155, 209, 0.25);
   /* Elevation comes mostly from the surface ramp. These compact shadows only lift detached UI. */
-  --loki-shadow-sheet: 0 8px 8px oklch(5% 0.01 255 / 0.5);
-  --loki-shadow-float: 0 6px 8px oklch(5% 0.01 255 / 0.42);
-  --loki-shadow-panel: 0 4px 8px oklch(5% 0.01 255 / 0.28);
-  --loki-shadow-low: 0 3px 6px oklch(5% 0.01 255 / 0.24);
+  --loki-shadow-sheet: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.24);
   /*
    * Type scale (px), used as plain numbers in inline styles and checked by test/tokens.test.ts:
-   *   9.5 micro (labels, kbd, rail)   10.5 meta (mono details)   11 label (.loki-label)   12 small
+   *   9.5 micro (kbd, rail)   10.5 fine print   11 tag   12 small, meta, label (.loki-label)
    *   13.5 body   15 row title   17 card title   22 display   28 hero
-   * Radii: 6 control · 8 row · 12 card / sheet · 999 pill (circles use half their size).
-   * Tracking: 0.06em for mono meta, 0.14em for condensed labels (.loki-label).
+   * Weights carry the hierarchy: 400 reading, 600 labels and names, 700 titles. No tracking, no caps.
+   * Radii: sm 6 (fields, icon buttons, dense rows, code) · md 8 (buttons, rows, plates) ·
+   *        lg 12 (cards, sheets, popovers, panels) · pill 999 (chips, badges, toasts); circles use half their size.
    */
   --loki-radius: 12px;
+  --loki-radius-sm: 6px;
+  --loki-radius-md: 8px;
+  --loki-radius-lg: 12px;
+  --loki-radius-pill: 999px;
   --loki-font:
-    -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
-  --loki-display: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-  --loki-label: "Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
+    -apple-system, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+  --loki-display: var(--loki-font);
+  --loki-label: var(--loki-font);
   --loki-mono: "SF Mono", ui-monospace, Menlo, monospace;
 }
 
-/* Daylight keeps the same material roles. Brass darkens so small labels remain AA on pale panels. */
+/* Daylight: Slack's light desktop — a pale grey ground, white panels, grey hairlines, near-black ink. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --loki-bg: #e8eced;
-  --loki-panel: oklch(98.5% 0.003 220);
-  --loki-panel-header: oklch(95.5% 0.006 220);
-  --loki-hover: oklch(93.5% 0.009 220);
-  --loki-selection: oklch(90% 0.012 220);
-  --loki-border: oklch(82% 0.01 220);
-  --loki-control-border: oklch(65% 0.014 230);
-  --loki-fg: oklch(25% 0.018 255);
-  --loki-muted: oklch(48% 0.018 250);
-  --loki-accent: oklch(48% 0.08 82);
-  --loki-accent-soft: oklch(89% 0.04 82);
-  --loki-brass-soft: oklch(95% 0.018 82);
-  --loki-positive: oklch(44% 0.09 166);
-  --loki-negative: oklch(48% 0.14 27);
-  --loki-grid: oklch(85% 0.009 220);
-  --loki-well: oklch(99.5% 0.002 220);
-  --loki-bubble: oklch(96% 0.006 220);
-  --loki-user-bubble: oklch(94% 0.018 82);
-  --loki-code: oklch(92% 0.01 220);
-  --loki-veil: oklch(18% 0.01 255 / 0.28);
-  --loki-brass-glow: oklch(48% 0.08 82 / 0.16);
-  --loki-shadow-sheet: 0 8px 8px oklch(25% 0.018 255 / 0.16);
-  --loki-shadow-float: 0 6px 8px oklch(25% 0.018 255 / 0.14);
-  --loki-shadow-panel: 0 4px 8px oklch(25% 0.018 255 / 0.1);
-  --loki-shadow-low: 0 3px 6px oklch(25% 0.018 255 / 0.09);
+  --loki-bg: #f8f8f8;
+  --loki-panel: #ffffff;
+  --loki-panel-header: #f8f8f8;
+  --loki-hover: #f0f0f0;
+  --loki-selection: #e8f5fa;
+  --loki-border: #e2e2e2;
+  --loki-control-border: #868686;
+  --loki-fg: #1d1c1d;
+  --loki-muted: #616061;
+  --loki-accent: #1264a3;
+  --loki-accent-soft: #d6ebf7;
+  --loki-brass-soft: #e8f5fa;
+  --loki-positive: #007a5a;
+  --loki-negative: #c7174b;
+  --loki-attention: #e01e5a;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #007a5a;
+  --loki-on-affirm: #ffffff;
+  --loki-grid: #ebebeb;
+  --loki-well: #ffffff;
+  --loki-bubble: #f8f8f8;
+  --loki-user-bubble: #eef6fb;
+  --loki-code: #f4f4f4;
+  --loki-veil: rgba(29, 28, 29, 0.4);
+  --loki-brass-glow: rgba(18, 100, 163, 0.16);
+  --loki-shadow-sheet: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --loki-shadow-low: 0 2px 6px rgba(0, 0, 0, 0.09);
 }
 
 /* Tokyo Night (enkia, MIT). Night by night, Day by day; the roles are loki's, the colours are the
-   palette's own: its yellow takes the brass role, its teal the positive, its red the negative. Canonical
-   values stay in hex. The few tints loki derives from its accent (soft brass, the user's speech, the glow)
-   are OKLCH in the yellow's hue, and the Day inks that miss AA at their canonical values are darkened
-   along their own hue — test/tokens.test.ts holds every family to the same contrast. */
+   palette's own: its blue takes the accent, its red the attention badge and the negative, its green the
+   affirmative fill, its teal the positive. Canonical values stay in hex. The few tints loki derives from the
+   accent (the soft washes, the user's speech, the glow) are OKLCH in the blue's hue, and the Day inks that
+   miss AA at their canonical values are darkened along their own hue — test/tokens.test.ts holds every
+   family to the same contrast. */
 :root[data-palette="tokyo-night"] {
   color-scheme: dark;
   --loki-bg: #1a1b26;
@@ -96,22 +115,26 @@
   --loki-control-border: #737aa2;
   --loki-fg: #c0caf5;
   --loki-muted: #a9b1d6;
-  --loki-accent: #e0af68;
-  --loki-accent-soft: oklch(34% 0.06 75);
-  --loki-brass-soft: oklch(26% 0.03 75);
+  --loki-accent: #7aa2f7;
+  --loki-accent-soft: oklch(34% 0.07 268);
+  --loki-brass-soft: oklch(26% 0.04 268);
   --loki-positive: #1abc9c;
   --loki-negative: #f7768e;
+  --loki-attention: #f7768e;
+  --loki-on-attention: #1a1b26;
+  --loki-affirm: #9ece6a;
+  --loki-on-affirm: #1a1b26;
   --loki-grid: #24283b;
   --loki-well: #16161e;
   --loki-bubble: #1f2335;
-  --loki-user-bubble: oklch(28% 0.035 75);
+  --loki-user-bubble: oklch(28% 0.04 268);
   --loki-code: #292e42;
   --loki-veil: oklch(10% 0.02 280 / 0.62);
-  --loki-brass-glow: oklch(80% 0.12 75 / 0.25);
-  --loki-shadow-sheet: 0 8px 8px oklch(5% 0.02 280 / 0.5);
-  --loki-shadow-float: 0 6px 8px oklch(5% 0.02 280 / 0.42);
-  --loki-shadow-panel: 0 4px 8px oklch(5% 0.02 280 / 0.28);
-  --loki-shadow-low: 0 3px 6px oklch(5% 0.02 280 / 0.24);
+  --loki-brass-glow: oklch(72% 0.13 268 / 0.25);
+  --loki-shadow-sheet: 0 8px 24px oklch(5% 0.02 280 / 0.5);
+  --loki-shadow-float: 0 8px 24px oklch(5% 0.02 280 / 0.42);
+  --loki-shadow-panel: 0 4px 12px oklch(5% 0.02 280 / 0.28);
+  --loki-shadow-low: 0 2px 6px oklch(5% 0.02 280 / 0.24);
 }
 
 :root[data-palette="tokyo-night"][data-theme="light"] {
@@ -125,37 +148,39 @@
   --loki-control-border: #68709a;
   --loki-fg: #343b59;
   --loki-muted: #565f89;
-  --loki-accent: oklch(47% 0.1 70);
-  --loki-accent-soft: oklch(89% 0.05 75);
-  --loki-brass-soft: oklch(94% 0.025 75);
+  --loki-accent: oklch(47% 0.15 262);
+  --loki-accent-soft: oklch(89% 0.04 262);
+  --loki-brass-soft: oklch(94% 0.02 262);
   --loki-positive: oklch(45% 0.1 170);
   --loki-negative: oklch(48% 0.19 15);
+  --loki-attention: oklch(52% 0.2 10);
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #587539;
+  --loki-on-affirm: #ffffff;
   --loki-grid: #d0d5e3;
   --loki-well: oklch(98% 0.004 270);
   --loki-bubble: oklch(93.5% 0.008 270);
-  --loki-user-bubble: oklch(93% 0.025 75);
+  --loki-user-bubble: oklch(92% 0.025 262);
   --loki-code: #d0d5e3;
   --loki-veil: oklch(25% 0.03 275 / 0.28);
-  --loki-brass-glow: oklch(47% 0.1 70 / 0.16);
-  --loki-shadow-sheet: 0 8px 8px oklch(30% 0.03 275 / 0.16);
-  --loki-shadow-float: 0 6px 8px oklch(30% 0.03 275 / 0.14);
-  --loki-shadow-panel: 0 4px 8px oklch(30% 0.03 275 / 0.1);
-  --loki-shadow-low: 0 3px 6px oklch(30% 0.03 275 / 0.09);
+  --loki-brass-glow: oklch(47% 0.15 262 / 0.16);
+  --loki-shadow-sheet: 0 8px 24px oklch(30% 0.03 275 / 0.16);
+  --loki-shadow-float: 0 8px 24px oklch(30% 0.03 275 / 0.14);
+  --loki-shadow-panel: 0 4px 12px oklch(30% 0.03 275 / 0.1);
+  --loki-shadow-low: 0 2px 6px oklch(30% 0.03 275 / 0.09);
 }
 
-/* Title-block lettering: condensed caps, tracked. */
+/* A section or field label: sentence case in the reading face, semibold and muted. No caps, no tracking. */
 .loki-label {
-  font-family: var(--loki-label);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--loki-font);
+  font-size: 12px;
+  font-weight: 600;
   color: var(--loki-muted);
 }
 
-/* Focus is a brass hairline everywhere, inset so it sits on the control's own border. Links get a
-   small offset since they have no box. Nothing turns the outline off: a bare field inside a sheet is
-   still focusable and still shows its ring. */
+/* Focus is a 2px ring in the accent blue everywhere, drawn inside the control's edge so a scrolling list or a
+   clipped panel never cuts it off. Links get a small offset since they have no box. Nothing turns the
+   outline off: a bare field inside a sheet is still focusable and still shows its ring. */
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
@@ -163,11 +188,11 @@ select:focus-visible,
 summary:focus-visible,
 [role="button"]:focus-visible,
 [tabindex]:focus-visible {
-  outline: 1px solid var(--loki-accent);
-  outline-offset: -1px;
+  outline: 2px solid var(--loki-accent);
+  outline-offset: -2px;
 }
 a:focus-visible {
-  outline: 1px solid var(--loki-accent);
+  outline: 2px solid var(--loki-accent);
   outline-offset: 2px;
 }
 .loki-pulse {
@@ -196,11 +221,11 @@ a:focus-visible {
 .loki-frame:hover .loki-frame-controls,
 .loki-frame:focus-within .loki-frame-controls { opacity: 1; }
 
-/* The brass plate ticks when the waiting count goes up. */
+/* The waiting badge ticks when its count goes up. */
 .loki-tick { animation: loki-tick 480ms ease-out; }
 @keyframes loki-tick {
   0% { transform: none; }
-  30% { transform: translateY(-2px) scale(1.03); box-shadow: 0 8px 30px rgba(201,164,92,0.35); }
+  30% { transform: translateY(-2px) scale(1.03); box-shadow: var(--loki-shadow-float); }
   100% { transform: none; }
 }
 

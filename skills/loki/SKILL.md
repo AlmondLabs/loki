@@ -68,7 +68,11 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   not a layout.
 - Compose `@loki/kit` components where they fit. Tailwind classes work.
   Prefer the tokens: `bg-loki-panel text-loki-fg text-loki-muted text-loki-accent
-  text-loki-positive text-loki-negative`, or CSS vars `--loki-*`.
+  text-loki-positive text-loki-negative`, or CSS vars `--loki-*`. The accent is the
+  link / interactive blue (links, toggles, the one series in a chart). Red
+  `bg-loki-attention text-loki-on-attention` is only for a badge that needs the
+  user; green `bg-loki-affirm text-loki-on-affirm` fills the one go button.
+  Use the sans reading face; `font-loki-mono` only for code and raw data.
 - No network calls from widgets. Data comes from you, through the file.
 
 ## How you hear back

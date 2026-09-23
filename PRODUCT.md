@@ -18,7 +18,7 @@ Quiet, precise, and personal. The interface should feel like a well-used draftin
 
 ## Anti-references
 
-Avoid generic dark SaaS dashboards, decorative control-room chrome, glass panels, ornamental brass, and visual structure that does not carry information. Do not make the desk look like a metrics dashboard or turn agent activity into spectacle.
+Avoid generic dark SaaS dashboards, decorative control-room chrome, glass panels, ornamental accent colour, and visual structure that does not carry information. Do not make the desk look like a metrics dashboard or turn agent activity into spectacle.
 
 ## Design Principles
 

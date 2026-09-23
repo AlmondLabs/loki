@@ -72,7 +72,17 @@ const contrast = (a: Rgb, b: Rgb) => {
 const FONT_SCALE = new Set([9.5, 10.5, 11, 12, 13.5, 15, 17, 22, 28]);
 /** Radii: control, row, card/sheet, pill — plus the geometric ones used for circles and hairlines. */
 const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
-const TRACKING = new Set(["0.06em", "0.14em"]);
+/**
+ * Tracking. The Slack direction (2026-09-23) sets no letter-spacing: labels are sentence-case sans and meta is
+ * the reading face. Stylesheets allow none. Inline styles still carry the retired drafting-table tracking until
+ * the desktop sweep (part 2) removes it; that sweep empties LEGACY_INLINE_TRACKING.
+ */
+const TRACKING = new Set<string>([]);
+const LEGACY_INLINE_TRACKING = new Set(["0.06em", "0.14em"]);
+/** Retired faces: --loki-display and --loki-label are aliases of the sans stack now; inline uses go in the sweep. */
+const LEGACY_INLINE_FACES = /^var\(--loki-(display|label)\)$/;
+/** Serif, condensed and narrow faces have no place in either presentation. */
+const RETIRED_FACE = /(?<!sans-)serif|New York|Iowan|Georgia|Avenir|Condensed|Narrow/i;
 /** The agent's hue is computed, not a token; its glyph size is derived from the face size. */
 const COMPUTED = (hit: string) => hit.startsWith("desk/AgentChip.tsx:");
 
@@ -104,21 +114,29 @@ describe("design tokens: every style stays on the scales", () => {
     const off = findAll(code, /boxShadow: "([^"]+)"/g, (m) => m[1]).filter((h) => !/var\(--loki-shadow-(sheet|float|panel|low)\)/.test(h));
     expect(off).toEqual([]);
   });
-  test("tracking is 0.06em (mono meta) or 0.14em (labels)", () => {
-    const inline = findAll(code, /letterSpacing: "([^"]+)"/g, (m) => m[1]).filter((h) => !TRACKING.has(value(h)));
+  test("no tracking in stylesheets; inline only the legacy values the sweep removes", () => {
+    const inline = findAll(code, /letterSpacing: "([^"]+)"/g, (m) => m[1]).filter((h) => !TRACKING.has(value(h)) && !LEGACY_INLINE_TRACKING.has(value(h)));
     const inCss = findAll(files, /letter-spacing:\s*([\d.]+em)/g, (m) => m[1]).filter((h) => !TRACKING.has(value(h)));
     expect([...inline, ...inCss]).toEqual([]);
   });
-  test("faces are the four --loki fonts", () => {
-    const off = findAll(code, /fontFamily: "([^"]+)"/g, (m) => m[1]).filter((h) => !/^var\(--loki-(font|display|label|mono)\)$|^inherit$/.test(value(h)));
+  test("faces are the reading face or mono (inline, the retired aliases until the sweep)", () => {
+    const off = findAll(code, /fontFamily: "([^"]+)"/g, (m) => m[1]).filter((h) => !/^var\(--loki-(font|mono)\)$|^inherit$/.test(value(h)) && !LEGACY_INLINE_FACES.test(value(h)));
     expect(off).toEqual([]);
+  });
+  test("stylesheets never name the retired display or label faces, and keep mono for code, data and keys", () => {
+    const aliases = findAll(css.filter((f) => f.path !== "kit/tokens.css"), /font-family:\s*(var\(--loki-(?:display|label)\))/g, (m) => m[1]);
+    expect(aliases).toEqual([]);
+    const desktopCss = css.filter((f) => !f.path.startsWith("phone/"));
+    const mono = desktopCss.flatMap((f) => [...f.text.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{[^}]*var\(--loki-mono\)/g)].map((m) => `${f.path}: ${m[1].trim()}`));
+    // Tailwind's @theme only aliases the token (font-loki-mono); it presents nothing
+    expect(mono.filter((h) => !/\b(code|pre|kbd)\b|--mono\b|@theme inline$/.test(value(h)))).toEqual([]);
   });
   test("window-level stacking uses LAYER, never a big literal or arithmetic on one", () => {
     const big = findAll(code, /zIndex: ([0-9]{3,})/g, (m) => m[1]);
     const math = findAll(code, /zIndex: (LAYER\.\w+ [+-] \d+)/g, (m) => m[1]);
     expect([...big, ...math]).toEqual([]);
   });
-  test("nothing turns the focus outline off — the brass ring in tokens.css is the one focus style", () => {
+  test("nothing turns the focus outline off — the blue ring in tokens.css is the one focus style", () => {
     const inline = findAll(code, /outline: "none"/g, (m) => m[0]);
     const inCss = findAll(css, /outline:\s*none/g, (m) => m[0]);
     expect([...inline, ...inCss]).toEqual([]);
@@ -165,15 +183,66 @@ describe("design tokens: definitions and uses agree", () => {
   });
 });
 
+describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
+  const root = themeBlock("loki", "dark");
+  const rule = (selector: string) => {
+    const hit = tokens.match(new RegExp(`(?:^|\\n)${selector.replace(/[.[\]()*+?^$|\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`));
+    if (!hit) throw new Error(`no rule for ${selector}`);
+    return hit[1];
+  };
+  test("display and label faces are the sans stack; no serif or condensed face anywhere in tokens.css", () => {
+    for (const face of ["font", "display", "label"]) {
+      const raw = root.match(new RegExp(`--loki-${face}:\\s*([^;]+);`))?.[1] ?? "";
+      expect(raw).not.toBe("");
+      expect(raw).not.toMatch(RETIRED_FACE);
+      expect(raw).not.toMatch(/mono/i);
+    }
+    expect(tokens.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(RETIRED_FACE);
+  });
+  test(".loki-label is sentence-case sans: no caps, no tracking, 12px semibold muted", () => {
+    const label = rule(".loki-label");
+    expect(label).not.toMatch(/text-transform:\s*uppercase/);
+    expect(label).not.toMatch(/letter-spacing/);
+    expect(label).toMatch(/font-size:\s*12px/);
+    expect(label).toMatch(/font-weight:\s*600/);
+    expect(label).toMatch(/color:\s*var\(--loki-muted\)/);
+  });
+  test("focus is a 2px ring in the accent blue, never a hairline", () => {
+    expect(tokens).toMatch(/:focus-visible[^{]*\{[^}]*outline: 2px solid var\(--loki-accent\)/);
+    expect(tokens).not.toMatch(/outline: 1px solid/);
+  });
+  test("radius roles are named on :root: sm 6 · md 8 · lg 12 · pill 999", () => {
+    const radius = (name: string) => Number(root.match(new RegExp(`--loki-radius-${name}:\\s*([\\d.]+)px`))?.[1]);
+    expect([radius("sm"), radius("md"), radius("lg"), radius("pill")]).toEqual([6, 8, 12, 999]);
+  });
+  test("no literal brass left in tokens.css", () => {
+    expect(tokens).not.toMatch(/201,\s*164,\s*92/);
+    expect(tokens.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/\bbrass\b(?!-(soft|glow))/i); // only the kept token names
+  });
+});
+
 describe("design tokens: every family remains readable on both sides", () => {
-  const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !["radius", "font", "display", "label", "mono"].includes(t));
+  const colourTokens = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
+  /** Slack's roles beside the accent: the red unread / needs-you badge and the green affirmative fill, each with its ink. */
+  const ROLES = ["attention", "on-attention", "affirm", "on-affirm"];
   for (const palette of PALETTES) {
     for (const theme of THEMES) {
       const color = (name: string) => themeColor(palette, theme, name);
 
       test(`${palette} ${theme}: defines every colour token the default does`, () => {
         const defined = new Set([...themeBlock(palette, theme).matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]));
-        expect(colourTokens.filter((t) => !defined.has(t))).toEqual([]);
+        expect([...colourTokens, ...ROLES].filter((t) => !defined.has(t))).toEqual([]);
+      });
+
+      test(`${palette} ${theme}: the badge and the affirmative fill carry AA ink and stand off the ground (3:1)`, () => {
+        expect(contrast(color("on-attention"), color("attention"))).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(color("on-affirm"), color("affirm"))).toBeGreaterThanOrEqual(4.5);
+        for (const surface of ["bg", "panel"]) expect(contrast(color("attention"), color(surface))).toBeGreaterThanOrEqual(3);
+        expect(contrast(color("affirm"), color("bg"))).toBeGreaterThanOrEqual(3);
+        // the accent is a blue: its hue is nearer blue than the retired brass yellow
+        const [r, g, b] = color("accent");
+        expect(b).toBeGreaterThan(r);
+        expect(b).toBeGreaterThan(g * 0.9);
       });
 
       test(`${palette} ${theme}: text and semantic colors meet AA on working surfaces`, () => {
@@ -216,7 +285,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     return hit;
   };
   const color = (theme: Theme, name: string) => parseColor(raw(theme, name));
-  const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !["radius", "font", "display", "label", "mono"].includes(t));
+  const desktopColours = [...themeBlock("loki", "dark").matchAll(/--loki-([a-z-]+):/g)].map((m) => m[1]).filter((t) => !t.startsWith("radius") && !["font", "display", "label", "mono"].includes(t));
   /** Slack's roles that loki has no token for: links, the unread badge and its ink, presence, the affirmative button and its ink. */
   const PHONE_ROLES = ["link", "unread", "on-unread", "presence", "affirm", "on-affirm"];
 

@@ -3,8 +3,10 @@
    element, so every shared control inside inherits the mobile values. A declaration on the element beats
    the one inherited from :root whatever its specificity, so data-palette never reaches the phone; only
    data-theme picks night or day. The desktop never renders .loki-phone and is untouched.
-   Slack's extra roles live beside them as --phone-*: links, the unread badge, presence, the affirmative
-   button, the type scale, radii, spacing, layers and motion. test/tokens.test.ts fences all of it. */
+   The desktop's attention and affirm roles (the same Slack red and green) are redeclared too, so a shared
+   primitive that uses them never picks up the desktop's Tokyo Night values. Slack's extra roles live beside
+   them as --phone-*: links, the unread badge, presence, the affirmative button, the type scale, radii,
+   spacing, layers and motion. test/tokens.test.ts fences all of it. */
 
 /* Night: Slack's dark mobile ground, raised surfaces a step lighter. */
 .loki-phone {
@@ -23,6 +25,10 @@
   --loki-brass-soft: #12293a;
   --loki-positive: #2bac76;
   --loki-negative: #f4738f;
+  --loki-attention: #e01e5a;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #007a5a;
+  --loki-on-affirm: #ffffff;
   --loki-grid: #2c2f34;
   --loki-well: #222529;
   --loki-bubble: #222529;
@@ -119,6 +125,10 @@
   --loki-brass-soft: #e8f5fa;
   --loki-positive: #007a5a;
   --loki-negative: #c7174b;
+  --loki-attention: #e01e5a;
+  --loki-on-attention: #ffffff;
+  --loki-affirm: #007a5a;
+  --loki-on-affirm: #ffffff;
   --loki-grid: #ebebeb;
   --loki-well: #f8f8f8;
   --loki-bubble: #f8f8f8;
