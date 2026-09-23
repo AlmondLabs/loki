@@ -103,6 +103,15 @@ const PATHS = {
       <path d="M12 15v6" />
     </>
   ),
+  /** A widget on the desk: four tiles (the thread's widget rows). */
+  widget: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </>
+  ),
   filter: <path d="M4 6h16M7 12h10M10 18h4" />,
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   refresh: (

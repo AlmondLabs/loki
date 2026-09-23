@@ -113,3 +113,15 @@
 .loki-msg-day:not(.loki-phone *)::before { content: ""; position: absolute; top: 12px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
 .loki-msg-day-pill-wrap:not(.loki-phone *) { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: 4px; pointer-events: none; }
 .loki-msg-day-pill:not(.loki-phone *) { padding: 2px 12px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: var(--loki-bg); font-size: 12px; font-weight: 700; line-height: 1.5; color: var(--loki-fg); }
+/* A widget row (plan 013 U8): one quiet line in the message column, a tile icon in the face's column. Still on
+   the desk, the line is a button (the widget's title in the link blue) that opens the Desk tab framed on it. */
+.loki-widget-row:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 4px -20px; padding: 2px 20px; font-size: 13.5px; line-height: 1.5; color: var(--loki-muted); }
+.loki-widget-row-icon:not(.loki-phone *) { flex: none; display: flex; justify-content: flex-end; width: 36px; color: var(--loki-muted); }
+.loki-widget-row-text:not(.loki-phone *) { min-width: 0; overflow-wrap: anywhere; }
+.loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
+.loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
+.loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
+.loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title { text-decoration: underline; }
+.loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-accent); outline-offset: 2px; }
+.loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title { text-decoration: line-through; }
+.loki-widget-row .loki-msg-time:not(.loki-phone *) { margin-left: 0; }

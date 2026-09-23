@@ -14,6 +14,7 @@ import { Surface } from "./Surface";
 import type { useDesk } from "./useDesk";
 import { useDeskChat } from "./useDeskChat";
 import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
+import { widgetMarks } from "./widgetRows";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
 const TABS: readonly Tab<DeskTab>[] = [
@@ -43,6 +44,8 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   chatPrefill: { text: string; tick: number } | null;
   models: ModelEntry[] | null;
   frameRequest: FrameRequest | null;
+  /** A widget row chosen in the thread: open the Desk tab framed on that widget (useDeskPane's frame). */
+  onFrameWidget?: (widgetId: string) => void;
   notice: (m: string) => void;
 }
 
@@ -85,8 +88,18 @@ export function DeskPane(props: DeskPaneProps) {
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(() => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }), [agentName, agentId]);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt);
-  // Thread hands the transcript each field on its own, so only `people` needs a stable identity.
-  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), toolbar: true };
+  // The desk's widget changes among the messages, by time (R15).
+  const widgets = widgetMarks(view.rows, desk.widgetLog, agentName);
+  const { onFrameWidget } = props;
+  const frameWidget = onFrameWidget
+    ? (widgetId: string) => {
+        // A minimised widget comes back to the canvas first, so there is something to frame.
+        if (desk.closed.some((w) => w.id === widgetId)) desk.gesture({ kind: "open", id: widgetId });
+        onFrameWidget(widgetId);
+      }
+    : undefined;
+  // Thread hands the transcript each field on its own, so only `people` needs a stable identity (widget rows are not memoised).
+  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), toolbar: true, widgets, onFrameWidget: frameWidget };
 
   const summary = desk.desks.list.find((d) => d.scope === scope) ?? null;
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });

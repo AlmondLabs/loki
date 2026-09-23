@@ -8,6 +8,7 @@ import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../../../core/at
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
+import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
 
 const NO_YANK_MS = 2000;
 
@@ -64,6 +65,8 @@ export function useDeskSocket() {
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
+  /** Each desk's widget change log (desk/widgetRows.ts): from history replies and live `widget_change` frames, for any desk. */
+  const [widgetLogs, setWidgetLogs] = useState<WidgetLogs>({});
   /** Pending request/reply exchanges with the mod, by requestId. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
@@ -172,6 +175,12 @@ export function useDeskSocket() {
           case "app_build":
             if (typeof msg.build === "string") setServedBuild(msg.build);
             break;
+          case "widget_change": {
+            // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
+            const entry = parseWidgetEntry(msg.entry);
+            if (entry) setWidgetLogs((s) => withEntry(s, entry));
+            break;
+          }
           case "agent":
           case "memory_file":
           case "memory_commits":
@@ -293,6 +302,8 @@ export function useDeskSocket() {
     devices,
     pairCode,
     servedBuild,
+    widgetLogs,
+    setWidgetLogs,
     waiters,
     lastInteractionRef,
     pendingRef,

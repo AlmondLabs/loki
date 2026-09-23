@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, emptyDesk } from "../../../core/desk-core.ts";
+import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor } from "../../../core/desk-core.ts";
 import { readSession } from "./session";
 import { inTauri, modWsBase } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { deskView } from "./view";
+import { withHistoryLog } from "./widgetRows";
 import type { Task } from "../board/model";
 import type { AgentDetails } from "../agents/Agents";
 import type { GlobalSkill } from "../../../mod/skills.ts";
@@ -96,6 +97,8 @@ export function useDesk() {
     devices,
     pairCode,
     servedBuild,
+    widgetLogs,
+    setWidgetLogs,
     waiters,
     lastInteractionRef,
     pendingRef,
@@ -285,9 +288,15 @@ export function useDesk() {
     setLadder: (input: Partial<SnoozeLadder>) => send({ type: "snooze_ladder", ...input }),
     /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((m) => ((m?.conversations as InboxConversation[] | undefined) ?? [])),
-    /** The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame). */
+    /**
+     * The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame).
+     * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
+     */
     loadHistory: (agentId: string, conversationId: string): Promise<TranscriptRow[]> =>
-      request("history_get", { agentId, conversationId }, 4000).then((m) => ((m?.messages as TranscriptRow[] | undefined) ?? [])),
+      request("history_get", { agentId, conversationId }, 4000).then((m) => {
+        if (m && Array.isArray(m.widgetLog)) setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), m.widgetLog));
+        return (m?.messages as TranscriptRow[] | undefined) ?? [];
+      }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
       recent: () => request("folders_get", {}, 4000).then((m) => ({ byAgent: ((m?.byAgent as Record<string, string[]>) ?? {}), byConversation: ((m?.byConversation as Record<string, string>) ?? {}) })),
@@ -403,5 +412,7 @@ export function useDesk() {
     trash,
     reportWidgetError,
     cameraTarget,
+    /** This desk's widget change log, oldest first (desk/widgetRows.ts); undefined before any arrived. */
+    widgetLog: widgetLogs[scope],
   };
 }

@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
+import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
@@ -16,18 +17,30 @@ export type { TranscriptRow };
  * its last-ness, or the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
   // Day pills only in the message layout, and only where rows carry times; then the pills name the day and the New line does not.
   const pills = people ? dayPills(rows) : null;
   const timed = pills?.some(Boolean) ?? false;
-  const firsts = people ? runStarts(rows, dividerAt, pills) : null;
+  // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout.
+  const marks = new Map<number, WidgetMark[]>();
+  if (people) for (const w of widgets ?? []) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  const firsts = people ? runStarts(rows, dividerAt, pills, marks) : null;
+  const marksAt = (i: number) => marks.get(i)?.map((w) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} />);
   const row = (m: TranscriptRow, i: number) => (
     <Fragment key={i}>
+      {marksAt(i)}
       {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
       <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
+      {i === rows.length - 1 && marksAt(rows.length)}
     </Fragment>
   );
-  if (!timed || !pills) return <>{rows.map(row)}</>;
+  if (!timed || !pills)
+    return (
+      <>
+        {rows.map(row)}
+        {!rows.length && marksAt(0)}
+      </>
+    );
   // Each day is its own block, so its sticky pill is pushed off by the next day's rather than stacking under it.
   const days: Array<{ label: string | null; start: number; end: number }> = [];
   pills.forEach((label, i) => {
@@ -54,13 +67,13 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
 
 /**
  * Which rows start a run: a message whose author differs from the last message's, or the first after the
- * divider or a day pill (`pills`, from dayPills). Tool and event rows neither start nor break one.
+ * divider, a day pill (`pills`, from dayPills) or a widget row (`breaks`, keyed by the row it sits before). Tool and event rows neither start nor break one.
  */
-export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null, pills: Array<string | null> | null = null): boolean[] {
+export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null, pills: Array<string | null> | null = null, breaks: ReadonlyMap<number, unknown> | null = null): boolean[] {
   const out: boolean[] = [];
   let author: TranscriptRow["role"] | null = null;
   rows.forEach((m, i) => {
-    if (i === dividerAt || pills?.[i]) author = null;
+    if (i === dividerAt || pills?.[i] || breaks?.has(i)) author = null;
     const speaks = m.role === "user" || m.role === "assistant";
     out.push(speaks && m.role !== author);
     if (speaks) author = m.role;
@@ -89,6 +102,60 @@ export interface MessageLayout {
   dividerDay?: string | null;
   /** The hover action bar on each message (the desktop's Messages tab); the phone leaves it off. */
   toolbar?: boolean;
+  /** The desk's widget changes among the messages (desk/widgetRows.ts widgetMarks); the host keeps the array stable. */
+  widgets?: WidgetMark[];
+  /** Choosing a widget row that is still on the desk: open the Desk tab framed on it. */
+  onFrameWidget?: (widgetId: string) => void;
+}
+
+/** A widget change in the thread: "friday added Revenue chart", placed before row `before`. */
+export interface WidgetMark {
+  id: string;
+  /** The transcript row it sits before; rows.length puts it after the last. */
+  before: number;
+  /** ISO 8601, like TranscriptRow.at. */
+  at: string;
+  agent: string;
+  change: "added" | "changed" | "removed";
+  title: string;
+  widgetId: string;
+  /** The widget is no longer on the desk (this row removed it, or a later one did): the row frames nothing. */
+  gone: boolean;
+}
+
+/**
+ * A widget row: the agent, what changed and the widget, with its time. While the widget is on the desk the
+ * line is a button that opens the Desk tab framed on it; once it is gone the line says so and does nothing.
+ */
+function WidgetRow({ mark: w, onFrame }: { mark: WidgetMark; onFrame?: (widgetId: string) => void }) {
+  const time = clockLabel(w.at);
+  const words = (
+    <>
+      <span className="loki-widget-row-agent">{w.agent}</span> {w.change} <span className="loki-widget-row-title">{w.title}</span>
+    </>
+  );
+  return (
+    <div data-row="widget" data-gone={w.gone ? "true" : undefined} className="loki-widget-row">
+      <span className="loki-widget-row-icon" aria-hidden>
+        <Icon name="widget" size={16} />
+      </span>
+      {w.gone || !onFrame ? (
+        <span className="loki-widget-row-text">
+          {words}
+          {w.gone && <span>{w.change === "removed" ? " · it is gone from the desk" : " · since removed from the desk"}</span>}
+        </span>
+      ) : (
+        <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show it on the desk" onClick={() => onFrame(w.widgetId)}>
+          {words}
+        </button>
+      )}
+      {time && (
+        <time className="loki-msg-time" dateTime={w.at}>
+          {time}
+        </time>
+      )}
+    </div>
+  );
 }
 
 /** The unread boundary: the day on the left, "New" on the right, a hairline between. */
