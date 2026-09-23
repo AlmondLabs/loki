@@ -107,7 +107,8 @@ is up. There is no top bar of search or history. Each pane draws its own header 
 line (a `#` and the desk's name, or the agent's face and name) with a quiet aside and the actions on the
 right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
 button. A desk's header carries its agent with the live word (working, writing, needs approval, asked you), pin,
-archive and a "More desk actions" menu that lists the rest with their keys; the sheet's own actions (⌘⇧A
+archive and a "More desk actions" menu: Mark as done (⌘⇧↵) or Mark as not done first, Rename… (Letta's
+conversation summary, so the main chat has none), then the rest with their keys; the sheet's own actions (⌘⇧A
 arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Desk tab. Two earlier forms were dropped on 2026-09-06: a
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
@@ -129,16 +130,20 @@ List and detail, as Slack's desktop: a 48px **rail**, a **list column** beside i
   count badge on what needs you (the inbox's waiting count, open tasks, due cards), and at the foot the column
   toggle and Settings. The pane is the window's one `main`; the rail is its navigation.
 - **List column.** Desk, Board, Agents and Learn list their items in a second column (`ListColumn`), 260px by
-  default, dragged or arrowed on its edge between 220 and 420, shown or hidden with ⌘⇧D or the rail's toggle.
+  default, dragged or arrowed on its edge between 220 and 420, shown or hidden with ⌘⇧D (in the Inbox, which has
+  no column, ⌘⇧D stays Deny) or the rail's toggle.
   A window under 1100 wide folds it away until asked for, without touching the saved choice. Each section's
   list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. The column's
   48px header (the section's name and a "+") sits level with the pane's header. Inbox has no column: the pass
   is the whole pane. Settings has none either: it is a sheet.
 - **Desk sidebar.** A filter ("Find a desk…", by desk or agent name; ↓ into the rows, ↑↓ between them, ↵ opens
   the first match), then **Pinned**, then one folding section per agent with its own "+", then a folded
-  **Archived**. A row is `#` and the desk's name: bold when the agent wrote since you looked, a red badge when it
-  waits on you, a green dot while its agent works. Hover shows pin and archive; a right click opens the row
-  menu (open, pin, archive or restore). When a desk that waits on you is scrolled out of view, a red "Needs you"
+  **Archived**. A row is `#` and the desk's name: a red badge (and bold) when it waits on you, a green dot while
+  its agent works, and for a desk whose agent has finished a small ring after the name, bold as well while there
+  is news since you last looked. **Viewed is not done**: opening a desk un-bolds it, but the ring (and its Inbox
+  card) stay until you act or Mark as done; bold and ring is new, the ring alone is "viewed, not done", neither is
+  done. The phone reads the same marks through the mod. Hover shows pin and archive; a right click opens the row
+  menu (open, Mark as done or not done, Rename…, pin, archive or restore). When a desk that waits on you is scrolled out of view, a red "Needs you"
   pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
   replaced the desks tree drawer (2026-09-23, approved by the user); the tree lives on only as the Board's
   assign-to-desk picker.
@@ -154,13 +159,13 @@ List and detail, as Slack's desktop: a 48px **rail**, a **list column** beside i
 - **Agents** is Slack's DMs: the column lists agents (face, name, live dot, the last thing it said, a red badge
   for what waits in the Inbox); the pane shows the chosen agent with a tab row for its pages (Profile, Memory,
   Changes, Reflection, Skills). **Board** lists its views (all tasks, each status with its count, each agent);
-  "all" is the four-column board, the rest a single list, with today's keys. **Learn** lists Review, Leads, All
-  cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick.
+  "all" is the four-column board, the rest a single list, with today's keys; a remembered agent view whose agent
+  is gone says so and asks for a new pick. **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick.
 - **Search (⌘K).** A sheet from anywhere over desks, agents, waiting Inbox items and the app's pages
   (sections and each Preferences page), from what the app already has; it does not search message text, and
   says so. An empty query lists recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
 - **Preferences.** Settings opens as a large sheet over the whole window, rail included: a named page list on
-  the left, the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1-5 close it
+  the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1-5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Inbox** keeps its screen (the Slack look only); Enter or O on a card opens its desk on Messages.
 

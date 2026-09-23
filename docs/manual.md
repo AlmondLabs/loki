@@ -6,7 +6,7 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
 ## Requirements
 
 - **macOS 13 or later.** The shell finds Letta Desktop with `lsof`, picks folders with the Finder, and
-  uses the native title bar, dock badge and a global shortcut. Nothing else is supported today.
+  uses the traffic lights over a hidden title bar, the dock badge and a global shortcut. Nothing else is supported today.
 - **Letta Code.** loki runs the one on your Mac — the same `letta` a terminal runs. On launch the shell looks
   where installers put it (`LOKI_LETTA_BIN`, PATH, `/opt/homebrew/bin`, `/usr/local/bin`, volta, bun, nvm, fnm,
   npm's global bin) and, finding none, runs `npm install -g @letta-ai/letta-code@latest` with the npm beside the
@@ -79,7 +79,7 @@ Whichever way, Letta Code need not be installed first: loki uses the one on your
    the providers Letta Code connects to — Anthropic, OpenAI, Google, OpenRouter, Ollama for local models and
    more; Letta checks it with the provider and keeps it, loki never sees it again; every turn is billed by that
    provider), then name your first agent and
-   pick one of Letta's personalities. You land on its desk with the chat open.
+   pick one of Letta's personalities. You land on its main chat, on Messages, with the message box focused.
 4. Ask your agent to put something on the desk.
 
 Updates are a new release (`brew upgrade --cask loki`, or `--cask loki-nightly`, or the next `.dmg`); the app re-installs its mod on launch
@@ -94,8 +94,8 @@ window (double-click zooms). The window title still names what shows — the des
 "Board · n open", "Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of six
 sections with a red count on what needs you; beside it, for Desk, Board, Agents and Learn, a **sidebar** listing
 that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
-sidebar; drag its edge (or focus it and use the arrows) for a width between 220 and 420. A window under 1100
-wide starts with it hidden.
+sidebar (in the Inbox, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
+width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki.
 
 - **Desk** (⌘1): the sidebar lists your desks — **Pinned** first, then one section per agent (each folds, each
   with a "+" for a new desk with that agent), then **Archived**, folded. A desk's name goes bold when its agent
@@ -115,8 +115,8 @@ wide starts with it hidden.
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a desk — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (rename, find, model, permission mode,
-  new desk, and on the Desk tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
+  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (mark as done or not done, rename, find, model,
+  permission mode, new desk, and on the Desk tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line before what came since you last looked (it stays put while the desk is open, as
   Slack's does, and moves on the next open), a copy button on hover, and a line each time the agent
@@ -137,7 +137,7 @@ wide starts with it hidden.
 - **Board** (⌘3): tasks for later, see below.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
   one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
-  a tab per page. **profile**: face, name, description and model
+  a tab per page (a first visit lands on memory); the "+" at the top of the sidebar makes a new agent. **profile**: face, name, description and model
   (editable), effort and context, where it is working (its live desks, each a link, and its open tasks), and delete at
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
   this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
@@ -157,20 +157,38 @@ wide starts with it hidden.
   current. A skill nobody recorded a source for asks for one the first time. The page is remembered for the window.
 - **Settings** (⌘, or ⌘6, or the rail's gear): opens **Preferences** over the whole window, ten pages down the
   left, one showing at a time, the last one remembered for the window. ⌘, closes it again, ⌘[ and ⌘] step its
-  pages, ⌘1-5 close it and go to that section, Esc closes it. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six hours; `brew upgrade --cask loki` is the way up), which harness the app is on, how it reaches the mod, requirements and install status.
-  the harness's **scratch** folder (see Requirements) with apply, back to the default, and the line for a terminal. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are checked
-  with the provider before Letta keeps them; OAuth ones say which `letta connect` to run. **phone**: the LAN
-  switch, the pairing QR and code, paired phones. **chat**: where the panel sits and its width. **files**: where
-  **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per calendar day; leads are still looked for once it is reached), sweep every N minutes (how often the writer looks for quiet conversations; ten by default, one to 1440; each sweep that finds some is one model call per agent over the agent's whole fixed prompt), the model it asks, run now, and the leads it proposes. **files**: where
-  everything lives. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the input-source switcher wants it.
+  pages, ⌘1-5 close it and go to that section, Esc closes it. In the page list, ↑↓, Home and End move between
+  pages. The pages, in order:
+  1. **letta**: loki's own version and whether a newer release is out (asked of GitHub on launch and every six
+     hours; `brew upgrade --cask loki` is the way up), which harness the app is on, the harness's **scratch**
+     folder (see Requirements) with apply, back to the default, and the line for a terminal, how it reaches the
+     mod, requirements and install status.
+  2. **inbox**: how the deck orders its cards (see "The order") and the two knobs of the Later ladder (see
+     "Later, with backoff").
+  3. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are
+     checked with the provider before Letta keeps them; OAuth ones say which `letta connect` to run.
+  4. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
+  5. **skills**: the global skills in `~/.letta/skills` that every agent reads, each with disable, and a field
+     to enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
+  6. **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per
+     calendar day; leads are still looked for once it is reached), sweep every N minutes (how often the writer
+     looks for quiet conversations; ten by default, one to 1440; each sweep that finds some is one model call
+     per agent over the agent's whole fixed prompt), the model it asks, run now, and the leads it proposes.
+  7. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
+     tokyo night; kept per device.
+  8. **chat**: where the panel sits on the Desk tab (left, centre, right) and its side width (narrow, wide).
+  9. **files**: where everything lives.
+  10. **keys**: the complete keymap, and the switch for ⌥Space — the one system-wide key, off if Raycast,
+      Alfred or the input-source switcher wants it.
 
 **⌘K** opens search from anywhere: desks, agents, what waits on you in the Inbox, and the app's pages (each
 section, each Preferences page). It finds names, not message text, and says so. With nothing typed it lists the
-places you visited last; ↑↓ move, ↵ opens the top result (a desk on Messages), Esc or ⌘K again closes it. ⌘K
-used to open the desks tree; the sidebar holds that list now.
+places you visited last; ↑↓ move, ↵ opens the top result (a desk on Messages), Esc or ⌘K again closes it. `/desks`
+in a message box opens it too. ⌘K used to open the desks tree; the sidebar holds that list now.
 
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
-that work everywhere; `?` or Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: desks on the desk, cards in the inbox, columns
+that work everywhere (less any the view takes for itself, such as ⌘⇧D in the Inbox; Settings › keys says so); `?` or
+Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: desks on the desk, cards in the inbox, columns
 on the board, views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump
 back to the desk. Esc peels one layer: a sheet or menu, then the Desk tab back to Messages, then a view back to the desk. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar, so the
@@ -180,16 +198,33 @@ itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Phone
 
-The inbox, on your phone, with nothing installed. Settings › phone → switch on "reachable on this Wi‑Fi" →
-"pair a phone" → scan the QR with the phone's camera → in Safari, Share → Add to Home Screen → open the new
-icon and type the six-character code once (a home-screen app has its own cookie jar, so the code shown in
-Settings is asked for one more time; it stays valid ten minutes). From then on the icon opens straight into the
-inbox: the same cards as Catch Up in the same order (highest score first, see "The order") — each with
-approve / deny / answer / seen / later, and a tap opens the conversation with the transcript, the approval or
+The inbox and your desks, on your phone, with nothing installed. Settings › phone → switch on "reachable on
+this Wi‑Fi" → "pair a phone" → scan the QR with the phone's camera → in Safari, Share → Add to Home Screen → open
+the new icon and type the six-character code once (a home-screen app has its own cookie jar, so the code shown in
+Settings is asked for one more time; it stays valid ten minutes). From then on the icon opens on Home. Four tabs
+float in a capsule at the bottom — Home, Inbox, Agents, More, the Inbox carrying the waiting count — with a round
+Search button beside them:
+
+1. **Home**: the loki header (its menu holds the filter, the agent scope, refresh and a new desk), a row of
+   shortcuts with their counts (Inbox, Learn, Agents, Archive), **Needs your attention** — the head of the
+   Inbox queue — then **Desks**, pinned first. A long press on a desk (or its actions button) pins or archives it.
+2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
+   time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
+   **Later** and **Mark as done**; swipe left for Later, right for Mark as done. An approval refuses both, and
+   the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after either.
+3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
+   profile with its memory, changes and skills in one scroll.
+4. **More**: the paired Mac, then Agents, Learn, Archived desks and Preferences (appearance), then Updates,
+   About loki and the connection details.
+5. **Search**: desk titles, agents, waiting items and pages the phone already holds — not message text — with
+   recent searches and places before you type.
+
+**Learn** (from Home or More) is the same deck, thumb-sized: review, delete and undo; the writer's switch and
+knobs stay on the Mac. A tap on a desk or a card opens the conversation: the transcript, the approval or
 question card, and a reply box. Opening a conversation marks it viewed, not done, as on the Mac: a desk's name
 on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
 came since your last look on either device. The conversation's actions sheet has **Mark as done** and, once
-done, **Mark as not done**. No desks, board or agents on the phone.
+done, **Mark as not done**, and pin. No board on the phone.
 
 The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
@@ -212,7 +247,7 @@ last request came in by ("via Tailscale", "via Wi‑Fi"), so there is never a qu
 The small "https on the tailnet" switch runs `tailscale serve` in front of the listener so the phone gets an
 `https://<name>` origin; it needs HTTPS certificates enabled for your tailnet (Tailscale admin console › DNS) and
 stays inside the tailnet — loki never uses Funnel. Whichever way you switch, the address the phone bookmarked has
-changed, so it pairs once more:
+changed, so it pairs once more.
 
 ## What the mod does
 
@@ -226,11 +261,14 @@ Only the things a mod can do:
   whether a turn was typed in Desktop or in the canvas
 - lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
   however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
-- keeps the recall cards (`recall_*`) and runs the worker that writes them: every ten minutes it reads the new
+- keeps the recall cards (`recall_*`) and runs the worker that writes them: every sweep (ten minutes by default) it reads the new
   stretch of any conversation quiet for ten minutes, asks its agent in its hidden "recall" conversation, and writes
   cards up to the day's cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
-  and keeps the seen / snooze markers Catch Up needs
+  and keeps the done (`seen_mark`), viewed (`viewed_mark`) and snooze markers the inbox and the sidebar need
+- keeps each desk's widget change log (`~/.letta/loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
+  to every tab and with each desk's history, so the conversation can show who added, changed or removed a widget
+- reads and writes pins in Letta Desktop's own `~/.letta/pinned-conversations.json`, so a pin shows in both
 - adopts or spawns the Vite dev server, detached so it survives `/reload`
 - tools: `desk_state`, `loki_camera` (one widget, or several framed together, with an optional dwell). Rendering and authoring are file writes.
 
@@ -311,8 +349,8 @@ The canvas ships a web app manifest, so Chrome can install it: open the canvas
 tab, then menu → Save and share → Install page as app. It opens in its own
 window with the loki icon. The tab remembers its token and last desk in
 localStorage, so the installed app resumes where you left off even though its
-launch URL carries no parameters. It still needs Letta Desktop running: the mod
-serves the desk; the page comes from Vite in a browser tab, or from the loki app itself.
+launch URL carries no parameters. It still needs a harness with the mod running (loki's own, Letta Desktop or a
+`letta server`): the mod serves the desk; the page comes from Vite in a browser tab, or from the loki app itself.
 
 Vim-key extensions (Vimium, Surfingkeys) run inside installed apps too and bind
 plain `r` to reload, which also swallows loki's own shortcuts. Exclude the canvas
@@ -330,7 +368,7 @@ opens the empty desk on Messages with the message box focused.
 
 ## Questions from the agent
 
-When an agent calls `AskUserQuestion`, the chat panel and the Catch Up card show
+When an agent calls `AskUserQuestion`, the conversation (on either tab) and the inbox card show
 a question card instead of a permission block: each question with its options
 (pick one, or pick many), and an "or answer in your own words" line. Answer
 sends everything back in one go. A typed reply in the message box while a
@@ -354,16 +392,17 @@ recognition is available, so treat it like any other cloud dictation.
 
 The app knows which conversations are waiting on you. The inbox icon on the rail shows the count; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers), highest score first (see "The order" below). → or ⌘] marks seen, ← or ⌘[ keeps unread, A or ⌘↵ approves, D or ⌘⇧D denies, O or ⌘O opens that desk on Messages with the message box focused, S or ⌘S shows snoozed, Z undoes (the ⌘ forms work while typing a reply), Esc returns to the desk.
+tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) marks it done and moves on, ← or ⌘[ (**← later**) defers it (see "Later, with backoff"), A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that desk on Messages with the message box focused, S or ⌘S shows or hides the snoozed ones, Z undoes the last decision (the ⌘ forms work while typing a reply), Esc returns to the desk.
 Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents read from the local
 backend on disk (`inbox_list`), main chats included, with who spoke last taken from the tail of each log — nothing is
 windowed by age or capped by count, so a conversation only leaves the inbox when it is archived (main chats are
-never archived; they leave by being seen). The live half — runtime subscriptions, streaming, approvals, answers —
+never archived; they leave by being done). The live half — runtime subscriptions, streaming, approvals, answers —
 speaks Letta's app-server protocol through the mod's `/appserver` tunnel, which exists because the app-server
-refuses browser origins. The seen and snooze markers live in `~/.letta/loki/state/attention.json`.
+refuses browser origins. The done (`seen`), viewed and snooze markers and the Later ladder live in
+`~/.letta/loki/state/attention.json`, so the phone and the Mac share them.
 
 Slash commands work in the message box, and in the reply box of an inbox card, as they do in Letta Desktop: type `/` and a palette lists what the box can
-run — loki's own (`/model`, `/mode`, `/inbox`, `/desks`) and the harness's (`/reload`, `/compact`, `/clear`,
+run — loki's own (`/model`, `/mode`, `/inbox`, `/desks` for ⌘K search) and the harness's (`/reload`, `/compact`, `/clear`,
 `/remember`, `/reflect`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
 advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
 Harness commands go over the app-server socket as `execute_command`, the path Desktop and the channels use, and
@@ -385,14 +424,15 @@ budget; what does not fit waits for the next tick — and writes whatever comes 
 question that stands alone, an answer in a line or two, up to a daily cap (twenty-five by default) shared
 across the stretches. Reading them side by side, the model writes one card for a fact that came up twice and
 a revision, not a second card, for a later correction; a card the person keeps failing brings the tail of the
-conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space for the answer, then one of two answers — ← again or → got it
-(space stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
+conversation it came from along as a marked replay, for the rewrite only. You meet the cards only here: the front, space (or ↵ or ↓) for the answer, then one of two answers — ← again or → got it
+(1 and 2 do the same; space then stands for got it; either arrow shows the answer first) — that schedules the next sight of it with FSRS,
 the scheduler modern Anki uses.
-New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
-card (X) is the signal.** Deleted cards move to a pile the worker reads before writing, as examples of what
+The sidebar lists four views, each with its count: **Review** (the deck), **Leads**, **All cards** and
+**Deleted**; ⌘[ and ⌘] step through them. New cards come first with a mark, because the first look is also the moment to throw one out: **deleting a
+card (X or ⌫) is the signal.** Deleted cards move to a pile the worker reads before writing, as examples of what
 not to write, so a rejected card never comes back reworded; a card deleted after many failed reviews reads
 as "badly written", one deleted unseen as "not wanted". Cards you keep failing are offered back to the worker
-for a rewrite. E edits in place, O opens the desk it came from, Z undoes a delete. "all cards" lists every
+for a rewrite. E edits in place, O or ⌘O opens the desk it came from, Z undoes a delete, ⌘R refreshes. **All cards** lists every
 card with search and holds the worker's knobs — on/off, cards a day, sweep every N minutes, the model it asks, run now — and an
 export in Anki's plain-text import format. Everything is files: `~/.letta/loki/recall/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the worker's edits never touch your schedule. The worker's own
@@ -408,18 +448,18 @@ settings file is the worker's; it puts the trigger back to off if it finds it ch
 
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a
-lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — listed under
-**Leads** in the sidebar, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
-with the agent that was there, puts an info card with the lead on its desk, opens the desk with the chat and sends
+lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — listed in the
+**Leads** view, newest first, at most twelve open. Clicking a lead creates a `[Learn] · <title>` conversation
+with the agent that was there, puts an info card with the lead on its desk, opens the desk on Messages and sends
 the brief as your first message: open with why this matters to you, furnish the desk with the outline as a list you
 can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
 conversation is still empty) is listed under "lessons under way" with **send the brief**.
 **not this** moves the lead to a dismissed pile the writer reads before proposing again (restore under
-**deleted**). Learn conversations are desks in the sidebar and never inbox cards. Files: `~/.letta/loki/recall/{leads,leads-dismissed,lessons}/`.
+**Deleted**, with the deleted cards). Learn conversations are desks in the sidebar and never inbox cards. Files: `~/.letta/loki/recall/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
-Every desk, sidebar section, chat header, and Catch Up card carries a colour-coded chip naming the agent that owns the
-conversation, so multi-agent setups stay legible.
+Every desk row, desk header, message and inbox card shows the face of the agent that owns the conversation (its
+`profile.png` from memory, or a coloured initial), so multi-agent setups stay legible.
 
 ### The order
 
@@ -459,7 +499,9 @@ Tasks you or an agent want to come back to live on one shared board, backed by
 tool, which stamps the source conversation, desk and folder; you file them from
 the board's "+" or ⌘T anywhere. The Board segment (⌘3) lists its views in the sidebar —
 all tasks, each status with its count, each agent — and "all tasks" shows open, in progress, blocked and
-recently done columns; any other view is one list. Select tasks (X, ⇧-click) and press ⏎ to
+recently done columns; any other view is one list. A remembered agent view whose agent has no tasks
+left says so ("<agent> isn't here any more — pick an agent") and lists the agents to pick again. Select tasks
+(X or space, ⇧X or ⇧-click for a range) and press ⏎ to
 **assign** them to a desk: the agent becomes the assignee and the tasks ride
 along inside `<loki-tasks>` on your next message in that conversation; nothing is
 sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent
@@ -492,8 +534,8 @@ split, the hours and weekdays loki is used, and the events that never fired in t
 
 ## Environment variables
 
-`LOKI_PORT` (mod, default 41414), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
-`LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` (binaries), `LOKI_INSTALL=1`
+`LOKI_PORT` (mod, default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415), `LOKI_WIDGETS_DIR` (default `~/.letta/loki/widgets`),
+`LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1`
 (make a dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release
 build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the desk, or not,
 whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics), `LOKI_WS_MODULE` (debugging only: the module the mod takes `ws` from under Bun). The

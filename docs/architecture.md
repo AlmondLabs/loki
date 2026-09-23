@@ -33,8 +33,9 @@ geometry, gestures, the board, pins, and reading agent memory for the Agents pag
 the native window that finds or installs and starts the harness, holds the authenticated socket, and
 draws the tray, dock badge and global shortcut. The canvas renders chat, inbox, board, agents and the
 widgets themselves. The same canvas has three clients: the desktop window, a browser tab on the Mac,
-and — when Settings › phone is on — a phone on the Wi‑Fi, which the mod serves directly and which shows
-the inbox alone (`app/src/phone/`).
+and — when Settings › phone is on — a phone on the Wi‑Fi, which the mod serves directly and which has its
+own presentation (`app/src/phone/`): Home, Inbox, Agents and More, with a desk's conversation, search and
+Learn a page away, and no widget canvas.
 
 ## The one rule that removes the confusion
 
@@ -76,7 +77,7 @@ on, a third on the local network, guarded by a per-device cookie:
 | port | server | speaks |
 | --- | --- | --- |
 | 41600 | the app-server (Letta Code) | the agent list, runtime subscriptions, streaming, approvals (the inbox's conversation list is the mod's, from disk) |
-| 41414 | loki's mod, loopback | desk state, gestures, the board, agents, pins, folders, agent faces, and the app-server tunnel |
+| 41414 | loki's mod, loopback | desk state, gestures, each desk's widget change log, the board, agents, pins, folders, done / viewed / snooze marks, Learn, agent faces, and the app-server tunnel |
 | 41415 | loki's mod, LAN (off by default) | the canvas build as a single-page app, `/pair` `/me` `/unpair`, and the same `/ws`, `/appserver` and face routes for paired phones |
 
 When Tailscale runs on the Mac the same 41415 listener is reached by the tailnet name instead of the Wi‑Fi
@@ -84,7 +85,7 @@ one (`lan_status.via`), and `tailscale serve` can optionally front it with https
 forwarding to `127.0.0.1:41415` — no fourth port of loki's own.
 
 The mod exposes its own port because its code runs in Node while the loki UI runs in a browser
-context — the WebView or a tab — and Node cannot reach into a browser page any other way. A localhost
+context — the WebView or a tab — and Node cannot reach into a browser page any other way. A loopback
 socket is the bridge. It carries three things: loki's own protocol (widgets, gestures, board, agents),
 which the app-server knows nothing about; static pieces like agent face images; and a `/appserver`
 tunnel, because the real app-server refuses browser origins and wants a bearer token a browser cannot
@@ -97,11 +98,53 @@ its URL, which is fine on one machine and useless on a network. The LAN listener
 default: it serves the page to anyone (public code), and lets a device in only after `POST /pair` with a
 code from Settings › phone, answered by an `HttpOnly` cookie the page's JavaScript never sees. From the
 canvas's side the difference is one flag: the served `index.html` carries `window.__LOKI__ = {lan: true}`,
-`modBase()` becomes the page's own origin, `main.tsx` mounts `<Phone/>` instead of `<Shell/>`, and the
+`modBase()` becomes the page's own origin, `boot.tsx` mounts `<Phone/>` instead of `<Shell/>`, and the
 same `useDesk` and `useAttention` hooks connect to `/ws` and `/appserver` with an empty `?t=` — the
 cookie does the authenticating. Settings › phone itself speaks to the mod over the loopback socket
 (`lan_get`, `lan_set`, `pair_begin`, `devices_list`, `device_forget`) and hears `lan_status`,
 `pair_code` and `devices` back.
+
+## Two protocols on one page
+
+The canvas speaks two protocols, and knowing which one owns a thing tells you where to look.
+
+1. **Letta's app-server protocol** (the Rust link or the `/appserver` tunnel; `core/attention/protocol.ts`,
+   `app/src/shell/transport.ts`): the agent list, conversations, streaming turns, approvals, models and
+   permission modes. A desk's name is Letta's conversation `summary`, so renaming a desk is a
+   `conversation_update` over this socket, not a mod frame; archiving and restoring are the same call.
+2. **loki's own protocol** (the mod's `/ws`; documented frame by frame at the top of `mod/bridge.ts`):
+   `desk`, `state`, `widgets` and `desk_title` sync a desk; `gesture`, `measure`, `arrange` and `trash` come
+   back; `widget_change` goes to every socket when a widget is added, changed or removed, and `history_get`
+   returns a desk's widget log beside its messages. The Inbox's marks live here too: `seen_mark` /
+   `seen_unmark` are done and not done, `viewed_mark` is a look (opening a desk un-bolds it, but its Inbox
+   card and the sidebar's ring stay until you act or mark it done), and `snooze_*` is Later; each change
+   broadcasts `seen { seen, viewed, snooze, … }`, so the desktop and a phone read the same marks from the mod's
+   `attention.json`. Board (`task_*`), Learn (`recall_*`), agents (`agent_get`, `memory_*`,
+   `reflection_state`, `skill_*`), folders, pins and the phone listener (`lan_*`, `pair_begin`, `devices_list`,
+   `device_forget`) complete it.
+
+## Where the code lives
+
+1. `core/` — pure TypeScript both halves import (no I/O, no framework): `desk-core.ts` (the shared
+   vocabulary), `harness.ts` (recognising harness machinery in transcripts), `compat.ts` (the Letta Code
+   version range), `attention/` (the Inbox: the app-server client, the attention model, queue, snooze and
+   ladder, `useAttention`), `recall/` (Learn's cards and scheduling).
+2. `mod/` — the code inside `letta server`. `index.ts` wires it; `gate.ts` lets only the harness that hosts an
+   app-server serve the desk; `server.ts` holds the ports and `bridge.ts` the protocol; `desk-store.ts`,
+   `persist.ts` and `widgets-fs.ts` keep desks and watch widget files; `widget-log.ts` keeps each desk's
+   widget change log; `desks.ts` maps desks to conversations and reads the Inbox's conversations from disk;
+   `seen.ts` keeps the done, viewed and snooze marks; `gestures.ts` turns what you did into the `turn_start`
+   note; `tasks.ts`, `pins.ts`, `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back
+   the board, pins, folders, the Agents pages and Learn; `lan.ts`, `pairing.ts`, `devices.ts`, `tailscale.ts`
+   and `static.ts` are the phone listener.
+3. `app/src/` — the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, list column,
+   desk sidebar, ⌘K search, keymap, Preferences host); `desk/` a desk's pane (Messages and Desk tabs, the
+   sheet, widget frames, rename); `chat/` the thread and composer; `board/`, `agents/`, `recall/` (Learn) and
+   `settings/` the other sections; `phone/` the phone; `shared/` logic both surfaces share (drafts, the
+   thread's times and New line, viewed marks, search ranking, recents); `components/` the chrome primitives;
+   `kit/` the tokens and the widget kit (`@loki/kit`).
+4. `src-tauri/` — the Rust shell: finding or installing and starting `letta server`, the app-server link,
+   the menu, tray, dock badge and global shortcut.
 
 ## Following one message
 

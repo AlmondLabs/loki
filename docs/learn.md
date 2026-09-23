@@ -22,7 +22,7 @@ Learn section and nowhere else.
    sitting, or a course of several. Leads live in `recall/leads/`; the ones you declined in
    `recall/leads-dismissed/`.
 3. **A lesson** is a conversation titled `[Learn] · <title>`, owned by the agent that was in the room, opened
-   with a brief written on your behalf. Lessons are desks in the tree and never inbox cards: a lesson is
+   with a brief written on your behalf. Lessons are desks in the sidebar and never inbox cards: a lesson is
    precisely the thing that can wait. The record is in `recall/lessons/`.
 
 ## The loop
@@ -63,8 +63,8 @@ else is inferred.
 
 ### What it asks
 
-- One **hidden conversation per agent**, named "recall", for the life of the agent. It is a desk in the tree
-  (⌘K) so you can read what was asked and what came back, but it stays out of the inbox and the writer never
+- One **hidden conversation per agent**, named "recall", for the life of the agent. It is a desk in the sidebar
+  (and in ⌘K search) so you can read what was asked and what came back, but it stays out of the inbox and the writer never
   reads it for cards.
 - The prompt carries the stretches, labelled so answers can say which one they came from; the existing cards
   whose wording overlaps them, eighty at most; up to forty deleted cards as examples of what not to write; the
@@ -107,27 +107,29 @@ levers, in order of effect:
 
 - The queue puts **new cards first**, marked, because the first sight of a card is also the moment to throw it
   out. Then what is due, oldest first.
-- Two answers: **← again** and **→ got it** (space also means got it; either arrow reveals the answer first).
+- Two answers: **← again** and **→ got it** (1 and 2 too; space, ↵ or ↓ shows the answer and then means got it;
+  either arrow reveals the answer first).
   Each answer reschedules the card with **FSRS**, the scheduler modern Anki uses.
-- **Deleting a card (X) is the feedback.** It moves to the deleted pile the writer reads before writing, so a
+- **Deleting a card (X or ⌫) is the feedback.** It moves to the deleted pile the writer reads before writing, so a
   rejected card never comes back reworded. A card deleted after many failed reviews reads as badly written,
   one deleted unseen as not wanted. Z undoes.
 - A card you keep failing is offered back to the writer with a replay of its source, for a rewrite in place.
-- E edits a card yourself; O opens the desk it came from; "export for Anki" copies the deck in Anki's
-  plain-text import format.
+- E edits a card yourself; O (⌘O) opens the desk it came from; ⌘[ and ⌘] step through the four views (Review,
+  Leads, All cards, Deleted); "export for Anki", on All cards, copies the deck in Anki's plain-text import format.
 
 ## Leads and lessons
 
 - Leads come out of the same call as cards, so they cost nothing extra and inherit the writer's switch. They
-  sit under the **leads** tab, newest first, twelve open at most. Nothing badges the rail for them.
+  sit in the **Leads** view of Learn's sidebar, newest first, twelve open at most. Nothing badges the rail for
+  them.
 - **Start** creates the `[Learn] · <title>` conversation for the agent that was there, puts an info card with
-  the lead on its desk, opens the desk with the chat, and sends the brief as your first message: open with why
+  the lead on its desk, opens the desk on Messages, and sends the brief as your first message: open with why
   this matters to you, furnish the desk with the outline as a list you can tick, ask before telling, one idea
   at a time, a cold quiz at the end. The brief is a user message, sent only on your click, the way the board's
   dispatch posts a task. A lesson whose brief never arrived is listed under "lessons under way" with
   **send the brief**.
 - **Not this** moves the lead to the dismissed pile, which the writer reads before proposing again. Restore is
-  under "deleted".
+  in the **Deleted** view, beside the deleted cards.
 - Decided and kept: leads only, never auto-started; the agent who was there teaches; lessons stay out of the
   inbox. The writer reads a lesson like any other conversation, so the cards that keep a lesson fresh come out
   of the lesson itself. That is the loop closing: conversation, lead, lesson, cards, recall.
@@ -137,13 +139,15 @@ levers, in order of effect:
 - It never posts in chat, never badges the inbox, never starts a lesson on its own.
 - It never reads its own conversations, and the dreaming pass never reads them either.
 - It never writes a card the deleted pile already covers, and never touches your schedule.
-- The phone shows the section read-only: review, yes; the writer's switch and knobs, no.
+- The phone has the review deck only (the answers, delete and undo); the leads, the writer's switch and its knobs
+  stay on the Mac.
 
 ## Files
 
 ```text
 ~/.letta/loki/recall/
-  worker.json               enabled, model, dailyCap, tickMinutes, cursors, leadCursors, writers, last run
+  worker.json               enabled, model, dailyCap, tickMinutes, written today, cursors, leadCursors,
+                            recallConversations, writers, last run and its note
   cards/<id>.json           front, back, tags, source, history of the writer's edits
   schedule/<id>.json        FSRS state and review log, kept apart from the card
   rejected/<id>.json        the deleted pile: the card and how many reviews it had
@@ -155,8 +159,10 @@ levers, in order of effect:
 
 - `mod/recall-worker.ts`: the sweep, scoring, packing, the hidden conversation, compaction.
 - `core/recall/extract.ts`: the prompt and the parser, as pure text in and out.
-- `core/recall/model.ts` and `core/recall/schedule.ts`: the types, the review queue, FSRS.
+- `core/recall/model.ts` and `core/recall/fsrs.ts`: the types, the review queue, FSRS.
 - `mod/recall.ts`: the store, one JSON file per thing.
 - `mod/bridge.ts`: the `recall_*` frames the section speaks to the mod.
-- `app/src/recall/`: the section, the deck, the leads tab, the settings strip.
+- `app/src/recall/`: the section, its list of views (`LearnColumn.tsx`, `views.ts`), the deck, the leads view,
+  the worker strip. Settings › learn is in `app/src/settings/Settings.tsx`; the phone's deck is
+  `app/src/phone/Recall.tsx`.
 - Plans: `docs/plans/2026-09-12-008-feat-loki-learn-plan.md` for leads and lessons.

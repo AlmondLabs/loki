@@ -13,12 +13,13 @@ listener, described below.
   WebSocket, must carry the token from `~/.letta/loki/token` (mode 0600, generated once). Requests
   without it get 403.
 - **The page** (`app/`, React) runs in the system WebView at `tauri://localhost`. Its only Tauri
-  permissions are the core defaults, set-title, hide, and opening URLs in the system browser (see
-  `src-tauri/capabilities/default.json`). It cannot read files or run programs.
+  permissions are the core defaults, set-title, set-theme, hide, start-dragging (the title strip that
+  moves the window), and opening URLs in the system browser (see `src-tauri/capabilities/default.json`). It cannot read files or run programs.
 
 ## The phone, over the LAN
 
-Settings › phone puts a second listener on the local network so a phone can open the inbox. The model:
+Settings › phone puts a second listener on the local network so a phone can use loki (its Home, Inbox,
+Agents and desk conversations). The model:
 
 - **Off by default.** Nothing listens beyond loopback until you switch "reachable on this Wi‑Fi" on. The
   choice is persisted (`~/.letta/loki/state/lan.json`) and the rail shows a green dot on the settings
@@ -73,18 +74,22 @@ itself and the `loki://` transpiler: no remote scripts, no `eval`.
 
 ## What loki downloads
 
-Only when the Mac has no Letta Code: the current Node 22 tarball from nodejs.org, verified against
-`SHASUMS256.txt` from the same site, and `@letta-ai/letta-code` at the pinned release from
-registry.npmjs.org (npm verifies package integrity). Both land under the app's data directory. No other
-downloads, ever; no telemetry.
+loki runs the Mac's own Letta Code. Only when there is none does it run `npm install -g
+@letta-ai/letta-code@latest` from registry.npmjs.org (npm verifies package integrity), with the npm beside
+a Node 22+ already on the Mac; it downloads no Node and never runs `sudo`. Settings › letta asks the
+registry for the newest version when you check and installs it the same way when you choose to. The app
+also asks GitHub's releases API for a newer loki (every six hours, the stable or nightly channel it came
+from) and only links to it. No other downloads.
 
 ## What loki reads
 
 - Letta's local backend under `~/.letta/` (agents, conversations, memory filesystems, pins,
   permission modes), read-only except for pins and the files it owns under `~/.letta/loki/`.
 - The board in `~/.letta/loki/board` through the `bd` binary.
-- Nothing is uploaded, logged remotely, or telemetered. The only network traffic is what your agent's
-  provider connection and widgets initiate.
+- Nothing is uploaded, logged remotely, or telemetered. The mod keeps a local usage log
+  (`~/.letta/loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only
+  `bun run analytics` on the Mac reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is
+  the two checks above and what your agent's provider connection and widgets initiate.
 
 ## Reporting
 

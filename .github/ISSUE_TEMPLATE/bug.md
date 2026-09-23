@@ -8,12 +8,13 @@ labels: bug
 
 **What you expected**
 
-**Setup** (Settings → harness, install, requirements show all of this)
+**Setup** (Settings › Letta shows all of this: loki, the harness, requirements, install)
 
 - loki version:
 - Letta Code version (Settings shows it next to the tested one):
-- Harness: Letta Desktop / loki's own
+- Harness: Letta Desktop / a `letta server` you started / loki's own
 - macOS version:
+- Where: the Mac window / the phone / both
 
 **Logs**
 

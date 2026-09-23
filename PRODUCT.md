@@ -14,7 +14,7 @@ Loki gives each agent conversation a persistent desk of live widgets, gathers wo
 
 ## Brand Personality
 
-Quiet, precise, and personal. The interface should feel like a well-used drafting table: structured enough for serious work, calm enough to leave open all day, and specific to the person and agents using it.
+Quiet, precise, and personal. The interface wears Slack's familiar look and layout on the desktop and the phone, so it reads at a glance and can stay open all day: agents are the people you message, desks are the channels, and the red badge is only for what waits on you. It stays specific to the person and agents using it.
 
 ## Anti-references
 
