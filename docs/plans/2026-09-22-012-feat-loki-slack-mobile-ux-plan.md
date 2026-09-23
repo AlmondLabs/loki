@@ -42,7 +42,7 @@ The supplied Slack references demonstrate the desired standard: large sans-serif
 - **Loki content inside Slack structure.** Keep Loki's terminology and capabilities. Do not introduce Slack workspaces, team channels, social presence, or collaboration features merely to make the interface look familiar.
 - **Four primary destinations plus Search.** The persistent navigation contains Home, Inbox, Agents, and More. Search is a separate circular control beside the navigation capsule.
 - **Preserve capability through hierarchy.** Every current phone capability remains reachable, but lower-frequency destinations move under More instead of competing for permanent navigation space.
-- **Keep Loki's Inbox semantics.** The two review actions are Later and Mark as Read. Later applies Loki's existing snooze behavior; Mark as Read clears the item from the actionable queue.
+- **Keep Loki's Inbox semantics.** The two review actions are Later and Mark as done. Later applies Loki's existing snooze behavior; Mark as done clears the item from the actionable queue.
 - **Make Inbox conversational.** The active Inbox card contains the readable conversation and a working composer, so the user can understand and answer the item without leaving the review pass.
 - **Use Slack-like light and dark themes.** System, light, and dark appearance modes remain. Legacy Loki palette variants do not alter the mobile visual system.
 
@@ -85,9 +85,9 @@ The supplied Slack references demonstrate the desired standard: large sans-serif
 - R18. Inbox opens as a focused review pass with a visible remaining count, one dominant conversation card, and a restrained stacked-card cue.
 - R19. The dominant card includes the source identity, dated conversation history, current unread boundary, agent or user messages, status notices, and a working composer.
 - R20. The composer supports every reply, structured-answer, approval, and attachment capability already available from the phone conversation surface.
-- R21. Later and Mark as Read remain large persistent actions below the card and have equivalent directional swipe gestures.
-- R22. Later keeps the item actionable after applying Loki's existing snooze schedule; Mark as Read removes it from the actionable queue.
-- R23. Approval items require explicit approve or deny actions and cannot be dismissed through Later, Mark as Read, or an accidental swipe.
+- R21. Later and Mark as done remain large persistent actions below the card and have equivalent directional swipe gestures.
+- R22. Later keeps the item actionable after applying Loki's existing snooze schedule; Mark as done removes it from the actionable queue.
+- R23. Approval items require explicit approve or deny actions and cannot be dismissed through Later, Mark as done, or an accidental swipe.
 - R24. Reversible review actions offer Undo without obscuring the next card or colliding with the composer and action buttons.
 - R25. Opening a related desk and returning restores the same Inbox pass, card order, conversation draft, and remaining count.
 - R26. Empty, loading, disconnected, deferred, failed, and caught-up states use the same visual grammar and explain the next available action.
@@ -159,7 +159,7 @@ flowchart TB
 - F2. Inbox review and reply
   - **Trigger:** A1 opens Inbox with actionable work waiting.
   - **Actors:** A1, A2, A3
-  - **Steps:** A1 reads the conversation in the active card, replies if needed, then chooses Later or Mark as Read; the next card arrives and the remaining count updates.
+  - **Steps:** A1 reads the conversation in the active card, replies if needed, then chooses Later or Mark as done; the next card arrives and the remaining count updates.
   - **Outcome:** The user can complete a one-handed review pass without losing conversation context.
   - **Covered by:** R18-R26, R43-R48
 - F3. Continue a desk conversation
@@ -265,7 +265,7 @@ The phone root establishes viewport, safe-area, theme, and typography rules. `Ph
 
 - **Primary destinations:** Home, Inbox, Agents, and More retain their local filters and scroll positions across tab changes. Inbox additionally retains card order, current card, pass summary, undo state, and the active draft.
 - **Child routes:** Search, Learn, Archive, preferences, conversations, agents, and files record an owning or originating destination. Browser Back and iOS swipe-back use history when possible; a direct link falls back to the owning destination.
-- **Drafts:** Text and image attachments are keyed by agent and conversation. Sending clears only the submitted conversation's draft. Later, Mark as Read, tab changes, child routes, disconnects, and theme changes do not clear it.
+- **Drafts:** Text and image attachments are keyed by agent and conversation. Sending clears only the submitted conversation's draft. Later, Mark as done, tab changes, child routes, disconnects, and theme changes do not clear it.
 - **Recent history:** Successful searches and opened destinations populate bounded local histories. Missing or stale entities are discarded during read rather than becoming broken rows.
 - **Theme:** The existing global System/Light/Dark preference remains authoritative. The phone ignores legacy palette choice through scoped overrides; desktop continues using the selected palette.
 
@@ -291,7 +291,7 @@ The phone root establishes viewport, safe-area, theme, and typography rules. `Ph
 
 - **Composition and callbacks:** `app/src/phone/Phone.tsx` remains the only phone composition root for desks, attention, review deck, Learn, routing, analytics, and connection state. Home, Inbox, Agents, More, Search, Learn, and conversations continue receiving data and callbacks from that root rather than becoming new transport owners.
 - **Public mobile URLs:** `app/src/phone/router.ts` is a compatibility boundary for installed home-screen clients and saved links. Canonical routes, legacy redirects, ownership, browser Back, direct-link fallback, and iOS history navigation must evolve together.
-- **Attention lifecycle:** Inbox presentation must preserve the ordering and callback semantics of Later, Mark as Read, Undo, approve, deny, answer, and send. Local card dismissal cannot become a second source of truth or outrun marker reconciliation from `useAttention`.
+- **Attention lifecycle:** Inbox presentation must preserve the ordering and callback semantics of Later, Mark as done, Undo, approve, deny, answer, and send. Local card dismissal cannot become a second source of truth or outrun marker reconciliation from `useAttention`.
 - **Conversation lifecycle:** Transcript data remains owned by the attention layer; scroll behavior remains owned by the shared conversation; phone draft persistence is an optional host-controlled extension. Pending questions, approvals, queued replies, and errors must survive reconnects and route changes.
 - **Learn and Agents lifetimes:** Learn review state must remain above a remounting route boundary, while Agents continues using its existing cache and inflight request pattern. Search consumes those surfaces but does not introduce another cache.
 - **Failure propagation:** Existing connection banners, retry affordances, conversation error state, pairing gate, unpair confirmation, and Learn notices remain the recovery paths. A disconnect should annotate readable content rather than replace it or reset in-progress work.
@@ -302,7 +302,7 @@ The phone root establishes viewport, safe-area, theme, and typography rules. `Ph
 - Current state ownership and route composition are centered in `app/src/phone/Phone.tsx`, `app/src/phone/router.ts`, and `app/src/phone/Inbox.tsx`; retaining those seams minimizes domain regression.
 - `app/src/chat/Conversation.tsx`, `app/src/chat/ChatInput.tsx`, and `app/src/chat/useDraft.ts` already centralize transcript, composer, attachment, question, and approval behavior and should remain the shared engine.
 - [Slack's mobile updates](https://slack.com/help/articles/115004846068-Slack-updates-and-changes.) and [mobile search guidance](https://slack.com/help/articles/202528808-Search-in-Slack) support persistent bottom navigation, compose affordances, and globally available Search.
-- [Slack Catch Up guidance](https://slack.com/help/articles/226410907-View-all-your-unread-messages) supports the remaining-count deck and paired swipe/button actions; Loki retains Later and Mark as Read rather than adopting Slack's labels.
+- [Slack Catch Up guidance](https://slack.com/help/articles/226410907-View-all-your-unread-messages) supports the remaining-count deck and paired swipe/button actions; Loki retains Later and Mark as done rather than adopting Slack's labels.
 - [Slack's accessibility changelog](https://slack.com/help/articles/50668520513939-Accessibility-changelog) makes focus restoration, screen-reader action labels, text scaling, and reduced motion acceptance concerns rather than follow-up polish.
 - [MDN safe-area environment variables](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/env), [MDN viewport units](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length), and [Apple layout guidance](https://developer.apple.com/design/human-interface-guidelines/layout) inform the bottom-inset and keyboard strategy.
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/) requires non-drag alternatives and establishes the accessibility floor; this plan keeps Loki's stricter 44-pixel target requirement.
@@ -391,11 +391,11 @@ Build the design foundation and route/state contract first. Land later units ser
 - **Requirements:** R18-R26, R29-R30, R43-R48; F2, F3; AE2-AE4, AE7, AE8.
 - **Files:** `app/src/phone/Inbox.tsx`, `app/src/phone/deck.ts`, `app/src/phone/Phone.tsx`, `app/src/phone/session.ts`, `app/src/chat/Conversation.tsx`, `app/src/chat/useDraft.ts`, `test/deck.test.ts`, `test/phone-session.test.ts`.
 - **Patterns:** Preserve `useDeck`, pure swipe decisions, undo timing, `catchUpQueue`, and the existing shared Conversation action contract. Keep `Phone.tsx` as deck and loaded-history owner.
-- **Approach:** Render the current item as a bounded conversation surface with identity header, dated history, unread boundary, notices, structured questions, approval controls, attachments, and controlled composer. Keep Later and Mark as Read as persistent buttons outside the transcript with matching swipe directions. Block generic decisions for approval cards, add screen-reader review announcements, and place Undo so it cannot cover the composer or decision row.
+- **Approach:** Render the current item as a bounded conversation surface with identity header, dated history, unread boundary, notices, structured questions, approval controls, attachments, and controlled composer. Keep Later and Mark as done as persistent buttons outside the transcript with matching swipe directions. Block generic decisions for approval cards, add screen-reader review announcements, and place Undo so it cannot cover the composer or decision row.
 - **Test Scenarios:**
   1. Sending text, a structured answer, or attachments clears only the submitted draft and leaves the review pass stable.
   2. Later applies existing unread/snooze semantics, advances once, updates the count, and can be undone.
-  3. Mark as Read applies existing seen semantics, advances once, updates the count, and can be undone.
+  3. Mark as done applies existing seen semantics, advances once, updates the count, and can be undone.
   4. Approval cards ignore both generic buttons and swipes; only explicit approve or deny resolves them.
   5. Opening the related desk and returning restores the same card, order, count, transcript position, and draft.
   6. Empty, loading, disconnected, deferred, failed, and caught-up states preserve a usable action and do not collapse the layout.

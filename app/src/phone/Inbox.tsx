@@ -51,9 +51,9 @@ import {
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
  * one or two peeking from behind, "N Left" on top. The card is the conversation itself — who it is
  * with, the thread with the unread line, what the agent waits on, and a working message box — so a card
- * can be read and answered without leaving the pass. Under it, Later and Mark as Read; swipe left for
- * Later, right for Mark as Read. Approvals refuse both, and the two buttons become Deny and Approve.
- * Undo sits in the top bar for six seconds after Later or Mark as Read. The pure parts (when a drag
+ * can be read and answered without leaving the pass. Under it, Later and Mark as done; swipe left for
+ * Later, right for Mark as done. Approvals refuse both, and the two buttons become Deny and Approve.
+ * Undo sits in the top bar for six seconds after Later or Mark as done. The pure parts (when a drag
  * commits, the lean, the pass itself, what the card says) are in deck.ts.
  */
 
@@ -158,7 +158,7 @@ type Undo = { item: AttentionItem; via: Swipe; held: boolean };
 
 /**
  * What a pass does on screen as cards go: the card flying off (for FLY_MS, unless motion is reduced),
- * the Undo button's card (for UNDO_MS after Later or Mark as Read), the flash when an approval refuses,
+ * the Undo button's card (for UNDO_MS after Later or Mark as done), the flash when an approval refuses,
  * and the sentence a screen reader hears. `commit` takes the card off and tells the parent; `undoLast`
  * puts the last one back.
  */
@@ -317,7 +317,7 @@ export function Inbox({
   onSeen: (item: AttentionItem) => void;
   onLater: (item: AttentionItem) => void;
   onUnsnooze: (item: AttentionItem) => void;
-  /** Take back the last Later or Mark as Read: "seen" → unmark seen, "later" → clear the snooze. */
+  /** Take back the last Later or Mark as done: "seen" → unmark seen, "later" → clear the snooze. */
   onUndo: (item: AttentionItem, via: Swipe) => void;
   card: CardActions;
 }) {
@@ -362,7 +362,7 @@ export function Inbox({
         title={current ? `${visible.length} Left` : "Inbox"}
         right={
           undo ? (
-            <button type="button" className="loki-phone-undo" onClick={undoLast} aria-label={undo.via === "seen" ? "Undo Mark as Read" : "Undo Later"}>
+            <button type="button" className="loki-phone-undo" onClick={undoLast} aria-label={undo.via === "seen" ? "Undo Mark as done" : "Undo Later"}>
               Undo
             </button>
           ) : undefined
@@ -481,14 +481,14 @@ function DeferredRow({ item, onOpen, onUnsnooze }: { item: AttentionItem; onOpen
   );
 }
 
-/** Under the top card while it is dragged: Mark as Read on the left as the card goes right, Later on the right. Approvals reveal nothing. */
+/** Under the top card while it is dragged: Mark as done on the left as the card goes right, Later on the right. Approvals reveal nothing. */
 function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
   const read = !approval && dx > 0 ? revealOpacity(dx, width) : 0;
   const later = !approval && dx < 0 ? revealOpacity(dx, width) : 0;
   return (
     <div aria-hidden className="loki-phone-reveal">
       <span className="loki-phone-reveal-read" style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
-        <Icon name="check" size={20} /> Mark as Read
+        <Icon name="check" size={20} /> Mark as done
       </span>
       <span className="loki-phone-reveal-later" style={{ opacity: later, transform: `scale(${0.9 + later * 0.1})` }}>
         Later <Icon name="clock" size={20} />
@@ -616,7 +616,7 @@ function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView })
 }
 
 /**
- * The two big buttons under the card; every swipe has one. Later and Mark as Read, or — for an approval,
+ * The two big buttons under the card; every swipe has one. Later and Mark as done, or — for an approval,
  * which refuses both — Deny and Approve. The same two elements in both cases, so focus stays put as the
  * next card comes up.
  */
@@ -628,7 +628,7 @@ function Decisions({ item, onLater, onSeen, onApprove }: { item: AttentionItem; 
         {approval ? "Deny" : "Later"}
       </button>
       <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={approval ? () => onApprove("allow") : onSeen} aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}>
-        {approval ? "Approve" : "Mark as Read"}
+        {approval ? "Approve" : "Mark as done"}
       </button>
     </div>
   );

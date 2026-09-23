@@ -6,7 +6,7 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, stampOf } from "../../../core/attention/queue.ts";
 
-/** Which way a swipe went: right is "seen" (Mark as Read), left is "later" (Later). */
+/** Which way a swipe went: right is "seen" (Mark as done), left is "later" (Later). */
 export type Swipe = "seen" | "later";
 /** How a card left the deck this pass. */
 export type Via = Swipe | "approve" | "deny";
@@ -189,7 +189,7 @@ export interface DeckState {
   topId: string | null;
   /**
    * A reply, or an answer, from the card marks it seen and starts the agent, which takes it out of the
-   * actionable queue; the card stays in hand anyway until you decide it (Later or Mark as Read), so the
+   * actionable queue; the card stays in hand anyway until you decide it (Later or Mark as done), so the
    * pass does not jump under the message you just sent. Only ever the top card; gone with the item.
    */
   held: AttentionItem | null;
@@ -197,7 +197,7 @@ export interface DeckState {
 }
 export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS }) as DeckState;
 
-/** The ways off a card: an approval only by its decision, anything else only by Later or Mark as Read. */
+/** The ways off a card: an approval only by its decision, anything else only by Later or Mark as done. */
 export function canCommit(item: AttentionItem, via: Via): boolean {
   return item.pendingApproval ? via === "approve" || via === "deny" : via === "seen" || via === "later";
 }

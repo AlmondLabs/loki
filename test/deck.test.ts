@@ -235,10 +235,10 @@ describe("the top card stays on top", () => {
 
 /**
  * The deck as one state (U4): the pass a person is in the middle of — what went, what is on top, the card
- * held after a reply, the tally — as pure steps, so Later, Mark as Read, undo and the approval refusal are
+ * held after a reply, the tally — as pure steps, so Later, Mark as done, undo and the approval refusal are
  * checked here rather than in a browser.
  */
-describe("the review pass: Later, Mark as Read, undo, approvals", () => {
+describe("the review pass: Later, Mark as done, undo, approvals", () => {
   const three = () => [item("a"), item("b"), item("c")];
   const ask = item("q", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } });
 
@@ -250,7 +250,7 @@ describe("the review pass: Later, Mark as Read, undo, approvals", () => {
     expect(deckQueue(items, s).map((i) => i.id)).toEqual(["b", "c"]);
     expect(s.pass).toEqual({ ...EMPTY_PASS, later: 1 });
   });
-  test("Mark as Read advances once, and undo puts the same card back on top with the count restored", () => {
+  test("Mark as done advances once, and undo puts the same card back on top with the count restored", () => {
     const items = three();
     let s = commitCard(EMPTY_DECK, items[0], "seen");
     expect(deckQueue(items, s)).toHaveLength(2);
@@ -264,7 +264,7 @@ describe("the review pass: Later, Mark as Read, undo, approvals", () => {
     s = undoCard(s, b, "later");
     expect(deckQueue([a, b, c], s)[0].id).toBe("b");
   });
-  test("an approval refuses Later and Mark as Read: the state does not move", () => {
+  test("an approval refuses Later and Mark as done: the state does not move", () => {
     const s = EMPTY_DECK;
     expect(canCommit(ask, "later")).toBe(false);
     expect(canCommit(ask, "seen")).toBe(false);

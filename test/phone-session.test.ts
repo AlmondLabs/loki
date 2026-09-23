@@ -286,7 +286,7 @@ describe("drafts through the shared composer", () => {
     w.clear();
     expect(d.keys()).toEqual([]);
   });
-  test("deciding the card (Later, Mark as Read) leaves its draft for when it comes back", () => {
+  test("deciding the card (Later, Mark as done) leaves its draft for when it comes back", () => {
     const d = createDrafts();
     const a = card("c1");
     const k = draftKey(a.agentId, a.id);

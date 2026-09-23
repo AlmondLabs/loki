@@ -893,12 +893,12 @@ span.loki-phone-section-btn { cursor: default; }
   font-size: var(--phone-text-meta);
   line-height: var(--phone-leading);
 }
-/* What a drag reveals under the card: Mark as Read on the left, Later on the right. */
+/* What a drag reveals under the card: Mark as done on the left, Later on the right. */
 .loki-phone-reveal { position: absolute; inset: 0 0 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--phone-space-6); pointer-events: none; font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
 .loki-phone-reveal-read, .loki-phone-reveal-later { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
 .loki-phone-reveal-read { color: var(--loki-positive); }
 .loki-phone-reveal-later { color: var(--loki-muted); }
-/* Later and Mark as Read (or Deny and Approve): two big buttons under the card, clear of the home indicator
+/* Later and Mark as done (or Deny and Approve): two big buttons under the card, clear of the home indicator
    (the navigation is hidden while a card is up, so this row owns the bottom inset). */
 .loki-phone-decide {
   flex: none;
