@@ -249,6 +249,10 @@ html:has(.loki-phone-shell) body {
   outline: 2px solid var(--phone-focus);
   outline-offset: -2px;
 }
+/* A page's heading is where focus lands when the page opens (tabindex -1, so screen readers start there); it is
+   not a control and is never tabbed to, and iOS Safari rings that programmatic focus. The controls inside it
+   (the conversation's agent pill) keep their own ring. */
+.loki-phone [data-phone-heading]:focus-visible { outline-color: transparent; }
 .loki-phone button, .loki-phone a, .loki-phone [role="button"] {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;

@@ -387,6 +387,8 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(phone).toContain("100svh");
     expect(phone).toContain("100dvh");
     expect(phone).toMatch(/\.loki-phone [^{]*:focus-visible[^{]*\{[^}]*outline: 2px solid/);
+    // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring
+    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; \}/);
     expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
 });
