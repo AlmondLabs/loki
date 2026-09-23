@@ -8,6 +8,7 @@ import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
+import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
@@ -22,7 +23,7 @@ import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
-import { conversationDirName } from "../core/desk-core.ts";
+import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 import type { DeskInfo, DeskSummary } from "./bridge.ts";
 import { sortDesks } from "./bridge.ts";
 import { join } from "node:path";
@@ -102,6 +103,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
 
   // --- the agent's half: files ------------------------------------------
   mkdirSync(paths.widgets, { recursive: true });
+  const widgetLog = new WidgetLog(join(paths.state, "widget-log"));
   const widgets = watchWidgets(paths.widgets, (diff) => {
     log("widgets:diff", { added: diff.added.map((e) => e.id), changed: diff.changed.map((e) => e.id), removed: diff.removed });
     // Shared widgets first: they appear on every desk, so they claim space before desk widgets flow around them.
@@ -119,6 +121,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (landed && !landed.error) {
       broadcast({ type: "camera", widgetId: landed.id }, landed.scope === SHARED_SCOPE ? undefined : landed.scope);
     }
+    broadcastWidgetChanges(widgetLog, diff, broadcast);
   });
 
   // --- app-server ---------------------------------------------------------
@@ -283,6 +286,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     appServerAvailable: () => appServerUrl !== null,
     appServerUrl: () => appServerUrl,
     transcript: (agentId, conversationId) => readLocalTranscript(conversationId, agentId, 400),
+    widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     tasks: tasks.ready() ? tasks : undefined,

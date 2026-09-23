@@ -54,6 +54,26 @@ export interface WidgetManifestEntry {
   updatedAt: number;
 }
 
+export type WidgetChange = "added" | "changed" | "removed";
+
+/**
+ * One row of a desk's widget change log (mod/widget-log.ts): the agent added, changed or removed a
+ * widget file. Sent as `widget_change { entry }` and with the desk's history (`widgetLog`).
+ */
+export interface WidgetLogEntry {
+  /** Unique per row. A collapsed repeat edit keeps the row's id with a later `at`: replace, don't append. */
+  id: string;
+  /** Epoch ms of the change (the latest one, for a collapsed row). */
+  at: number;
+  scope: Scope;
+  /** The widget's "<scope>/<name>" id, as in WidgetManifestEntry.id. */
+  widgetId: string;
+  name: string;
+  title: string;
+  kind: WidgetKind;
+  change: WidgetChange;
+}
+
 /** Server-owned state for one desk. Snapshotted to disk when non-empty. */
 export interface DeskState {
   scope: Scope;

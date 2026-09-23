@@ -22,6 +22,8 @@ import { isLanVia } from "./lan.ts";
  *    state       { scope, state }            geometry/overlay changed
  *    widgets     { scope, widgets }          files changed
  *    camera      { widgetId }
+    widget_change { entry }                 the agent added/changed/removed a widget on any desk; sent to every socket (mod/widget-log.ts).
+                                            A row with an id already seen replaces it (a repeat edit folded in); apps ignore it if unknown
  *    switch_desk { scope }                   the active conversation changed; the tab follows
  *    desks       { desks }                   reply to list_desks (the ⌘K switcher)
  *  client → server
@@ -32,7 +34,8 @@ import { isLanVia } from "./lan.ts";
  *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, snooze, appServer }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
  *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
- *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages }
+ *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
+                                            (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
  *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
  *    recall_grade { requestId, id, grade 1-4 } / recall_edit { requestId, id, front?, back?, tags? }   reply: recall_card { requestId, card }
@@ -136,6 +139,8 @@ export interface BridgeDeps {
   appServerUrl?: () => string | null;
   /** A conversation's transcript from the local backend log (survives compaction), for Catch Up threads. */
   transcript?: (agentId: string | null, conversationId: string) => import("./desks.ts").LocalTranscriptMessage[];
+  /** That conversation's desk's widget change log (mod/widget-log.ts), served with its history. */
+  widgetLog?: (agentId: string | null, conversationId: string) => import("../core/desk-core.ts").WidgetLogEntry[];
   /** Working folders for "new desk" (see mod/folders.ts). */
   folders?: {
     recent: () => import("./folders.ts").RecentFolders;
@@ -613,7 +618,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "history_get": {
           if (typeof msg.conversationId !== "string") return;
           const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [] });
+          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [], widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
           return;
         }
         case "lan_get":

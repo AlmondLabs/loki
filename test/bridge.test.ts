@@ -3,7 +3,8 @@ import { createBridge, scopeOfId, sortDesks, type DeskSummary, PHONE_FRAMES } fr
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
-import type { WidgetManifestEntry } from "../core/desk-core.ts";
+import { scopeFor, type WidgetManifestEntry } from "../core/desk-core.ts";
+import { WidgetLog } from "../mod/widget-log.ts";
 import type { Client } from "../mod/server.ts";
 import type { LanStatus, LanVia } from "../mod/lan.ts";
 import type { TailscaleStatus } from "../mod/tailscale.ts";
@@ -215,6 +216,30 @@ describe("bridge history", () => {
     expect((reply.messages as unknown[]).length).toBe(2);
     bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "unknown" });
     expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ requestId: "h2", messages: [] });
+  });
+  test("history carries the desk's widget change log; a desk with none gets an empty list", () => {
+    const log = new WidgetLog(null);
+    log.record({ added: [sleep], changed: [], removed: [], removedEntries: [], initial: false }, 123);
+    const bridge = createBridge({
+      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
+      widgetLog: (agentId, conversationId) => log.read(scopeFor(conversationId, agentId)),
+    });
+    const c = client("c1");
+    bridge.onMessage(c, { type: "history_get", requestId: "h1", agentId: "a1", conversationId: "c1" });
+    bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "c2" });
+    const [one, two] = c.sent.filter((m) => m.type === "history");
+    expect(one.widgetLog).toEqual([expect.objectContaining({ scope: "c1", widgetId: "c1/sleep", title: "Sleep", kind: "json", change: "added", at: 123 })]);
+    expect(two.widgetLog).toEqual([]);
+  });
+  test("a phone's history_get still answers, with the widget log as one more field it may ignore", () => {
+    const bridge = createBridge({
+      store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {},
+      transcript: () => [{ role: "user", text: "hi" }],
+      widgetLog: () => [],
+    });
+    const phone = { ...client("shared"), deviceId: "d1" };
+    bridge.onMessage(phone, { type: "history_get", requestId: "p1", agentId: "a1", conversationId: "c1" });
+    expect(phone.sent).toEqual([{ type: "history", requestId: "p1", agentId: "a1", conversationId: "c1", messages: [{ role: "user", text: "hi" }], widgetLog: [] }]);
   });
 });
 

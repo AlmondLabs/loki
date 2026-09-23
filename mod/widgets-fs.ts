@@ -17,6 +17,10 @@ export interface WidgetsDiff {
   added: WidgetManifestEntry[];
   changed: WidgetManifestEntry[];
   removed: string[];
+  /** The entries behind `removed`, as they were before the file went (for the change log's title). */
+  removedEntries: WidgetManifestEntry[];
+  /** The watcher's first scan: what was already on disk when the mod started, not a fresh write. */
+  initial: boolean;
 }
 
 export function parseJsonWidget(text: string): {
@@ -170,10 +174,13 @@ export function watchWidgets(
     return rt && !e.error ? { ...e, error: rt } : e;
   };
 
+  let first = true;
+
   const doScan = async (): Promise<void> => {
     if (closed) return;
     const next = await scanWidgets(root);
-    const diff: WidgetsDiff = { added: [], changed: [], removed: [] };
+    const diff: WidgetsDiff = { added: [], changed: [], removed: [], removedEntries: [], initial: first };
+    first = false;
     for (const [id, e] of next) {
       const prev = index.get(id);
       if (!prev) diff.added.push(e);
@@ -182,7 +189,11 @@ export function watchWidgets(
         runtimeErrors.delete(id); // file changed: stale runtime error
       }
     }
-    for (const id of index.keys()) if (!next.has(id)) diff.removed.push(id);
+    for (const [id, e] of index) {
+      if (next.has(id)) continue;
+      diff.removed.push(id);
+      diff.removedEntries.push(e);
+    }
     index = next;
     if (diff.added.length || diff.changed.length || diff.removed.length) onDiff(diff);
   };
