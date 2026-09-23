@@ -56,7 +56,7 @@ export function CaughtUp({ items, snoozedCount, nextDue, decided, replies }: { i
   const running = items.filter((i) => i.status === "running").length;
   return (
     <Empty card title="You're caught up.">
-      <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 8 }}>{running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>{running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
       {snoozedCount > 0 && nextDue && (
         <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 6 }}>
           {snoozedCount} snoozed · next back in {formatIn(nextDue)} · <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>S</span> to show them now
@@ -65,8 +65,8 @@ export function CaughtUp({ items, snoozedCount, nextDue, decided, replies }: { i
       {(decided.length > 0 || replies > 0) && (
         <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
-      <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 6 }}>anything new lands here while this stays open</div>
-      <div style={{ marginTop: 18, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 6 }}>anything new lands here while this stays open</div>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 18, fontFamily: "var(--loki-mono)" }}>{decided.length ? "z undo · " : ""}esc close</div>
     </Empty>
   );
 }
@@ -131,7 +131,7 @@ export function CardActions({ current, typing, advance, onOpenDesk, onClose }: {
 /** The key legend under the deck, in whichever grammar applies right now. */
 export function KeysHint({ typing }: { typing: boolean }) {
   return (
-    <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>
+    <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
       {typing ? "enter send (you stay on the card) · ⌘] next · ⌘[ later · ⌘↵ approve · ⌘⇧D deny · ⌘O open · ⌘S snoozed · esc back to the deck's keys" : "→ next · ← later · A approve · D deny · R reply · O open · S snoozed · Z undo · esc close"}
     </div>
   );

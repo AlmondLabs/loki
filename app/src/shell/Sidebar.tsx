@@ -74,7 +74,7 @@ export function Sidebar({
                 display: "grid",
                 placeItems: "center",
                 border: "1px solid transparent",
-                borderRadius: 8,
+                borderRadius: "var(--loki-radius-md)",
                 background: active ? "var(--loki-selection)" : "transparent",
                 color: active ? "var(--loki-fg)" : "var(--loki-muted)",
                 cursor: "pointer",

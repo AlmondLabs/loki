@@ -172,7 +172,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         flexDirection: "column",
         background: "var(--loki-panel)",
         border: `1px solid ${badgeColor}`,
-        borderRadius: 12,
+        borderRadius: "var(--loki-radius-lg)",
         boxShadow: "var(--loki-shadow-sheet)",
         overflow: "hidden",
         animation: `${actions.dir === "back" ? "loki-card-back" : "loki-card-next"} 200ms ease-out`,

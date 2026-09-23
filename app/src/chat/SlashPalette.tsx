@@ -20,7 +20,7 @@ export function SlashPalette({ matches, index, listId, onHover, onPick }: { matc
             <span style={{ fontSize: 9.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>{c.where === "loki" ? "loki" : "letta"}</span>
           </Row>
         ))}
-        {matches.length === 0 && <div role="status" style={{ padding: 10, fontSize: 12, color: "var(--loki-muted)" }}>no command matches — ↵ sends it as a message</div>}
+        {matches.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>no command matches — ↵ sends it as a message</div>}
       </div>
       <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
         <Meta>↑↓ move · ↵ run · ⇥ fill in · esc</Meta>

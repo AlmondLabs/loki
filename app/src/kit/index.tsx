@@ -166,7 +166,7 @@ export function ChartCard({ data }: KitProps) {
         contentStyle={{
           background: "var(--loki-panel)",
           border: "1px solid var(--loki-border)",
-          borderRadius: 8,
+          borderRadius: "var(--loki-radius-md)",
           fontSize: 12,
         }}
       />

@@ -61,12 +61,12 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       <Head>
         Desks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
       </Head>
-      {myDesks.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no live desks</div>}
+      {myDesks.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>no live desks</div>}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
         {myDesks.map((x) => (
           <Row dense key={x.scope} onClick={() => onOpen(x.conversationId ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
-            <span style={{ fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
+            <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
           </Row>
         ))}
       </div>
@@ -95,7 +95,7 @@ function TasksSection({ count, onShowBoard }: { count: number; onShowBoard: () =
 /** The last step before deleting: what closes (live desks) and what stays (open tasks, unassigned). */
 function ConfirmDelete({ d, myDesks, taskCount, onRemove, onKeep }: { d: AgentDetails; myDesks: DeskSummary[]; taskCount: number; onRemove: () => Promise<void>; onKeep: () => void }) {
   return (
-    <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: 8, fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
+    <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: "var(--loki-radius-md)", fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
       <span>
         Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live desk${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.` : ""}
         {taskCount ? ` ${taskCount} open task${taskCount === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
@@ -142,7 +142,7 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
           aria-label="agent description"
           style={{ fontSize: 13.5, color: "var(--loki-muted)" }}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12, color: "var(--loki-muted)", flexWrap: "wrap" }}>
+        <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
           <Field
             inline
             mono

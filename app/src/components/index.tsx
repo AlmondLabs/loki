@@ -254,9 +254,9 @@ export function Kbd({ children, className, ...rest }: HTMLAttributes<HTMLSpanEle
   return <span aria-hidden className={cx("loki-kbd", className)} {...rest}>{children}</span>;
 }
 
-/** Meta: agent, time, model — sans 12, muted. `brass` (kept name) tints it the accent blue; `wrap` for a sentence. */
-export function Meta({ brass, wrap, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { brass?: boolean; wrap?: boolean }) {
-  return <span className={cx("loki-meta", brass && "loki-meta--brass", wrap && "loki-meta--wrap", className)} {...rest} />;
+/** Meta: agent, time, model — sans 12, muted. `brass` (kept name) tints it the accent blue, `negative` the red ink for a small error; `wrap` for a sentence. */
+export function Meta({ brass, negative, wrap, className, ...rest }: HTMLAttributes<HTMLSpanElement> & { brass?: boolean; negative?: boolean; wrap?: boolean }) {
+  return <span className={cx("loki-meta", brass && "loki-meta--brass", negative && "loki-meta--negative", wrap && "loki-meta--wrap", className)} {...rest} />;
 }
 
 /** A section's title: sans bold 17; `page` for the one title on a view (22). */
@@ -298,8 +298,8 @@ export function Toast({ children, className, style, ...rest }: HTMLAttributes<HT
 export function Switch({ on, onToggle, label, small = false }: { on: boolean; onToggle: () => void; label: string; small?: boolean }) {
   return (
     <button type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: on ? "var(--loki-fg)" : "var(--loki-muted)", fontSize: small ? 12 : 13.5 }}>
-      <span aria-hidden style={{ width: 28, height: 16, borderRadius: 999, background: on ? "var(--loki-accent)" : "var(--loki-control-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
-        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 12, height: 12, borderRadius: 6, background: on ? "var(--loki-bg)" : "var(--loki-muted)", transition: "left 160ms ease-out" }} />
+      <span aria-hidden style={{ width: 28, height: 16, borderRadius: "var(--loki-radius-pill)", background: on ? "var(--loki-accent)" : "var(--loki-control-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
+        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 12, height: 12, borderRadius: "var(--loki-radius-sm)", background: on ? "var(--loki-bg)" : "var(--loki-muted)", transition: "left 160ms ease-out" }} />
       </span>
       {label}
     </button>

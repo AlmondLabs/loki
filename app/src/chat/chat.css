@@ -23,7 +23,7 @@
   margin: 8px 0; padding: 10px 12px; background: var(--loki-well);
   /* Wrap long lines rather than growing a scrollbar per block: the bubbles are narrow and this is prose-adjacent output, not an editor. */
   white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden;
-  border: 1px solid var(--loki-border); border-radius: 8px;
+  border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md);
 }
 .loki-md pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.5; }
 .loki-md blockquote { margin: 6px 0; padding: 2px 10px; border-left: 2px solid var(--loki-border); color: var(--loki-muted); }
@@ -52,7 +52,7 @@
 .loki-event-summary { font-family: var(--loki-font); }
 .loki-event-aside { color: var(--loki-fg); opacity: 0.75; margin-left: 8px; font-family: var(--loki-font); }
 .loki-event-detail {
-  margin: 6px 0 0 14px; padding: 8px 10px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: 6px;
+  margin: 6px 0 0 14px; padding: 8px 10px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-sm);
   font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; color: var(--loki-fg);
 }
 
@@ -61,7 +61,7 @@
 .loki-question { padding: 8px 20px 10px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); display: grid; gap: 8px; max-height: 38%; overflow-y: auto; flex: 0 0 auto; }
 .loki-approval { padding: 12px 20px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); }
 .loki-approval-input {
-  margin: 0; padding: 10px 12px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: 8px;
+  margin: 0; padding: 10px 12px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md);
   font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; color: var(--loki-fg);
 }
 

@@ -239,7 +239,7 @@ function FrameTitleBar({
         {entry.title}
       </span>
       <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
-        <span style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
+        <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
         <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
           {/* target */}
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">

@@ -111,7 +111,7 @@ export function ModuleWidget({
 
 export function WidgetError({ message }: { message: string }) {
   return (
-    <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", whiteSpace: "pre-wrap" }}>
+    <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", whiteSpace: "pre-wrap" }}>
       {message}
     </div>
   );

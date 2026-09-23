@@ -99,7 +99,7 @@ function QuestionCardFor({ question, onAnswer, touch = false }: { question: Pend
             </div>
             {q.options.some((o) => o.description) && (
               // Always one line tall, so hovering the pills never moves the thread above.
-              <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4, marginLeft: 2, minHeight: "1.4em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} aria-live="polite">
+              <div className="loki-meta" style={{ lineHeight: 1.4, marginLeft: 2, minHeight: "1.4em" }} aria-live="polite">
                 {shown?.description ?? (sel.length ? "" : touch ? "tap an option for details" : "hover an option for details")}
               </div>
             )}

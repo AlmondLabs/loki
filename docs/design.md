@@ -49,7 +49,8 @@ Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no
 
 Radii: `--loki-radius-sm` **6** fields, icon buttons, dense rows · `--loki-radius-md` **8** buttons, rows,
 plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-radius-pill` **999** chips, badges,
-toasts; circles use half their size. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
+toasts; circles use half their size. A radius with a role is written as its token (`"var(--loki-radius-md)"`), never
+as the number; the tokens test fails a bare 6, 8, 12 or 999 outside the phone. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
 `--loki-shadow-panel` (the chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in
 `app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
@@ -77,7 +78,8 @@ kbd), **IconButton** (24 · 28 · 36 · 40; danger goes red on hover), **NavButt
 neutral, brass the blue pick, attention the red badge, tone for a status badge, static, tag, touch, label,
 float), **Field** / **TextArea** (sm · md · touch; mono, bare, large, inline), **Row** (selected, dense, touch,
 flush), **Sheet** (veil, aria-modal, Escape, click-out, focus returned; top or bottom), **Popover**, **Kbd**,
-**Meta**, **Title**, **Dot**, **Empty**, **Banner**, **Toast**.
+**Meta** (sans 12 muted; brass, negative for a small error, wrap; a div that is a meta line takes the
+`loki-meta` class instead of a hand-set fontSize and colour), **Title**, **Dot**, **Empty**, **Banner**, **Toast**.
 
 The tone names predate the Slack look and are kept for compatibility. What they render now: `quiet` muted ink
 on a hairline · `paper` fg ink · `brass` the accent blue ink (an interactive action; it no longer means

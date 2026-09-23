@@ -174,7 +174,7 @@ export function Agents({
         <div style={{ minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "auto minmax(0, 1fr)" }}>
           <div style={{ padding: "18px 28px 10px", display: "flex", alignItems: "baseline", gap: 12, borderBottom: "1px solid var(--loki-border)" }}>
             <Title page>{page}</Title>
-            <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{AGENT_PAGE_HINT[page]}</span>
+            <span className="loki-meta loki-meta--wrap">{AGENT_PAGE_HINT[page]}</span>
           </div>
           {pages[page]}
         </div>
@@ -245,7 +245,7 @@ function AgentTabs({ agents, selected, creating, avatar, notice, onPick, onNew }
         + new
       </button>
       <span style={{ flex: 1 }} />
-      {notice && <span style={{ alignSelf: "center", fontSize: 12, color: "var(--loki-muted)" }}>{notice}</span>}
+      {notice && <span className="loki-meta loki-meta--wrap" style={{ alignSelf: "center" }}>{notice}</span>}
     </div>
   );
 }

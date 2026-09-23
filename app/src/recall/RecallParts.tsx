@@ -51,7 +51,7 @@ export function PreviousText({ c }: { c: CardWithSchedule }) {
   const prev = c.card.previous[c.card.previous.length - 1];
   if (!prev) return null;
   return (
-    <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
+    <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5, borderTop: "1px solid var(--loki-border)", paddingTop: 10 }}>
       <Meta>before · {ago(prev.at)} · by {prev.by === "you" ? "you" : "recall"}</Meta>
       <div style={{ marginTop: 4, whiteSpace: "pre-wrap" }}>{prev.front}</div>
       <div style={{ marginTop: 2, whiteSpace: "pre-wrap", opacity: 0.85 }}>{prev.back}</div>
@@ -72,7 +72,7 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
       {sorted.length === 0 && <Empty title={needle ? "No card matches." : "No cards yet."}>{needle ? "Try fewer words." : "The worker writes them from your conversations as they go quiet."}</Empty>}
       <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
         {sorted.map((c) => (
-          <li key={c.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: 8, padding: open === c.card.id ? 14 : 0 }}>
+          <li key={c.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", padding: open === c.card.id ? 14 : 0 }}>
             {open === c.card.id ? (
               <div style={{ display: "grid", gap: 10 }}>
                 <SourceLine c={c} />
@@ -95,7 +95,7 @@ export function CardList({ cards, onEdit, onDelete }: { cards: CardWithSchedule[
               <Row flush onClick={() => setOpen(c.card.id)} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "baseline", padding: "10px 12px" }}>
                 <span style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.card.front}</div>
-                  <div style={{ fontSize: 12, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{c.card.back}</div>
+                  <div className="loki-meta" style={{ marginTop: 2 }}>{c.card.back}</div>
                 </span>
                 <Meta brass={isDue(c.schedule)}>{dueWord(c)}</Meta>
               </Row>
@@ -115,10 +115,10 @@ export function RejectedList({ rejected, onRestore, onForget }: { rejected: Reje
       <Meta wrap>These teach the worker: a card deleted unseen says "not wanted", one deleted after many reviews says "badly written". They never come back reworded.</Meta>
       <ul style={{ display: "grid", gap: 4, listStyle: "none", margin: 0, padding: 0 }}>
       {rejected.map((r) => (
-        <li key={r.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: 8, padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
+        <li key={r.card.id} style={{ border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", padding: "10px 12px", display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
           <span style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13.5, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.card.front}</div>
-            <div style={{ fontSize: 12, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{r.card.back}</div>
+            <div className="loki-meta" style={{ marginTop: 2 }}>{r.card.back}</div>
             <Meta>deleted {ago(r.at)} · after {r.reps} review{r.reps === 1 ? "" : "s"}</Meta>
           </span>
           <span style={{ display: "flex", gap: 6 }}>
@@ -173,7 +173,7 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
 /** The key legend under the deck. */
 export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
-    <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>
+    <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
       {revealed ? "← again · → got it (space too) · X delete · E edit · O open the desk · Z undo · esc back" : "space or → show the answer · X delete · E edit · O open the desk · Z undo · esc back"}
     </div>
   );
@@ -185,7 +185,7 @@ export function RecallKeys({ revealed }: { revealed: boolean }) {
  */
 export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnable?: () => void }) {
   return (
-    <section aria-label="about learn" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
+    <section aria-label="about learn" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
       <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
       <p style={{ margin: 0 }}>
         Recall is a writer that runs in the background. Every ten minutes it looks for conversations that have gone quiet, hands their new
@@ -288,7 +288,7 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
         </Empty>
       )}
       {leads.map((l) => (
-        <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, overflow: "hidden", display: "grid" }}>
+        <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", overflow: "hidden", display: "grid" }}>
           {/* The card is the start: one click opens the lesson's desk with the chat and sends the brief. */}
           <Row flush onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent: the desk opens, the brief goes out, the agent begins" style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>

@@ -26,9 +26,9 @@ export function SkillsPage({ d, store, viewSkill, onPickSkill, adding, setAdding
           </span>
         </Head>
         {adding && <SkillAdd key={adding} mode={adding} onWrite={store.addSkill} onInstall={store.installSkill} onClose={() => setAdding(null)} agentName={d.agent.name} />}
-        {d.skills.length === 0 && !adding && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>none in memory</div>}
+        {d.skills.length === 0 && !adding && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>none in memory</div>}
         <SkillList skills={d.skills} shown={viewSkill} onPick={onPickSkill} />
-        <div style={{ fontSize: 10.5, color: "var(--loki-muted)", padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
+        <div className="loki-meta loki-meta--wrap" style={{ padding: "14px 8px 0", lineHeight: 1.5 }}>Skills every agent reads are in Settings › skills.</div>
       </ListPane>
       <Pane>
         <SkillView d={d} store={store} skill={viewSkill} reading={reading} />
@@ -70,7 +70,7 @@ function SkillList({ skills, shown, onPick }: { skills: MemorySkillInfo[]; shown
 /** The picked skill, read: its path and actions above, where it came from, its description, then the SKILL.md. */
 function SkillView({ d, store, skill, reading }: { d: AgentDetails; store: AgentStore; skill: MemorySkillInfo | null; reading: ReadingState }) {
   const { content, loadingView } = reading;
-  if (!skill) return <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>;
+  if (!skill) return <div className="loki-meta loki-meta--wrap">{d.skills.length ? "pick a skill" : `${d.agent.name} has no skills in memory yet`}</div>;
   return (
     <>
       <SkillActions d={d} store={store} skill={skill} loadingView={loadingView} />
@@ -136,7 +136,7 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
     onClose();
   };
   return (
-    <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
+    <div style={{ display: "grid", gap: 6, margin: "0 0 10px", padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
       {mode === "write" ? (
         <>
           <Field size="sm" mono autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="skill name (becomes skills/<name>/SKILL.md)" autoComplete="off" data-form-type="other" />
@@ -145,11 +145,11 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
       ) : (
         <>
           <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · official/finance/stocks · clawhub/<slug> · a GitHub or SKILL.md URL" autoComplete="off" data-form-type="other" />
-          <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>runs <code style={{ fontFamily: "var(--loki-mono)" }}>letta install</code> for {agentName}; can take a minute</span>
+          <span className="loki-meta loki-meta--wrap">runs <code style={{ fontFamily: "var(--loki-mono)" }}>letta install</code> for {agentName}; can take a minute</span>
         </>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button onClick={onClose}>cancel</Button>
         <Button tone="positive" onClick={() => void go()} disabled={busy}>{busy ? (mode === "install" ? "installing…" : "writing…") : mode === "install" ? "install" : "add"}</Button>
@@ -175,11 +175,11 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     }
   };
   return (
-    <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: 8 }}>
-      <span style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
+    <div style={{ display: "grid", gap: 6, padding: "8px 10px", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)" }}>
+      <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>Nobody wrote down where {name} came from. Say once; it is remembered.</span>
       <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => (e.key === "Enter" ? void go() : e.key === "Escape" ? onCancel() : undefined)} placeholder="https://github.com/owner/repo/tree/main/skills/name · owner/repo/path · ~/a/folder" autoComplete="off" data-form-type="other" />
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button onClick={onCancel}>cancel</Button>
         <Button tone="brass" onClick={() => void go()} disabled={busy || !source.trim()}>{busy ? "refreshing…" : "refresh"}</Button>

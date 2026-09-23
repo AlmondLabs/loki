@@ -565,7 +565,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
     <section style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "6px 24px", alignItems: "start" }}>
       <div style={{ paddingTop: 2 }}>
         <Title>{title}</Title>
-        {hint && <div style={{ fontSize: 12, color: "var(--loki-muted)", marginTop: 4, lineHeight: 1.45 }}>{hint}</div>}
+        {hint && <div className="loki-meta loki-meta--wrap" style={{ marginTop: 4, lineHeight: 1.45 }}>{hint}</div>}
       </div>
       <div style={{ display: "grid", gap: 6, borderLeft: "1px solid var(--loki-border)", paddingLeft: 20 }}>{children}</div>
     </section>

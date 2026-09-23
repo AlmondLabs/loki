@@ -242,7 +242,7 @@ export function Board({
           {tasks === null ? (loading ? "Loading the board…" : "") : `${openCount} open`}
           {loading && tasks !== null ? " · refreshing" : ""}
         </span>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <Button size="md" tone="brass" kbd="⌘T" onClick={onNew} title="file a task yourself (⌘T)">
           + task
@@ -276,7 +276,7 @@ export function Board({
               </div>
             ) : (
               tasks !== null && (
-                <p role="status" style={{ margin: 0, fontSize: 12, color: "var(--loki-muted)", padding: "10px 6px" }}>
+                <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0, padding: "10px 6px" }}>
                   {emptyLine(col.id, query)}
                 </p>
               )
@@ -285,7 +285,7 @@ export function Board({
         ))}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px 12px", borderTop: "1px solid var(--loki-border)", fontSize: 12, color: "var(--loki-muted)" }}>
+      <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px 12px", borderTop: "1px solid var(--loki-border)" }}>
         {sel.length > 0 ? (
           <>
             <span style={{ color: "var(--loki-fg)" }}>{sel.length} selected</span>
@@ -358,7 +358,7 @@ function TaskCard({
       style={{
         background: selected ? "var(--loki-selection)" : "var(--loki-panel)",
         border: `1px solid ${focused ? "var(--loki-accent)" : selected ? "var(--loki-control-border)" : "var(--loki-border)"}`,
-        borderRadius: 12,
+        borderRadius: "var(--loki-radius-lg)",
         padding: "10px 12px",
         cursor: "pointer",
         display: "grid",
@@ -366,7 +366,7 @@ function TaskCard({
       }}
     >
       <TaskTitle task={t} column={column} selected={selected} />
-      {showDesc && <div id={`${uid}-desc`} style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
+      {showDesc && <div id={`${uid}-desc`} className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
       <TaskMeta id={`${uid}-meta`} task={t} column={column} />
       {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle!} />}
     </div>
@@ -387,7 +387,7 @@ function TaskTitle({ task: t, column, selected }: { task: Task; column: ColumnId
 function TaskMeta({ id, task: t, column }: { id: string; task: Task; column: ColumnId }) {
   const urgent = t.priority <= 1 && column !== "done";
   return (
-    <div id={id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, color: "var(--loki-muted)" }}>
+    <div id={id} className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <span style={{ color: urgent ? "var(--loki-negative)" : undefined, fontWeight: urgent ? 600 : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
       <span style={{ fontFamily: "var(--loki-mono)" }}>{t.id}</span>
       {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}

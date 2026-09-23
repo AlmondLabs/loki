@@ -37,7 +37,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                 </span>
                 <span style={{ color: "var(--loki-fg)" }}>
                   {b.label}
-                  {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && <span style={{ marginLeft: 8, fontSize: 10.5, color: "var(--loki-muted)" }}>not while typing</span>}
+                  {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>not while typing</span>}
                 </span>
               </div>
             ))}

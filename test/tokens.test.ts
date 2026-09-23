@@ -106,6 +106,16 @@ describe("design tokens: every style stays on the scales", () => {
     const inCss = findAll(files, /border-radius:\s*([\d.]+)px/g, (m) => m[1]).filter((h) => !RADII.has(Number(value(h))));
     expect([...off, ...inCss]).toEqual([]);
   });
+  test("a radius that has a role is named, not a number (the phone keeps its own scale)", () => {
+    const outside = (list: typeof files) => list.filter((f) => !f.path.startsWith("phone/"));
+    const inline = findAll(outside(code), /borderRadius: (\d+)\b/g, (m) => m[1]).filter((h) => [6, 8, 12, 999].includes(Number(value(h))));
+    const inCss = findAll(outside(css), /border-radius:\s*(\d+)px/g, (m) => m[1]).filter((h) => [6, 8, 12, 999].includes(Number(value(h))));
+    expect([...inline, ...inCss]).toEqual([]);
+  });
+  test("a small muted or negative line is .loki-meta, not a hand-set fontSize and colour", () => {
+    const off = findAll(code, /fontSize: (?:12|10\.5), color: "var\(--loki-(?:muted|negative)\)"/g, (m) => m[0]);
+    expect(off).toEqual([]);
+  });
   test("shadows are the four named shadows", () => {
     const off = findAll(code, /boxShadow: "([^"]+)"/g, (m) => m[1]).filter((h) => !/var\(--loki-shadow-(sheet|float|panel|low)\)/.test(h));
     expect(off).toEqual([]);

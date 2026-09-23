@@ -239,7 +239,7 @@ function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"
             {a.name}
           </Chip>
         ))}
-        {agents.length === 0 && <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>no agents yet — is Desktop running?</span>}
+        {agents.length === 0 && <span className="loki-meta loki-meta--wrap">no agents yet — is Desktop running?</span>}
       </div>
     </div>
   );
@@ -340,7 +340,7 @@ function FolderPicker({
 /** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
 function FolderList({ options, hi, onHover, onChoose, agentName }: { options: FolderOption[]; hi: number; onHover: (i: number) => void; onChoose: (path: string) => void; agentName: string | null }) {
   return (
-    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 8, boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
       {options.map((o, i) => {
         const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
         const first = i === 0 || options[i - 1].group !== o.group;
@@ -360,7 +360,7 @@ function FolderList({ options, hi, onHover, onChoose, agentName }: { options: Fo
               style={{ display: "grid", gap: 0 }}
             >
               <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
-              <div style={{ fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.path}</div>
+              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>{o.path}</div>
             </Row>
           </div>
         );

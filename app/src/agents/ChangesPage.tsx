@@ -10,19 +10,19 @@ export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: Memory
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(320px, 440px) 1fr" }}>
       <ListPane>
         <Head>Commits <span style={{ marginLeft: "auto", fontWeight: 400 }}>{log.length ? `last ${log.length}` : ""}</span></Head>
-        {log.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no memory commits yet</div>}
+        {log.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "0 8px" }}>no memory commits yet</div>}
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
           {log.map((c) => {
             const on = c.sha === shownSha;
             return (
               <Row dense key={c.sha} selected={on} onClick={() => onPickSha(c.sha)} style={{ display: "grid", gridTemplateColumns: "44px 1fr", gap: "2px 10px", alignItems: "baseline", fontSize: 13.5 }}>
-                <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{ago(c.at)}</span>
+                <span className="loki-meta loki-meta--wrap">{ago(c.at)}</span>
                 <span style={{ lineHeight: 1.4 }}>
                   {c.message}
-                  {/reflection/i.test(c.author ?? "") && <span style={{ marginLeft: 8, fontSize: 10.5, color: "var(--loki-muted)" }}>reflection</span>}
+                  {/reflection/i.test(c.author ?? "") && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>reflection</span>}
                 </span>
                 <span />
-                <span style={{ fontSize: 10.5, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
+                <span className="loki-meta">{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
               </Row>
             );
           })}
@@ -38,14 +38,14 @@ export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: Memory
 /** The picked commit: its short sha above, the diff below; a line when there is no commit or nothing to show. */
 function CommitView({ shownSha, reading }: { shownSha: string | null; reading: ReadingState }) {
   const { content, loadingView } = reading;
-  if (!shownSha) return <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing learned yet</div>;
+  if (!shownSha) return <div className="loki-meta loki-meta--wrap">nothing learned yet</div>;
   return (
     <>
       <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <span style={{ color: "var(--loki-fg)" }}>Commit <span style={{ fontFamily: "var(--loki-mono)" }}>{shownSha.slice(0, 8)}</span></span>
         {loadingView && <span>Loading…</span>}
       </div>
-      {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>nothing to show here</div>}
+      {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">nothing to show here</div>}
       {content !== null && <Diff text={content} />}
     </>
   );

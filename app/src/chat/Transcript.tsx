@@ -133,7 +133,7 @@ function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: Transcr
           minWidth: 0,
           overflowWrap: "anywhere",
           padding: "9px 13px",
-          borderRadius: 12,
+          borderRadius: "var(--loki-radius-lg)",
           background: m.role === "user" ? "var(--loki-user-bubble)" : "var(--loki-bubble)",
           // Typed mid-turn and not sent yet: quieter, with a dashed edge, until the turn ends.
           border: m.queued ? "1px dashed var(--loki-accent)" : undefined,
@@ -201,7 +201,7 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
       {m.images && m.images.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 8 : 0 }}>
           {m.images.map((src, k) => (
-            <img key={k} src={src} alt="" style={{ maxWidth: 220, maxHeight: 160, borderRadius: 6, border: "1px solid var(--loki-border)", display: "block" }} />
+            <img key={k} src={src} alt="" style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
           ))}
         </div>
       )}

@@ -25,7 +25,7 @@ export function ListPane({ children }: { children: React.ReactNode }) {
 export function Prose({ content, loadingView, empty }: { content: string | null; loadingView: boolean; empty: string }) {
   return (
     <>
-      {content === null && !loadingView && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>{empty}</div>}
+      {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">{empty}</div>}
       {content !== null && (
         <div className="loki-md" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
           <Markdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</Markdown>

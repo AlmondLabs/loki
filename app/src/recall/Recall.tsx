@@ -238,7 +238,7 @@ function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, o
   const gaps = previews(c.schedule);
   const canOpen = !!(c.card.source.agentId && c.card.source.conversationId);
   return (
-    <section aria-label={`card ${position} of ${total}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: 12, boxShadow: "var(--loki-shadow-sheet)", padding: "18px 24px 16px", display: "grid", gap: 16, animation: "loki-card-next 200ms ease-out" }}>
+    <section aria-label={`card ${position} of ${total}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", boxShadow: "var(--loki-shadow-sheet)", padding: "18px 24px 16px", display: "grid", gap: 16, animation: "loki-card-next 200ms ease-out" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <SourceLine c={c} />
         <span style={{ flex: 1 }} />

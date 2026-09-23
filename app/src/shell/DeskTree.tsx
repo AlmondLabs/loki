@@ -335,7 +335,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onSwitch, onNew, he
           />
         )}
         {archive.length > 0 && <ArchiveGroup archive={archive} open={showArchive || !!q} onToggle={onToggleArchive} startIndex={cursor} current={current} showFace={!agentFilter} optionId={optionId} selected={index} onHover={setIndex} onChoose={(d) => choose({ kind: "desk", desk: d })} onPin={onPin} onArchive={onArchive} />}
-        {rows.length === 0 && <div role="status" style={{ padding: 14, fontSize: 12, color: "var(--loki-muted)" }}>no desks match</div>}
+        {rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>no desks match</div>}
       </div>
       <TreeFooter onPickDesk={onPickDesk} onSwitchChat={onSwitchChat} onPin={onPin} onArchive={onArchive} />
     </Sheet>
@@ -395,7 +395,7 @@ function ArchiveGroup({ archive, open, onToggle, startIndex, current, showFace, 
 /** The key legend along the bottom; it names only what this sheet can do. */
 function TreeFooter({ onPickDesk, onSwitchChat, onPin, onArchive }: Pick<TreeProps, "onPickDesk" | "onSwitchChat" | "onPin" | "onArchive">) {
   return (
-    <div style={{ flex: "0 0 auto", padding: "6px 14px", fontSize: 10.5, color: "var(--loki-muted)", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}>
+    <div className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto", padding: "6px 14px", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}>
       {onPickDesk ? "↑↓ move · tab agent · ↵ choose · esc cancel" : `↑↓ move · tab agent · ↵ open${onSwitchChat ? " · ⇧↵ chat" : ""}${onPin ? " · ⌘P pin" : ""}${onArchive ? " · ⌘E archive" : ""} · esc`}
     </div>
   );
@@ -442,7 +442,7 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
       className="loki-tree-row"
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", opacity: d.status === "live" ? 1 : 0.7 }}
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", borderRadius: "var(--loki-radius-md)", cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", opacity: d.status === "live" ? 1 : 0.7 }}
     >
       <Mark item={mark} status={d.status} />
       {showFace && (d.agentId ? <AgentFace name={d.agentName} src={avatarUrl(d.agentId)} size={18} /> : <AgentChip name={d.agentName} size={9.5} />)}
@@ -452,7 +452,7 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
         {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
       </span>
       {/* Hover actions take the place of the timestamp so the row never widens. */}
-      <span className="loki-tree-meta" style={{ fontSize: 10.5, color: "var(--loki-muted)", whiteSpace: "nowrap" }}>
+      <span className="loki-tree-meta loki-meta">
         {when(d.lastActive)}
       </span>
       {(canPin || canArchive) && <RowActions desk={d} canPin={canPin} canArchive={canArchive} onPin={onPin} onArchive={onArchive} />}
@@ -487,7 +487,7 @@ function NewRow({ index, optionId, selected, onHover, onChoose, label }: { index
       aria-selected={index === selected}
       onMouseEnter={() => onHover(index)}
       onClick={onChoose}
-      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", marginTop: 4, borderRadius: 8, cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", color: "var(--loki-muted)", fontSize: 12 }}
+      style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 10px", marginTop: 4, borderRadius: "var(--loki-radius-md)", cursor: "pointer", background: index === selected ? "var(--loki-selection)" : "transparent", color: "var(--loki-muted)", fontSize: 12 }}
     >
       <span style={{ width: 7, textAlign: "center", color: "var(--loki-accent)", fontSize: 13.5, lineHeight: 1 }}>+</span>
       <span>{label}</span>

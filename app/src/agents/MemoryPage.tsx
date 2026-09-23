@@ -52,7 +52,7 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
           {fs.map((f) => (
             <Row dense key={f.path} selected={current === f.path} onClick={() => onPick(f.path)} title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`} style={{ justifyContent: "space-between", gap: 8, fontSize: 12 }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g ? f.path.slice(g.length + 1) : f.path}</span>
-              <span style={{ fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{ago(f.modifiedAt)}</span>
+              <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>{ago(f.modifiedAt)}</span>
             </Row>
           ))}
         </div>

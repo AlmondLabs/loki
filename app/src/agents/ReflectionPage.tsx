@@ -168,9 +168,9 @@ function Conversations({ state, settings, agentName, busy, onRun, onOpen }: { st
         <div key={c.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", alignItems: "center", gap: 12, padding: "6px 8px", borderBottom: "1px solid var(--loki-border)" }}>
           <Row dense flush onClick={() => onOpen(c.conversationId)} title="open this conversation" style={{ minWidth: 0, display: "grid", gap: 2 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5 }}>{c.title ?? c.conversationId}</span>
-            <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{countLine(c, threshold)}</span>
+            <span className="loki-meta loki-meta--wrap">{countLine(c, threshold)}</span>
           </Row>
-          <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{c.totalSteps} in all</span>
+          <span className="loki-meta loki-meta--wrap">{c.totalSteps} in all</span>
           <Button size="sm" onClick={() => onRun(c.conversationId)} disabled={busy !== null} title="start a pass over this conversation now, the same as /reflect in its chat">
             {busy === c.conversationId ? "starting…" : "reflect now"}
           </Button>

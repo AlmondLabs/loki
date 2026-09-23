@@ -33,7 +33,7 @@ export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }
             {PERSONALITIES.map((p) => (
               <Row dense key={p.id} role="radio" aria-checked={personality === p.id} selected={personality === p.id} onClick={() => setPersonality(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10 }}>
                 <span style={{ fontSize: 13.5 }}>{p.label}</span>
-                <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</span>
+                <span className="loki-meta loki-meta--wrap">{p.description}</span>
               </Row>
             ))}
           </div>
@@ -43,7 +43,7 @@ export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }
           <datalist id="loki-new-agent-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
         </Labelled>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
+          {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
           <span style={{ flex: 1 }} />
           {canCancel && <Button onClick={onCancel}>cancel</Button>}
           <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd="↵">{busy ? "creating…" : "create"}</Button>

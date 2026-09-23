@@ -111,7 +111,7 @@ export const ChatInput = forwardRef<
         <div data-attachments style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {images.map((img) => (
             <span key={img.id} style={{ position: "relative", display: "inline-block" }}>
-              <img src={img.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: 6, border: "1px solid var(--loki-border)", display: "block" }} />
+              <img src={img.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
               <button
                 type="button"
                 onClick={() => onImages?.(images.filter((i) => i.id !== img.id))}
@@ -241,7 +241,7 @@ export const ChatInput = forwardRef<
       )}
       </div>
       {dictation.error && (
-        <span id="loki-dictation-error" role="status" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6, fontSize: 10.5, color: "var(--loki-negative)", whiteSpace: "nowrap" }}>
+        <span id="loki-dictation-error" role="status" className="loki-meta loki-meta--negative" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6 }}>
           {dictation.error}
         </span>
       )}

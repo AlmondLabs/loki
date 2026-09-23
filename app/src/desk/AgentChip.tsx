@@ -38,7 +38,7 @@ export function AgentChip({ name, size = 10.5 }: { name: string | null | undefin
         fontSize: size,
         fontWeight: 600,
         padding: "1px 8px",
-        borderRadius: 999,
+        borderRadius: "var(--loki-radius-pill)",
         color: `hsl(${hue} 60% 78%)`,
         background: `hsl(${hue} 45% 22% / 0.55)`,
         border: `1px solid hsl(${hue} 50% 40% / 0.6)`,

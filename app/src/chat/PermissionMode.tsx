@@ -80,7 +80,7 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left", side
           </span>
           <span style={{ display: "grid" }}>
             <span style={{ fontSize: 13.5 }}>{m.label}</span>
-            <span style={{ fontSize: 10.5, color: "var(--loki-muted)", lineHeight: 1.4 }}>{m.description}</span>
+            <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>{m.description}</span>
           </span>
           <span style={{ fontSize: 10.5, color: "var(--loki-accent)" }}>{m.id === (current ?? "unrestricted") ? "current" : ""}</span>
         </Row>

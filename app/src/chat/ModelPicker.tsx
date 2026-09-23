@@ -166,14 +166,14 @@ function ModelPickerOpen({ current, currentEffort = null, entries, loading, onPi
               {provider !== prevGroup && provider && <div role="presentation" className="loki-label" style={{ padding: "6px 8px 2px" }}>{provider}</div>}
               <Row dense id={`${listId}-opt-${i}`} role="option" tabIndex={-1} data-index={i} aria-selected={i === index} onMouseEnter={() => setIndex(i)} onClick={() => choose(selected)} style={{ alignItems: "baseline", gap: 8 }}>
                 <span style={{ fontSize: 12, color: model.handle === current ? "var(--loki-accent)" : "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shortModel(model.handle)}</span>
-                <span style={{ fontSize: 10.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap" }}>
+                <span className="loki-meta" style={{ marginLeft: "auto" }}>
                   {model.handle === current ? "current" : model.isDefault ? "default" : model.isFeatured ? "featured" : model.label !== shortModel(model.handle) ? model.label : ""}
                 </span>
               </Row>
             </div>
           );
         })}
-        {entries && rows.length === 0 && <div role="status" style={{ padding: 10, fontSize: 12, color: "var(--loki-muted)" }}>no model matches</div>}
+        {entries && rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>no model matches</div>}
       </div>
       <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
         <Meta>↑↓ move · ↵ switch this conversation · esc</Meta>

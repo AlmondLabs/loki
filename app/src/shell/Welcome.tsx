@@ -84,18 +84,18 @@ function LettaStep({ lettaStep, bootstrap, onInstallLetta }: { lettaStep: boolea
   return lettaStep ? (
     <LettaInstall status={bootstrap} onRetry={onInstallLetta} />
   ) : (
-    <span style={{ fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ?? "the harness this window is linked to"}</span>
+    <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ?? "the harness this window is linked to"}</span>
   );
 }
 
 /** Step 1: waits for Letta Code, then the provider shortlist with "next" / "skip for now", then a line naming what connected. */
 function ProviderStep({ lettaStep, showAgent, connected, providers, onLoadProviders, onConnect, onDisconnect, onModelsChanged, onNext }: ProviderProps & { lettaStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
-  if (lettaStep) return <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>after Letta Code is in place</span>;
+  if (lettaStep) return <span className="loki-meta loki-meta--wrap">after Letta Code is in place</span>;
   if (!showAgent)
     return (
       <div style={{ display: "grid", gap: 10 }}>
         <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onModelsChanged} shortlist />
-        <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "var(--loki-muted)" }}>
+        <div className="loki-meta loki-meta--wrap" style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span>Keys are checked with the provider and kept by Letta on this Mac; loki never sees them again.</span>
           <span style={{ flex: 1 }} />
           {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
@@ -105,7 +105,7 @@ function ProviderStep({ lettaStep, showAgent, connected, providers, onLoadProvid
         </div>
       </div>
     );
-  return <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{connected ? `${providers!.filter(isConnected).map((p) => p.display_name).join(", ")}` : "none yet — Settings › providers, any time"}</span>;
+  return <span className="loki-meta loki-meta--wrap">{connected ? `${providers!.filter(isConnected).map((p) => p.display_name).join(", ")}` : "none yet — Settings › providers, any time"}</span>;
 }
 
 /** Step 2: the form for the first agent; ↵ anywhere but the description creates it. */
@@ -127,7 +127,7 @@ function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: Retur
         <datalist id="loki-welcome-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
       </Labelled>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
+        {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         {canGoBack && (
           <Button size="sm" onClick={onBack}>
@@ -147,9 +147,9 @@ function PersonalityPicker({ value, onPick }: { value: Personality; onPick: (p: 
   return (
     <div role="radiogroup" style={{ display: "grid", gap: 4 }}>
       {PERSONALITIES.map((p) => (
-        <button key={p.id} type="button" role="radio" aria-checked={value === p.id} onClick={() => onPick(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, textAlign: "left", padding: "6px 10px", border: `1px solid ${value === p.id ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: 6, background: value === p.id ? "var(--loki-brass-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}>
+        <button key={p.id} type="button" role="radio" aria-checked={value === p.id} onClick={() => onPick(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, textAlign: "left", padding: "6px 10px", border: `1px solid ${value === p.id ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: "var(--loki-radius-sm)", background: value === p.id ? "var(--loki-brass-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}>
           <span style={{ fontSize: 13.5, color: value === p.id ? "var(--loki-accent)" : "var(--loki-fg)" }}>{p.label}</span>
-          <span style={{ fontSize: 12, color: "var(--loki-muted)" }}>{p.description}</span>
+          <span className="loki-meta loki-meta--wrap">{p.description}</span>
         </button>
       ))}
     </div>
@@ -166,14 +166,14 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
         {status?.error ? "Installing Letta Code did not finish." : status?.installing ? "This Mac has no Letta Code, so loki is installing it with npm — the same install a terminal's npm install -g makes, into npm's global folder, so the letta command works there too." : "Looking for Letta Code…"}
       </div>
       {lines.length > 0 && (
-        <pre style={{ margin: 0, maxHeight: 160, overflowY: "auto", padding: "8px 10px", fontSize: 10.5, lineHeight: 1.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)", background: "var(--loki-well)", borderRadius: 6, whiteSpace: "pre-wrap" }}>
+        <pre style={{ margin: 0, maxHeight: 160, overflowY: "auto", padding: "8px 10px", fontSize: 10.5, lineHeight: 1.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)", background: "var(--loki-well)", borderRadius: "var(--loki-radius-sm)", whiteSpace: "pre-wrap" }}>
           {lines.slice(-12).join("\n")}
         </pre>
       )}
       {status?.error && (
         <div style={{ display: "grid", gap: 8 }}>
-          <div style={{ fontSize: 12, color: "var(--loki-negative)" }}>{status.error}</div>
-          <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>
+          <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>
+          <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
             The install needs a Node 22 or newer with npm (Homebrew's <code style={{ fontFamily: "var(--loki-mono)" }}>brew install node</code>; the loki cask
             brings it) and registry.npmjs.org to be reachable. A global folder npm may not write needs the sudo line above, run in a terminal. Retry below
             once it is fixed. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
@@ -183,7 +183,7 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
           </Button>
         </div>
       )}
-      {!status?.error && status?.installing && <div style={{ fontSize: 12, color: "var(--loki-muted)" }}>npm from the Node already on this Mac; Letta Code from registry.npmjs.org. A few minutes.</div>}
+      {!status?.error && status?.installing && <div className="loki-meta loki-meta--wrap">npm from the Node already on this Mac; Letta Code from registry.npmjs.org. A few minutes.</div>}
     </div>
   );
 }
@@ -191,7 +191,7 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active: boolean; children: React.ReactNode }) {
   return (
     <section style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 14, opacity: active || done ? 1 : 0.7 }}>
-      <span aria-hidden style={{ width: 24, height: 24, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`, color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+      <span aria-hidden style={{ width: 24, height: 24, borderRadius: "var(--loki-radius-lg)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`, color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)" }}>
         {done ? "✓" : n}
       </span>
       <div style={{ display: "grid", gap: 8 }}>
