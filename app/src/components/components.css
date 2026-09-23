@@ -288,3 +288,138 @@ textarea.loki-field { resize: none; overflow-y: auto; }
 .loki-dot { display: inline-block; flex: 0 0 auto; box-sizing: border-box; border-radius: 50%; }
 /* Lifted off whatever it sits on (a rail icon) by a panel-coloured ring. */
 .loki-dot--halo { outline: 1px solid var(--loki-panel); }
+
+/* ---- Slack building blocks (plan 013) ------------------------------------------------------------- */
+/* The icon family (shared/icons.tsx): a block, so it sits on the line box's centre, never its baseline. */
+.loki-icon { display: block; flex: none; }
+
+/* A list of rows (ListRow): no markers, no indent. */
+.loki-list { list-style: none; margin: 0; padding: 0; }
+.loki-list-item { position: relative; }
+.loki-list-item[data-dim] { opacity: 0.6; }
+.loki-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.loki-list-row:hover { background: var(--loki-hover); color: var(--loki-fg); }
+.loki-list-row[aria-current] { background: var(--loki-selection); color: var(--loki-fg); }
+/* Unread: bold, in full ink. The status words in the row say it too (rowStatus), so weight is not the only sign. */
+.loki-list-row--unread { color: var(--loki-fg); font-weight: 700; }
+.loki-list-row-lead { position: relative; display: inline-flex; flex: none; }
+.loki-list-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; color: inherit; }
+/* The agent is working: Slack's green presence dot, at the lead's corner (or before the title when there is no lead). */
+.loki-list-row-live { width: 8px; height: 8px; flex: none; box-sizing: border-box; border-radius: 50%; background: var(--loki-positive); }
+.loki-list-row-lead > .loki-list-row-live { position: absolute; right: -2px; bottom: -2px; outline: 2px solid var(--loki-panel); }
+.loki-list-row-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.loki-list-row-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.loki-list-row-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-list-row-preview { font-size: 12px; font-weight: 400; color: var(--loki-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-list-row-time { flex: none; font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+/* Needs you: Slack's red count pill. */
+.loki-list-badge {
+  flex: none;
+  min-width: 18px;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-attention);
+  color: var(--loki-on-attention);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+/* Row actions: out of sight until the row is hovered or one of them has focus, then over the row's right edge. */
+.loki-list-row-actions {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: var(--loki-radius-sm);
+  background: var(--loki-hover);
+  transition: opacity 120ms ease-out;
+}
+.loki-list-item:hover .loki-list-row-actions, .loki-list-row-actions:focus-within { opacity: 1; pointer-events: auto; }
+.loki-list-item[data-current] .loki-list-row-actions { background: var(--loki-selection); }
+
+/* A sidebar section (ListSection): a folding heading with its actions on the right, then the rows. */
+.loki-list-section { margin: 0 0 10px; }
+.loki-list-section-head { display: flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 4px 0 0; }
+.loki-list-section-heading { flex: 1; min-width: 0; margin: 0; font: inherit; }
+.loki-list-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+}
+button.loki-list-section-toggle { cursor: pointer; }
+button.loki-list-section-toggle:hover { background: var(--loki-hover); color: var(--loki-fg); }
+.loki-list-section-chev { transition: transform 120ms ease-out; }
+.loki-list-section-chev--folded { transform: rotate(-90deg); }
+.loki-list-section-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-list-section-count { font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+.loki-list-section-actions { display: flex; gap: 2px; flex: none; opacity: 0; transition: opacity 120ms ease-out; }
+.loki-list-section-head:hover .loki-list-section-actions, .loki-list-section-actions:focus-within { opacity: 1; }
+
+/* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
+.loki-pane-header { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--loki-border); background: var(--loki-bg); }
+.loki-pane-header-line { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px 0 20px; }
+.loki-pane-header-lead { display: inline-flex; flex: none; color: var(--loki-fg); }
+.loki-pane-title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--loki-font); font-size: 17px; font-weight: 700; color: var(--loki-fg); }
+.loki-pane-header-aside { min-width: 0; }
+.loki-pane-header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
+
+/* A tab row (TabRow): Slack's Messages | Canvas | Files. The chosen tab is full ink over a 2px rule. */
+.loki-tabs { display: flex; gap: 4px; padding: 0 12px; }
+.loki-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out;
+}
+.loki-tab:hover { color: var(--loki-fg); }
+.loki-tab[aria-selected="true"] { color: var(--loki-fg); border-bottom-color: var(--loki-fg); }
+.loki-tab-count { font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+
+/* A pane with nothing in it (EmptyPane): the Empty block, centred in whatever space the pane has. */
+.loki-empty-pane { flex: 1; min-height: 0; display: grid; place-items: center; padding: 40px 24px; box-sizing: border-box; }
+.loki-empty-pane-icon { margin: 0 auto 12px; color: var(--loki-muted); }

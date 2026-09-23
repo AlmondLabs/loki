@@ -77,3 +77,24 @@
 .loki-question-kicker { color: var(--loki-accent); font-size: 12px; font-weight: 700; }
 .loki-question-text { font-family: var(--loki-font); font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
 .loki-thread-error { color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+
+/* The avatar-led message layout (Transcript's Message and Divider), on the desktop: Slack's anatomy — the face
+   and bold name at a run's start, the body under the name, the whole row tinted on hover. These classes render
+   only when a host passes `layout.people`, so bubbles stay the desktop default; `:not(.loki-phone *)` keeps
+   every rule off the phone, which draws the same classes its own way (phone/phone.css). The row bleeds into
+   the thread's 20px gutter so the hover tint runs edge to edge. */
+.loki-msg:not(.loki-phone *) { display: flex; align-items: flex-start; gap: 8px; margin: 0 -20px; padding: 2px 20px; transition: background-color 120ms ease-out; }
+.loki-msg[data-first]:not(.loki-phone *) { margin-top: 8px; padding-top: 6px; }
+.loki-msg:not(.loki-phone *):hover { background: var(--loki-hover); }
+.loki-msg[data-queued]:not(.loki-phone *) .loki-msg-body { opacity: 0.7; }
+.loki-msg-face:not(.loki-phone *) { flex: none; width: 36px; }
+.loki-msg-copy:not(.loki-phone *) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.loki-msg-name:not(.loki-phone *) { font-size: 13.5px; font-weight: 700; line-height: 1.3; color: var(--loki-fg); }
+.loki-msg-body:not(.loki-phone *) { font-size: 13.5px; line-height: 1.5; color: var(--loki-fg); }
+.loki-msg-body:not(.loki-phone *) img { max-width: 100%; height: auto; }
+.loki-msg-queued:not(.loki-phone *) { margin-top: 4px; }
+/* The red "New" line: the day on the left, a hairline in the badge red, "New" on the right in the negative ink (AA as text; the badge red is for fills). */
+.loki-msg-divider:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; font-size: 12px; font-weight: 700; }
+.loki-msg-divider-day:not(.loki-phone *) { color: var(--loki-fg); }
+.loki-msg-divider-rule:not(.loki-phone *) { flex: 1; height: 1px; background: var(--loki-attention); }
+.loki-msg-divider-new:not(.loki-phone *) { color: var(--loki-negative); }

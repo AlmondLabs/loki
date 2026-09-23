@@ -1,6 +1,7 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { DeskSummary } from "../desk/useDesk";
+import { buildSearchIndex, groupHits, rankHits, type HitGroup, type Indexed, type SearchIndex as CoreIndex } from "../shared/search";
 import type { IconName } from "./icons";
 import { formatRoute, parseRoute, type Route } from "./router";
 
@@ -9,13 +10,11 @@ import { formatRoute, parseRoute, type Route } from "./router";
  * in declared fields — a desk's title and agent, an agent's name and (once loaded) description, a waiting
  * Inbox item's title and agent, and the named pages. Never a transcript, never a call to the Mac.
  *
- * Ranking is one rule: the best tier any field reaches (exact, prefix, word start, substring), a title
- * before a secondary field at the same tier, then the newest, then the order the list already had.
- * Search.tsx draws the groups with the same rows as Home, Agents and More.
+ * Ranking is shared/search.ts's one rule: the best tier any field reaches (exact, prefix, word start,
+ * substring), a title before a secondary field at the same tier, then the newest, then the order the list
+ * already had. This file is the phone's adapter: its hits, routes and pages. Search.tsx draws the groups with the same rows as Home, Agents and More.
  */
 
-/** Past this a query is cut: nothing the phone names is longer, and it bounds the history too. */
-export const MAX_QUERY = 80;
 /** Rows per group; the group says how many matched in all. */
 export const GROUP_MAX = 5;
 
@@ -37,13 +36,8 @@ export interface Hit {
   dim: boolean;
 }
 
-export interface Group {
-  id: GroupId;
-  title: string;
-  /** How many matched; `hits` holds the first GROUP_MAX. */
-  total: number;
-  hits: Hit[];
-}
+/** A group of hits; `hits` holds the first GROUP_MAX of `total`. */
+export type Group = HitGroup<Hit, GroupId>;
 
 /** What the phone has loaded, from Phone.tsx: the desks list, the agent list, the attention items, and agent descriptions the Agents cache already holds. */
 export interface SearchSources {
@@ -77,38 +71,8 @@ export const DESTINATIONS: readonly Destination[] = [
 
 // ---- Queries --------------------------------------------------------------------------------------
 
-/** The query as typed, tidied for display and history: trimmed, runs of space as one, at most MAX_QUERY. */
-export function cleanQuery(raw: string): string {
-  return raw.replace(/\s+/g, " ").trim().slice(0, MAX_QUERY).trim();
-}
-
-/** For comparing: cleaned, lower case, accents folded (so "cafe" finds "Café"). */
-function fold(s: string): string {
-  return s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
-}
-export const normalize = (raw: string): string => fold(cleanQuery(raw));
-
-const WORD = /[\p{L}\p{N}]/u;
-
-/** A field as it is compared: whitespace collapsed, folded. Done once per field when the index is built. */
-const foldField = (text: string): string => fold(text.replace(/\s+/g, " ").trim());
-
-/** How well `text` holds `q`: 0 the whole of it, 1 its start, 2 a word's start, 3 anywhere; null not at all. */
-export const tierOf = (text: string, q: string): 0 | 1 | 2 | 3 | null => tierIn(foldField(text), normalize(q));
-
-/** tierOf on a folded field and a normalized query: what each keystroke runs, with nothing refolded. */
-function tierIn(t: string, n: string): 0 | 1 | 2 | 3 | null {
-  if (!n) return null;
-  if (t === n) return 0;
-  let at = t.indexOf(n);
-  if (at < 0) return null;
-  if (at === 0) return 1;
-  while (at >= 0) {
-    if (!WORD.test(t[at - 1]) || !WORD.test(t[at])) return 2;
-    at = t.indexOf(n, at + 1);
-  }
-  return 3;
-}
+// The matcher and ranker are shared with the desktop's search (shared/search.ts); the phone keeps its names.
+export { MAX_QUERY, cleanQuery, normalize, tierOf } from "../shared/search";
 
 // ---- The index ------------------------------------------------------------------------------------
 
@@ -121,7 +85,7 @@ const time = (iso: string | null | undefined): number => {
 /** What an Inbox item waits on, in the Inbox's words. */
 const WAITS: Record<string, string> = { approval: "needs approval", question: "asked you", failed: "failed", done: "finished" };
 
-type Entry = { hit: Hit; fields: string[]; recency: number };
+type Entry = Indexed<Hit>;
 
 const deskHit = (d: DeskSummary & { agentId: string; conversationId: string }): Hit => ({
   key: `desk:${d.agentId}/${d.conversationId}`,
@@ -155,7 +119,7 @@ const pageHit = (d: Destination): Hit => ({ key: `page:${formatRoute(d.route)}`,
 const openable = (d: DeskSummary): d is DeskSummary & { agentId: string; conversationId: string } => !!d.agentId && !!d.conversationId;
 
 /** The sources as searchable entries, fields folded: build once per sources (Search.tsx memoizes it), query per keystroke. */
-export type SearchIndex = { readonly entries: readonly Entry[] };
+export type SearchIndex = CoreIndex<Hit>;
 
 export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
@@ -167,34 +131,13 @@ export function buildIndex(src: SearchSources): SearchIndex {
   // The loaded actionable items, the Later ones included: what the Inbox holds, not every conversation.
   for (const i of catchUpQueue(src.items, true)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agentName ?? ""], recency: time(i.lastMessageAt) });
   for (const d of DESTINATIONS) out.push({ hit: pageHit(d), fields: [d.label, ...d.keywords], recency: 0 });
-  for (const e of out) e.fields = e.fields.map(foldField);
-  return { entries: out };
+  return buildSearchIndex(out);
 }
-
-/** Title fields weigh first at the same tier: score = tier × this + the field's index (0 title, then the rest). */
-const FIELD_SPAN = 100;
 
 /** The groups for a query, in a fixed order, empty ones left out; a blank query is none (the recents show instead). */
 export function search(src: SearchSources | SearchIndex, raw: string, max = GROUP_MAX): Group[] {
-  const q = normalize(raw);
-  if (!q) return [];
   const idx = "entries" in src ? src : buildIndex(src);
-  const scored: Array<{ e: Entry; score: number; index: number }> = [];
-  idx.entries.forEach((e, index) => {
-    let score = Infinity;
-    e.fields.forEach((f, fi) => {
-      const t = f ? tierIn(f, q) : null;
-      if (t !== null) score = Math.min(score, t * FIELD_SPAN + Math.min(fi, 1));
-    });
-    if (score !== Infinity) scored.push({ e, score, index });
-  });
-  scored.sort((a, b) => a.score - b.score || b.e.recency - a.e.recency || a.index - b.index);
-  const groups: Group[] = [];
-  for (const id of GROUP_ORDER) {
-    const all = scored.filter((s) => s.e.hit.group === id);
-    if (all.length) groups.push({ id, title: GROUP_TITLE[id], total: all.length, hits: all.slice(0, max).map((s) => s.e.hit) });
-  }
-  return groups;
+  return groupHits(rankHits(idx, raw), (h) => h.group, GROUP_ORDER, GROUP_TITLE, max);
 }
 
 // ---- Recently visited -----------------------------------------------------------------------------

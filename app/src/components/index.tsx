@@ -1,9 +1,11 @@
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, KeyboardEvent, MouseEvent, ReactNode, TextareaHTMLAttributes } from "react";
 import { forwardRef, useEffect, useRef } from "react";
 import { LAYER } from "../kit/layers";
+import { Icon, type IconName } from "../shared/icons";
 
 /**
- * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces.
+ * The app's primitives: the one Button, Chip, Field, Row, Sheet, Popover and the small text pieces, and the
+ * desktop's Slack building blocks (ListRow, ListSection, PaneHeader with its TabRow, EmptyPane).
  * States (hover, focus, active, disabled, pressed, current) live in components/components.css; a call site chooses a size
  * and a tone and never restyles a state. `className` and `style` are the escape hatch for a one-off, and
  * a one-off that repeats becomes a modifier here. Widgets on the sheet keep their own kit (kit/index.tsx).
@@ -303,5 +305,238 @@ export function Switch({ on, onToggle, label, small = false }: { on: boolean; on
       </span>
       {label}
     </button>
+  );
+}
+
+// ---- Slack building blocks (plan 013) ---------------------------------------------------------------
+
+/** "99+" past two digits, as the rail's and the phone's badges do. */
+export const countText = (n: number): string => (n > 99 ? "99+" : String(n));
+
+/**
+ * A row's state in words, for the screen reader and for anyone who cannot tell the red badge or the bold
+ * title apart: "unread, 3 waiting, working". Empty when there is nothing to say.
+ */
+export function rowStatus({ unread, badge, badgeNoun = "waiting", live }: { unread?: boolean; badge?: number | null; badgeNoun?: string; live?: boolean }): string {
+  return [unread && "unread", badge != null && badge > 0 && `${countText(badge)} ${badgeNoun}`, live && "working"].filter(Boolean).join(", ");
+}
+
+/** An icon in the avatar's place: the # before a desk, the archive box. */
+export function ListIcon({ name }: { name: IconName }) {
+  return (
+    <span aria-hidden className="loki-list-icon">
+      <Icon name={name} size={16} />
+    </span>
+  );
+}
+
+export interface ListRowProps {
+  /** The start: an agent's face (AgentFace at 20) or a ListIcon. */
+  lead?: ReactNode;
+  title: ReactNode;
+  /** One muted line under the title. Sidebar rows leave it out; list-and-detail lists (agents, board, learn) use it. */
+  preview?: ReactNode;
+  /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
+  time?: string | null;
+  /** Needs you: a red count pill when above zero. */
+  badge?: number | null;
+  /** What the count counts, in words ("3 waiting"). */
+  badgeNoun?: string;
+  /** Bold title in full ink: something in it is new. */
+  unread?: boolean;
+  /** The agent is working: a green dot at the lead's corner (or before the title) and "working" in words. */
+  live?: boolean;
+  /** The row whose detail is open (aria-current="page"). */
+  current?: boolean;
+  /** Drawn quieter: an archived desk. */
+  dim?: boolean;
+  /** Small marks after the title, e.g. the pin. */
+  flags?: ReactNode;
+  /** The row button's accessible name; the visible text and the status words when omitted. */
+  label?: string;
+  onOpen: () => void;
+  /** A right-click or the context-menu key: the row's menu (pin, archive…). */
+  onMenu?: (e: MouseEvent<HTMLButtonElement>) => void;
+  /** Buttons at the right edge, shown while the row is hovered or holds focus (Slack's row actions). */
+  actions?: ReactNode;
+  /** `data-launch`, so a caller can hand focus back to this row. */
+  launch?: string;
+}
+
+/**
+ * One row of a desktop list, Slack's anatomy: the lead, the title (bold when unread) over an optional
+ * preview, and on the right the time or the red badge. The whole row is one button; `actions` sit beside
+ * it, not inside, so they are their own tab stops. Goes inside a ListSection or a `<ul className="loki-list">`.
+ */
+export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread = false, live = false, current = false, dim = false, flags, label, onOpen, onMenu, actions, launch }: ListRowProps) {
+  const count = badge != null && badge > 0 ? badge : null;
+  const status = rowStatus({ unread, badge: count, badgeNoun, live });
+  const liveDot = live ? <span aria-hidden className="loki-list-row-live" /> : null;
+  return (
+    <li className="loki-list-item" data-dim={dim || undefined} data-current={current || undefined}>
+      <button
+        type="button"
+        className={cx("loki-list-row", unread && "loki-list-row--unread")}
+        aria-current={current ? "page" : undefined}
+        aria-label={label}
+        data-launch={launch}
+        onClick={onOpen}
+        onContextMenu={
+          onMenu
+            ? (e) => {
+                e.preventDefault();
+                onMenu(e);
+              }
+            : undefined
+        }
+      >
+        {lead ? (
+          <span className="loki-list-row-lead">
+            {lead}
+            {liveDot}
+          </span>
+        ) : (
+          liveDot
+        )}
+        <span className="loki-list-row-copy">
+          <span className="loki-list-row-title">
+            <span className="loki-list-row-name">{title}</span>
+            {flags}
+          </span>
+          {preview && <span className="loki-list-row-preview">{preview}</span>}
+        </span>
+        {status && <span className="sr-only">{status}</span>}
+        {count !== null ? (
+          <span className="loki-list-badge" aria-hidden>
+            {countText(count)}
+          </span>
+        ) : time ? (
+          <span className="loki-list-row-time">{time}</span>
+        ) : null}
+      </button>
+      {actions && <span className="loki-list-row-actions">{actions}</span>}
+    </li>
+  );
+}
+
+/**
+ * A sidebar section, Slack's: a chevron that folds it (`open` + `onToggle`), an optional icon, the title, a
+ * quiet count, and header actions on the right (new desk, a section menu). Folded, the list is not rendered
+ * and the toggle says so with aria-expanded. Without `onToggle` the heading is plain text.
+ */
+export function ListSection({ title, icon, count, open = true, onToggle, actions, children }: { title: string; icon?: IconName; count?: number | null; open?: boolean; onToggle?: () => void; actions?: ReactNode; children?: ReactNode }) {
+  const inner = (
+    <>
+      {onToggle && <Icon name="chevron-down" size={12} className={cx("loki-list-section-chev", !open && "loki-list-section-chev--folded")} />}
+      {icon && <Icon name={icon} size={14} />}
+      <span className="loki-list-section-title">{title}</span>
+      {count != null && count > 0 && <span className="loki-list-section-count">{countText(count)}</span>}
+    </>
+  );
+  return (
+    <section className="loki-list-section" aria-label={title}>
+      <div className="loki-list-section-head">
+        <h2 className="loki-list-section-heading">
+          {onToggle ? (
+            <button type="button" className="loki-list-section-toggle" aria-expanded={open} onClick={onToggle}>
+              {inner}
+            </button>
+          ) : (
+            <span className="loki-list-section-toggle">{inner}</span>
+          )}
+        </h2>
+        {actions && <span className="loki-list-section-actions">{actions}</span>}
+      </div>
+      {open && children && <ul className="loki-list">{children}</ul>}
+    </section>
+  );
+}
+
+/** One tab of a TabRow. */
+export interface Tab<T extends string = string> {
+  id: T;
+  label: string;
+  icon?: IconName;
+  /** A quiet count after the label (files, cards). */
+  count?: number | null;
+}
+
+/**
+ * A row of tabs under a pane header, Slack's Messages | Canvas | Files: the chosen one in full ink over a
+ * 2px rule. An ARIA tablist with a roving tab stop: Tab lands on the chosen tab, the arrow keys, Home and
+ * End move and choose. `panelId` names the panel each tab controls, when the host gives it an id.
+ */
+export function TabRow<T extends string>({ label, tabs, current, onChange, panelId }: { label: string; tabs: readonly Tab<T>[]; current: T; onChange: (id: T) => void; panelId?: (id: T) => string }) {
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const at = tabs.findIndex((t) => t.id === current);
+    const to = e.key === "ArrowRight" ? at + 1 : e.key === "ArrowLeft" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
+    if (to === null || tabs.length === 0) return;
+    e.preventDefault();
+    const next = tabs[(to + tabs.length) % tabs.length];
+    onChange(next.id);
+    e.currentTarget.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus();
+  };
+  return (
+    <div role="tablist" aria-label={label} className="loki-tabs" onKeyDown={onKeyDown}>
+      {tabs.map((t) => {
+        const on = t.id === current;
+        return (
+          <button key={t.id} type="button" role="tab" data-tab={t.id} aria-selected={on} tabIndex={on ? 0 : -1} aria-controls={panelId?.(t.id)} className="loki-tab" onClick={() => onChange(t.id)}>
+            {t.icon && <Icon name={t.icon} size={14} />}
+            {t.label}
+            {t.count != null && t.count > 0 && <span className="loki-tab-count">{countText(t.count)}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export interface PaneHeaderProps<T extends string = string> {
+  title: ReactNode;
+  /** Before the title: a # icon or the agent's face. */
+  lead?: ReactNode;
+  /** A quiet line beside the title: the agent and its live state. */
+  aside?: ReactNode;
+  /** On the right: the pane's actions (IconButtons, a menu). */
+  actions?: ReactNode;
+  /** The tab row under the line; omitted, the header is one line. */
+  tabs?: readonly Tab<T>[];
+  tab?: T;
+  onTab?: (id: T) => void;
+  /** The tablist's name, e.g. "Desk views". */
+  tabsLabel?: string;
+  panelId?: (id: T) => string;
+  /** The title's id, so the pane can be labelled by it. */
+  titleId?: string;
+}
+
+/** The main pane's header, Slack's: the name, a quiet aside and the actions on one line, the tab row under it. */
+export function PaneHeader<T extends string>({ title, lead, aside, actions, tabs, tab, onTab, tabsLabel = "Views", panelId, titleId }: PaneHeaderProps<T>) {
+  return (
+    <header className="loki-pane-header">
+      <div className="loki-pane-header-line">
+        {lead && <span className="loki-pane-header-lead">{lead}</span>}
+        <h1 id={titleId} className="loki-pane-title">
+          {title}
+        </h1>
+        {aside && <span className="loki-meta loki-pane-header-aside">{aside}</span>}
+        {actions && <span className="loki-pane-header-actions">{actions}</span>}
+      </div>
+      {tabs && tab !== undefined && onTab && <TabRow label={tabsLabel} tabs={tabs} current={tab} onChange={onTab} panelId={panelId} />}
+    </header>
+  );
+}
+
+/** A pane with nothing chosen or nothing in it: centred in the space, an optional icon over the Empty title and line. */
+export function EmptyPane({ icon, title, children, className, ...rest }: HTMLAttributes<HTMLDivElement> & { icon?: IconName; title: ReactNode }) {
+  return (
+    <div className={cx("loki-empty-pane", className)} {...rest}>
+      <div className="loki-empty">
+        {icon && <Icon name={icon} size={28} className="loki-empty-pane-icon" />}
+        <Title>{title}</Title>
+        {children}
+      </div>
+    </div>
   );
 }
