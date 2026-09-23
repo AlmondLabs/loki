@@ -1,9 +1,4 @@
 import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { IconButton, ListIcon, ListRow, ListSection } from "../components";
-import { Icon } from "../shared/icons";
-import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary } from "../desk/useDesk";
-import { deskMark, sectionDesks } from "./DeskTree";
 import { COLUMN_MAX, COLUMN_MIN } from "./column";
 import type { Segment } from "./keymap";
 import { SIDEBAR_WIDTH, TITLEBAR_HEIGHT } from "./Sidebar";
@@ -67,51 +62,5 @@ export function ColumnHeader({ title, actions }: { title: ReactNode; actions?: R
       <h2 className="loki-column-title">{title}</h2>
       {actions && <span className="loki-column-actions">{actions}</span>}
     </div>
-  );
-}
-
-/**
- * The Desk column until the desk sidebar lands (U4): the tree's sections — waiting on you, pinned, recent,
- * the rest — as Slack rows, the open desk current, so desks stay one click away without ⌘K.
- */
-export function DeskColumn({ desks, items, visited, current, onOpen, onNew }: { desks: DeskSummary[]; items: AttentionItem[]; visited: string[]; current: string; onOpen: (scope: string) => void; onNew?: () => void }) {
-  const itemFor = (d: DeskSummary) => items.find((i) => i.agentId === d.agentId && i.id === d.conversationId);
-  const sections = sectionDesks(desks, null, items, visited);
-  return (
-    <>
-      <ColumnHeader
-        title="Desks"
-        actions={
-          onNew && (
-            <IconButton label="New desk" onClick={onNew}>
-              <Icon name="plus" size={16} />
-            </IconButton>
-          )
-        }
-      />
-      <div className="loki-column-scroll">
-        {sections.map((sec) => (
-          <ListSection key={sec.id} title={sec.label}>
-            {sec.desks.map((d) => {
-              const mark = deskMark(itemFor(d), d.status);
-              return (
-                <ListRow
-                  key={d.scope}
-                  lead={<ListIcon name="desk" />}
-                  title={d.title ?? d.scope}
-                  flags={d.pinned ? <Icon name="pin" size={12} title="pinned" /> : undefined}
-                  badge={mark.kind === "waits" ? 1 : null}
-                  badgeNoun={mark.kind === "waits" ? mark.title : undefined}
-                  unread={mark.kind === "finished"}
-                  live={mark.kind === "running"}
-                  current={d.scope === current}
-                  onOpen={() => onOpen(d.scope)}
-                />
-              );
-            })}
-          </ListSection>
-        ))}
-      </div>
-    </>
   );
 }

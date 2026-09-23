@@ -73,20 +73,3 @@ describe("list column: collapse below 1100 wide", () => {
     expect(toggleColumn({ ...open, collapsed: true }, 1280, true)).toEqual({ pref: open, peek: false });
   });
 });
-
-describe("list column: the desk column's rows", () => {
-  test("the tree's sections as Slack rows: the waiting desk first with its badge, the open desk current", async () => {
-    const { createElement } = await import("react");
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { DeskColumn } = await import("../app/src/shell/ListColumn.tsx");
-    const desk = (scope: string, title: string, extra = {}) => ({ scope, title, status: "live", agentName: "ira", agentId: "a1", conversationId: scope, model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: "2026-09-23T10:00:00Z", ...extra });
-    const desks = [desk("c1", "Loki mobile"), desk("c2", "Taxes", { pinned: true }), desk("c3", "Old", { status: "archived" })];
-    const items = [{ id: "c1", agentId: "a1", status: "approval" }];
-    const html = renderToStaticMarkup(createElement(DeskColumn, { desks, items, visited: [], current: "c2", onOpen: () => {}, onNew: () => {} } as never));
-    expect(html.indexOf("Waiting on you")).toBeLessThan(html.indexOf("Pinned"));
-    expect(html).toContain(">1 needs approval</span>");
-    expect(html).toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*Taxes/);
-    expect(html).not.toContain("Old");
-    expect(html).toContain('aria-label="New desk"');
-  });
-});

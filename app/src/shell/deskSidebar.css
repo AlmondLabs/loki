@@ -1,0 +1,42 @@
+/* The desk sidebar (DeskSidebar.tsx, plan 013 U4): the filter under the column header, the list, the "needs you" pills, the row menu. */
+.loki-sidebar-filter { flex: none; padding: 8px 10px 4px; }
+.loki-sidebar-filter .loki-field { width: 100%; box-sizing: border-box; }
+/* The list and its pills: the pills float over the list's top and bottom edges. */
+.loki-sidebar-body { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.loki-sidebar-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 10px; }
+/* Slack's "Unread mentions" pill: the red of the badge, at the edge the waiting desk hides past. */
+.loki-sidebar-pill {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-attention);
+  color: var(--loki-on-attention);
+  box-shadow: var(--loki-shadow-float);
+  font-family: var(--loki-font);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.loki-sidebar-pill--up { top: 8px; }
+.loki-sidebar-pill--down { bottom: 8px; }
+.loki-sidebar-pill:focus-visible { outline: 2px solid var(--loki-fg); outline-offset: 2px; }
+/* The row's context menu, at the pointer. */
+.loki-sidebar-menu {
+  position: fixed;
+  z-index: 200;
+  width: 220px;
+  box-sizing: border-box;
+  padding: 4px;
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-lg);
+  box-shadow: var(--loki-shadow-float);
+}

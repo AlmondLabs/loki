@@ -5,6 +5,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
+import { canArchive as archivable, canPin as pinnable, deskMark } from "./sidebarModel";
 
 export const TREE_WIDTH = 560;
 
@@ -88,24 +89,8 @@ export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, 
   return desks.filter((d) => d.status !== "live" && deskMatches(d, agentFilter, q));
 }
 
-export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
-
-/**
- * The dot before a desk, as colours and words: the red attention dot when it waits on you (an approval or a
- * question), red ink when it failed, an fg ring when it finished unread (its row goes bold, like Slack's unread), a faint pulsing ring while
- * it runs; archived and deleted desks get a muted or oxblood ring. Pure, so the phone shares it.
- */
-export function deskMark(item: AttentionItem | undefined, status: DeskSummary["status"]): { kind: MarkKind; color: string; border: string; title: string; pulse: boolean } {
-  if (status === "deleted") return { kind: "deleted", color: "transparent", border: "var(--loki-negative)", title: "conversation deleted", pulse: false };
-  if (status === "archived") return { kind: "archived", color: "transparent", border: "var(--loki-muted)", title: "archived", pulse: false };
-  if (item) {
-    if (item.status === "approval" || item.status === "question") return { kind: "waits", color: "var(--loki-attention)", border: "var(--loki-attention)", title: item.status === "approval" ? "needs approval" : "asked you", pulse: false };
-    if (item.status === "failed") return { kind: "failed", color: "var(--loki-negative)", border: "var(--loki-negative)", title: "failed", pulse: false };
-    if (item.status === "done" && item.unread && !item.snooze) return { kind: "finished", color: "transparent", border: "var(--loki-fg)", title: "finished, unread", pulse: false };
-    if (item.status === "running") return { kind: "running", color: "transparent", border: "var(--loki-muted)", title: "running", pulse: true };
-  }
-  return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };
-}
+// The mark and the pin / archive rules live in the sidebar's model now; the tree and the phone keep importing them from here.
+export { deskMark, type MarkKind } from "./sidebarModel";
 
 const NO_VISITS: string[] = [];
 
@@ -424,9 +409,9 @@ const act = (fn: () => void) => (e: React.MouseEvent) => {
 };
 
 /** A conversation can be archived unless it is the agent's default or already deleted. */
-const canArchiveDesk = (d: DeskSummary, onArchive: RowHandlers["onArchive"]) => !!onArchive && !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+const canArchiveDesk = (d: DeskSummary, onArchive: RowHandlers["onArchive"]) => !!onArchive && archivable(d);
 /** A live desk with an agent and a conversation can be pinned. */
-const canPinDesk = (d: DeskSummary, onPin: RowHandlers["onPin"]) => !!onPin && !!d.agentId && !!d.conversationId && d.status === "live";
+const canPinDesk = (d: DeskSummary, onPin: RowHandlers["onPin"]) => !!onPin && pinnable(d);
 
 function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onHover, onChoose, onPin, onArchive }: RowHandlers & { desk: DeskSummary; mark: AttentionItem | undefined; here: boolean; showFace: boolean; index: number; onChoose: () => void }) {
   const canArchive = canArchiveDesk(d, onArchive);
