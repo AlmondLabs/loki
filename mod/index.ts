@@ -235,6 +235,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (!entry) return null;
     const abs = join(paths.widgets, entry.file);
     try {
+      widgetLog.expect(id, "removed", "you"); // the person's trash, not the agent's removal
       unlinkSync(abs);
       log("widget:trashed", { id, file: abs });
       void widgets.rescan();
@@ -277,7 +278,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       store: recallStore,
       run: () => recall.tick(),
       reschedule: scheduleRecall,
-      startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets }),
+      startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets, expect: (id, change) => widgetLog.expect(id, change, "loki") }),
       lessonEmpty: (l) => lookupLocalConversation(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
     deskInfo,

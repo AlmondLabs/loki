@@ -56,9 +56,12 @@ export interface WidgetManifestEntry {
 
 export type WidgetChange = "added" | "changed" | "removed";
 
+/** Who made a widget change: the agent writing files (the default), the person (trashing a widget), or loki itself (a lesson's card). */
+export type WidgetActor = "agent" | "you" | "loki";
+
 /**
- * One row of a desk's widget change log (mod/widget-log.ts): the agent added, changed or removed a
- * widget file. Sent as `widget_change { entry }` and with the desk's history (`widgetLog`).
+ * One row of a desk's widget change log (mod/widget-log.ts): a widget file was added, changed or
+ * removed (by the agent, unless `by` says otherwise). Sent as `widget_change { entry }` and with the desk's history (`widgetLog`).
  */
 export interface WidgetLogEntry {
   /** Unique per row. A collapsed repeat edit keeps the row's id with a later `at`: replace, don't append. */
@@ -72,6 +75,8 @@ export interface WidgetLogEntry {
   title: string;
   kind: WidgetKind;
   change: WidgetChange;
+  /** Who made it; absent on rows logged before 2026-09-23, which were all read as the agent's. */
+  by?: WidgetActor;
 }
 
 /** Server-owned state for one desk. Snapshotted to disk when non-empty. */

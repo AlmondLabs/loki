@@ -32,9 +32,18 @@ export function clampColumn(w: number): number {
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 
-export function loadColumn(store: Store): ColumnPref {
+/** localStorage when the page may use it; a blocked site throws on the global itself, and reads as none. */
+export function columnStore(): Store | null {
   try {
-    const raw = store.getItem(COLUMN_KEY);
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function loadColumn(store: Store | null): ColumnPref {
+  try {
+    const raw = store?.getItem(COLUMN_KEY);
     if (!raw) return { width: COLUMN_DEFAULT, collapsed: false };
     const v = JSON.parse(raw) as Partial<ColumnPref>;
     return { width: clampColumn(typeof v.width === "number" ? v.width : Number.NaN), collapsed: v.collapsed === true };
@@ -43,9 +52,9 @@ export function loadColumn(store: Store): ColumnPref {
   }
 }
 
-export function saveColumn(store: Store, pref: ColumnPref): void {
+export function saveColumn(store: Store | null, pref: ColumnPref): void {
   try {
-    store.setItem(COLUMN_KEY, JSON.stringify({ width: clampColumn(pref.width), collapsed: pref.collapsed }));
+    store?.setItem(COLUMN_KEY, JSON.stringify({ width: clampColumn(pref.width), collapsed: pref.collapsed }));
   } catch {
     // a blocked store only costs the preference across reloads
   }

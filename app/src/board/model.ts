@@ -72,6 +72,15 @@ export function viewColumns(tasks: Task[], view: BoardView, now = Date.now()): C
   return columns.filter((c) => c.id === view);
 }
 
+/**
+ * The view to show: an agent view whose agent no longer has a task on the board (its column lists no such
+ * row) is the whole board. Null tasks are still loading, so the view stands until they arrive.
+ */
+export function resolveBoardView(view: BoardView, tasks: Task[] | null, now = Date.now()): BoardView {
+  if (!tasks || !agentOf(view)) return view;
+  return boardViews(tasks, now).agents.some((a) => a.view === view) ? view : "all";
+}
+
 /** A stored view read back; anything unknown is the whole board. */
 export function parseBoardView(raw: string | null | undefined): BoardView {
   if (raw === "all" || COLUMN_IDS.includes(raw as ColumnId)) return raw as BoardView;

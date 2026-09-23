@@ -107,6 +107,13 @@ describe("agents selection", () => {
     expect(shownAgent(null, "a2", agents)).toBe("a1");
     expect(shownAgent(null, null, [])).toBeNull();
   });
+  test("a remembered pick that is no longer in the list (deleted elsewhere, then a reload) falls back; while the list loads it stands", async () => {
+    const { shownAgent } = await import("../app/src/agents/selection.ts");
+    const agents = [{ id: "a1" }, { id: "a2" }];
+    expect(shownAgent("gone", "a2", agents)).toBe("a2");
+    expect(shownAgent("gone", null, agents)).toBe("a1");
+    expect(shownAgent("gone", "a2", [])).toBe("gone");
+  });
 });
 
 /** The Agents column as Slack DMs (app/src/agents/rows.ts, AgentsColumn). */

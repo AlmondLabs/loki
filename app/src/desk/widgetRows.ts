@@ -58,29 +58,44 @@ export function withHistoryLog(store: WidgetLogs, scope: Scope, entries: unknown
   return { ...store, [scope]: byTime([...merged.values()]) };
 }
 
+/** When this app session began: a widget change logged since then arrived live, one before it is history. */
+export const SESSION_START = Date.now();
+
+/** Who the row names: you, loki, or the desk's agent (rows logged before `by` existed are the agent's). */
+const whoOf = (e: WidgetLogEntry, agentName: string | null) => (e.by === "you" ? "You" : e.by === "loki" ? "loki" : agentName ?? "the agent");
+
 /**
  * The thread's widget rows: each log entry placed before the first message timed after it (after the
  * latest one when none is), so it reads among the messages by time. Rows without a time keep their
- * arrival order and place nothing. A row is `gone` when it removed the widget or a later entry did: choosing
- * it frames nothing.
+ * arrival order and place nothing. A thread with messages but no times at all (app-server history) cannot
+ * place the log, so it does not dump it after the newest message: the changes logged since `liveSince` (this
+ * session's) follow the last row in arrival order, after one quiet summary row counting the older ones
+ * (`earlier`). A row is `gone` when it removed the widget or a later entry did: choosing it frames nothing.
  */
-export function widgetMarks(rows: TranscriptRow[] | undefined, log: WidgetLogEntry[] | undefined, agentName: string | null): WidgetMark[] {
+export function widgetMarks(rows: TranscriptRow[] | undefined, log: WidgetLogEntry[] | undefined, agentName: string | null, liveSince: number = SESSION_START): WidgetMark[] {
   if (!rows || !log?.length) return [];
   const times = rows.map((r) => (r.at ? Date.parse(r.at) : Number.NaN));
   const latest = new Map<string, WidgetLogEntry>();
   const sorted = byTime(log);
   for (const e of sorted) latest.set(e.widgetId, e);
+  const mark = (e: WidgetLogEntry, before: number): WidgetMark => ({
+    id: e.id,
+    before,
+    at: new Date(e.at).toISOString(),
+    who: whoOf(e, agentName),
+    change: e.change,
+    title: e.title || e.name,
+    widgetId: e.widgetId,
+    gone: e.change === "removed" || latest.get(e.widgetId)?.change === "removed",
+  });
+  if (rows.length && !times.some(Number.isFinite)) {
+    const older = sorted.filter((e) => e.at < liveSince);
+    const live = sorted.filter((e) => e.at >= liveSince).map((e) => mark(e, rows.length));
+    const last = older[older.length - 1];
+    return last ? [{ ...mark(last, rows.length), id: "earlier", earlier: older.length }, ...live] : live;
+  }
   return sorted.map((e) => {
     const next = times.findIndex((t) => Number.isFinite(t) && t > e.at);
-    return {
-      id: e.id,
-      before: next < 0 ? rows.length : next,
-      at: new Date(e.at).toISOString(),
-      agent: agentName ?? "the agent",
-      change: e.change,
-      title: e.title || e.name,
-      widgetId: e.widgetId,
-      gone: e.change === "removed" || latest.get(e.widgetId)?.change === "removed",
-    };
+    return mark(e, next < 0 ? rows.length : next);
   });
 }

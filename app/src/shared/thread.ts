@@ -9,13 +9,15 @@ import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 /**
  * Where "New" goes in an unread card's thread. With `seenAt` and times on the rows: before the first
  * assistant message after the last row you are known to have read. Rows without times prove nothing, so
- * when times cannot place it the rule is the conversation's own turn-taking: what came after you last spoke.
+ * when times cannot place it, or place nothing though the card is unread, the rule is the conversation's own
+ * turn-taking: what came after you last spoke.
  * Null when the card is read, the thread is not loaded, or the last word is yours.
  */
 export function unreadBoundary(rows: TranscriptRow[] | undefined, unread: boolean, seenAt?: string | null): number | null {
   if (!unread || !rows?.length) return null;
   const byTime = seenAt ? timedBoundary(rows, Date.parse(seenAt)) : undefined;
-  if (byTime !== undefined) return byTime;
+  // Times that find nothing new on an unread card (seenAt stamped mid-stream, say) are wrong about it: the turn rule decides.
+  if (byTime != null) return byTime;
   let at = 0;
   for (let i = rows.length - 1; i >= 0; i--)
     if (rows[i].role === "user") {
@@ -70,9 +72,10 @@ const dayKey = (t: number) => {
 
 /**
  * The day pill before each row, Slack's: a label on the first timed row of each calendar day (the user's
- * time zone), null everywhere else. A row without a time starts no day.
+ * time zone), null everywhere else. A row without a time starts no day. Anything timed works (the Transcript
+ * passes its messages and widget rows together).
  */
-export function dayPills(rows: TranscriptRow[], now: number = Date.now()): Array<string | null> {
+export function dayPills(rows: ReadonlyArray<{ at?: string }>, now: number = Date.now()): Array<string | null> {
   let last: string | null = null;
   return rows.map((r) => {
     const t = r.at ? Date.parse(r.at) : Number.NaN;

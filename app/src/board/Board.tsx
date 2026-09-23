@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AgentChip } from "../desk/AgentChip";
 import type { DeskSummary } from "../desk/useDesk";
 import { Button, Chip, Field } from "../components";
-import { PRIORITY_LABEL, ago, columnOf, filterTasks, stepCursor, viewColumns, type Column, type ColumnId, type Dir, type Task } from "./model";
+import { PRIORITY_LABEL, ago, columnOf, filterTasks, resolveBoardView, stepCursor, viewColumns, type Column, type ColumnId, type Dir, type Task } from "./model";
 import { useBoardView } from "./useBoardView";
 import { registerActions, typingIn } from "../shell/keymap";
 
@@ -42,7 +42,9 @@ export function Board({
   active: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [view] = useBoardView();
+  const [stored] = useBoardView();
+  // A remembered agent view with nothing left for that agent is the whole board (the stored value stays until changed).
+  const view = useMemo(() => resolveBoardView(stored, tasks), [stored, tasks]);
   const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
   const [cursorRaw, setCursor] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);

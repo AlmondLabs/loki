@@ -309,9 +309,10 @@ function RowMenu({ desk: d, x, y, connected, onClose, onOpen, onPin, onArchive }
     const away = (e: PointerEvent) => {
       if (!node?.contains(e.target as Node)) closeRef.current();
     };
-    window.addEventListener("pointerdown", away);
+    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
+    window.addEventListener("pointerdown", away, true);
     return () => {
-      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("pointerdown", away, true);
       // Closed with Esc or a pick that moves focus nowhere: focus goes back to the desk's row, not the page.
       const a = document.activeElement;
       if (!a || a === document.body || node?.contains(a)) document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });

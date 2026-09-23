@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
-import { WIDGET_LOG_COLLAPSE_MS, WIDGET_LOG_LIMIT, WidgetLog, broadcastWidgetChanges } from "../mod/widget-log.ts";
+import { WIDGET_LOG_COLLAPSE_MS, WIDGET_LOG_EXPECT_MS, WIDGET_LOG_LIMIT, WidgetLog, broadcastWidgetChanges } from "../mod/widget-log.ts";
 import { watchWidgets, type WidgetsDiff } from "../mod/widgets-fs.ts";
 import { attachWs, startServer } from "../mod/server.ts";
 
@@ -94,6 +94,40 @@ describe("WidgetLog", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  test("a change the mod made itself is attributed to whoever asked for it; anything else is the agent's", () => {
+    const log = new WidgetLog(null);
+    const t = 10_000_000;
+    log.expect("d1/trip", "removed", "you", t);
+    log.expect("d1/lesson", "added", "loki", t);
+    log.record(diff({ added: [entry("d1", "lesson"), entry("d1", "other")], removed: ["d1/trip"], removedEntries: [entry("d1", "trip")] }), t + 500);
+    expect(log.read("d1").map((r) => [r.widgetId, r.change, r.by])).toEqual([
+      ["d1/lesson", "added", "loki"],
+      ["d1/other", "added", "agent"],
+      ["d1/trip", "removed", "you"],
+    ]);
+    // Used once: the same change again is the agent's.
+    log.record(diff({ removed: ["d1/lesson"], removedEntries: [entry("d1", "lesson")] }), t + 600);
+    log.record(diff({ added: [entry("d1", "trip")] }), t + 700);
+    expect(log.read("d1").slice(-2).map((r) => r.by)).toEqual(["agent", "agent"]);
+  });
+
+  test("an expectation lapses after its window, and must match the change as well as the widget", () => {
+    const log = new WidgetLog(null);
+    log.expect("d1/a", "removed", "you", 0);
+    log.expect("d1/b", "removed", "you", 0);
+    log.record(diff({ changed: [entry("d1", "a")] }), 100);
+    log.record(diff({ removed: ["d1/b"], removedEntries: [entry("d1", "b")] }), WIDGET_LOG_EXPECT_MS + 1);
+    expect(log.read("d1").map((r) => [r.widgetId, r.by])).toEqual([["d1/a", "agent"], ["d1/b", "agent"]]);
+  });
+
+  test("the agent's quick edit to a widget loki just wrote gets its own row, not loki's", () => {
+    const log = new WidgetLog(null);
+    log.expect("d1/lesson", "added", "loki", 0);
+    log.record(diff({ added: [entry("d1", "lesson")] }), 10);
+    log.record(diff({ changed: [entry("d1", "lesson", "Lesson v2")] }), 20);
+    expect(log.read("d1").map((r) => [r.change, r.by])).toEqual([["added", "loki"], ["changed", "agent"]]);
   });
 
   test("the watcher's first scan is flagged initial; removals carry the entry that went", async () => {

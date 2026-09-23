@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { clampColumn, columnShown, hasColumn, loadColumn, saveColumn, toggleColumn, type ColumnPref } from "./column";
+import { clampColumn, columnShown, columnStore, hasColumn, loadColumn, saveColumn, toggleColumn, type ColumnPref } from "./column";
 import type { Segment } from "./keymap";
 
 /**
@@ -8,7 +8,7 @@ import type { Segment } from "./keymap";
  * segment; `setWidth(w, commit)` moves the edge live and keeps it when `commit` (the drag's end).
  */
 export function useColumn(segment: Segment) {
-  const [pref, setPref] = useState<ColumnPref>(() => loadColumn(localStorage));
+  const [pref, setPref] = useState<ColumnPref>(() => loadColumn(columnStore()));
   const [peek, setPeek] = useState(false);
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
   useEffect(() => {
@@ -21,7 +21,7 @@ export function useColumn(segment: Segment) {
     setPeek(next.peek);
     if (next.pref !== pref) {
       setPref(next.pref);
-      saveColumn(localStorage, next.pref);
+      saveColumn(columnStore(), next.pref);
     }
   }, [pref, windowWidth, peek]);
   const setWidth = useCallback(
@@ -29,7 +29,7 @@ export function useColumn(segment: Segment) {
       const width = clampColumn(w);
       setPref((p) => ({ ...p, width }));
       // Saved outside the updater (React may run updaters twice); a drag never changes the fold, so this pref's is current.
-      if (commit) saveColumn(localStorage, { ...pref, width });
+      if (commit) saveColumn(columnStore(), { ...pref, width });
     },
     [pref],
   );

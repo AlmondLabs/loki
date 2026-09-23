@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { COLUMN_DEFAULT, COLUMN_KEY, COLUMN_MAX, COLUMN_MIN, NARROW_BELOW, clampColumn, columnShown, hasColumn, loadColumn, saveColumn, toggleColumn } from "../app/src/shell/column.ts";
+import { COLUMN_DEFAULT, COLUMN_KEY, COLUMN_MAX, COLUMN_MIN, NARROW_BELOW, clampColumn, columnShown, columnStore, hasColumn, loadColumn, saveColumn, toggleColumn } from "../app/src/shell/column.ts";
 
 /**
  * The list column between the rail and the main pane (plan 013 U3): its width is clamped and kept, its
@@ -29,6 +29,23 @@ describe("list column: width", () => {
 });
 
 describe("list column: persistence", () => {
+  test("storage the page may not touch (its getter throws) reads as the default and saving is a no-op", () => {
+    const had = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() {
+        throw new Error("SecurityError");
+      },
+    });
+    try {
+      expect(columnStore()).toBeNull();
+      expect(loadColumn(columnStore())).toEqual({ width: COLUMN_DEFAULT, collapsed: false });
+      expect(() => saveColumn(columnStore(), { width: 300, collapsed: true })).not.toThrow();
+    } finally {
+      if (had) Object.defineProperty(globalThis, "localStorage", had);
+      else delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  });
   test("nothing stored reads as the default width, open", () => {
     expect(loadColumn(memory())).toEqual({ width: COLUMN_DEFAULT, collapsed: false });
   });

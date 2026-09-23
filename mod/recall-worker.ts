@@ -6,7 +6,7 @@ import { AppServerSocket, type Runtime, type ServerEvent } from "../core/attenti
 import type { Transport } from "../core/attention/transport.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
 import { LEADS_PER_CONVERSATION, MAX_TRANSCRIPT_CHARS, buildPrompt, parseExtraction, similarFront, type Slice } from "../core/recall/extract.ts";
-import { scopeFor } from "../core/desk-core.ts";
+import { scopeFor, type WidgetChange } from "../core/desk-core.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
 import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
@@ -417,7 +417,8 @@ export function lessonCard(lead: Lead): { type: "info-card"; title: string; data
   };
 }
 
-export function startLessonViaAppServer(opts: { url: () => string | null; store: RecallStore; widgetsDir?: string }): StartLesson {
+/** opts.expect: told just before the lesson card is written, so the desk's widget log reads it as loki's (mod/widget-log.ts). */
+export function startLessonViaAppServer(opts: { url: () => string | null; store: RecallStore; widgetsDir?: string; expect?: (widgetId: string, change: WidgetChange) => void }): StartLesson {
   return async (leadId) => {
     const lead = opts.store.lead(leadId);
     if (!lead) throw new Error("no such lead");
@@ -428,9 +429,11 @@ export function startLessonViaAppServer(opts: { url: () => string | null; store:
     await sock.connect();
     try {
       const rt = await sock.createConversation(lead.source.agentId, homedir(), learnTitle(lead.title));
-      const dir = join(opts.widgetsDir ?? paths.widgets, scopeFor(rt.conversation_id, rt.agent_id));
+      const scope = scopeFor(rt.conversation_id, rt.agent_id);
+      const dir = join(opts.widgetsDir ?? paths.widgets, scope);
       try {
         mkdirSync(dir, { recursive: true });
+        opts.expect?.(`${scope}/lesson`, existsSync(join(dir, "lesson.json")) ? "changed" : "added");
         writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
       } catch (err) {
         log("recall:lesson-card-failed", { message: err instanceof Error ? err.message : String(err) }); // the desk starts bare; the lesson still starts

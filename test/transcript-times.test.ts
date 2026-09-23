@@ -109,6 +109,16 @@ describe("the New line", () => {
     expect(unreadBoundary(rows, true, seen)).toBe(1);
   });
 
+  test("unread, but every timed row is at or before seenAt (stamped mid-stream): the turn rule, not no line", () => {
+    const rows: TranscriptRow[] = [
+      { role: "user", text: "q", at: "2026-09-23T08:30:00Z" },
+      { role: "assistant", text: "a", at: "2026-09-23T08:40:00Z" },
+      { role: "assistant", text: "b", at: "2026-09-23T08:59:00Z" },
+    ];
+    expect(unreadBoundary(rows, true, seen)).toBe(1);
+    expect(unreadBoundary(rows, false, seen)).toBeNull();
+  });
+
   test("without times it falls back to the phone's turn-based rule", () => {
     const rows: TranscriptRow[] = [{ role: "assistant", text: "a" }, { role: "user", text: "q" }, { role: "assistant", text: "b" }];
     expect(unreadBoundary(rows, true, seen)).toBe(2);
@@ -168,6 +178,28 @@ describe("Transcript draws the times in the message layout only", () => {
     expect(html).toContain(clockLabel(today.toISOString())!);
     expect(html).not.toContain("loki-msg-divider-day");
     expect(html).toContain("loki-msg-divider-new");
+  });
+
+  test("a widget row sits under its own day's pill, and a day with only widget rows gets one", () => {
+    const late = new Date(today);
+    late.setDate(late.getDate() - 1);
+    late.setHours(23, 50, 0, 0);
+    const early = new Date(today);
+    early.setHours(0, 10, 0, 0);
+    const mark = (id: string, at: Date, before: number) => ({ id, before, at: at.toISOString(), who: "ira", change: "added" as const, title: `w-${id}`, widgetId: `d/${id}`, gone: false });
+    const timed: TranscriptRow[] = [
+      { role: "user", text: "old", at: yesterday.toISOString() },
+      { role: "assistant", text: "morning", at: early.toISOString() },
+    ];
+    const html = renderToStaticMarkup(createElement(Transcript, { rows: timed, people, widgets: [mark("late", late, 1)] }));
+    const at = (s: string) => html.indexOf(s);
+    expect(at(">Yesterday</span>")).toBeLessThan(at("w-late"));
+    expect(at("w-late")).toBeLessThan(at(">Today</span>"));
+    expect(at(">Today</span>")).toBeLessThan(at("morning"));
+    // yesterday's messages, then a widget change today and nothing else: today still gets its pill
+    const only = renderToStaticMarkup(createElement(Transcript, { rows: timed.slice(0, 1), people, widgets: [mark("now", today, 1)] }));
+    expect(only.match(/class="loki-msg-day-pill"/g)?.length).toBe(2);
+    expect(only.indexOf(">Today</span>")).toBeLessThan(only.indexOf("w-now"));
   });
 
   test("untimed rows keep today's look: no pills, no times, the New line's own day", () => {

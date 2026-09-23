@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { boardViews, columnsOf, dispatchMessage, filterTasks, parseBoardView, stepCursor, viewColumns, type Task } from "../app/src/board/model.ts";
+import { boardViews, columnsOf, dispatchMessage, filterTasks, parseBoardView, resolveBoardView, stepCursor, viewColumns, type Task } from "../app/src/board/model.ts";
 
 const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 2, labels: [], assignee: null, createdAt: "2026-09-06T10:00:00Z", updatedAt: "2026-09-06T10:00:00Z", closedAt: null, metadata: {}, ...over });
 const NOW = new Date("2026-09-06T12:00:00Z").getTime();
@@ -88,6 +88,13 @@ describe("board: views (the list column)", () => {
 
   test("an agent with nothing left shows an empty list, not the board", () => {
     expect(viewColumns(tasks, "agent:nobody", NOW)).toEqual([{ id: "agent", label: "nobody", tasks: [] }]);
+  });
+
+  test("an agent view whose agent has no tasks on the board any more is the whole board; while the tasks load it stands", () => {
+    expect(resolveBoardView("agent:friday", tasks, NOW)).toBe("agent:friday");
+    expect(resolveBoardView("agent:nobody", tasks, NOW)).toBe("all");
+    expect(resolveBoardView("blocked", tasks, NOW)).toBe("blocked");
+    expect(resolveBoardView("agent:nobody", null, NOW)).toBe("agent:nobody");
   });
 
   test("a stored view reads back, anything else is all", () => {

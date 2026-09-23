@@ -66,8 +66,13 @@ export function createAgentsSelection(store: Store | null): AgentsSelection {
 /** The window's one selection: sessionStorage when there is one (not in tests or a blocked context). */
 export const agentsSelection = createAgentsSelection(tryStore(() => (typeof sessionStorage === "undefined" ? null : sessionStorage), null));
 
-/** The agent on show: the picked one; before any pick the desk's agent; else (none picked, or it was deleted) the first. */
+/**
+ * The agent on show: the picked one; before any pick the desk's agent; else (none picked, or it was deleted) the
+ * first. A remembered pick the loaded list no longer has (deleted elsewhere, then a reload) is treated as no pick;
+ * an empty list is still loading, so the pick stands until it arrives.
+ */
 export function shownAgent(picked: string | null | undefined, initialAgentId: string | null, agents: ReadonlyArray<{ id: string }>): string | null {
+  if (picked && agents.length && !agents.some((a) => a.id === picked)) picked = undefined;
   if (picked) return picked;
   if (picked === undefined && initialAgentId) return initialAgentId;
   return firstAgentId(agents);

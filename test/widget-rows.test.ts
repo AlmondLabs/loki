@@ -29,7 +29,7 @@ describe("widget rows: merge by time", () => {
     const rows = [row("user", 0), row("assistant", 1), row("user", 10)];
     const [m] = widgetMarks(rows, [entry()], "friday");
     expect(m.before).toBe(2);
-    expect(m.agent).toBe("friday");
+    expect(m.who).toBe("friday");
     expect(m.change).toBe("added");
     expect(m.title).toBe("Revenue chart");
     expect(m.at).toBe(iso(5));
@@ -45,8 +45,20 @@ describe("widget rows: merge by time", () => {
   test("rows without a time keep arrival order: only timed rows place an entry", () => {
     const rows = [row("user", 0), row("assistant"), row("tool"), row("user", 10)];
     expect(widgetMarks(rows, [entry()], "friday")[0].before).toBe(3);
-    // a thread with no times at all: the entries follow it
-    expect(widgetMarks([row("user"), row("assistant")], [entry()], "friday")[0].before).toBe(2);
+  });
+  test("a thread with no times at all: this session's entries follow it in arrival order, the older log is one summary row", () => {
+    const rows = [row("user"), row("assistant")];
+    const since = T0 + 60 * 60_000;
+    const log = [entry({ id: "o1", at: T0 }), entry({ id: "o2", at: T0 + 1 }), entry({ id: "o3", at: T0 + 2 }), entry({ id: "n1", at: since + 5 }), entry({ id: "n2", at: since + 9 })];
+    const marks = widgetMarks(rows, log, "friday", since);
+    expect(marks.map((m) => [m.id, m.before, m.earlier ?? null])).toEqual([
+      ["earlier", 2, 3],
+      ["n1", 2, null],
+      ["n2", 2, null],
+    ]);
+    // nothing older: no summary; nothing live either: only the summary
+    expect(widgetMarks(rows, log.slice(3), "friday", since).map((m) => m.id)).toEqual(["n1", "n2"]);
+    expect(widgetMarks(rows, log.slice(0, 3), "friday", since).map((m) => [m.id, m.earlier])).toEqual([["earlier", 3]]);
   });
   test("several entries interleave in time order, ties by log order", () => {
     const rows = [row("user", 0), row("assistant", 6), row("user", 20)];
@@ -62,7 +74,23 @@ describe("widget rows: merge by time", () => {
     expect(widgetMarks([], [entry()], "friday")[0].before).toBe(0);
   });
   test("the agent falls back to a plain word", () => {
-    expect(widgetMarks([], [entry()], null)[0].agent).toBe("the agent");
+    expect(widgetMarks([], [entry()], null)[0].who).toBe("the agent");
+  });
+  test("a change you or loki made says so; old rows without an actor are the agent's", () => {
+    const log = [entry({ id: "a", by: "you", change: "removed" }), entry({ id: "b", by: "loki" }), entry({ id: "c", by: "agent" }), entry({ id: "d" })];
+    expect(widgetMarks([], log, "friday").map((m) => m.who)).toEqual(["You", "loki", "friday", "friday"]);
+  });
+  test("the row reads as the actor's sentence", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { Transcript } = await import("../app/src/chat/Transcript.tsx");
+    const people = { user: { name: "You" }, assistant: { name: "friday" } };
+    const widgets = widgetMarks([row("user", 0)], [entry({ by: "you", change: "removed" })], "friday");
+    const html = renderToStaticMarkup(createElement(Transcript, { rows: [row("user", 0)], people, widgets }));
+    expect(html).toContain('<span class="loki-widget-row-agent">You</span> removed <span class="loki-widget-row-title">Revenue chart</span>');
+    const summary = widgetMarks([row("user")], [entry({ at: 1 })], "friday", T0);
+    const quiet = renderToStaticMarkup(createElement(Transcript, { rows: [row("user")], people, widgets: summary, onShowDesk: () => {} }));
+    expect(quiet).toContain("1 earlier widget change");
   });
 });
 

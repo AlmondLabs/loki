@@ -17,36 +17,52 @@ export type { TranscriptRow };
  * its last-ness, or the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
-  // Day pills only in the message layout, and only where rows carry times; then the pills name the day and the New line does not.
-  const pills = people ? dayPills(rows) : null;
-  const timed = pills?.some(Boolean) ?? false;
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
   // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout.
   const marks = new Map<number, WidgetMark[]>();
   if (people) for (const w of widgets ?? []) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  // Day pills only in the message layout, and only where the messages carry times; then the pills name the day and the New line does not.
+  const timed = !!people && rows.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
+  // The thread as it reads, messages and widget rows together, so each widget row falls in its own day.
+  const items = timed ? timeline(rows, marks) : null;
+  const itemPills = items ? dayPills(items.map((it) => ({ at: it.row ? it.row.at : it.mark.at }))) : null;
+  // A day that opens on a widget row breaks the run too; the widget row already does.
+  let pills: Array<string | null> | null = null;
+  if (items && itemPills) {
+    pills = rows.map(() => null);
+    items.forEach((it, k) => {
+      if (it.row) pills![it.i] = itemPills[k];
+    });
+  }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks) : null;
-  const marksAt = (i: number) => marks.get(i)?.map((w) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} />);
-  const row = (m: TranscriptRow, i: number) => (
+  const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
+  const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
+  const message = (m: TranscriptRow, i: number) => (
     <Fragment key={i}>
-      {marksAt(i)}
       {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
       <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
-      {i === rows.length - 1 && marksAt(rows.length)}
     </Fragment>
   );
-  if (!timed || !pills)
+  if (!items || !itemPills)
     return (
       <>
-        {rows.map(row)}
+        {rows.map((m, i) => (
+          <Fragment key={i}>
+            {marksAt(i)}
+            {message(m, i)}
+            {i === rows.length - 1 && marksAt(rows.length)}
+          </Fragment>
+        ))}
         {!rows.length && marksAt(0)}
       </>
     );
   // Each day is its own block, so its sticky pill is pushed off by the next day's rather than stacking under it.
   const days: Array<{ label: string | null; start: number; end: number }> = [];
-  pills.forEach((label, i) => {
-    if (label || !days.length) days.push({ label, start: i, end: i + 1 });
-    else days[days.length - 1].end = i + 1;
+  itemPills.forEach((label, k) => {
+    if (label || !days.length) days.push({ label, start: k, end: k + 1 });
+    else days[days.length - 1].end = k + 1;
   });
+  const draw = (d: { start: number; end: number }) => items.slice(d.start, d.end).map((it) => (it.row ? message(it.row, it.i) : widgetRow(it.mark)));
   return (
     <>
       {days.map((d) =>
@@ -55,15 +71,27 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
             <div className="loki-msg-day-pill-wrap">
               <span className="loki-msg-day-pill">{d.label}</span>
             </div>
-            {rows.slice(d.start, d.end).map((m, k) => row(m, d.start + k))}
+            {draw(d)}
           </section>
         ) : (
-          <Fragment key={`lead-${d.start}`}>{rows.slice(d.start, d.end).map((m, k) => row(m, d.start + k))}</Fragment>
+          <Fragment key={`lead-${d.start}`}>{draw(d)}</Fragment>
         ),
       )}
     </>
   );
 });
+
+type TimelineItem = { i: number; row: TranscriptRow; mark?: undefined } | { i: number; row?: undefined; mark: WidgetMark };
+
+/** The thread in reading order: each row's widget marks, then the row; the marks after the last row at the end. */
+function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]>): TimelineItem[] {
+  const out: TimelineItem[] = [];
+  for (let i = 0; i <= rows.length; i++) {
+    for (const mark of marks.get(i) ?? []) out.push({ i, mark });
+    if (i < rows.length) out.push({ i, row: rows[i] });
+  }
+  return out;
+}
 
 /**
  * Which rows start a run: a message whose author differs from the last message's, or the first after the
@@ -106,32 +134,55 @@ export interface MessageLayout {
   widgets?: WidgetMark[];
   /** Choosing a widget row that is still on the desk: open the Desk tab framed on it. */
   onFrameWidget?: (widgetId: string) => void;
+  /** Choosing the "N earlier widget changes" summary row: open the Desk tab. */
+  onShowDesk?: () => void;
 }
 
-/** A widget change in the thread: "friday added Revenue chart", placed before row `before`. */
+/** A widget change in the thread: "friday added Revenue chart" (or "You removed …", "loki added …"), placed before row `before`. */
 export interface WidgetMark {
   id: string;
   /** The transcript row it sits before; rows.length puts it after the last. */
   before: number;
   /** ISO 8601, like TranscriptRow.at. */
   at: string;
-  agent: string;
+  /** Who made the change, as the row names them: the agent's name, "You" or "loki". */
+  who: string;
   change: "added" | "changed" | "removed";
   title: string;
   widgetId: string;
   /** The widget is no longer on the desk (this row removed it, or a later one did): the row frames nothing. */
   gone: boolean;
+  /** Set on the one summary row that stands for this many older changes a thread without times cannot place. */
+  earlier?: number;
 }
 
 /**
- * A widget row: the agent, what changed and the widget, with its time. While the widget is on the desk the
+ * A widget row: who, what changed and the widget, with its time. While the widget is on the desk the
  * line is a button that opens the Desk tab framed on it; once it is gone the line says so and does nothing.
+ * The summary row (`earlier`) only counts, and opens the Desk tab.
  */
-function WidgetRow({ mark: w, onFrame }: { mark: WidgetMark; onFrame?: (widgetId: string) => void }) {
+function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame?: (widgetId: string) => void; onShowDesk?: () => void }) {
+  if (w.earlier !== undefined) {
+    const words = `${w.earlier} earlier widget change${w.earlier === 1 ? "" : "s"}`;
+    return (
+      <div data-row="widget" className="loki-widget-row">
+        <span className="loki-widget-row-icon" aria-hidden>
+          <Icon name="widget" size={16} />
+        </span>
+        {onShowDesk ? (
+          <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show the desk" onClick={onShowDesk}>
+            {words}
+          </button>
+        ) : (
+          <span className="loki-widget-row-text">{words}</span>
+        )}
+      </div>
+    );
+  }
   const time = clockLabel(w.at);
   const words = (
     <>
-      <span className="loki-widget-row-agent">{w.agent}</span> {w.change} <span className="loki-widget-row-title">{w.title}</span>
+      <span className="loki-widget-row-agent">{w.who}</span> {w.change} <span className="loki-widget-row-title">{w.title}</span>
     </>
   );
   return (

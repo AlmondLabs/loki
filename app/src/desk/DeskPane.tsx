@@ -88,8 +88,9 @@ export function DeskPane(props: DeskPaneProps) {
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(() => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }), [agentName, agentId]);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt);
-  // The desk's widget changes among the messages, by time (R15).
-  const widgets = widgetMarks(view.rows, desk.widgetLog, agentName);
+  // The desk's widget changes among the messages, by time (R15). The compiler caches the handlers below on the
+  // desk and onTab, but not this (view comes from a plain function), so a hook keeps it stable while you type.
+  const widgets = useWidgetMarks(view.rows, desk.widgetLog, agentName);
   const { onFrameWidget } = props;
   const frameWidget = onFrameWidget
     ? (widgetId: string) => {
@@ -98,8 +99,7 @@ export function DeskPane(props: DeskPaneProps) {
         onFrameWidget(widgetId);
       }
     : undefined;
-  // Thread hands the transcript each field on its own, so only `people` needs a stable identity (widget rows are not memoised).
-  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), toolbar: true, widgets, onFrameWidget: frameWidget };
+  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), toolbar: true, widgets, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
 
   const summary = desk.desks.list.find((d) => d.scope === scope) ?? null;
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
@@ -253,6 +253,11 @@ function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType
   );
 }
 
+/** widgetMarks for the thread, recomputed only when the rows, the log or the agent's name change: the transcript is memoised on it. */
+function useWidgetMarks(rows: Parameters<typeof widgetMarks>[0], log: Parameters<typeof widgetMarks>[1], agentName: string | null) {
+  return useMemo(() => widgetMarks(rows, log, agentName), [rows, log, agentName]);
+}
+
 /** The overflow menu: ↑↓ / Enter / Esc, or click; a click outside closes it. */
 function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label: string; keys: string }>; onPick: (id: string) => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -268,9 +273,10 @@ function DeskMenu({ items, onPick, onClose }: { items: Array<{ id: string; label
     const away = (e: PointerEvent) => {
       if (!anchor?.contains(e.target as Node)) closeRef.current();
     };
-    window.addEventListener("pointerdown", away);
+    // capture phase: the rail, the list column and popovers stop pointerdown from bubbling, and a press there must still close it
+    window.addEventListener("pointerdown", away, true);
     return () => {
-      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("pointerdown", away, true);
       // Esc, or a pick whose action takes no focus of its own: back to the "More desk actions" button.
       const a = document.activeElement;
       if (!a || a === document.body || node?.contains(a)) anchor?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
