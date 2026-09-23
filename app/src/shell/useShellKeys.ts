@@ -1,17 +1,18 @@
 import { useEffect, useRef } from "react";
 import { inTauri } from "../desk/env";
-import { chordIds, menuSpec, registerActions, resolve, runAction, typingIn, type Segment } from "./keymap";
+import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
 
 /**
  * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
  * their own: the sheet's zoom, the deck's decisions, the board's moves), the one keydown listener that
  * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
  * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
- * registered once. Dialogs and the tree own their keys (except ⌘K, which closes the tree). Esc peels a
+ * registered once. Dialogs and the tree own their keys (except ⌘K, which closes the tree); Preferences, the
+ * one dialog that is part of the shell, lets ⌘, ⌘1-6 and its ⌘[ ⌘] through (shellKeyAllowed). Esc peels a
  * layer: the tree first, then the desk's Desk tab back to Messages (`toMessages` says whether it took it),
  * then a segment other than the desk, through `escape` (the inbox closes itself). Never while typing.
  */
-export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, actions: Record<string, () => void>, escape: { closeTree: () => void; toDesk: () => void; toMessages?: (typing: boolean) => boolean }): void {
+export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, actions: Record<string, () => void>, escape: { closeTree: () => void; toDesk: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void }): void {
   const ref = useRef({ view, actions, escape });
   useEffect(() => {
     ref.current = { view, actions, escape };
@@ -23,23 +24,29 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { segment, treeOpen } = ref.current.view;
-      const dialogUp = !!document.querySelector('[role="dialog"]:not([data-tree])');
+      const dialog = dialogState();
       if (e.key === "Escape") {
-        if (typingIn(e) || dialogUp) return;
+        // The sheet closes itself on Esc from inside; this catches focus that slipped out of it.
+        if (dialog === "preferences" && !e.defaultPrevented && ref.current.escape.closePreferences) {
+          e.preventDefault();
+          ref.current.escape.closePreferences();
+          return;
+        }
+        if (typingIn(e) || dialog !== "none") return;
         if (treeOpen) {
           e.preventDefault();
           ref.current.escape.closeTree();
         } else if (segment === "desk") {
           if (ref.current.escape.toMessages?.(false)) e.preventDefault();
-        } else if (segment === "settings" || segment === "board" || segment === "agents" || segment === "learn") {
+        } else if (segment === "board" || segment === "agents" || segment === "learn") {
           e.preventDefault();
           ref.current.escape.toDesk();
         }
         return;
       }
-      if (dialogUp) return;
-      const b = resolve(e, segment);
-      if (!b) return;
+      if (dialog === "other") return;
+      const b = resolve(e, keySegment(segment, dialog));
+      if (!b || !shellKeyAllowed(dialog, b.id)) return;
       if (treeOpen && b.id !== "tree.toggle" && !b.id.startsWith("segment.")) return;
       if (runAction(b.id)) {
         e.preventDefault();

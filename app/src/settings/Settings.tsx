@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
 import { KEYMAP, WHERE_ORDER, formatKeys, registerActions } from "../shell/keymap";
-import { Button, Chip, Dot, Field, Meta, NavButton, Switch, Title, sentence } from "../components";
+import { Button, Chip, Dot, Field, IconButton, Meta, NavButton, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { MIN_LETTA_CODE, TESTED_LETTA_CODE, UPGRADE_LINE, lettaStanding } from "../../../core/compat.ts";
@@ -19,13 +19,12 @@ import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attenti
 import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { within, type Range } from "../../../core/range.ts";
 import { ThemeChoice } from "./ThemeChoice";
+import { PAGES, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 import { useTheme } from "../theme";
 
 const HOME = "~/.letta/loki";
 
-/** The pages down the left. "letta" gathers what loki runs on: harness, mod, requirements, install. */
-export type SettingsPage = "letta" | "inbox" | "providers" | "phone" | "skills" | "learn" | "appearance" | "chat" | "files" | "keys";
-export const PAGES: Array<{ id: SettingsPage }> = [{ id: "letta" }, { id: "inbox" }, { id: "providers" }, { id: "phone" }, { id: "skills" }, { id: "learn" }, { id: "appearance" }, { id: "chat" }, { id: "files" }, { id: "keys" }];
+export { PAGES, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 
 /** Settings › inbox: the "later" ladder in force and its setter (useDesk().attention). */
 export interface InboxSettingsApi {
@@ -33,9 +32,6 @@ export interface InboxSettingsApi {
   onLadder: (input: Partial<SnoozeLadder>) => void;
 }
 const PAGE_KEY = "loki.settingsPage";
-export function isSettingsPage(v: unknown): v is SettingsPage {
-  return PAGES.some((p) => p.id === v);
-}
 
 type AppServerStatus = "connecting" | "open" | "closed" | "unavailable";
 type ModConnection = "connecting" | "open" | "closed";
@@ -47,9 +43,25 @@ function describeRunner(appServerUrl: string | null): string {
   return !appServerUrl ? "not found" : viaTunnel ? "whichever harness the mod found — this tab reaches it through the mod's tunnel" : ownHarness ? "loki's own harness (letta server --listen), launched now or by an earlier run" : "a harness loki did not launch — Letta Desktop, or a letta server you started; loki attached to it instead of launching its own";
 }
 
+type SettingsProps = Parameters<typeof Settings>[0];
+
+/**
+ * Preferences, Slack style: Settings in a large sheet over the section you were in (KTD11). It is marked
+ * data-preferences so the shell's keys still reach ⌘, ⌘1-6 and the page steps while it is up; Esc, the
+ * veil and the close button shut it.
+ */
+export function Preferences({ onClose, ...rest }: Omit<SettingsProps, "onClose"> & { onClose: () => void }) {
+  return (
+    <Sheet label="Preferences" onClose={onClose} width="min(1000px, 92vw)" height="min(720px, 88vh)" top="max(16px, calc((100vh - min(720px, 88vh)) / 2))" cardProps={{ "data-preferences": "" }}>
+      <Settings {...rest} onClose={onClose} />
+    </Sheet>
+  );
+}
+
 /**
  * Settings: the facts that had no home — which harness the app is on, how it reaches
- * the mod, where the files are — a couple of preferences, and the keymap.
+ * the mod, where the files are — a couple of preferences, and the keymap. Laid out as Preferences' body:
+ * the section list on the left, the page on the right, filling whatever holds it.
  */
 export function Settings({
   appServerStatus,
@@ -77,6 +89,7 @@ export function Settings({
   recall,
   scratch,
   inbox,
+  onClose,
 }: {
   appServerStatus: AppServerStatus;
   tunnelUrl: string | null;
@@ -112,6 +125,8 @@ export function Settings({
   scratch: Scratch;
   /** The deck's "later" ladder (Settings › inbox). */
   inbox: InboxSettingsApi;
+  /** The close button in the page's header (Preferences); none without it. */
+  onClose?: () => void;
 }) {
   const harness = useHarnessFacts(tunnelUrl);
   const [page, setPage] = useState<SettingsPage>(() => {
@@ -129,28 +144,42 @@ export function Settings({
   });
 
   return (
-    <div style={{ position: "absolute", inset: 0, overflowY: "auto", padding: "28px 40px 60px", boxSizing: "border-box" }}>
-      <div style={{ maxWidth: 880, margin: "0 auto", display: "grid", gridTemplateColumns: "150px 1fr", gap: "0 32px", alignItems: "start" }}>
-      {/* One page at a time: the list on the left, its sections on the right. The page is remembered for the window. */}
-      <nav aria-label="settings pages" style={{ display: "grid", alignContent: "start", gap: 2, paddingTop: 4 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", flex: 1, minHeight: 0 }}>
+      {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
+      <nav aria-label="Preferences sections" style={{ display: "grid", alignContent: "start", gap: 2, padding: "16px 10px", overflowY: "auto", borderRight: "1px solid var(--loki-border)" }}>
+        <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
+          Preferences
+        </h2>
         {PAGES.map((p) => (
           <NavButton key={p.id} onClick={() => pick(p.id)} current={page === p.id}>
-            {p.id}
+            {pageTitle(p.id)}
             {p.id === "phone" && phone.status?.enabled ? <Dot aria-label="on" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} /> : null}
           </NavButton>
         ))}
       </nav>
-      <div style={{ display: "grid", gap: 28, alignContent: "start", minWidth: 0 }}>
-        {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} />}
-        {page === "inbox" && <InboxPage inbox={inbox} />}
-        {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
-        {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
-        {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
-        {page === "learn" && <RecallPage recall={recall} />}
-        {page === "appearance" && <AppearancePage />}
-        {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} />}
-        {page === "files" && <FilesPage />}
-        {page === "keys" && <KeysPage shortcut={shortcut} />}
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, background: "var(--loki-bg)" }}>
+        <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 8, minHeight: 48, padding: "0 12px 0 28px", borderBottom: "1px solid var(--loki-border)" }}>
+          <h3 className="loki-title" style={{ margin: 0, flex: 1, minWidth: 0 }}>
+            {pageTitle(page)}
+          </h3>
+          {onClose && (
+            <IconButton size={28} onClick={onClose} label="Close preferences" style={{ fontSize: 17 }}>
+              ×
+            </IconButton>
+          )}
+        </div>
+        {/* Keyed by page so a new page starts at its top. */}
+        <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
+          {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} />}
+          {page === "inbox" && <InboxPage inbox={inbox} />}
+          {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
+          {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
+          {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
+          {page === "learn" && <RecallPage recall={recall} />}
+          {page === "appearance" && <AppearancePage />}
+          {page === "chat" && <ChatPage chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} />}
+          {page === "files" && <FilesPage />}
+          {page === "keys" && <KeysPage shortcut={shortcut} />}
           <div className="loki-label" style={{ textAlign: "center", paddingTop: 12 }}>
             loki {__LOKI_VERSION__} · {inTauri ? "tauri shell" : "browser tab"}
           </div>
@@ -163,7 +192,7 @@ export function Settings({
 function AppearancePage() {
   const theme = useTheme();
   return (
-    <Section title="appearance" hint="the colors on this device; system follows macOS as it changes">
+    <Section title="Appearance" hint="the colors on this device; system follows macOS as it changes">
       <Fact label="Theme" value={<ThemeChoice />} />
       <Fact label="Using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
     </Section>
@@ -179,20 +208,20 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
       <Section title="loki" hint="this app; the only update it ever offers on its own">
         <LokiVersionFact update={update} />
       </Section>
-      <Section title="harness" hint="the Letta process loki talks to; the mod runs inside it">
+      <Section title="Harness" hint="the Letta process loki talks to; the mod runs inside it">
         <Fact label="App-server" value={shownUrl ?? "—"} mono />
         <Fact label="Who runs it" value={describeRunner(harness.appServerUrl)} />
         <Fact label="Link" value={<Status s={appServerStatus} />} />
       </Section>
-      <Section title="scratch" hint="where Letta's Bash tool keeps background output; dreaming runs sandboxed and may only write under ~/.letta">
+      <Section title="Scratch" hint="where Letta's Bash tool keeps background output; dreaming runs sandboxed and may only write under ~/.letta">
         <ScratchFacts scratch={scratch} />
       </Section>
-      <Section title="mod" hint="desk layout, widget files, transcripts">
+      <Section title="Mod" hint="desk layout, widget files, transcripts">
         <Fact label="Endpoint" value={modBase()} mono />
         <Fact label="Link" value={<Status s={modConnection} />} />
         <Fact label="Desks" value={String(deskCount)} />
       </Section>
-      <Section title="requirements" hint="what loki needs on this machine, and where it found it">
+      <Section title="Requirements" hint="what loki needs on this machine, and where it found it">
         <LettaCodeFact lettaVersion={lettaVersion} tools={harness.tools} />
         <LettaCliFact bootstrap={bootstrap} tools={harness.tools} onInstallLetta={onInstallLetta} />
         {inTauri && <LettaUpdateFact bootstrap={bootstrap} onCheck={onCheckLetta} onUpdate={onUpdateLetta} />}
@@ -386,7 +415,7 @@ function LettaCliFact({ bootstrap, tools, onInstallLetta }: { bootstrap: Bootstr
 /** In the shell only: what launch did about the mod and the skill. */
 function InstallSection({ install }: { install: InstallReport | null }) {
   return (
-    <Section title="install" hint="on launch the app puts its mod and skill where Letta looks">
+    <Section title="Install" hint="on launch the app puts its mod and skill where Letta looks">
       <ModFact install={install} />
       <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on this Mac loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
@@ -412,7 +441,7 @@ function ModFact({ install }: { install: InstallReport | null }) {
 
 function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectProvider, onDisconnectProvider, onModelsChanged }: { appServerStatus: AppServerStatus; providers: ConnectProvider[] | null; onLoadProviders: () => Promise<unknown>; onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>; onDisconnectProvider: (providerId: string) => Promise<string | null>; onModelsChanged: () => void }) {
   return (
-    <Section title="providers" hint="who answers the models; keys are checked, then kept by Letta on this Mac">
+    <Section title="Providers" hint="who answers the models; keys are checked, then kept by Letta on this Mac">
       {appServerStatus === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="Link" value="the harness is not linked yet" />}
     </Section>
   );
@@ -420,7 +449,7 @@ function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectP
 
 function PhonePage({ phone, modConnection }: { phone: PhoneApi; modConnection: ModConnection }) {
   return (
-    <Section title="phone" hint="the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install">
+    <Section title="Phone" hint="the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install">
       <Phone phone={phone} connected={modConnection === "open"} />
     </Section>
   );
@@ -428,7 +457,7 @@ function PhonePage({ phone, modConnection }: { phone: PhoneApi; modConnection: M
 
 function SkillsPage({ globalSkills }: { globalSkills: GlobalSkillsApi }) {
   return (
-    <Section title="skills" hint="~/.letta/skills — every agent reads these; an agent's own skills are on its page">
+    <Section title="Skills" hint="~/.letta/skills — every agent reads these; an agent's own skills are on its page">
       <Skills api={globalSkills} />
     </Section>
   );
@@ -441,7 +470,7 @@ function RecallPage({ recall }: { recall: RecallModel }) {
     if (!snap) void recall.refresh();
   }, [snap, recall]);
   return (
-    <Section title="learn" hint="flashcards written in the background from conversations that have gone quiet, and the leads it proposes; the writer is off until you switch it on">
+    <Section title="Learn" hint="flashcards written in the background from conversations that have gone quiet, and the leads it proposes; the writer is off until you switch it on">
       {snap ? <RecallSettings worker={snap.worker} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} running={recall.running} /> : <Fact label="Writer" value={recall.error ?? "loading…"} />}
     </Section>
   );
@@ -449,7 +478,7 @@ function RecallPage({ recall }: { recall: RecallModel }) {
 
 function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement }: { chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void }) {
   return (
-    <Section title="chat" hint="how the panel sits on the sheet">
+    <Section title="Chat" hint="how the panel sits on the sheet">
       <Fact label="Position" value={<Choice options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />} />
       <Fact label="Side width" value={<Choice options={["narrow", "wide"] as ChatWidth[]} value={chatWidth} onPick={onChatWidth} />} />
       <Fact label="Empty desk" value="opens the chat centred until the first widget lands" />
@@ -461,7 +490,7 @@ function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement }: { 
 function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
   return (
     <>
-      <Section title="order" hint="one score per card, one list; the card in front of you never moves until you act on it">
+      <Section title="Order" hint="one score per card, one list; the card in front of you never moves until you act on it">
         <Fact label="Blocked" value={`+${BLOCKED_POINTS} — an approval, a question, a failed turn: an agent is stopped`} />
         <Fact label="Warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
         <Fact label="Reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
@@ -475,7 +504,7 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
 
 function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
   return (
-    <Section title="later" hint="how long ← hides a card: the first deferral, then each further one in the same day multiplied by the growth, never past a day">
+    <Section title="Later" hint="how long ← hides a card: the first deferral, then each further one in the same day multiplied by the growth, never past a day">
       <Knob label="First" value={inbox.ladder.firstMinutes} range={LADDER_RANGE.firstMinutes} aria="minutes the first deferral lasts" onApply={(n) => inbox.onLadder({ firstMinutes: n })} hint={`minutes (${LADDER_RANGE.firstMinutes.min}–${LADDER_RANGE.firstMinutes.max}); the one you feel — does the card come back inside this pass or after the next coffee`} />
       <Knob label="Growth" value={inbox.ladder.growth} range={LADDER_RANGE.growth} aria="growth per further deferral" onApply={(n) => inbox.onLadder({ growth: n })} hint={`× per further deferral of the same card (${LADDER_RANGE.growth.min}–${LADDER_RANGE.growth.max}); 1 keeps every deferral the same length`} />
       <Fact label="Ladder" value={ladderSteps(inbox.ladder).map(formatGap).join(" · ")} />
@@ -486,7 +515,7 @@ function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
 
 function FilesPage() {
   return (
-    <Section title="files" hint="everything loki keeps, in one folder">
+    <Section title="Files" hint="everything loki keeps, in one folder">
       <Fact label="Widgets" value={`${HOME}/widgets/<desk>/`} mono />
       <Fact label="Layout" value={`${HOME}/state/<desk>.json`} mono />
       <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
@@ -500,7 +529,7 @@ function FilesPage() {
 
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   return (
-    <Section title="keys" hint="⌘ here is ctrl on other systems">
+    <Section title="Keys" hint="⌘ here is ctrl on other systems">
       <Fact
         label="⌥Space"
         value={
@@ -565,7 +594,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
     <section style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: "6px 24px", alignItems: "start" }}>
       <div style={{ paddingTop: 2 }}>
         <Title>{title}</Title>
-        {hint && <div className="loki-meta loki-meta--wrap" style={{ marginTop: 4, lineHeight: 1.45 }}>{hint}</div>}
+        {hint && <div className="loki-meta loki-meta--wrap" style={{ marginTop: 4, lineHeight: 1.45 }}>{sentence(hint)}</div>}
       </div>
       <div style={{ display: "grid", gap: 6, borderLeft: "1px solid var(--loki-border)", paddingLeft: 20 }}>{children}</div>
     </section>

@@ -151,7 +151,10 @@ export interface SheetProps {
   label: string;
   /** Escape and a click on the veil call this; leave it out for a sheet that cannot be dismissed (Welcome). */
   onClose?: () => void;
-  width?: number;
+  /** Pixels, or any CSS length ("min(1000px, 92vw)" for Preferences). */
+  width?: number | string;
+  /** A fixed height (any CSS length), for a sheet laid out as a window rather than grown by its content; it also lifts the 84vh cap. */
+  height?: number | string;
   /** Distance from the top of the window; "bottom" docks the sheet to the bottom edge (the phone). */
   top?: string;
   placement?: "top" | "bottom";
@@ -171,7 +174,7 @@ export interface SheetProps {
  * A modal sheet over a veil: aria-modal, Escape and a click on the veil close it, and focus returns to
  * where it was when the sheet closes. (A Tab loop inside the sheet is the next step; see docs/design.md.)
  */
-export function Sheet({ label, onClose, width = 560, top, placement = "top", scroll, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
+export function Sheet({ label, onClose, width = 560, height, top, placement = "top", scroll, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
   const opener = useRef<Element | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -220,7 +223,7 @@ export function Sheet({ label, onClose, width = 560, top, placement = "top", scr
         }
       }}
     >
-      <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)} style={{ width: placement === "bottom" ? undefined : width, ...style }} {...cardProps}>
+      <div ref={cardRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={label} className={cx("loki-sheet", "loki-sheet-card", placement === "bottom" && "loki-sheet-card--bottom", className)} style={{ width: placement === "bottom" ? undefined : width, ...(height !== undefined ? { height, maxHeight: "none" } : null), ...style }} {...cardProps}>
         {children}
       </div>
     </div>

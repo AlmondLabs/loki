@@ -112,6 +112,7 @@ export const KEYMAP: Binding[] = [
   { id: "learn.nextView", keys: ["cmd+]"], where: "learn", label: "Next View", typing: true, menu: "Learn/step" },
 
   // --- agents / settings: the tabs across the top, the pages down the left ------------------------------
+  // "settings" is Preferences, a sheet over the section showing: its keys resolve there while it is up (keySegment).
   { id: "agents.prev", keys: ["cmd+["], where: "agents", label: "previous agent", typing: true },
   { id: "agents.next", keys: ["cmd+]"], where: "agents", label: "next agent", typing: true },
   { id: "settings.prevPage", keys: ["cmd+["], where: "settings", label: "previous page", typing: true },
@@ -283,6 +284,31 @@ export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);
+}
+
+/**
+ * The dialogs up, for the shell's keys: none, only Preferences (the sheet marked data-preferences), or some
+ * other dialog, which wins even over Preferences (a sheet opened from a settings page). The tree is not a
+ * dialog here: it owns its keys but lets ⌘K and the segments through (useShellKeys).
+ */
+export type DialogState = "none" | "preferences" | "other";
+export function dialogState(root: ParentNode = document): DialogState {
+  const up = [...root.querySelectorAll('[role="dialog"]:not([data-tree])')];
+  if (up.length === 0) return "none";
+  return up.every((d) => d.hasAttribute("data-preferences")) ? "preferences" : "other";
+}
+
+/** Preferences lets the segment keys (⌘1-6, ⌘,) and its own page steps (⌘[ ⌘]) through; every other dialog blocks every shell key. */
+const PREFERENCES_KEYS = new Set(["settings.prevPage", "settings.nextPage"]);
+export function shellKeyAllowed(dialog: DialogState, id: string): boolean {
+  if (dialog === "none") return true;
+  if (dialog === "other") return false;
+  return id.startsWith("segment.") || PREFERENCES_KEYS.has(id);
+}
+
+/** The scope keys resolve in: with Preferences up, "settings" (its bindings are its page steps), else the section showing. */
+export function keySegment(segment: Segment, dialog: DialogState): Segment {
+  return dialog === "preferences" ? "settings" : segment;
 }
 
 /** Rows for Settings, grouped by scope in display order. */
