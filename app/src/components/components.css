@@ -390,6 +390,9 @@ button.loki-list-section-toggle:hover { background: var(--loki-hover); color: va
 .loki-list-section-actions { display: flex; gap: 2px; flex: none; opacity: 0; transition: opacity 120ms ease-out; }
 .loki-list-section-head:hover .loki-list-section-actions, .loki-list-section-actions:focus-within { opacity: 1; }
 
+/* The window's top edge in the app (TitleStrip): the rail's colour across the width, the traffic lights over its left end. */
+.loki-title-strip { position: absolute; top: 0; left: 0; right: 0; background: var(--loki-panel); user-select: none; -webkit-user-select: none; }
+
 /* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
 .loki-pane-header { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--loki-border); background: var(--loki-bg); }
 .loki-pane-header-line { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px 0 20px; }

@@ -1,11 +1,27 @@
 import { SEGMENTS, type Segment } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { Dot } from "../components";
+import { inTauri } from "../desk/env";
 
 export const SIDEBAR_WIDTH = 48;
+/**
+ * The native title bar is hidden (src-tauri/src/lib.rs, overlay style), so loki draws the top edge: a strip
+ * across the window at the traffic lights' standard height, the rail and the views under it. A browser tab
+ * has its own chrome, so there it is nothing.
+ */
+export const TITLEBAR_HEIGHT = inTauri ? 28 : 0;
 
 /**
- * The rail under the title bar: six segments and nothing else. The inbox icon carries
+ * The window's top edge, Slack style: the lights float at its left, and it drags the window (a double
+ * click zooms). Nothing interactive goes in it; the attribute is bare so only the strip itself drags.
+ */
+export function TitleStrip() {
+  if (!TITLEBAR_HEIGHT) return null;
+  return <div data-tauri-drag-region aria-hidden className="loki-title-strip" style={{ height: TITLEBAR_HEIGHT, zIndex: LAYER.rail }} />;
+}
+
+/**
+ * The rail under the top strip: six segments and nothing else. The inbox icon carries
  * the waiting count — the same number the tray title and the dock badge show — and ticks
  * when it grows. The desk icon is also the tree's toggle, so it reads pressed while the
  * tree is out.
@@ -41,7 +57,7 @@ export function Sidebar({
       onPointerDown={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
-        top: 0,
+        top: TITLEBAR_HEIGHT,
         left: 0,
         bottom: 0,
         width: SIDEBAR_WIDTH,

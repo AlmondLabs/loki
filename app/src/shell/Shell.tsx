@@ -10,7 +10,7 @@ import { inTauri } from "../desk/env";
 import { TaskCapture } from "../board/TaskCapture";
 import { useBootstrap, type BootstrapStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
-import { Sidebar, SIDEBAR_WIDTH } from "./Sidebar";
+import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
 import type { Segment } from "./shortcuts";
 import { useNotice } from "./useNotice";
 import { useVisitedDesks } from "./useVisitedDesks";
@@ -46,8 +46,8 @@ function welcomeFor(boot: BootstrapStatus | null, catchUp: Pick<CatchUp, "status
 }
 
 /**
- * The window: the native title bar, a rail of four segments, and one view
- * in the space they leave. The desk and attention models live here so the desk view, the
+ * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, and
+ * one view in the space they leave. The desk and attention models live here so the desk view, the
  * inbox, the tree and settings all read the same state.
  */
 export function Shell() {
@@ -278,9 +278,10 @@ export function Shell() {
   return (
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
+        <TitleStrip />
         <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} />
 
-        <div style={{ position: "absolute", top: 0, left: SIDEBAR_WIDTH, right: 0, bottom: 0 }}>
+        <div style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: SIDEBAR_WIDTH, right: 0, bottom: 0 }}>
           {/* The sheet stays mounted behind the other views so the desk link and camera keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? "visible" : "hidden" }} aria-hidden={segment !== "desk"}>
             <Surface

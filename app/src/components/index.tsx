@@ -515,7 +515,8 @@ export interface PaneHeaderProps<T extends string = string> {
 export function PaneHeader<T extends string>({ title, lead, aside, actions, tabs, tab, onTab, tabsLabel = "Views", panelId, titleId }: PaneHeaderProps<T>) {
   return (
     <header className="loki-pane-header">
-      <div className="loki-pane-header-line">
+      {/* The name line drags the window in the app (the native title bar is hidden); its buttons still click. */}
+      <div className="loki-pane-header-line" data-tauri-drag-region="deep">
         {lead && <span className="loki-pane-header-lead">{lead}</span>}
         <h1 id={titleId} className="loki-pane-title">
           {title}

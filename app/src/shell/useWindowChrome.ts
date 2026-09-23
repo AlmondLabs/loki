@@ -4,9 +4,10 @@ import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
 /**
- * The window title is the only chrome: the desk's name on the desk, the inbox with its count, the board
- * with its open count, agents, settings. macOS draws it in the native title bar; a browser tab shows it
- * as the tab title. A waiting count prefixes the tab title everywhere but the inbox.
+ * The window title: the desk's name on the desk, the inbox with its count, the board with its open
+ * count, agents, settings. The native title bar is hidden, so macOS no longer draws it, but it still names
+ * the window in the Window menu, Mission Control and to screen readers; a browser tab shows it as the tab
+ * title. A waiting count prefixes the tab title everywhere but the inbox.
  */
 export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "agentName">, segment: Segment, waiting: number, openTasks: number, dueCards = 0): void {
   useEffect(() => {
