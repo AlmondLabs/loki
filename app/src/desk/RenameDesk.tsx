@@ -37,10 +37,16 @@ export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
     if (!canSave || !next) return;
     setBusy(true);
     setError(null);
-    const err = await onRename(next);
+    let err: string | null;
+    try {
+      err = await onRename(next);
+    } catch (e) {
+      err = e instanceof Error ? e.message : String(e);
+    } finally {
+      setBusy(false);
+    }
     if (!err) return onClose();
     setError(err);
-    setBusy(false);
   };
 
   const sheet = (
