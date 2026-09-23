@@ -23,6 +23,8 @@ import { useGlobalShortcut } from "./useGlobalShortcut";
 import { useScratch } from "./useScratch";
 import { useShellKeys } from "./useShellKeys";
 import { KeysSheet } from "./KeysSheet";
+import { useColumn } from "./useColumn";
+import { ColumnPlaceholder, DeskColumn, ListColumn } from "./ListColumn";
 import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel } from "../chat/ModelPicker";
@@ -46,8 +48,8 @@ function welcomeFor(boot: BootstrapStatus | null, catchUp: Pick<CatchUp, "status
 }
 
 /**
- * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, and
- * one view in the space they leave. The desk and attention models live here so the desk view, the
+ * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, the
+ * section's list column (ListColumn; Desk, Board, Agents, Learn) and one view in the space they leave. The desk and attention models live here so the desk view, the
  * inbox, the tree and settings all read the same state.
  */
 export function Shell() {
@@ -238,6 +240,9 @@ export function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desk.connection]);
   const visited = useVisitedDesks(desk.scope);
+  // The list column between the rail and the main pane (Desk, Board, Agents, Learn); the pane starts where it ends.
+  const column = useColumn(segment);
+  const paneLeft = SIDEBAR_WIDTH + (column.shown ? column.width : 0);
 
   useShellKeys(
     { segment, treeOpen },
@@ -254,6 +259,9 @@ export function Shell() {
       "keys.sheet": () => setKeysOpen((v) => !v),
       "desk.prev": () => stepDesk(-1),
       "desk.next": () => stepDesk(1),
+      "column.toggle": () => {
+        if (column.has) column.toggle();
+      },
       "window.hide": () => {
         if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().hide()).catch((e) => console.warn("loki: hide", e));
       },
@@ -279,9 +287,22 @@ export function Shell() {
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
         <TitleStrip />
-        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has ? { open: column.open, onToggle: column.toggle } : null} />
 
-        <div style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: SIDEBAR_WIDTH, right: 0, bottom: 0 }}>
+        <ListColumn
+          segment={segment}
+          shown={column.shown}
+          width={column.width}
+          onWidth={column.setWidth}
+          sections={{
+            desk: <DeskColumn desks={desk.desks.list} items={catchUp.items} visited={visited} current={desk.scope} onOpen={(scope) => (setTreeOpen(false), switchDesk(scope))} onNew={desk.attention.available ? () => setNewDesk({ open: true, name: "", agentId: null }) : undefined} />,
+            board: <ColumnPlaceholder title="Board" />,
+            agents: <ColumnPlaceholder title="Agents" />,
+            learn: <ColumnPlaceholder title="Learn" />,
+          }}
+        />
+
+        <div style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
           {/* The sheet stays mounted behind the other views so the desk link and camera keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? "visible" : "hidden" }} aria-hidden={segment !== "desk"}>
             <Surface

@@ -65,6 +65,12 @@ describe("keymap: resolution", () => {
     expect(resolve(ev("?", { shift: true }, true), "inbox")).toBeNull();
     expect(resolve(ev("/"), "board")?.id).toBe("board.filter"); // the unshifted key keeps its own meaning
   });
+  test("⌘⇧D shows and hides the list column (Slack's sidebar key), and stays Deny in the inbox, which has no column", () => {
+    const shiftD = (segment: Parameters<typeof resolve>[1], typing = false) => resolve(ev("d", { meta: true, shift: true }, typing), segment)?.id;
+    expect([shiftD("desk"), shiftD("board"), shiftD("agents"), shiftD("learn")]).toEqual(["column.toggle", "column.toggle", "column.toggle", "column.toggle"]);
+    expect(shiftD("desk", true)).toBe("column.toggle");
+    expect(shiftD("inbox")).toBe("inbox.deny");
+  });
   test("segments and settings comma", () => {
     expect(resolve(ev(",", { meta: true }), "board")?.id).toBe("segment.settings");
     expect(resolve(ev("4", { meta: true }), "desk")?.id).toBe("segment.agents");

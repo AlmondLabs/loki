@@ -426,3 +426,14 @@ button.loki-list-section-toggle:hover { background: var(--loki-hover); color: va
 /* A pane with nothing in it (EmptyPane): the Empty block, centred in whatever space the pane has. */
 .loki-empty-pane { flex: 1; min-height: 0; display: grid; place-items: center; padding: 40px 24px; box-sizing: border-box; }
 .loki-empty-pane-icon { margin: 0 auto 12px; color: var(--loki-muted); }
+
+/* The list column (shell/ListColumn): Slack's second column, the rail's colour, between the rail and the main pane. */
+.loki-column { position: absolute; bottom: 0; box-sizing: border-box; border-right: 1px solid var(--loki-border); background: var(--loki-panel); }
+.loki-column-body { position: absolute; inset: 0; display: flex; flex-direction: column; min-height: 0; }
+.loki-column-header { flex: none; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--loki-border); }
+.loki-column-title { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--loki-font); font-size: 15px; font-weight: 700; color: var(--loki-fg); }
+.loki-column-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.loki-column-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 6px; }
+/* The resize edge: a few px over the hairline, the accent while dragged or focused. */
+.loki-column-edge { position: absolute; top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; touch-action: none; z-index: 1; }
+.loki-column-edge:hover, .loki-column-edge:active, .loki-column-edge:focus-visible { background: linear-gradient(to right, transparent 2px, var(--loki-accent) 2px, var(--loki-accent) 4px, transparent 4px); }

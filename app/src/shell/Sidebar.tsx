@@ -36,6 +36,7 @@ export function Sidebar({
   dueCards = 0,
   lanOn = false,
   updateReady = false,
+  column = null,
 }: {
   segment: Segment;
   onSelect: (s: Segment) => void;
@@ -50,6 +51,8 @@ export function Sidebar({
   lanOn?: boolean;
   /** A newer loki release exists (Settings › letta says which): the same dot. */
   updateReady?: boolean;
+  /** The showing section's list column (ListColumn), when it has one: a toggle above Settings, pressed while the column shows. */
+  column?: { open: boolean; onToggle: () => void } | null;
 }) {
   return (
     <nav
@@ -76,42 +79,65 @@ export function Sidebar({
         const active = segment === s.id || (s.id === "desk" && treeOpen);
         const isInbox = s.id === "inbox";
         return (
-          <span key={s.id} style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" ? "auto" : 0 }}>
-            <button
-              onClick={() => onSelect(s.id)}
-              aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "learn" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
-              aria-pressed={active}
-              title={`${s.label} (${s.key})`}
-              className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
-              style={{
-                position: "relative",
-                width: 36,
-                height: 36,
-                display: "grid",
-                placeItems: "center",
-                border: "1px solid transparent",
-                borderRadius: "var(--loki-radius-md)",
-                background: active ? "var(--loki-selection)" : "transparent",
-                color: active ? "var(--loki-fg)" : "var(--loki-muted)",
-                cursor: "pointer",
-                padding: 0,
-              }}
-            >
-              <Icon id={s.id} />
-              {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (board). */}
-              {isInbox && waiting > 0 && <Badge n={waiting} tone="attention" />}
-              {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
-              {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
-              {/* A newer loki is out (the accent), or the listener is on and the page is reachable from the Wi‑Fi (a green dot, D11). */}
-              {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color={updateReady ? "var(--loki-accent)" : "var(--loki-positive)"} style={{ position: "absolute", top: 3, right: 3 }} />}
-            </button>
-            <span className="loki-label" style={{ fontSize: 9.5, marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
-              {s.label}
+          <span key={s.id} style={{ display: "contents" }}>
+            {s.id === "settings" && column && <ColumnToggle {...column} />}
+            <span style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" && !column ? "auto" : 0 }}>
+              <button
+                onClick={() => onSelect(s.id)}
+                aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "learn" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
+                aria-pressed={active}
+                title={`${s.label} (${s.key})`}
+                className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
+                style={{
+                  position: "relative",
+                  width: 36,
+                  height: 36,
+                  display: "grid",
+                  placeItems: "center",
+                  border: "1px solid transparent",
+                  borderRadius: "var(--loki-radius-md)",
+                  background: active ? "var(--loki-selection)" : "transparent",
+                  color: active ? "var(--loki-fg)" : "var(--loki-muted)",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                <Icon id={s.id} />
+                {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (board). */}
+                {isInbox && waiting > 0 && <Badge n={waiting} tone="attention" />}
+                {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
+                {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
+                {/* A newer loki is out (the accent), or the listener is on and the page is reachable from the Wi‑Fi (a green dot, D11). */}
+                {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color={updateReady ? "var(--loki-accent)" : "var(--loki-positive)"} style={{ position: "absolute", top: 3, right: 3 }} />}
+              </button>
+              <span className="loki-label" style={{ fontSize: 9.5, marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
+                {s.label}
+              </span>
             </span>
           </span>
         );
       })}
     </nav>
+  );
+}
+
+/** Show / hide the list column (⌘⇧D, Slack's sidebar key): a panel with its left pane, above Settings. */
+function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={open ? "Hide sidebar" : "Show sidebar"}
+      aria-pressed={open}
+      title={`${open ? "Hide" : "Show"} sidebar (⌘⇧D)`}
+      className="loki-rail"
+      style={{ marginTop: "auto", width: 36, height: 28, display: "grid", placeItems: "center", border: "1px solid transparent", borderRadius: "var(--loki-radius-md)", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", padding: 0 }}
+    >
+      <svg {...common} aria-hidden>
+        <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
+        <path d="M7.5 3.5v13" />
+        {open && <path d="M4.5 7h1M4.5 9.5h1" />}
+      </svg>
+    </button>
   );
 }
 
