@@ -56,12 +56,12 @@ export function AgentPage({ agentId, name, desks, items, api, banner, backLabel 
   const d = useAgentDetails(api, agentId);
   const log = useMemoryLog(api, agentId);
   const [folded, setFoldedState] = useState<Record<string, boolean>>(() => foldedByAgent.get(agentId) ?? {});
-  const setFolded = (name: string, closed: boolean) =>
-    setFoldedState((x) => {
-      const next = { ...x, [name]: closed };
-      foldedByAgent.set(agentId, next);
-      return next;
-    });
+  // Kept outside the updater (React may run updaters twice).
+  const setFolded = (name: string, closed: boolean) => {
+    const next = { ...folded, [name]: closed };
+    foldedByAgent.set(agentId, next);
+    setFoldedState(next);
+  };
   const folders = useMemo(() => memoryFolders(d?.files ?? []), [d]);
   const title = d?.agent.name ?? name ?? "Agent";
   const openFile = (path: string) => navigate({ kind: "file", agentId, path });

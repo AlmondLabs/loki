@@ -349,11 +349,16 @@ export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: Desk
     if (!onArchive) return;
     setBusy(true);
     setError(null);
-    const err = await onArchive(!archived);
-    if (err) {
-      setError(err);
+    let err: string | null;
+    try {
+      err = await onArchive(!archived);
+    } catch (e) {
+      err = e instanceof Error ? e.message : String(e);
+    } finally {
       setBusy(false);
-    } else onClose();
+    }
+    if (err) setError(err);
+    else onClose();
   };
   return (
     <Sheet label={`${deskName(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
