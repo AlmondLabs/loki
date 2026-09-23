@@ -70,11 +70,6 @@ export function ColumnHeader({ title, actions }: { title: ReactNode; actions?: R
   );
 }
 
-/** A section whose list is still to come (Board and Learn views, the agents as DMs): its name only. */
-export function ColumnPlaceholder({ title }: { title: string }) {
-  return <ColumnHeader title={title} />;
-}
-
 /**
  * The Desk column until the desk sidebar lands (U4): the tree's sections — waiting on you, pinned, recent,
  * the rest — as Slack rows, the open desk current, so desks stay one click away without ⌘K.

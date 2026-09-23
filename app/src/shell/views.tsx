@@ -83,6 +83,7 @@ export function BoardView({ board, desks, onAssign, onNew, active }: { board: Re
 export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, onShowDesks, onShowBoard }: { desk: Desk; catchUp: CatchUp; tasks: ReturnType<typeof useBoard>["tasks"]; onOpenDesk: OpenDesk; onAskToUpdate: (agentId: string, text: string) => void; onShowDesks: () => void; onShowBoard: () => void }) {
   return (
     <Agents
+      columnOutside
       agents={catchUp.agents}
       api={desk.agents}
       avatar={avatarUrl}

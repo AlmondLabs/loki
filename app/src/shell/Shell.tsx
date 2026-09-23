@@ -8,7 +8,10 @@ import { DeskPane } from "../desk/DeskPane";
 import { useDeskPane } from "../desk/useDeskPane";
 import { chatKeyTarget, sidebarHidden } from "../desk/pane";
 import { useDesk } from "../desk/useDesk";
-import { inTauri } from "../desk/env";
+import { avatarUrl, inTauri } from "../desk/env";
+import { AgentsColumn } from "../agents/Agents";
+import { BoardColumn } from "../board/BoardColumn";
+import { LearnColumn } from "../recall/LearnColumn";
 import { TaskCapture } from "../board/TaskCapture";
 import { useBootstrap, type BootstrapStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
@@ -26,7 +29,7 @@ import { useScratch } from "./useScratch";
 import { useShellKeys } from "./useShellKeys";
 import { KeysSheet } from "./KeysSheet";
 import { useColumn } from "./useColumn";
-import { ColumnPlaceholder, DeskColumn, ListColumn } from "./ListColumn";
+import { DeskColumn, ListColumn } from "./ListColumn";
 import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, SwitcherTree, WelcomeView, type Picker, RecallView } from "./views";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel } from "../chat/ModelPicker";
@@ -311,9 +314,9 @@ export function Shell() {
           onWidth={column.setWidth}
           sections={{
             desk: <DeskColumn desks={desk.desks.list} items={catchUp.items} visited={visited} current={desk.scope} onOpen={(scope) => (setTreeOpen(false), switchDesk(scope))} onNew={desk.attention.available ? () => setNewDesk({ open: true, name: "", agentId: null }) : undefined} />,
-            board: <ColumnPlaceholder title="Board" />,
-            agents: <ColumnPlaceholder title="Agents" />,
-            learn: <ColumnPlaceholder title="Learn" />,
+            board: <BoardColumn tasks={board.tasks} onNew={() => setCaptureOpen(true)} />,
+            agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
+            learn: <LearnColumn recall={recall} />,
           }}
         />
 
