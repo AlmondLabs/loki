@@ -15,7 +15,8 @@ const VIEW_ICON: Record<string, IconName> = { all: "menu", open: "inbox", in_pro
 export function BoardColumn({ tasks, onNew }: { tasks: Task[] | null; onNew: () => void }) {
   const [stored, setView] = useBoardView();
   const { views, agents } = useMemo(() => boardViews(tasks ?? []), [tasks]);
-  const view = useMemo(() => resolveBoardView(stored, tasks), [stored, tasks]);
+  // A missing agent's view marks no row: the pane asks for a new pick.
+  const { view } = useMemo(() => resolveBoardView(stored, tasks), [stored, tasks]);
   const row = (v: { view: BoardView; label: string; count: number }, lead: React.ReactNode) => (
     <ListRow key={v.view} lead={lead} title={v.label} time={tasks === null ? null : String(v.count)} current={view === v.view} label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`} onOpen={() => setView(v.view)} />
   );

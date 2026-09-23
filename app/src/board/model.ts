@@ -73,13 +73,18 @@ export function viewColumns(tasks: Task[], view: BoardView, now = Date.now()): C
 }
 
 /**
- * The view to show: an agent view whose agent no longer has a task on the board (its column lists no such
- * row) is the whole board. Null tasks are still loading, so the view stands until they arrive.
+ * The view to show, and the agent it names when that agent no longer has a task on the board (its column lists
+ * no such row): the view stands and the board asks for a new pick, rather than switching to the whole board
+ * behind your back. Null tasks are still loading, so nothing is missing until they arrive.
  */
-export function resolveBoardView(view: BoardView, tasks: Task[] | null, now = Date.now()): BoardView {
-  if (!tasks || !agentOf(view)) return view;
-  return boardViews(tasks, now).agents.some((a) => a.view === view) ? view : "all";
+export function resolveBoardView(view: BoardView, tasks: Task[] | null, now = Date.now()): { view: BoardView; missing: string | null } {
+  const agent = agentOf(view);
+  if (!tasks || agent === null) return { view, missing: null };
+  return { view, missing: boardViews(tasks, now).agents.some((a) => a.view === view) ? null : agent };
 }
+
+/** What the board says in place of a missing agent's list. */
+export const missingAgentLine = (agent: string): string => `${agent} isn't here any more — pick an agent`;
 
 /** A stored view read back; anything unknown is the whole board. */
 export function parseBoardView(raw: string | null | undefined): BoardView {

@@ -43,7 +43,7 @@ export const KEYMAP: Binding[] = [
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk", was: "was the desks tree: desks are in the sidebar now (⌘⇧D shows or hides it)" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
-  // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins).
+  // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
   { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
   { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", typing: true },
   { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
@@ -222,6 +222,15 @@ export function resolve(e: KeyboardEvent, segment: Segment): Binding | null {
   const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k)));
   const hit = (where: Where) => KEYMAP.find((b) => !b.note && b.where === where && b.keys.some((k) => live(b, k))) ?? null;
   return hit(segment) ?? hit("anywhere");
+}
+
+/**
+ * Where a view's own binding takes a key that works everywhere (resolve lets the view's win): ⌘⇧D is Deny in the
+ * inbox, not the sidebar. The keys sheet leaves such a key out of that view's "everywhere" group; Settings says it.
+ */
+export function takenBy(b: Binding, map: Binding[] = KEYMAP): Array<{ where: Where; key: string; id: string; label: string }> {
+  if (b.where !== "anywhere" || b.note) return [];
+  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : b.keys.filter((k) => o.keys.includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: o.label }))));
 }
 
 /** Bindings that share a key inside one scope — a mistake to catch in tests. */

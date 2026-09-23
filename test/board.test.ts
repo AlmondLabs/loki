@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { boardViews, columnsOf, dispatchMessage, filterTasks, parseBoardView, resolveBoardView, stepCursor, viewColumns, type Task } from "../app/src/board/model.ts";
+import { boardViews, columnsOf, dispatchMessage, filterTasks, missingAgentLine, parseBoardView, resolveBoardView, stepCursor, viewColumns, type Task } from "../app/src/board/model.ts";
 
 const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 2, labels: [], assignee: null, createdAt: "2026-09-06T10:00:00Z", updatedAt: "2026-09-06T10:00:00Z", closedAt: null, metadata: {}, ...over });
 const NOW = new Date("2026-09-06T12:00:00Z").getTime();
@@ -90,11 +90,17 @@ describe("board: views (the list column)", () => {
     expect(viewColumns(tasks, "agent:nobody", NOW)).toEqual([{ id: "agent", label: "nobody", tasks: [] }]);
   });
 
-  test("an agent view whose agent has no tasks on the board any more is the whole board; while the tasks load it stands", () => {
-    expect(resolveBoardView("agent:friday", tasks, NOW)).toBe("agent:friday");
-    expect(resolveBoardView("agent:nobody", tasks, NOW)).toBe("all");
-    expect(resolveBoardView("blocked", tasks, NOW)).toBe("blocked");
-    expect(resolveBoardView("agent:nobody", null, NOW)).toBe("agent:nobody");
+  test("an agent view whose agent has no tasks on the board any more says so and stands (no quiet switch to all); while the tasks load it stands", () => {
+    expect(resolveBoardView("agent:friday", tasks, NOW)).toEqual({ view: "agent:friday", missing: null });
+    expect(resolveBoardView("agent:nobody", tasks, NOW)).toEqual({ view: "agent:nobody", missing: "nobody" });
+    expect(resolveBoardView("agent:nobody", [], NOW)).toEqual({ view: "agent:nobody", missing: "nobody" });
+    expect(resolveBoardView("blocked", tasks, NOW)).toEqual({ view: "blocked", missing: null });
+    expect(resolveBoardView("all", [], NOW)).toEqual({ view: "all", missing: null });
+    expect(resolveBoardView("agent:nobody", null, NOW)).toEqual({ view: "agent:nobody", missing: null });
+  });
+
+  test("a missing agent's note names it and asks for a pick", () => {
+    expect(missingAgentLine("nobody")).toBe("nobody isn't here any more — pick an agent");
   });
 
   test("a stored view reads back, anything else is all", () => {

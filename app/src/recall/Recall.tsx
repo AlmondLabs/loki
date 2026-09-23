@@ -116,7 +116,7 @@ function RecallHeader({ recall }: { recall: RecallModel }) {
   const leads = snap?.leads.length ?? 0;
   return (
     <header style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
-      <Title page>learn</Title>
+      <Title page>Learn</Title>
       <Meta>
         {recall.due} due · {cards} card{cards === 1 ? "" : "s"}
         {leads ? ` · ${leads} lead${leads === 1 ? "" : "s"}` : ""}

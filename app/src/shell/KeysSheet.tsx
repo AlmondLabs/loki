@@ -1,5 +1,5 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
-import { KEYMAP, formatKeys, type Binding, type Segment, type Where } from "./keymap";
+import { KEYMAP, formatKeys, takenBy, type Binding, type Segment, type Where } from "./keymap";
 
 /**
  * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
@@ -54,10 +54,19 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
   );
 }
 
-/** The groups the sheet shows for a segment: the view's own bindings (the desk's include the chat box's), then "anywhere". */
+/**
+ * The groups the sheet shows for a segment: the view's own bindings (the desk's include the chat box's), then "anywhere"
+ * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar).
+ */
 export function keysFor(segment: Segment, map: Binding[] = KEYMAP): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
-  return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where) })).filter((g) => g.rows.length > 0);
+  const here = (b: Binding): Binding | null => {
+    if (b.where !== "anywhere") return b;
+    const taken = new Set(takenBy(b, map).filter((t) => wheres.includes(t.where)).map((t) => t.key));
+    const keys = b.keys.filter((k) => !taken.has(k));
+    return keys.length === 0 ? null : keys.length === b.keys.length ? b : { ...b, keys };
+  };
+  return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where).flatMap((b) => here(b) ?? []) })).filter((g) => g.rows.length > 0);
 }
 
 const TITLE: Partial<Record<Where, string>> = { anywhere: "Everywhere in loki", chat: "The message box", desk: "On the desk", inbox: "In the inbox", board: "On the board", learn: "In Learn", agents: "In Agents", settings: "In Settings" };

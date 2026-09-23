@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AgentChip } from "../desk/AgentChip";
+import { AgentChip, AgentFace } from "../desk/AgentChip";
 import type { DeskSummary } from "../desk/useDesk";
-import { Button, Chip, Field } from "../components";
-import { PRIORITY_LABEL, ago, columnOf, filterTasks, resolveBoardView, stepCursor, viewColumns, type Column, type ColumnId, type Dir, type Task } from "./model";
+import { Button, Chip, Field, ListIcon, ListRow, ListSection } from "../components";
+import { PRIORITY_LABEL, ago, boardViews, columnOf, filterTasks, missingAgentLine, resolveBoardView, stepCursor, viewColumns, type BoardView, type Column, type ColumnId, type Dir, type Task } from "./model";
 import { useBoardView } from "./useBoardView";
 import { registerActions, typingIn } from "../shell/keymap";
 
@@ -42,9 +42,9 @@ export function Board({
   active: boolean;
 }) {
   const [query, setQuery] = useState("");
-  const [stored] = useBoardView();
-  // A remembered agent view with nothing left for that agent is the whole board (the stored value stays until changed).
-  const view = useMemo(() => resolveBoardView(stored, tasks), [stored, tasks]);
+  const [stored, setView] = useBoardView();
+  // A remembered agent view with nothing left for that agent asks for a new pick; nothing is stored until one is made.
+  const { view, missing } = useMemo(() => resolveBoardView(stored, tasks), [stored, tasks]);
   const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
   const [cursorRaw, setCursor] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -53,7 +53,8 @@ export function Board({
   /** Set by a keyboard move: the next render focuses the cursor card. Data changes never steal focus. */
   const focusCursor = useRef(false);
 
-  const columns = useMemo(() => viewColumns(filterTasks(tasks ?? [], query), view), [tasks, query, view]);
+  // No cards while the picked agent is missing: the keys have nothing to act on until the new pick.
+  const columns = useMemo(() => (missing ? [] : viewColumns(filterTasks(tasks ?? [], query), view)), [tasks, query, view, missing]);
   const all = useMemo(() => columns.flatMap((c) => c.tasks), [columns]);
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all]);
   const deskTitle = useMemo(() => new Map(desks.map((d) => [d.scope, d.title ?? d.scope])), [desks]);
@@ -236,8 +237,9 @@ export function Board({
         </Button>
       </div>
 
+      {missing && <MissingAgent agent={missing} tasks={tasks ?? []} onPick={setView} />}
       {/* 168px columns: the four fit beside the list column in a 1100-wide window (1100 − rail − 260) without scrolling sideways. */}
-      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: columns.length > 1 ? `repeat(${columns.length}, minmax(168px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
+      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: missing ? "none" : "grid", gridTemplateColumns: columns.length > 1 ? `repeat(${columns.length}, minmax(168px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
         {columns.map((col) => (
           <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
             <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
@@ -286,6 +288,25 @@ export function Board({
           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
         )}
       </div>
+    </div>
+  );
+}
+
+/** In place of the columns when the remembered agent has gone: the agent's name, and the agents on the board to pick again (or all tasks). */
+function MissingAgent({ agent, tasks, onPick }: { agent: string; tasks: Task[]; onPick: (view: BoardView) => void }) {
+  const { views, agents } = useMemo(() => boardViews(tasks), [tasks]);
+  const all = views[0];
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 24px", display: "grid", alignContent: "start", gap: 12, width: 360, maxWidth: "100%" }}>
+      <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0 }}>
+        {missingAgentLine(agent)}
+      </p>
+      <ListSection title="Agents">
+        {agents.map((v) => (
+          <ListRow key={v.view} lead={<AgentFace name={v.label} src={null} size={20} />} title={v.label} time={String(v.count)} label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`} onOpen={() => onPick(v.view)} />
+        ))}
+        <ListRow lead={<ListIcon name="menu" />} title={all.label} time={String(all.count)} label={`${all.label}, ${all.count} task${all.count === 1 ? "" : "s"}`} onOpen={() => onPick("all")} />
+      </ListSection>
     </div>
   );
 }

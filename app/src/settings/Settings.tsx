@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { inTauri, modBase } from "../desk/env";
-import { KEYMAP, WHERE_ORDER, formatKeys, registerActions } from "../shell/keymap";
-import { Button, Chip, Dot, Field, IconButton, Meta, NavButton, Sheet, Switch, Title, sentence } from "../components";
+import { KEYMAP, WHERE_ORDER, formatKeys, registerActions, takenBy } from "../shell/keymap";
+import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { MIN_LETTA_CODE, TESTED_LETTA_CODE, UPGRADE_LINE, lettaStanding } from "../../../core/compat.ts";
@@ -20,6 +20,7 @@ import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../.
 import { within, type Range } from "../../../core/range.ts";
 import { ThemeChoice } from "./ThemeChoice";
 import { PAGES, SETTINGS_PAGE_KEY, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
+import { PageList } from "./PageList";
 import { useTheme } from "../theme";
 
 const HOME = "~/.letta/loki";
@@ -146,16 +147,11 @@ export function Settings({
   return (
     <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", flex: 1, minHeight: 0 }}>
       {/* One page at a time: the section list on the left, the page on the right. The page is remembered for the window. */}
-      <nav aria-label="Preferences sections" style={{ display: "grid", alignContent: "start", gap: 2, padding: "16px 10px", overflowY: "auto", borderRight: "1px solid var(--loki-border)" }}>
+      <nav aria-label="Preferences" style={{ display: "grid", alignContent: "start", gap: 2, padding: "16px 10px", overflowY: "auto", borderRight: "1px solid var(--loki-border)" }}>
         <h2 className="loki-title" style={{ margin: 0, padding: "4px 10px 12px" }}>
           Preferences
         </h2>
-        {PAGES.map((p) => (
-          <NavButton key={p.id} onClick={() => pick(p.id)} current={page === p.id}>
-            {pageTitle(p.id)}
-            {p.id === "phone" && phone.status?.enabled ? <Dot aria-label="on" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} /> : null}
-          </NavButton>
-        ))}
+        <PageList page={page} onPick={pick} extra={(p) => (p === "phone" && phone.status?.enabled ? <Dot aria-label="on" color="var(--loki-positive)" style={{ marginLeft: 8, verticalAlign: "middle" }} /> : null)} />
       </nav>
       <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0, background: "var(--loki-bg)" }}>
         <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 8, minHeight: 48, padding: "0 12px 0 28px", borderBottom: "1px solid var(--loki-border)" }}>
@@ -553,6 +549,9 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                 {b.label}
                 {b.typing ? "" : b.where === "inbox" || b.where === "desk" ? <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span> : null}
                 {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{b.was}</span>}
+                {takenBy(b).map((t) => (
+                  <span key={t.id} className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{`not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
+                ))}
               </td>
             </tr>
           ))}

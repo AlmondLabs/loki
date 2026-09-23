@@ -12,3 +12,10 @@ export function isSettingsPage(v: unknown): v is SettingsPage {
 
 /** The page Preferences opens on, kept for the window; ⌘K search sets it to open Preferences on a page. */
 export const SETTINGS_PAGE_KEY = "loki.settingsPage";
+
+/** The page an arrow key in the section list moves to (↑↓ wrap, Home, End), or null when the key is not the list's. */
+export function pageAfterKey(page: SettingsPage, key: string): SettingsPage | null {
+  const at = PAGES.findIndex((p) => p.id === page);
+  const to = key === "ArrowDown" ? at + 1 : key === "ArrowUp" ? at - 1 : key === "Home" ? 0 : key === "End" ? PAGES.length - 1 : null;
+  return to === null ? null : PAGES[(to + PAGES.length) % PAGES.length].id;
+}

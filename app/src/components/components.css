@@ -71,7 +71,8 @@
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 .loki-nav:hover { background: var(--loki-hover); color: var(--loki-fg); }
-.loki-nav[aria-current] { background: var(--loki-selection); border-color: var(--loki-control-border); color: var(--loki-fg); }
+.loki-nav[aria-current],
+.loki-nav[aria-selected="true"] { background: var(--loki-selection); border-color: var(--loki-control-border); color: var(--loki-fg); }
 
 /* ---- Chip ---------------------------------------------------------------------------------------- */
 .loki-chip {

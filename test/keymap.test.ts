@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { KEYMAP, conflicts, formatKeys, matches, menuSpec, resolve, tauriAccelerator, chordIds, dialogState, keySegment, shellKeyAllowed } from "../app/src/shell/keymap.ts";
+import { KEYMAP, conflicts, takenBy, formatKeys, matches, menuSpec, resolve, tauriAccelerator, chordIds, dialogState, keySegment, shellKeyAllowed } from "../app/src/shell/keymap.ts";
+import { keysFor } from "../app/src/shell/KeysSheet.tsx";
 
 const ev = (key: string, mods: Partial<{ meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }> = {}, typing = false) =>
   ({ key, metaKey: !!mods.meta, ctrlKey: !!mods.ctrl, shiftKey: !!mods.shift, altKey: !!mods.alt, target: typing ? { tagName: "TEXTAREA" } : { tagName: "DIV" } }) as unknown as KeyboardEvent;
@@ -80,6 +81,16 @@ describe("keymap: resolution", () => {
 });
 
 describe("keymap: presentation", () => {
+  test("⌘⇧D is listed where it does what it says: the sidebar outside the inbox, Deny in it", () => {
+    const toggle = KEYMAP.find((b) => b.id === "column.toggle")!;
+    expect(takenBy(toggle)).toEqual([{ where: "inbox", key: "cmd+shift+d", id: "inbox.deny", label: "Deny" }]);
+    // no other key that works everywhere is taken by a view
+    for (const b of KEYMAP.filter((b) => b.where === "anywhere" && b.id !== "column.toggle")) expect(takenBy(b)).toEqual([]);
+    const everywhere = (segment: Parameters<typeof keysFor>[0]) => keysFor(segment).find((g) => g.where === "anywhere")!.rows.map((b) => b.id);
+    expect(everywhere("inbox")).not.toContain("column.toggle");
+    expect(keysFor("inbox").find((g) => g.where === "inbox")!.rows.map((b) => b.id)).toContain("inbox.deny");
+    for (const s of ["desk", "board", "agents", "learn"] as const) expect(everywhere(s)).toContain("column.toggle");
+  });
   test("formats chords with Mac symbols", () => {
     expect(formatKeys("shift+/")).toBe("?");
     expect(formatKeys("cmd+shift+a")).toBe("⌘⇧A");
