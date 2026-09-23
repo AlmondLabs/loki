@@ -318,10 +318,11 @@ export const countText = (n: number): string => (n > 99 ? "99+" : String(n));
 
 /**
  * A row's state in words, for the screen reader and for anyone who cannot tell the red badge or the bold
- * title apart: "unread, 3 waiting, working". Empty when there is nothing to say.
+ * title apart: "unread, 3 waiting, working". A `note` says more than "unread" and takes its place ("viewed, not done").
+ * Empty when there is nothing to say.
  */
-export function rowStatus({ unread, badge, badgeNoun = "waiting", live }: { unread?: boolean; badge?: number | null; badgeNoun?: string; live?: boolean }): string {
-  return [unread && "unread", badge != null && badge > 0 && `${countText(badge)} ${badgeNoun}`, live && "working"].filter(Boolean).join(", ");
+export function rowStatus({ unread, badge, badgeNoun = "waiting", live, note }: { unread?: boolean; badge?: number | null; badgeNoun?: string; live?: boolean; note?: string }): string {
+  return [note || (unread && "unread"), badge != null && badge > 0 && `${countText(badge)} ${badgeNoun}`, live && "working"].filter(Boolean).join(", ");
 }
 
 /** An icon in the avatar's place: the # before a desk, the archive box. */
@@ -347,6 +348,8 @@ export interface ListRowProps {
   badgeNoun?: string;
   /** Bold title in full ink: something in it is new. */
   unread?: boolean;
+  /** Words for the row's reading that say more than "unread" and replace it (the desk sidebar: "viewed, not done"). */
+  note?: string;
   /** The agent is working: a green dot at the lead's corner (or before the title) and "working" in words. */
   live?: boolean;
   /** The row whose detail is open (aria-current="page"). */
@@ -371,9 +374,9 @@ export interface ListRowProps {
  * preview, and on the right the time or the red badge. The whole row is one button; `actions` sit beside
  * it, not inside, so they are their own tab stops. Goes inside a ListSection or a `<ul className="loki-list">`.
  */
-export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread = false, live = false, current = false, dim = false, flags, label, onOpen, onMenu, actions, launch }: ListRowProps) {
+export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread = false, note, live = false, current = false, dim = false, flags, label, onOpen, onMenu, actions, launch }: ListRowProps) {
   const count = badge != null && badge > 0 ? badge : null;
-  const status = rowStatus({ unread, badge: count, badgeNoun, live });
+  const status = rowStatus({ unread, badge: count, badgeNoun, live, note });
   const liveDot = live ? <span aria-hidden className="loki-list-row-live" /> : null;
   return (
     <li className="loki-list-item" data-dim={dim || undefined} data-current={current || undefined}>

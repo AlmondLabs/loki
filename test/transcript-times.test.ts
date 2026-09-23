@@ -5,7 +5,7 @@ import { Transcript } from "../app/src/chat/Transcript.tsx";
 import { applyEvent, beginCommand, emptyLive } from "../core/attention/model.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "../core/attention/transcript.ts";
 import { toTranscript } from "../core/harness.ts";
-import { clockLabel, dayPills, unreadBoundary } from "../app/src/shared/thread.ts";
+import { clockLabel, dayPills, holdMark, unreadBoundary } from "../app/src/shared/thread.ts";
 
 const rt = { agent_id: "a", conversation_id: "c" };
 const delta = (message_type: string, extra: Record<string, unknown> = {}) => ({ type: "stream_delta", runtime: rt, delta: { message_type, ...extra } });
@@ -125,6 +125,43 @@ describe("the New line", () => {
     // untimed history under timed live rows: nothing proves the old rows were read, so the turn rule stands
     const mixed: TranscriptRow[] = [{ role: "assistant", text: "a" }, { role: "user", text: "q" }, { role: "assistant", text: "b" }, { role: "assistant", text: "c", at: "2026-09-23T09:05:00Z" }];
     expect(unreadBoundary(mixed, true, seen)).toBe(2);
+  });
+});
+
+describe("the New line after a look", () => {
+  const seen = "2026-09-23T09:00:00Z";
+  const rows: TranscriptRow[] = [
+    { role: "user", text: "q", at: "2026-09-23T08:30:00Z" },
+    { role: "assistant", text: "a", at: "2026-09-23T09:02:00Z" },
+    { role: "assistant", text: "b", at: "2026-09-23T09:10:00Z" },
+    { role: "assistant", text: "c", at: "2026-09-23T09:20:00Z" },
+  ];
+  test("it sits before what came since the last look, when the look is newer than done", () => {
+    expect(unreadBoundary(rows, true, seen)).toBe(1);
+    expect(unreadBoundary(rows, true, seen, "2026-09-23T09:15:00Z")).toBe(3);
+    // looked at everything: no line, though it is not done
+    expect(unreadBoundary(rows, true, seen, "2026-09-23T09:30:00Z")).toBeNull();
+    // done is still the gate
+    expect(unreadBoundary(rows, false, seen, "2026-09-23T09:15:00Z")).toBeNull();
+  });
+  test("a look older than done, or none, leaves the done rule; untimed rows fall back to it too", () => {
+    expect(unreadBoundary(rows, true, seen, "2026-09-23T08:45:00Z")).toBe(1);
+    expect(unreadBoundary(rows, true, seen, null)).toBe(1);
+    expect(unreadBoundary(rows, true, null, "2026-09-23T09:15:00Z")).toBe(3);
+    const untimed: TranscriptRow[] = [{ role: "user", text: "q" }, { role: "assistant", text: "a" }];
+    expect(unreadBoundary(untimed, true, seen, "2026-09-23T09:15:00Z")).toBe(1);
+  });
+  test("holdMark: the look from before this open is held while the desk stays open, dropped when it closes", () => {
+    const open = holdMark(null, "a/c", { viewedAt: "2026-09-23T09:15:00Z" });
+    expect(open).toEqual({ key: "a/c", mark: "2026-09-23T09:15:00Z" });
+    // this open's own stamp arrives: the held mark does not move, so the line stays
+    expect(holdMark(open, "a/c", { viewedAt: "2026-09-23T09:40:00Z" })).toBe(open);
+    // the item blinks out on a reload: still held
+    expect(holdMark(open, "a/c", null)).toBe(open);
+    // closed, then another desk; nothing to hold before its item is known
+    expect(holdMark(open, null, { viewedAt: "x" })).toBeNull();
+    expect(holdMark(open, "a/d", null)).toBeNull();
+    expect(holdMark(open, "a/d", { viewedAt: null })).toEqual({ key: "a/d", mark: null });
   });
 });
 

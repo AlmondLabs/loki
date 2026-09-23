@@ -6,7 +6,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { ColumnHeader } from "./ListColumn";
-import { canArchive, canPin, canRename, loadSidebar, offscreenWaits, saveSidebar, sidebarModel, toggleFold, type SidebarPref, type SidebarRow } from "./sidebarModel";
+import { canArchive, canPin, canRename, doneAction, loadSidebar, offscreenWaits, saveSidebar, sidebarModel, toggleFold, type SidebarPref, type SidebarRow } from "./sidebarModel";
 import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/RenameDesk";
 import "./deskSidebar.css";
@@ -39,6 +39,8 @@ export interface DeskSidebarProps {
   onArchive: (desk: DeskSummary, archived: boolean) => void;
   /** Save a new name; resolves to the app-server's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
+  /** Done by hand, the Inbox's clear (true) and its undo (false); left out, the menu has neither. */
+  onDone?: (item: AttentionItem, done: boolean) => void;
   /** An agent's face (desk/env avatarUrl); a prop so the list renders without a window. */
   avatar: (agentId: string) => string | null;
 }
@@ -49,7 +51,7 @@ export interface DeskSidebarProps {
  * desk; hover buttons and the row's context menu pin and archive. When a desk that needs you is scrolled
  * out of sight, a pill at that edge says so and brings it into view. Folds and scroll outlive restarts.
  */
-export function DeskSidebar({ desks, agents, items, current, connected, onOpen, onNew, onPin, onArchive, onRename, avatar }: DeskSidebarProps) {
+export function DeskSidebar({ desks, agents, items, current, connected, onOpen, onNew, onPin, onArchive, onRename, onDone, avatar }: DeskSidebarProps) {
   const [query, setQuery] = useState("");
   const [pref, setPref] = useState<SidebarPref>(() => {
     const s = store();
@@ -152,10 +154,20 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
         key={d.scope}
         lead={r.main && !inPinned ? <AgentFace name={d.agentName} src={d.agentId ? avatar(d.agentId) : null} size={20} /> : <ListIcon name={d.status === "live" ? "desk" : "archive"} />}
         title={name}
-        flags={d.pinned && !inPinned ? <Icon name="pin" size={12} title="pinned" /> : undefined}
+        flags={
+          d.pinned && !inPinned ? (
+            <>
+              <Icon name="pin" size={12} title="pinned" />
+              {r.note && <FinishedRing note={r.note} />}
+            </>
+          ) : r.note ? (
+            <FinishedRing note={r.note} />
+          ) : undefined
+        }
         badge={r.badge}
         badgeNoun={r.badgeNoun}
         unread={r.unread}
+        note={r.note}
         live={r.live}
         current={r.current}
         dim={d.status !== "live"}
@@ -295,14 +307,22 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           </button>
         )}
       </div>
-      {menu && <RowMenu {...menu} connected={connected} onClose={() => setMenu(null)} onOpen={onOpen} onPin={onPin} onArchive={onArchive} onRename={setRenaming} />}
+      {menu && <RowMenu {...menu} item={items.find((i) => i.agentId === menu.desk.agentId && i.id === menu.desk.conversationId) ?? null} connected={connected} onClose={() => setMenu(null)} onOpen={onOpen} onPin={onPin} onArchive={onArchive} onRename={setRenaming} onDone={onDone} />}
       {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
     </>
   );
 }
 
-/** A row's context menu at the pointer: open, rename, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
-function RowMenu({ desk: d, x, y, connected, onClose, onOpen, onPin, onArchive, onRename }: { desk: DeskSummary; x: number; y: number; connected: boolean; onClose: () => void; onRename: (d: DeskSummary) => void } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive">) {
+/**
+ * A finished desk's ring after its name (deskMark's "finished, unread"): it stays through a look and goes when
+ * the desk is done. Its words are the row's too (ListRow's note), so the ring itself is hidden from the reader.
+ */
+function FinishedRing({ note }: { note: string }) {
+  return <span aria-hidden className="loki-sidebar-ring" title={note} />;
+}
+
+/** A row's context menu at the pointer: open, mark done or not done, rename, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
+function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArchive, onRename, onDone }: { desk: DeskSummary; item: AttentionItem | null; x: number; y: number; connected: boolean; onClose: () => void; onRename: (d: DeskSummary) => void } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -325,13 +345,14 @@ function RowMenu({ desk: d, x, y, connected, onClose, onOpen, onPin, onArchive, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const archived = d.status === "archived";
+  const done = doneAction(item);
   const pick = (fn: () => void) => () => {
     onClose();
     fn();
   };
   // Kept inside the window: a menu opened near the right or bottom edge moves in.
   const left = Math.min(x, (typeof window === "undefined" ? x : window.innerWidth) - 228);
-  const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 164);
+  const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 204);
   return (
     <div
       ref={ref}
@@ -353,6 +374,11 @@ function RowMenu({ desk: d, x, y, connected, onClose, onOpen, onPin, onArchive, 
       <Row dense role="menuitem" onClick={pick(() => onOpen(d.scope))}>
         Open
       </Row>
+      {onDone && item && done && (
+        <Row dense role="menuitem" onClick={pick(() => onDone(item, done === "done"))}>
+          {done === "done" ? "Mark as done" : "Mark as not done"}
+        </Row>
+      )}
       {canRename(d) && (
         <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_RENAME_REASON} onClick={pick(() => onRename(d))}>
           Rename…
@@ -391,6 +417,7 @@ export function DeskSidebarView({ desk, catchUp, notice, onOpen, onNew }: { desk
         if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
       }}
       onRename={renameDesk(desk, catchUp, notice)}
+      onDone={(item, done) => (done ? catchUp.seen(item) : catchUp.unread(item))}
       onArchive={(d, archived) => {
         if (!d.conversationId) return;
         void catchUp.archiveConversation(d.conversationId, archived).then((err) => {

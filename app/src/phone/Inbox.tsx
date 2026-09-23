@@ -574,7 +574,7 @@ function CardConversation({ item, view, banner, card, onHold }: { item: Attentio
   const [draft, setDraft] = useDraft(draftKey(item.agentId, item.id));
   const agentName = item.agentName ?? "the agent";
   const people = useMemo(() => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }), [item.agentName, item.agentId]);
-  const dividerAt = unreadBoundary(view.rows, item.unread, item.seenAt);
+  const dividerAt = unreadBoundary(view.rows, item.unread, item.seenAt, item.viewedAt);
   const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt) }), [people, dividerAt, item.lastMessageAt]);
   const question = view.question ?? null;
   const approval = view.pending ?? item.pendingApproval;

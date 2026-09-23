@@ -89,6 +89,7 @@ export function useDesk() {
     setModes,
     appServer,
     seenMap,
+    viewedMap,
     snoozeMap,
     ladder,
     tasksVersion,
@@ -283,6 +284,9 @@ export function useDesk() {
     snooze: snoozeMap,
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
+    /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */
+    viewed: viewedMap,
+    markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
     setSnooze: (agentId: string, conversationId: string, rec: Snooze) => send({ type: "snooze_set", agentId, conversationId, ...rec }),
     /** How long "later" hides a card, and the setter (Settings › inbox): the mod clamps and broadcasts. */
     ladder,

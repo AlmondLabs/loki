@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../board/model";
 import { AgentFace } from "../desk/AgentChip";
@@ -309,6 +309,8 @@ export function deskName(d: DeskSummary): string {
 export function DeskRow({ desk: d, mark, onActions }: { desk: DeskSummary; mark: AttentionItem | undefined; onActions: (() => void) | null }) {
   const m = deskMark(mark, d.status);
   const fresh = m.kind === "waits" || m.kind === "finished" || m.kind === "failed";
+  // A look (on either device) un-bolds a finished desk; its dot stays until it is done, as the desktop sidebar's ring does.
+  const looked = m.kind === "finished" && !!mark && !unviewed(mark);
   const doing = m.kind === "running" ? "running…" : m.kind === "waits" || m.kind === "failed" ? BADGE[mark!.status].label : null;
   const said = doing ?? snippet(mark?.lastAssistantText) ?? (d.status !== "live" ? d.status : null);
   const name = deskName(d);
@@ -320,9 +322,9 @@ export function DeskRow({ desk: d, mark, onActions }: { desk: DeskSummary; mark:
       preview={said ? `${d.agentName ?? "agent"} · ${said}` : (d.agentName ?? "agent")}
       time={ago(d.lastActive)}
       badge={fresh}
-      unread={fresh}
+      unread={fresh && !looked}
       dim={d.status !== "live"}
-      label={`${name}, ${d.agentName ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${m.title}` : ""}`}
+      label={`${name}, ${d.agentName ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${looked ? "viewed, not done" : m.title}` : ""}`}
       launch={`desk:${d.scope}`}
       onOpen={() => openDesk(d)}
       onActions={onActions}

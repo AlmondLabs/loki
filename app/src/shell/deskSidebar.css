@@ -40,3 +40,5 @@
   border-radius: var(--loki-radius-lg);
   box-shadow: var(--loki-shadow-float);
 }
+/* A finished desk's ring after its name: bold with it is new since your last look, the ring alone is looked at but not done. */
+.loki-sidebar-ring { flex: none; width: 7px; height: 7px; box-sizing: border-box; margin-left: 2px; border: 1.5px solid var(--loki-fg); border-radius: var(--loki-radius-pill); }

@@ -6,7 +6,7 @@ import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/Conversation";
 import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
 import type { ModelEntry } from "../chat/ModelPicker";
-import { runAction } from "../shell/keymap";
+import { registerActions, runAction } from "../shell/keymap";
 import type { useAttention } from "../../../core/attention/useAttention.ts";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
@@ -16,7 +16,9 @@ import { useDeskChat } from "./useDeskChat";
 import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
 import { widgetMarks } from "./widgetRows";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "./RenameDesk";
-import { canRename } from "../shell/sidebarModel";
+import { canRename, doneAction } from "../shell/sidebarModel";
+import { useViewed } from "../shared/useViewed";
+import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
 
 const TABS: readonly Tab<DeskTab>[] = [
@@ -89,7 +91,12 @@ export function DeskPane(props: DeskPaneProps) {
   const { view, actions } = deskConversation(desk, catchUp, chat, props);
   const item = catchUp.items.find((i) => i.runtime.agent_id === agentId && i.runtime.conversation_id === conversationId) ?? null;
   const people = useMemo(() => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }), [agentName, agentId]);
-  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt);
+  // Viewed, not done: the thread on screen (Messages, or the Desk tab's open chat) looks at each new message once;
+  // the New line goes before what came since the look held from before this open.
+  const looking = visible === "messages" || (visible === "inset" && chatOpen);
+  const heldLook = useViewed(agentId && conversationId ? keyOf(agentId, conversationId) : null, item, looking, attention.markViewed);
+  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
+  useDoneKey(active, item, catchUp);
   // The desk's widget changes among the messages, by time (R15). The compiler caches the handlers below on the
   // desk and onTab, but not this (view comes from a plain function), so a hook keeps it stable while you type.
   const widgets = useWidgetMarks(view.rows, desk.widgetLog, agentName);
@@ -128,7 +135,7 @@ export function DeskPane(props: DeskPaneProps) {
             )}
           </span>
         }
-        actions={<DeskActions desk={desk} catchUp={catchUp} summary={summary} tab={tab} notice={notice} />}
+        actions={<DeskActions desk={desk} catchUp={catchUp} item={item} summary={summary} tab={tab} notice={notice} />}
         tabs={TABS}
         tab={tab}
         onTab={onTab}
@@ -196,12 +203,34 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
 /** A line of the header's menu: a keymap action (run through runAction, its key shown), or the rename dialog. */
 type MenuItem = { id: string; label: string; keys?: string; disabled?: boolean; title?: string };
 const RENAME = "desk.rename";
+const DONE = "desk.done";
+const UNDONE = "desk.undone";
+
+/** Done by hand, the Inbox's own paths: Mark as done clears it (seen_mark), Mark as not done puts it back (seen_unmark). */
+function markDone(catchUp: ReturnType<typeof useAttention>, item: AttentionItem | null, done: boolean) {
+  if (!item || doneAction(item) !== (done ? "done" : "undone")) return;
+  if (done) catchUp.seen(item);
+  else catchUp.unread(item);
+}
+
+/** ⌘⇧↵ (desk.done) marks the open desk done while the Desk section shows. Registered once per showing; the item is read through a ref. */
+function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: ReturnType<typeof useAttention>) {
+  const ref = useRef({ item, catchUp });
+  useEffect(() => {
+    ref.current = { item, catchUp };
+  });
+  useEffect(() => {
+    if (!active) return;
+    return registerActions({ [DONE]: () => markDone(ref.current.catchUp, ref.current.item, true) });
+  }, [active]);
+}
 
 /**
  * The header's actions: pin / unpin and archive / restore (what the sidebar offers on a row), then a menu:
- * rename first, then the rest of what the desk does today, each through its keymap action so the key and the menu agree.
+ * Mark as done or not done first (the Inbox's clear and undo), rename, then the rest of what the desk does today, each through
+ * its keymap action so the key and the menu agree.
  */
-function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType<typeof useDesk>; catchUp: ReturnType<typeof useAttention>; summary: ReturnType<typeof useDesk>["desks"]["list"][number] | null; tab: DeskTab; notice: (m: string) => void }) {
+function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: ReturnType<typeof useDesk>; catchUp: ReturnType<typeof useAttention>; item: AttentionItem | null; summary: ReturnType<typeof useDesk>["desks"]["list"][number] | null; tab: DeskTab; notice: (m: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const { agentId, conversationId } = desk;
@@ -217,7 +246,9 @@ function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType
       desk.desks.request();
     });
   };
+  const done = doneAction(item);
   const items: MenuItem[] = [
+    ...(done === "done" ? [{ id: DONE, label: "Mark as done", keys: "⌘⇧↵" }] : done === "undone" ? [{ id: UNDONE, label: "Mark as not done" }] : []),
     ...(summary && canRename(summary) ? [{ id: RENAME, label: "Rename…", disabled: !connected, title: connected ? undefined : NO_RENAME_REASON }] : []),
     { id: "chat.find", label: "Find in conversation…", keys: "⌘F" },
     { id: "chat.model", label: "Change model…", keys: "⌘⇧M" },
@@ -253,6 +284,7 @@ function DeskActions({ desk, catchUp, summary, tab, notice }: { desk: ReturnType
             onPick={(id) => {
               setMenuOpen(false);
               if (id === RENAME) setRenaming(true);
+              else if (id === DONE || id === UNDONE) markDone(catchUp, item, id === DONE);
               else runAction(id);
             }}
             onClose={() => setMenuOpen(false)}

@@ -57,6 +57,7 @@ const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => (
   error: null,
   seenAt: null,
   unread: true,
+  viewedAt: null,
   lastAsk: null,
   score: 0,
   reason: "report",

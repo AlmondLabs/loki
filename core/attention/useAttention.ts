@@ -26,6 +26,8 @@ export interface UseAttentionOptions {
   /** How to reach the app-server from here: a WebSocket in a tab or on the phone, the Rust link in the shell. */
   makeTransport: MakeTransport;
   seen: Record<string, string>;
+  /** When each conversation was last looked at (the mod's viewed markers); a look is not done. */
+  viewed?: Record<string, string>;
   snooze: Record<string, Snooze>;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
@@ -205,8 +207,8 @@ export function useAttention(opts: UseAttentionOptions) {
     return () => clearInterval(t);
   }, []);
   const items = useMemo(
-    () => buildItems(conversations, digests, live, opts.seen, now).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
-    [conversations, digests, opts.seen, opts.snooze, live, now],
+    () => buildItems(conversations, digests, live, opts.seen, now, opts.viewed).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
+    [conversations, digests, opts.seen, opts.viewed, opts.snooze, live, now],
   );
 
   // The app-server only lists what is still in the agent's context, so a compacted

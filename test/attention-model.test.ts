@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, beginCommand, buildItems, cancelQueued, chatStatusOf, commandIdOf, commandRunning, emptyLive, finishCommand, keyOf, settleCommands, takeQueued, type ConversationInfo } from "../core/attention/model.ts";
+import { applyEvent, beginCommand, buildItems, cancelQueued, chatStatusOf, commandIdOf, commandRunning, emptyLive, finishCommand, keyOf, settleCommands, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
 import { toTranscript } from "../core/harness.ts";
 
 const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
@@ -223,5 +223,38 @@ describe("slash command rows", () => {
     expect(l.tail[1].summary).toBe("failed");
     expect(l.tail[1].detail).toMatch(/link.*dropped/);
     expect(settleCommands(l)).toBe(false);
+  });
+});
+
+describe("viewed, apart from done", () => {
+  const conv: ConversationInfo = { id: "c", agentId: "a", agentName: "ira", title: "C", lastMessageAt: "2026-09-05T08:00:00Z", archived: false };
+  const digests = new Map([[keyOf("a", "c"), { lastRole: "assistant" as const, lastAssistantText: "Finished.", lastAsk: null }]]);
+  const now = new Date("2026-09-05T10:00:00Z").getTime();
+
+  test("buildItems carries the look; a look does not make the item read", () => {
+    const [i] = buildItems([conv], digests, new Map(), {}, now, { [keyOf("a", "c")]: "2026-09-05T09:00:00Z" });
+    expect(i.viewedAt).toBe("2026-09-05T09:00:00Z");
+    expect(i.unread).toBe(true);
+    expect(i.status).toBe("done");
+    expect(buildItems([conv], digests, new Map(), {}, now)[0].viewedAt).toBeNull();
+  });
+
+  test("unviewed: unread with something newer than the last look", () => {
+    const base = { unread: true, lastMessageAt: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
+    expect(unviewed(base)).toBe(true);
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T07:59:59Z" })).toBe(true);
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00Z" })).toBe(false);
+    expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00.000+00:00" })).toBe(false); // times compared as instants
+    expect(unviewed({ ...base, unread: false })).toBe(false);
+    expect(unviewed({ ...base, lastMessageAt: null, viewedAt: "2026-09-05T08:00:00Z" })).toBe(true); // nothing to compare: still new
+  });
+
+  test("viewStamp: one look per new last message, only while it is unread and unviewed", () => {
+    const base = { agentId: "a", id: "c", unread: true, lastMessageAt: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
+    expect(viewStamp(base)).toBe("a/c@2026-09-05T08:00:00Z");
+    expect(viewStamp({ ...base, viewedAt: "2026-09-05T09:00:00Z" })).toBeNull();
+    expect(viewStamp({ ...base, unread: false })).toBeNull();
+    expect(viewStamp({ ...base, lastMessageAt: null })).toBeNull();
+    expect(viewStamp(null)).toBeNull();
   });
 });

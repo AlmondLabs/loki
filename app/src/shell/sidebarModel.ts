@@ -1,4 +1,4 @@
-import type { AttentionItem } from "../../../core/attention/model.ts";
+import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { DeskSummary } from "../desk/useDesk";
 
 /**
@@ -46,20 +46,39 @@ export function cleanDeskName(raw: string): string | null {
 /** A live desk with an agent and a conversation can be pinned. */
 export const canPin = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status === "live";
 
-/** What a row shows: the red badge (one per waiting conversation), the bold title, the live dot. */
+/**
+ * What a row shows: the red badge (one per waiting conversation), the bold title, the live dot, and for a
+ * finished desk its ring with the words for it. Bold + ring: new since you last looked; ring alone: looked
+ * at, not done; neither: done.
+ */
 export interface RowState {
   kind: MarkKind;
   badge: number | null;
   badgeNoun?: string;
   unread: boolean;
   live: boolean;
+  /** A finished desk's reading, in words: "new messages" or "viewed, not done". */
+  note?: string;
 }
 
 export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): RowState {
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
-  // Waiting is news too, so its title goes bold beside the badge, as the old tree's did.
-  return { kind: mark.kind, badge: waits ? 1 : null, badgeNoun: waits ? mark.title : undefined, unread: waits || mark.kind === "finished", live: mark.kind === "running" };
+  const finished = mark.kind === "finished";
+  // A look un-bolds a finished desk (it stays not done: the ring); waiting is news until you act, so it stays bold beside its badge.
+  const fresh = finished && !!item && unviewed(item);
+  return { kind: mark.kind, badge: waits ? 1 : null, badgeNoun: waits ? mark.title : undefined, unread: waits || fresh, live: mark.kind === "running", note: finished ? (fresh ? "new messages" : "viewed, not done") : undefined };
+}
+
+/**
+ * Done, by hand: "done" offers Mark as done (the Inbox's clear, seen_mark) while the conversation is unread;
+ * "undone" offers Mark as not done (the Inbox's undo, seen_unmark) once it is done and the last word was the
+ * agent's (with yours last there is nothing to be not done with). An approval clears only by its decision.
+ */
+export function doneAction(item: AttentionItem | undefined | null): "done" | "undone" | null {
+  if (!item || item.pendingApproval) return null;
+  if (item.unread) return "done";
+  return item.lastRole === "assistant" && !!item.lastMessageAt ? "undone" : null;
 }
 
 export interface SidebarRow extends RowState {

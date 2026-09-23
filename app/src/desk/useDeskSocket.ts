@@ -52,6 +52,8 @@ export function useDeskSocket() {
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   const [appServer, setAppServer] = useState(false);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
+  /** When each conversation was last looked at: apart from seen, which is "done". */
+  const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
   /** How long "later" hides a card (Settings › inbox); the mod keeps it beside the markers. */
   const [ladder, setLadder] = useState<SnoozeLadder>(DEFAULT_LADDER);
@@ -214,6 +216,8 @@ export function useDeskSocket() {
           }
           case "seen":
             setSeenMap((msg.seen as Record<string, string>) ?? {});
+            // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
+            if (msg.viewed && typeof msg.viewed === "object") setViewedMap(msg.viewed as Record<string, string>);
             setSnoozeMap((msg.snooze as Record<string, Snooze>) ?? {});
             {
               // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
@@ -294,6 +298,7 @@ export function useDeskSocket() {
     setModes,
     appServer,
     seenMap,
+    viewedMap,
     snoozeMap,
     ladder,
     tasksVersion,

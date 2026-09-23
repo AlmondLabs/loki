@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Runtime } from "../../../core/attention/protocol.ts";
-import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
+import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
@@ -8,11 +8,15 @@ import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
 import { dayLabel, threadNotice, unreadBoundary } from "./deck";
 import { SheetRow } from "./Home";
+import { useViewed } from "../shared/useViewed";
+import { doneAction } from "../shell/sidebarModel";
 import { Icon } from "./icons";
 import { threadLine } from "./model";
 import { navigate } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "./session";
+
+const noop = () => {};
 
 /** The conversation a card opened; kept apart from the item so the screen survives the card clearing. */
 export interface Thread {
@@ -60,12 +64,14 @@ export function ConversationScreen({
   onAnswer,
   onSend,
   onSeen,
+  onNotDone,
+  onViewed,
 }: {
   thread: Thread;
   view: ThreadView;
   /** The conversation's Inbox item, when it has one: its unread boundary, last message day and notice. */
   item?: AttentionItem | null;
-  /** The card is still actionable: offer Mark as Read. */
+  /** The card is still actionable: offer Mark as done. */
   waiting: boolean;
   /** "Mac unreachable · last seen …": takes the notice's place, over the box, so the thread stays readable. */
   banner?: ReactNode;
@@ -81,7 +87,12 @@ export function ConversationScreen({
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
   onSend: (rt: Runtime, text: string, images: ImageAttachment[], desk: string | null) => void;
+  /** Done: the Inbox's clear (seen_mark). */
   onSeen: (rt: Runtime) => void;
+  /** Not done: the Inbox's undo (seen_unmark); left out, the sheet does not offer it. */
+  onNotDone?: (item: AttentionItem) => void;
+  /** A look, not done (viewed_mark): sent on open and for each new message while the screen is up. */
+  onViewed?: (agentId: string, conversationId: string) => void;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
@@ -94,7 +105,9 @@ export function ConversationScreen({
 
   const agentName = thread.agentName ?? "the agent";
   const people = useMemo(() => ({ assistant: { name: thread.agentName ?? "agent", avatar: avatarUrl(thread.agentId) }, user: { name: "You" } }), [thread.agentName, thread.agentId]);
-  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt);
+  // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
+  const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
+  const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
   const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt) }), [people, dividerAt, item?.lastMessageAt]);
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
@@ -105,6 +118,7 @@ export function ConversationScreen({
       </div>
     ));
   const canSee = waiting && !view.pending;
+  const canUndo = !!onNotDone && !!item && doneAction(item) === "undone";
 
   return (
     <>
@@ -134,7 +148,8 @@ export function ConversationScreen({
       {actionsOpen && (
         <Sheet label={`${thread.title ?? agentName} actions`} onClose={() => setActionsOpen(false)} placement="bottom" className="loki-phone-sheet">
           <ul className="loki-phone-list">
-            {canSee && <SheetRow icon="check" label="Mark as Read" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
+            {canSee && <SheetRow icon="check" label="Mark as done" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
+            {canUndo && <SheetRow icon="history" label="Mark as not done" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
             {pinned !== null && onPin && <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />}
             <SheetRow icon="person" label={`${thread.agentName ?? "Agent"}'s profile`} onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))} />
           </ul>

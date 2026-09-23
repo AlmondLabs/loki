@@ -17,6 +17,9 @@ describe("list row words", () => {
     expect(rowStatus({ badge: 1, badgeNoun: "needs you" })).toBe("1 needs you");
     expect(rowStatus({ badge: 0 })).toBe("");
     expect(rowStatus({})).toBe("");
+    // a note says more than "unread" (the desk sidebar: "new messages", "viewed, not done")
+    expect(rowStatus({ unread: true, note: "new messages", badge: 1 })).toBe("new messages, 1 waiting");
+    expect(rowStatus({ unread: false, note: "viewed, not done" })).toBe("viewed, not done");
   });
 });
 

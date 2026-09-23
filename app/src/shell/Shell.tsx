@@ -74,6 +74,7 @@ export function Shell() {
     tunnelUrl: attention.tunnelUrl,
     makeTransport,
     seen: attention.seen,
+    viewed: attention.viewed,
     snooze: attention.snooze,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,

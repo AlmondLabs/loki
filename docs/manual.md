@@ -99,7 +99,14 @@ wide starts with it hidden.
 
 - **Desk** (⌘1): the sidebar lists your desks — **Pinned** first, then one section per agent (each folds, each
   with a "+" for a new desk with that agent), then **Archived**, folded. A desk's name goes bold when its agent
-  wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. "Find a
+  wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. A finished
+  desk also carries a small ring after its name until it is **done**. Looking is not done: opening a desk (or
+  having it open, the window in front, when a message arrives) marks it **viewed**, which drops the bold and
+  keeps the ring and its Inbox card, so bold + ring is new since you looked, the ring alone is viewed but not
+  done, and neither is done. Done is what the Inbox's → does, a reply, an approval or an answer; by hand it is
+  **Mark as done** (⌘⇧↵ on the open desk, or the row's right-click menu, or the desk header's ⋯ menu), and
+  **Mark as not done** in the same menus puts the ring and the Inbox card back (the bold stays off: you have
+  seen it). Viewed and done are kept by the mod, so the phone and the Mac agree on both. "Find a
   desk…" at the top filters by desk or agent name (↓ into the list, ↑↓ between desks, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename and restore. **Rename…** (also in
   the desk header's ⋯ menu) opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
@@ -111,7 +118,8 @@ wide starts with it hidden.
   with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (rename, find, model, permission mode,
   new desk, and on the Desk tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
-  day, a red **New** line where you stopped reading, a copy button on hover, and a line each time the agent
+  day, a red **New** line before what came since you last looked (it stays put while the desk is open, as
+  Slack's does, and moves on the next open), a copy button on hover, and a line each time the agent
   adds, changes or removes a widget ("friday added Revenue chart"). Click that line and the **Desk** tab opens
   framed on the widget. The Desk tab is the sheet edge to edge with the chat over it, the sidebar hidden, the
   rail kept: the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
@@ -178,7 +186,10 @@ icon and type the six-character code once (a home-screen app has its own cookie 
 Settings is asked for one more time; it stays valid ten minutes). From then on the icon opens straight into the
 inbox: the same cards as Catch Up in the same order (highest score first, see "The order") — each with
 approve / deny / answer / seen / later, and a tap opens the conversation with the transcript, the approval or
-question card, and a reply box. No desks, board or agents on the phone.
+question card, and a reply box. Opening a conversation marks it viewed, not done, as on the Mac: a desk's name
+on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
+came since your last look on either device. The conversation's actions sheet has **Mark as done** and, once
+done, **Mark as not done**. No desks, board or agents on the phone.
 
 The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office

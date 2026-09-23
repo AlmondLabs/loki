@@ -170,3 +170,15 @@ describe("keymap: Preferences over the shell (KTD11)", () => {
     expect(keySegment("board", "none")).toBe("board");
   });
 });
+
+describe("keymap: Mark as done", () => {
+  test("⌘⇧↵ marks the open desk done, from the message box too; it is taken by nothing else, and ⌘↵ stays Approve and Dispatch", () => {
+    expect(chordIds(ev("Enter", { meta: true, shift: true }))).toEqual(["desk.done"]);
+    expect(resolve(ev("Enter", { meta: true, shift: true }), "desk")?.id).toBe("desk.done");
+    expect(resolve(ev("Enter", { meta: true, shift: true }, true), "desk")?.id).toBe("desk.done");
+    expect(resolve(ev("Enter", { meta: true, shift: true }, true), "inbox")).toBeNull();
+    expect(resolve(ev("Enter", { meta: true }, true), "inbox")?.id).toBe("inbox.approve");
+    expect(resolve(ev("Enter", { shift: true }, true), "desk")).toBeNull(); // the box's new line
+    expect(tauriAccelerator("cmd+shift+enter")).toBe("CmdOrCtrl+Shift+Enter");
+  });
+});

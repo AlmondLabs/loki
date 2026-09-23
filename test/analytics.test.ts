@@ -181,13 +181,14 @@ describe("analytics: through the bridge", () => {
 
   test("the inbox frames the mod already handles become events", () => {
     const recorded: string[] = [];
-    const seen = { mark() {}, unmark() {}, setSnooze() {}, clearSnooze() {}, all: () => ({}), snoozes: () => ({}), ladder: () => ({ firstMinutes: 30, growth: 2 }), setLadder() {} };
+    const seen = { mark() {}, unmark() {}, view() {}, setSnooze() {}, clearSnooze() {}, all: () => ({}), viewedAll: () => ({}), snoozes: () => ({}), ladder: () => ({ firstMinutes: 30, growth: 2 }), setLadder() {} };
     const bridge = createBridge({ store: new DeskStore(), widgets, gestures: new GestureLog(), broadcast: () => {}, seen: seen as never, capture: (_c, event, properties) => recorded.push(properties ? `${event} ${JSON.stringify(properties)}` : event) });
     const c = client("c1", "dev-1");
     bridge.onMessage(c, { type: "seen_mark", agentId: "a", conversationId: "x" });
     bridge.onMessage(c, { type: "snooze_set", agentId: "a", conversationId: "x", skips: 2, until: "2026-09-22T13:00:00Z", stamp: "s", at: "2026-09-22T12:00:00Z" });
     bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" });
     bridge.onMessage(c, { type: "snooze_clear", agentId: "a", conversationId: "x" });
+    bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" }); // a look is not a decision: no event
     expect(recorded).toEqual(["conversation_marked_seen", 'card_deferred {"skips":2}', "conversation_kept_unread", "deferral_cleared"]);
   });
 });

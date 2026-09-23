@@ -112,6 +112,8 @@ export interface AttentionItem extends ConversationInfo {
   error: string | null;
   seenAt: string | null;
   unread: boolean;
+  /** When you last looked at it (the mod's viewed marker): a look is not done, so it never clears `unread`. */
+  viewedAt: string | null;
   /** Who sent the last message into the conversation (live if seen, else from the log); null when unknown. */
   lastAsk: AskedBy | null;
   /** The card's place in the list, stamped by buildItems at one instant for every item (priority.ts). */
@@ -364,6 +366,27 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
   }
 }
 
+const instant = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Number.NaN);
+
+/**
+ * Something came since you last looked: unread (not done) with a last message newer than the last look.
+ * With no time to compare, it stays new. The desk sidebar's bold follows this; the Inbox follows `unread`.
+ */
+export function unviewed(item: Pick<AttentionItem, "unread" | "lastMessageAt" | "viewedAt">): boolean {
+  if (!item.unread) return false;
+  const last = instant(item.lastMessageAt), looked = instant(item.viewedAt);
+  return !(Number.isFinite(last) && Number.isFinite(looked) && looked >= last);
+}
+
+/**
+ * The look to send while a conversation is open on screen, as a stamp ("<key>@<last message time>") so a
+ * host sends one viewed_mark per new last message; null when there is nothing new to look at.
+ */
+export function viewStamp(item: Pick<AttentionItem, "agentId" | "id" | "unread" | "lastMessageAt" | "viewedAt"> | null | undefined): string | null {
+  if (!item?.lastMessageAt || !unviewed(item)) return null;
+  return `${keyOf(item.agentId, item.id)}@${item.lastMessageAt}`;
+}
+
 /**
  * Combine everything into the item list, each item stamped with its score and reason at `now` and the
  * list ordered highest first (priority.ts): blocked agents, then warm replies to you, then colder ones,
@@ -375,6 +398,7 @@ export function buildItems(
   live: Map<string, Live>,
   seen: Record<string, string>,
   now = Date.now(),
+  viewed: Record<string, string> = {},
 ): AttentionItem[] {
   const out: Unscored[] = [];
   for (const c of conversations) {
@@ -405,6 +429,7 @@ export function buildItems(
       error: l?.error ?? null,
       seenAt,
       unread,
+      viewedAt: viewed[key] ?? null,
       lastAsk: l?.lastAsk ?? d?.lastAsk ?? null,
       runtime: { agent_id: c.agentId, conversation_id: c.id },
     });

@@ -195,6 +195,32 @@ describe("bridge: the later ladder", () => {
   });
 });
 
+describe("bridge: viewed", () => {
+  test("viewed_mark stamps a look and broadcasts the seen frame with it; seen_list carries it; the phone may send it", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { SeenStore } = await import("../mod/seen.ts");
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const seen = new SeenStore(join(dir, "attention.json"));
+      const broadcasts: Array<Record<string, unknown>> = [];
+      const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
+      const c = client("c1");
+      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
+      const frame = broadcasts.at(-1)!;
+      expect(frame.type).toBe("seen");
+      expect(Object.keys(frame.viewed as object)).toEqual(["a/x"]);
+      expect(frame.seen).toEqual({}); // a look is not done
+      bridge.onMessage(c, { type: "seen_list" });
+      expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) } });
+      expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("bridge history", () => {
   test("inbox_list answers with the mod's open conversations and echoes the request id", () => {
     const rows = [{ id: "default", agentId: "a1", agentName: "ira", title: "ira · main chat", lastMessageAt: "2026-09-06T11:49:16Z", archived: false as const, lastRole: "assistant" as const, lastAsk: null, lastAssistantText: "It's on your canvas now." }];

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canPin, canRename, cleanDeskName, deskRowState, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
+import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canPin, canRename, cleanDeskName, deskRowState, doneAction, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
 import type { DeskSummary } from "../app/src/desk/useDesk";
 import type { AttentionItem } from "../core/attention/model.ts";
 
@@ -90,6 +90,24 @@ describe("marks (scenario 3)", () => {
   });
   test("finished unread: bold, no badge", () => {
     expect(deskRowState(item("a1", "jira", "done", { unread: true }), desk("jira"))).toMatchObject({ kind: "finished", badge: null, unread: true, live: false });
+  });
+  test("finished, looked at since the last message: not bold, the ring stays, the words say viewed", () => {
+    const fresh = deskRowState(item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }), desk("jira"));
+    expect(fresh).toMatchObject({ kind: "finished", unread: true, note: "new messages" });
+    const looked = deskRowState(item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira"));
+    expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false, note: "viewed, not done" });
+    // waiting stays bold with its badge whatever the look: it needs you to act
+    expect(deskRowState(item("a1", "jira", "approval", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira"))).toMatchObject({ kind: "waits", badge: 1, unread: true });
+    // done: neither
+    expect(deskRowState(item("a1", "jira", "idle", { unread: false, lastMessageAt: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({ kind: "none", unread: false, note: undefined });
+  });
+  test("doneAction: Mark as done while unread, Mark as not done once done with a reply, nothing for approvals or your own last word", () => {
+    expect(doneAction(item("a1", "jira", "done", { unread: true }))).toBe("done");
+    expect(doneAction(item("a1", "jira", "question", { unread: true }))).toBe("done");
+    expect(doneAction(item("a1", "jira", "idle", { unread: false, lastRole: "assistant", lastMessageAt: "2026-09-08T10:00:00Z" }))).toBe("undone");
+    expect(doneAction(item("a1", "jira", "idle", { unread: false, lastRole: "user", lastMessageAt: "2026-09-08T10:00:00Z" }))).toBeNull();
+    expect(doneAction(item("a1", "jira", "approval", { unread: true, pendingApproval: { requestId: "r" } as AttentionItem["pendingApproval"] }))).toBeNull();
+    expect(doneAction(undefined)).toBeNull();
   });
   test("running: the live dot", () => {
     expect(deskRowState(item("a1", "jira", "running"), desk("jira"))).toMatchObject({ kind: "running", badge: null, unread: false, live: true });

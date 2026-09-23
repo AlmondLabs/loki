@@ -150,6 +150,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     tunnelUrl: attention.tunnelUrl,
     makeTransport,
     seen: attention.seen,
+    viewed: attention.viewed,
     snooze: attention.snooze,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
@@ -304,6 +305,8 @@ function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, pref
       onAnswer={catchUp.answer}
       onSend={(rt, text, images, deskTitle) => catchUp.send(rt, text, images, { desk: deskTitle })}
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
+      onNotDone={catchUp.unread}
+      onViewed={attention.markViewed}
     />
   );
 }

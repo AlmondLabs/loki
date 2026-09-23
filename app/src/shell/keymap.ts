@@ -54,6 +54,8 @@ export const KEYMAP: Binding[] = [
   // board, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
   { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Desk", typing: true, menu: "Desk/step" },
   { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Desk", typing: true, menu: "Desk/step" },
+  // Done is the Inbox's clear (seen); opening a desk only views it. The desk's header menu offers the same, and Mark as Not Done.
+  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Done", typing: true, menu: "Desk/done" },
   { id: "chat.toggle", keys: ["cmd+/"], where: "desk", label: "Show / Hide Chat", typing: true, menu: "Chat" },
   { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
   { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },

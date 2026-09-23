@@ -31,7 +31,8 @@ import { isLanVia } from "./lan.ts";
  *    measure       { id, size }              rendered size of a widget (drives placement)
  *    arrange       {}                        tidy this desk into a grid
  *    trash         { id }                    delete the widget's file (the agent's work is gone for good)
- *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, snooze, appServer }
+ *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, snooze, appServer }
+ *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
  *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
@@ -237,13 +238,13 @@ const isPoint = (v: unknown): boolean =>
  * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
  * skills, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
   /** The seen markers, the deferrals and the "later" ladder, as one frame; sent on request and broadcast on every change. */
-  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
+  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
 
   const deskFrame = (scope: Scope) => {
     const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
@@ -316,6 +317,13 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           if (typeof msg.conversationId === "string") {
             seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
             track("conversation_marked_seen");
+            broadcast(seenFrame());
+          }
+          return;
+        case "viewed_mark":
+          // Not tracked: a look happens on every open, it is not a decision.
+          if (typeof msg.conversationId === "string") {
+            seen?.view(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
             broadcast(seenFrame());
           }
           return;
