@@ -59,14 +59,14 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   return (
     <section>
       <Head>
-        desks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
+        Desks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{myDesks.length ? `${myDesks.length} live` : ""}</span>
       </Head>
       {myDesks.length === 0 && <div style={{ fontSize: 12, color: "var(--loki-muted)", padding: "0 8px" }}>no live desks</div>}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
         {myDesks.map((x) => (
           <Row dense key={x.scope} onClick={() => onOpen(x.conversationId ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
-            <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
+            <span style={{ fontSize: 10.5, color: "var(--loki-muted)", flex: "0 0 auto" }}>{x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}</span>
           </Row>
         ))}
       </div>
@@ -82,7 +82,7 @@ function TasksSection({ count, onShowBoard }: { count: number; onShowBoard: () =
   return (
     <section>
       <Head>
-        tasks <span style={{ marginLeft: "auto", letterSpacing: 0, fontFamily: "var(--loki-mono)" }}>{count ? `${count} open` : ""}</span>
+        Tasks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{count ? `${count} open` : ""}</span>
       </Head>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
         <span>{count === 0 ? "nothing assigned" : `${count} assigned on the board`}</span>
@@ -130,7 +130,7 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
           onBlur={() => name.trim() && name.trim() !== d.agent.name && void onSave({ name: name.trim() })}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           aria-label="agent name"
-          style={{ fontFamily: "var(--loki-display)", fontSize: 22 }}
+          style={{ fontSize: 22, fontWeight: 700 }}
         />
         <Field
           inline
@@ -142,7 +142,7 @@ function Identity({ d, avatar, models, onLoadModels, onSave }: { d: AgentDetails
           aria-label="agent description"
           style={{ fontSize: 13.5, color: "var(--loki-muted)" }}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 12, color: "var(--loki-muted)", flexWrap: "wrap" }}>
           <Field
             inline
             mono

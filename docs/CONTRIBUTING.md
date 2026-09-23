@@ -43,7 +43,7 @@ CI runs the same three. `test/tokens.test.ts` fails when an inline style leaves 
 ## Rules of the house
 
 - No real money amounts on screen, in the repo, or in recordings. Fixtures use made-up numbers.
-- Brass is spent only on things that need the human (see `docs/design.md`).
+- The red attention badge is spent only on things that need the human; blue is for what is interactive, green for the one affirmative button (see `docs/design.md`).
 - Tests for the mod are pure where possible: inject the `bd` runner, the clock, the file root.
 - Commit messages say what changed and why in one line; the plan doc carries the reasoning.
 

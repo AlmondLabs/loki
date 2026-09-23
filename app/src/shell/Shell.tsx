@@ -229,7 +229,7 @@ export function Shell() {
   useWindowTitle(desk, segment, waiting, board.openTasks, recall.due);
 
   // The desks list feeds the tree and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
-  // status too, so the rail's brass dot is right before Settings is ever opened.
+  // status too, so the rail's green dot is right before Settings is ever opened.
   useEffect(() => {
     if (desk.connection === "open") {
       desk.desks.request();

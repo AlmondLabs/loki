@@ -19,7 +19,7 @@ import { useDeckPass } from "./useDeckPass";
  */
 type View = "review" | "leads" | "all" | "deleted";
 const VIEWS: View[] = ["review", "leads", "all", "deleted"];
-const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "positive" };
+const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
 
 export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
   const { snap } = recall;
@@ -140,7 +140,7 @@ function Notices({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   return (
     <>
-      {recall.error && <Meta brass wrap>{recall.error}</Meta>}
+      {recall.error && <Meta wrap style={{ color: "var(--loki-negative)" }}>{recall.error}</Meta>}
       {snap && !snap.worker.enabled && snap.cards.length > 0 && (
         <Meta wrap>
           the writer is off — these are the cards so far, no new ones are coming ·{" "}
@@ -250,7 +250,7 @@ function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, o
         <CardEditor c={c} onSave={onSave} onCancel={onCancel} />
       ) : (
         <>
-          <div style={{ fontFamily: "var(--loki-display)", fontSize: 22, lineHeight: 1.3, color: "var(--loki-fg)", whiteSpace: "pre-wrap", textWrap: "balance" as never, padding: "10px 0" }}>{c.card.front}</div>
+          <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.3, color: "var(--loki-fg)", whiteSpace: "pre-wrap", textWrap: "balance" as never, padding: "10px 0" }}>{c.card.front}</div>
           {revealed ? (
             <div style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 14, fontSize: 15, lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{c.card.back}</div>
           ) : (
@@ -272,7 +272,7 @@ function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, o
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
           {ANSWERS.map(({ grade, label, key }) => (
             <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`next in ${gaps[grade]}`} style={{ justifyContent: "center" }}>
-              {label} <span style={{ fontSize: 10.5, opacity: 0.75, fontFamily: "var(--loki-mono)" }}>{gaps[grade]}</span>
+              {label} <span style={{ fontSize: 10.5, opacity: 0.75 }}>{gaps[grade]}</span>
             </Button>
           ))}
         </div>

@@ -32,13 +32,13 @@ describe("sections", () => {
       ["recent", ["aws", "old"]], // cost already placed under waiting
       ["rest", ["jira"]],
     ]);
-    expect(secs.find((s) => s.id === "waiting")?.label).toBe("waiting on you");
-    expect(secs.find((s) => s.id === "rest")?.label).toBe("everything else");
+    expect(secs.find((s) => s.id === "waiting")?.label).toBe("Waiting on you");
+    expect(secs.find((s) => s.id === "rest")?.label).toBe("Everything else");
   });
   test("nothing waiting, nothing pinned, nothing visited: one section, by last message, labelled plainly", () => {
     const secs = sectionDesks(desks.map((d) => ({ ...d, pinned: false })), null, [], []);
     expect(secs).toHaveLength(1);
-    expect(secs[0].label).toBe("desks");
+    expect(secs[0].label).toBe("Desks");
     expect(secs[0].desks.map((d) => d.scope)).toEqual(["jira", "aws", "cost", "email", "old"]);
   });
   test("the agent filter applies inside every section", () => {

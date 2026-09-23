@@ -74,13 +74,9 @@ const FONT_SCALE = new Set([9.5, 10.5, 11, 12, 13.5, 15, 17, 22, 28]);
 const RADII = new Set([6, 8, 12, 999, 1, 3, 4, 9, 24]);
 /**
  * Tracking. The Slack direction (2026-09-23) sets no letter-spacing: labels are sentence-case sans and meta is
- * the reading face. Stylesheets allow none. Inline styles still carry the retired drafting-table tracking until
- * the desktop sweep (part 2) removes it; that sweep empties LEGACY_INLINE_TRACKING.
+ * the reading face. Neither stylesheets nor inline styles allow any (the desktop sweep removed the last of it).
  */
 const TRACKING = new Set<string>([]);
-const LEGACY_INLINE_TRACKING = new Set(["0.06em", "0.14em"]);
-/** Retired faces: --loki-display and --loki-label are aliases of the sans stack now; inline uses go in the sweep. */
-const LEGACY_INLINE_FACES = /^var\(--loki-(display|label)\)$/;
 /** Serif, condensed and narrow faces have no place in either presentation. */
 const RETIRED_FACE = /(?<!sans-)serif|New York|Iowan|Georgia|Avenir|Condensed|Narrow/i;
 /** The agent's hue is computed, not a token; its glyph size is derived from the face size. */
@@ -114,14 +110,21 @@ describe("design tokens: every style stays on the scales", () => {
     const off = findAll(code, /boxShadow: "([^"]+)"/g, (m) => m[1]).filter((h) => !/var\(--loki-shadow-(sheet|float|panel|low)\)/.test(h));
     expect(off).toEqual([]);
   });
-  test("no tracking in stylesheets; inline only the legacy values the sweep removes", () => {
-    const inline = findAll(code, /letterSpacing: "([^"]+)"/g, (m) => m[1]).filter((h) => !TRACKING.has(value(h)) && !LEGACY_INLINE_TRACKING.has(value(h)));
+  test("no tracking anywhere: no letterSpacing inline, no letter-spacing in a stylesheet", () => {
+    const inline = findAll(code, /letterSpacing: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => !TRACKING.has(value(h)));
     const inCss = findAll(files, /letter-spacing:\s*([\d.]+em)/g, (m) => m[1]).filter((h) => !TRACKING.has(value(h)));
     expect([...inline, ...inCss]).toEqual([]);
   });
-  test("faces are the reading face or mono (inline, the retired aliases until the sweep)", () => {
-    const off = findAll(code, /fontFamily: "([^"]+)"/g, (m) => m[1]).filter((h) => !/^var\(--loki-(font|mono)\)$|^inherit$/.test(value(h)) && !LEGACY_INLINE_FACES.test(value(h)));
+  test("inline faces are the reading face or mono — never the retired display or label aliases", () => {
+    const off = findAll(code, /fontFamily: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => !/^"var\(--loki-(font|mono)\)"$|^"inherit"$|^mono \? "var\(--loki-mono\)" : undefined$/.test(value(h)));
     expect(off).toEqual([]);
+    expect(findAll(code, /var\(--loki-(display|label)\)/g, (m) => m[0])).toEqual([]);
+  });
+  test("labels are shown as written: no uppercase transform inline, nor in a desktop stylesheet", () => {
+    const inline = findAll(code, /textTransform: ([^,}\n]+)/g, (m) => m[1].trim()).filter((h) => /uppercase/.test(value(h)));
+    // the phone keeps two of its own: a pairing code typed in capitals, and a kicker's first letter
+    const inCss = findAll(css.filter((f) => !f.path.startsWith("phone/")), /text-transform:\s*uppercase/g, (m) => m[0]);
+    expect([...inline, ...inCss]).toEqual([]);
   });
   test("stylesheets never name the retired display or label faces, and keep mono for code, data and keys", () => {
     const aliases = findAll(css.filter((f) => f.path !== "kit/tokens.css"), /font-family:\s*(var\(--loki-(?:display|label)\))/g, (m) => m[1]);

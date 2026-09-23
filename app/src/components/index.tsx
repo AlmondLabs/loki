@@ -18,6 +18,9 @@ export type Tone = "quiet" | "paper" | "brass" | "positive" | "negative";
 export type Size = "sm" | "md" | "touch";
 
 const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
+
+/** Sentence case for a label built from an id ("inbox" → "Inbox"); labels are shown as written, never transformed. */
+export const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** What Tab can land on inside a sheet. */
 const FOCUSABLE = 'a[href], button, input, textarea, select, summary, [tabindex]:not([tabindex="-1"])';
 

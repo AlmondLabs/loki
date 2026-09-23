@@ -9,7 +9,7 @@ import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, liveWaitingCount } from "./CatchUpParts";
+import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, liveWaitingCount, needsYou } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
 import { useDeckKeys } from "./useDeckKeys";
 import { useDeckQueue } from "./useDeckQueue";
@@ -157,7 +157,8 @@ function CatchUpDeck(props: DeckProps) {
  * last row. Keyed on the card by the deck, so the box and the chips start fresh with each conversation.
  */
 function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyRef, actions, deck, onCommand, modelTick, modeTick }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; priorSnooze: Snooze | undefined; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; actions: ReturnType<typeof useDeckActions>; deck: DeckProps; onCommand: (id: string, args: string) => void; modelTick: number; modeTick: number }) {
-  const badgeColor = BADGE[current.status].color;
+  // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
+  const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   /** Today's deferral history for the current card, expired or not. */
   const timesAround = priorSnooze && priorSnooze.stamp === stampOf(current) ? priorSnooze.skips + 1 : 0;
   const { agentId, id } = current;

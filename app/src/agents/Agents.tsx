@@ -245,7 +245,7 @@ function AgentTabs({ agents, selected, creating, avatar, notice, onPick, onNew }
         + new
       </button>
       <span style={{ flex: 1 }} />
-      {notice && <span style={{ alignSelf: "center", fontSize: 12, color: "var(--loki-accent)" }}>{notice}</span>}
+      {notice && <span style={{ alignSelf: "center", fontSize: 12, color: "var(--loki-muted)" }}>{notice}</span>}
     </div>
   );
 }

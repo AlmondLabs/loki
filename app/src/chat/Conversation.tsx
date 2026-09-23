@@ -218,11 +218,11 @@ export function Conversation({
           {...palette.aria}
         />
         {icons?.send ? (
-          <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} className="loki-composer-send" aria-label={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"} data-queue={view.status === "idle" ? undefined : "true"}>
+          <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} className="loki-composer-send" aria-label={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"} data-queue={view.status === "idle" ? undefined : "true"}>
             {icons.send}
           </Button>
         ) : (
-          <Button size={size} tone={hasContent ? "brass" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
+          <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
             {view.status === "idle" ? "send" : "queue"}
           </Button>
         )}

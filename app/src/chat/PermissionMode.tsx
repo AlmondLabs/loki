@@ -20,12 +20,12 @@ export function isPermissionMode(v: unknown): v is PermissionMode {
 
 export const modeInfo = (m: PermissionMode | null | undefined) => MODES.find((x) => x.id === m) ?? MODES[3];
 
-/** The chip: the mode's short name; brass when nothing will ask, so an open door is never quiet. */
+/** The chip: the mode's short name; red ink when nothing will ask, so an open door is never quiet. */
 export function ModeChip({ mode, onClick, busy }: { mode: PermissionMode | null; onClick: () => void; busy?: boolean }) {
   const info = modeInfo(mode);
   const loud = info.id === "unrestricted";
   return (
-    <Chip brass={loud} onClick={onClick} title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`} aria-label="permission mode" aria-busy={busy || undefined}>
+    <Chip style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined} onClick={onClick} title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`} aria-label="permission mode" aria-busy={busy || undefined}>
       <Shield mode={info.id} />
       {busy ? "changing…" : info.short}
       <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
@@ -75,14 +75,14 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left", side
     >
       {MODES.map((m) => (
         <Row key={m.id} dense role="menuitemradio" aria-checked={m.id === (current ?? "unrestricted")} onClick={() => onPick(m.id)} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8 }}>
-          <span style={{ color: m.id === "unrestricted" ? "var(--loki-accent)" : "var(--loki-muted)", display: "grid", placeItems: "center" }}>
+          <span style={{ color: m.id === "unrestricted" ? "var(--loki-negative)" : "var(--loki-muted)", display: "grid", placeItems: "center" }}>
             <Shield mode={m.id} />
           </span>
           <span style={{ display: "grid" }}>
             <span style={{ fontSize: 13.5 }}>{m.label}</span>
             <span style={{ fontSize: 10.5, color: "var(--loki-muted)", lineHeight: 1.4 }}>{m.description}</span>
           </span>
-          <span style={{ fontSize: 10.5, color: "var(--loki-accent)", fontFamily: "var(--loki-mono)" }}>{m.id === (current ?? "unrestricted") ? "current" : ""}</span>
+          <span style={{ fontSize: 10.5, color: "var(--loki-accent)" }}>{m.id === (current ?? "unrestricted") ? "current" : ""}</span>
         </Row>
       ))}
       <div style={{ padding: "5px 8px 3px" }}>

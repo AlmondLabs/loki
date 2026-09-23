@@ -136,7 +136,7 @@ export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAs
     <DeskTree
       open={!!picker}
       onClose={onClose}
-      heading={picker ? `${picker.start ? "dispatch" : "assign"} ${picker.ids.length === 1 ? "1 task" : `${picker.ids.length} tasks`} to…${picker.start ? " (the agent starts now)" : ""}` : null}
+      heading={picker ? `${picker.start ? "Dispatch" : "Assign"} ${picker.ids.length === 1 ? "1 task" : `${picker.ids.length} tasks`} to…${picker.start ? " (the agent starts now)" : ""}` : null}
       desks={desk.desks.list}
       agents={catchUp.agents}
       items={catchUp.items}

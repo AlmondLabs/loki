@@ -129,11 +129,11 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
         <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: 13.5 }}>
             {p.display_name}
-            {connected && <span className="loki-label" style={{ marginLeft: 8, fontSize: 9.5, color: "var(--loki-positive)" }}>connected</span>}
+            {connected && <span className="loki-label" style={{ marginLeft: 8, color: "var(--loki-positive)" }}>Connected</span>}
           </span>
           {p.description && !open && <span style={{ fontSize: 12, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</span>}
         </span>
-        <span style={{ fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>{p.id}</span>
+        <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{p.id}</span>
       </Row>
       {open && (
         <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
@@ -194,7 +194,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         </label>
       ))}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <Button size="sm" tone="brass" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
+        <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
           {busy ? "checking…" : connected ? "replace the key" : "connect"}
         </Button>
         {connected && (
@@ -202,7 +202,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             disconnect
           </Button>
         )}
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
       </div>
     </>
   );

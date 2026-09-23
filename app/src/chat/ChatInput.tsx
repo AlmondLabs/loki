@@ -214,7 +214,7 @@ export const ChatInput = forwardRef<
           flex: 1,
           lineHeight: "20px",
           padding: dictation.supported ? "7px 40px 7px 12px" : "7px 12px",
-          // Listening: the box's edge turns brass until the recogniser stops.
+          // Listening: the box's edge turns the accent until the recogniser stops.
           ...(listening ? { borderColor: "var(--loki-accent)" } : null),
           ...style,
         }}
@@ -241,7 +241,7 @@ export const ChatInput = forwardRef<
       )}
       </div>
       {dictation.error && (
-        <span id="loki-dictation-error" role="status" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6, fontSize: 10.5, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)", whiteSpace: "nowrap" }}>
+        <span id="loki-dictation-error" role="status" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6, fontSize: 10.5, color: "var(--loki-negative)", whiteSpace: "nowrap" }}>
           {dictation.error}
         </span>
       )}

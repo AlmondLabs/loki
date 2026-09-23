@@ -69,14 +69,14 @@ export function ReflectionPage({ agentId, agentName, desks, api, reflect, onOpen
   return (
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(280px, 360px) 1fr" }}>
       <ListPane>
-        <Head>when it reflects</Head>
+        <Head>When it reflects</Head>
         <SettingsPane settings={settings} state={state} agentName={agentName} onSave={save} />
       </ListPane>
       <Pane>
-        <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 9.5, marginBottom: 12 }}>
-          <span>conversations · steps since the last pass</span>
+        <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <span>Conversations · steps since the last pass</span>
           <span style={{ flex: 1 }} />
-          {notice && <span style={{ textTransform: "none", letterSpacing: 0, color: "var(--loki-fg)" }}>{notice}</span>}
+          {notice && <span style={{ fontWeight: 400, color: "var(--loki-fg)" }}>{notice}</span>}
         </div>
         <Conversations state={state} settings={settings ?? null} agentName={agentName} busy={busy} onRun={run} onOpen={(c) => onOpenDesk(agentId, c)} />
       </Pane>
@@ -91,17 +91,17 @@ function SettingsPane({ settings, state, agentName, onSave }: { settings: Reflec
   const ranBefore = state?.conversations.some((c) => c.lastSucceededAt) ?? false;
   return (
     <div style={{ display: "grid", gap: 14, padding: "4px 8px 0" }}>
-      <Line label="trigger">
+      <Line label="Trigger">
         <Choices options={["step-count", "compaction-event", "off"] as ReflectionTrigger[]} value={settings.trigger} word={(t) => TRIGGER_WORD[t]} onPick={(trigger) => void onSave({ trigger })} />
         <Meta wrap>{TRIGGER_HINT[settings.trigger]}</Meta>
       </Line>
       {settings.trigger === "step-count" && <StepsLine value={settings.stepCount} onSave={(stepCount) => void onSave({ stepCount })} />}
-      <Line label="merge">
+      <Line label="Merge">
         <Choices options={["auto", "explicit"] as ReflectionMerge[]} value={settings.merge} word={(m) => (m === "auto" ? "applied automatically" : `${agentName} reviews first`)} onPick={(merge) => void onSave({ merge })} />
         <Meta wrap>{settings.merge === "auto" ? "what a pass keeps is merged into memory as the pass finishes" : `a pass that changed something is handed to ${agentName} in a background conversation of its own: it reviews the proposal for accuracy and placement, edits it, and merges it`}</Meta>
       </Line>
       {settings.merge === "explicit" && <InstructionsLine value={settings.mergeInstructions} onSave={(mergeInstructions) => void onSave({ mergeInstructions })} />}
-      <Line label="last change">
+      <Line label="Last change">
         {state?.lastCommit ? (
           <Meta wrap>
             {ago(state.lastCommit.at)} · {state.lastCommit.message}
@@ -136,7 +136,7 @@ function StepsLine({ value, onSave }: { value: number; onSave: (n: number) => vo
     else setSteps(String(value));
   };
   return (
-    <Line label="steps">
+    <Line label="Steps">
       <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
         <Field size="sm" mono value={steps} onChange={(e) => setSteps(e.target.value)} onBlur={commit} style={{ width: 64 }} aria-label="steps between passes" />
         <Meta>of a conversation since its last pass</Meta>
@@ -149,7 +149,7 @@ function StepsLine({ value, onSave }: { value: number; onSave: (n: number) => vo
 function InstructionsLine({ value, onSave }: { value: string; onSave: (s: string) => void }) {
   const [text, setText] = useState(value);
   return (
-    <Line label="review notes">
+    <Line label="Review notes">
       <Field size="sm" value={text} onChange={(e) => setText(e.target.value)} onBlur={() => text.trim() !== value.trim() && onSave(text.trim())} placeholder="anything the review should keep in mind" aria-label="review instructions" style={{ width: "100%" }} />
       <Meta wrap>handed to the reviewing pass with the proposal</Meta>
     </Line>
@@ -168,9 +168,9 @@ function Conversations({ state, settings, agentName, busy, onRun, onOpen }: { st
         <div key={c.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto auto", alignItems: "center", gap: 12, padding: "6px 8px", borderBottom: "1px solid var(--loki-border)" }}>
           <Row dense flush onClick={() => onOpen(c.conversationId)} title="open this conversation" style={{ minWidth: 0, display: "grid", gap: 2 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5 }}>{c.title ?? c.conversationId}</span>
-            <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>{countLine(c, threshold)}</span>
+            <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{countLine(c, threshold)}</span>
           </Row>
-          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, color: "var(--loki-muted)" }}>{c.totalSteps} in all</span>
+          <span style={{ fontSize: 10.5, color: "var(--loki-muted)" }}>{c.totalSteps} in all</span>
           <Button size="sm" onClick={() => onRun(c.conversationId)} disabled={busy !== null} title="start a pass over this conversation now, the same as /reflect in its chat">
             {busy === c.conversationId ? "starting…" : "reflect now"}
           </Button>
@@ -198,7 +198,7 @@ const TRIGGER_HINT: Record<ReflectionTrigger, string> = {
 function Line({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "84px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 4 }}>{label}</span>
+      <span className="loki-label" style={{ paddingTop: 4 }}>{label}</span>
       <span style={{ minWidth: 0, display: "grid", gap: 4 }}>{children}</span>
     </div>
   );

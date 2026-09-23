@@ -163,7 +163,7 @@ export function ChatBubble({ open, onToggle, alert = false, side = "left" }: { o
       {alert && !open && (
         <span
           aria-label="permission waiting"
-          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, background: "var(--loki-accent)", border: "2px solid var(--loki-bg)" }}
+          style={{ position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, background: "var(--loki-attention)", border: "2px solid var(--loki-bg)" }}
         />
       )}
     </button>

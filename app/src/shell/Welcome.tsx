@@ -68,11 +68,11 @@ export function Welcome({
         <LettaStep lettaStep={lettaStep} bootstrap={bootstrap} onInstallLetta={onInstallLetta} />
       </Step>
 
-      <Step n={1} title="a model provider" done={connected} active={!showAgent && !lettaStep}>
+      <Step n={1} title="A model provider" done={connected} active={!showAgent && !lettaStep}>
         <ProviderStep lettaStep={lettaStep} showAgent={showAgent} connected={connected} providers={providers} onLoadProviders={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onModelsChanged={onModelsChanged} onNext={() => (setSkipProvider(true), onLoadModels())} />
       </Step>
 
-      <Step n={2} title="your first agent" active={showAgent}>
+      <Step n={2} title="Your first agent" active={showAgent}>
         {showAgent && <AgentForm draft={draft} nameRef={nameRef} models={models} canGoBack={step === "provider"} onBack={() => setSkipProvider(false)} />}
       </Step>
     </Sheet>
@@ -113,28 +113,28 @@ function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: Retur
   const { name, setName, description, setDescription, personality, setPersonality, model, setModel, busy, error, create } = draft;
   return (
     <div style={{ display: "grid", gap: 10 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
-      <Labelled label="name">
+      <Labelled label="Name">
         <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" />
       </Labelled>
-      <Labelled label="description">
+      <Labelled label="Description">
         <Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" />
       </Labelled>
-      <Labelled label="personality">
+      <Labelled label="Personality">
         <PersonalityPicker value={personality} onPick={setPersonality} />
       </Labelled>
-      <Labelled label="model">
+      <Labelled label="Model">
         <Field mono list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the harness default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" />
         <datalist id="loki-welcome-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
       </Labelled>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
         {canGoBack && (
           <Button size="sm" onClick={onBack}>
             back
           </Button>
         )}
-        <Button size="sm" tone="brass" kbd="↵" onClick={() => void create()} disabled={busy || !name.trim()}>
+        <Button size="sm" tone="positive" kbd="↵" onClick={() => void create()} disabled={busy || !name.trim()}>
           {busy ? "creating…" : "create and open the desk"}
         </Button>
       </div>
@@ -172,13 +172,13 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
       )}
       {status?.error && (
         <div style={{ display: "grid", gap: 8 }}>
-          <div style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{status.error}</div>
+          <div style={{ fontSize: 12, color: "var(--loki-negative)" }}>{status.error}</div>
           <div style={{ fontSize: 12, color: "var(--loki-muted)", lineHeight: 1.5 }}>
             The install needs a Node 22 or newer with npm (Homebrew's <code style={{ fontFamily: "var(--loki-mono)" }}>brew install node</code>; the loki cask
             brings it) and registry.npmjs.org to be reachable. A global folder npm may not write needs the sudo line above, run in a terminal. Retry below
             once it is fixed. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
           </div>
-          <Button size="sm" tone="brass" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ justifySelf: "start" }}>
+          <Button size="sm" tone="positive" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ justifySelf: "start" }}>
             {busy ? "starting…" : "retry the install"}
           </Button>
         </div>
@@ -191,11 +191,11 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active: boolean; children: React.ReactNode }) {
   return (
     <section style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 14, opacity: active || done ? 1 : 0.7 }}>
-      <span aria-hidden style={{ width: 24, height: 24, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 12, fontFamily: "var(--loki-mono)", border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`, color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+      <span aria-hidden style={{ width: 24, height: 24, borderRadius: 12, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`, color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)" }}>
         {done ? "✓" : n}
       </span>
       <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)" }}>{title}</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--loki-fg)" }}>{title}</div>
         {children}
       </div>
     </section>
@@ -206,7 +206,7 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "start", fontSize: 12 }}>
-      <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 9 }}>{label}</span>
+      <span className="loki-label" style={{ paddingTop: 9 }}>{label}</span>
       <span style={{ display: "grid", gap: 4, minWidth: 0 }}>{children}</span>
     </label>
   );

@@ -22,10 +22,10 @@ export function columnsOf(tasks: Task[], now = Date.now(), doneWindowMs = 7 * 24
     .filter((t) => t.status === "closed" && (!t.closedAt || now - new Date(t.closedAt).getTime() < doneWindowMs))
     .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? ""));
   return [
-    { id: "open", label: "open", tasks: open },
-    { id: "in_progress", label: "in progress", tasks: inProgress },
-    { id: "blocked", label: "blocked", tasks: blocked },
-    { id: "done", label: "done · 7d", tasks: done },
+    { id: "open", label: "Open", tasks: open },
+    { id: "in_progress", label: "In progress", tasks: inProgress },
+    { id: "blocked", label: "Blocked", tasks: blocked },
+    { id: "done", label: "Done · 7d", tasks: done },
   ];
 }
 

@@ -30,7 +30,7 @@ export function Sidebar({
   openTasks?: number;
   /** Cards due in Learn, the same quiet way. */
   dueCards?: number;
-  /** The mod is reachable on the Wi‑Fi (Settings › phone): a brass dot on the settings icon while it is. */
+  /** The mod is reachable on the Wi‑Fi (Settings › phone): a green dot on the settings icon while it is. */
   lanOn?: boolean;
   /** A newer loki release exists (Settings › letta says which): the same dot. */
   updateReady?: boolean;
@@ -82,14 +82,14 @@ export function Sidebar({
               }}
             >
               <Icon id={s.id} />
-              {/* Badges like the Dock's: brass when something needs you (inbox), quiet for a count you chose to keep (board). */}
-              {isInbox && waiting > 0 && <Badge n={waiting} tone="accent" />}
+              {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (board). */}
+              {isInbox && waiting > 0 && <Badge n={waiting} tone="attention" />}
               {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
               {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
-              {/* The listener is on: the page is reachable from the Wi‑Fi, which is worth a brass dot (D11). */}
-              {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color="var(--loki-accent)" style={{ position: "absolute", top: 3, right: 3 }} />}
+              {/* A newer loki is out (the accent), or the listener is on and the page is reachable from the Wi‑Fi (a green dot, D11). */}
+              {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color={updateReady ? "var(--loki-accent)" : "var(--loki-positive)"} style={{ position: "absolute", top: 3, right: 3 }} />}
             </button>
-            <span className="loki-label" style={{ fontSize: 9.5, letterSpacing: "0.14em", marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
+            <span className="loki-label" style={{ fontSize: 9.5, marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
               {s.label}
             </span>
           </span>
@@ -99,7 +99,7 @@ export function Sidebar({
   );
 }
 
-function Badge({ n, tone }: { n: number; tone: "accent" | "quiet" }) {
+function Badge({ n, tone }: { n: number; tone: "attention" | "quiet" }) {
   return (
     <span
       aria-hidden
@@ -112,12 +112,11 @@ function Badge({ n, tone }: { n: number; tone: "accent" | "quiet" }) {
         padding: "0 5px",
         boxSizing: "border-box",
         borderRadius: 9,
-        background: tone === "accent" ? "var(--loki-accent)" : "var(--loki-muted)",
-        color: "var(--loki-bg)",
+        background: tone === "attention" ? "var(--loki-attention)" : "var(--loki-muted)",
+        color: tone === "attention" ? "var(--loki-on-attention)" : "var(--loki-bg)",
         border: "2px solid var(--loki-panel)",
-        fontFamily: "var(--loki-mono)",
         fontSize: 9.5,
-        fontWeight: 600,
+        fontWeight: 700,
         lineHeight: "13px",
         textAlign: "center",
         fontVariantNumeric: "tabular-nums",

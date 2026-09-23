@@ -40,7 +40,7 @@ export function CardEditor({ c, onSave, onCancel }: { c: CardWithSchedule; onSav
       <TextArea value={back} onChange={(e) => setBack(e.target.value)} rows={4} aria-label="back" />
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Button size="sm" onClick={onCancel}>cancel</Button>
-        <Button size="sm" tone="brass" onClick={() => onSave({ front, back })} disabled={!front.trim() || !back.trim()}>save</Button>
+        <Button size="sm" tone="positive" onClick={() => onSave({ front, back })} disabled={!front.trim() || !back.trim()}>save</Button>
       </div>
     </div>
   );
@@ -146,7 +146,7 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
   return (
     <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="loki-label" style={{ fontSize: 9.5 }}>the worker</span>
+        <span className="loki-label">The worker</span>
         <Button size="sm" tone={worker.enabled ? "paper" : "quiet"} onClick={() => onSettings({ enabled: !worker.enabled })} aria-pressed={worker.enabled}>
           {worker.enabled ? "on" : "off"}
         </Button>
@@ -158,12 +158,12 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
         <Button size="sm" onClick={onExport} disabled={!cardCount} title="copies every card as Anki's plain-text import: front, back, tags">export for Anki</Button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="loki-label" style={{ fontSize: 9.5 }}>cards a day</span>
+        <span className="loki-label">Cards a day</span>
         <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
-        <span className="loki-label" style={{ fontSize: 9.5 }}>sweep every</span>
+        <span className="loki-label">Sweep every</span>
         <Field size="sm" mono value={every} onChange={(e) => setEvery(e.target.value)} onBlur={() => Number.isFinite(Number(every)) && Number(every) >= 1 && onSettings({ tickMinutes: Number(every) })} style={{ width: 56 }} aria-label="minutes between sweeps" title="minutes between sweeps; each sweep that finds quiet conversations costs one model call per agent" />
-        <span className="loki-label" style={{ fontSize: 9.5 }}>min</span>
-        <span className="loki-label" style={{ fontSize: 9.5 }}>model</span>
+        <span className="loki-label">min</span>
+        <span className="loki-label">Model</span>
         <Field size="sm" mono value={model} onChange={(e) => setModel(e.target.value)} onBlur={() => onSettings({ model: model.trim() || null })} placeholder="the agent's own" style={{ width: 260 }} aria-label="worker model" title="a model handle such as anthropic/claude-haiku-4-5; empty uses each agent's model" />
       </div>
     </div>
@@ -173,7 +173,7 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
 /** The key legend under the deck. */
 export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
-    <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", letterSpacing: "0.06em", fontFamily: "var(--loki-mono)" }}>
+    <div style={{ textAlign: "center", marginTop: 12, fontSize: 10.5, color: "var(--loki-muted)", fontFamily: "var(--loki-mono)" }}>
       {revealed ? "← again · → got it (space too) · X delete · E edit · O open the desk · Z undo · esc back" : "space or → show the answer · X delete · E edit · O open the desk · Z undo · esc back"}
     </div>
   );
@@ -222,31 +222,31 @@ export function RecallSettings({ worker, onSettings, onRun, running }: { worker:
   const [every, setEvery] = useState(String(worker.tickMinutes));
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <Line label="writer">
+      <Line label="Writer">
         <span style={{ display: "inline-grid", gap: 4 }}>
           <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? `on — reads quiet conversations every ${everyLabel(worker.tickMinutes)} and writes cards` : "off — no conversation is read, nothing is written"} />
           <Meta wrap>each run asks the agent's model, so it spends a little of your provider budget; off by default for that reason</Meta>
         </span>
       </Line>
-      <Line label="cards a day">
+      <Line label="Cards a day">
         <Field size="sm" mono value={cap} onChange={(e) => setCap(e.target.value)} onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })} style={{ width: 64 }} aria-label="cards a day" />
       </Line>
-      <Line label="sweep every">
+      <Line label="Sweep every">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Field size="sm" mono value={every} onChange={(e) => setEvery(e.target.value)} onBlur={() => Number.isFinite(Number(every)) && Number(every) >= 1 && onSettings({ tickMinutes: Number(every) })} style={{ width: 64 }} aria-label="minutes between sweeps" />
           <Meta wrap>minutes. Each sweep that finds quiet conversations is one model call per agent, plus a compaction, over the agent's whole fixed prompt — a longer gap means fewer, larger asks and later cards. A conversation still has to be quiet for ten minutes before it is read.</Meta>
         </span>
       </Line>
-      <Line label="model">
+      <Line label="Model">
         <Field size="sm" mono value={model} onChange={(e) => setModel(e.target.value)} onBlur={() => onSettings({ model: model.trim() || null })} placeholder="the agent's own" style={{ width: 280 }} aria-label="the model the writer asks" />
       </Line>
-      <Line label="last run">
+      <Line label="Last run">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Meta wrap>{worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}</Meta>
           <Button size="sm" onClick={onRun} disabled={running || !worker.enabled} title="read the quiet conversations now instead of waiting for the timer">{running ? "running…" : "run now"}</Button>
         </span>
       </Line>
-      <Line label="files"><Meta>~/.letta/loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
+      <Line label="Files"><Meta>~/.letta/loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
     </div>
   );
 }
@@ -263,7 +263,7 @@ function everyLabel(minutes: number): string {
 function Line({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 12, alignItems: "start", fontSize: 13.5, lineHeight: 1.5 }}>
-      <span className="loki-label" style={{ fontSize: 9.5, paddingTop: 4 }}>{label}</span>
+      <span className="loki-label" style={{ paddingTop: 4 }}>{label}</span>
       <span style={{ minWidth: 0 }}>{children}</span>
     </div>
   );
@@ -297,9 +297,9 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
               <span style={{ flex: 1 }} />
               <Meta>{DEPTH[l.depth]}</Meta>
             </span>
-            <span style={{ display: "block", fontFamily: "var(--loki-display)", fontSize: 22, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</span>
+            <span style={{ display: "block", fontSize: 22, fontWeight: 700, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</span>
             <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>{l.why}</span>
-            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontFamily: "var(--loki-mono)", letterSpacing: "0.06em" }}>{starting === l.id ? "furnishing the desk…" : "start the lesson →"}</span>
+            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontWeight: 600 }}>{starting === l.id ? "furnishing the desk…" : "start the lesson →"}</span>
           </Row>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}>
             <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">not this</Button>
@@ -315,7 +315,7 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
           {lessons.map((s) => (
             <div key={s.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
               <Row flush onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's desk" style={{ minWidth: 0 }}>
-                <span style={{ fontFamily: "var(--loki-display)", fontSize: 15, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
                 {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
                 <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.startedAt)}`}</Meta>
               </Row>

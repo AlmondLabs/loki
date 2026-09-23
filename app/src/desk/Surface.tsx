@@ -142,7 +142,7 @@ function ConnectionLabel({ connection, left }: { connection: ReturnType<typeof u
   if (connection === "open") return null;
   return (
     <div className="loki-label" style={{ position: "absolute", bottom: 30, left }}>
-      {connection === "connecting" ? "connecting…" : "disconnected · retrying"}
+      {connection === "connecting" ? "Connecting…" : "Disconnected · retrying"}
     </div>
   );
 }
@@ -156,7 +156,7 @@ function MinimisedTray({ closed, connection, left, gesture }: { closed: WidgetMa
       style={{ position: "absolute", bottom: 16, left, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", maxWidth: "60%", transition: "left 220ms ease-out" }}
       aria-label="minimised widgets"
     >
-      <span className="loki-label" style={{ marginRight: 4 }}>minimised</span>
+      <span className="loki-label" style={{ marginRight: 4 }}>Minimised</span>
       {closed.map((entry) => (
         <Chip key={entry.id} onClick={() => gesture({ kind: "open", id: entry.id })} title={`restore ${entry.title}`} float>
           {entry.title}
@@ -173,7 +173,7 @@ function EmptyDesk({ show, agentName, scope }: { show: boolean; agentName: strin
     <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
       <Empty title="Nothing on this desk yet.">
         <p>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</p>
-        <div className="loki-label" style={{ marginTop: 14, fontSize: 10.5 }}>widgets are files · ~/.letta/loki/widgets/{scope}/</div>
+        <div className="loki-label" style={{ marginTop: 14 }}>Widgets are files · ~/.letta/loki/widgets/{scope}/</div>
       </Empty>
     </div>
   );

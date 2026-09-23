@@ -238,11 +238,11 @@ export function Board({
           aria-label="filter tasks"
           style={{ width: 280 }}
         />
-        <span className="loki-label" style={{ fontSize: 9.5 }}>
-          {tasks === null ? (loading ? "loading the board…" : "") : `${openCount} open`}
+        <span className="loki-label">
+          {tasks === null ? (loading ? "Loading the board…" : "") : `${openCount} open`}
           {loading && tasks !== null ? " · refreshing" : ""}
         </span>
-        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)", fontFamily: "var(--loki-mono)" }}>{error}</span>}
+        {error && <span style={{ fontSize: 12, color: "var(--loki-negative)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
         <Button size="md" tone="brass" kbd="⌘T" onClick={onNew} title="file a task yourself (⌘T)">
           + task
@@ -252,9 +252,9 @@ export function Board({
       <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(220px, 1fr))", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
         {columns.map((col) => (
           <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
-            <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", fontSize: 9.5, color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
+            <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
               <span>{col.label}</span>
-              <span style={{ fontFamily: "var(--loki-mono)", letterSpacing: 0 }}>{col.tasks.length || ""}</span>
+              <span>{col.tasks.length || ""}</span>
             </header>
             {col.tasks.length > 0 ? (
               <div role="listbox" aria-label={col.label} aria-multiselectable="true" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "grid", alignContent: "start", gap: 8, paddingBottom: 8 }}>
@@ -290,12 +290,12 @@ export function Board({
           <>
             <span style={{ color: "var(--loki-fg)" }}>{sel.length} selected</span>
             <Button size="sm" tone="paper" kbd="↵" onClick={() => onAssign(sel, false)}>assign to a desk</Button>
-            <Button size="sm" tone="brass" kbd="⌘↵" onClick={() => onAssign(sel, true)}>dispatch now</Button>
-            <Button size="sm" tone="positive" kbd="⌫" onClick={() => onClose(sel)}>done</Button>
+            <Button size="sm" tone="positive" kbd="⌘↵" onClick={() => onAssign(sel, true)}>dispatch now</Button>
+            <Button size="sm" tone="paper" kbd="⌫" onClick={() => onClose(sel)}>done</Button>
             <Button size="sm" kbd="esc" onClick={() => setSelected(new Set())}>clear</Button>
           </>
         ) : (
-          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5, letterSpacing: "0.06em" }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
+          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
         )}
       </div>
     </div>
@@ -378,18 +378,18 @@ function TaskTitle({ task: t, column, selected }: { task: Task; column: ColumnId
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
       <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
-      <span style={{ fontFamily: "var(--loki-display)", fontSize: 13.5, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3, color: column === "done" ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: column === "done" ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
     </div>
   );
 }
 
-/** The meta line: priority (brass when urgent), id, who filed it, labels, and when it last moved. */
+/** The meta line: priority (red ink when urgent), id, who filed it, labels, and when it last moved. */
 function TaskMeta({ id, task: t, column }: { id: string; task: Task; column: ColumnId }) {
   const urgent = t.priority <= 1 && column !== "done";
   return (
-    <div id={id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)" }}>
-      <span style={{ color: urgent ? "var(--loki-accent)" : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
-      <span>{t.id}</span>
+    <div id={id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 10.5, color: "var(--loki-muted)" }}>
+      <span style={{ color: urgent ? "var(--loki-negative)" : undefined, fontWeight: urgent ? 600 : undefined }}>{PRIORITY_LABEL[t.priority] ?? "P2"}</span>
+      <span style={{ fontFamily: "var(--loki-mono)" }}>{t.id}</span>
       {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}
       {t.labels.map((l) => (
         <Chip key={l} static tag>{l}</Chip>

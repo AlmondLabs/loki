@@ -5,7 +5,7 @@ import { stripFrontmatter } from "../phone/model";
 /** A section's head, in the label voice; a right-aligned count or date goes in a span with marginLeft auto. */
 export function Head({ children }: { children: React.ReactNode }) {
   return (
-    <div className="loki-label" style={{ display: "flex", alignItems: "baseline", fontSize: 9.5, padding: "0 8px 6px" }}>
+    <div className="loki-label" style={{ display: "flex", alignItems: "baseline", padding: "0 8px 6px" }}>
       {children}
     </div>
   );

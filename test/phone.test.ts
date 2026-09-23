@@ -213,18 +213,18 @@ describe("agents on the phone", () => {
 describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)", () => {
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({ id: "c", agentId: "a", agentName: "ira", title: "t", status: "done", unread: false, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a", conversation_id: "c" }, ...over }) as AttentionItem;
-  test("waits on you: brass, filled", () => {
+  test("waits on you: the red attention dot, filled", () => {
     const m = deskMark(item({ status: "approval" }), "live");
     expect(m.kind).toBe("waits");
-    expect(m.color).toBe("var(--loki-accent)");
-    expect(m.border).toBe("var(--loki-accent)");
+    expect(m.color).toBe("var(--loki-attention)");
+    expect(m.border).toBe("var(--loki-attention)");
     expect(deskMark(item({ status: "question" }), "live").kind).toBe("waits");
   });
-  test("finished unread: a brass ring", () => {
+  test("finished unread: an fg ring (the row goes bold), never red", () => {
     const m = deskMark(item({ status: "done", unread: true }), "live");
     expect(m.kind).toBe("finished");
     expect(m.color).toBe("transparent");
-    expect(m.border).toBe("var(--loki-accent)");
+    expect(m.border).toBe("var(--loki-fg)");
   });
   test("finished and read, or snoozed: nothing", () => {
     expect(deskMark(item({ status: "done", unread: false }), "live").kind).toBe("none");

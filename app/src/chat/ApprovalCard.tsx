@@ -10,7 +10,7 @@ export function ApprovalCard({ approval, actions }: { approval: PendingApproval;
   return (
     <div data-approval className="loki-approval">
       <div className="loki-label loki-approval-kicker">
-        needs your approval · <code className="loki-approval-tool" style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)", textTransform: "none", letterSpacing: 0 }}>{approval.toolName}</code>
+        Needs your approval · <code className="loki-approval-tool" style={{ color: "var(--loki-fg)", fontFamily: "var(--loki-mono)" }}>{approval.toolName}</code>
       </div>
       <pre className="loki-approval-input">
         {formatInput(approval.input)}

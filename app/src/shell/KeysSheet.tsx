@@ -1,4 +1,4 @@
-import { Button, Kbd, Meta, Sheet } from "../components";
+import { Button, Kbd, Meta, Sheet, sentence } from "../components";
 import { KEYMAP, formatKeys, type Binding, type Segment, type Where } from "./keymap";
 
 /**
@@ -20,14 +20,14 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <span style={{ fontFamily: "var(--loki-display)", fontSize: 22 }}>keys</span>
+          <span style={{ fontSize: 22, fontWeight: 700 }}>Keys</span>
           <Meta>{segment}</Meta>
           <span style={{ flex: 1 }} />
           <Meta>? or esc closes</Meta>
         </div>
         {groups.map((g) => (
           <section key={g.where} aria-label={g.title} style={{ display: "grid", gap: 4 }}>
-            <div className="loki-label" style={{ fontSize: 9.5 }}>{g.title}</div>
+            <div className="loki-label">{g.title}</div>
             {g.rows.map((b) => (
               <div key={b.id} style={{ display: "grid", gridTemplateColumns: "170px 1fr", gap: 12, alignItems: "baseline", fontSize: 13.5 }}>
                 <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
@@ -56,7 +56,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
 /** The groups the sheet shows for a segment: the view's own bindings (the desk's include the chat box's), then "anywhere". */
 export function keysFor(segment: Segment, map: Binding[] = KEYMAP): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
-  return wheres.map((where) => ({ where, title: TITLE[where] ?? where, rows: map.filter((b) => b.where === where) })).filter((g) => g.rows.length > 0);
+  return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where) })).filter((g) => g.rows.length > 0);
 }
 
-const TITLE: Partial<Record<Where, string>> = { anywhere: "everywhere in loki", chat: "the message box", desk: "on the desk", inbox: "in the inbox", board: "on the board", learn: "in learn", agents: "in agents", settings: "in settings" };
+const TITLE: Partial<Record<Where, string>> = { anywhere: "Everywhere in loki", chat: "The message box", desk: "On the desk", inbox: "In the inbox", board: "On the board", learn: "In Learn", agents: "In Agents", settings: "In Settings" };

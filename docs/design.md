@@ -12,7 +12,7 @@ the user's approval: (1) brass for needs-you became blue for interaction, red fo
 affirmation; (2) chrome is rounded, where plates used to be square and only sheet things rounded; (3) the
 condensed uppercase tracked labels and the mono meta became sentence-case sans, with mono kept only for code,
 data (diffs, file bodies) and key hints. The layout did not change (see Shell). The foundation (tokens,
-primitives, chat classes) moved first; the inline styles in the desktop views follow in a sweep.
+primitives, chat classes) moved first; the inline styles in the desktop views followed in a sweep the same day.
 
 ## Tokens (`app/src/kit/tokens.css`)
 
@@ -63,8 +63,11 @@ and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, lay
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
 and the native window carry `--loki-bg`, that every family defines the attention and affirm roles with AA ink,
 and that no serif or condensed face, no tracking and no display/label face is left in a stylesheet. Inline
-styles still carry the retired tracking and face aliases until the sweep; the test's `LEGACY_INLINE_*` sets
-name them and shrink to nothing when it lands.
+styles are held to the same: no `letterSpacing`, no `textTransform: uppercase`, and no face but the sans or
+mono (the display and label aliases never appear in a view). Mono inline is for code, diffs, file bodies,
+paths and commands shown as data, commit and task ids, and key hints; timestamps, counts, status words, names
+and meta lines are the sans. Label and heading strings are written in sentence case, since nothing transforms
+them (`sentence()` in the primitives capitalises one built from an id).
 
 ## Primitives (`app/src/components/`, 2026-09-08; Slack look 2026-09-23)
 
@@ -181,6 +184,5 @@ sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
 forget / remove / disable and an undo on archive; a breakpoint layer for the desktop (the inbox at 1100 wide
-still clips the rail's width); the desktop inline-style sweep to the Slack look (the tokens test's
-`LEGACY_INLINE_*` sets); the jargon and error-string pass; the archive fold inside the tree's listbox is still unreachable
+still clips the rail's width); the jargon and error-string pass; the archive fold inside the tree's listbox is still unreachable
 while the search box owns Tab.

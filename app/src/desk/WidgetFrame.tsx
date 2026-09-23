@@ -234,7 +234,7 @@ function FrameTitleBar({
         touchAction: "none",
       }}
     >
-      <span style={{ fontFamily: "var(--loki-label)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--loki-fg)", display: "flex", gap: 8, alignItems: "center" }}>
         {entry.error && <Dot size={7} color="var(--loki-negative)" title={entry.error} />}
         {entry.title}
       </span>

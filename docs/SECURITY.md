@@ -21,7 +21,7 @@ listener, described below.
 Settings › phone puts a second listener on the local network so a phone can open the inbox. The model:
 
 - **Off by default.** Nothing listens beyond loopback until you switch "reachable on this Wi‑Fi" on. The
-  choice is persisted (`~/.letta/loki/state/lan.json`) and the rail shows a brass dot on the settings
+  choice is persisted (`~/.letta/loki/state/lan.json`) and the rail shows a green dot on the settings
   icon while it is on.
 - **The page's code is public while it is on.** The listener (`0.0.0.0:41415`) serves the canvas build to
   anyone on the same network, unauthenticated: that is the app's JavaScript and nothing else. Every
