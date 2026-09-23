@@ -3,6 +3,7 @@ import { LAYER } from "../kit/layers";
 import { IconButton } from "../components";
 import type { ModelEntry } from "./ModelPicker";
 import { Conversation, ConversationHeader, type ConversationActions, type ConversationView } from "./Conversation";
+import type { ControlledDraft } from "./useDraft";
 import { useAttentive } from "./useAttentive";
 
 export type { ChatStatus } from "./Conversation";
@@ -35,6 +36,7 @@ export function ChatWindow({
   prefill = null,
   modelPickerTick = 0,
   modeMenuTick = 0,
+  draft,
   onClose,
 }: {
   /** The desk's name, over the agent's face in the header. */
@@ -53,6 +55,8 @@ export function ChatWindow({
   prefill?: { text: string; tick: number } | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
+  /** The host's draft (the desk's, shared with its Messages tab); omitted, the box keeps its own. */
+  draft?: ControlledDraft;
   onClose: () => void;
 }) {
   const waiting = !!view.approval || !!view.question;
@@ -98,6 +102,7 @@ export function ChatWindow({
         findTick={findTick}
         modelPickerTick={modelPickerTick}
         modeMenuTick={modeMenuTick}
+        draft={draft}
       />
     </div>
   );

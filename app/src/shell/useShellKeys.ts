@@ -8,9 +8,10 @@ import { chordIds, menuSpec, registerActions, resolve, runAction, typingIn, type
  * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
  * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
  * registered once. Dialogs and the tree own their keys (except ⌘K, which closes the tree). Esc peels a
- * layer: the tree first, then a segment other than the desk, through `escape` (the inbox closes itself).
+ * layer: the tree first, then the desk's Desk tab back to Messages (`toMessages` says whether it took it),
+ * then a segment other than the desk, through `escape` (the inbox closes itself). Never while typing.
  */
-export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, actions: Record<string, () => void>, escape: { closeTree: () => void; toDesk: () => void }): void {
+export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, actions: Record<string, () => void>, escape: { closeTree: () => void; toDesk: () => void; toMessages?: (typing: boolean) => boolean }): void {
   const ref = useRef({ view, actions, escape });
   useEffect(() => {
     ref.current = { view, actions, escape };
@@ -28,6 +29,8 @@ export function useShellKeys(view: { segment: Segment; treeOpen: boolean }, acti
         if (treeOpen) {
           e.preventDefault();
           ref.current.escape.closeTree();
+        } else if (segment === "desk") {
+          if (ref.current.escape.toMessages?.(false)) e.preventDefault();
         } else if (segment === "settings" || segment === "board" || segment === "agents" || segment === "learn") {
           e.preventDefault();
           ref.current.escape.toDesk();

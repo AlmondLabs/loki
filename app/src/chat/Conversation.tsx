@@ -94,6 +94,7 @@ export function Conversation({
   placeholder,
   attach = false,
   icons,
+  composer = true,
 }: {
   view: ConversationView;
   actions: ConversationActions;
@@ -138,6 +139,12 @@ export function Conversation({
   attach?: boolean;
   /** The host's glyphs (the phone's icon set): with `send`, the send button is that icon, named for screen readers, instead of the word. */
   icons?: { send?: ReactNode; attach?: ReactNode; mic?: ReactNode };
+  /**
+   * False keeps only the header, find and the thread: a view that is hidden but must keep its scroll (the
+   * desk's Messages tab while the Desk tab shows), so the box, its switchers and the open question or
+   * approval are drawn once, by the view on screen.
+   */
+  composer?: boolean;
 }) {
   const approval = view.approval ?? null;
   const question = view.question ?? null;
@@ -191,64 +198,68 @@ export function Conversation({
       )}
       <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
 
-      {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
-      {approval && <ApprovalCard approval={approval} />}
-      {notice}
+      {composer && (
+        <>
+          {question && actions.onAnswer && <QuestionCard question={question} onAnswer={actions.onAnswer} touch={touch} />}
+          {approval && <ApprovalCard approval={approval} />}
+          {notice}
 
-      {/* The message box with send beside it; a draft that starts with "/" opens the command palette above. */}
-      <div className="loki-composer" style={{ padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})` }}>
-        {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
-        <ChatInput
-          ref={inputRef}
-          value={draft}
-          onChange={setDraft}
-          onSubmit={submit}
-          onKeyDown={palette.onKeyDown}
-          onEscape={() => {
-            inputRef.current?.blur();
-            if (!draft.trim()) onEscapeEmpty?.();
-          }}
-          onFocus={() => onTyping?.(true)}
-          onBlur={() => onTyping?.(false)}
-          images={images}
-          onImages={setImages}
-          placeholder={placeholder ?? composerPlaceholder(view, agentName)}
-          attach={attach}
-          icons={icons}
-          {...palette.aria}
-        />
-        {icons?.send ? (
-          <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} className="loki-composer-send" aria-label={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"} data-queue={view.status === "idle" ? undefined : "true"}>
-            {icons.send}
-          </Button>
-        ) : (
-          <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
-            {view.status === "idle" ? "send" : "queue"}
-          </Button>
-        )}
-      </div>
+          {/* The message box with send beside it; a draft that starts with "/" opens the command palette above. */}
+          <div className="loki-composer" style={{ padding: `12px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(10px + ${g.bottom})`} calc(12px + ${g.left})` }}>
+            {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
+            <ChatInput
+              ref={inputRef}
+              value={draft}
+              onChange={setDraft}
+              onSubmit={submit}
+              onKeyDown={palette.onKeyDown}
+              onEscape={() => {
+                inputRef.current?.blur();
+                if (!draft.trim()) onEscapeEmpty?.();
+              }}
+              onFocus={() => onTyping?.(true)}
+              onBlur={() => onTyping?.(false)}
+              images={images}
+              onImages={setImages}
+              placeholder={placeholder ?? composerPlaceholder(view, agentName)}
+              attach={attach}
+              icons={icons}
+              {...palette.aria}
+            />
+            {icons?.send ? (
+              <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} className="loki-composer-send" aria-label={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"} data-queue={view.status === "idle" ? undefined : "true"}>
+                {icons.send}
+              </Button>
+            ) : (
+              <Button size={size} tone={hasContent ? "positive" : "quiet"} onClick={submit} disabled={!hasContent} title={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}>
+                {view.status === "idle" ? "send" : "queue"}
+              </Button>
+            )}
+          </div>
 
-      {hasFooter && (
-        <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
-          {hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
-          {hasModelPicker && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
-          {hasEffortPicker && (
-            <>
-              <EffortChip effort={reasoningEffort} busy={controls.changingEffort} onClick={controls.toggleEffort} />
-              <EffortMenu open={controls.effortOpen} side="above" entries={effortEntries} current={reasoningEffort} onPick={(entry) => void controls.pickEffort(selectionOf(entry))} onClose={controls.closeEffort} />
-            </>
+          {hasFooter && (
+            <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
+              {hasModelPicker && <ModelChip model={model} busy={controls.switching} onClick={controls.togglePicker} />}
+              {hasModelPicker && <ModelPicker open={controls.pickerOpen} side="above" current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} />}
+              {hasEffortPicker && (
+                <>
+                  <EffortChip effort={reasoningEffort} busy={controls.changingEffort} onClick={controls.toggleEffort} />
+                  <EffortMenu open={controls.effortOpen} side="above" entries={effortEntries} current={reasoningEffort} onPick={(entry) => void controls.pickEffort(selectionOf(entry))} onClose={controls.closeEffort} />
+                </>
+              )}
+              {hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
+              {hasModeMenu && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
+              {canApprove &&
+                (() => {
+                  const approve = <Button key="approve" size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>;
+                  const deny = <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>;
+                  // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
+                  return touch ? [deny, approve] : [approve, deny];
+                })()}
+              {footer}
+            </div>
           )}
-          {hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
-          {hasModeMenu && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
-          {canApprove &&
-            (() => {
-              const approve = <Button key="approve" size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>;
-              const deny = <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>;
-              // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
-              return touch ? [deny, approve] : [approve, deny];
-            })()}
-          {footer}
-        </div>
+        </>
       )}
     </>
   );
@@ -307,7 +318,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
       <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} />}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} />}
         {status === "thinking" && !waiting && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
         {error && <div className="loki-thread-error">{error}</div>}
       </div>

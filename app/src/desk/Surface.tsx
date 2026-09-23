@@ -4,7 +4,7 @@ import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { getPath, mergeData } from "../../../core/desk-core.ts";
 import { KIT_COMPONENTS } from "../kit";
 import { ChatBubble, ChatWindow, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
-import type { ConversationActions, ConversationView } from "../chat/Conversation";
+import type { ControlledDraft } from "../chat/useDraft";
 import type { useDesk, VisibleWidget } from "./useDesk";
 import type { useAttention } from "../../../core/attention/useAttention.ts";
 import { Viewport } from "./Viewport";
@@ -12,11 +12,10 @@ import { WidgetFrame } from "./WidgetFrame";
 import { ModuleWidget, WidgetError } from "./ModuleWidget";
 import { useCamera } from "./useCamera";
 import { useChatInset } from "./useChatInset";
-import { useDeskChat, type DeskChatModel } from "./useDeskChat";
+import type { DeskChatModel } from "./useDeskChat";
+import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
+import type { FrameRequest } from "./pane";
 import { Chip, Empty } from "../components";
-import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
-import { runAction } from "../shell/keymap";
-import type { ModelSelection } from "../../../core/models.ts";
 
 function WidgetBody({
   w,
@@ -37,9 +36,23 @@ function WidgetBody({
   return <Kit data={data} onSet={onSet} />;
 }
 
-interface SurfaceProps {
+/** How long the Desk tab's layout takes to settle (the sidebar hides, the canvas widens) before a frame request is framed. */
+const FRAME_SETTLE_MS = 120;
+
+interface SurfaceProps extends DeskConversationHandlers {
   desk: ReturnType<typeof useDesk>;
   catchUp: ReturnType<typeof useAttention>;
+  /** The desk's conversation (useDeskChat), shared with the Messages tab. */
+  chat: DeskChatModel;
+  /**
+   * The Desk tab is on screen. While it is not, the sheet stays mounted but its chat panel is not drawn
+   * (the Messages tab has the box), an empty desk does not open its chat, and the sheet's keys stand down.
+   */
+  active?: boolean;
+  /** The desk's draft, the same one the Messages tab edits. */
+  draft?: ControlledDraft;
+  /** Frame one widget once the tab has settled (a widget row in the thread asks; see desk/pane.ts). */
+  frameRequest?: FrameRequest | null;
   chatOpen: boolean;
   onChatOpen: (open: boolean) => void;
   chatWidth: ChatWidth;
@@ -52,12 +65,7 @@ interface SurfaceProps {
   findChat?: number;
   chatPrefill?: { text: string; tick: number } | null;
   models?: import("../chat/ModelPicker").ModelEntry[] | null;
-  onLoadModels?: () => void;
-  /** Switch this desk's conversation to a model; the shell talks to the app-server. */
-  onPickModel?: (scope: string, rt: { agent_id: string; conversation_id: string }, selection: ModelSelection) => Promise<void>;
   modelPickerTick?: number;
-  /** Set this desk's conversation permission mode; the shell talks to the app-server. */
-  onPickMode?: (scope: string, rt: { agent_id: string; conversation_id: string }, mode: string) => Promise<void>;
   modeMenuTick?: number;
 }
 
@@ -68,26 +76,46 @@ interface SurfaceProps {
  * difference so what you were looking at stays in view.
  */
 export function Surface(props: SurfaceProps) {
-  const { desk, catchUp, chatOpen, onChatOpen, chatWidth, onChatWidth, chatPlacement } = props;
-  const { scope, agentName, agentId, conversationId, connection, visible, closed, ownCount, loaded, attention, gesture, measure, arrange, trash, reportWidgetError, cameraTarget } = desk;
+  const { desk, chat, chatOpen, onChatOpen, chatWidth, onChatWidth, chatPlacement, active = true, frameRequest = null } = props;
+  const { scope, agentName, connection, visible, closed, ownCount, loaded, gesture, measure, arrange, trash, reportWidgetError, cameraTarget } = desk;
 
-  // An empty desk is a conversation, not a canvas: the chat opens by itself (the shell centres it).
+  // An empty desk on its Desk tab is a conversation, not a canvas: the chat opens by itself (the shell
+  // centres it). Not while the Messages tab shows: a hidden chat is neither opened nor centred.
   const autoOpened = useRef(new Set<string>());
   const emptyDesk = loaded && connection === "open" && ownCount === 0;
   useEffect(() => {
-    if (!emptyDesk || autoOpened.current.has(scope)) return;
+    if (!active || !emptyDesk || autoOpened.current.has(scope)) return;
     autoOpened.current.add(scope);
     onChatOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emptyDesk, scope]);
+  }, [active, emptyDesk, scope]);
   const toggleChatWidth = () => onChatWidth(chatWidth === "wide" ? "narrow" : "wide");
 
-  const chat = useDeskChat({ agentId, conversationId, connection, chatOpen, catchUp, attention });
   const { pendingApproval, pendingQuestion } = chat;
 
   const viewportRef = useRef<ReactZoomPanPinchRef | null>(null);
   const { insetRef, bubbleSide, trayLeft } = useChatInset({ chatOpen, chatPlacement, chatWidth, viewportRef, loaded, scope });
-  const { highlighted, focusWidget } = useCamera({ viewportRef, insetRef, visible, gesture, cameraTarget, arrange, undo: desk.undo });
+  const { highlighted, focusWidget } = useCamera({ viewportRef, insetRef, visible, gesture, cameraTarget, arrange, undo: desk.undo, active });
+
+  // A frame request (a widget row chosen in the thread): once the Desk tab shows and its layout has settled
+  // (the sidebar hides, so the canvas is wider than it was), frame the widget; it may mount a beat later.
+  const framed = useRef(0);
+  useEffect(() => {
+    if (!active || !frameRequest || frameRequest.nonce === framed.current) return;
+    const { widgetId, nonce } = frameRequest;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const go = () => {
+      if (document.getElementById(`widget-${widgetId.replace("/", "--")}`)) {
+        framed.current = nonce;
+        focusWidget(widgetId);
+      } else if (tries++ < 20) timer = setTimeout(go, 100);
+      else framed.current = nonce;
+    };
+    timer = setTimeout(go, FRAME_SETTLE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, frameRequest?.nonce]);
 
   const trashWidget = (id: string) => {
     const w = visible.find((v) => v.entry.id === id);
@@ -129,7 +157,7 @@ export function Surface(props: SurfaceProps) {
       <ConnectionLabel connection={connection} left={trayLeft} />
       <MinimisedTray closed={closed} connection={connection} left={trayLeft} gesture={gesture} />
 
-      {chatOpen && <DeskChat {...props} chat={chat} onToggleWidth={toggleChatWidth} />}
+      {chatOpen && active && <DeskChat {...props} chat={chat} onToggleWidth={toggleChatWidth} />}
       {!chatOpen && <ChatBubble side={bubbleSide} open={chatOpen} alert={!!pendingApproval || !!pendingQuestion} onToggle={() => onChatOpen(!chatOpen)} />}
 
       <EmptyDesk show={ownCount === 0 && connection === "open" && !chatOpen} agentName={agentName} scope={scope} />
@@ -197,39 +225,10 @@ function DeskChat({
   modelPickerTick = 0,
   onPickMode,
   modeMenuTick = 0,
+  draft,
 }: SurfaceProps & { chat: DeskChatModel; onToggleWidth: () => void }) {
-  const { scope, title, agentName, agentId, attention } = desk;
-  const { deskRuntime, deskChat, pendingApproval, pendingQuestion, deskFolder } = chat;
-  const view: ConversationView = {
-    rows: deskChat?.rows ?? [],
-    status: deskChat?.status ?? "idle",
-    error: !attention.available ? "chat needs Letta's app-server — is a harness running?" : deskChat?.error ?? null,
-    model: desk.model,
-    reasoningEffort: desk.reasoningEffort,
-    mode: deskChat?.mode ?? desk.mode,
-    approval: pendingApproval,
-    question: pendingQuestion,
-  };
-  const actions: ConversationActions = {
-    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title, origin: "desk" }),
-    onAnswer: (answers) => {
-      if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
-    },
-    onApprove: (behavior) => {
-      if (deskRuntime && pendingApproval) catchUp.decide(deskRuntime, pendingApproval.requestId, behavior);
-    },
-    commands: catchUp.commands,
-    onCommand: (id, args) => {
-      // loki's own commands are keymap actions; everything else is the harness's, run for this conversation.
-      const local = LOKI_COMMANDS.find((c) => c.id === id);
-      if (local?.action) runAction(local.action);
-      else if (deskRuntime) void catchUp.execute(deskRuntime, id, args);
-    },
-    onLoadModels,
-    onPickModel: deskRuntime && onPickModel ? (selection) => onPickModel(scope, deskRuntime, selection) : undefined,
-    onPickMode: deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined,
-    onCancelQueued: (text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text),
-  };
+  const { title, agentName, agentId } = desk;
+  const { view, actions } = deskConversation(desk, catchUp, chat, { onLoadModels, onPickModel, onPickMode });
   return (
     <ChatWindow
       title={title}
@@ -246,6 +245,7 @@ function DeskChat({
       prefill={chatPrefill}
       modelPickerTick={modelPickerTick}
       modeMenuTick={modeMenuTick}
+      draft={draft}
       onClose={() => onChatOpen(false)}
     />
   );

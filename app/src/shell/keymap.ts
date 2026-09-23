@@ -65,6 +65,7 @@ export const KEYMAP: Binding[] = [
   { id: "view.zoomOut", keys: ["cmd+-"], where: "desk", label: "Zoom Out", typing: true, menu: "View" },
   { id: "desk.arrange", keys: ["cmd+shift+a"], where: "desk", label: "Arrange Widgets", typing: true, menu: "Desk/sheet" },
   { id: "desk.undo", keys: ["cmd+z"], where: "desk", label: "Undo Widget Move", menu: "Desk/sheet", menuAccel: false },
+  { id: "desk.messages", keys: ["escape"], where: "desk", label: "back to Messages from the Desk tab", note: "handled by the shell" },
 
   // --- chat (the box owns these) ---------------------------------------
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },

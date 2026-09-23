@@ -4,7 +4,9 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import { useAttention } from "../../../core/attention/useAttention.ts";
 import { makeTransport } from "./transport";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import { Surface } from "../desk/Surface";
+import { DeskPane } from "../desk/DeskPane";
+import { useDeskPane } from "../desk/useDeskPane";
+import { chatKeyTarget, sidebarHidden } from "../desk/pane";
 import { useDesk } from "../desk/useDesk";
 import { inTauri } from "../desk/env";
 import { TaskCapture } from "../board/TaskCapture";
@@ -100,6 +102,8 @@ export function Shell() {
   }, [desk.scope, capture]);
   const [newDesk, setNewDesk] = useState<{ open: boolean; name: string; agentId: string | null }>({ open: false, name: "", agentId: null });
   const chat = useChatLayout(desk);
+  // The desk pane: Messages or the Desk tab, per desk; every open lands on Messages (desk/pane.ts).
+  const pane = useDeskPane(desk.scope);
   const { chatOpen, setChatOpen } = chat;
   const prevChatOpen = useRef<boolean | null>(null);
   useEffect(() => {
@@ -159,17 +163,17 @@ export function Shell() {
     setTreeOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  /** Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, a new desk): its Messages tab with the box focused. `_opts.chat` predates the tabs and is kept for callers. */
   const openDesk = useCallback(
-    (agentId: string, conversationId: string, opts: { chat?: boolean } = {}) => {
-      desk.desks.switchTo(scopeFor(conversationId, agentId));
+    (agentId: string, conversationId: string, _opts: { chat?: boolean } = {}) => {
+      const scope = scopeFor(conversationId, agentId);
+      desk.desks.switchTo(scope);
+      pane.open(scope);
       setSegment("desk");
-      if (opts.chat) {
-        setChatOpen(true);
-        setFocusChat((n) => n + 1);
-      }
+      setFocusChat((n) => n + 1);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [setSegment],
+    [setSegment, pane.open],
   );
   /** A lesson begins: the desk opens with the chat, and the brief goes out as the person's first message, the way a dispatched task does. */
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
@@ -242,7 +246,15 @@ export function Shell() {
   const visited = useVisitedDesks(desk.scope);
   // The list column between the rail and the main pane (Desk, Board, Agents, Learn); the pane starts where it ends.
   const column = useColumn(segment);
-  const paneLeft = SIDEBAR_WIDTH + (column.shown ? column.width : 0);
+  // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
+  const immersive = sidebarHidden(segment, pane.tab);
+  const columnShown = column.shown && !immersive;
+  const paneLeft = SIDEBAR_WIDTH + (columnShown ? column.width : 0);
+  /** A chat key acts on the view showing: Messages, or the Desk tab's inset (desk/pane.ts); the inset's own keys wait for its tab. */
+  const chatKey = (id: string, run: (inset: boolean) => void) => {
+    const to = chatKeyTarget(id, pane.tab);
+    if (to) run(to === "inset");
+  };
 
   useShellKeys(
     { segment, treeOpen },
@@ -260,26 +272,29 @@ export function Shell() {
       "desk.prev": () => stepDesk(-1),
       "desk.next": () => stepDesk(1),
       "column.toggle": () => {
-        if (column.has) column.toggle();
+        if (column.has && !immersive) column.toggle();
       },
       "window.hide": () => {
         if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().hide()).catch((e) => console.warn("loki: hide", e));
       },
-      "chat.toggle": () => setChatOpen((v) => !v),
-      "chat.close": () => setChatOpen(false),
-      "chat.focus": () => (setChatOpen(true), setFocusChat((n) => n + 1)),
-      "chat.find": () => (setChatOpen(true), setFindChat((n) => n + 1)),
-      "chat.model": () => (setChatOpen(true), setModelPickerTick((n) => n + 1)),
-      "chat.mode": () => (setChatOpen(true), setModeMenuTick((n) => n + 1)),
-      "chat.left": () => chat.moveChat(-1),
-      "chat.right": () => chat.moveChat(1),
+      "chat.toggle": () => chatKey("chat.toggle", () => setChatOpen((v) => !v)),
+      "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),
+      "chat.focus": () => chatKey("chat.focus", (inset) => (inset && setChatOpen(true), setFocusChat((n) => n + 1))),
+      "chat.find": () => chatKey("chat.find", (inset) => (inset && setChatOpen(true), setFindChat((n) => n + 1))),
+      "chat.model": () => chatKey("chat.model", (inset) => (inset && setChatOpen(true), setModelPickerTick((n) => n + 1))),
+      "chat.mode": () => chatKey("chat.mode", (inset) => (inset && setChatOpen(true), setModeMenuTick((n) => n + 1))),
+      "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
+      "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
     },
-    { closeTree: () => setTreeOpen(false), toDesk: () => setSegment("desk") },
+    { closeTree: () => setTreeOpen(false), toDesk: () => setSegment("desk"), toMessages: pane.escape },
   );
 
+  /** A desk chosen in the sidebar or the tree: an open, so its Messages tab with the box focused. */
   const switchDesk = (scope: string) => {
     desk.desks.switchTo(scope);
+    pane.open(scope);
     setSegment("desk");
+    setFocusChat((n) => n + 1);
   };
   const forgetModels = () => setModels(null);
 
@@ -287,11 +302,11 @@ export function Shell() {
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
         <TitleStrip />
-        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has ? { open: column.open, onToggle: column.toggle } : null} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "desk" && segment === "desk" ? (treeOpen ? setTreeOpen(false) : openTree()) : (setTreeOpen(false), setSegment(s)))} waiting={waiting} tick={tick} treeOpen={treeOpen} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null} />
 
         <ListColumn
           segment={segment}
-          shown={column.shown}
+          shown={columnShown}
           width={column.width}
           onWidth={column.setWidth}
           sections={{
@@ -303,11 +318,15 @@ export function Shell() {
         />
 
         <div style={{ position: "absolute", top: TITLEBAR_HEIGHT, left: paneLeft, right: 0, bottom: 0 }}>
-          {/* The sheet stays mounted behind the other views so the desk link and camera keep their state. */}
+          {/* The desk pane stays mounted behind the other views so the desk link, the camera and the thread's scroll keep their state. */}
           <div style={{ position: "absolute", inset: 0, visibility: segment === "desk" ? "visible" : "hidden" }} aria-hidden={segment !== "desk"}>
-            <Surface
+            <DeskPane
               desk={desk}
               catchUp={catchUp}
+              active={segment === "desk"}
+              tab={pane.tab}
+              onTab={pane.setTab}
+              frameRequest={pane.frameRequest}
               chatOpen={chatOpen}
               onChatOpen={setChatOpen}
               chatWidth={chat.chatWidth}
@@ -322,6 +341,7 @@ export function Shell() {
               modelPickerTick={modelPickerTick}
               onPickMode={pickMode}
               modeMenuTick={modeMenuTick}
+              notice={notice}
             />
           </div>
 

@@ -31,6 +31,7 @@ export function useCamera({
   cameraTarget,
   arrange,
   undo,
+  active = true,
 }: {
   viewportRef: RefObject<ReactZoomPanPinchRef | null>;
   insetRef: RefObject<{ left: number; right: number }>;
@@ -40,6 +41,8 @@ export function useCamera({
   arrange: () => void;
   /** The sheet's undo; false when there is nothing to undo. */
   undo: () => boolean;
+  /** The sheet is on screen (the desk's Desk tab); its keys are registered only then, so ⌘Z on Messages never moves a hidden widget. */
+  active?: boolean;
 }) {
   /** The visible part of the viewport: everything the chat does not cover. */
   const stage = () => {
@@ -148,22 +151,21 @@ export function useCamera({
   }, [cameraTarget]);
 
   // The sheet's actions, by keymap id: the shell's one key handler (and the menu bar) dispatch to these. Registered
-  // once, after every closure they call through is declared (the refs above carry the latest ones).
-  useEffect(
-    () =>
-      registerActions({
-        "view.fit": () => fitAllRef.current(),
-        "view.reset": () => resetZoomRef.current(),
-        "view.zoomIn": () => zoomByRef.current(1.25),
-        "view.zoomOut": () => zoomByRef.current(1 / 1.25),
-        "desk.arrange": () => arrange(),
-        "desk.undo": () => {
-          if (!undo()) console.info("loki: nothing to undo on the sheet");
-        },
-      }),
+  // while the sheet shows, after every closure they call through is declared (the refs above carry the latest ones).
+  useEffect(() => {
+    if (!active) return;
+    return registerActions({
+      "view.fit": () => fitAllRef.current(),
+      "view.reset": () => resetZoomRef.current(),
+      "view.zoomIn": () => zoomByRef.current(1.25),
+      "view.zoomOut": () => zoomByRef.current(1 / 1.25),
+      "desk.arrange": () => arrange(),
+      "desk.undo": () => {
+        if (!undo()) console.info("loki: nothing to undo on the sheet");
+      },
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  }, [active]);
 
   return { highlighted, focusWidget };
 }

@@ -16,7 +16,7 @@ export type { TranscriptRow };
  * its last-ness, or the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
   // Day pills only in the message layout, and only where rows carry times; then the pills name the day and the New line does not.
   const pills = people ? dayPills(rows) : null;
   const timed = pills?.some(Boolean) ?? false;
@@ -24,7 +24,7 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
   const row = (m: TranscriptRow, i: number) => (
     <Fragment key={i}>
       {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
-      <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} />
+      <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
     </Fragment>
   );
   if (!timed || !pills) return <>{rows.map(row)}</>;
@@ -87,6 +87,8 @@ export interface MessageLayout {
   people?: { user: Person; assistant: Person };
   dividerAt?: number | null;
   dividerDay?: string | null;
+  /** The hover action bar on each message (the desktop's Messages tab); the phone leaves it off. */
+  toolbar?: boolean;
 }
 
 /** The unread boundary: the day on the left, "New" on the right, a hairline between. */
@@ -101,19 +103,20 @@ function Divider({ day }: { day: string | null }) {
 }
 
 /** One row, by role. This is the memo boundary; the shapes below are plain functions rendered inside it. */
-const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean }) {
+const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, toolbar = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; toolbar?: boolean }) {
   if (m.role === "tool") return <ToolRow row={m} />;
   if (m.role === "event") return <EventRow row={m} />;
-  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} />;
+  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} toolbar={toolbar} />;
   return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} />;
 });
 
 /**
  * A message in the avatar-led layout: the face and bold name at the start of a run, with the message's
  * quiet time after the name; later messages in the run keep their time in the face's column, shown on
- * hover (desktop). A message with no known time shows none.
+ * hover (desktop). A message with no known time shows none. With `toolbar`, hovering shows Slack's small
+ * action bar holding what loki already does to a message: copy it as markdown.
  */
-function Message({ row: m, last, streaming, person, first, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+function Message({ row: m, last, streaming, person, first, onCancelQueued, toolbar }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; toolbar?: boolean }) {
   const time = clockLabel(m.at);
   return (
     <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} className="loki-msg">
@@ -140,6 +143,11 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued }: { r
           </Button>
         )}
       </div>
+      {toolbar && m.text && !(last && streaming) && (
+        <div className="loki-msg-toolbar" role="toolbar" aria-label="Message actions">
+          <CopyMarkdown text={m.text} className="loki-msg-action" />
+        </div>
+      )}
     </div>
   );
 }
@@ -198,7 +206,7 @@ function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: Transcr
 }
 
 /** The bubble's text as it was written — markdown, not the rendering — onto the clipboard. Says "copied" for a beat. */
-function CopyMarkdown({ text }: { text: string }) {
+function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -214,7 +222,7 @@ function CopyMarkdown({ text }: { text: string }) {
     }
   };
   return (
-    <IconButton size={24} className="loki-bubble-copy" label={copied ? "copied" : "copy as markdown"} data-copied={copied ? "true" : undefined} onClick={() => void copy()}>
+    <IconButton size={24} className={className} label={copied ? "copied" : "copy as markdown"} data-copied={copied ? "true" : undefined} onClick={() => void copy()}>
       {copied ? (
         <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M3 8.5l3 3 7-7" />

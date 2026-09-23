@@ -423,6 +423,16 @@ button.loki-list-section-toggle:hover { background: var(--loki-hover); color: va
 .loki-tab[aria-selected="true"] { color: var(--loki-fg); border-bottom-color: var(--loki-fg); }
 .loki-tab-count { font-size: 12px; font-weight: 400; color: var(--loki-muted); }
 
+/* The desk pane (desk/DeskPane.tsx): the header over two stacked tab panels; the hidden one keeps its layout (visibility), so the thread keeps its scroll and the sheet its camera. */
+.loki-desk-pane { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--loki-bg); }
+.loki-desk-pane-body { position: relative; flex: 1; min-height: 0; }
+.loki-desk-pane-panel { position: absolute; inset: 0; }
+.loki-desk-pane-messages { display: flex; flex-direction: column; }
+.loki-desk-pane-agent { display: inline-flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.loki-desk-pane-live { width: 8px; height: 8px; border-radius: var(--loki-radius-pill); background: var(--loki-positive); flex: none; }
+.loki-desk-pane-menu-anchor { position: relative; display: inline-flex; }
+.loki-desk-pane-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 13.5px; }
+
 /* A pane with nothing in it (EmptyPane): the Empty block, centred in whatever space the pane has. */
 .loki-empty-pane { flex: 1; min-height: 0; display: grid; place-items: center; padding: 40px 24px; box-sizing: border-box; }
 .loki-empty-pane-icon { margin: 0 auto 12px; color: var(--loki-muted); }
