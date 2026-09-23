@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
+import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Personality } from "../../../core/attention/protocol.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
 import { registerActions } from "../shell/keymap";
-import { Button, Empty, NavButton, Title } from "../components";
+import { Button, EmptyPane, PaneHeader, type Tab } from "../components";
+import { Icon } from "../shared/icons";
+import { COLUMN_DEFAULT } from "../shell/column";
 import type { Task } from "../board/model";
-import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, DEFAULT_AGENT_PAGE, isAgentPage, type AgentPage } from "./pages";
-import { firstAgentId, readingFor, shownShaOf, shownSkillOf } from "./reading";
+import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_LABEL, type AgentPage } from "./pages";
+import { readingFor, shownShaOf, shownSkillOf } from "./reading";
+import { agentsSelection, shownAgent, useAgentsSelection, type AgentsSelection } from "./selection";
+import { AgentsColumn } from "./AgentsColumn";
 import { useAgentDetails } from "./useAgentDetails";
 import { useReading } from "./useReading";
 import { NewAgent } from "./NewAgent";
@@ -19,10 +24,12 @@ import type { AgentEdit, AgentsApi, AgentsWrite, ReflectionControls } from "./ty
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
 export { Diff } from "./ChangesPage";
+export { AgentsColumn } from "./AgentsColumn";
 
 /**
- * The Agents page: one tab per agent — its face, name, description and model (editable through the
- * app-server), its memory as a browsable tree with the git history of what it learned, its skills,
+ * The Agents page, Slack's DMs (plan 013 U10): the agents down the column (AgentsColumn), the chosen one
+ * in the pane under a header whose tabs are its pages — its face, name, description and model (editable
+ * through the app-server), its memory as a browsable tree with the git history of what it learned, its skills,
  * and where it is working (desks, tasks). Memory is read-only here: to change a fact you hand the
  * request to the agent in its own chat.
  */
@@ -31,6 +38,7 @@ export function Agents({
   api,
   avatar,
   desks,
+  items = NO_ITEMS,
   tasks,
   initialAgentId,
   onOpenDesk,
@@ -41,11 +49,15 @@ export function Agents({
   listModels,
   onShowDesks,
   onShowBoard,
+  columnOutside = false,
+  selection = agentsSelection,
 }: {
   agents: Array<{ id: string; name: string }>;
   api: AgentsApi;
   avatar: (agentId: string) => string;
   desks: DeskSummary[];
+  /** The Inbox's items: the column's live state and waiting badges (only read when the column is inside). */
+  items?: AttentionItem[];
   tasks: Task[] | null;
   initialAgentId: string | null;
   onOpenDesk: (agentId: string, conversationId: string) => void;
@@ -59,27 +71,32 @@ export function Agents({
   listModels: () => Promise<Array<{ handle: string }>>;
   onShowDesks: () => void;
   onShowBoard: () => void;
+  /** The Shell's list column holds AgentsColumn (plan 013 U10): draw only the pane. Otherwise the column sits inside, at the left. */
+  columnOutside?: boolean;
+  /** The chosen agent, page and new-agent form, shared with AgentsColumn; the window's one by default. */
+  selection?: AgentsSelection;
 }) {
-  /** The tab the user picked; with nothing picked (the list not here yet, or the picked agent just deleted) the first agent shows. */
-  const [picked, setPicked] = useState<string | null>(initialAgentId ?? firstAgentId(agents));
-  const selected = picked ?? firstAgentId(agents);
-  /** The page down the left, remembered for the window; and what each page has picked. */
-  const [page, pick] = useAgentPage();
+  const sel = useAgentsSelection(selection);
+  /** The agent the column picked; with nothing picked the desk's agent, and after a delete the first agent. */
+  const selected = shownAgent(sel.agent, initialAgentId, agents);
+  const { page, creating } = sel;
+  const pick = selection.pickPage;
+  const setSelected = selection.pickAgent;
+  const setCreating = selection.setCreating;
+  /** What each page has picked; the memory, changes and skills pages start over for another agent. */
   const [filePath, setFilePath] = useState("system/persona.md");
   const [sha, setSha] = useState<string | null>(null);
   const [skillName, setSkillName] = useState<string | null>(null);
-  /** Switch tabs: the memory, changes and skills pages start over for the new agent. */
-  const setSelected = (id: string | null) => {
-    if (id !== selected) {
-      setFilePath("system/persona.md");
-      setSha(null);
-      setSkillName(null);
-    }
-    setPicked(id);
-  };
+  const [pickedFor, setPickedFor] = useState(selected);
+  if (pickedFor !== selected) {
+    // state derived from the selection, reset during render (the React pattern), so the new agent's first paint is clean
+    setPickedFor(selected);
+    setFilePath("system/persona.md");
+    setSha(null);
+    setSkillName(null);
+  }
   const [models, setModels] = useState<string[] | null>(null);
   const loadModels = () => void listModels().then((m) => setModels([...new Set(m.map((e) => e.handle))]));
-  const [creating, setCreating] = useState(false);
   /** The skills page's add form (write here, or install from a source). */
   const [adding, setAdding] = useState<Adding>(null);
 
@@ -102,56 +119,66 @@ export function Agents({
   const created = async (opts: { personality: Personality; name: string; description?: string; model?: string }) => {
     const r = await write.createAgent(opts);
     if ("error" in r) return r.error;
-    setCreating(false);
-    setSelected(r.id);
+    setSelected(r.id); // closes the form too
     flash(`${opts.name} is here`);
     return null;
   };
 
-  // ⌘[ and ⌘] step through the tabs (agents.prev / agents.next in the keymap), wrapping at the ends.
+  // ⌘[ and ⌘] step through the agents (agents.prev / agents.next in the keymap), wrapping at the ends.
   useEffect(() => {
     const step = (d: 1 | -1) => {
       if (agents.length < 2) return;
       const i = Math.max(0, agents.findIndex((a) => a.id === selected));
-      setCreating(false);
       setSelected(agents[(i + d + agents.length) % agents.length].id);
     };
     return registerActions({ "agents.prev": () => step(-1), "agents.next": () => step(1) });
   });
 
-  if (!agents.length && !creating) return <NoAgents onNew={() => setCreating(true)} />;
+  const frame = (pane: React.ReactNode) => (columnOutside ? <Frame>{pane}</Frame> : <Frame column={<AgentsColumn agents={agents} desks={desks} items={items} avatar={avatar} initialAgentId={initialAgentId} selection={selection} />}>{pane}</Frame>);
 
-  const tabs = <AgentTabs agents={agents} selected={selected} creating={creating} avatar={avatar} notice={notice} onPick={setSelected} onNew={() => setCreating(true)} />;
+  if (!agents.length && !creating) return frame(<NoAgents onNew={() => setCreating(true)} />);
   if (creating) {
-    return (
-      <Frame tabs={tabs}>
+    return frame(
+      <>
+        <PaneHeader title="New agent" lead={<Icon name="plus" size={20} />} aside={notice} />
         <NewAgent models={models} onLoadModels={loadModels} onCreate={created} onCancel={() => setCreating(false)} canCancel={agents.length > 0} />
-      </Frame>
+      </>,
     );
   }
-  if (!selected) return <Frame tabs={tabs} />;
+  if (!selected) return frame(null);
+  const name = d?.agent.name ?? agents.find((a) => a.id === selected)?.name ?? "agent";
+  const header = (tabs: boolean) => (
+    <PaneHeader
+      title={name}
+      lead={<AgentFace name={name} src={avatar(selected)} size={24} />}
+      aside={notice ?? (tabs ? AGENT_PAGE_HINT[page] : undefined)}
+      tabs={tabs ? PAGE_TABS : undefined}
+      tab={page}
+      onTab={pick}
+      tabsLabel="Agent pages"
+      panelId={(p) => `loki-agent-page-${p}`}
+    />
+  );
   if (d === undefined) {
-    return (
-      <Frame tabs={tabs}>
-        <Centered>
-          <Empty title="reading the agent…" />
-        </Centered>
-      </Frame>
+    return frame(
+      <>
+        {header(false)}
+        <EmptyPane title="reading the agent…" />
+      </>,
     );
   }
   if (d === null) {
-    return (
-      <Frame tabs={tabs}>
-        <Centered>
-          <Empty title="No local record">
-            <p>This agent has no local record on this machine (a remote or hidden agent).</p>
-          </Empty>
-        </Centered>
-      </Frame>
+    return frame(
+      <>
+        {header(false)}
+        <EmptyPane title="No local record">
+          <p>This agent has no local record on this machine (a remote or hidden agent).</p>
+        </EmptyPane>
+      </>,
     );
   }
 
-  /** The four pages, by name; only the current one is mounted. */
+  /** The five pages, by name; only the current one is mounted. */
   const pages: Record<AgentPage, React.ReactNode> = {
     profile: <ProfilePage d={d} selected={selected} avatar={avatar(selected)} models={models} onLoadModels={loadModels} onSave={store.save} desks={desks} tasks={tasks} onOpenDesk={onOpenDesk} onShowDesks={onShowDesks} onShowBoard={onShowBoard} confirmDelete={store.confirmDelete} setConfirmDelete={store.setConfirmDelete} onRemove={store.remove} />,
     memory: <MemoryPage d={d} selected={selected} filePath={filePath} onPickFile={setFilePath} reading={reading} onAskToUpdate={onAskToUpdate} />,
@@ -159,93 +186,45 @@ export function Agents({
     reflection: <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} desks={desks} api={api} reflect={reflect} onOpenDesk={onOpenDesk} />,
     skills: <SkillsPage d={d} store={store} viewSkill={shownSkill} onPickSkill={setSkillName} adding={adding} setAdding={setAdding} reading={reading} />,
   };
-  return (
-    <Frame tabs={tabs}>
-      <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "150px 1fr" }}>
-        {/* Pages down the left, the way Settings has them; the page is remembered for the window. */}
-        <nav aria-label="agent pages" style={{ display: "grid", alignContent: "start", gap: 2, padding: "18px 12px 18px 20px", borderRight: "1px solid var(--loki-border)" }}>
-          {AGENT_PAGES.map((p) => (
-            <NavButton key={p} current={page === p} onClick={() => pick(p)}>
-              {p}
-            </NavButton>
-          ))}
-        </nav>
-
-        <div style={{ minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "auto minmax(0, 1fr)" }}>
-          <div style={{ padding: "18px 28px 10px", display: "flex", alignItems: "baseline", gap: 12, borderBottom: "1px solid var(--loki-border)" }}>
-            <Title page>{page}</Title>
-            <span className="loki-meta loki-meta--wrap">{AGENT_PAGE_HINT[page]}</span>
-          </div>
-          {pages[page]}
-        </div>
+  return frame(
+    <>
+      {header(true)}
+      {/* The page under the agent's header and tab row, Slack's Messages | Canvas | Files; the page is remembered for the window. */}
+      <div id={`loki-agent-page-${page}`} role="tabpanel" aria-label={page} style={{ flex: 1, minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)" }}>
+        {pages[page]}
       </div>
-    </Frame>
+    </>,
   );
 }
 
-/** The page down the left, remembered for the window, like Settings' (sessionStorage). */
-function useAgentPage(): [AgentPage, (p: AgentPage) => void] {
-  const [page, setPageState] = useState<AgentPage>(() => {
-    const saved = sessionStorage.getItem(AGENT_PAGE_KEY);
-    return isAgentPage(saved) ? saved : DEFAULT_AGENT_PAGE;
-  });
-  const pick = (p: AgentPage) => {
-    setPageState(p);
-    sessionStorage.setItem(AGENT_PAGE_KEY, p);
-  };
-  return [page, pick];
-}
+const NO_ITEMS: AttentionItem[] = [];
 
-/** Before the first agent: an invitation. */
+/** The pages as the header's tabs. */
+const PAGE_TABS: readonly Tab<AgentPage>[] = AGENT_PAGES.map((p) => ({ id: p, label: AGENT_PAGE_LABEL[p] }));
+
+/** Before the first agent: an invitation, as the pane's empty state. */
 function NoAgents({ onNew }: { onNew: () => void }) {
   return (
-    <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center" }}>
-      <Empty title="No agents yet.">
-        <p>An agent keeps its own memory, desks and skills here.</p>
-        <div style={{ marginTop: 12 }}>
-          <Button tone="brass" onClick={onNew}>new agent</Button>
+    <EmptyPane title="No agents yet.">
+      <p>An agent keeps its own memory, desks and skills here.</p>
+      <div style={{ marginTop: 12 }}>
+        <Button tone="brass" onClick={onNew}>new agent</Button>
+      </div>
+    </EmptyPane>
+  );
+}
+
+/** The view's box: the column at the left when it is not the Shell's, then the pane — its header over the page. */
+function Frame({ column, children }: { column?: React.ReactNode; children?: React.ReactNode }) {
+  const pane = <div style={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>{children}</div>;
+  return (
+    <div style={{ position: "absolute", inset: 0, display: "flex", background: "var(--loki-bg)" }}>
+      {column && (
+        <div className="loki-column-body" style={{ position: "relative", width: COLUMN_DEFAULT, flex: "none", borderRight: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}>
+          {column}
         </div>
-      </Empty>
-    </div>
-  );
-}
-
-/** The page's box: the tab strip above, the body below it. */
-function Frame({ tabs, children }: { tabs: React.ReactNode; children?: React.ReactNode }) {
-  return (
-    <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)" }}>
-      {tabs}
-      {children}
-    </div>
-  );
-}
-
-/** A body that is one line in the middle: reading, or no record. */
-function Centered({ children }: { children: React.ReactNode }) {
-  return <div style={{ flex: 1, display: "grid", placeItems: "center" }}>{children}</div>;
-}
-
-/** The tab strip: one face per agent, "+ new" at the end, and the latest notice at the right. */
-function AgentTabs({ agents, selected, creating, avatar, notice, onPick, onNew }: { agents: Array<{ id: string; name: string }>; selected: string | null; creating: boolean; avatar: (agentId: string) => string; notice: string | null; onPick: (id: string) => void; onNew: () => void }) {
-  return (
-    <div role="tablist" aria-label="agents" style={{ display: "flex", gap: 6, padding: "12px 24px 0", borderBottom: "1px solid var(--loki-border)" }}>
-      {agents.map((a) => (
-        <button
-          key={a.id}
-          role="tab"
-          aria-selected={a.id === selected}
-          onClick={() => onPick(a.id)}
-          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px 10px", border: "none", borderBottom: `2px solid ${a.id === selected ? "var(--loki-accent)" : "transparent"}`, background: "transparent", color: a.id === selected ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-font)", fontSize: 13.5 }}
-        >
-          <AgentFace name={a.name} src={avatar(a.id)} size={22} />
-          {a.name}
-        </button>
-      ))}
-      <button role="tab" aria-selected={creating} onClick={onNew} title="a new agent" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px 10px", border: "none", borderBottom: `2px solid ${creating ? "var(--loki-accent)" : "transparent"}`, background: "transparent", color: creating ? "var(--loki-fg)" : "var(--loki-muted)", cursor: "pointer", font: "inherit", fontFamily: "var(--loki-font)", fontSize: 13.5 }}>
-        + new
-      </button>
-      <span style={{ flex: 1 }} />
-      {notice && <span className="loki-meta loki-meta--wrap" style={{ alignSelf: "center" }}>{notice}</span>}
+      )}
+      {pane}
     </div>
   );
 }

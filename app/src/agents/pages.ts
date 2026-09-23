@@ -1,5 +1,5 @@
 /**
- * The pages down the left of an agent (app/src/agents/Agents.tsx), in the order they are listed.
+ * The pages of an agent, the tabs under its header (app/src/agents/Agents.tsx), in the order they are listed.
  * profile: who it is and where it works. memory: the files, read. changes: what it learned, as a
  * timeline of commits. reflection: Letta's sleep-time pass — when it fires, how it merges, each
  * conversation's count, a pass by hand. skills: its own and the installed ones, with refresh. Global
@@ -24,4 +24,13 @@ export const AGENT_PAGE_HINT: Record<AgentPage, string> = {
   changes: "what it learned, newest first",
   reflection: "when it sleeps on what happened, and what came of it",
   skills: "its own, and the ones installed from elsewhere",
+};
+
+/** The tab labels under the agent's header, Slack's "Messages | Canvas | Files" voice. */
+export const AGENT_PAGE_LABEL: Record<AgentPage, string> = {
+  profile: "Profile",
+  memory: "Memory",
+  changes: "Changes",
+  reflection: "Reflection",
+  skills: "Skills",
 };
