@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { ANSWERS, describeGap, previews, type Grade } from "../../../core/recall/fsrs.ts";
 import { learnTitle, type CardWithSchedule, type RecallSnapshot } from "../../../core/recall/model.ts";
 import { lessonBrief } from "../../../core/recall/extract.ts";
-import { Button, Chip, Empty, Meta, Title } from "../components";
+import { Button, Empty, Meta, Title } from "../components";
 import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { CardEditor, CardList, DismissedLeadList, LeadList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
 import { useDeckPass } from "./useDeckPass";
+import { useLearnView } from "./useLearnView";
+import { stepLearnView, type LearnView as View } from "./views";
 
 /**
  * Recall: the cards the worker wrote, one at a time. The front, then the answer on space, then one of two
@@ -15,15 +17,13 @@ import { useDeckPass } from "./useDeckPass";
  * to shape what gets written are to delete a card (X — it joins the pile the worker reads as "not this")
  * or to edit it. New cards come first with a mark, so the first look at a card is also the chance to throw
  * it out. Beside the deck: the leads (things worth learning properly, each a lesson away), every card with
- * search, and the deleted pile with restore.
+ * search, and the deleted pile with restore. The view is chosen in Learn's list column (useLearnView) or by ⌘[ ⌘].
  */
-type View = "review" | "leads" | "all" | "deleted";
-const VIEWS: View[] = ["review", "leads", "all", "deleted"];
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
 
 export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
   const { snap } = recall;
-  const [view, setView] = useState<View>("review");
+  const [view, setView] = useLearnView();
   const cards = snap?.cards ?? [];
   const pass = useDeckPass(cards);
   const { current, revealed } = pass;
@@ -69,9 +69,8 @@ export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: Recall
   // The section's own keys, whichever view shows: ⌘[ and ⌘] step the views, ⌘R refreshes.
   useEffect(() => {
     if (!active) return;
-    const step = (d: 1 | -1) => setView((v) => VIEWS[(VIEWS.indexOf(v) + d + VIEWS.length) % VIEWS.length]);
-    return registerActions({ "learn.prevView": () => step(-1), "learn.nextView": () => step(1), "recall.refresh": () => void recall.refresh() });
-  }, [active, recall]);
+    return registerActions({ "learn.prevView": () => setView(stepLearnView(view, -1)), "learn.nextView": () => setView(stepLearnView(view, 1)), "recall.refresh": () => void recall.refresh() });
+  }, [active, recall, view, setView]);
 
   const deck = current && (
     <Deck
@@ -97,11 +96,11 @@ export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: Recall
 
   return (
     <div style={{ position: "absolute", inset: 0, overflowY: "auto", scrollbarGutter: "stable", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
-      {/* The header keeps its place across the views, so the tab just clicked stays under the pointer. Inside the
+      {/* The header keeps its place across the views. Inside the
           body, the deck sits in the middle of what is left (a little above it, where the eye rests); the lists
           start at the top. The gutter is reserved so a long list's scrollbar does not shift the column sideways. */}
       <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-        <RecallHeader recall={recall} view={view} onView={setView} />
+        <RecallHeader recall={recall} />
         <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
           {view === "review" ? <ReviewView recall={recall} pass={pass}>{deck}</ReviewView> : <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />}
         </div>
@@ -110,8 +109,8 @@ export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: Recall
   );
 }
 
-/** The title, the counts, and the four view tabs. */
-function RecallHeader({ recall, view, onView }: { recall: RecallModel; view: View; onView: (v: View) => void }) {
+/** The title and the counts; the views are rows in the list column. */
+function RecallHeader({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   const cards = snap?.cards.length ?? 0;
   const leads = snap?.leads.length ?? 0;
@@ -123,14 +122,6 @@ function RecallHeader({ recall, view, onView }: { recall: RecallModel; view: Vie
         {leads ? ` · ${leads} lead${leads === 1 ? "" : "s"}` : ""}
         {snap?.rejected.length ? ` · ${snap.rejected.length} deleted` : ""}
       </Meta>
-      <span style={{ flex: 1 }} />
-      <span role="tablist" aria-label="learn views" style={{ display: "inline-flex", gap: 4 }}>
-        {VIEWS.map((v) => (
-          <Chip key={v} role="tab" aria-selected={view === v} active={view === v} onClick={() => onView(v)}>
-            {v === "all" ? "all cards" : v}
-          </Chip>
-        ))}
-      </span>
     </header>
   );
 }

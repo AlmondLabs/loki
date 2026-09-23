@@ -2,11 +2,13 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AgentChip } from "../desk/AgentChip";
 import type { DeskSummary } from "../desk/useDesk";
 import { Button, Chip, Field } from "../components";
-import { PRIORITY_LABEL, ago, columnsOf, filterTasks, type ColumnId, type Task } from "./model";
+import { PRIORITY_LABEL, ago, columnOf, filterTasks, stepCursor, viewColumns, type Column, type ColumnId, type Dir, type Task } from "./model";
+import { useBoardView } from "./useBoardView";
 import { registerActions, typingIn } from "../shell/keymap";
 
 /**
- * The board: four columns of tasks for later. Select (X, click, ⇧-click for a range), then ⏎ assigns
+ * The board: four columns of tasks for later, or one of them, or one agent's tasks as a single list — the
+ * view chosen in the Board's list column (useBoardView); the keys are the same in every view. Select (X, click, ⇧-click for a range), then ⏎ assigns
  * the selection to a desk and ⌘⏎ dispatches it (assign, then post the tasks so the agent starts now).
  * D closes as done, B toggles blocked, N or + files a new task without an agent, / filters.
  *
@@ -40,6 +42,7 @@ export function Board({
   active: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [view] = useBoardView();
   const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
   const [cursorRaw, setCursor] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<string | null>(null);
@@ -48,7 +51,7 @@ export function Board({
   /** Set by a keyboard move: the next render focuses the cursor card. Data changes never steal focus. */
   const focusCursor = useRef(false);
 
-  const columns = useMemo(() => columnsOf(filterTasks(tasks ?? [], query)), [tasks, query]);
+  const columns = useMemo(() => viewColumns(filterTasks(tasks ?? [], query), view), [tasks, query, view]);
   const all = useMemo(() => columns.flatMap((c) => c.tasks), [columns]);
   const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all]);
   const deskTitle = useMemo(() => new Map(desks.map((d) => [d.scope, d.title ?? d.scope])), [desks]);
@@ -92,26 +95,8 @@ export function Board({
     setCursor(id);
   };
 
-  type Dir = "up" | "down" | "left" | "right";
-
-  /** The card the cursor would land on, or null when there is nowhere to go. */
-  const nextOf = (dir: Dir): string | null => {
-    if (!cursor) return all[0]?.id ?? null;
-    const ci = columns.findIndex((c) => c.tasks.some((t) => t.id === cursor));
-    if (ci < 0) return null;
-    const col = columns[ci];
-    const i = col.tasks.findIndex((t) => t.id === cursor);
-    if (dir === "up" || dir === "down") {
-      const next = col.tasks[Math.max(0, Math.min(col.tasks.length - 1, i + (dir === "down" ? 1 : -1)))];
-      return next && next.id !== cursor ? next.id : null;
-    }
-    // Sideways: the nearest non-empty column, same row or the last one there.
-    let j = ci;
-    do j += dir === "right" ? 1 : -1;
-    while (j >= 0 && j < columns.length && columns[j].tasks.length === 0);
-    const target = columns[j];
-    return target ? target.tasks[Math.min(i, target.tasks.length - 1)].id : null;
-  };
+  /** The card the cursor would land on, or null when there is nowhere to go (a single list has no sideways). */
+  const nextOf = (dir: Dir): string | null => stepCursor(columns, cursor, dir);
 
   const move = (dir: Dir) => {
     const next = nextOf(dir);
@@ -249,7 +234,7 @@ export function Board({
         </Button>
       </div>
 
-      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(4, minmax(220px, 1fr))", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
+      <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: columns.length > 1 ? `repeat(${columns.length}, minmax(220px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
         {columns.map((col) => (
           <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
             <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
@@ -262,7 +247,7 @@ export function Board({
                   <TaskCard
                     key={t.id}
                     task={t}
-                    column={col.id}
+                    column={columnOf(t) ?? "open"}
                     selected={selected.has(t.id)}
                     focused={cursor === t.id}
                     // Roving tabindex: the cursor card is the Tab stop; before there is one, the first card is.
@@ -277,7 +262,7 @@ export function Board({
             ) : (
               tasks !== null && (
                 <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0, padding: "10px 6px" }}>
-                  {emptyLine(col.id, query)}
+                  {emptyLine(col, query)}
                 </p>
               )
             )}
@@ -303,9 +288,11 @@ export function Board({
 }
 
 /** What an empty column says for itself. */
-function emptyLine(id: ColumnId, query: string): string {
+function emptyLine(col: Column, query: string): string {
   if (query.trim()) return "no matches";
-  switch (id) {
+  switch (col.id) {
+    case "agent":
+      return `nothing on the board for ${col.label}`;
     case "open":
       return "nothing waiting — ask an agent to park something, or press ⌘T";
     case "in_progress":
