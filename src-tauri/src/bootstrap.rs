@@ -430,8 +430,14 @@ pub fn sudo_line(version: &str) -> String {
 /// npm's last line on failure is "A complete log of this run can be found in: …", and the ones before it name
 /// the exit code, the path and the command. The cause is further up: the first `error` line that is none of
 /// those (sharp's "Please add node-gyp to your dependencies", node-gyp's own, an ENOTFOUND). That line, then the
-/// log path, so the person reading the window has both. A permissions failure adds the sudo line.
+/// log path, so the person reading the window has both. A permissions failure adds the sudo line (on Windows,
+/// which has no sudo, the same install in a terminal opened as administrator).
 pub fn telling_error(errors: &[String], fallback: &str) -> String {
+    telling_error_on(Os::HOST, errors, fallback)
+}
+
+/// `telling_error` as it reads on a given system.
+pub fn telling_error_on(os: Os, errors: &[String], fallback: &str) -> String {
     let boilerplate = |l: &str| ["code ", "path ", "command ", "signal ", "A complete log", "errno ", "syscall ", "network ", "notarget", "404"].iter().any(|p| l.starts_with(p)) || l.is_empty();
     let cause = errors.iter().map(|l| l.trim_start_matches("error").trim()).find(|l| !boilerplate(l));
     let log = errors.iter().map(|l| l.trim_start_matches("error").trim()).find(|l| l.starts_with("A complete log")).and_then(|l| l.split(": ").nth(1));
@@ -442,7 +448,9 @@ pub fn telling_error(errors: &[String], fallback: &str) -> String {
         (None, Some(l)) => format!("{fallback} · npm's log: {l}"),
         (None, None) => fallback.to_string(),
     };
-    if denied {
+    if denied && os == Os::Windows {
+        out = format!("{out} · npm may not write its global folder; in a terminal opened as administrator: npm install -g {PACKAGE}@latest");
+    } else if denied {
         out = format!("{out} · npm may not write its global folder; in a terminal: {}", sudo_line("latest"));
     }
     out
@@ -639,10 +647,21 @@ mod tests {
     #[test]
     fn a_root_owned_global_folder_gets_the_sudo_line() {
         let errors: Vec<String> = ["error code EACCES", "error syscall mkdir", "error path /usr/local/lib/node_modules/@letta-ai", "error errno -13", "error Error: EACCES: permission denied, mkdir '/usr/local/lib/node_modules/@letta-ai'"].iter().map(|s| s.to_string()).collect();
-        let msg = telling_error(&errors, "last");
-        assert!(msg.starts_with("Error: EACCES: permission denied"), "{msg}");
-        assert!(msg.ends_with(&sudo_line("latest")), "{msg}");
+        for os in [Os::Macos, Os::Linux] {
+            let msg = telling_error_on(os, &errors, "last");
+            assert!(msg.starts_with("Error: EACCES: permission denied"), "{msg}");
+            assert!(msg.ends_with(&sudo_line("latest")), "{msg}");
+        }
         assert_eq!(sudo_line("latest"), "sudo npm install -g @letta-ai/letta-code@latest");
+    }
+
+    #[test]
+    fn windows_has_no_sudo_line_but_an_administrator_terminal() {
+        let errors: Vec<String> = ["error code EPERM", "error Error: EPERM: operation not permitted, mkdir 'C:\\Program Files\\nodejs\\node_modules\\@letta-ai'"].iter().map(|s| s.to_string()).collect();
+        let msg = telling_error_on(Os::Windows, &errors, "last");
+        assert!(msg.starts_with("Error: EPERM: operation not permitted"), "{msg}");
+        assert!(!msg.contains("sudo"), "{msg}");
+        assert!(msg.ends_with("npm may not write its global folder; in a terminal opened as administrator: npm install -g @letta-ai/letta-code@latest"), "{msg}");
     }
 
     #[cfg(target_os = "macos")]

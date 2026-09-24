@@ -25,6 +25,8 @@ export interface Binding {
   where: Where;
   /** Human label, as shown in Settings and the menu. */
   label: string;
+  /** The label on Windows or Linux where the Mac's names what the key does only there (labelOf). */
+  labelOn?: Partial<Record<"windows" | "linux", string>>;
   /** Fires while a text box has focus? Default false. */
   typing?: boolean;
   /** Menu placement: "<menu>" or "<menu>/<group>" for a separator group. Absent: not in the menu. */
@@ -53,7 +55,8 @@ export const KEYMAP: Binding[] = [
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
   { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
-  { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", typing: true },
+  // Off the Mac there is no hidden window to bring back from the dock: the key minimises (useWindowChrome).
+  { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", labelOn: { windows: "Minimise loki", linux: "Minimise loki" }, typing: true },
   { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
@@ -189,6 +192,11 @@ export function keysOf(b: Binding, os: Platform = platform): string[] {
   return (os === "macos" ? undefined : b.keysOn?.[os]) ?? b.keys;
 }
 
+/** A binding's label on a system: the Mac's, unless the key does something else there (labelOn). */
+export function labelOf(b: Binding, os: Platform = platform): string {
+  return (os === "macos" ? undefined : b.labelOn?.[os]) ?? b.label;
+}
+
 /** The key a binding shows, by id, as this system reads it: every shortcut the app prints comes through here or formatKeys. */
 export function keyFor(id: string, os: Platform = platform, index = 0): string {
   const b = KEYMAP.find((x) => x.id === id);
@@ -290,7 +298,7 @@ export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = platf
  */
 export function takenBy(b: Binding, map: Binding[] = KEYMAP, os: Platform = platform): Array<{ where: Where; key: string; id: string; label: string }> {
   if (b.where !== "anywhere" || b.note) return [];
-  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : keysOf(b, os).filter((k) => keysOf(o, os).includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: o.label }))));
+  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : keysOf(b, os).filter((k) => keysOf(o, os).includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: labelOf(o, os) }))));
 }
 
 /** Bindings that share a key inside one scope — a mistake to catch in tests. With no system named, all three; another system's own clashes carry its name. */
@@ -358,7 +366,7 @@ export function menuSpec(map: Binding[] = KEYMAP, os: Platform = platform): Menu
       if (items.length && group !== lastGroup) items.push({ separator: true });
       lastGroup = group;
       const key = keysOf(b, os)[0];
-      items.push({ id: b.id, label: b.label, accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
+      items.push({ id: b.id, label: labelOf(b, os), accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);
@@ -400,7 +408,7 @@ export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board
 /** Preferences › keys' table: every binding in WHERE_ORDER with this system's keys, less the ones it has no key for. */
 export function keyRows(os: Platform = platform, map: Binding[] = KEYMAP): Binding[] {
   return WHERE_ORDER.flatMap((where) => map.filter((b) => b.where === where))
-    .map((b) => ({ ...b, keys: keysOf(b, os) }))
+    .map((b) => ({ ...b, keys: keysOf(b, os), label: labelOf(b, os) }))
     .filter((b) => b.keys.length > 0);
 }
 

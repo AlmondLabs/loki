@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
+import { osWords } from "../shell/osWords";
 
 export interface FolderApi {
   recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;
@@ -356,14 +357,14 @@ export function FolderPicker({
               onChoose(options[hi].path);
             }
           }}
-          placeholder="~/Documents/…"
+          placeholder={osWords().folderExample}
           aria-label="folder"
           autoComplete="off"
           spellCheck={false}
           aria-invalid={status ? !status.ok : undefined}
         />
         {browser && (
-          <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title="choose a folder in Finder">
+          <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title={`choose a folder in ${osWords().fileManager}`}>
             {busy === "picking" ? "choosing…" : !canBrowse ? "loading…" : "browse…"}
           </Button>
         )}

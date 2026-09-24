@@ -32,9 +32,14 @@ export const platform: Platform = platformFrom(typeof window !== "undefined" ? w
 /** The system's name in a sentence. */
 const SYSTEM_NAME: Record<Platform, string> = { macos: "macOS", windows: "Windows", linux: "Linux" };
 
+/** The system's name in a sentence: "system follows Windows as it changes". */
+export function systemName(os: Platform = platform): string {
+  return SYSTEM_NAME[os];
+}
+
 /** Where a Mac extra would appear on another system, the line it shows instead (R3): "Phone pairing isn't on Linux yet". */
 export function notYetOn(what: string, os: Platform = platform): string {
-  return `${what} isn't on ${SYSTEM_NAME[os]} yet`;
+  return `${what} isn't on ${systemName(os)} yet`;
 }
 
 export const inTauri =typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { inTauri, modBase, notYetOn, platform, type Platform } from "../desk/env";
+import { inTauri, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
+import { lokiUpgrade, osWords } from "../shell/osWords";
 import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
@@ -188,7 +189,7 @@ export function Settings({
 function AppearancePage() {
   const theme = useTheme();
   return (
-    <Section title="Appearance" hint="the colors on this device; system follows macOS as it changes">
+    <Section title="Appearance" hint={`the colors on this device; system follows ${systemName()} as it changes`}>
       <Fact label="Theme" value={<ThemeChoice />} />
       <Fact label="Using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
     </Section>
@@ -221,8 +222,8 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
         <LettaCodeFact lettaVersion={lettaVersion} tools={harness.tools} />
         <LettaCliFact bootstrap={bootstrap} tools={harness.tools} onInstallLetta={onInstallLetta} />
         {inTauri && <LettaUpdateFact bootstrap={bootstrap} onCheck={onCheckLetta} onUpdate={onUpdateLetta} />}
-        <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">not found — brew install beads (the board needs it; everything else works without)</Note> : "—"} mono />
-        <Fact label="System" value="macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript" />
+        <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (the board needs it; everything else works without)`}</Note> : "—"} mono />
+        <Fact label="System" value={osWords().system} />
       </Section>
       {inTauri && <InstallSection install={harness.install} />}
     </>
@@ -312,13 +313,13 @@ function TerminalScratchFact({ suggestion, terminalLine }: { suggestion: string;
   );
 }
 
-/** The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path. */
+/** The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path on the Mac; the release page's file elsewhere. */
 function LokiVersionFact({ update }: { update: LokiUpdate }) {
   const cask = update.channel === "nightly" ? "loki-nightly" : "loki";
   const value = update.newer ? (
     <span>
       {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
-      <Note>brew upgrade --cask {cask}, or the .dmg on the release page</Note>
+      <Note>{lokiUpgrade(cask)}</Note>
     </span>
   ) : update.latest ? (
     <span>{update.current}<Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note></span>
@@ -404,7 +405,7 @@ function UpdateNotes({ bootstrap, error }: { bootstrap: BootstrapStatus; error: 
   );
 }
 
-/** The letta CLI on this Mac: found where installers put it, being installed with npm, failed (with the install button), or as the tool scan saw it. */
+/** The letta CLI on this machine: found where installers put it, being installed with npm, failed (with the install button), or as the tool scan saw it. */
 function LettaCliFact({ bootstrap, tools, onInstallLetta }: { bootstrap: BootstrapStatus | null; tools: Tools | null; onInstallLetta: () => Promise<void> }) {
   return <Fact label="Letta CLI" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.explicit ? <Note>named by LOKI_LETTA_BIN — not npm's, so not the update button's to move</Note> : <Note>the Mac's own Letta Code — the same file a terminal runs</Note>}</span> : bootstrap.installing ? <Note tone="warn">installing with npm… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <Button size="sm" onClick={() => void onInstallLetta()} style={{ marginLeft: 8 }}>install</Button> <Note>or, in a terminal: {UPGRADE_LINE}</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — {UPGRADE_LINE}</Note> : "—"} mono />;
 }
@@ -414,7 +415,7 @@ function InstallSection({ install }: { install: InstallReport | null }) {
   return (
     <Section title="Install" hint="on launch the app puts its mod and skill where Letta looks">
       <ModFact install={install} />
-      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on this Mac loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
+      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on {osWords().machine} loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
       <Fact label="Skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : install.skill === "linked" ? <Note>a symlink to the checkout this build came from</Note> : null}</span> : "—"} />
       <Fact label="Skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
@@ -438,7 +439,7 @@ function ModFact({ install }: { install: InstallReport | null }) {
 
 function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectProvider, onDisconnectProvider, onModelsChanged }: { appServerStatus: AppServerStatus; providers: ConnectProvider[] | null; onLoadProviders: () => Promise<unknown>; onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>; onDisconnectProvider: (providerId: string) => Promise<string | null>; onModelsChanged: () => void }) {
   return (
-    <Section title="Providers" hint="who answers the models; keys are checked, then kept by Letta on this Mac">
+    <Section title="Providers" hint={`who answers the models; keys are checked, then kept by Letta on ${osWords().machine}`}>
       {appServerStatus === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="Link" value="the harness is not linked yet" />}
     </Section>
   );

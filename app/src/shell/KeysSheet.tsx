@@ -1,5 +1,5 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
-import { KEYMAP, formatKeys, keyFor, keysOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
+import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
 import { platform } from "../desk/env";
 
 /**
@@ -71,7 +71,8 @@ export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform 
     const own = keysOf(b, os);
     const taken = b.where === "anywhere" ? new Set(takenBy(b, map, os).filter((t) => wheres.includes(t.where)).map((t) => t.key)) : new Set<string>();
     const keys = own.filter((k) => !taken.has(k));
-    return keys.length === 0 ? null : own === b.keys && keys.length === own.length ? b : { ...b, keys };
+    const label = labelOf(b, os);
+    return keys.length === 0 ? null : own === b.keys && keys.length === own.length && label === b.label ? b : { ...b, keys, label };
   };
   return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where).flatMap((b) => here(b) ?? []) })).filter((g) => g.rows.length > 0);
 }

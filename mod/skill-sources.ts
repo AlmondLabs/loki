@@ -70,6 +70,11 @@ export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) 
 
 const DEFAULT_LOCK = join(process.env.HOME ?? "~", ".agents", ".skill-lock.json");
 
+/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/osWords.ts). */
+export function machineWord(os: NodeJS.Platform = process.platform): string {
+  return os === "darwin" ? "this Mac" : os === "win32" ? "this PC" : "this computer";
+}
+
 export class SkillSources {
   private readonly opts: SkillSourcesOptions;
   private readonly exec: NonNullable<SkillSourcesOptions["exec"]>;
@@ -132,7 +137,7 @@ export class SkillSources {
   /** Remember a source the user typed for this agent's skill; returns the parsed source or throws. */
   remember(agentId: string, name: string, spec: string): SkillSource {
     const parsed = parseSource(spec);
-    if (!parsed) throw new Error("a source is a GitHub URL, owner/repo/path, or a folder on this Mac");
+    if (!parsed) throw new Error(`a source is a GitHub URL, owner/repo/path, or a folder on ${machineWord()}`);
     const all = this.readSources();
     all[`${agentId}/${name}`] = spec.trim();
     try {
