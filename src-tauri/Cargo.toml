@@ -43,3 +43,8 @@ tauri-plugin-global-shortcut = "2"
 # Windows only: the harness's Job Object (harness.rs) and no console window for npm and letta (bootstrap.rs `quiet`).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+# Windows and Linux: one loki per user — a second launch brings the running window forward instead of starting a
+# second shell and harness on the same port (plan 014 KTD7). The Mac's app bundle already does this.
+[target.'cfg(any(windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"

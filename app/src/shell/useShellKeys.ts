@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { inTauri } from "../desk/env";
+import { inTauri, platform, type Platform } from "../desk/env";
 import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
 
 /**
@@ -12,12 +12,34 @@ import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, 
  * the desk's Desk tab back to Messages (`toMessages` says whether it took it), then a segment other than
  * the desk, through `escape` (the inbox closes itself). Never while typing.
  */
+/**
+ * The webview's own keys on Windows (WebView2's browser accelerators) and Linux: reload, print, find, the caret,
+ * devtools, view source, back and forward. None of them belongs in an app window, and a reload drops the desk
+ * mid-turn. In the packaged app they are held back (preventDefault); loki's own bindings on the same chords still run,
+ * since nothing in the key handler reads defaultPrevented for them: Ctrl+F is the chat's find, Ctrl+R the board's
+ * refresh. A development build keeps them (a reload and devtools are the point there), as does a browser tab, and
+ * the Mac's webview has none.
+ */
+const BROWSER_KEYS = new Set(["f3", "shift+f3", "f5", "ctrl+f5", "shift+f5", "ctrl+shift+f5", "f7", "f12", "ctrl+r", "ctrl+shift+r", "ctrl+p", "ctrl+shift+p", "ctrl+f", "ctrl+g", "ctrl+shift+g", "ctrl+u", "ctrl+shift+i", "ctrl+shift+j", "ctrl+shift+c", "alt+arrowleft", "alt+arrowright", "browserback", "browserforward", "browserrefresh"]);
+export function guardBrowserKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">, os: Platform = platform, release: boolean = inTauri && import.meta.env.PROD === true): void {
+  if (!release || os === "macos" || e.metaKey || !e.key) return;
+  const chord = [e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift", e.key.toLowerCase()].filter(Boolean).join("+");
+  if (BROWSER_KEYS.has(chord)) e.preventDefault();
+}
+
 export function useShellKeys(view: { segment: Segment }, actions: Record<string, () => void>, escape: { toDesk: () => void; toMessages?: (typing: boolean) => boolean; closePreferences?: () => void }): void {
   const ref = useRef({ view, actions, escape });
   useEffect(() => {
     ref.current = { view, actions, escape };
   });
   useEffect(() => registerActions(Object.fromEntries(Object.keys(ref.current.actions).map((id) => [id, () => ref.current.actions[id]()]))), []);
+
+  // Capture phase, ahead of every view's own handler, so a view that stops a key cannot let a reload through.
+  useEffect(() => {
+    const guard = (e: KeyboardEvent) => guardBrowserKey(e);
+    window.addEventListener("keydown", guard, true);
+    return () => window.removeEventListener("keydown", guard, true);
+  }, []);
 
   /** The chord the key handler just acted on: every id it could mean, so the menu's echo is dropped whichever id it carries. */
   const lastKeyFired = useRef<{ ids: Set<string>; at: number } | null>(null);

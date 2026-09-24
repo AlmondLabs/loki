@@ -303,6 +303,21 @@ fn dev_checkout() -> Option<PathBuf> {
     None
 }
 
+/// Linux runs loki through XWayland (plan 014 KTD8): GDK_BACKEND=x11 unless the user chose a backend, since an
+/// undecorated window on native Wayland still has open resize and unresponsive-button bugs. The value to set, if any.
+#[cfg(any(target_os = "linux", test))]
+fn gdk_backend(current: Option<&std::ffi::OsStr>) -> Option<&'static str> {
+    if current.is_some() { None } else { Some("x11") }
+}
+
+/// Called first thing in `main`, before GTK or any thread starts (setting the environment later would race them).
+#[cfg(target_os = "linux")]
+pub fn prefer_x11() {
+    if let Some(v) = gdk_backend(std::env::var_os("GDK_BACKEND").as_deref()) {
+        std::env::set_var("GDK_BACKEND", v);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if platform_home().is_none() {
@@ -311,7 +326,18 @@ pub fn run() {
     }
     let _ = ensure_token();
     let script = init_script();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // One loki per user off the Mac (plan 014 KTD7): a second launch hands over to the running one, which comes
+    // forward, and exits before it starts a harness. First of the plugins, as the plugin asks.
+    #[cfg(any(windows, target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+    }));
+    builder
         // Links leave the app through the system browser (window.open is blocked in the webview).
         .plugin(tauri_plugin_opener::init())
         // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
@@ -409,6 +435,10 @@ pub fn run() {
             // Mission Control and screen readers, just not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
+            // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
+            #[cfg(not(target_os = "macos"))]
+            let window = window.decorations(false);
             window.build()?;
             // The menu bar, the tray and ⌥Space are the Mac's (plan 014 KTD3); elsewhere their commands are no-ops.
             #[cfg(target_os = "macos")]
@@ -460,6 +490,13 @@ mod tests {
         assert_eq!(home_from(false, env(&[("USERPROFILE", r"C:\Users\x")])), None);
         assert_eq!(home_from(false, env(&[])), None);
         assert_eq!(home_from(false, env(&[("HOME", "")])), None, "an empty HOME is no home");
+    }
+
+    #[test]
+    fn linux_asks_for_x11_only_when_no_backend_is_chosen() {
+        assert_eq!(gdk_backend(None), Some("x11"));
+        assert_eq!(gdk_backend(Some(std::ffi::OsStr::new("wayland"))), None, "the user's own choice stands");
+        assert_eq!(gdk_backend(Some(std::ffi::OsStr::new("x11"))), None);
     }
 
     #[test]

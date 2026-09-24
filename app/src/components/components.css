@@ -393,6 +393,30 @@ button.loki-list-section-toggle:hover { background: var(--loki-hover); color: va
 
 /* The window's top edge in the app (TitleStrip): the rail's colour across the width, the traffic lights over its left end. */
 .loki-title-strip { position: absolute; top: 0; left: 0; right: 0; background: var(--loki-panel); user-select: none; -webkit-user-select: none; }
+/* Off the Mac (plan 014 KTD4) the strip carries Slack's Windows and Linux chrome: ☰ at the left, the window buttons flush right, flat and full height. */
+.loki-title-strip--own { display: flex; align-items: stretch; }
+.loki-title-btn { display: grid; place-items: center; width: 46px; height: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--loki-muted); cursor: default; }
+.loki-title-btn:hover, .loki-title-btn[aria-expanded="true"] { background: var(--loki-hover); color: var(--loki-fg); }
+.loki-title-btn:focus-visible { outline: 2px solid var(--loki-accent); outline-offset: -2px; }
+.loki-title-btn--menu { width: 48px; } /* the rail's width (SIDEBAR_WIDTH): ☰ sits over the rail */
+.loki-title-btn--close:hover { background: var(--loki-attention); color: var(--loki-on-attention); }
+.loki-window-controls { display: flex; margin-left: auto; }
+.loki-title-menu-anchor { position: relative; display: flex; }
+.loki-title-menu { position: absolute; top: 100%; left: 4px; display: flex; align-items: flex-start; gap: 2px; }
+.loki-title-menu-panel {
+  box-sizing: border-box;
+  min-width: 180px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-lg);
+  box-shadow: var(--loki-shadow-float);
+}
+.loki-title-submenu { min-width: 260px; }
+.loki-title-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 13.5px; }
+.loki-title-menu-sep { height: 1px; margin: 4px 0; background: var(--loki-border); }
 
 /* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
 .loki-pane-header { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--loki-border); background: var(--loki-bg); }
