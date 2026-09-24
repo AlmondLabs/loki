@@ -709,6 +709,9 @@ mod tests {
         std::fs::write(p, "#!/bin/sh\n").unwrap();
     }
 
+    // The Mac's own list on the machine running the test (Homebrew, ~/Library's fnm); Linux's and Windows' lists
+    // are checked below on any machine, through an injected Host.
+    #[cfg(target_os = "macos")]
     #[test]
     fn looks_where_installers_put_things_path_first() {
         let home = fake_home();
@@ -731,6 +734,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
+    // ~/.volta/bin is volta's folder on the Mac and Linux; on Windows it lives under %LOCALAPPDATA% (the real one,
+    // not this fake home), and that layout is checked below through an injected Host.
+    #[cfg(unix)]
     #[test]
     fn finds_the_machines_letta_and_the_node_beside_it() {
         let home = fake_home();
@@ -803,7 +809,8 @@ mod tests {
                 fnm(home.join(".fnm")),
             ]
         );
-        assert_eq!(bin_dirs(&home, Some("/x/bin")), bin_dirs_for(&h), "the Mac's own entry point is the same list");
+        // `bin_dirs` is this machine's list, so the entry point matches only when the test runs on a Mac.
+        if cfg!(target_os = "macos") { assert_eq!(bin_dirs(&home, Some("/x/bin")), bin_dirs_for(&h), "the Mac's own entry point is the same list") }
     }
 
     #[test]

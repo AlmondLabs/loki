@@ -3,7 +3,7 @@ import { createElement, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, posix } from "node:path";
 import { checkFolder, completeFolder, expandPath, gitBranch, recentFolders } from "../mod/folders.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import { FolderPicker, browseWith, dialogPick, folderLabel, suggestedFolder, type BrowseWith } from "../app/src/desk/NewDesk.tsx";
@@ -71,7 +71,7 @@ describe("folders", () => {
     expect(expandPath("D:/work/loki", home, true)).toBe("D:\\work\\loki");
     expect(expandPath("~other\\proj", home, true)).not.toContain(home); // ~user is not this home
     // On the Mac a backslash is a character in a name, not a separator: ~\proj is not under home.
-    expect(expandPath("~\\proj", "/Users/x", false)).toBe(resolve("~\\proj"));
+    expect(expandPath("~\\proj", "/Users/x", false)).toBe(posix.resolve("~\\proj"));
   });
 
   test("Windows: completion offers matching folders under a drive path or ~\\", () => {

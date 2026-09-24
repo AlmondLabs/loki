@@ -126,7 +126,7 @@ describe("the machine comes from the words table", () => {
   });
   test("no string outside the table and the Mac-only views", () => {
     const hits = walk(APP)
-      .map((p) => ({ path: p.slice(APP.length + 1), text: readFileSync(p, "utf8") }))
+      .map((p) => ({ path: p.slice(APP.length + 1).replaceAll("\\", "/"), text: readFileSync(p, "utf8") })) // "/" on Windows too, as ALLOW names them
       .filter((f) => !ALLOW.some((a) => f.path.startsWith(a)))
       .flatMap((f) => strings(f.path, f.text))
       .filter((h) => !MAC_ONLY_LINES.includes(h.replace(/:\d+: /, ": ")));

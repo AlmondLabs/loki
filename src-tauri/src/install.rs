@@ -404,7 +404,6 @@ mod tests {
         assert!(r.changed());
     }
 
-    #[cfg(unix)]
     #[test]
     fn leaves_a_developers_shim_and_symlinked_skill_alone() {
         let (_root, resources, data, home) = fixture();
@@ -413,7 +412,7 @@ mod tests {
         std::fs::write(&shim, "// my shim\nexport default () => {}\n").unwrap();
         let skills = skill_dir(&home);
         std::fs::create_dir_all(skills.parent().unwrap()).unwrap();
-        std::os::unix::fs::symlink(&resources, &skills).unwrap();
+        link_dir(&resources, &skills).unwrap(); // a symlink, or on Windows a junction when symlinks are refused
         let r = run(&resources, &data, &home);
         assert_eq!(r.r#mod, State::Custom);
         assert_eq!(r.skill, State::Custom);
@@ -494,7 +493,9 @@ mod tests {
         let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
         assert!(shim.starts_with(DEV_MARKER));
         assert!(shim.contains(&c.join("mod").join("boot.ts").display().to_string()));
-        assert_eq!(std::fs::read_link(skill_dir(&home)).unwrap(), c.join("skills").join("loki"));
+        let link = std::fs::read_link(skill_dir(&home)).unwrap();
+        // A junction on Windows reads back `\\?\`-prefixed: there, compare the folders the two paths name.
+        if cfg!(windows) { assert!(same_dir(&link, &c.join("skills").join("loki")), "{link:?}") } else { assert_eq!(link, c.join("skills").join("loki")) }
         assert!(skill_dir(&home).join("SKILL.md").is_file());
         // The same again: still linked, nothing rewritten.
         let r = link_checkout(&c, &home);

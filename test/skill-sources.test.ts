@@ -21,7 +21,7 @@ let global: string;
 let checkout: string;
 let sources: SkillSources;
 
-const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", ...args], { cwd, stdio: ["ignore", "pipe", "pipe"] }).toString();
+const git = (cwd: string, ...args: string[]) => execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "-c", "core.autocrlf=false", ...args], { cwd, stdio: ["ignore", "pipe", "pipe"] }).toString();
 const skill = (dir: string, name: string, body: string, extra: Record<string, string> = {}) => {
   mkdirSync(join(dir, name), { recursive: true });
   writeFileSync(join(dir, name, "SKILL.md"), `---\nname: ${name}\ndescription: ${name} does things\n---\n\n${body}\n`);
@@ -50,7 +50,8 @@ beforeAll(() => {
   git(checkout, "commit", "-q", "-m", "skills v1");
   global = join(root, "global");
   mkdirSync(global);
-  symlinkSync(join(checkout, "fmt-linked"), join(global, "fmt-linked"));
+  // a junction on Windows (no privilege needed); the type is ignored elsewhere
+  symlinkSync(join(checkout, "fmt-linked"), join(global, "fmt-linked"), "junction");
   skill(global, "copied-in", "a global copy from a lock file");
 
   // Memory: an installed copy (SKILL.md only, as Letta's old installer left them), an installed-then-edited

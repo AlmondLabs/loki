@@ -13,7 +13,8 @@ describe("global skills", () => {
     writeFileSync(join(dir, "plain", "SKILL.md"), "---\nname: plain\ndescription: \"Does a thing\"\n---\n# plain\n");
     mkdirSync(join(root, "elsewhere", "linked"), { recursive: true });
     writeFileSync(join(root, "elsewhere", "linked", "SKILL.md"), "# Linked skill\ntext\n");
-    symlinkSync(join(root, "elsewhere", "linked"), join(dir, "linked"));
+    // a junction on Windows (no privilege needed); the type is ignored elsewhere
+    symlinkSync(join(root, "elsewhere", "linked"), join(dir, "linked"), "junction");
     mkdirSync(join(dir, "empty"));
     writeFileSync(join(dir, ".DS_Store"), "");
     const skills = listGlobalSkills(dir);

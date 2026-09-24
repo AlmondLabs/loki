@@ -4,10 +4,20 @@ on:
     branches: [main]
   pull_request:
 
+# Every job runs on the Mac, Windows and Linux (plan 014 U9, R13). fail-fast off: one system's failure must not hide
+# another's. bash on every system, Windows included (Git Bash on the hosted runner), so a step reads the same on all three.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
-    name: tests, types, mod bundle
-    runs-on: macos-14
+    name: tests, types, mod bundle (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -19,10 +29,23 @@ jobs:
       - run: bun run build:mod
 
   shell:
-    name: tauri shell (cargo test)
-    runs-on: macos-14
+    name: tauri shell, cargo test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # Tauri 2's Linux build prerequisites, the Ubuntu 22.04 names (KTD11). No appindicator library: the tray is
+      # Mac-only (KTD3). patchelf is for the AppImage bundler, kept so this list matches the release leg's.
+      - name: linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
+            build-essential curl wget file patchelf
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2

@@ -22,7 +22,8 @@ function walk(dir: string, keep: (name: string) => boolean): string[] {
   }
   return out;
 }
-const read = (p: string) => ({ path: p.slice(APP.length + 1), text: readFileSync(p, "utf8") });
+// paths as "kit/tokens.css" on every system: the filters below name them with "/", and Windows joins with "\\"
+const read = (p: string) => ({ path: p.slice(APP.length + 1).replaceAll("\\", "/"), text: readFileSync(p, "utf8") });
 const files = walk(APP, (n) => /\.(tsx|ts|css)$/.test(n) && !n.endsWith(".d.ts")).map(read);
 const code = files.filter((f) => !f.path.endsWith(".css"));
 const css = files.filter((f) => f.path.endsWith(".css"));
