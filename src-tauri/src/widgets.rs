@@ -17,8 +17,7 @@ const SHARED: &[&str] = &["react", "react/jsx-runtime", "react-dom", "recharts",
 
 pub fn widgets_dir() -> PathBuf {
     if let Some(p) = std::env::var_os("LOKI_WIDGETS_DIR") { return PathBuf::from(p); }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
-    home.join(".letta").join("loki").join("widgets")
+    crate::home_dir().join(".letta").join("loki").join("widgets")
 }
 
 /// Map a request path like `/widgets/<desk>/<name>.js` to the source file on disk.

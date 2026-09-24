@@ -63,7 +63,7 @@ pub fn validate(candidate: &str, home: &Path) -> Result<PathBuf, String> {
     if trimmed.is_empty() {
         return Err("empty path".into());
     }
-    let expanded = if trimmed == "~" || trimmed.starts_with("~/") { home.join(trimmed.trim_start_matches('~').trim_start_matches('/')) } else { PathBuf::from(trimmed) };
+    let expanded = match home_relative(trimmed, cfg!(windows)) { Some(rest) => home.join(rest), None => PathBuf::from(trimmed) };
     if !expanded.is_absolute() {
         return Err("the path must be absolute".into());
     }
@@ -77,6 +77,16 @@ pub fn validate(candidate: &str, home: &Path) -> Result<PathBuf, String> {
         }
     }
     Ok(expanded)
+}
+
+/// What follows `~` and its separators when `path` starts at the home (`~`, `~/…`, and on Windows `~\…` too),
+/// else None. Only on Windows is a backslash a separator; on the Mac and Linux `~\x` is a file name. A drive-letter
+/// path such as `C:\Users\x\.letta\scratch` needs nothing here: it is absolute to `Path` on Windows already.
+fn home_relative(path: &str, windows: bool) -> Option<&str> {
+    let sep = |c: char| c == '/' || (windows && c == '\\');
+    let rest = path.strip_prefix('~')?;
+    if !rest.is_empty() && !rest.starts_with(sep) { return None; }
+    Some(rest.trim_start_matches(sep))
 }
 
 /// Empty and recreate the folder (mode 0700): the logs inside belong to a process that is gone.
@@ -130,6 +140,30 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
+    #[test]
+    fn a_leading_tilde_is_the_home_with_either_separator_on_windows() {
+        assert_eq!(home_relative("~", false), Some(""));
+        assert_eq!(home_relative("~/.letta/scratch", false), Some(".letta/scratch"));
+        assert_eq!(home_relative("~\\.letta\\scratch", true), Some(".letta\\scratch"));
+        assert_eq!(home_relative("~/.letta/scratch", true), Some(".letta/scratch"));
+        assert_eq!(home_relative("~\\.letta", false), None, "a backslash is a file-name character on the Mac and Linux");
+        assert_eq!(home_relative("~someone/.letta", false), None, "another user's home is not expanded");
+        assert_eq!(home_relative("/abs/.letta", false), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn validate_takes_drive_letter_paths_and_tilde_backslash_on_windows() {
+        let home = PathBuf::from(r"C:\Users\x");
+        assert_eq!(validate(r"C:\Users\x\.letta\scratch", &home).unwrap(), home.join(".letta").join("scratch"));
+        assert_eq!(validate(r"~\.letta\scratch", &home).unwrap(), home.join(".letta").join("scratch"));
+        assert!(validate(r"relative\path", &home).is_err());
+        assert!(validate(r"\Users\x\.letta\scratch", &home).is_err(), "no drive: not absolute on Windows");
+        assert!(validate(r"D:\elsewhere", &home).is_err());
+        assert!(validate(r"~\.letta\transcripts", &home).is_err());
+    }
+
+    #[cfg(unix)]
     #[test]
     fn validate_keeps_the_folder_inside_the_sandbox_root_and_off_lettas_own() {
         let home = PathBuf::from("/Users/someone");

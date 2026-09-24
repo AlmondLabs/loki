@@ -1,0 +1,3 @@
+# LF in every checkout, Windows included: tests read source files and split on "\n" or match
+# line-anchored patterns, and a CRLF checkout (core.autocrlf, the Windows default) would break them.
+* text=auto eol=lf

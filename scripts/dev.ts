@@ -13,7 +13,7 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DEV_URL = "http://127.0.0.1:5173";
@@ -28,7 +28,7 @@ const shimPath = join(home, ".letta", "mods", "loki.ts");
 const harnessLog = join(home, ".letta", "loki", "logs", "harness.log");
 const installLog = join(home, ".letta", "loki", "logs", "install.log");
 /** Where a `letta` may be, beyond PATH (src-tauri/src/bootstrap.rs `bin_dirs`): the window looks in the same places. */
-const lettaDirs = [...(process.env.PATH ?? "").split(":"), "/opt/homebrew/bin", "/usr/local/bin", join(home, ".volta", "bin"), join(home, ".bun", "bin"), join(home, ".npm-global", "bin"), join(home, ".local", "bin")].filter(Boolean);
+const lettaDirs = [...(process.env.PATH ?? "").split(delimiter), "/opt/homebrew/bin", "/usr/local/bin", join(home, ".volta", "bin"), join(home, ".bun", "bin"), join(home, ".npm-global", "bin"), join(home, ".local", "bin")].filter(Boolean);
 const lettaFound = (): string | null => process.env.LOKI_LETTA_BIN ?? lettaDirs.map((d) => join(d, "letta")).find((p) => existsSync(p)) ?? null;
 const firstLaunch = lettaFound() === null;
 /** How long a first launch may take to install Letta Code before the script gives up waiting for it. */
@@ -36,7 +36,7 @@ const INSTALL_WAIT_MS = 30 * 60_000;
 
 /** Where `name` is, on PATH; null if nowhere. */
 function onPath(name: string, path = process.env.PATH ?? ""): string | null {
-  for (const dir of path.split(":")) {
+  for (const dir of path.split(delimiter)) {
     if (dir && existsSync(join(dir, name))) return join(dir, name);
   }
   return null;
@@ -53,7 +53,7 @@ function rustPreflight(): string | null {
   const cargoBin = join(home, ".cargo", "bin");
   if (existsSync(join(cargoBin, "cargo"))) {
     console.error(`loki dev: cargo is at ${cargoBin} but not on PATH (a new terminal would have it) — using it for this run`);
-    return `${cargoBin}:${path}`;
+    return `${cargoBin}${delimiter}${path}`;
   }
   console.error(
     [

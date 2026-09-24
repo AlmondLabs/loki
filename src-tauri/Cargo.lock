@@ -2244,6 +2244,7 @@ name = "loki"
 version = "2026.9.23"
 dependencies = [
  "futures-util",
+ "getrandom 0.3.4",
  "http",
  "oxc_allocator",
  "oxc_codegen",

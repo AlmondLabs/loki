@@ -26,15 +26,21 @@ fn read_token() -> Option<String> {
     std::fs::read_to_string(loki_dir().join("token")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
+/// 16 bytes from the system's random source as 32 lowercase hex chars — the shape the mod makes
+/// (`randomBytes(16).toString("hex")`). The OS source, not /dev/urandom: Windows has no such file, and
+/// reading it there silently produced no token, so the harness started pointing at a missing token file.
+fn new_token() -> Option<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
 /// The capability token the harness, the mod and this shell share. The mod creates it on first
 /// activate, but a first launch starts the harness *before* any mod ran, so the shell writes it
-/// when it is missing (32 hex chars from /dev/urandom, mode 0600 — the same shape the mod makes).
+/// when it is missing (`new_token`, mode 0600 where the system has modes — the same shape the mod makes).
 fn ensure_token() -> Option<String> {
     if let Some(t) = read_token() { return Some(t); }
-    use std::io::Read;
-    let mut bytes = [0u8; 16];
-    std::fs::File::open("/dev/urandom").ok()?.read_exact(&mut bytes).ok()?;
-    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    let token = new_token()?;
     let dir = loki_dir();
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join("token");
@@ -248,8 +254,23 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
     });
 }
 
+/// The user's home folder, where everything loki keeps lives (~/.letta/loki). It has to be the folder the
+/// mod's `os.homedir()` answers inside the harness, or the two would read different tokens and state: on
+/// Windows that is USERPROFILE (Node ignores a HOME there, such as Git Bash's), elsewhere HOME. An empty
+/// value counts as unset. `run` checks it once at launch and stops with a line on stderr when there is none,
+/// rather than keeping ~/.letta under `/` as it once did.
+fn home_from(windows: bool, var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<PathBuf> {
+    var(if windows { "USERPROFILE" } else { "HOME" }).filter(|v| !v.is_empty()).map(PathBuf::from)
+}
+
+const HOME_VAR: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+
+fn platform_home() -> Option<PathBuf> {
+    home_from(cfg!(windows), |k| std::env::var_os(k))
+}
+
 fn home_dir() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"))
+    platform_home().unwrap_or_else(|| panic!("{HOME_VAR} is not set (checked at launch)"))
 }
 
 /// Release builds install on every launch; `tauri dev` leaves a developer's shim alone unless asked (LOKI_INSTALL=1).
@@ -272,6 +293,10 @@ fn dev_checkout() -> Option<PathBuf> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if platform_home().is_none() {
+        eprintln!("loki: {HOME_VAR} is not set, so there is no home folder for ~/.letta/loki; set it and start loki again");
+        std::process::exit(1);
+    }
     let _ = ensure_token();
     let script = init_script();
     tauri::Builder::default()
@@ -336,11 +361,18 @@ pub fn run() {
                     }
                 }
                 // SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the harness ourselves.
+                // Windows has no such signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there
+                // (a GUI build has no console, and its quit paths all go through the exit events below).
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    use tokio::signal::unix::{signal, SignalKind};
-                    let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
-                    tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
+                    #[cfg(unix)]
+                    {
+                        use tokio::signal::unix::{signal, SignalKind};
+                        let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
+                        tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
+                    }
+                    #[cfg(not(unix))]
+                    let Ok(()) = tokio::signal::ctrl_c().await else { return };
                     if let Some(h) = handle.try_state::<harness::Harness>() { h.stop(); }
                     handle.exit(0);
                 });
@@ -382,4 +414,33 @@ pub fn run() {
                 if let Some(h) = app.try_state::<harness::Harness>() { h.stop(); }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    #[test]
+    fn tokens_are_32_lowercase_hex_chars_and_fresh_each_time() {
+        let (a, b) = (new_token().unwrap(), new_token().unwrap());
+        assert_eq!(a.len(), 32, "{a}");
+        assert!(a.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)), "the mod's shape, /^[a-f0-9]{{32}}$/: {a}");
+        assert_ne!(a, b);
+    }
+
+    fn env(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<OsString> {
+        move |k| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| OsString::from(v))
+    }
+
+    #[test]
+    fn home_is_the_platforms_own_variable_and_never_slash() {
+        assert_eq!(home_from(true, env(&[("USERPROFILE", r"C:\Users\x")])), Some(PathBuf::from(r"C:\Users\x")));
+        assert_eq!(home_from(true, env(&[("USERPROFILE", r"C:\Users\x"), ("HOME", "/c/Users/x")])), Some(PathBuf::from(r"C:\Users\x")), "a Git Bash HOME does not win: os.homedir() reads USERPROFILE");
+        assert_eq!(home_from(true, env(&[("HOME", "/home/x")])), None);
+        assert_eq!(home_from(false, env(&[("HOME", "/Users/x")])), Some(PathBuf::from("/Users/x")));
+        assert_eq!(home_from(false, env(&[("USERPROFILE", r"C:\Users\x")])), None);
+        assert_eq!(home_from(false, env(&[])), None);
+        assert_eq!(home_from(false, env(&[("HOME", "")])), None, "an empty HOME is no home");
+    }
 }

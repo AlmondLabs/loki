@@ -116,6 +116,8 @@ pub fn find_letta_in(home: &Path, path: Option<&str>) -> Option<Runtime> {
     Some(Runtime { letta, node_bin_dir, explicit: false })
 }
 
+/// node-pty's prebuild folder suffix (`darwin-arm64`, `darwin-x64`): only the Mac's spawn-helper fix names one.
+#[cfg(target_os = "macos")]
 pub fn arch() -> &'static str {
     if cfg!(target_arch = "aarch64") { "arm64" } else { "x64" }
 }
@@ -294,6 +296,7 @@ pub fn install_version(home: &Path, version: &str, report: &dyn Fn(Progress)) ->
     };
     // letta-code's post-install marks node-pty's spawn-helper executable for darwin-arm64 only; the darwin-x64
     // copy ships read-only, and on an Intel Mac every pty the harness opens would fail.
+    #[cfg(target_os = "macos")]
     if let Some(prefix) = &prefix {
         let helper = prefix.join("lib").join("node_modules").join(PACKAGE).join("node_modules").join("node-pty").join("prebuilds").join(format!("darwin-{}", arch())).join("spawn-helper");
         match mark_executable(&helper) {
@@ -309,6 +312,8 @@ pub fn install_version(home: &Path, version: &str, report: &dyn Fn(Progress)) ->
 }
 
 /// chmod 755 on `path` when it exists and lacks the owner's execute bit; Ok(true) when it changed.
+/// Only the Mac's node-pty prebuilds need it (above), so only the Mac has it.
+#[cfg(target_os = "macos")]
 pub fn mark_executable(path: &Path) -> std::io::Result<bool> {
     use std::os::unix::fs::PermissionsExt;
     let Ok(meta) = std::fs::metadata(path) else { return Ok(false) };
@@ -389,6 +394,7 @@ mod tests {
         assert_eq!(sudo_line("latest"), "sudo npm install -g @letta-ai/letta-code@latest");
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn marks_a_read_only_helper_executable_once() {
         use std::os::unix::fs::PermissionsExt;
@@ -432,7 +438,9 @@ mod tests {
     #[test]
     fn looks_where_installers_put_things_path_first() {
         let home = fake_home();
-        let dirs = bin_dirs(&home, Some("/x/bin:/opt/homebrew/bin"));
+        // PATH joined the platform's way (`;` on Windows, `:` elsewhere), as the shell receives it.
+        let path = std::env::join_paths([PathBuf::from("/x/bin"), PathBuf::from("/opt/homebrew/bin")]).unwrap();
+        let dirs = bin_dirs(&home, path.to_str());
         assert_eq!(dirs[0], PathBuf::from("/x/bin"));
         assert_eq!(dirs[1], PathBuf::from("/opt/homebrew/bin"), "PATH's own Homebrew comes first and is not repeated");
         assert_eq!(dirs.iter().filter(|d| **d == PathBuf::from("/opt/homebrew/bin")).count(), 1);
