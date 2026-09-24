@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { inTauri, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
+import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
-import { lokiUpgrade, osWords } from "../shell/osWords";
+import { lokiUpgrade, osWords, runsOn } from "../shell/osWords";
 import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
@@ -189,7 +189,7 @@ export function Settings({
 function AppearancePage() {
   const theme = useTheme();
   return (
-    <Section title="Appearance" hint={`the colors on this device; system follows ${systemName()} as it changes`}>
+    <Section title="Appearance" hint={`the colors on this device; system follows ${systemName(keyboard)} as it changes`}>
       <Fact label="Theme" value={<ThemeChoice />} />
       <Fact label="Using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
     </Section>
@@ -223,7 +223,7 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
         <LettaCliFact bootstrap={bootstrap} tools={harness.tools} onInstallLetta={onInstallLetta} />
         {inTauri && <LettaUpdateFact bootstrap={bootstrap} onCheck={onCheckLetta} onUpdate={onUpdateLetta} />}
         <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (the board needs it; everything else works without)`}</Note> : "—"} mono />
-        <Fact label="System" value={osWords().system} />
+        <SystemFact />
       </Section>
       {inTauri && <InstallSection install={harness.install} />}
     </>
@@ -311,6 +311,11 @@ function TerminalScratchFact({ suggestion, terminalLine }: { suggestion: string;
       }
     />
   );
+}
+
+/** Where loki runs, said plainly (in a browser tab, that the tab is only a view of it), over what that system needs. */
+export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
+  return <Fact label="System" value={<span>{runsOn(os, shell)}<Note>{osWords(os).system}</Note></span>} />;
 }
 
 /**
@@ -561,7 +566,7 @@ export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShor
 
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   return (
-    <Section title="Keys" hint={platform === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems` : undefined}>
+    <Section title="Keys" hint={keyboard === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems` : undefined}>
       <GlobalKeyRow shortcut={shortcut} />
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
         <tbody>

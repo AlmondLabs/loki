@@ -4,7 +4,7 @@ import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.t
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { ConversationHeader } from "../chat/Conversation";
-import { platform } from "./env";
+import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
 
 /** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
@@ -117,7 +117,7 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
 
 /** An inbox binding's key in the grammar that applies: its chord while you type, its plain key (the second) when nothing has focus. */
 export function deckKey(id: string, typing: boolean): string {
-  return keyFor(id, platform, typing ? 0 : 1);
+  return keyFor(id, keyboard, typing ? 0 : 1);
 }
 
 /**

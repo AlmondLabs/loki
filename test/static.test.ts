@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LAN_BOOT_SCRIPT, STALE_RELOAD_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
+import { STALE_RELOAD_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
 
 // These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
 // of them has crossed bun's 5 s default. Twenty seconds still catches a hang.
@@ -62,11 +62,11 @@ describe("static app", () => {
       expect(res.headers.get("cache-control")).toBe("no-cache");
       const html = await res.text();
       // The boot script carries the build id (a hash of index.html) so the page can tell when a new build is up.
-      expect(html).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}"\}<\/script><\/head>/);
+      expect(html).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}",os:"(macos|windows|linux)"\}<\/script><\/head>/);
       expect(html).toContain(bootScript(buildIdOf(dist)));
       expect(html).toContain('<div id="root">');
     }
-    expect(LAN_BOOT_SCRIPT).toBe("<script>window.__LOKI__={lan:true}</script>");
+    expect(bootScript(null, "macos")).toBe('<script>window.__LOKI__={lan:true,os:"macos"}</script>');
   });
 
   test("the boot script cannot be broken out of: `</script>` and friends survive as JavaScript escapes", () => {
@@ -82,7 +82,7 @@ describe("static app", () => {
     expect(new Function(`return ${json}`)()).toBe(hostile);
     expect(jsonForScript({ a: "<b>&c" })).toBe('{"a":"\\u003cb\\u003e\\u0026c"}');
     // A plain hex build id is untouched.
-    expect(bootScript("abc123def456")).toBe('<script>window.__LOKI__={lan:true,build:"abc123def456"}</script>');
+    expect(bootScript("abc123def456", "macos")).toBe('<script>window.__LOKI__={lan:true,build:"abc123def456",os:"macos"}</script>');
   });
 
   test("assets are served with their content type and immutable caching", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Kbd, Row } from "../components";
-import { platform, type Platform } from "../desk/env";
+import { keyboard, type Platform } from "../desk/env";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
 
 /** A line of a ☰ menu: a keymap id, its label and its key as this system reads it (null where the Mac's menu shows none). */
@@ -20,7 +20,7 @@ const HIDE = "window.hide";
  * The Mac's menu bar as ☰ shows it on Windows and Linux (plan 014 KTD4): the same menuSpec groups, in order, their keys
  * in Ctrl words. An item without an accelerator on the Mac shows none here either.
  */
-export function titleMenus(os: Platform = platform, map: Binding[] = KEYMAP): TitleMenuGroup[] {
+export function titleMenus(os: Platform = keyboard, map: Binding[] = KEYMAP): TitleMenuGroup[] {
   return menuSpec(map, os).map((m) => ({
     title: m.title,
     items: m.items.map((it) => {
@@ -41,7 +41,7 @@ export function runMenuItem(id: string): void {
  * The menu itself, without state: the titles, then Hide loki (Minimise loki there, labelOf); beside them the open title's items. Pointing at a
  * title opens it, as a menu bar's does.
  */
-export function TitleMenuPanel({ groups, open, onOpen, onPick, os = platform }: { groups: TitleMenuGroup[]; open: string | null; onOpen: (title: string | null) => void; onPick: (id: string) => void; os?: Platform }) {
+export function TitleMenuPanel({ groups, open, onOpen, onPick, os = keyboard }: { groups: TitleMenuGroup[]; open: string | null; onOpen: (title: string | null) => void; onPick: (id: string) => void; os?: Platform }) {
   const current = groups.find((g) => g.title === open) ?? null;
   return (
     <>
@@ -85,7 +85,7 @@ const items = (panel: Element | null | undefined) => [...(panel?.querySelectorAl
  * ↑↓ move, → or Enter opens a title's menu and ← or Esc goes back to it, Esc on the titles closes, a press outside
  * closes, and focus returns to ☰.
  */
-export function TitleMenu({ os = platform }: { os?: Platform }) {
+export function TitleMenu({ os = keyboard }: { os?: Platform }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <span className="loki-title-menu-anchor">

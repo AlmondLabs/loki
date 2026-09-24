@@ -1,6 +1,6 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
-import { platform } from "../desk/env";
+import { keyboard } from "../desk/env";
 
 /**
  * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
@@ -48,7 +48,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Meta wrap>{keysSheetNote()}</Meta>
           <span style={{ flex: 1 }} />
-          <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", platform, 1)}>open</Button>
+          <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", keyboard, 1)}>open</Button>
         </div>
       </div>
     </Sheet>
@@ -56,7 +56,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
 }
 
 /** The footer's pointer to Preferences › Keys; the system-wide key is there on the Mac only (R3). */
-export function keysSheetNote(os: Platform = platform): string {
+export function keysSheetNote(os: Platform = keyboard): string {
   return os === "macos" ? "the whole table, and the system-wide key, are in Preferences › Keys" : "the whole table is in Preferences › Keys";
 }
 
@@ -65,7 +65,7 @@ export function keysSheetNote(os: Platform = platform): string {
  * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar). The rows carry
  * the system's own keys (keysOf).
  */
-export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = platform): Array<{ where: Where; title: string; rows: Binding[] }> {
+export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
     const own = keysOf(b, os);

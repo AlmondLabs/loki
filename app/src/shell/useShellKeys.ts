@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { inTauri, platform, type Platform } from "../desk/env";
+import { inTauri, keyboard, type Platform } from "../desk/env";
 import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
 
 /**
@@ -21,7 +21,7 @@ import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, 
  * the Mac's webview has none.
  */
 const BROWSER_KEYS = new Set(["f3", "shift+f3", "f5", "ctrl+f5", "shift+f5", "ctrl+shift+f5", "f7", "f12", "ctrl+r", "ctrl+shift+r", "ctrl+p", "ctrl+shift+p", "ctrl+f", "ctrl+g", "ctrl+shift+g", "ctrl+u", "ctrl+shift+i", "ctrl+shift+j", "ctrl+shift+c", "alt+arrowleft", "alt+arrowright", "browserback", "browserforward", "browserrefresh"]);
-export function guardBrowserKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">, os: Platform = platform, release: boolean = inTauri && import.meta.env.PROD === true): void {
+export function guardBrowserKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">, os: Platform = keyboard, release: boolean = inTauri && import.meta.env.PROD === true): void {
   if (!release || os === "macos" || e.metaKey || !e.key) return;
   const chord = [e.ctrlKey && "ctrl", e.altKey && "alt", e.shiftKey && "shift", e.key.toLowerCase()].filter(Boolean).join("+");
   if (BROWSER_KEYS.has(chord)) e.preventDefault();

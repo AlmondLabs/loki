@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { inLan, platform, type Platform } from "../desk/env";
+import { inLan, keyboard, type Platform } from "../desk/env";
 import { KEYMAP, keyFor, keysOf } from "../shell/keymap";
 
 /**
@@ -34,14 +34,15 @@ function recognitionCtor(): RecognitionCtor | null {
 /**
  * The mic shows on the Mac (and on a phone, whatever its user agent reads as) when the page has speech
  * recognition. Not on Windows or Linux yet (R3): WebView2 and WebKitGTK can answer the feature check and
- * still not dictate, so the system decides, not the check.
+ * still not dictate, so the system decides, not the check. The viewer's system (`keyboard`), not the host's:
+ * speech is the page's browser's, and in the app the two are one.
  */
-export function dictationSupported(hasRecognition: boolean, os: Platform = platform, phone: boolean = inLan): boolean {
+export function dictationSupported(hasRecognition: boolean, os: Platform = keyboard, phone: boolean = inLan): boolean {
   return hasRecognition && (os === "macos" || phone);
 }
 
 /** The mic's tooltip, with ⌘D where the keymap lists it (the Mac); a phone that reads as Linux has the mic but no listed key. */
-export function dictateTitle(os: Platform = platform): string {
+export function dictateTitle(os: Platform = keyboard): string {
   const b = KEYMAP.find((x) => x.id === "chat.dictate");
   return b && keysOf(b, os).length > 0 ? `dictate (${keyFor("chat.dictate", os)})` : "dictate";
 }

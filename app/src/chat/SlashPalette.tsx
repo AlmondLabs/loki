@@ -1,10 +1,10 @@
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { Meta, Popover, Row } from "../components";
-import { platform, type Platform } from "../desk/env";
+import { keyboard, type Platform } from "../desk/env";
 import { formatKeys, keyFor } from "../shell/keymap";
 
 /** A command's line in the palette: its description, and its action's key when it asks for one (core names no keys). */
-export function commandText(c: SlashCommand, os: Platform = platform): string {
+export function commandText(c: SlashCommand, os: Platform = keyboard): string {
   return c.withKey && c.action ? `${c.description} (${keyFor(c.action, os)})` : c.description;
 }
 

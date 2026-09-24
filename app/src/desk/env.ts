@@ -13,12 +13,13 @@ declare global {
   }
 }
 
-/** The system the page runs on: what keys read as, which chrome and extras show. */
+/** A system: macOS, Windows or Linux. */
 export type Platform = "macos" | "windows" | "linux";
 
 /**
- * The shell says which system it is (`__LOKI__.os`); a browser tab reads its user agent. Anything unknown is
- * the Mac, loki's home: a phone, a test runner.
+ * The system loki runs on: the shell's word (`__LOKI__.os`), or the mod's in a page it serves over the LAN
+ * (mod/static.ts). A tab without either is the Vite tab on 127.0.0.1, which only the machine itself can open,
+ * so its user agent is the host. Anything unknown is the Mac, loki's home: an iPhone's keyboard, a test runner.
  */
 export function platformFrom(os: unknown, userAgent: string): Platform {
   if (os === "macos" || os === "windows" || os === "linux") return os;
@@ -27,7 +28,21 @@ export function platformFrom(os: unknown, userAgent: string): Platform {
   return "macos";
 }
 
-export const platform: Platform = platformFrom(typeof window !== "undefined" ? window.__LOKI__?.os : undefined, typeof navigator !== "undefined" ? (navigator.userAgent ?? "") : "");
+/** The system the viewer types on: the host in the app; in a browser tab its own user agent, whatever the host is. */
+export function keyboardFrom(tauri: boolean, os: unknown, userAgent: string): Platform {
+  return platformFrom(tauri ? os : undefined, userAgent);
+}
+
+export const inTauri =typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+/** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
+export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
+
+const injectedOs = typeof window !== "undefined" ? window.__LOKI__?.os : undefined;
+const userAgent = typeof navigator !== "undefined" ? (navigator.userAgent ?? "") : "";
+/** The host: machine words, the extras it has (phone pairing, the system-wide key, Browse), its download. */
+export const platform: Platform = platformFrom(injectedOs, userAgent);
+/** The viewer's keyboard (and its own settings): how keys read and match, what the Appearance hint names. */
+export const keyboard: Platform = keyboardFrom(inTauri, injectedOs, userAgent);
 
 /** The system's name in a sentence. */
 const SYSTEM_NAME: Record<Platform, string> = { macos: "macOS", windows: "Windows", linux: "Linux" };
@@ -41,10 +56,6 @@ export function systemName(os: Platform = platform): string {
 export function notYetOn(what: string, os: Platform = platform): string {
   return `${what} isn't on ${systemName(os)} yet`;
 }
-
-export const inTauri =typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
-/** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
-export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
 
 /** http(s) origin + path prefix for the mod's HTTP/WS endpoints, without a trailing slash. */
 export function modBase(): string {

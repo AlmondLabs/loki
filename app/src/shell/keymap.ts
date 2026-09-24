@@ -10,7 +10,7 @@
  * Each system reads its own words (formatKeys), and a Mac key the system keeps for itself on Windows or Linux
  * is swapped for another in `keysOn`, so matching, the menu and every listing use the same key (plan 014 U2).
  */
-import { platform, type Platform } from "../desk/env";
+import { keyboard, type Platform } from "../desk/env";
 
 export type { Platform };
 export type Segment = "desk" | "inbox" | "board" | "learn" | "agents" | "settings";
@@ -178,7 +178,7 @@ const WORD: Record<string, string> = {
  * "cmd+shift+a" → "⌘⇧A" on the Mac, "Ctrl Shift A" elsewhere; letters upper-cased, named keys as symbols or words;
  * the one shifted punctuation chord shows as the character it types.
  */
-export function formatKeys(spec: string, os: Platform = platform): string {
+export function formatKeys(spec: string, os: Platform = keyboard): string {
   if (spec === "shift+/") return "?";
   const names = os === "macos" ? MAC_SYMBOL : WORD;
   return spec
@@ -188,17 +188,17 @@ export function formatKeys(spec: string, os: Platform = platform): string {
 }
 
 /** A binding's keys on a system: the Mac's, unless the system keeps one of them for itself (keysOn). */
-export function keysOf(b: Binding, os: Platform = platform): string[] {
+export function keysOf(b: Binding, os: Platform = keyboard): string[] {
   return (os === "macos" ? undefined : b.keysOn?.[os]) ?? b.keys;
 }
 
 /** A binding's label on a system: the Mac's, unless the key does something else there (labelOn). */
-export function labelOf(b: Binding, os: Platform = platform): string {
+export function labelOf(b: Binding, os: Platform = keyboard): string {
   return (os === "macos" ? undefined : b.labelOn?.[os]) ?? b.label;
 }
 
 /** The key a binding shows, by id, as this system reads it: every shortcut the app prints comes through here or formatKeys. */
-export function keyFor(id: string, os: Platform = platform, index = 0): string {
+export function keyFor(id: string, os: Platform = keyboard, index = 0): string {
   const b = KEYMAP.find((x) => x.id === id);
   const k = b ? keysOf(b, os)[index] : undefined;
   if (!k) throw new Error(`keymap: no key ${index} for ${id} on ${os}`);
@@ -206,12 +206,12 @@ export function keyFor(id: string, os: Platform = platform, index = 0): string {
 }
 
 /** A binding's `was` line with its `{id}` references read as keys. */
-export function wasFor(b: Binding, os: Platform = platform): string | undefined {
+export function wasFor(b: Binding, os: Platform = keyboard): string | undefined {
   return b.was?.replace(/\{([\w.]+)\}/g, (_, id: string) => keyFor(id, os));
 }
 
 /** ⌘ held, as a view checking its own chord reads it: ⌘ alone on the Mac (Ctrl+D deletes forward in a Mac text box), Ctrl alone elsewhere. */
-export function cmdHeld(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">, os: Platform = platform): boolean {
+export function cmdHeld(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">, os: Platform = keyboard): boolean {
   return os === "macos" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
 }
 
@@ -221,7 +221,7 @@ export function cmdHeld(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">, os: Platf
  * the same keystroke. ⌘] is both "next card" (inbox) and "next desk" (anywhere); the key handler runs the
  * one for the showing segment, and the menu's echo — which carries the *other* id — must be dropped too.
  */
-export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP, os: Platform = platform): string[] {
+export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP, os: Platform = keyboard): string[] {
   return map.filter((b) => keysOf(b, os).some((k) => matches(e, k))).map((b) => b.id);
 }
 
@@ -283,7 +283,7 @@ export function typingIn(e: KeyboardEvent): boolean {
 /** Chords the text itself uses: never taken while a box has focus, whatever a binding says. */
 export const TEXT_CHORDS = new Set(["cmd+left", "cmd+right", "cmd+up", "cmd+down", "cmd+backspace", "cmd+z", "cmd+shift+z", "cmd+a", "cmd+c", "cmd+v", "cmd+x", "alt+left", "alt+right", "alt+backspace"]);
 
-export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = platform): Binding | null {
+export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keyboard): Binding | null {
   const typing = typingIn(e);
   // A key fires while typing only if the binding allows it AND the key is a chord the text does not use:
   // a plain letter or arrow always belongs to the text, whatever the binding says.
@@ -296,7 +296,7 @@ export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = platf
  * Where a view's own binding takes a key that works everywhere (resolve lets the view's win): ⌘⇧D is Deny in the
  * inbox, not the sidebar. The keys sheet leaves such a key out of that view's "everywhere" group; Settings says it.
  */
-export function takenBy(b: Binding, map: Binding[] = KEYMAP, os: Platform = platform): Array<{ where: Where; key: string; id: string; label: string }> {
+export function takenBy(b: Binding, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; key: string; id: string; label: string }> {
   if (b.where !== "anywhere" || b.note) return [];
   return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : keysOf(b, os).filter((k) => keysOf(o, os).includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: labelOf(o, os) }))));
 }
@@ -356,7 +356,7 @@ export function tauriAccelerator(spec: string): string {
     .join("+");
 }
 
-export function menuSpec(map: Binding[] = KEYMAP, os: Platform = platform): MenuSpec[] {
+export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): MenuSpec[] {
   return MENUS.map((title) => {
     const mine = map.filter((b) => b.menu && b.menu.split("/")[0] === title);
     const items: MenuSpec["items"] = [];
@@ -406,7 +406,7 @@ export function keySegment(segment: Segment, dialog: DialogState): Segment {
 export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "learn", "agents", "settings", "global"];
 
 /** Preferences › keys' table: every binding in WHERE_ORDER with this system's keys, less the ones it has no key for. */
-export function keyRows(os: Platform = platform, map: Binding[] = KEYMAP): Binding[] {
+export function keyRows(os: Platform = keyboard, map: Binding[] = KEYMAP): Binding[] {
   return WHERE_ORDER.flatMap((where) => map.filter((b) => b.where === where))
     .map((b) => ({ ...b, keys: keysOf(b, os), label: labelOf(b, os) }))
     .filter((b) => b.keys.length > 0);

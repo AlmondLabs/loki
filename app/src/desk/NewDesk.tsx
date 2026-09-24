@@ -35,7 +35,8 @@ interface NewDeskProps {
 
 /**
  * Which chooser Browse opens: the system's own folder dialog in the app, on every system (KTD9); in a browser
- * tab the mod's chooser, which is macOS-only; in a tab elsewhere none, so Browse is not shown.
+ * tab the mod's chooser, which is macOS-only and opens on the host, so the host's system decides (env.ts `platform`,
+ * not the tab's own); on another host none, so Browse is not shown.
  */
 export type BrowseWith = "dialog" | "mod" | null;
 export function browseWith(tauri: boolean, os: Platform): BrowseWith {
