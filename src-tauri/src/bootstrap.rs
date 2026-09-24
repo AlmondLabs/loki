@@ -694,9 +694,13 @@ mod tests {
         assert!(!back.explicit);
     }
 
+    /// A fresh folder per call. The counter matters: tests run in parallel and the Mac's clock ticks in
+    /// microseconds, so two homes named by time alone could be one folder, and one test's cleanup the other's loss.
     fn fake_home() -> PathBuf {
+        static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
-        let home = std::env::temp_dir().join(format!("loki-boot-{}-{nanos}", std::process::id()));
+        let home = std::env::temp_dir().join(format!("loki-boot-{}-{nanos}-{n}", std::process::id()));
         std::fs::create_dir_all(&home).unwrap();
         home
     }
