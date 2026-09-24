@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, posix, resolve, win32 } from "node:path";
 
 /**
  * Working folders for "new desk": where recent conversations ran (per agent),
@@ -9,12 +9,17 @@ import { dirname, join, resolve } from "node:path";
  * the native macOS folder chooser — none of which the browser can do itself.
  */
 
-/** Expand a leading ~ and resolve. */
-export function expandPath(p: string, home = homedir()): string {
+/** Windows paths take `\\` as well as `/` (`C:\\Users\\x`, `~\\proj`); elsewhere a backslash is part of a name. */
+const IS_WINDOWS = process.platform === "win32";
+
+/** Expand a leading ~ (and, on Windows, ~\\) and resolve. `windows` picks the separators, so tests can run either way. */
+export function expandPath(p: string, home = homedir(), windows = IS_WINDOWS): string {
+  const path = windows ? win32 : posix;
   const t = p.trim();
-  if (t === "~") return home;
-  if (t.startsWith("~/")) return resolve(home, t.slice(2));
-  return resolve(t);
+  const rest = t.startsWith("~") ? t.slice(1) : null;
+  if (rest === "") return home;
+  if (rest !== null && (rest.startsWith("/") || (windows && rest.startsWith("\\")))) return path.resolve(home, rest.slice(1));
+  return path.resolve(t);
 }
 
 /** The first `bytes` of a file as text (a transcript's session line is at the top). */
@@ -72,19 +77,30 @@ export function recentFolders(backendDir = join(homedir(), ".letta", "lc-local-b
   return { byAgent: out, byConversation };
 }
 
+/** The system a completion runs against: its separators, and how a folder is listed (a fake disk in tests). */
+export interface FolderSystem {
+  windows: boolean;
+  list: (dir: string) => Array<{ name: string; isDirectory: () => boolean }>;
+}
+
+const THIS_SYSTEM: FolderSystem = { windows: IS_WINDOWS, list: (dir) => readdirSync(dir, { withFileTypes: true }) };
+
 /** Directories matching what has been typed so far (completes the last path segment). */
-export function completeFolder(prefix: string, home = homedir(), limit = 12): string[] {
+export function completeFolder(prefix: string, home = homedir(), limit = 12, system: FolderSystem = THIS_SYSTEM): string[] {
+  const path = system.windows ? win32 : posix;
   const raw = prefix.trim();
   if (!raw) return [];
-  const expanded = raw.startsWith("~") ? expandPath(raw, home) : raw.startsWith("/") ? raw : null;
+  // Only a path that says where it starts: ~, /, or on Windows a drive (C:\\, C:/).
+  const expanded = raw.startsWith("~") ? expandPath(raw, home, system.windows) : path.isAbsolute(raw) ? (system.windows ? path.normalize(raw) : raw) : null;
   if (!expanded) return [];
-  const endsWithSlash = raw.endsWith("/");
-  const dir = endsWithSlash ? expanded : dirname(expanded);
-  const partial = endsWithSlash ? "" : expanded.slice(dir.length).replace(/^\//, "");
+  const endsWithSlash = system.windows ? /[\\/]$/.test(raw) : raw.endsWith("/");
+  const dir = endsWithSlash ? expanded : path.dirname(expanded);
+  const partial = endsWithSlash ? "" : expanded.slice(dir.length).replace(system.windows ? /^[\\/]/ : /^\//, "");
   try {
-    return readdirSync(dir, { withFileTypes: true })
+    return system
+      .list(dir)
       .filter((e) => e.isDirectory() && !e.name.startsWith(".") && e.name.toLowerCase().startsWith(partial.toLowerCase()))
-      .map((e) => join(dir, e.name))
+      .map((e) => path.join(dir, e.name))
       .sort()
       .slice(0, limit);
   } catch {

@@ -314,6 +314,8 @@ pub fn run() {
     tauri::Builder::default()
         // Links leave the app through the system browser (window.open is blocked in the webview).
         .plugin(tauri_plugin_opener::init())
+        // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![appserver_send, appserver_url, client_log, install_status, tool_status, bootstrap_status, install_letta, check_letta_update, update_letta, native::set_waiting, native::set_global_shortcut, menu::set_menu, scratch_settings, set_scratch_dir])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))

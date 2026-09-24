@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { AgentFace } from "./AgentChip";
-import { avatarUrl } from "./env";
+import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
 
 export interface FolderApi {
@@ -30,6 +30,35 @@ interface NewDeskProps {
   initialName?: string;
   folders: FolderApi;
   onCreate: (agentId: string, folder: string, name: string) => Promise<void>;
+}
+
+/**
+ * Which chooser Browse opens: the system's own folder dialog in the app, on every system (KTD9); in a browser
+ * tab the mod's chooser, which is macOS-only; in a tab elsewhere none, so Browse is not shown.
+ */
+export type BrowseWith = "dialog" | "mod" | null;
+export function browseWith(tauri: boolean, os: Platform): BrowseWith {
+  if (tauri) return "dialog";
+  return os === "macos" ? "mod" : null;
+}
+
+type OpenDialog = (options: { directory: true; multiple: false; defaultPath?: string; title?: string }) => Promise<string | string[] | null>;
+
+/** The system's folder dialog (tauri-plugin-dialog), opened at the typed folder. Resolves null when cancelled or unavailable. */
+export async function dialogPick(defaultPath?: string, open: OpenDialog = async (options) => (await import("@tauri-apps/plugin-dialog")).open(options)): Promise<string | null> {
+  try {
+    const picked = await open({ directory: true, multiple: false, defaultPath, title: "Folder for the new desk" });
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    return path || null;
+  } catch (err) {
+    console.warn("loki: folder dialog", err);
+    return null;
+  }
+}
+
+/** A folder's name for the list: its last segment (Windows paths split on backslashes as well). */
+export function folderLabel(path: string, os: Platform = platform): string {
+  return path.split(os === "windows" ? /[\\/]/ : "/").filter(Boolean).pop() ?? path;
 }
 
 type FolderStatus = { ok: boolean; branch: string | null; reason?: string } | null;
@@ -141,11 +170,13 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
       setBusy(false);
     }
   };
+  const browser = browseWith(inTauri, platform);
   const browse = async () => {
     setBusy("picking");
     // The native picker validates this path itself. Passing it immediately avoids a race where a
     // quick Browse click beat the debounced status check and macOS opened an unrelated old folder.
-    const picked = await folders.pick(folder.trim() || undefined);
+    const pick = browser === "dialog" ? dialogPick : folders.pick;
+    const picked = await pick(folder.trim() || undefined);
     setBusy(false);
     if (picked) {
       setFolder(picked);
@@ -212,6 +243,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
           agentName={agentName}
           source={folderSource}
           canBrowse={foldersReady || folderTouched}
+          browser={browser}
         />
 
         <div>
@@ -255,10 +287,10 @@ function FolderVerdict({ status }: { status: FolderStatus }) {
 }
 
 /**
- * The folder field with its Finder button and the completion list under it. The list's highlight
+ * The folder field with its Browse button (where there is a chooser) and the completion list under it. The list's highlight
  * lives here; the parent keeps whether the list is open, since the sheet's Escape closes it first.
  */
-function FolderPicker({
+export function FolderPicker({
   inputRef,
   folder,
   onType,
@@ -272,6 +304,7 @@ function FolderPicker({
   agentName,
   source,
   canBrowse,
+  browser,
 }: {
   inputRef: RefObject<HTMLInputElement | null>;
   folder: string;
@@ -286,6 +319,7 @@ function FolderPicker({
   agentName: string | null;
   source: FolderSuggestion["source"] | null;
   canBrowse: boolean;
+  browser: BrowseWith;
 }) {
   const [hi, setHi] = useState(0);
   return (
@@ -328,21 +362,23 @@ function FolderPicker({
           spellCheck={false}
           aria-invalid={status ? !status.ok : undefined}
         />
-        <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title="choose a folder in Finder">
-          {busy === "picking" ? "choosing…" : !canBrowse ? "loading…" : "browse…"}
-        </Button>
+        {browser && (
+          <Button size="sm" onClick={onBrowse} disabled={busy !== false || !canBrowse} title="choose a folder in Finder">
+            {busy === "picking" ? "choosing…" : !canBrowse ? "loading…" : "browse…"}
+          </Button>
+        )}
       </div>
-      {listOpen && options.length > 0 && <FolderList options={options} hi={hi} onHover={setHi} onChoose={onChoose} agentName={agentName} />}
+      {listOpen && options.length > 0 && <FolderList options={options} hi={hi} onHover={setHi} onChoose={onChoose} agentName={agentName} beside={!!browser} />}
     </div>
   );
 }
 
 /** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
-function FolderList({ options, hi, onHover, onChoose, agentName }: { options: FolderOption[]; hi: number; onHover: (i: number) => void; onChoose: (path: string) => void; agentName: string | null }) {
+function FolderList({ options, hi, onHover, onChoose, agentName, beside }: { options: FolderOption[]; hi: number; onHover: (i: number) => void; onChoose: (path: string) => void; agentName: string | null; beside: boolean }) {
   return (
-    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: 92, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: beside ? 92 : 0, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
       {options.map((o, i) => {
-        const label = o.path.split("/").filter(Boolean).pop() ?? o.path;
+        const label = folderLabel(o.path);
         const first = i === 0 || options[i - 1].group !== o.group;
         return (
           <div key={o.path}>

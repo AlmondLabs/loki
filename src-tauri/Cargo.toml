@@ -31,6 +31,8 @@ percent-encoding = "2"
 # The capability token's bytes, from the OS random source on every system (lib.rs `new_token`).
 getrandom = "0.3"
 tauri-plugin-opener = "2"
+# The system's own folder dialog for a new desk, on every OS (plan 014 KTD9).
+tauri-plugin-dialog = "2"
 
 # macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
 # tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).
