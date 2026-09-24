@@ -194,6 +194,8 @@ export function LettaInstall({ status, onRetry }: { status: BootstrapStatus | nu
   );
 }
 
+const mono = { fontFamily: "var(--loki-mono)" };
+
 /**
  * No Node 22 or newer anywhere loki looks: what to install, this system's usual command, the nodejs.org link, and
  * one button — the install's own retry, which looks for Node afresh and goes on to npm once one is there. loki
@@ -201,7 +203,6 @@ export function LettaInstall({ status, onRetry }: { status: BootstrapStatus | nu
  */
 export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing; busy: boolean; onRecheck: () => void }) {
   const help = nodeHelp(missing.os);
-  const mono = { fontFamily: "var(--loki-mono)" };
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. Letta Code runs on it, and its npm installs Letta Code.</div>
