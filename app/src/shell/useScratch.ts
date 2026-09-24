@@ -8,6 +8,8 @@ export interface ScratchSettings {
   isDefault: boolean;
   /** The line for a `letta` run from a terminal — a different folder from loki's on purpose. */
   terminalSuggestion: string;
+  /** That folder set in the terminal's own shell syntax, ready to copy (POSIX `export`, or PowerShell's `$env:` on Windows). */
+  terminalLine?: string;
 }
 
 export interface Scratch {

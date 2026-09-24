@@ -13,8 +13,17 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 pub const PREFS_FILE: &str = "shell.json";
-/// What the Settings page suggests for a `letta` run from a terminal: a sibling of loki's, never the same folder.
-pub const TERMINAL_SUGGESTION: &str = "$HOME/.letta/scratch";
+/// What the Settings page suggests for a `letta` run from a terminal: a sibling of loki's, never the same folder,
+/// in the form that terminal's shell expands (PowerShell on Windows, a POSIX shell elsewhere).
+pub fn terminal_suggestion(windows: bool) -> &'static str {
+    if windows { r"$env:USERPROFILE\.letta\scratch" } else { "$HOME/.letta/scratch" }
+}
+
+/// The whole line for that terminal's profile.
+pub fn terminal_line(windows: bool) -> String {
+    let dir = terminal_suggestion(windows);
+    if windows { format!("$env:LETTA_SCRATCHPAD = \"{dir}\"") } else { format!("export LETTA_SCRATCHPAD=\"{dir}\"") }
+}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +41,8 @@ pub struct Settings {
     pub default_path: String,
     pub is_default: bool,
     pub terminal_suggestion: String,
+    /// `terminal_suggestion` set in that shell's own syntax, ready to copy.
+    pub terminal_line: String,
 }
 
 pub fn default_dir(data: &Path) -> PathBuf {
@@ -106,7 +117,7 @@ pub fn prepare(dir: &Path) -> Result<(), String> {
 pub fn settings(data: &Path, home: &Path) -> Settings {
     let path = effective_dir(data, home);
     let default = default_dir(data);
-    Settings { is_default: path == default, path: path.to_string_lossy().into_owned(), default_path: default.to_string_lossy().into_owned(), terminal_suggestion: TERMINAL_SUGGESTION.into() }
+    Settings { is_default: path == default, path: path.to_string_lossy().into_owned(), default_path: default.to_string_lossy().into_owned(), terminal_suggestion: terminal_suggestion(cfg!(windows)).into(), terminal_line: terminal_line(cfg!(windows)) }
 }
 
 #[cfg(test)]
@@ -175,6 +186,14 @@ mod tests {
         assert!(validate("~/.letta/lc-local-backend/x", &home).is_err());
         assert!(validate("~/.letta/transcripts", &home).is_err());
         assert!(validate("   ", &home).is_err());
+    }
+
+    #[test]
+    fn the_terminal_line_is_each_shells_own() {
+        assert_eq!(terminal_suggestion(false), "$HOME/.letta/scratch");
+        assert_eq!(terminal_line(false), "export LETTA_SCRATCHPAD=\"$HOME/.letta/scratch\"", "the Mac's line as it was");
+        assert_eq!(terminal_suggestion(true), r"$env:USERPROFILE\.letta\scratch");
+        assert_eq!(terminal_line(true), r#"$env:LETTA_SCRATCHPAD = "$env:USERPROFILE\.letta\scratch""#, "PowerShell's form on Windows");
     }
 
     #[test]

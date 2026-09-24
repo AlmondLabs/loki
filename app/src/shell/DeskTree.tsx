@@ -6,6 +6,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { deskMark } from "./sidebarModel";
+import { formatKeys } from "./keymap";
 
 export const TREE_WIDTH = 560;
 
@@ -287,7 +288,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
         {rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>no desks match</div>}
       </div>
       <div className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto", padding: "6px 14px", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}>
-        ↑↓ move · tab agent · ↵ choose · esc cancel
+        {`↑↓ move · tab agent · ${formatKeys("enter")} choose · ${formatKeys("escape")} cancel`}
       </div>
     </Sheet>
   );

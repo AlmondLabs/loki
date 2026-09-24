@@ -1,6 +1,6 @@
 // One command for a development session: `bun start` (package.json "start").
-//   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and Xcode's command line
-//      tools, which cargo links with.
+//   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and, on a Mac, Xcode's
+//      command line tools, which cargo links with there.
 //      Node is not required: Vite and the Tauri CLI are Node programs, and a Mac without Node runs them with Bun.
 //   1. Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `bun run dev` in another terminal).
 //      Another project's dev server on that port is refused rather than shown in the window.
@@ -22,14 +22,28 @@ const VITE_MARKER = 'name="apple-mobile-web-app-title" content="loki"';
 const MOD_HEALTH = `http://127.0.0.1:${process.env.LOKI_PORT ?? "41414"}/health`;
 const MOD_WAIT_MS = 90_000;
 const root = fileURLToPath(new URL("..", import.meta.url));
-const bin = (name: string) => fileURLToPath(new URL(`../node_modules/.bin/${name}`, import.meta.url));
+const windows = process.platform === "win32";
+const mac = process.platform === "darwin";
+/** A program's file names here: Windows adds the .exe and .cmd forms (npm's shims are .cmd). */
+const exeNames = (name: string): string[] => (windows ? [`${name}.exe`, `${name}.cmd`, name] : [name]);
+/**
+ * The dev tools' entry scripts. On Windows node_modules/.bin holds .cmd shims, which spawn cannot start without a
+ * shell, so there the JS entry runs directly with this script's runtime (see `run`).
+ */
+const ENTRIES: Record<string, string> = { vite: "../node_modules/vite/bin/vite.js", tauri: "../node_modules/@tauri-apps/cli/tauri.js" };
+const bin = (name: string) => fileURLToPath(new URL(windows ? ENTRIES[name] : `../node_modules/.bin/${name}`, import.meta.url));
 const home = homedir();
 const shimPath = join(home, ".letta", "mods", "loki.ts");
 const harnessLog = join(home, ".letta", "loki", "logs", "harness.log");
 const installLog = join(home, ".letta", "loki", "logs", "install.log");
 /** Where a `letta` may be, beyond PATH (src-tauri/src/bootstrap.rs `bin_dirs`): the window looks in the same places. */
-const lettaDirs = [...(process.env.PATH ?? "").split(delimiter), "/opt/homebrew/bin", "/usr/local/bin", join(home, ".volta", "bin"), join(home, ".bun", "bin"), join(home, ".npm-global", "bin"), join(home, ".local", "bin")].filter(Boolean);
-const lettaFound = (): string | null => process.env.LOKI_LETTA_BIN ?? lettaDirs.map((d) => join(d, "letta")).find((p) => existsSync(p)) ?? null;
+const lettaDirs = [
+  ...(process.env.PATH ?? "").split(delimiter),
+  ...(windows
+    ? [join(process.env.APPDATA ?? join(home, "AppData", "Roaming"), "npm"), join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), "Volta", "bin")]
+    : [...(mac ? ["/opt/homebrew/bin"] : []), "/usr/local/bin", ...(mac ? [] : ["/usr/bin"]), join(home, ".volta", "bin"), join(home, ".bun", "bin"), join(home, ".npm-global", "bin"), join(home, ".local", "bin")]),
+].filter(Boolean);
+const lettaFound = (): string | null => process.env.LOKI_LETTA_BIN ?? lettaDirs.flatMap((d) => exeNames("letta").map((n) => join(d, n))).find((p) => existsSync(p)) ?? null;
 const firstLaunch = lettaFound() === null;
 /** How long a first launch may take to install Letta Code before the script gives up waiting for it. */
 const INSTALL_WAIT_MS = 30 * 60_000;
@@ -37,7 +51,7 @@ const INSTALL_WAIT_MS = 30 * 60_000;
 /** Where `name` is, on PATH; null if nowhere. */
 function onPath(name: string, path = process.env.PATH ?? ""): string | null {
   for (const dir of path.split(delimiter)) {
-    if (dir && existsSync(join(dir, name))) return join(dir, name);
+    for (const n of exeNames(name)) if (dir && existsSync(join(dir, n))) return join(dir, n);
   }
   return null;
 }
@@ -51,16 +65,16 @@ function rustPreflight(): string | null {
   const path = process.env.PATH ?? "";
   if (onPath("cargo", path)) return path;
   const cargoBin = join(home, ".cargo", "bin");
-  if (existsSync(join(cargoBin, "cargo"))) {
+  if (onPath("cargo", cargoBin)) {
     console.error(`loki dev: cargo is at ${cargoBin} but not on PATH (a new terminal would have it) — using it for this run`);
     return `${cargoBin}${delimiter}${path}`;
   }
   console.error(
     [
-      "loki dev: the Tauri window is a Rust program and this Mac has no Rust toolchain (no `cargo` on PATH, none in ~/.cargo/bin).",
-      "  Install it, then open a new terminal (or `source ~/.cargo/env`) and run `bun start` again:",
-      "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
-      "  Building also needs Xcode's command line tools: `xcode-select --install` if clang is missing.",
+      "loki dev: the Tauri window is a Rust program and this machine has no Rust toolchain (no `cargo` on PATH, none in ~/.cargo/bin).",
+      `  Install it, then open a new terminal${windows ? "" : " (or `source ~/.cargo/env`)"} and run \`bun start\` again:`,
+      windows ? "    winget install Rustlang.Rustup   (rustup-init also offers the Visual Studio C++ build tools cargo links with)" : "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
+      ...(mac ? ["  Building also needs Xcode's command line tools: `xcode-select --install` if clang is missing."] : []),
       "  Without Rust, `bun run dev` serves the canvas alone at " + DEV_URL + " for a browser tab.",
     ].join("\n"),
   );
@@ -108,10 +122,10 @@ async function waitFor(url: string, ms: number, alive: () => boolean = () => tru
 
 const children: ChildProcess[] = [];
 let env = process.env;
-/** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts. Without a Node on PATH they run under Bun (process.execPath), which handles both. */
+/** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts. Without a Node on PATH they run under Bun (process.execPath), which handles both; on Windows always, since `bin` names their JS entries there. */
 const nodeless = !onPath("node");
 function run(cmd: string, args: string[]): ChildProcess {
-  const child = nodeless ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
+  const child = nodeless || windows ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
   children.push(child);
   return child;
 }
@@ -128,9 +142,10 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
 const vite = await viteThere(DEV_URL);
 const firstBuild = !existsSync(join(root, "src-tauri", "target"));
 if (process.argv.includes("--check")) {
-  const cargo = onPath("cargo") ?? (existsSync(join(home, ".cargo", "bin", "cargo")) ? join(home, ".cargo", "bin", "cargo") + " (not on PATH)" : null);
+  const homeCargo = onPath("cargo", join(home, ".cargo", "bin"));
+  const cargo = onPath("cargo") ?? (homeCargo ? homeCargo + " (not on PATH)" : null);
   console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `bun start` would stop and say how to install it");
-  console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
+  if (mac) console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
   console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; Letta Code's npm install needs a Node 22+ somewhere (brew install node)" : `node: ${onPath("node")}`);
   console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`bun start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
   console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
@@ -141,7 +156,7 @@ if (process.argv.includes("--check")) {
 
 const path = rustPreflight();
 if (!path) process.exit(1);
-if (!xcodeToolsPresent()) {
+if (mac && !xcodeToolsPresent()) {
   console.error(["loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.", "  Run `xcode-select --install`, finish the dialog, then `bun start` again."].join("\n"));
   process.exit(1);
 }

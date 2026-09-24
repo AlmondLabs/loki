@@ -1,5 +1,12 @@
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { Meta, Popover, Row } from "../components";
+import { platform, type Platform } from "../desk/env";
+import { formatKeys, keyFor } from "../shell/keymap";
+
+/** A command's line in the palette: its description, and its action's key when it asks for one (core names no keys). */
+export function commandText(c: SlashCommand, os: Platform = platform): string {
+  return c.withKey && c.action ? `${c.description} (${keyFor(c.action, os)})` : c.description;
+}
 
 /**
  * The commands the box can run, hung above it while a "/name" is being typed: the name, its argument
@@ -16,14 +23,14 @@ export function SlashPalette({ matches, index, listId, onHover, onPick }: { matc
               /{c.id}
               {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 6 }}>{c.args}</span>}
             </span>
-            <span style={{ fontSize: 11, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{c.description}</span>
+            <span style={{ fontSize: 11, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{commandText(c)}</span>
             <span style={{ fontSize: 9.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>{c.where === "loki" ? "loki" : "letta"}</span>
           </Row>
         ))}
-        {matches.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>no command matches — ↵ sends it as a message</div>}
+        {matches.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>{`no command matches — ${formatKeys("enter")} sends it as a message`}</div>}
       </div>
       <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
-        <Meta>↑↓ move · ↵ run · ⇥ fill in · esc</Meta>
+        <Meta>{`↑↓ move · ${formatKeys("enter")} run · ${formatKeys("tab")} fill in · ${formatKeys("escape")}`}</Meta>
       </div>
     </Popover>
   );

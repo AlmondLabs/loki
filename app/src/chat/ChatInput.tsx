@@ -3,6 +3,7 @@ import { useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Dot, IconButton, TextArea } from "../components";
+import { cmdHeld, keyFor } from "../shell/keymap";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
@@ -204,8 +205,8 @@ export const ChatInput = forwardRef<
           } else if (e.key === "Escape" && onEscape) {
             e.preventDefault();
             onEscape();
-          } else if (e.key.toLowerCase() === "d" && e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && dictation.supported) {
-            // ⌘D dictates. (⌘M is minimise on a Mac and stays that way.)
+          } else if (e.key.toLowerCase() === "d" && cmdHeld(e) && !e.altKey && !e.shiftKey && dictation.supported) {
+            // ⌘D dictates (Ctrl+D off the Mac). (⌘M is minimise on a Mac and stays that way.)
             e.preventDefault();
             startDictation();
           }
@@ -227,7 +228,7 @@ export const ChatInput = forwardRef<
           disabled={disabled}
           label={listening ? "stop dictating" : "dictate"}
           aria-pressed={listening}
-          title={listening ? "stop dictating" : "dictate (⌘D)"}
+          title={listening ? "stop dictating" : `dictate (${keyFor("chat.dictate")})`}
           className="loki-composer-mic"
         >
           {icons?.mic ?? (

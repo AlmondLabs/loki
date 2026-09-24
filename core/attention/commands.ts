@@ -13,6 +13,8 @@ export interface SlashCommand {
   where: "harness" | "loki";
   /** loki commands: the keymap action id to run. */
   action?: string;
+  /** The palette shows the action's key after the description, in the system's own words (the app formats it; core names no keys). */
+  withKey?: boolean;
 }
 
 /** What Letta Code 0.31 runs remotely (SUPPORTED_REMOTE_COMMANDS); the app_server_info list, when the harness sends one, is merged on top. */
@@ -34,7 +36,7 @@ export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki", action: "chat.model" },
   { id: "mode", description: "choose the permission mode for this conversation", where: "loki", action: "chat.mode" },
   { id: "inbox", description: "open the inbox", where: "loki", action: "segment.inbox" },
-  { id: "desks", description: "search desks, agents and pages (⌘K)", where: "loki", action: "search.open" },
+  { id: "desks", description: "search desks, agents and pages", where: "loki", action: "search.open", withKey: true },
 ];
 
 /** A command the harness advertised in app_server_info that the table above does not know. */

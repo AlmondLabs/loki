@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 
 /**
  * The design tokens are a contract: inline styles pick from the scales in app/src/kit/tokens.css
@@ -401,5 +402,38 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
     expect(off.filter((b) => !/animation: none/.test(b))).toEqual([]);
     expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+  });
+});
+
+/**
+ * Keys read per system (plan 014 U2, KTD2): shortcut text comes from the keymap, so a Mac symbol in any string
+ * the app shows would read wrong on Windows and Linux. The scan reads every string, template and JSX text under
+ * app/src (comments are not strings), less the keymap's own symbol table.
+ */
+describe("keys come from the keymap: no Mac key symbol in a string outside its symbol table", () => {
+  const MAC_KEYS = /[⌘⌥⇧⌃⌫↵⏎⇥]/;
+  /** The one table the symbols live in: keymap.ts's MAC_SYMBOL. */
+  const TABLE = { file: "shell/keymap.ts", name: "MAC_SYMBOL" };
+  const strings = (path: string, text: string): string[] => {
+    const src = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const out: string[] = [];
+    const visit = (n: ts.Node, inTable: boolean) => {
+      const table = inTable || (path === TABLE.file && ts.isVariableDeclaration(n) && n.name.getText(src) === TABLE.name);
+      if (!table && (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && MAC_KEYS.test(n.text)) {
+        out.push(`${path}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}: ${n.text.trim()}`);
+      }
+      ts.forEachChild(n, (c) => visit(c, table));
+    };
+    visit(src, false);
+    return out;
+  };
+  test("the scan sees strings, templates and JSX text, and skips comments and the table", () => {
+    const sample = ['// ⌘K in a comment', '/** ⌘K */', 'const MAC_SYMBOL = { cmd: "⌘" };', 'const a = "⌘K";', "const b = `x ${a} ⌥`;", "const c = <b title=\"⇧\">↵ send</b>;"].join("\n");
+    expect(strings("x.tsx", sample).map((s) => s.split(": ")[1])).toEqual(["⌘", "⌘K", "⌥", "⇧", "↵ send"]);
+    expect(strings(TABLE.file, 'const MAC_SYMBOL = { cmd: "⌘" };')).toEqual([]);
+  });
+  test("every shortcut a user reads is formatted by the keymap", () => {
+    const hits = code.flatMap((f) => strings(f.path, f.text));
+    expect(hits).toEqual([]);
   });
 });

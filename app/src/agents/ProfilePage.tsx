@@ -5,6 +5,7 @@ import { Button, Field, Row } from "../components";
 import type { Task } from "../board/model";
 import { ago } from "../board/model";
 import { Head } from "./bits";
+import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit } from "./types";
 
 /** The profile page: who the agent is (editable), where it is working (desks, tasks), and the way out. */
@@ -72,7 +73,7 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       </div>
       <div style={{ display: "flex", gap: 8, padding: "8px 8px 0" }}>
         <Button tone="brass" onClick={() => onOpen("default")}>main chat</Button>
-        <Button onClick={onShowDesks} kbd="⌘1">desks</Button>
+        <Button onClick={onShowDesks} kbd={keyFor("segment.desk")}>desks</Button>
       </div>
     </section>
   );
@@ -86,7 +87,7 @@ function TasksSection({ count, onShowBoard }: { count: number; onShowBoard: () =
       </Head>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
         <span>{count === 0 ? "nothing assigned" : `${count} assigned on the board`}</span>
-        <Button onClick={onShowBoard} kbd="⌘3">board</Button>
+        <Button onClick={onShowBoard} kbd={keyFor("segment.board")}>board</Button>
       </div>
     </section>
   );

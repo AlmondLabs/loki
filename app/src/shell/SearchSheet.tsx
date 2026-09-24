@@ -4,6 +4,7 @@ import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
 import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./searchModel";
+import { formatKeys } from "./keymap";
 import "./searchSheet.css";
 
 const LIST_ID = "loki-search-results";
@@ -116,7 +117,7 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
         )}
       </div>
       <p id="loki-search-coverage" className="loki-meta loki-meta--wrap loki-search-coverage">
-        {COVERAGE} ↑ ↓ to move, ↵ to open.
+        {COVERAGE} ↑ ↓ to move, {formatKeys("enter")} to open.
       </p>
     </Sheet>
   );
@@ -154,7 +155,7 @@ function HitRow({ hit, selected, avatar, onPoint, onOpen }: { hit: SearchHit; se
           </span>
           <span className="loki-list-row-preview">{hit.preview}</span>
         </span>
-        {selected && <span className="loki-meta" aria-hidden>↵</span>}
+        {selected && <span className="loki-meta" aria-hidden>{formatKeys("enter")}</span>}
       </div>
     </li>
   );

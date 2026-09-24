@@ -2,6 +2,7 @@ import { SEGMENTS, type Segment } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { Dot } from "../components";
 import { inTauri } from "../desk/env";
+import { keyFor } from "./keymap";
 
 export const SIDEBAR_WIDTH = 48;
 /**
@@ -125,7 +126,7 @@ function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void 
       onClick={onToggle}
       aria-label={open ? "Hide sidebar" : "Show sidebar"}
       aria-pressed={open}
-      title={`${open ? "Hide" : "Show"} sidebar (⌘⇧D)`}
+      title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
       className="loki-rail"
       style={{ marginTop: "auto", width: 36, height: 28, display: "grid", placeItems: "center", border: "1px solid transparent", borderRadius: "var(--loki-radius-md)", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", padding: 0 }}
     >

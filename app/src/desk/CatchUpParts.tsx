@@ -4,6 +4,8 @@ import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.t
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { ConversationHeader } from "../chat/Conversation";
+import { platform } from "./env";
+import { keyFor } from "../shell/keymap";
 
 /** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
 
@@ -113,6 +115,11 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
   );
 }
 
+/** An inbox binding's key in the grammar that applies: its chord while you type, its plain key (the second) when nothing has focus. */
+export function deckKey(id: string, typing: boolean): string {
+  return keyFor(id, platform, typing ? 0 : 1);
+}
+
 /**
  * The deck's moves, at the end of the card's last row (the Conversation puts the switchers and approve /
  * deny before them). The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type.
@@ -120,10 +127,10 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
 export function CardActions({ current, typing, advance, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
   return (
     <>
-      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={typing ? "⌘O" : "O"}>open desk</Button>
+      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open desk</Button>
       <span style={{ flex: 1 }} />
-      <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={typing ? "⌘[" : "←"}>← later</Button>
-      <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={typing ? "⌘]" : "→"}>next →</Button>
+      <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={deckKey("inbox.later", typing)}>← later</Button>
+      <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={deckKey("inbox.next", typing)}>next →</Button>
     </>
   );
 }
@@ -132,7 +139,7 @@ export function CardActions({ current, typing, advance, onOpenDesk, onClose }: {
 export function KeysHint({ typing }: { typing: boolean }) {
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {typing ? "enter send (you stay on the card) · ⌘] next · ⌘[ later · ⌘↵ approve · ⌘⇧D deny · ⌘O open · ⌘S snoozed · esc back to the deck's keys" : "→ next · ← later · A approve · D deny · R reply · O open · S snoozed · Z undo · esc close"}
+      {typing ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.later")} later · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · ${keyFor("inbox.snoozed")} snoozed · esc back to the deck's keys` : "→ next · ← later · A approve · D deny · R reply · O open · S snoozed · Z undo · esc close"}
     </div>
   );
 }

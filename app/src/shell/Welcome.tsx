@@ -3,7 +3,8 @@ import { Button, Field, Sheet, Title } from "../components";
 import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../core/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";
-import type { BootstrapStatus } from "./bootstrap";
+import { lettaPhase, nodeHelp, type BootstrapStatus, type NodeMissing } from "./bootstrap";
+import { formatKeys } from "./keymap";
 import { useAgentDraft, type CreateAgent } from "./useAgentDraft";
 
 type ProviderProps = {
@@ -134,7 +135,7 @@ function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: Retur
             back
           </Button>
         )}
-        <Button size="sm" tone="positive" kbd="↵" onClick={() => void create()} disabled={busy || !name.trim()}>
+        <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void create()} disabled={busy || !name.trim()}>
           {busy ? "creating…" : "create and open the desk"}
         </Button>
       </div>
@@ -156,10 +157,15 @@ function PersonalityPicker({ value, onPick }: { value: Personality; onPick: (p: 
   );
 }
 
-/** Letta Code is being installed with npm (or failed): the log as it comes, retry when it fails. */
-function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onRetry: () => Promise<void> }) {
+/** Letta Code is being installed with npm (or failed): the log as it comes, retry when it fails; no Node to install it with: the Node step. */
+export function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onRetry: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const lines = status?.log ?? [];
+  const retry = () => {
+    setBusy(true);
+    void onRetry().finally(() => setBusy(false));
+  };
+  if (lettaPhase(status) === "node" && status?.node_missing) return <NodeNeeded missing={status.node_missing} busy={busy} onRecheck={retry} />;
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>
@@ -178,12 +184,40 @@ function LettaInstall({ status, onRetry }: { status: BootstrapStatus | null; onR
             brings it) and registry.npmjs.org to be reachable. A global folder npm may not write needs the sudo line above, run in a terminal. Retry below
             once it is fixed. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
           </div>
-          <Button size="sm" tone="positive" disabled={busy} onClick={() => { setBusy(true); void onRetry().finally(() => setBusy(false)); }} style={{ justifySelf: "start" }}>
+          <Button size="sm" tone="positive" disabled={busy} onClick={retry} style={{ justifySelf: "start" }}>
             {busy ? "starting…" : "retry the install"}
           </Button>
         </div>
       )}
       {!status?.error && status?.installing && <div className="loki-meta loki-meta--wrap">npm from the Node already on this Mac; Letta Code from registry.npmjs.org. A few minutes.</div>}
+    </div>
+  );
+}
+
+/**
+ * No Node 22 or newer anywhere loki looks: what to install, this system's usual command, the nodejs.org link, and
+ * one button — the install's own retry, which looks for Node afresh and goes on to npm once one is there. loki
+ * never downloads Node itself.
+ */
+export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing; busy: boolean; onRecheck: () => void }) {
+  const help = nodeHelp(missing.os);
+  const mono = { fontFamily: "var(--loki-mono)" };
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. Letta Code runs on it, and its npm installs Letta Code.</div>
+      {missing.found && (
+        <div className="loki-meta loki-meta--wrap">
+          The Node found is {missing.found}
+          {missing.at ? <> at <code style={mono}>{missing.at}</code></> : null}, older than {missing.needed}.
+        </div>
+      )}
+      <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+        <code style={mono}>{help.command}</code>
+        {help.also ? <> or <code style={mono}>{help.also}</code></> : null} {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
+      </div>
+      <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} style={{ justifySelf: "start" }}>
+        {busy ? "checking…" : "check again"}
+      </Button>
     </div>
   );
 }

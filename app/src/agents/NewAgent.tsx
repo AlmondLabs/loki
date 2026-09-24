@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PERSONALITIES, type Personality } from "../../../core/attention/protocol.ts";
 import { Button, Field, Row, Title } from "../components";
+import { formatKeys } from "../shell/keymap";
 
 /** The form for a new agent: name, description, one of Letta's personality presets, a model. */
 export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { models: string[] | null; onLoadModels: () => void; onCreate: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<string | null>; onCancel: () => void; canCancel: boolean }) {
@@ -46,7 +47,7 @@ export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }
           {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
           <span style={{ flex: 1 }} />
           {canCancel && <Button onClick={onCancel}>cancel</Button>}
-          <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd="↵">{busy ? "creating…" : "create"}</Button>
+          <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>{busy ? "creating…" : "create"}</Button>
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@ import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, liveWaitingCount, needsYou } from "./CatchUpParts";
+import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
 import { useDeckKeys } from "./useDeckKeys";
 import { useDeckQueue } from "./useDeckQueue";
@@ -205,7 +205,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         agentName={current.agentName}
         header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} timesAround={timesAround} priorSnooze={priorSnooze} flash={actions.flash} />}
         footer={<CardActions current={current} typing={typing} advance={actions.advance} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />}
-        hints={{ approve: typing ? "⌘↵" : "A", deny: typing ? "⌘⇧D" : "D" }}
+        hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
         inputRef={replyRef}
         onTyping={setTyping}
         onEscapeEmpty={deck.onClose} // esc: keep a draft and hand keys back, or close an untouched deck

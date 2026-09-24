@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Chip, Dot, Field, Meta, Popover, Row } from "../components";
+import { formatKeys } from "../shell/keymap";
 import { REASONING_EFFORTS, selectionOf, type ModelEntry, type ModelSelection, type ReasoningEffort } from "../../../core/models.ts";
 
 export type { ModelEntry, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
@@ -176,7 +177,7 @@ function ModelPickerOpen({ current, currentEffort = null, entries, loading, onPi
         {entries && rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>no model matches</div>}
       </div>
       <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
-        <Meta>↑↓ move · ↵ switch this conversation · esc</Meta>
+        <Meta>{`↑↓ move · ${formatKeys("enter")} switch this conversation · ${formatKeys("escape")}`}</Meta>
       </div>
     </Popover>
   );

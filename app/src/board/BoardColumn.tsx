@@ -5,6 +5,7 @@ import { ColumnHeader } from "../shell/ListColumn";
 import { AgentFace } from "../desk/AgentChip";
 import { boardViews, resolveBoardView, type BoardView, type Task } from "./model";
 import { useBoardView } from "./useBoardView";
+import { keyFor } from "../shell/keymap";
 
 const VIEW_ICON: Record<string, IconName> = { all: "menu", open: "inbox", in_progress: "clock", blocked: "info", done: "check" };
 
@@ -25,7 +26,7 @@ export function BoardColumn({ tasks, onNew }: { tasks: Task[] | null; onNew: () 
       <ColumnHeader
         title="Board"
         actions={
-          <IconButton label="New task (⌘T)" onClick={onNew}>
+          <IconButton label={`New task (${keyFor("task.new")})`} onClick={onNew}>
             <Icon name="plus" size={16} />
           </IconButton>
         }

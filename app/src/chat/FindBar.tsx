@@ -1,5 +1,6 @@
 import { useState, type RefObject } from "react";
 import { Field, IconButton } from "../components";
+import { formatKeys } from "../shell/keymap";
 
 /**
  * Find in the transcript, on the browser's own text search (window.find) so matches are wherever
@@ -44,7 +45,7 @@ export function FindBar({ fieldRef, onFound, onEscape, onClose }: { fieldRef: Re
             onEscape();
           }
         }}
-        placeholder="find in transcript… (↵ next · ⇧↵ previous · esc)"
+        placeholder={`find in transcript… (${formatKeys("enter")} next · ${formatKeys("shift+enter")} previous · ${formatKeys("escape")})`}
         aria-label="find in transcript"
         style={{ flex: 1 }}
       />

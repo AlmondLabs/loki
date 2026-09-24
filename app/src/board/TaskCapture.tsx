@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { LAYER } from "../kit/layers";
 import { Button, Chip, Field, Sheet, TextArea } from "../components";
 import { PRIORITY_LABEL } from "./model";
+import { formatKeys } from "../shell/keymap";
 
 /**
  * ⌘J anywhere: file a task yourself, no agent turn. A title, an optional description
@@ -79,7 +80,7 @@ function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
         bare
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        placeholder="why, and where to look (optional · ⇧↵ for a new line)"
+        placeholder={`why, and where to look (optional · ${formatKeys("shift+enter")} for a new line)`}
         aria-label="task description"
         rows={3}
         style={{ lineHeight: 1.5 }}
@@ -114,8 +115,8 @@ function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
         </span>
         {error && <span style={{ color: "var(--loki-negative)" }}>{error}</span>}
         <span style={{ flex: 1 }} />
-        <Button size="sm" kbd="esc" onClick={onClose}>cancel</Button>
-        <Button size="sm" tone="positive" kbd="↵" onClick={() => void submit()} disabled={!title.trim() || busy}>
+        <Button size="sm" kbd={formatKeys("escape")} onClick={onClose}>cancel</Button>
+        <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void submit()} disabled={!title.trim() || busy}>
           {busy ? "filing…" : "file"}
         </Button>
       </div>

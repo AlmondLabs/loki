@@ -9,9 +9,25 @@
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
-    __LOKI__?: { token?: string; modPort?: number; desk?: string | null; lan?: boolean; build?: string };
+    __LOKI__?: { token?: string; modPort?: number; desk?: string | null; lan?: boolean; build?: string; os?: string };
   }
 }
+
+/** The system the page runs on: what keys read as, which chrome and extras show. */
+export type Platform = "macos" | "windows" | "linux";
+
+/**
+ * The shell says which system it is (`__LOKI__.os`); a browser tab reads its user agent. Anything unknown is
+ * the Mac, loki's home: a phone, a test runner.
+ */
+export function platformFrom(os: unknown, userAgent: string): Platform {
+  if (os === "macos" || os === "windows" || os === "linux") return os;
+  if (/Windows/.test(userAgent)) return "windows";
+  if (/Linux|X11|CrOS/.test(userAgent) && !/like Mac OS X/.test(userAgent)) return "linux";
+  return "macos";
+}
+
+export const platform: Platform = platformFrom(typeof window !== "undefined" ? window.__LOKI__?.os : undefined, typeof navigator !== "undefined" ? (navigator.userAgent ?? "") : "");
 
 export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
 /** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */

@@ -6,7 +6,7 @@ import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/Conversation";
 import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
 import type { ModelEntry } from "../chat/ModelPicker";
-import { registerActions, runAction } from "../shell/keymap";
+import { keyFor, registerActions, runAction } from "../shell/keymap";
 import type { useAttention } from "../../../core/attention/useAttention.ts";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl } from "./env";
@@ -248,19 +248,19 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
   };
   const done = doneAction(item);
   const items: MenuItem[] = [
-    ...(done === "done" ? [{ id: DONE, label: "Mark as done", keys: "⌘⇧↵" }] : done === "undone" ? [{ id: UNDONE, label: "Mark as not done" }] : []),
+    ...(done === "done" ? [{ id: DONE, label: "Mark as done", keys: keyFor("desk.done") }] : done === "undone" ? [{ id: UNDONE, label: "Mark as not done" }] : []),
     ...(summary && canRename(summary) ? [{ id: RENAME, label: "Rename…", disabled: !connected, title: connected ? undefined : NO_RENAME_REASON }] : []),
-    { id: "chat.find", label: "Find in conversation…", keys: "⌘F" },
-    { id: "chat.model", label: "Change model…", keys: "⌘⇧M" },
-    { id: "chat.mode", label: "Change permission mode…", keys: "⌘⇧P" },
+    { id: "chat.find", label: "Find in conversation…", keys: keyFor("chat.find") },
+    { id: "chat.model", label: "Change model…", keys: keyFor("chat.model") },
+    { id: "chat.mode", label: "Change permission mode…", keys: keyFor("chat.mode") },
     ...(tab === "desk"
       ? [
-          { id: "desk.arrange", label: "Arrange widgets", keys: "⌘⇧A" },
-          { id: "view.fit", label: "Fit all widgets", keys: "⌘0" },
-          { id: "chat.toggle", label: "Show / hide chat", keys: "⌘/" },
+          { id: "desk.arrange", label: "Arrange widgets", keys: keyFor("desk.arrange") },
+          { id: "view.fit", label: "Fit all widgets", keys: keyFor("view.fit") },
+          { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
         ]
       : []),
-    { id: "desk.new", label: "New desk…", keys: "⌘N" },
+    { id: "desk.new", label: "New desk…", keys: keyFor("desk.new") },
   ];
   return (
     <>

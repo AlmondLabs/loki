@@ -7,6 +7,7 @@ import { selectionOf, type ModelSelection, type ReasoningEffort } from "../../..
 import { Button, Chip, Title } from "../components";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
+import { keyFor } from "../shell/keymap";
 import { ApprovalCard } from "./ApprovalCard";
 import { QuestionCard } from "./QuestionCard";
 import { ChatInput } from "./ChatInput";
@@ -270,7 +271,7 @@ export function composerPlaceholder(view: Pick<ConversationView, "status" | "app
   if (view.question) return view.question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…";
   if (view.approval) return "reply, or approve / deny below…";
   const who = agentName ?? "the agent";
-  return view.status === "idle" ? `message ${who}… (↵ send · ⇧↵ new line)` : `message ${who}… it goes when this turn ends`;
+  return view.status === "idle" ? `message ${who}… (${keyFor("chat.send")} send · ${keyFor("chat.newline")} new line)` : `message ${who}… it goes when this turn ends`;
 }
 
 /** The title, then the agent's face and name with whatever else the host says about the conversation; `right` sits at the end of the row. */

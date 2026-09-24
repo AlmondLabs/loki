@@ -54,15 +54,26 @@ fn ensure_token() -> Option<String> {
     Some(token)
 }
 
+/// The system as the page names it (`__LOKI__.os`, read by `platform` in app/src/desk/env.ts): macos, windows or linux.
+/// Any other unix desktop reads as linux, the nearest in keys and chrome.
+fn page_os(os: &str) -> &'static str {
+    match os {
+        "macos" => "macos",
+        "windows" => "windows",
+        _ => "linux",
+    }
+}
+
 fn init_script() -> String {
     let token = read_token().unwrap_or_default();
     let mod_port: u16 = std::env::var("LOKI_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(41414);
     let desk = std::env::var("LOKI_DESK").ok();
     format!(
-        "window.__LOKI__ = {{ token: {token}, modPort: {port}, desk: {desk} }};",
+        "window.__LOKI__ = {{ token: {token}, modPort: {port}, desk: {desk}, os: \"{os}\" }};",
         token = serde_json::to_string(&token).unwrap_or_else(|_| "\"\"".into()),
         port = mod_port,
         desk = serde_json::to_string(&desk).unwrap_or_else(|_| "null".into()),
+        os = page_os(std::env::consts::OS),
     )
 }
 
@@ -113,7 +124,7 @@ async fn check_letta_update(app: tauri::AppHandle) -> Result<bootstrap::Status, 
         let boot = app.state::<bootstrap::BootstrapState>();
         let rt = boot.0.lock().ok().and_then(|s| s.runtime());
         let version = rt.as_ref().and_then(bootstrap::letta_version);
-        let latest = bootstrap::latest_version();
+        let latest = bootstrap::latest_version(rt.as_ref(), &home_dir());
         let mut s = boot.0.lock().map_err(|e| e.to_string())?;
         s.version = version;
         s.latest = latest?.into();
@@ -144,7 +155,7 @@ fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState
         // npm said yes but the copy did not move: say so instead of restarting the harness for nothing.
         let now = bootstrap::letta_version(&after);
         if before.is_some() && now == before {
-            return Err(format!("the install finished, but {} still reports {}", after.letta.display(), now.unwrap_or_default()));
+            return Err(format!("the install finished, but {} still reports {}", after.letta.display(), now.unwrap_or_default()).into());
         }
         Ok(after)
     });
@@ -208,11 +219,11 @@ fn install_log_line(line: &str) {
 /// An install or update, off the main thread: progress as `loki:bootstrap` events, Status.log and
 /// ~/.letta/loki/logs/install.log, and on success the harness (re)starts on the runtime the job produced — the
 /// link, already retrying, reconnects.
-fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn Fn(bootstrap::Progress)) -> Result<bootstrap::Runtime, String> + Send + 'static) {
+fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn Fn(bootstrap::Progress)) -> Result<bootstrap::Runtime, bootstrap::InstallError> + Send + 'static) {
     use tauri::Emitter;
     let home = home_dir();
     if let Some(b) = app.try_state::<bootstrap::BootstrapState>() {
-        if let Ok(mut s) = b.0.lock() { s.installing = true; s.error = None; s.log.clear(); }
+        if let Ok(mut s) = b.0.lock() { s.installing = true; s.error = None; s.node_missing = None; s.log.clear(); }
     }
     install_log_line(&format!("\n--- {opening} · {} · loki {} ---", bootstrap::stamp(), env!("CARGO_PKG_VERSION")));
     let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "start", message: opening.to_string() });
@@ -228,7 +239,7 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
         let result = job(&report);
         match &result {
             Ok(rt) => install_log_line(&format!("done: {}", rt.letta.display())),
-            Err(e) => install_log_line(&format!("error: {e}")),
+            Err(e) => install_log_line(&format!("error: {}", e.message)),
         }
         let Some(b) = app.try_state::<bootstrap::BootstrapState>() else { return };
         match result {
@@ -247,8 +258,9 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
                 let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "done", message: "harness starting".into() });
             }
             Err(e) => {
-                if let Ok(mut s) = b.0.lock() { s.installing = false; s.error = Some(e.clone()); }
-                let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "error", message: e });
+                // No Node: Welcome's Node step, whose "check again" is this same job run again.
+                if let Ok(mut s) = b.0.lock() { s.installing = false; s.error = Some(e.message.clone()); s.node_missing = e.node_missing; }
+                let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "error", message: e.message });
             }
         }
     });
@@ -442,5 +454,15 @@ mod tests {
         assert_eq!(home_from(false, env(&[("USERPROFILE", r"C:\Users\x")])), None);
         assert_eq!(home_from(false, env(&[])), None);
         assert_eq!(home_from(false, env(&[("HOME", "")])), None, "an empty HOME is no home");
+    }
+
+    #[test]
+    fn the_page_is_told_its_system_in_one_of_three_words() {
+        assert_eq!(page_os("macos"), "macos");
+        assert_eq!(page_os("windows"), "windows");
+        assert_eq!(page_os("linux"), "linux");
+        assert_eq!(page_os("freebsd"), "linux");
+        let expected = if cfg!(target_os = "macos") { "macos" } else if cfg!(windows) { "windows" } else { "linux" };
+        assert!(init_script().ends_with(&format!(", os: \"{expected}\" }};")), "the script ends with the os (not printed: it carries the token)");
     }
 }

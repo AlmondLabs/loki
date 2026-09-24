@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { inTauri, modBase } from "../desk/env";
-import { KEYMAP, WHERE_ORDER, formatKeys, registerActions, takenBy } from "../shell/keymap";
+import { inTauri, modBase, platform } from "../desk/env";
+import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
@@ -239,7 +239,7 @@ function ScratchFacts({ scratch }: { scratch: Scratch }) {
   return (
     <>
       <HarnessScratchFact scratch={scratch} />
-      <TerminalScratchFact suggestion={scratch.settings?.terminalSuggestion ?? "$HOME/.letta/scratch"} />
+      <TerminalScratchFact suggestion={scratch.settings?.terminalSuggestion ?? "$HOME/.letta/scratch"} terminalLine={scratch.settings?.terminalLine} />
     </>
   );
 }
@@ -283,9 +283,10 @@ function scratchWord(scratch: Scratch): React.ReactNode {
 }
 
 /** The export line for a `letta` run from a terminal, with copy. */
-function TerminalScratchFact({ suggestion }: { suggestion: string }) {
+function TerminalScratchFact({ suggestion, terminalLine }: { suggestion: string; terminalLine?: string }) {
   const [copied, setCopied] = useState(false);
-  const line = `export LETTA_SCRATCHPAD="${suggestion}"`;
+  // The shell's line, in the terminal's own syntax (PowerShell on Windows); an older shell sends only the folder.
+  const line = terminalLine ?? `export LETTA_SCRATCHPAD="${suggestion}"`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(line);
@@ -491,7 +492,7 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
         <Fact label="Warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
         <Fact label="Reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
         <Fact label="Age" value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first" />
-        <Fact label="A reply" value="keeps the card, so the answer streams in where you are and a follow-up goes out warm; ⌘] moves on, and the answer then brings the card back by score" />
+        <Fact label="A reply" value={`keeps the card, so the answer streams in where you are and a follow-up goes out warm; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`} />
       </Section>
       <LadderSection inbox={inbox} />
     </>
@@ -523,16 +524,19 @@ function FilesPage() {
   );
 }
 
+/** The system-wide key as its row names it; it exists on the Mac only (global.inbox has no key elsewhere). */
+const GLOBAL_KEY = `${formatKeys("alt", "macos")}Space`;
+
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   return (
-    <Section title="Keys" hint="⌘ here is ctrl on other systems">
+    <Section title="Keys" hint={platform === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems` : undefined}>
       <Fact
-        label="⌥Space"
+        label={GLOBAL_KEY}
         value={
           shortcut.available ? (
             <span style={{ display: "inline-grid", gap: 4 }}>
               <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
-              {shortcut.error ? <Note tone="warn">macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ⌥Space; free it there and switch this off and on</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
+              {shortcut.error ? <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
             </span>
           ) : (
             "the app only — a browser tab cannot hold a system-wide key"
@@ -541,14 +545,14 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
       />
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
         <tbody>
-          {WHERE_ORDER.flatMap((where) => KEYMAP.filter((b) => b.where === where)).map((b, i, rows) => (
+          {keyRows().map((b, i, rows) => (
             <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
               <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 9 }}>{i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}</td>
-              <td style={{ padding: "6px 12px 6px 0", width: 170, fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)", whiteSpace: "nowrap" }}>{b.keys.map(formatKeys).join(" · ")}</td>
+              <td style={{ padding: "6px 12px 6px 0", width: 170, fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)", whiteSpace: "nowrap" }}>{b.keys.map((k) => formatKeys(k)).join(" · ")}</td>
               <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
                 {b.label}
                 {b.typing ? "" : b.where === "inbox" || b.where === "desk" ? <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span> : null}
-                {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{b.was}</span>}
+                {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{wasFor(b)}</span>}
                 {takenBy(b).map((t) => (
                   <span key={t.id} className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{`not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
                 ))}

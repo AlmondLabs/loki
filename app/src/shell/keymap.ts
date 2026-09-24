@@ -6,7 +6,13 @@
  * Grammar: "cmd+shift+a", "cmd+]", "enter", "shift+backspace", "left". cmd is ⌘ on a Mac and Ctrl
  * elsewhere. `typing` says whether a binding fires while a text box has focus: plain letters never
  * do; chords may, except the ones the text itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→, ⌘A, ⌘C, ⌘V, ⌘X are the text's).
+ *
+ * Each system reads its own words (formatKeys), and a Mac key the system keeps for itself on Windows or Linux
+ * is swapped for another in `keysOn`, so matching, the menu and every listing use the same key (plan 014 U2).
  */
+import { platform, type Platform } from "../desk/env";
+
+export type { Platform };
 export type Segment = "desk" | "inbox" | "board" | "learn" | "agents" | "settings";
 export type Where = "anywhere" | Segment | "chat" | "global";
 
@@ -14,6 +20,8 @@ export interface Binding {
   /** Stable id; the action registry and the menu use it. */
   id: string;
   keys: string[];
+  /** The keys on Windows or Linux where the Mac's are the system's there (keysOf); [] when the binding has none there. */
+  keysOn?: Partial<Record<"windows" | "linux", string[]>>;
   where: Where;
   /** Human label, as shown in Settings and the menu. */
   label: string;
@@ -25,7 +33,7 @@ export interface Binding {
   menuAccel?: boolean;
   /** Not dispatched by the keymap (documented only): the view or the OS owns it. */
   note?: string;
-  /** What the key did before a redesign changed its job, and where that job went; the keys sheet and Settings › keys say it (R30). */
+  /** What the key did before a redesign changed its job, and where that job went; the keys sheet and Settings › keys say it (R30). `{id}` reads as that binding's key (wasFor). */
   was?: string;
 }
 
@@ -40,7 +48,7 @@ export const KEYMAP: Binding[] = [
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
-  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk", was: "was the desks tree: desks are in the sidebar now (⌘⇧D shows or hides it)" },
+  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk", was: "was the desks tree: desks are in the sidebar now ({column.toggle} shows or hides it)" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
@@ -62,8 +70,9 @@ export const KEYMAP: Binding[] = [
   { id: "chat.find", keys: ["cmd+f"], where: "desk", label: "Find in Transcript…", typing: true, menu: "Chat" },
   { id: "chat.model", keys: ["cmd+shift+m"], where: "desk", label: "Change Model…", typing: true, menu: "Chat" },
   { id: "chat.mode", keys: ["cmd+shift+p"], where: "desk", label: "Change Permission Mode…", typing: true, menu: "Chat" },
-  { id: "chat.left", keys: ["cmd+left", "alt+cmd+left"], where: "desk", label: "Move Chat Left", typing: true, menu: "Chat/place", menuAccel: false },
-  { id: "chat.right", keys: ["cmd+right", "alt+cmd+right"], where: "desk", label: "Move Chat Right", typing: true, menu: "Chat/place", menuAccel: false },
+  // Ctrl+Alt+arrows are the system's off the Mac (workspaces on Linux, screen rotation on Windows, where Ctrl+Alt is also AltGr).
+  { id: "chat.left", keys: ["cmd+left", "alt+cmd+left"], keysOn: { windows: ["cmd+left", "cmd+shift+["], linux: ["cmd+left", "cmd+shift+["] }, where: "desk", label: "Move Chat Left", typing: true, menu: "Chat/place", menuAccel: false },
+  { id: "chat.right", keys: ["cmd+right", "alt+cmd+right"], keysOn: { windows: ["cmd+right", "cmd+shift+]"], linux: ["cmd+right", "cmd+shift+]"] }, where: "desk", label: "Move Chat Right", typing: true, menu: "Chat/place", menuAccel: false },
   { id: "view.fit", keys: ["cmd+0"], where: "desk", label: "Fit All Widgets", typing: true, menu: "View" },
   { id: "view.reset", keys: ["cmd+shift+0"], where: "desk", label: "Actual Size (1:1)", typing: true, menu: "View" },
   { id: "view.zoomIn", keys: ["cmd+=", "cmd+shift+="], where: "desk", label: "Zoom In", typing: true, menu: "View" },
@@ -124,16 +133,19 @@ export const KEYMAP: Binding[] = [
   { id: "settings.nextPage", keys: ["cmd+]"], where: "settings", label: "next page", typing: true },
 
   // --- global --------------------------------------------------------
-  { id: "global.inbox", keys: ["alt+space"], where: "global", label: "bring loki up on the inbox", note: "the OS" },
+  // The Mac's alone: Alt+Space is the window menu on Windows and Linux.
+  { id: "global.inbox", keys: ["alt+space"], keysOn: { windows: [], linux: [] }, where: "global", label: "bring loki up on the inbox", note: "the OS" },
 ];
 
-const SYMBOL: Record<string, string> = {
+/** The Mac's key symbols: the one place in the app they are written. */
+const MAC_SYMBOL: Record<string, string> = {
   cmd: "⌘",
   shift: "⇧",
   alt: "⌥",
   ctrl: "⌃",
   enter: "↵",
   backspace: "⌫",
+  tab: "⇥",
   escape: "esc",
   space: "space",
   left: "←",
@@ -142,13 +154,57 @@ const SYMBOL: Record<string, string> = {
   down: "↓",
 };
 
-/** "cmd+shift+a" → "⌘⇧A"; letters upper-cased, named keys as symbols; the one shifted punctuation chord shows as the character it types. */
-export function formatKeys(spec: string): string {
+/** Windows' and Linux's: the words on the keys, spaced apart. */
+const WORD: Record<string, string> = {
+  cmd: "Ctrl",
+  shift: "Shift",
+  alt: "Alt",
+  ctrl: "Ctrl",
+  enter: "Enter",
+  backspace: "Backspace",
+  tab: "Tab",
+  escape: "Esc",
+  space: "Space",
+  left: "←",
+  right: "→",
+  up: "↑",
+  down: "↓",
+};
+
+/**
+ * "cmd+shift+a" → "⌘⇧A" on the Mac, "Ctrl Shift A" elsewhere; letters upper-cased, named keys as symbols or words;
+ * the one shifted punctuation chord shows as the character it types.
+ */
+export function formatKeys(spec: string, os: Platform = platform): string {
   if (spec === "shift+/") return "?";
+  const names = os === "macos" ? MAC_SYMBOL : WORD;
   return spec
     .split("+")
-    .map((p) => SYMBOL[p] ?? (p.length === 1 ? p.toUpperCase() : p))
-    .join("");
+    .map((p) => names[p] ?? (p.length === 1 ? p.toUpperCase() : p))
+    .join(os === "macos" ? "" : " ");
+}
+
+/** A binding's keys on a system: the Mac's, unless the system keeps one of them for itself (keysOn). */
+export function keysOf(b: Binding, os: Platform = platform): string[] {
+  return (os === "macos" ? undefined : b.keysOn?.[os]) ?? b.keys;
+}
+
+/** The key a binding shows, by id, as this system reads it: every shortcut the app prints comes through here or formatKeys. */
+export function keyFor(id: string, os: Platform = platform, index = 0): string {
+  const b = KEYMAP.find((x) => x.id === id);
+  const k = b ? keysOf(b, os)[index] : undefined;
+  if (!k) throw new Error(`keymap: no key ${index} for ${id} on ${os}`);
+  return formatKeys(k, os);
+}
+
+/** A binding's `was` line with its `{id}` references read as keys. */
+export function wasFor(b: Binding, os: Platform = platform): string | undefined {
+  return b.was?.replace(/\{([\w.]+)\}/g, (_, id: string) => keyFor(id, os));
+}
+
+/** ⌘ held, as a view checking its own chord reads it: ⌘ alone on the Mac (Ctrl+D deletes forward in a Mac text box), Ctrl alone elsewhere. */
+export function cmdHeld(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">, os: Platform = platform): boolean {
+  return os === "macos" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
 }
 
 /** Does this keyboard event match the spec? `cmd` accepts ⌘ or Ctrl, never both meanings at once. */
@@ -157,8 +213,8 @@ export function formatKeys(spec: string): string {
  * the same keystroke. ⌘] is both "next card" (inbox) and "next desk" (anywhere); the key handler runs the
  * one for the showing segment, and the menu's echo — which carries the *other* id — must be dropped too.
  */
-export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP): string[] {
-  return map.filter((b) => b.keys.some((k) => matches(e, k))).map((b) => b.id);
+export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP, os: Platform = platform): string[] {
+  return map.filter((b) => keysOf(b, os).some((k) => matches(e, k))).map((b) => b.id);
 }
 
 export function matches(e: KeyboardEvent, spec: string): boolean {
@@ -198,6 +254,8 @@ export function matches(e: KeyboardEvent, spec: string): boolean {
       if (key === "-") return k === "-" || k === "_";
       if (key === ",") return k === "," || k === "<";
       if (key === "/") return k === "/" || k === "?";
+      if (key === "[") return k === "[" || k === "{";
+      if (key === "]") return k === "]" || k === "}";
       return k === key;
   }
 }
@@ -217,12 +275,12 @@ export function typingIn(e: KeyboardEvent): boolean {
 /** Chords the text itself uses: never taken while a box has focus, whatever a binding says. */
 export const TEXT_CHORDS = new Set(["cmd+left", "cmd+right", "cmd+up", "cmd+down", "cmd+backspace", "cmd+z", "cmd+shift+z", "cmd+a", "cmd+c", "cmd+v", "cmd+x", "alt+left", "alt+right", "alt+backspace"]);
 
-export function resolve(e: KeyboardEvent, segment: Segment): Binding | null {
+export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = platform): Binding | null {
   const typing = typingIn(e);
   // A key fires while typing only if the binding allows it AND the key is a chord the text does not use:
   // a plain letter or arrow always belongs to the text, whatever the binding says.
   const live = (b: Binding, k: string) => matches(e, k) && (!typing || (b.typing === true && k.includes("cmd+") && !TEXT_CHORDS.has(k)));
-  const hit = (where: Where) => KEYMAP.find((b) => !b.note && b.where === where && b.keys.some((k) => live(b, k))) ?? null;
+  const hit = (where: Where) => KEYMAP.find((b) => !b.note && b.where === where && keysOf(b, os).some((k) => live(b, k))) ?? null;
   return hit(segment) ?? hit("anywhere");
 }
 
@@ -230,18 +288,23 @@ export function resolve(e: KeyboardEvent, segment: Segment): Binding | null {
  * Where a view's own binding takes a key that works everywhere (resolve lets the view's win): ⌘⇧D is Deny in the
  * inbox, not the sidebar. The keys sheet leaves such a key out of that view's "everywhere" group; Settings says it.
  */
-export function takenBy(b: Binding, map: Binding[] = KEYMAP): Array<{ where: Where; key: string; id: string; label: string }> {
+export function takenBy(b: Binding, map: Binding[] = KEYMAP, os: Platform = platform): Array<{ where: Where; key: string; id: string; label: string }> {
   if (b.where !== "anywhere" || b.note) return [];
-  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : b.keys.filter((k) => o.keys.includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: o.label }))));
+  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : keysOf(b, os).filter((k) => keysOf(o, os).includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: o.label }))));
 }
 
-/** Bindings that share a key inside one scope — a mistake to catch in tests. */
-export function conflicts(map: Binding[] = KEYMAP): string[] {
+/** Bindings that share a key inside one scope — a mistake to catch in tests. With no system named, all three; another system's own clashes carry its name. */
+export function conflicts(map: Binding[] = KEYMAP, os?: Platform): string[] {
+  if (!os) {
+    const mac = conflicts(map, "macos");
+    const own = (o: Platform) => conflicts(map, o).filter((c) => !mac.includes(c)).map((c) => `${c} (${o})`);
+    return [...mac, ...own("windows"), ...own("linux")];
+  }
   const seen = new Map<string, string>();
   const out: string[] = [];
   for (const b of map) {
     if (b.note) continue;
-    for (const k of b.keys) {
+    for (const k of keysOf(b, os)) {
       const key = `${b.where}:${k}`;
       const other = seen.get(key);
       if (other) out.push(`${k} in ${b.where}: ${other} and ${b.id}`);
@@ -285,7 +348,7 @@ export function tauriAccelerator(spec: string): string {
     .join("+");
 }
 
-export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
+export function menuSpec(map: Binding[] = KEYMAP, os: Platform = platform): MenuSpec[] {
   return MENUS.map((title) => {
     const mine = map.filter((b) => b.menu && b.menu.split("/")[0] === title);
     const items: MenuSpec["items"] = [];
@@ -294,7 +357,8 @@ export function menuSpec(map: Binding[] = KEYMAP): MenuSpec[] {
       const group = b.menu!.split("/")[1];
       if (items.length && group !== lastGroup) items.push({ separator: true });
       lastGroup = group;
-      items.push({ id: b.id, label: b.label, accelerator: b.menuAccel === false ? null : tauriAccelerator(b.keys[0]) });
+      const key = keysOf(b, os)[0];
+      items.push({ id: b.id, label: b.label, accelerator: b.menuAccel === false || !key ? null : tauriAccelerator(key) });
     }
     return { title, items };
   }).filter((m) => m.items.length > 0);
@@ -332,6 +396,13 @@ export function keySegment(segment: Segment, dialog: DialogState): Segment {
 
 /** Rows for Settings, grouped by scope in display order. */
 export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "learn", "agents", "settings", "global"];
+
+/** Preferences › keys' table: every binding in WHERE_ORDER with this system's keys, less the ones it has no key for. */
+export function keyRows(os: Platform = platform, map: Binding[] = KEYMAP): Binding[] {
+  return WHERE_ORDER.flatMap((where) => map.filter((b) => b.where === where))
+    .map((b) => ({ ...b, keys: keysOf(b, os) }))
+    .filter((b) => b.keys.length > 0);
+}
 
 // --- the action registry: views register what their ids do; the shell dispatches ----------------
 type Action = () => void;
