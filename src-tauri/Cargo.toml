@@ -33,6 +33,11 @@ getrandom = "0.3"
 tauri-plugin-opener = "2"
 # The system's own folder dialog for a new desk, on every OS (plan 014 KTD9).
 tauri-plugin-dialog = "2"
+# The harness lookup (appserver.rs `os`): process command lines and start times, and listening ports by pid. Windows
+# and Linux discover everything with them; the Mac finds Desktop and user servers with `lsof` and `/bin/ps` and uses
+# these only for loki's own leftover harness, which it stops by pid and start time.
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+listeners = "0.6"
 
 # macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
 # tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).
@@ -49,14 +54,6 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
 
-# Windows and Linux only: the harness lookup (appserver.rs `os`) — process names and command lines, and listening
-# ports by pid. The Mac keeps `lsof` and `/bin/ps`.
-[target.'cfg(not(target_os = "macos"))'.dependencies]
-sysinfo = { version = "0.39", default-features = false, features = ["system"] }
-listeners = "0.6"
-
-# The same two crates for tests on every system, so the Mac's `cargo test` also compiles the Windows/Linux lookup
-# and runs it against the real OS. Never in the Mac app.
-[dev-dependencies]
-sysinfo = { version = "0.39", default-features = false, features = ["system"] }
-listeners = "0.6"
+# Linux only: PR_SET_PDEATHSIG, so the harness dies with loki (harness.rs `die_with_loki`).
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

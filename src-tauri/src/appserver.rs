@@ -177,28 +177,37 @@ fn port_of(url: &str) -> Option<u16> {
     url.split('/').nth(2)?.rsplit(':').next()?.parse().ok()
 }
 
-/// One process as the Windows/Linux lookup sees it: its pid, its name (`Letta.exe`, `node`) and its arguments.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
+/// One process as sysinfo sees it: its pid, its name (`Letta.exe`, `node`), its arguments and when it started
+/// (seconds since the epoch), so a pid found now is known to be the same process when it is stopped later.
 #[derive(Clone, Debug, Default)]
 pub struct Proc {
     pub pid: u32,
     pub name: String,
     pub cmd: Vec<String>,
+    pub started: u64,
+    /// The process that started it, when it is still known.
+    pub parent: Option<u32>,
 }
 
-/// The machine at one moment on Windows and Linux: its processes, and every listening TCP port with its pid.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
+/// The machine at one moment: its processes, and every listening TCP port with its pid.
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     pub procs: Vec<Proc>,
     pub listening: Vec<(u32, u16)>,
 }
 
-/// What to probe, in order, and the pid of loki's own harness from an earlier run when one holds its port.
+/// What to probe, in order, and loki's own harness from an earlier run when one holds its port.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Candidates {
     pub urls: Vec<String>,
-    pub own: Option<u32>,
+    pub own: Option<Leftover>,
+}
+
+/// loki's own harness left from an earlier run (loki crashed or was force-quit): its pid and when it started.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Leftover {
+    pub pid: u32,
+    pub started: u64,
 }
 
 /// Which harness loki uses.
@@ -206,15 +215,15 @@ pub struct Candidates {
 pub enum Choice {
     /// Someone else's app-server (Desktop's, a `letta server` the user started): used, never stopped.
     Attach { url: String, bearer: Option<String> },
-    /// loki's own harness left from an earlier run (Windows and Linux): used, and stopped on quit like one loki started.
-    Adopt { url: String, bearer: Option<String>, pid: u32 },
+    /// loki's own harness left from an earlier run: stopped (stop_leftover), then a fresh one launched from the
+    /// machine's current Letta Code with loki's current environment.
+    Replace { pid: u32, started: u64 },
     /// Nothing answered: loki starts its own.
     Launch,
 }
 
 /// The arguments of a command line, however the process list gave it: already split (sysinfo), or one Windows
 /// string with quoted paths. Quotes around an argument are dropped.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 pub fn command_words(cmd: &[String]) -> Vec<String> {
     let words = match cmd {
         [one] if one.contains(char::is_whitespace) => split_windows(one),
@@ -223,7 +232,6 @@ pub fn command_words(cmd: &[String]) -> Vec<String> {
     words.into_iter().map(|w| unquote(&w).to_string()).filter(|w| !w.is_empty()).collect()
 }
 
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 fn unquote(w: &str) -> &str {
     w.strip_prefix('"').and_then(|x| x.strip_suffix('"')).unwrap_or(w)
 }
@@ -231,7 +239,6 @@ fn unquote(w: &str) -> &str {
 /// A Windows command line split the way programs read it (CommandLineToArgvW): whitespace outside quotes ends an
 /// argument; 2n backslashes before a quote are n and the quote toggles, 2n+1 are n and a literal quote; other
 /// backslashes are themselves — so a quoted `C:\Program Files\…` stays whole.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 fn split_windows(line: &str) -> Vec<String> {
     let (mut out, mut cur, mut quoted, mut any) = (vec![], String::new(), false, false);
     let chars: Vec<char> = line.chars().collect();
@@ -272,7 +279,6 @@ fn split_windows(line: &str) -> Vec<String> {
 }
 
 /// App-server addresses named on one command line: `letta server --listen …` or the gateway's `--app-server-url …`.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 pub fn urls_in_command(words: &[String]) -> Vec<String> {
     let words: Vec<&str> = words.iter().map(String::as_str).collect();
     let mut urls = vec![];
@@ -281,21 +287,18 @@ pub fn urls_in_command(words: &[String]) -> Vec<String> {
 }
 
 /// Letta Desktop by process name: `Letta`, `Letta.exe`, `Letta Helper`, a lowercase `letta` package on Linux.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 pub fn is_letta_desktop(name: &str) -> bool {
     name.to_ascii_lowercase().starts_with("letta")
 }
 
 /// Whether a command line is loki's own start of the harness (harness::server_command): `server --listen <own_url>`
 /// with loki's token file.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 pub fn is_own_launch(words: &[String], own_url: &str, token_file: &std::path::Path) -> bool {
     let after = |flag: &str| words.iter().position(|w| w == flag).and_then(|i| words.get(i + 1));
     words.iter().any(|w| w == "server") && after("--listen").map(String::as_str) == Some(own_url) && after("--ws-token-file").is_some_and(|f| same_path(f, &token_file.to_string_lossy()))
 }
 
 /// Windows paths match whatever their slashes and case; other systems compare them as written.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
 fn same_path(a: &str, b: &str) -> bool {
     if cfg!(windows) {
         let norm = |p: &str| p.replace('/', "\\").to_lowercase();
@@ -305,9 +308,8 @@ fn same_path(a: &str, b: &str) -> bool {
     }
 }
 
-/// Windows and Linux candidates from a snapshot: Desktop's listening ports first (as `lsof -c Letta` gives them on
-/// the Mac), then the URLs on command lines; `own` is the pid of loki's own launch listening on `own_url`'s port.
-#[cfg_attr(target_os = "macos", allow(dead_code))] // Windows and Linux; the Mac only in tests
+/// Candidates from a snapshot: Desktop's listening ports first (as `lsof -c Letta` gives them on the Mac), then the
+/// URLs on command lines; `own` is loki's own launch listening on `own_url`'s port. The Mac takes only `own` from it.
 pub fn snapshot_candidates(snap: &Snapshot, own_url: &str, token_file: &std::path::Path) -> Candidates {
     let desktop: Vec<u32> = snap.procs.iter().filter(|p| is_letta_desktop(&p.name)).map(|p| p.pid).collect();
     let mut urls: Vec<String> = vec![];
@@ -322,21 +324,37 @@ pub fn snapshot_candidates(snap: &Snapshot, own_url: &str, token_file: &std::pat
         for url in urls_in_command(&words) {
             if !urls.contains(&url) { urls.push(url); }
         }
-        if own.is_none() && is_own_launch(&words, own_url, token_file) && snap.listening.iter().any(|(pid, port)| *pid == p.pid && Some(*port) == own_port) {
-            own = Some(p.pid);
+        if own.is_none() && is_own_launch(&words, own_url, token_file) && !has_live_loki_parent(snap, p) && snap.listening.iter().any(|(pid, port)| *pid == p.pid && Some(*port) == own_port) {
+            own = Some(Leftover { pid: p.pid, started: p.started });
         }
     }
     Candidates { urls, own }
 }
 
-/// The candidates on this machine. The Mac: `lsof -c Letta` and `/bin/ps`, as ever — it never adopts.
+/// Whether a loki that is still running started this process: then it is that loki's live harness (a dev build
+/// beside the installed app, say), not a leftover, and must never be stopped. A leftover's loki is gone: its
+/// parent is launchd, init or a subreaper, or on Windows a pid no process has any more.
+fn has_live_loki_parent(snap: &Snapshot, p: &Proc) -> bool {
+    let Some(parent) = p.parent else { return false };
+    snap.procs.iter().any(|q| q.pid == parent && is_loki_shell(&q.name))
+}
+
+/// loki's own binary, as the process list names it: `loki` on the Mac and Linux, `loki.exe` on Windows.
+fn is_loki_shell(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n == "loki" || n == "loki.exe"
+}
+
+/// The candidates on this machine. The Mac: `lsof -c Letta` and `/bin/ps`, as ever, for what to probe; loki's own
+/// leftover from the same snapshot Windows and Linux use, which has what ps cannot give reliably — the arguments
+/// already split (a token path with a space stays whole) and a start time `os::kill` can check.
 #[cfg(target_os = "macos")]
-pub fn candidates(_own_url: &str, _token_file: &std::path::Path) -> Candidates {
+pub fn candidates(own_url: &str, token_file: &std::path::Path) -> Candidates {
     let mut urls: Vec<String> = desktop_ports().into_iter().map(|p| format!("ws://127.0.0.1:{p}/ws")).collect();
     for u in ps_app_server_urls() {
         if !urls.contains(&u) { urls.push(u); }
     }
-    Candidates { urls, own: None }
+    Candidates { urls, own: snapshot_candidates(&os::snapshot(), own_url, token_file).own }
 }
 
 /// The candidates on this machine. Windows and Linux: a snapshot from sysinfo and listeners.
@@ -346,10 +364,13 @@ pub fn candidates(own_url: &str, token_file: &std::path::Path) -> Candidates {
 }
 
 /// Probe the candidates in order, each without auth first and then with loki's token. `exclude` keeps the mod's
-/// ports out. The URL of `own` answering makes it an adoption.
+/// ports out. Reaching `own_url` with a leftover of loki's own on it replaces it, answering or not.
 pub async fn choose(c: Candidates, own_url: &str, exclude: &[u16], token: Option<&str>) -> Choice {
     for url in c.urls {
         if port_of(&url).map(|p| exclude.contains(&p)).unwrap_or(true) { continue; }
+        if let Some(Leftover { pid, started }) = c.own.filter(|_| url == own_url) {
+            return Choice::Replace { pid, started };
+        }
         let bearer = if probe(&url).await {
             None
         } else if token.is_some() && probe_with(&url, token).await {
@@ -357,25 +378,50 @@ pub async fn choose(c: Candidates, own_url: &str, exclude: &[u16], token: Option
         } else {
             continue;
         };
-        return match c.own {
-            Some(pid) if url == own_url => Choice::Adopt { url, bearer, pid },
-            _ => Choice::Attach { url, bearer },
-        };
+        return Choice::Attach { url, bearer };
     }
     Choice::Launch
 }
 
+/// What stopping a leftover did: whether it was killed, and whether its port is free for a fresh harness.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Stopped {
+    pub killed: bool,
+    pub port_free: bool,
+}
+
+/// Stop loki's leftover harness `pid` — only while it is still the process that started at `started` — then wait up
+/// to `wait` for `port` to stop listening.
+pub fn stop_leftover(pid: u32, started: u64, port: u16, wait: Duration) -> Stopped {
+    let killed = os::kill(pid, Some(started));
+    Stopped { killed, port_free: wait_for(wait, || !listening(port)) }
+}
+
+/// Whether something accepts connections on the loopback `port` (a connection refused: nothing listens).
+pub fn listening(port: u16) -> bool {
+    std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], port)), Duration::from_millis(250)).is_ok()
+}
+
+/// Poll `done` every 100 ms until it holds or `timeout` passes; true if it held.
+pub fn wait_for(timeout: Duration, mut done: impl FnMut() -> bool) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if done() { return true; }
+        if std::time::Instant::now() >= deadline { return false; }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
 /// A running app-server loki may use, with the bearer it answered to: Desktop's (no auth), a `letta server`
-/// or gateway from the process list, loki's own from an earlier run (the token). `exclude` keeps the mod's
-/// ports out of the probe. Launch: nothing is running, so loki starts its own.
+/// or gateway from the process list (loki's token when it asks for one). `exclude` keeps the mod's ports out of
+/// the probe. Replace: loki's own from an earlier run holds its port. Launch: nothing is running, so loki starts its own.
 pub async fn find_app_server(exclude: &[u16], token: Option<&str>, token_file: &std::path::Path) -> Choice {
     let own_url = crate::harness::LISTEN_URL;
     choose(candidates(own_url, token_file), own_url, exclude, token).await
 }
 
-/// The Windows/Linux process and port sources (sysinfo, listeners). Also built for tests on the Mac, where both
-/// crates work too, so the real-OS test runs on every system.
-#[cfg(any(not(target_os = "macos"), test))]
+/// The process and port sources (sysinfo, listeners): everything Windows and Linux discover, and on the Mac only
+/// loki's own leftover harness.
 pub mod os {
     use super::{Proc, Snapshot};
     use sysinfo::{Pid, ProcessRefreshKind, ProcessStatus, ProcessesToUpdate, System, UpdateKind};
@@ -387,7 +433,7 @@ pub mod os {
         let procs = sys
             .processes()
             .iter()
-            .map(|(pid, p)| Proc { pid: pid.as_u32(), name: p.name().to_string_lossy().into_owned(), cmd: p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect() })
+            .map(|(pid, p)| Proc { pid: pid.as_u32(), name: p.name().to_string_lossy().into_owned(), cmd: p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect(), started: p.start_time(), parent: None })
             .collect();
         let mut listening: Vec<(u32, u16)> = match listeners::get_all() {
             Ok(all) => all.into_iter().filter(|l| l.protocol == listeners::Protocol::TCP && l.state == listeners::SocketState::Listen).map(|l| (l.process.pid, l.socket.port())).collect(),
@@ -502,23 +548,23 @@ grep --listen ws://evil
     }
 
     #[test]
-    fn a_snapshot_gives_desktop_ports_then_command_line_urls_and_loki_s_orphan() {
+    fn a_snapshot_gives_desktop_ports_then_command_line_urls_and_loki_s_leftover() {
         let tf = token_file();
         let tfs = tf.to_string_lossy().into_owned();
         let own_url = "ws://127.0.0.1:41600/ws";
         let snap = Snapshot {
             procs: vec![
-                Proc { pid: 10, name: "Letta.exe".into(), cmd: s(&[r"C:\Program Files\Letta\Letta.exe"]) },
-                Proc { pid: 11, name: "Letta.exe".into(), cmd: s(&[r"C:\Program Files\Letta\Letta.exe", "letta.js", "channel-gateway", "--app-server-url", "ws://127.0.0.1:53211/ws"]) },
-                Proc { pid: 20, name: "node.exe".into(), cmd: s(&["node.exe", "letta.js", "server", "--listen", own_url, "--ws-auth", "capability-token", "--ws-token-file", &tfs]) },
-                Proc { pid: 30, name: "node".into(), cmd: s(&["node", "vite"]) },
+                Proc { pid: 10, name: "Letta.exe".into(), cmd: s(&[r"C:\Program Files\Letta\Letta.exe"]), started: 1, parent: None },
+                Proc { pid: 11, name: "Letta.exe".into(), cmd: s(&[r"C:\Program Files\Letta\Letta.exe", "letta.js", "channel-gateway", "--app-server-url", "ws://127.0.0.1:53211/ws"]), started: 1, parent: None },
+                Proc { pid: 20, name: "node.exe".into(), cmd: own_launch(own_url, &tfs), started: 2, parent: None },
+                Proc { pid: 30, name: "node".into(), cmd: s(&["node", "vite"]), started: 3, parent: None },
             ],
             listening: vec![(30, 5173), (10, 49985), (10, 49985), (10, 49986), (20, 41600)],
         };
         let c = snapshot_candidates(&snap, own_url, &tf);
         assert_eq!(c.urls, s(&["ws://127.0.0.1:49985/ws", "ws://127.0.0.1:49986/ws", "ws://127.0.0.1:53211/ws", own_url]));
-        assert_eq!(c.own, Some(20));
-        // loki's launch that no longer holds the port is not an orphan to adopt; its URL is still a candidate.
+        assert_eq!(c.own, Some(Leftover { pid: 20, started: 2 }));
+        // loki's launch that no longer holds the port is no leftover to replace; its URL is still a candidate.
         let gone = Snapshot { listening: vec![], ..snap.clone() };
         assert_eq!(snapshot_candidates(&gone, own_url, &tf), Candidates { urls: s(&["ws://127.0.0.1:53211/ws", own_url]), own: None });
         assert_eq!(snapshot_candidates(&Snapshot::default(), own_url, &tf), Candidates::default());
@@ -561,7 +607,7 @@ grep --listen ws://evil
         let url = fake_app_server(None).await;
         let port = port_of(&url).unwrap();
         let dead = closed_port();
-        let snap = Snapshot { procs: vec![Proc { pid: 42, name: "Letta.exe".into(), cmd: vec![] }], listening: vec![(42, dead), (42, port)] };
+        let snap = Snapshot { procs: vec![Proc { pid: 42, name: "Letta.exe".into(), cmd: vec![], started: 1, parent: None }], listening: vec![(42, dead), (42, port)] };
         let own_url = format!("ws://127.0.0.1:{}/ws", closed_port());
         let c = snapshot_candidates(&snap, &own_url, &token_file());
         assert_eq!(choose(c, &own_url, &[41414, 41415], Some("tok")).await, Choice::Attach { url, bearer: None });
@@ -585,24 +631,106 @@ grep --listen ws://evil
         assert_eq!(choose(c, "ws://127.0.0.1:1/ws", &[port], None).await, Choice::Launch);
     }
 
+    fn own_launch(url: &str, token_file: &str) -> Vec<String> {
+        s(&["node.exe", "letta.js", "server", "--listen", url, "--ws-auth", "capability-token", "--ws-token-file", token_file])
+    }
+
     #[tokio::test]
-    async fn loki_s_orphaned_harness_is_adopted_with_its_token() {
+    async fn loki_s_leftover_harness_is_replaced_not_attached() {
         let own_url = fake_app_server(Some("tok")).await;
         let port = port_of(&own_url).unwrap();
         let tf = token_file();
         let tfs = tf.to_string_lossy().into_owned();
-        let snap = Snapshot {
-            procs: vec![Proc { pid: 77, name: "node.exe".into(), cmd: s(&["node.exe", "letta.js", "server", "--listen", &own_url, "--ws-auth", "capability-token", "--ws-token-file", &tfs]) }],
-            listening: vec![(77, port)],
-        };
+        let snap = Snapshot { procs: vec![Proc { pid: 77, name: "node.exe".into(), cmd: own_launch(&own_url, &tfs), started: 1234, parent: None }], listening: vec![(77, port)] };
         let c = snapshot_candidates(&snap, &own_url, &tf);
-        assert_eq!(choose(c, &own_url, &[41414, 41415], Some("tok")).await, Choice::Adopt { url: own_url.clone(), bearer: Some("tok".into()), pid: 77 });
-        // The same server without a recognised owner is attached to, not adopted.
+        assert_eq!(c.own, Some(Leftover { pid: 77, started: 1234 }));
+        assert_eq!(choose(c.clone(), &own_url, &[41414, 41415], Some("tok")).await, Choice::Replace { pid: 77, started: 1234 });
+        // Replaced whether or not it answers: a leftover that hangs, or one on an old token, is restarted all the same.
+        assert_eq!(choose(c, &own_url, &[], None).await, Choice::Replace { pid: 77, started: 1234 });
+        // The same server without a recognised owner is attached to, never stopped.
         let c = Candidates { urls: vec![own_url.clone()], own: None };
         assert_eq!(choose(c, &own_url, &[], Some("tok")).await, Choice::Attach { url: own_url.clone(), bearer: Some("tok".into()) });
-        // Without the token it does not answer at all.
-        let c = Candidates { urls: vec![own_url.clone()], own: Some(77) };
-        assert_eq!(choose(c, &own_url, &[], None).await, Choice::Launch);
+        // Desktop found first still wins, as ever: loki starts nothing, so it restarts nothing.
+        let desktop = fake_app_server(None).await;
+        let c = Candidates { urls: vec![desktop.clone(), own_url.clone()], own: Some(Leftover { pid: 77, started: 1234 }) };
+        assert_eq!(choose(c, &own_url, &[], Some("tok")).await, Choice::Attach { url: desktop, bearer: None });
+    }
+
+    #[tokio::test]
+    async fn a_harness_whose_loki_is_still_running_is_that_loki_s_and_never_replaced() {
+        let own_url = fake_app_server(Some("tok")).await;
+        let port = port_of(&own_url).unwrap();
+        let tf = token_file();
+        let tfs = tf.to_string_lossy().into_owned();
+        let harness = |parent| Proc { pid: 77, name: "node".into(), cmd: own_launch(&own_url, &tfs), started: 1234, parent };
+        // A second loki (a dev build beside the installed app): the first one's live harness is attached to.
+        for shell in ["loki", "loki.exe", "LOKI.EXE"] {
+            let snap = Snapshot { procs: vec![harness(Some(5)), Proc { pid: 5, name: shell.into(), cmd: vec![], started: 1, parent: Some(1) }], listening: vec![(77, port)] };
+            let c = snapshot_candidates(&snap, &own_url, &tf);
+            assert_eq!(c.own, None, "{shell}");
+            assert_eq!(choose(c, &own_url, &[], Some("tok")).await, Choice::Attach { url: own_url.clone(), bearer: Some("tok".into()) });
+        }
+        // Its loki gone: reparented to launchd or init, a subreaper, or (Windows) a pid no process has.
+        for (parent, procs) in [(Some(1), vec![Proc { pid: 1, name: "launchd".into(), cmd: vec![], started: 0, parent: None }]), (Some(900), vec![Proc { pid: 900, name: "systemd".into(), cmd: vec![], started: 0, parent: Some(1) }]), (Some(4321), vec![]), (None, vec![])] {
+            let mut all = vec![harness(parent)];
+            all.extend(procs);
+            let snap = Snapshot { procs: all, listening: vec![(77, port)] };
+            assert_eq!(snapshot_candidates(&snap, &own_url, &tf).own, Some(Leftover { pid: 77, started: 1234 }), "{parent:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_server_on_loki_s_port_that_is_not_loki_s_launch_is_attached_to_and_never_stopped() {
+        let own_url = fake_app_server(Some("tok")).await;
+        let port = port_of(&own_url).unwrap();
+        let tf = token_file();
+        for cmd in [own_launch(&own_url, "/elsewhere/token"), s(&["letta", "server", "--listen", &own_url])] {
+            let snap = Snapshot { procs: vec![Proc { pid: 78, name: "node".into(), cmd, started: 1, parent: None }], listening: vec![(78, port)] };
+            let c = snapshot_candidates(&snap, &own_url, &tf);
+            assert_eq!(c.own, None);
+            assert_eq!(choose(c.clone(), &own_url, &[], Some("tok")).await, Choice::Attach { url: own_url.clone(), bearer: Some("tok".into()) });
+            // One that does not answer is not killed either: loki launches, and a port still held fails as it did before.
+            assert_eq!(choose(c, &own_url, &[], None).await, Choice::Launch);
+        }
+    }
+
+    fn sleeper() -> std::process::Child {
+        if cfg!(windows) {
+            std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap()
+        } else {
+            std::process::Command::new("sleep").arg("30").spawn().unwrap()
+        }
+    }
+
+    #[test]
+    fn a_leftover_is_stopped_only_while_it_is_the_process_that_was_found() {
+        let mut child = sleeper();
+        let pid = child.id();
+        let started = os::start_time(pid).unwrap();
+        let free = closed_port();
+        assert_eq!(stop_leftover(pid, started + 1000, free, Duration::from_millis(300)), Stopped { killed: false, port_free: true }, "another start time: another process, left alone");
+        assert!(child.try_wait().unwrap().is_none());
+        assert_eq!(stop_leftover(pid, started, free, Duration::from_millis(300)), Stopped { killed: true, port_free: true });
+        assert!(!child.wait().unwrap().success());
+        // The port still held after the wait: said so, for the caller to attach instead.
+        let held = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = held.local_addr().unwrap().port();
+        assert_eq!(stop_leftover(pid, started, port, Duration::from_millis(300)), Stopped { killed: false, port_free: false });
+    }
+
+    #[test]
+    fn waiting_for_the_port_ends_when_it_frees_or_at_the_deadline() {
+        let mut polls = 0;
+        assert!(wait_for(Duration::from_secs(5), || { polls += 1; polls >= 3 }));
+        assert_eq!(polls, 3);
+        let t = std::time::Instant::now();
+        assert!(!wait_for(Duration::from_millis(300), || false));
+        assert!(t.elapsed() >= Duration::from_millis(300) && t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
+        let held = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = held.local_addr().unwrap().port();
+        assert!(listening(port));
+        drop(held);
+        assert!(!listening(port));
     }
 
     /// The real OS, before anything is wired to it: the reader lists a port this test listens on, with this test's
@@ -626,11 +754,7 @@ grep --listen ws://evil
 
     #[test]
     fn kill_stops_the_process_it_was_given_and_only_that_one() {
-        let mut child = if cfg!(windows) {
-            std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap()
-        } else {
-            std::process::Command::new("sleep").arg("30").spawn().unwrap()
-        };
+        let mut child = sleeper();
         let pid = child.id();
         let started = os::start_time(pid);
         assert!(started.is_some());

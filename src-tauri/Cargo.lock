@@ -2259,6 +2259,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.3.4",
  "http",
+ "libc",
  "listeners",
  "oxc_allocator",
  "oxc_codegen",

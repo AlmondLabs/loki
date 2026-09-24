@@ -37,8 +37,9 @@ The files are on the [latest release](https://github.com/AlmondLabs/loki/release
 1. **Quit leaves nothing behind.** After closing loki, no `letta` or `node` process of loki's is left and port
    41600 is free (Task Manager or `netstat -ano | findstr 41600` on Windows; `ss -ltnp | grep 41600` on Linux).
 2. **A second launch** while loki is open brings the running window forward; no second window, no second harness.
-3. **After a crash** (end loki's process by hand): on Windows the harness should end with it. If one is still on
-   41600 (Linux, mostly), the next launch takes it back and stops it on quit.
+3. **After a crash** (end loki's process by hand): on Windows and Linux the harness should end with it. If one is
+   still on 41600, the next launch logs "a loki harness left from an earlier run (pid N) — restarting it", stops
+   it, and starts a fresh harness (a new pid on 41600, owned: stopped on quit, and Settings › letta **update** works).
 
 ## The window
 

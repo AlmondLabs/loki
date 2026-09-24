@@ -66,8 +66,13 @@ both trace back to it.
 
 On Windows the child is `node …\letta-code\letta.js server` rather than npm's `letta.cmd` shim, started with no
 console window inside a Job Object that ends the whole tree when loki's handle closes, so quitting never leaves a
-node holding 41600. On Windows and Linux a harness an earlier loki started and left running on 41600 is adopted
-and stopped on quit like one it started; the Mac never adopts.
+node holding 41600. On Linux the child is started with the parent-death signal, so the kernel ends it when loki
+dies. A harness an earlier loki left running on 41600 anyway (a crash or force-quit, on the Mac mostly) is
+recognised by its command line (`server --listen ws://127.0.0.1:41600/ws` with loki's token file), stopped at the
+next launch — only while its pid still has the start time it was found with — and started afresh, so it runs the
+machine's current Letta Code with loki's current environment. If 41600 is still held five seconds later, loki
+attaches to whatever holds it instead. A server on 41600 that is not loki's own launch is never stopped, and neither is one whose loki is still
+running (a dev build beside the installed app attaches to the other's harness).
 
 The model is a remote service, not a process on your machine. The Letta *cloud* backend, when you use
 it, is a remote service too. The loki mod is not its own process — it is code inside the `letta`

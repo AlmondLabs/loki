@@ -8,7 +8,10 @@
 //!
 //! On Windows the harness is `node …\letta-code\letta.js` rather than npm's `letta.cmd` (bootstrap::launch_of),
 //! with no console window, inside a Job Object that kills the whole tree when loki's handle closes — quitting,
-//! or loki dying, never leaves a node holding the harness port.
+//! or loki dying, never leaves a node holding the harness port. On Linux the harness is started with
+//! PR_SET_PDEATHSIG, so the kernel kills it when loki dies (`die_with_loki`). A harness left from an earlier run
+//! anyway (the Mac, or a Linux crash before that took hold) is stopped at the next launch and started afresh
+//! (appserver::Choice::Replace), so it always runs the machine's current Letta Code and loki's current environment.
 
 use crate::bootstrap::{self, Os, Runtime};
 use std::path::Path;
@@ -16,22 +19,18 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 pub const LISTEN_URL: &str = "ws://127.0.0.1:41600/ws";
+/// LISTEN_URL's port, for the wait for a leftover to let go of it.
+pub const LISTEN_PORT: u16 = 41600;
 
 /// The child, once started. Managed from launch so a harness can start later (after an install).
 #[derive(Default)]
 pub struct Harness(pub Mutex<Option<Running>>);
 
-/// A harness loki owns: one it started — the child, and on Windows the Job Object that owns its process tree —
-/// or, on Windows and Linux, its own from an earlier run found still holding the port (appserver::Choice::Adopt),
-/// known by pid and start time so a reused pid is never killed.
-pub enum Running {
-    Started {
-        child: Child,
-        #[cfg(windows)]
-        _job: Option<job::Job>,
-    },
-    #[cfg(any(not(target_os = "macos"), test))]
-    Adopted { pid: u32, started: Option<u64> },
+/// The harness loki started: the child, and on Windows the Job Object that owns its process tree.
+pub struct Running {
+    child: Child,
+    #[cfg(windows)]
+    _job: Option<job::Job>,
 }
 
 /// A machine that never ran `letta` has no backend chosen, and `letta server` would stop to ask.
@@ -83,45 +82,31 @@ impl Harness {
         // temp folder, and Settings › letta shows the error next to the path.
         if let Err(e) = crate::scratch::prepare(launch.scratch) { eprintln!("loki: scratch folder: {e}"); }
         // Resolved now, from what is on disk now: never a path remembered from an earlier start.
-        let child = server_command(Os::HOST, rt, launch)
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
-            .stderr(Stdio::from(log))
-            .spawn()
-            .map_err(|e| format!("could not start letta server: {e}"))?;
+        let mut cmd = server_command(Os::HOST, rt, launch);
+        cmd.stdin(Stdio::null()).stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?)).stderr(Stdio::from(log));
+        #[cfg(target_os = "linux")]
+        let child = death::spawn(cmd);
+        #[cfg(not(target_os = "linux"))]
+        let child = cmd.spawn();
+        let child = child.map_err(|e| format!("could not start letta server: {e}"))?;
         #[cfg(windows)]
         let running = {
             let job = job::Job::kill_on_close().and_then(|j| j.assign(&child).map(|_| j));
             if let Err(e) = &job { eprintln!("loki: harness job object: {e}"); }
-            Running::Started { child, _job: job.ok() }
+            Running { child, _job: job.ok() }
         };
         #[cfg(not(windows))]
-        let running = Running::Started { child };
+        let running = Running { child };
         self.stop();
         if let Ok(mut g) = self.0.lock() { *g = Some(running); }
         Ok(())
     }
 
-    /// Own loki's harness from an earlier run, `pid`: stopped on quit, restarted by an update, as if started here.
-    #[cfg(any(not(target_os = "macos"), test))]
-    pub fn adopt(&self, pid: u32) {
-        let running = Running::Adopted { pid, started: crate::appserver::os::start_time(pid) };
-        self.stop();
-        if let Ok(mut g) = self.0.lock() { *g = Some(running); }
-    }
-
     /// Kill the harness and wait for it; on Windows closing the job then takes the rest of its tree.
     pub fn stop(&self) {
-        match self.0.lock().ok().and_then(|mut g| g.take()) {
-            Some(Running::Started { mut child, .. }) => {
-                let _ = child.kill();
-                let _ = child.wait();
-            }
-            #[cfg(any(not(target_os = "macos"), test))]
-            Some(Running::Adopted { pid, started }) => {
-                crate::appserver::os::kill(pid, started);
-            }
-            None => {}
+        if let Some(Running { mut child, .. }) = self.0.lock().ok().and_then(|mut g| g.take()) {
+            let _ = child.kill();
+            let _ = child.wait();
         }
     }
 }
@@ -130,6 +115,53 @@ impl Harness {
 impl Drop for Harness {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+/// Linux: the harness dies with loki. PR_SET_PDEATHSIG fires when the *thread* that forked the child exits, not the
+/// process — and a start can come from a short-lived thread (an install or update runs on tokio's blocking pool,
+/// whose idle threads exit), which would kill a healthy harness. So every start is forked from one thread that
+/// lives as long as loki. SIGKILL, like `stop`: nothing of the harness outlives loki to hold 41600.
+#[cfg(target_os = "linux")]
+mod death {
+    use std::io;
+    use std::os::unix::process::CommandExt;
+    use std::process::{Child, Command};
+    use std::sync::{mpsc, Mutex, OnceLock};
+
+    type Request = (Command, mpsc::Sender<io::Result<Child>>);
+
+    /// Ask the kernel to kill the child when its parent goes; if loki is already gone by then, fail the start.
+    fn die_with_loki(cmd: &mut Command) {
+        let parent = std::process::id() as libc::pid_t;
+        // Safety: between fork and exec only async-signal-safe calls — prctl, getppid — and no allocation.
+        unsafe {
+            cmd.pre_exec(move || {
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong, 0, 0, 0) == -1 { return Err(io::Error::last_os_error()); }
+                // loki already gone: no start (a raw errno, as nothing may allocate here).
+                if libc::getppid() != parent { return Err(io::Error::from_raw_os_error(libc::ESRCH)); }
+                Ok(())
+            });
+        }
+    }
+
+    /// Spawn `cmd`, set to die with loki, from the one long-lived spawner thread.
+    pub fn spawn(mut cmd: Command) -> io::Result<Child> {
+        static SPAWNER: OnceLock<Mutex<mpsc::Sender<Request>>> = OnceLock::new();
+        die_with_loki(&mut cmd);
+        let tx = SPAWNER.get_or_init(|| {
+            let (tx, rx) = mpsc::channel::<Request>();
+            std::thread::Builder::new()
+                .name("loki-harness-spawner".into())
+                .spawn(move || {
+                    for (mut cmd, reply) in rx { let _ = reply.send(cmd.spawn()); }
+                })
+                .expect("the harness spawner thread");
+            Mutex::new(tx)
+        });
+        let (reply, answer) = mpsc::channel();
+        tx.lock().map_err(|_| io::Error::other("harness spawner poisoned"))?.send((cmd, reply)).map_err(|_| io::Error::other("harness spawner gone"))?;
+        answer.recv().map_err(|_| io::Error::other("harness spawner gone"))?
     }
 }
 
@@ -199,23 +231,19 @@ mod tests {
             assert_eq!(args, ["server", "--listen", LISTEN_URL, "--ws-auth", "capability-token", "--ws-token-file", "/data/token"]);
             assert_eq!(cmd.get_program(), rt.letta.as_os_str(), "{os:?}: no letta.js beside it, so the shim itself");
         }
+        assert_eq!(LISTEN_URL, format!("ws://127.0.0.1:{LISTEN_PORT}/ws"));
     }
 
+    /// Linux: a start through the parent-death setup succeeds, and the harness outlives the thread that asked for it
+    /// (the spawner thread forked it), then stops like any other.
+    #[cfg(target_os = "linux")]
     #[test]
-    fn an_adopted_harness_is_owned_and_stopped_like_one_loki_started() {
-        let mut child = if cfg!(windows) {
-            Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(Stdio::null()).spawn().unwrap()
-        } else {
-            Command::new("sleep").arg("30").spawn().unwrap()
-        };
-        let h = Harness::default();
-        h.adopt(child.id());
-        assert!(matches!(h.0.lock().unwrap().as_ref(), Some(Running::Adopted { pid, started: Some(_) }) if *pid == child.id()), "owned, with its start time");
-        assert!(child.try_wait().unwrap().is_none());
-        h.stop();
-        let status = child.wait().unwrap();
-        assert!(!status.success(), "killed, not finished: {status:?}");
-        assert!(h.0.lock().unwrap().is_none());
+    fn on_linux_the_harness_dies_with_loki_but_not_with_the_thread_that_started_it() {
+        let mut child = std::thread::spawn(|| death::spawn({ let mut c = Command::new("sleep"); c.arg("30"); c }).unwrap()).join().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(child.try_wait().unwrap().is_none(), "alive after the starting thread exited");
+        let _ = child.kill();
+        assert!(!child.wait().unwrap().success());
     }
 
     #[test]

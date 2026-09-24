@@ -23,12 +23,14 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
   nodejs.org installer leaves one owned by root) gets the `sudo` line to run yourself, since loki never runs one.
   If an app-server is already running — Letta Desktop's, a `letta server` you started, Letta's channel gateway —
   loki attaches to it and launches nothing; a plain terminal `letta` opens no app-server, so it is never loki's
-  harness. Otherwise loki launches `letta server` itself. Settings › letta shows which, the path in use, and the
-  harness's version against the range loki runs on (`core/compat.ts`: below the minimum it says so and names the
-  upgrade line; above the tested release it says "newer than tested"). The harness loki launches runs with the
-  self-updater off, so nothing changes under a session; your terminal sessions keep the install fresh by themselves,
-  and Settings › letta has **check** (asks npm for the newest) and **update** (the same `npm install -g`, then the
-  harness restarts).
+  harness. Otherwise loki launches `letta server` itself; one an earlier loki left running (a crash, a force-quit)
+  is stopped at launch and started afresh, so it always runs the current Letta Code; one whose loki is still
+  running is that loki's, and is only attached to. Settings › letta shows which,
+  the path in use, and the harness's version against the range loki runs on (`core/compat.ts`: below the minimum
+  it says so and names the upgrade line; above the tested release it says "newer than tested"). The harness loki
+  launches runs with the self-updater off, so nothing changes under a session; your terminal sessions keep the
+  install fresh by themselves, and Settings › letta has **check** (asks npm for the newest) and **update** (the
+  same `npm install -g`, then the harness restarts).
   The harness runs with `LETTA_SCRATCHPAD` set to a folder under `~/.letta` (`~/.letta/loki/scratch` by default,
   emptied at each start): since Letta Code 0.31.13 its memory subagents — the dreaming (reflection) pass, its
   selector, the explicit-merge reviewer — run in a sandbox that may only write under `~/.letta`, and Letta's own
@@ -240,10 +242,10 @@ differs:
 4. **Folders.** Browse… in the new-desk sheet opens the system's own folder dialog; folder completion takes
    drive paths and `~\`.
 5. **The harness.** The same order as on the Mac: a running Letta Desktop (found by its process name), a
-   `letta server` or channel gateway (found by its command line), else loki's own `letta server` on 41600. A
-   harness an earlier loki started and left behind on 41600 is taken back and stopped on quit. On Windows loki
-   runs `node …\@letta-ai\letta-code\letta.js` directly, with no console window, in a Job Object that ends the
-   whole tree when loki exits.
+   `letta server` or channel gateway (found by its command line), else loki's own `letta server` on 41600, as on
+   the Mac restarted at launch when an earlier loki left it behind. On Windows loki runs
+   `node …\@letta-ai\letta-code\letta.js` directly, with no console window, in a Job Object that ends the whole
+   tree when loki exits; on Linux the harness carries the parent-death signal, so it ends with loki too.
 6. **Files.** `~` is your profile folder on Windows (`%USERPROFILE%`), so everything is under
    `%USERPROFILE%\.letta\loki`; the skill link is a junction where Windows refuses a symlink.
 7. **Linux** runs loki through XWayland: the shell sets `GDK_BACKEND=x11` unless you set it yourself, since an

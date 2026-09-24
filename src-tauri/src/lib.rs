@@ -136,8 +136,8 @@ async fn check_letta_update(app: tauri::AppHandle) -> Result<bootstrap::Status, 
 }
 
 /// Settings › letta "update": `npm install -g @letta-ai/letta-code@latest` — the same command that installed it,
-/// into the same global folder — then restart the harness on it. Only for a harness loki launched (Desktop's, or
-/// one adopted from an earlier run, is not ours to restart), and never for a binary named by LOKI_LETTA_BIN.
+/// into the same global folder — then restart the harness on it. Only for a harness loki launched (Desktop's, or a
+/// `letta server` the user started, is not ours to restart), and never for a binary named by LOKI_LETTA_BIN.
 #[tauri::command]
 fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
     if app.try_state::<harness::Harness>().is_none() {
@@ -364,41 +364,45 @@ pub fn run() {
                 eprintln!("loki: dev: mod {:?} · skill {:?} · shim {} → {}{}", report.r#mod, report.skill, report.shim, report.mod_path, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             }
 
-            // Which harness? A running app-server if there is one (Desktop's, a `letta server`, loki's own from an
-            // earlier run); otherwise launch our own on a fixed port from the machine's Letta Code. On Windows and
-            // Linux loki's own from an earlier run is adopted: owned, and stopped on quit (appserver::Choice::Adopt).
+            // Which harness? A running app-server if there is one (Desktop's, a `letta server`); otherwise launch our
+            // own on a fixed port from the machine's Letta Code. loki's own from an earlier run (a crash, a force-quit)
+            // is stopped and launched afresh, so it runs the current Letta Code and environment (Choice::Replace).
             let explicit = std::env::var("LOKI_APP_SERVER_URL").ok();
             let token = read_token();
             let (home_for_boot, token_file) = (home.clone(), data.join("token"));
-            // (url, bearer, launching our own?, adopted pid, letta runtime if found)
-            let (url, bearer, own, adopted, runtime) = tauri::async_runtime::block_on(async {
+            // (url, bearer, launching our own?, letta runtime if found)
+            let (url, bearer, own, runtime) = tauri::async_runtime::block_on(async {
                 if let Some(u) = explicit {
-                    return (u, None, false, None, None);
+                    return (u, None, false, None);
                 }
+                let launch = |token| (harness::LISTEN_URL.to_string(), token, true, bootstrap::find_letta(&home_for_boot));
                 match appserver::find_app_server(&[41414, 41415], token.as_deref(), &token_file).await {
-                    appserver::Choice::Attach { url, bearer } => (url, bearer, false, None, None),
-                    // Found for a later update or scratch-folder restart, which an owned harness gets.
-                    appserver::Choice::Adopt { url, bearer, pid } => (url, bearer, false, Some(pid), bootstrap::find_letta(&home_for_boot)),
-                    appserver::Choice::Launch => (harness::LISTEN_URL.to_string(), token, true, None, bootstrap::find_letta(&home_for_boot)),
+                    appserver::Choice::Attach { url, bearer } => (url, bearer, false, None),
+                    appserver::Choice::Launch => launch(token),
+                    appserver::Choice::Replace { pid, started } => {
+                        eprintln!("loki: app-server: a loki harness left from an earlier run (pid {pid}) — restarting it");
+                        let port = harness::LISTEN_PORT;
+                        let stopped = appserver::stop_leftover(pid, started, port, std::time::Duration::from_secs(5));
+                        if !stopped.killed { eprintln!("loki: app-server: pid {pid} was not stopped (already gone, or no longer that harness)"); }
+                        if stopped.port_free {
+                            launch(token)
+                        } else {
+                            // Never a harness that fails to bind: use the one holding the port, as loki did before.
+                            eprintln!("loki: app-server: port {port} is still held after 5 s — attaching to the harness there instead");
+                            (harness::LISTEN_URL.to_string(), token, false, None)
+                        }
+                    }
                 }
             });
-            eprintln!("loki: app-server at {url} ({})", if own { "launching" } else if adopted.is_some() { "adopted: a loki harness from an earlier run" } else if url == harness::LISTEN_URL { "a loki harness already running" } else { "attached" });
+            eprintln!("loki: app-server at {url} ({})", if own { "launching" } else if url == harness::LISTEN_URL { "a loki harness already running" } else { "attached" });
             // A harness that was already up loaded whatever mod it found at its start.
             report.needs_reload = report.changed() && !own;
             app.manage(report);
             app.manage(bootstrap::BootstrapState(std::sync::Mutex::new(runtime.as_ref().map(bootstrap::Status::from_runtime).unwrap_or_default())));
-            if own || adopted.is_some() {
+            if own {
                 app.manage(harness::Harness::default());
-                match (&runtime, adopted) {
-                    // The Mac never adopts (appserver::candidates), so only Windows and Linux have this arm.
-                    #[cfg(not(target_os = "macos"))]
-                    (_, Some(pid)) => {
-                        eprintln!("loki: owning the harness at pid {pid}");
-                        app.state::<harness::Harness>().adopt(pid);
-                    }
-                    #[cfg(target_os = "macos")]
-                    (_, Some(_)) => {}
-                    (Some(rt), None) => {
+                match &runtime {
+                    Some(rt) => {
                         eprintln!("loki: letta at {}{}", rt.letta.display(), if rt.explicit { " (LOKI_LETTA_BIN)" } else { "" });
                         harness::ensure_backend_mode(rt, &home);
                         if let Err(e) = start_harness(app.handle(), rt) {
@@ -406,7 +410,7 @@ pub fn run() {
                             if let Ok(mut s) = app.state::<bootstrap::BootstrapState>().0.lock() { s.error = Some(e); }
                         }
                     }
-                    (None, None) => {
+                    None => {
                         eprintln!("loki: no Letta Code on this Mac — installing it with npm");
                         start_install(app.handle().clone());
                     }
