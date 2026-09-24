@@ -53,7 +53,7 @@ plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-r
 toasts; circles use half their size. A radius with a role is written as its token (`"var(--loki-radius-md)"`), never
 as the number; the tokens test fails a bare 6, 8, 12 or 999 outside the phone. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
 `--loki-shadow-panel` (the chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in
-`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, toast 300), never arithmetic
+`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, strip 250, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
 
 Focus flashes, one rule in `tokens.css`: when focus moves by keyboard, a 2px accent-blue ring appears and
@@ -115,6 +115,15 @@ archive and a "More desk actions" menu: Mark as done (⌘⇧↵) or Mark as not 
 conversation summary, so the main chat has none), then the rest with their keys; the sheet's own actions (⌘⇧A
 arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Desk tab. Two earlier forms were dropped on 2026-09-06: a
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
+
+**Windows and Linux (preview, plan 014).** There the window is undecorated and the strip is Slack's for those
+systems: 32px, the height Windows gives its caption buttons, on `--loki-panel`. At its left a ☰ button the rail's
+width opens the Mac's menu bar as a popover: the menu titles (the `menuSpec()` groups), each opening its items
+beside it, keys written Ctrl, Alt, Shift, with the header menus' keyboard manners; at its right minimise, maximise (Restore, with the two-square glyph, while maximised) and close,
+46px wide, flat and full height, square because they run to the window's edge. Hover is `--loki-hover`; close
+alone hovers red (`--loki-attention`), the one place the red is not a badge, because that is what close does on
+both systems. The strip sits on `LAYER.strip`, above sheets, so the window buttons stay usable while a dialog is
+up, as a system title bar would. The strip drags; double click maximises. The rest of the window is the Mac's.
 
 The conversation is the signature surface. The Messages tab draws the thread in Slack's anatomy: a 36px face
 and bold name at the start of each run, the body under the name, the message's **time** quiet after the name

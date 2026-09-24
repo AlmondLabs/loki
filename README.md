@@ -6,14 +6,15 @@
 
 <p align="center">
   <b>A memory palace your agent builds.</b><br>
-  A macOS desk for <a href="https://docs.letta.com">Letta Code</a> agents: live widgets the agent writes as files,
-  an inbox of everything waiting on you, a shared task board, flashcards from your conversations, and your phone
-  as a remote.
+  A desk for <a href="https://docs.letta.com">Letta Code</a> agents on macOS, with Windows and Linux in preview:
+  live widgets the agent writes as files, an inbox of everything waiting on you, a shared task board, flashcards
+  from your conversations, and your phone as a remote.
 </p>
 
 <p align="center">
   <a href="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml"><img src="https://github.com/AlmondLabs/loki/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <img src="https://img.shields.io/badge/macOS-13%2B-1a1a20" alt="macOS 13 or later">
+  <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux-preview-1a1a20" alt="Windows and Linux: preview">
   <img src="https://img.shields.io/badge/licence-Apache--2.0-1a1a20" alt="Apache-2.0">
 </p>
 
@@ -27,7 +28,8 @@ you did rides along on your next message, so the agent sees the desk the way you
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
-Cloned the repo and want it running? Three tools, then two commands:
+Cloned the repo and want it running on a Mac? Three tools, then two commands (Windows and Linux need other
+tools first; see [Development](#development)):
 
 ```bash
 xcode-select --install                                              # Xcode's command line tools, once
@@ -54,7 +56,11 @@ that provider charges. Everything else, including the Homebrew install of the fi
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a desk, or dispatch so the agent starts now. |
 | **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, Letta's reflection settings, and its skills with one-click refresh from upstream. |
 | **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
-| **Phone** | | The inbox, every desk's conversation, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and done agree with the Mac. |
+| **Phone** | | The inbox, every desk's conversation, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and done agree with the Mac. Mac only for now. |
+
+Keys are written the Mac's way. On Windows and Linux ⌘ is Ctrl and ⌥ is Alt, and loki shows them that way; the
+phone, ⌥Space, dictation and the menu-bar item are not there yet ([the manual](docs/manual.md#windows-and-linux)
+lists what differs).
 
 <p align="center">
   <img src="docs/images/board.png" width="900" alt="The board: a sidebar of views and agents, then open, in progress, blocked and done columns, each task stamped with who filed it and which desk holds it">
@@ -95,14 +101,45 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 **From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout, or
 `bun run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
 
-You need macOS 13 or later. The cask brings Node; the `.dmg` route needs a Node 22 or newer on the Mac
-(`brew install node`) only if no `letta` is installed yet. On first launch loki uses the Letta Code already on
-your Mac — the same `letta` a terminal runs — or installs it with `npm install -g @letta-ai/letta-code`, asks for
-a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and others; you pay that provider, loki never
-sees the key), and helps you name your first agent. Then ask it to put something on the desk. If Letta Desktop
-or a `letta server` is already running, loki attaches to that harness instead of launching one. loki runs
-whatever Letta Code is on the Mac; it was last tested with 0.32.10, and Settings › Letta says where yours stands
-against that and offers the update.
+**Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. Every nightly and
+stable release carries them beside the `.dmg`; please [report what you find](https://github.com/AlmondLabs/loki/issues)
+([what to try](docs/preview-checklist.md)).
+Like the Mac's, these files are unsigned, so each system asks for one extra step the first time.
+
+**Windows** (64-bit Windows 10 or 11), `loki_<version>_x64-setup.exe` from the
+[latest release](https://github.com/AlmondLabs/loki/releases/latest):
+
+1. Run it. SmartScreen says "Windows protected your PC" (an unknown publisher): choose **More info**, then
+   **Run anyway**.
+2. Finish the installer and open loki from the Start menu.
+
+**Linux** (64-bit, built on Ubuntu 22.04 so it runs on newer releases too). On Debian or Ubuntu, the `.deb`:
+
+```bash
+sudo apt install ./loki_*_amd64.deb
+```
+
+On any other distribution, the AppImage, which needs its executable bit and FUSE 2 (`libfuse2`; on Ubuntu 24.04 the package is
+`libfuse2t64`):
+
+```bash
+sudo apt install libfuse2
+chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
+```
+
+On both, upgrades are the next file from the release page; Settings › letta links the one for your system when a
+newer loki is out. There is no Homebrew, winget or Flatpak package yet.
+
+You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux. The cask brings Node;
+the `.dmg`, Windows and Linux routes need a Node 22.19 or newer (`brew install node`,
+`winget install OpenJS.NodeJS.LTS`, or your distribution's package) only if no `letta` is installed yet. loki
+never downloads Node; Welcome says what to run and checks again. On first launch loki uses the Letta Code already
+on the machine — the same `letta` a terminal runs — or installs it with `npm install -g @letta-ai/letta-code`,
+asks for a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and others; you pay that provider,
+loki never sees the key), and helps you name your first agent. Then ask it to put something on the desk. If
+Letta Desktop or a `letta server` is already running, loki attaches to that harness instead of launching one.
+loki runs whatever Letta Code is installed; it was last tested with 0.32.10, and Settings › Letta says where
+yours stands against that and offers the update.
 
 ## Your first widget
 
@@ -150,7 +187,7 @@ mod/            Letta mod, plain TypeScript; boot.ts bundles it fresh on each /r
 core/           desk-core (types + the pure gesture reducer both halves use), attention, recall, compat (the Letta Code range) — portable, no browser globals
 app/            Vite + React: the desktop views, the canvas and the phone
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
-src-tauri/      the macOS shell (Rust): finds or installs Letta Code, launches or attaches to the harness, hosts the canvas
+src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): finds or installs Letta Code, launches or attaches to the harness, hosts the canvas
 scripts/        dev (`bun start`), build-mod (the bundle the app ships), harness (run the mod without Letta), cask (Homebrew),
                 release (date versions, notes), analytics (the local usage report)
 test/           bun tests
@@ -180,6 +217,12 @@ The app is built with the React Compiler, so memo boundaries hold without hand-w
 `LOKI_COMPILER_LOG=1 bun run build:app` lists what it declined to compile. In development, `?scan` on the dev
 URL loads React Scan and outlines every needless re-render. To point a running Letta at your checkout instead
 of the installed mod, see the manual's [Install (development)](docs/manual.md#install-development).
+
+On **Windows**, install the Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the
+WebView2 runtime (Windows 11 has it) in place of Xcode's tools, and run the commands from Git Bash. On
+**Linux**, Tauri's WebKitGTK build packages; on Ubuntu 22.04 the list is the one in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml). On every system `cargo test` wants
+`bun run build:app && bun run build:mod` first (the shell embeds the built app). [Contributing](docs/CONTRIBUTING.md) has the rest.
 
 ## Read on
 

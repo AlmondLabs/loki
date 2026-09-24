@@ -6,8 +6,9 @@ and one release PR.
 
 ## How a change ships
 
-1. **Merge a PR into `main`.** About twenty minutes later there is a new **nightly**: the universal `.dmg` on the
-   rolling `nightly` prerelease, and `Casks/loki-nightly.rb` in the tap. Anyone on
+1. **Merge a PR into `main`.** About twenty minutes later there is a new **nightly**: the universal `.dmg`, the
+   Windows installer and the Linux AppImage and `.deb` on the rolling `nightly` prerelease, and
+   `Casks/loki-nightly.rb` in the tap. Anyone on
    `brew install --cask almondlabs/loki/loki-nightly` gets it with `brew upgrade`. Only the newest merge matters:
    a nightly build still running is cancelled when the next merge lands.
 2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "release: 2026.9.28":
@@ -15,8 +16,36 @@ and one release PR.
    it from `main`, so there is always exactly one, and its notes are everything since the last stable. Do not push
    to it; anything that should ship goes through an ordinary PR.
 3. **Merge the release PR** when you want a stable. That merge builds once more, tags `v2026.9.28`, publishes the
-   release (not a draft) with the `.dmg` and the rendered cask attached, and pushes `Casks/loki.rb` to the tap.
+   release (not a draft) with every system's files and the rendered cask attached, and pushes `Casks/loki.rb` to
+   the tap.
    `brew upgrade --cask loki` follows. That merge produces no nightly; the stable is that build.
+
+## What a release run builds
+
+One run of `release.yml`, whatever the channel:
+
+1. **plan** (`bun scripts/release.ts plan`) decides stable, nightly, repush or nothing, and the version.
+2. **Three build jobs**, one per system, each stamping the version (`release.ts set`) and uploading its files as
+   an artifact:
+
+   | job | runner | how | files |
+   |---|---|---|---|
+   | macOS | `macos-14` | `tauri-apps/tauri-action@v0`, `--target universal-apple-darwin` | `loki_<v>_universal.dmg` |
+   | Windows | `windows-latest` | `bun run tauri build --bundles nsis` | `loki_<v>_x64-setup.exe` |
+   | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `bun run tauri build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
+
+   Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
+   `ci.yml`'s. A nightly's version builds the NSIS installer as it is: the installer's numeric product version
+   drops the `-nightly.<sha>` part.
+3. **publish** waits for all three (a release is never missing a system), downloads every artifact and calls
+   `release.ts publish` once with all of them. It has to be once: a nightly deletes and recreates the rolling
+   release, so a second upload from another job would race it. Then it renders the cask from the `.dmg`, attaches
+   `cask.rb` to the release and pushes it to the tap.
+
+Every set of notes starts with the preview line (`previewLine` in `scripts/release.ts`): Windows and Linux are
+built and tested in CI, not yet tried on real machines, with the issues link. It lands in the release, the release
+PR's body and `CHANGELOG.md`. Take it out of `previewLine` when people have confirmed the builds, and the README's
+and Settings' preview notes with it. [preview-checklist.md](preview-checklist.md) is what to ask them to try.
 
 ## Versions
 
@@ -79,6 +108,9 @@ Without signing, macOS blocks the downloaded app as "damaged"; people must run
 (right-click → Open no longer helps on macOS 14 and later, and Homebrew 7 has no `--no-quarantine`).
 Signing needs an Apple Developer Program membership (paid, yearly).
 
+The Windows and Linux files are unsigned too, and the workflow has no secrets for them: Windows' SmartScreen
+asks for **More info → Run anyway** once, and the AppImage needs `chmod +x`. Code-signing either is deferred.
+
 1. In Xcode or developer.apple.com, create a **Developer ID Application** certificate and export it with
    its private key as a `.p12` with a password.
 2. Create an **app-specific password** for your Apple ID at appleid.apple.com (notarization logs in
@@ -115,6 +147,10 @@ cd src-tauri/target/release/bundle/macos
   --window-size 660 400 --hide-extension loki.app --volicon ../dmg/icon.icns \
   ../dmg/loki_2026.9.28_aarch64.dmg loki.app
 ```
+
+On Windows or Linux, `bun run tauri build --bundles nsis` or `bun run tauri build --bundles appimage,deb` makes the
+same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appimage/` and `deb/` (the Linux build
+needs the apt packages in `ci.yml`). Neither needs the Finder workaround.
 
 `bun scripts/release.ts plan` says what the workflow would do for the checkout as it stands, and
 `bun scripts/release.ts notes` prints the notes the release PR would carry. Neither writes anything.
