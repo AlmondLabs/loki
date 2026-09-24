@@ -313,18 +313,29 @@ function TerminalScratchFact({ suggestion, terminalLine }: { suggestion: string;
   );
 }
 
-/** The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path on the Mac; the release page's file elsewhere. */
-function LokiVersionFact({ update }: { update: LokiUpdate }) {
+/**
+ * The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path on the
+ * Mac; this system's file on the release elsewhere, where the build is also a preview (plan 014 R12).
+ */
+export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate; os?: Platform }) {
   const cask = update.channel === "nightly" ? "loki-nightly" : "loki";
+  const upgrade = lokiUpgrade(cask, os);
+  const preview =
+    os === "macos" ? null : (
+      <Note>
+        a preview build: built and tested in CI, not yet tried on real machines{update.issues ? <> — <a href={update.issues}>report problems</a></> : null}
+      </Note>
+    );
   const value = update.newer ? (
     <span>
       {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
-      <Note>{lokiUpgrade(cask)}</Note>
+      <Note>{os === "macos" || !update.download ? upgrade : <a href={update.download}>{upgrade}</a>}</Note>
+      {preview}
     </span>
   ) : update.latest ? (
-    <span>{update.current}<Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note></span>
+    <span>{update.current}<Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note>{preview}</span>
   ) : (
-    <span>{update.current}{update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}</span>
+    <span>{update.current}{update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}{preview}</span>
   );
   return <Fact label="Version" value={value} />;
 }

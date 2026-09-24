@@ -9,7 +9,9 @@
 //   bun scripts/release.ts set <version>        stamp the three version files (+ Cargo.lock), uncommitted
 //   bun scripts/release.ts notes <version>      release notes from the commits since the last stable
 //   bun scripts/release.ts release-pr <version> create or refresh the one release PR (branch release/next)
-//   bun scripts/release.ts publish <kind> <version> <dmg…>   the GitHub release: a new vX tag, or the rolling nightly
+//   bun scripts/release.ts publish <kind> <version> <files…> the GitHub release: a new vX tag, or the rolling nightly,
+//                                                            with every system's files at once (the .dmg, the Windows
+//                                                            -setup.exe, the Linux AppImage and .deb; plan 014 U10)
 //
 // One stable a day: a version has three integer slots and the date uses them all. The release PR's number goes
 // stale at midnight, so the workflow refreshes it daily, and the release merge recomputes: files that disagree
@@ -34,6 +36,17 @@ export interface Plan {
 export const RELEASE_BRANCH = "release/next";
 export const NIGHTLY_TAG = "nightly";
 const root = fileURLToPath(new URL("..", import.meta.url));
+
+/** "owner/name": the run's own repository in Actions, else package.json's `repository` (as app/vite.config.ts reads it). */
+function repoName(): string {
+  if (process.env.GITHUB_REPOSITORY) return process.env.GITHUB_REPOSITORY;
+  const { repository } = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { repository?: string };
+  return (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
+}
+
+/** The line every release's notes open with while the Windows and Linux builds are unconfirmed (plan 014 R12). */
+export const previewLine = (repo: string): string =>
+  `**Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. Report what you find at https://github.com/${repo}/issues.`;
 
 /** `YYYY.M.D` in UTC, no leading zeros: valid semver, a valid macOS bundle version, and Homebrew orders it. */
 export const dateVersion = (d: Date): string => `${d.getUTCFullYear()}.${d.getUTCMonth() + 1}.${d.getUTCDate()}`;
@@ -87,8 +100,11 @@ export interface Commit {
 
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
-/** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
-export function releaseNotes(version: string, commits: Commit[]): string {
+/**
+ * Release notes: the preview line, then one entry per commit since the last stable, newest first; the release
+ * commits themselves and trailers are left out.
+ */
+export function releaseNotes(version: string, commits: Commit[], repo: string = repoName()): string {
   const entries = commits
     .filter((c) => !/^release: /.test(c.subject))
     .map((c) => {
@@ -100,7 +116,7 @@ export function releaseNotes(version: string, commits: Commit[]): string {
         .trim();
       return `- **${c.subject.trim()}** (${c.sha.slice(0, 7)})${body ? `\n${body.split("\n").map((l) => (l ? `  ${l}` : "")).join("\n")}` : ""}`;
     });
-  return `## ${version}\n\n${entries.length ? entries.join("\n") : "- no changes recorded"}\n`;
+  return `## ${version}\n\n${previewLine(repo)}\n\n${entries.length ? entries.join("\n") : "- no changes recorded"}\n`;
 }
 
 /** The three version files and the lockfile, set to `version`; returns what changed. */
@@ -192,7 +208,7 @@ function cmdReleasePr(version: string): void {
   git("commit", "--quiet", "-m", `${title}\n\nThe release PR: merge it and this becomes stable ${version} (UTC). Rebuilt from main on every merge; do not edit.`);
   git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${RELEASE_BRANCH}`);
   const body = [
-    `Merging this ships **loki ${version}**: the tag, the universal \`.dmg\`, the published release and the Homebrew cask, all from one workflow run.`,
+    `Merging this ships **loki ${version}**: the tag, the universal \`.dmg\`, the Windows \`-setup.exe\`, the Linux AppImage and \`.deb\`, the published release and the Homebrew cask, all from one workflow run.`,
     "",
     "This PR is rebuilt from `main` on every merge and at midnight UTC, so its number is today's date and its notes are everything since the last stable. Do not push to it; anything that should ship goes through an ordinary PR.",
     "",
@@ -204,13 +220,13 @@ function cmdReleasePr(version: string): void {
   console.error(`release: PR ${open ? `#${open} refreshed` : "opened"} for ${version}`);
 }
 
-/** Publish: a stable gets its own tag and release; a nightly replaces the rolling one, only now that the build is in hand. */
-function cmdPublish(kind: string, version: string, files: string[]): void {
+/**
+ * Publish: a stable gets its own tag and release; a nightly replaces the rolling one, only now that the builds are
+ * in hand. Every system's files go up in the one `gh release create`: the nightly is deleted and recreated, so a
+ * second upload from another build leg would race it (plan 014 KTD10).
+ */
+export function publish({ kind, version, files, sha, notesFile, gh }: { kind: string; version: string; files: string[]; sha: string; notesFile: string; gh: (...args: string[]) => string }): void {
   if (!files.length) throw new Error("publish: no files");
-  const notes = cmdNotes(version);
-  const notesFile = join(root, ".release-notes.md");
-  writeFileSync(notesFile, notes.replace(/^## .*\n\n/, ""));
-  const sha = git("rev-parse", "HEAD");
   if (kind === "stable") {
     if (!isDateVersion(version)) throw new Error(`a stable is a date version, not ${version}`);
     gh("release", "create", `v${version}`, "--target", sha, "--title", `loki ${version}`, "--notes-file", notesFile, "--latest", ...files);
@@ -223,7 +239,14 @@ function cmdPublish(kind: string, version: string, files: string[]): void {
     }
     gh("release", "create", NIGHTLY_TAG, "--target", sha, "--prerelease", "--title", `loki ${version}`, "--notes-file", notesFile, ...files);
   } else throw new Error(`publish: kind is stable or nightly, not ${kind}`);
-  console.error(`release: published ${kind} ${version}`);
+}
+
+function cmdPublish(kind: string, version: string, files: string[]): void {
+  if (!files.length) throw new Error("publish: no files");
+  const notesFile = join(root, ".release-notes.md");
+  writeFileSync(notesFile, cmdNotes(version).replace(/^## .*\n\n/, ""));
+  publish({ kind, version, files, sha: git("rev-parse", "HEAD"), notesFile, gh });
+  console.error(`release: published ${kind} ${version} with ${files.length} file${files.length === 1 ? "" : "s"}`);
 }
 
 if (import.meta.main) {

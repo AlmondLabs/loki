@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { dateVersion, isDateVersion, isNightlyVersion, latestStable, nextStable, nightlyVersion, plan, releaseNotes, setVersion, withChangelog } from "../scripts/release.ts";
+import { dateVersion, isDateVersion, isNightlyVersion, latestStable, nextStable, nightlyVersion, plan, previewLine, publish, releaseNotes, setVersion, withChangelog } from "../scripts/release.ts";
 import { channelOf, isNewerVersion, nightlyVersionIn } from "../core/version.ts";
 
 /** Date-based releases (scripts/release.ts): the calendar is the version, tags are the truth, one stable a day. */
@@ -67,13 +67,26 @@ describe("what a run does", () => {
 
 describe("notes and files", () => {
   test("release notes: one entry per commit, newest first, release commits and trailers left out", () => {
-    const notes = releaseNotes("2026.9.28", [
-      { sha: "bbbbbbb1", subject: "release: 2026.9.27", body: "" },
-      { sha: "aaaaaaa1", subject: "inbox: a priority queue", body: "One score per card.\n\nCo-Authored-By: Someone <x@y>" },
-      { sha: "ccccccc1", subject: "settings: the ladder", body: "" },
-    ]);
-    expect(notes).toBe("## 2026.9.28\n\n- **inbox: a priority queue** (aaaaaaa)\n  One score per card.\n- **settings: the ladder** (ccccccc)\n");
-    expect(releaseNotes("2026.9.28", [])).toContain("no changes recorded");
+    const notes = releaseNotes(
+      "2026.9.28",
+      [
+        { sha: "bbbbbbb1", subject: "release: 2026.9.27", body: "" },
+        { sha: "aaaaaaa1", subject: "inbox: a priority queue", body: "One score per card.\n\nCo-Authored-By: Someone <x@y>" },
+        { sha: "ccccccc1", subject: "settings: the ladder", body: "" },
+      ],
+      "owner/loki",
+    );
+    expect(notes).toBe(`## 2026.9.28\n\n${previewLine("owner/loki")}\n\n- **inbox: a priority queue** (aaaaaaa)\n  One score per card.\n- **settings: the ladder** (ccccccc)\n`);
+    expect(releaseNotes("2026.9.28", [], "owner/loki")).toContain("no changes recorded");
+  });
+
+  test("release notes open with the preview line: Windows and Linux, built in CI, and where to report problems (R12)", () => {
+    const line = previewLine("owner/loki");
+    expect(line).toContain("Windows and Linux");
+    expect(line).toContain("preview");
+    expect(line).toContain("built and tested in CI, not yet tried on real machines");
+    expect(line).toContain("https://github.com/owner/loki/issues");
+    expect(releaseNotes("2026.9.28", [], "owner/loki").split("\n")[2]).toBe(line);
   });
 
   test("setVersion stamps the three files and the lockfile's own entry, nothing else", () => {
@@ -109,5 +122,39 @@ describe("notes and files", () => {
     expect(refreshed.match(/## 2026\.9\.28/g)?.length).toBe(1);
     expect(refreshed).toContain("- **c** (3333333)");
     expect(refreshed).toContain("## 2026.9.27");
+  });
+});
+
+describe("publish: one release carries every system's files", () => {
+  // the three build legs' files, as the publish job downloads them into one folder
+  const files = ["dist/loki_2026.9.28-nightly.a96ee85_universal.dmg", "dist/loki_2026.9.28-nightly.a96ee85_x64-setup.exe", "dist/loki_2026.9.28-nightly.a96ee85_amd64.AppImage", "dist/loki_2026.9.28-nightly.a96ee85_amd64.deb"];
+  const fakeGh = () => {
+    const calls: string[][] = [];
+    return { calls, gh: (...args: string[]) => (calls.push(args), "") };
+  };
+
+  test("a nightly deletes the rolling release once and recreates it with all files in one call", () => {
+    const { calls, gh } = fakeGh();
+    publish({ kind: "nightly", version: "2026.9.28-nightly.a96ee85", files, sha: "abc", notesFile: "notes.md", gh });
+    expect(calls.map((c) => c.slice(0, 2))).toEqual([["release", "delete"], ["release", "create"]]);
+    const create = calls[1];
+    expect(create).toContain("nightly");
+    expect(create).toContain("--prerelease");
+    for (const f of files) expect(create).toContain(f);
+  });
+
+  test("a stable tags and creates its release with all files in one call", () => {
+    const { calls, gh } = fakeGh();
+    publish({ kind: "stable", version: "2026.9.28", files, sha: "abc", notesFile: "notes.md", gh });
+    expect(calls.length).toBe(1);
+    expect(calls[0].slice(0, 3)).toEqual(["release", "create", "v2026.9.28"]);
+    for (const f of files) expect(calls[0]).toContain(f);
+  });
+
+  test("no files, or a version of the wrong kind, publishes nothing", () => {
+    const { calls, gh } = fakeGh();
+    expect(() => publish({ kind: "nightly", version: "2026.9.28-nightly.a96ee85", files: [], sha: "abc", notesFile: "n", gh })).toThrow(/no files/);
+    expect(() => publish({ kind: "stable", version: "2026.9.28-nightly.a96ee85", files, sha: "abc", notesFile: "n", gh })).toThrow(/date version/);
+    expect(calls).toEqual([]);
   });
 });
