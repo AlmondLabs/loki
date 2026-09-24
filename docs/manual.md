@@ -73,15 +73,17 @@ Or open it, dismiss the dialog, and allow it under System Settings › Privacy &
 **From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout or
 `bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
-**Windows (preview)**: `loki_<version>_x64-setup.exe` from the release, an unsigned NSIS installer. SmartScreen
+**Windows (preview)**: `loki_<version>_x64-setup.exe` from a stable release, an unsigned NSIS installer. SmartScreen
 stops it as an unknown publisher; **More info**, then **Run anyway**, once.
 
 **Linux (preview)**: `loki_<version>_amd64.deb` (`sudo apt install ./loki_*_amd64.deb`) or
 `loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2 (`libfuse2`, `libfuse2t64` on Ubuntu 24.04).
 Both are built on Ubuntu 22.04.
 
-On Windows and Linux an upgrade is the next file from the same release channel; Settings › letta links it when
-one is out. No package manager carries them yet.
+Windows and Linux files come on stable releases only, attached a little after the `.dmg` (the release's
+preview is built from that stable's own code); nightlies are Mac-only. An upgrade is the next stable's file;
+Settings › letta links it when one is out, or says it is not on the release yet. No package manager carries them
+yet.
 
 Whichever way, Letta Code need not be installed first: loki uses the one on your Mac or installs it with npm
 (Requirements). The cask brings Node; the `.dmg`, source, Windows and Linux routes need a Node 22.19 or newer only

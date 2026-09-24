@@ -18,11 +18,12 @@ test("newer means strictly after, per component", () => {
 });
 
 /**
- * Windows (plan 014 U10): Tauri's NSIS bundler takes the app version as is. It parses it as semver, drops the
+ * Windows (plan 014 U10): only stables are built for Windows (the preview PR), but a nightly's number would do too.
+ * Tauri's NSIS bundler takes the app version as is. It parses it as semver, drops the
  * pre-release, and writes `VIProductVersion "M.m.p.B"` with B the build metadata when numeric, else 0; each part
  * is a 16-bit word in the Windows version resource (tauri-bundler windows/nsis/mod.rs try_add_numeric_build_number,
  * tauri-build's to_winres_version). Only the MSI bundler rejects a non-numeric pre-release, and loki builds no MSI.
- * So the nightly needs no Windows-only number, as long as the versions keep to this shape.
+ * So no version needs a Windows-only number, as long as the versions keep to this shape.
  */
 test("stable and nightly versions build an NSIS installer as is: semver, no build metadata, parts within 16 bits", () => {
   const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;

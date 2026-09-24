@@ -3,12 +3,13 @@
 The Windows and Linux builds are built and tested in CI, but nobody on the project has tried them on a real
 machine. If you have one, this is what to try. Each item says what should happen; anything else is worth an
 [issue](https://github.com/AlmondLabs/loki/issues). Say which system and version, which file you installed
-(`-setup.exe`, AppImage or `.deb`, stable or nightly), and attach what the logs say:
+(`-setup.exe`, AppImage or `.deb`), and attach what the logs say:
 `~/.letta/loki/logs/harness.log`, `~/.letta/loki/logs/install.log` and `~/.letta/loki/mod.log` (on Windows `~` is
 `%USERPROFILE%`). Leave out tokens, transcripts and agent memory.
 
-The files are on the [latest release](https://github.com/AlmondLabs/loki/releases/latest), or on the rolling
-`nightly` prerelease; the README's Install section has the steps.
+The files are on stable releases, attached a little after the `.dmg` (the
+[latest release](https://github.com/AlmondLabs/loki/releases/latest), or the one before while the newest is still
+Mac-only); nightlies carry none. The README's Install section has the steps.
 
 ## Install
 

@@ -1,14 +1,14 @@
 # Releasing loki
 
 Nothing is tagged by hand. `.github/workflows/release.yml` runs on every push to `main` (and at midnight UTC,
-and on request from the Actions tab) and `scripts/release.ts` decides what the run does. There are two channels
-and one release PR.
+and on request from the Actions tab) and `scripts/release.ts` decides what the run does. There are two channels,
+nightly and stable, both the Mac's alone, and two PRs the workflow keeps for you: the release PR, which makes a
+stable, and the preview PR, which adds Windows and Linux to a stable that already shipped.
 
 ## How a change ships
 
-1. **Merge a PR into `main`.** About twenty minutes later there is a new **nightly**: the universal `.dmg`, the
-   Windows installer and the Linux AppImage and `.deb` on the rolling `nightly` prerelease, and
-   `Casks/loki-nightly.rb` in the tap. Anyone on
+1. **Merge a PR into `main`.** About twenty minutes later there is a new **nightly**: the universal `.dmg` on the
+   rolling `nightly` prerelease, and `Casks/loki-nightly.rb` in the tap. Nightlies are Mac-only. Anyone on
    `brew install --cask almondlabs/loki/loki-nightly` gets it with `brew upgrade`. Only the newest merge matters:
    a nightly build still running is cancelled when the next merge lands.
 2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "release: 2026.9.28":
@@ -16,38 +16,49 @@ and one release PR.
    it from `main`, so there is always exactly one, and its notes are everything since the last stable. Do not push
    to it; anything that should ship goes through an ordinary PR.
 3. **Merge the release PR** when you want a stable. That merge builds once more, tags `v2026.9.28`, publishes the
-   release (not a draft) with every system's files and the rendered cask attached, and pushes `Casks/loki.rb` to
-   the tap.
+   release (not a draft) with the `.dmg` and the rendered cask attached, and pushes `Casks/loki.rb` to the tap.
    `brew upgrade --cask loki` follows. That merge produces no nightly; the stable is that build.
+4. **The same run opens the preview PR**, branch `release/preview`, titled "release: Windows and Linux preview for
+   v2026.9.28": one commit that writes the tag to `.github/preview.txt`. It stays open, rebuilt from `main` by every
+   run, as long as the newest stable's release lacks its Windows and Linux files, and follows the newest stable
+   when another ships first. Do not push to it.
+5. **Merge the preview PR** when you want Windows and Linux for that stable. The merge builds the `v2026.9.28`
+   tag's code, not `main`'s, on Windows and Linux and attaches the `-setup.exe`, the AppImage and the `.deb` to
+   the existing v2026.9.28 release, with the preview line (below) put at the top of its notes. It makes no
+   nightly and touches neither the `.dmg` nor the casks. The next run finds the files there and leaves the preview
+   PR closed until the next stable.
 
 ## What a release run builds
 
-One run of `release.yml`, whatever the channel:
-
-1. **plan** (`bun scripts/release.ts plan`) decides stable, nightly, repush or nothing, and the version.
-2. **Three build jobs**, one per system, each stamping the version (`release.ts set`) and uploading its files as
-   an artifact:
+1. **plan** (`bun scripts/release.ts plan`) decides stable, nightly, repush, preview or nothing, and the version.
+   A release PR landing is recognised by the version files naming a date the tags do not have; the preview PR
+   landing by the push itself changing `.github/preview.txt` to an existing stable's tag (only on a push: the
+   midnight and manual runs never rebuild a preview). Commits titled `release: …`, the two PRs' own, do not count
+   as something to ship, so a preview merge alone never makes a nightly or a release PR.
+2. **A nightly or a stable** is the Mac's: one `macos-14` job builds the universal `.dmg` with
+   `tauri-apps/tauri-action@v0` (`--target universal-apple-darwin`), publishes it with `release.ts publish`, renders
+   the cask from it, attaches `cask.rb` to the release and pushes it to the tap. Then **the preview PR** job
+   (`release.ts preview-pr`) opens, refreshes or closes the preview PR against the newest stable's release; it
+   waits for the Mac's job so a stable's run finds the release it just published.
+3. **A preview** is two build jobs, each checking out the stable's tag, stamping its version (`release.ts set`)
+   and uploading its files as an artifact, then **attach**:
 
    | job | runner | how | files |
    |---|---|---|---|
-   | macOS | `macos-14` | `tauri-apps/tauri-action@v0`, `--target universal-apple-darwin` | `loki_<v>_universal.dmg` |
    | Windows | `windows-latest` | `bun run tauri build --bundles nsis` | `loki_<v>_x64-setup.exe` |
    | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `bun run tauri build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
 
    Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
-   `ci.yml`'s. A nightly's version builds the NSIS installer as it is: the installer's numeric product version
-   drops the `-nightly.<sha>` part.
-3. **publish** waits for all three, but only the Mac's must succeed: the Mac ships no matter what. A Windows or
-   Linux leg that failed leaves its files off that release, with a warning on the run. It downloads every artifact
-   there is and calls
-   `release.ts publish` once with all of them. It has to be once: a nightly deletes and recreates the rolling
-   release, so a second upload from another job would race it. Then it renders the cask from the `.dmg`, attaches
-   `cask.rb` to the release and pushes it to the tap.
+   `ci.yml`'s. **attach** downloads whatever built and runs `release.ts attach v<v> <files…>`: `gh release upload
+   --clobber`, so a re-run replaces rather than fails, then the preview line on top of the notes if they do not
+   carry it yet. One system failing leaves only its files off, with a warning on the run. **Re-run its failed
+   jobs** from the Actions tab to add them: the preview PR does not reopen for a tag `main` already records.
 
-Every set of notes starts with the preview line (`previewLine` in `scripts/release.ts`): Windows and Linux are
-built and tested in CI, not yet tried on real machines, with the issues link. It lands in the release, the release
-PR's body and `CHANGELOG.md`. Take it out of `previewLine` when people have confirmed the builds, and the README's
-and Settings' preview notes with it. [preview-checklist.md](preview-checklist.md) is what to ask them to try.
+The preview line (`previewLine` in `scripts/release.ts`) says Windows and Linux are built and tested in CI, not
+yet tried on real machines, with the issues link. It opens the preview PR's body and, once attached, that
+release's notes; the release PR, `CHANGELOG.md` and the nightly do not carry it. Take it out of `previewLine` when
+people have confirmed the builds, and the README's and Settings' preview notes with it.
+[preview-checklist.md](preview-checklist.md) is what to ask them to try.
 
 ## Versions
 
@@ -82,7 +93,7 @@ add a fine-grained token with *Contents* and *Pull requests* write access to thi
 **`RELEASE_TOKEN`** secret; the workflow prefers it when present.
 
 Merging the release PR needs the same one approval as any PR (the `requires-pr` ruleset). The PR's author is the
-Actions bot, so you can approve it yourself.
+Actions bot, so you can approve it yourself. All of this holds for the preview PR too.
 
 ## Homebrew tap (one-time setup)
 

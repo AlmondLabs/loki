@@ -83,8 +83,8 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line. Versions are dates: `2026.9.28` is
 the stable that shipped on that day.
 
-**Nightly**, if you want every merge about twenty minutes after it lands (one loki at a time, so this replaces the
-stable install; `brew uninstall --cask loki` first, or the other way round to go back):
+**Nightly**, if you want every merge about twenty minutes after it lands (Mac only; one loki at a time, so this
+replaces the stable install; `brew uninstall --cask loki` first, or the other way round to go back):
 
 ```bash
 brew install --cask almondlabs/loki/loki-nightly
@@ -101,8 +101,9 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 **From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout, or
 `bun run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
 
-**Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. Every nightly and
-stable release carries them beside the `.dmg`; please [report what you find](https://github.com/AlmondLabs/loki/issues)
+**Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. They come on stable
+releases only, a little after the `.dmg`: a stable ships for the Mac first and gains its Windows and Linux files once
+that version's preview is built (nightlies are Mac-only). Please [report what you find](https://github.com/AlmondLabs/loki/issues)
 ([what to try](docs/preview-checklist.md)).
 Like the Mac's, these files are unsigned, so each system asks for one extra step the first time.
 
@@ -128,7 +129,7 @@ chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
 ```
 
 On both, upgrades are the next file from the release page; Settings › letta links the one for your system when a
-newer loki is out. There is no Homebrew, winget or Flatpak package yet.
+newer loki is out, or says its file is not on the release yet. There is no Homebrew, winget or Flatpak package yet.
 
 You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux. The cask brings Node;
 the `.dmg`, Windows and Linux routes need a Node 22.19 or newer (`brew install node`,

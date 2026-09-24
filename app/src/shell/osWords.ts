@@ -69,6 +69,12 @@ export function lokiUpgrade(cask: string, os: Platform = platform): string {
   return `brew upgrade --cask ${cask}, or the .dmg on the release page`;
 }
 
+/** Off the Mac, a newer stable whose files are not attached yet: they come from its preview PR, after the Mac's. */
+export function lokiUpgradeNotYet(os: Platform = platform): string {
+  const files = os === "windows" ? "its -setup.exe is" : "its AppImage and .deb are";
+  return `${files} not on the release yet — Windows and Linux files follow the Mac's; watch the release page`;
+}
+
 /** Settings › letta's System fact: "loki runs on this Mac (macOS)" in the app, "…on a Mac (macOS); you're viewing it in a browser" in a tab. */
 export function runsOn(os: Platform, shell: boolean): string {
   const w = WORDS[os];
