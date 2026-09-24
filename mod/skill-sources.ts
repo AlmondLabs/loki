@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { memoryLog, memoryRoot, readLocalAgent, type MemoryCommit, type MemorySkill } from "./agents.ts";
 import { globalSkillsDir } from "./skills.ts";
 import { log } from "./log.ts";
@@ -259,7 +259,8 @@ export function reconcilePrompt(name: string, label: string, upstreamPath: strin
 export function parseSource(spec: string): SkillSource | null {
   const s = spec.trim();
   if (!s || /\s/.test(s)) return null;
-  if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".")) {
+  // A folder: absolute for this system (`/…`, or `C:\…` on Windows), under the home (`~`), or relative (`.`).
+  if (isAbsolute(s) || s.startsWith("~") || s.startsWith(".")) {
     const p = s.startsWith("~") ? join(homedir(), s.slice(1)) : resolve(s);
     return existsSync(p) ? localSource(p) : null;
   }

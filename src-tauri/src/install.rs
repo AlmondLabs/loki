@@ -388,7 +388,7 @@ mod tests {
         assert_eq!(r.skill, State::Installed);
         let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
         assert!(shim.starts_with(MARKER));
-        assert!(shim.contains(&data.join("mod").join("loki-mod.mjs").display().to_string()));
+        assert!(shim.contains(&serde_json::to_string(&data.join("mod").join("loki-mod.mjs").display().to_string()).unwrap()), "the path as the shim writes it: a JS string, backslashes escaped on Windows");
         assert_eq!(shim_path(&home), home.join(".letta").join("mods").join("loki.ts"), "Letta's shared folder: the loader has no other");
         assert!(skill_dir(&home).join("SKILL.md").is_file());
 
@@ -492,7 +492,7 @@ mod tests {
         assert!(r.error.is_none());
         let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
         assert!(shim.starts_with(DEV_MARKER));
-        assert!(shim.contains(&c.join("mod").join("boot.ts").display().to_string()));
+        assert!(shim.contains(&serde_json::to_string(&c.join("mod").join("boot.ts").display().to_string()).unwrap()), "the path as the shim writes it: a JS string, backslashes escaped on Windows");
         let link = std::fs::read_link(skill_dir(&home)).unwrap();
         // A junction on Windows reads back `\\?\`-prefixed: there, compare the folders the two paths name.
         if cfg!(windows) { assert!(same_dir(&link, &c.join("skills").join("loki")), "{link:?}") } else { assert_eq!(link, c.join("skills").join("loki")) }

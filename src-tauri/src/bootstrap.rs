@@ -959,7 +959,7 @@ mod tests {
         assert_eq!(find_node_for(&h), Err(Some(((22, 18, 0), home.join(".volta/bin/node")))), "the newest of the old ones is named");
         let missing = node_missing(Os::Linux, find_node_for(&h).unwrap_err());
         assert_eq!(missing.found.as_deref(), Some("22.18.0"));
-        assert_eq!(missing.at, Some(home.join(".volta/bin/node").display().to_string()));
+        assert_eq!(missing.at.as_deref().map(PathBuf::from), Some(home.join(".volta/bin/node")), "compared as paths: on Windows the folder list mixes / and \\");
         assert_eq!(missing.needed, "22.19");
         assert_eq!(missing.os, Os::Linux);
         let _ = std::fs::remove_dir_all(&home);
