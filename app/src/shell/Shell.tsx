@@ -19,6 +19,7 @@ import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
 import type { Segment } from "./shortcuts";
 import { useNotice } from "./useNotice";
+import { useModelList } from "./useModelList";
 import { hideWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
@@ -126,22 +127,7 @@ export function Shell() {
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
-  // Models: fetched once from the app-server when a picker first opens; switches go per conversation.
-  // The model list belongs to one harness: it is kept with the link's identity (open, and which Letta Code), so a
-  // reconnect — an update restarting the harness — or a different version reads as no list and the next open refetches.
-  const harnessKey = `${catchUp.status === "open"}:${catchUp.server?.version ?? ""}`;
-  const [models, setModels] = useState<{ key: string; list: import("../chat/ModelPicker").ModelEntry[] } | null>(null);
-  const modelList = models && models.key === harnessKey ? models.list : null;
-  const modelsLoading = useRef<string | null>(null);
-  const loadModels = useCallback(() => {
-    if (modelList || modelsLoading.current === harnessKey) return;
-    modelsLoading.current = harnessKey;
-    void catchUp.listModels().then((m) => {
-      setModels({ key: harnessKey, list: m });
-      if (modelsLoading.current === harnessKey) modelsLoading.current = null;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelList, harnessKey]);
+  const { list: modelList, load: loadModels, forget: forgetModels } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels });
   const boot = useBootstrap();
   const welcome = welcomeFor(boot.status, catchUp);
   useEffect(() => {
@@ -324,7 +310,6 @@ export function Shell() {
     setSegment("desk");
     setFocusChat((n) => n + 1);
   };
-  const forgetModels = () => setModels(null);
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (searchModel.ts SearchTarget). */
   const searchSources = useMemo(() => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items }), [desk.desks.list, catchUp.agents, catchUp.items]);

@@ -24,6 +24,11 @@ import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, t
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
 import { useKeyboardInset } from "./viewport";
+import { useModelList } from "../shell/useModelList";
+import { scopeFor } from "../../../core/desk-core.ts";
+import type { Runtime } from "../../../core/attention/protocol.ts";
+import type { ModelSelection } from "../../../core/models.ts";
+import type { ModelEntry } from "../chat/ModelPicker";
 import { Banner, Button } from "../components";
 import "./phone.css";
 
@@ -183,6 +188,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   }, [desk.connection]);
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
+  // The model list for Select model, as the desktop shell keeps it: once per harness, on the first ask.
+  const models = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels });
   useUnpairWatch(desk.connection, onUnpaired);
 
   const waiting = catchUpQueue(catchUp.items).length;
@@ -258,7 +265,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     <div ref={shellRef} className="loki-phone loki-phone-shell">
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
-        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
         {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
@@ -282,19 +289,40 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   );
 }
 
-/** The conversation the route names, full screen over the tabs, wired to the tunnel and the mod's desk list. */
-function ConversationPage({ conv, desk, catchUp, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
+/**
+ * The conversation the route names, full screen over the tabs, wired to the tunnel and the mod's desk list. Its
+ * model is the mod's word for the conversation (the desks list), switched through the app-server as the desktop
+ * does; a refused switch says why in the banner for a few seconds.
+ */
+function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
   const item = catchUp.items.find((i) => i.agentId === thread.agentId && i.id === thread.conversationId) ?? null;
+  const scope = scopeFor(thread.conversationId, thread.agentId);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!note) return;
+    const t = setTimeout(() => setNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [note]);
+  const pickModel = async (rt: Runtime, selection: ModelSelection) => {
+    const { applied, error } = await catchUp.updateModel(rt, selection);
+    if (error || !applied) return setNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
+    desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+  };
   return (
     <ConversationScreen
       thread={thread}
       view={catchUp.conversation(thread.agentId, thread.conversationId)}
+      model={desk.modelOf(scope)}
+      reasoningEffort={desk.reasoningEffortOf(scope)}
+      models={models}
+      onLoadModels={onLoadModels}
+      onPickModel={catchUp.status === "open" ? pickModel : undefined}
       item={item}
       waiting={!!item && catchUpQueue([item]).length > 0}
-      banner={banner}
+      banner={note ? <Banner>{note}</Banner> : banner}
       backLabel={backLabel}
       prefill={prefill}
       pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}

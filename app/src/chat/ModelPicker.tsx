@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Chip, Dot, Field, Meta, Popover, Row } from "../components";
+import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
+import { Chip, Field, IconButton, Meta, Popover, Row, Sheet, sentence } from "../components";
+import { Icon } from "../shared/icons";
 import { formatKeys } from "../shell/keymap";
 import { REASONING_EFFORTS, selectionOf, type ModelEntry, type ModelSelection, type ReasoningEffort } from "../../../core/models.ts";
 
@@ -65,235 +66,302 @@ export function shortModel(handle: string | null | undefined): string {
   return i > 0 ? handle.slice(i + 1) : handle;
 }
 
-/**
- * The model chip's dropdown: type to filter a few hundred handles, grouped by provider, the current one
- * marked, featured and default models first. Enter picks, Esc closes. The change applies to this
- * conversation (the app-server keeps a model per conversation; the main chat's model is the agent's).
- */
-export function ModelPicker({ open, ...props }: ModelPickerProps & { open: boolean }) {
-  // Closed: nothing mounted, so each opening starts with an empty filter and the caret in the box.
-  if (!open) return null;
-  return <ModelPickerOpen {...props} />;
-}
-
-interface ModelPickerProps {
-  current: string | null;
-  currentEffort?: ReasoningEffort | null;
-  entries: ModelEntry[] | null;
-  loading: boolean;
-  onPick: (selection: ModelSelection) => void;
-  onClose: () => void;
-  anchor?: "left" | "right";
-  side?: "below" | "above";
-}
-
-function ModelPickerOpen({ current, currentEffort = null, entries, loading, onPick, onClose, anchor = "left", side }: ModelPickerProps) {
-  const [query, setQuery] = useState("");
-  const [index, setIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-  /** The listbox's id; each option is `${listId}-opt-${index}` so the input can point at the highlighted one. */
-  const listId = useId();
-
-  useEffect(() => {
-    const t = setTimeout(() => inputRef.current?.focus(), 0);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Pinned first (current, default, featured), then everything else grouped by provider.
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const list = groupModelEntries(entries ?? []).filter((group) => !q || group.handle.toLowerCase().includes(q) || group.entries.some((entry) => entry.label.toLowerCase().includes(q)));
-    const rank = (group: ModelGroup) => (group.handle === current ? 0 : group.isDefault ? 1 : group.isFeatured ? 2 : 9);
-    const pinned = list.filter((group) => rank(group) < 9).sort((a, b) => rank(a) - rank(b) || a.handle.localeCompare(b.handle));
-    const rest = list.filter((group) => rank(group) === 9).sort((a, b) => a.handle.localeCompare(b.handle));
-    return [...pinned.map((model) => ({ model, provider: "" })), ...rest.map((model) => ({ model, provider: model.handle.split("/")[0] }))].slice(0, 160);
-  }, [entries, query, current]);
-  const choose = (entry: ModelEntry) => onPick(selectionOf(entry));
-  useEffect(() => {
-    if (index >= rows.length) setIndex(Math.max(0, rows.length - 1));
-  }, [rows.length, index]);
-  useEffect(() => {
-    listRef.current?.querySelector<HTMLElement>(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
-  }, [index]);
-
-  return (
-    <Popover role="dialog" aria-label="choose a model" anchor={anchor} side={side} width={360}>
-      <Field
-        ref={inputRef}
-        bare
-        type="search"
-        name="model-search"
-        autoComplete="off"
-        data-1p-ignore
-        data-lpignore="true"
-        data-form-type="other"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIndex(0);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setIndex((i) => Math.min(rows.length - 1, i + 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setIndex((i) => Math.max(0, i - 1));
-          } else if (e.key === "Enter") {
-            e.preventDefault();
-            const r = rows[index];
-            if (r) choose(preferredModelEntry(r.model, currentEffort));
-          } else if (e.key === "Escape") {
-            e.preventDefault();
-            onClose();
-          }
-          e.stopPropagation();
-        }}
-        placeholder={loading ? "loading models…" : "model… (provider/name)"}
-        aria-label="filter models"
-        role="combobox"
-        aria-expanded={true}
-        aria-autocomplete="list"
-        aria-controls={listId}
-        aria-activedescendant={rows.length > 0 ? `${listId}-opt-${index}` : undefined}
-      />
-      <div ref={listRef} id={listId} role="listbox" aria-label="models" style={{ maxHeight: 320, overflowY: "auto", padding: 4 }}>
-        {rows.map(({ model, provider }, i) => {
-          const prevGroup = i > 0 ? rows[i - 1].provider : null;
-          const selected = preferredModelEntry(model, currentEffort);
-          return (
-            <div key={model.handle} role="presentation">
-              {provider !== prevGroup && provider && <div role="presentation" className="loki-label" style={{ padding: "6px 8px 2px" }}>{provider}</div>}
-              <Row dense id={`${listId}-opt-${i}`} role="option" tabIndex={-1} data-index={i} aria-selected={i === index} onMouseEnter={() => setIndex(i)} onClick={() => choose(selected)} style={{ alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 12, color: model.handle === current ? "var(--loki-accent)" : "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shortModel(model.handle)}</span>
-                <span className="loki-meta" style={{ marginLeft: "auto" }}>
-                  {model.handle === current ? "current" : model.isDefault ? "default" : model.isFeatured ? "featured" : model.label !== shortModel(model.handle) ? model.label : ""}
-                </span>
-              </Row>
-            </div>
-          );
-        })}
-        {entries && rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>no model matches</div>}
-      </div>
-      <div role="presentation" style={{ padding: "5px 10px", borderTop: "1px solid var(--loki-border)" }}>
-        <Meta>{`↑↓ move · ${formatKeys("enter")} switch this conversation · ${formatKeys("escape")}`}</Meta>
-      </div>
-    </Popover>
-  );
-}
-
-/** The chip that opens the picker: the short model name, quiet until hovered. */
-export function ModelChip({ model, onClick, busy }: { model: string | null; onClick: () => void; busy?: boolean }) {
-  return (
-    <Chip
-      onClick={onClick}
-      title={model ? `model: ${model} — click to change for this conversation` : "choose a model for this conversation"}
-      aria-label="model"
-      aria-busy={busy || undefined}
-      style={{ maxWidth: 180, minWidth: 0, flex: "1 1 80px", overflow: "hidden" }}
-    >
-      <Dot size={5} color="var(--loki-muted)" aria-hidden />
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{busy ? "switching…" : shortModel(model)}</span>
-      <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
-    </Chip>
-  );
-}
-
-/** A separate control beside the model chip, shown only when that model offers a real choice. */
-export function EffortChip({ effort, onClick, busy }: { effort: ReasoningEffort | null; onClick: () => void; busy?: boolean }) {
-  const label = effort ? effortLabel(effort) : "choose";
-  return (
-    <Chip
-      onClick={onClick}
-      title={`reasoning effort: ${label} — click to change for this conversation`}
-      aria-label={`reasoning effort: ${label}`}
-      aria-busy={busy || undefined}
-    >
-      <EffortGauge effort={effort} />
-      {busy ? "changing…" : `${label} effort`}
-      <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
-    </Chip>
-  );
-}
-
-/** The current model's supported effort levels, independent from choosing the model itself. */
-export function EffortMenu({
-  open,
-  entries,
-  current,
-  onPick,
-  onClose,
-  anchor = "left",
-  side,
-}: {
-  open: boolean;
-  entries: ModelEntry[];
-  current: ReasoningEffort | null;
-  onPick: (entry: ModelEntry) => void;
-  onClose: () => void;
-  anchor?: "left" | "right";
-  side?: "below" | "above";
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const items = ref.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]');
-    const index = Math.max(0, entries.findIndex((entry) => entry.reasoningEffort === current));
-    items?.[index]?.focus();
-  }, [open, entries, current]);
-  if (!open) return null;
-  return (
-    <Popover
-      ref={ref}
-      role="menu"
-      aria-label="reasoning effort"
-      anchor={anchor}
-      side={side}
-      width={230}
-      style={{ padding: 4 }}
-      onKeyDown={(event) => {
-        const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? [])];
-        const index = items.indexOf(document.activeElement as HTMLElement);
-        if (event.key === "ArrowDown") items[Math.min(items.length - 1, index + 1)]?.focus();
-        else if (event.key === "ArrowUp") items[Math.max(0, index - 1)]?.focus();
-        else if (event.key === "Escape") onClose();
-        else return;
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-    >
-      {entries.map((entry) => {
-        const effort = entry.reasoningEffort!;
-        const selected = effort === current;
-        return (
-          <Row key={effort} dense role="menuitemradio" aria-checked={selected} onClick={() => onPick(entry)} style={{ gap: 8 }}>
-            <EffortGauge effort={effort} />
-            <span style={{ fontSize: 12 }}>{effortLabel(effort)}</span>
-            <span style={{ marginLeft: "auto", fontSize: 10.5, color: "var(--loki-accent)" }}>{selected ? "current" : ""}</span>
-          </Row>
-        );
-      })}
-      <div style={{ padding: "5px 8px 3px" }}>
-        <Meta>reasoning for this conversation · esc</Meta>
-      </div>
-    </Popover>
-  );
-}
-
-function EffortGauge({ effort }: { effort: ReasoningEffort | null }) {
-  const filled = effort ? Math.max(0, REASONING_EFFORTS.indexOf(effort)) : 0;
-  return (
-    <span aria-hidden style={{ display: "inline-flex", alignItems: "flex-end", gap: 1, height: 10 }}>
-      {[2, 5, 8].map((height, index) => (
-        <span key={height} style={{ display: "block", width: 2, height, borderRadius: 1, background: "currentColor", opacity: index < Math.ceil(filled / 2) ? 1 : 0.3 }} />
-      ))}
-    </span>
-  );
-}
 
 export function effortLabel(effort: ReasoningEffort): string {
   if (effort === "none") return "no reasoning";
   if (effort === "xhigh") return "x-high";
   return effort;
+}
+
+/** How many models the short list shows when the harness marks none as featured. */
+const SHORT_FALLBACK = 4;
+/** The long list's cap: a harness can offer a few hundred handles; the filter finds the rest. */
+const MORE_CAP = 160;
+/** A preset's label may carry its effort ("GPT-5 Low"); the group's name is the model's, the effort is shown on its own. */
+const EFFORT_SUFFIX = /\s*[([]?\b(none|no reasoning|minimal|low|medium|high|x-?high|max)\b[)\]]?\s*$/i;
+
+/** A group's name: its presets' label, without the effort word when it offers several. */
+function groupName(group: ModelGroup): string {
+  const efforts = group.entries.filter((entry) => entry.reasoningEffort).length;
+  return (efforts > 1 && group.label.replace(EFFORT_SUFFIX, "")) || group.label || shortModel(group.handle);
+}
+
+/** What the pill calls the conversation's model: its presets' label, else the handle's short form; "Model" when unknown. */
+export function modelName(entries: ModelEntry[] | null, handle: string | null | undefined): string {
+  if (!handle) return "Model";
+  const group = groupModelEntries(entries ?? []).find((g) => g.handle === handle);
+  return group ? groupName(group) : shortModel(handle);
+}
+
+/**
+ * The picker's two lists: the short one (the featured models, else the first few, and the current model so its
+ * check is in view) in the harness's order, and More models, the rest, by handle.
+ */
+export function modelLists(entries: ModelEntry[] | null, current: string | null): { short: ModelGroup[]; more: ModelGroup[] } {
+  const groups = groupModelEntries(entries ?? []);
+  const featured = groups.filter((group) => group.isFeatured);
+  const base = featured.length ? featured : groups.slice(0, SHORT_FALLBACK);
+  const short = groups.filter((group) => base.includes(group) || group.handle === current);
+  const more = groups.filter((group) => !short.includes(group)).sort((a, b) => a.handle.localeCompare(b.handle));
+  return { short, more };
+}
+
+/** A row's muted line: the model's own description, else its handle when the name is not already the handle; no line otherwise. */
+export function modelLine(group: ModelGroup): string | null {
+  const described = group.entries.find((entry) => entry.description)?.description;
+  if (described) return described;
+  return groupName(group) !== group.handle ? group.handle : null;
+}
+
+/** The picker's keys over its items (the filter field counts as one): ↑↓ move, Home and End jump, Esc closes. */
+export function pickerKey(key: string, at: number, count: number): { focus: number } | { close: true } | null {
+  if (key === "Escape") return { close: true };
+  if (count === 0) return null;
+  if (key === "ArrowDown") return { focus: Math.min(count - 1, at + 1) };
+  if (key === "ArrowUp") return { focus: Math.max(0, at - 1) };
+  if (key === "Home") return { focus: 0 };
+  if (key === "End") return { focus: count - 1 };
+  return null;
+}
+
+/** On close, focus goes back to the pill when it was inside the picker or dropped with it; a click elsewhere keeps its own. */
+export function returnsFocus(active: unknown, picker: { contains: (node: never) => boolean } | null, body: unknown): boolean {
+  return !active || active === body || !!picker?.contains(active as never);
+}
+
+/**
+ * The pill in the message box's bottom row: the model in the foreground, the effort after it in the muted colour
+ * (only when the model offers a choice), a chevron. It opens Select model.
+ */
+export function ModelPill({ ref, name, effort, busy, open, onClick }: { ref?: Ref<HTMLButtonElement>; name: string; effort: ReasoningEffort | null; busy?: boolean; open: boolean; onClick: () => void }) {
+  const said = effort ? sentence(effortLabel(effort)) : null;
+  return (
+    <Chip
+      ref={ref}
+      className="loki-model-pill"
+      onClick={onClick}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-busy={busy || undefined}
+      aria-label={`Model: ${name}${effort ? `, ${effortLabel(effort)}${effort === "none" ? "" : " effort"}` : ""}`}
+      title="Choose the model for this conversation"
+    >
+      {busy ? (
+        <span className="loki-model-pill-name">Switching…</span>
+      ) : (
+        <>
+          <span className="loki-model-pill-name">{name}</span>
+          {said && <span className="loki-model-pill-effort">{said}</span>}
+        </>
+      )}
+      <Icon name="chevron-down" size={12} className="loki-model-pill-chev" />
+    </Chip>
+  );
+}
+
+export type PickerView = "models" | "effort" | "more";
+
+export interface ModelChoicesProps {
+  view: PickerView;
+  entries: ModelEntry[] | null;
+  current: string | null;
+  currentEffort: ReasoningEffort | null;
+  loading: boolean;
+  /** More models' filter. */
+  query: string;
+  /** The phone's sheet: a grip and a round close; the desktop's popover has neither (Esc and a click away close it). */
+  touch?: boolean;
+  onView: (view: PickerView) => void;
+  onQuery: (query: string) => void;
+  onPick: (selection: ModelSelection) => void;
+  onClose: () => void;
+}
+
+/**
+ * What Select model shows, the same in the phone's sheet and the desktop's popover: a card of the short list (the
+ * model's name, its line, a check on the current one), then Effort › (that model's levels) and More models › (the
+ * rest, filtered by provider/name). Every choice applies to this conversation.
+ */
+export function ModelChoices({ view, entries, current, currentEffort, loading, query, touch = false, onView, onQuery, onPick, onClose }: ModelChoicesProps) {
+  const { short, more } = modelLists(entries, current);
+  const efforts = effortEntriesFor(entries ?? [], current);
+  const title = view === "effort" ? "Effort" : view === "more" ? "More models" : "Select model";
+  const glyph = touch ? 20 : 16;
+  const option = (id: string, name: string, line: string | null, checked: boolean, pick: () => void) => (
+    <Row key={id} flush role="menuitemradio" aria-checked={checked} data-choice={id} data-model-item="" onClick={pick} className="loki-model-row">
+      <span className="loki-model-copy">
+        <span className="loki-model-name">{name}</span>
+        {line && <span className="loki-model-line">{line}</span>}
+      </span>
+      {checked && <Icon name="check" size={glyph} className="loki-model-check" />}
+    </Row>
+  );
+  const groupOption = (group: ModelGroup) => option(group.handle, groupName(group), modelLine(group), group.handle === current, () => onPick(selectionOf(preferredModelEntry(group, currentEffort))));
+  const link = (id: "effort" | "more", label: string, aside: string | null) => (
+    <div key={id} className="loki-model-card">
+      <Row flush role="menuitem" data-choice={id} data-model-item="" onClick={() => onView(id)} className="loki-model-row">
+        <span className="loki-model-link-label">{label}</span>
+        {aside && <span className="loki-model-aside">{aside}</span>}
+        <Icon name="chevron-right" size={glyph} className="loki-model-chev" />
+      </Row>
+    </div>
+  );
+  const status = (text: string) => (
+    <p role="status" className="loki-model-status">
+      {text}
+    </p>
+  );
+
+  let content;
+  if (!entries) content = status(loading ? "Loading models…" : "No models from the harness");
+  else if (view === "effort") {
+    content = <div className="loki-model-card" role="group" aria-label="Effort">{efforts.map((entry) => option(entry.reasoningEffort!, sentence(effortLabel(entry.reasoningEffort!)), null, entry.reasoningEffort === currentEffort, () => onPick(selectionOf(entry))))}</div>;
+  } else if (view === "more") {
+    const q = query.trim().toLowerCase();
+    const shown = more.filter((group) => !q || group.handle.toLowerCase().includes(q) || group.label.toLowerCase().includes(q)).slice(0, MORE_CAP);
+    content = (
+      <>
+        <Field size={touch ? "touch" : "sm"} type="search" name="model-search" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Filter by provider or name" aria-label="Filter models" />
+        {shown.length === 0 ? (
+          status("No model matches")
+        ) : (
+          <div className="loki-model-card" role="group" aria-label="More models">
+            {shown.flatMap((group, i) => {
+              const provider = group.handle.split("/")[0];
+              const heading = i === 0 || shown[i - 1].handle.split("/")[0] !== provider;
+              return [heading && provider !== group.handle && <div key={`${provider}-label`} role="presentation" className="loki-label loki-model-provider">{provider}</div>, groupOption(group)];
+            })}
+          </div>
+        )}
+      </>
+    );
+  } else {
+    content = (
+      <>
+        <div className="loki-model-card" role="group" aria-label="Models">{short.map(groupOption)}</div>
+        {efforts.length > 1 && link("effort", "Effort", currentEffort ? sentence(effortLabel(currentEffort)) : null)}
+        {more.length > 0 && link("more", "More models", null)}
+      </>
+    );
+  }
+
+  return (
+    <div className="loki-model">
+      <div className="loki-model-head">
+        {touch && <span aria-hidden className="loki-model-grip" />}
+        <div className="loki-model-bar">
+          {view !== "models" ? (
+            <IconButton size={touch ? 36 : 24} label="Back to models" className="loki-model-close" onClick={() => onView("models")}>
+              <Icon name="back" size={glyph} />
+            </IconButton>
+          ) : touch ? (
+            <IconButton size={36} label="Close" className="loki-model-close" onClick={onClose}>
+              <Icon name="close" size={glyph} />
+            </IconButton>
+          ) : (
+            <span aria-hidden className="loki-model-spacer" />
+          )}
+          <h2 className="loki-model-title">{title}</h2>
+          <span aria-hidden className="loki-model-spacer" />
+        </div>
+      </div>
+      <div className="loki-model-body" role="menu" aria-label={title}>
+        {content}
+      </div>
+      {!touch && (
+        <div role="presentation" className="loki-model-foot">
+          <Meta>{`For this conversation · ↑↓ ${formatKeys("enter")} · ${formatKeys("escape")}`}</Meta>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ModelPickerProps {
+  touch?: boolean;
+  current: string | null;
+  currentEffort: ReasoningEffort | null;
+  entries: ModelEntry[] | null;
+  loading: boolean;
+  onPick: (selection: ModelSelection) => void;
+  onClose: () => void;
+  /** The pill: focus goes back to it on close, and a press on it is not a click away. */
+  pillRef: RefObject<HTMLButtonElement | null>;
+}
+
+/**
+ * Select model, framed for where it opens: a bottom sheet on the phone (the Sheet's veil, Escape and focus return),
+ * a popover over the message box on the desktop (↑↓ Home End between the items, Esc, a click away; focus returns
+ * to the pill). ⌘⇧M (chat.model) opens it too. Closed, nothing is mounted, so each opening starts on the short list.
+ */
+export function ModelPicker({ open, ...props }: ModelPickerProps & { open: boolean }) {
+  if (!open) return null;
+  return <ModelPickerOpen {...props} />;
+}
+
+function ModelPickerOpen({ touch = false, current, currentEffort, entries, loading, onPick, onClose, pillRef }: ModelPickerProps) {
+  const [view, setView] = useState<PickerView>("models");
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  const loaded = entries !== null;
+  // Each view starts on its natural place: the filter in More models, else the checked row, else the first.
+  useEffect(() => {
+    const node = ref.current;
+    const target = node?.querySelector<HTMLElement>(view === "more" ? "input" : '[data-model-item][aria-checked="true"]') ?? node?.querySelector<HTMLElement>("[data-model-item]");
+    target?.focus({ preventScroll: true });
+  }, [view, loaded]);
+  // Closing hands focus back to the pill (a tap on a phone never focused it, so the sheet's own return may have
+  // nothing to go to). The popover also closes on a press outside it and the pill.
+  useEffect(() => {
+    const node = ref.current;
+    const pill = pillRef.current; // the pill stays in the box while the picker opens and closes
+    const away = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (!node?.contains(target) && !pill?.contains(target)) closeRef.current();
+    };
+    // capture: the rail, the list column and other popovers stop pointerdown from bubbling
+    if (!touch) window.addEventListener("pointerdown", away, true);
+    return () => {
+      window.removeEventListener("pointerdown", away, true);
+      if (returnsFocus(document.activeElement, node, document.body)) pill?.focus({ preventScroll: true });
+    };
+  }, [touch, pillRef]);
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const items = [...(ref.current?.querySelectorAll<HTMLElement>("input, [data-model-item]") ?? [])];
+    const inField = e.target instanceof HTMLInputElement;
+    // In the filter, Enter takes the first match and Home / End stay the caret's.
+    if (inField && e.key === "Enter") {
+      e.preventDefault();
+      items.find((el) => el.hasAttribute("data-model-item"))?.click();
+      return;
+    }
+    if (inField && (e.key === "Home" || e.key === "End")) return;
+    const move = pickerKey(e.key, items.indexOf(document.activeElement as HTMLElement), items.length);
+    if (!move) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if ("close" in move) onClose();
+    else items[move.focus]?.focus();
+  };
+
+  const body = <ModelChoices view={view} entries={entries} current={current} currentEffort={currentEffort} loading={loading} query={query} touch={touch} onView={setView} onQuery={setQuery} onPick={onPick} onClose={onClose} />;
+  if (touch) {
+    return (
+      <Sheet label="Select model" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-model-sheet">
+        <div ref={ref} onKeyDown={onKeyDown}>
+          {body}
+        </div>
+      </Sheet>
+    );
+  }
+  return (
+    <Popover ref={ref} role="dialog" aria-label="Select model" side="above" width={340} className="loki-model-popover" onKeyDown={onKeyDown}>
+      {body}
+    </Popover>
+  );
 }

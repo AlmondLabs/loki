@@ -133,7 +133,18 @@ toolbar that holds only what loki does to a message (copy as markdown). A messag
 **Widget rows** sit among the messages by time, one quiet line with a tile icon in the face's column: "friday
 added Revenue chart · 14:49", the widget's title in the link blue while it is still on the desk; choosing one
 opens the Desk tab framed on that widget. Tool and event lines sit in the message column under the text they
-follow. The composer is Slack's rounded box with its pickers (model, permission mode) and send under it.
+follow. **The message box** (2026-09-24, after Claude's, one for the phone and the desktop) is one rounded field
+on the well, the text on top and a row inside it: a round "+" (attach images), the **model pill** (the model's
+name in the ink, its effort after it in the muted colour, only when the model offers levels), then the mic
+(only where dictation works) and a round send, Slack's green once there is something to send and a muted
+circle while the box is empty; every control in the row is one height (28 here, 36 on the phone with a 44
+target). The pill opens **Select model**: a popover over the box here (↑↓ Home End, Enter, Esc or a click away
+closes, focus returns to the pill; ⌘⇧M opens it too), a bottom sheet on the phone (grip, a round × at the top
+left, the title centred). Both show a card of the short list (the harness's featured models and the current
+one; each row the name, its own description or else its handle, a check in the accent on the current one),
+then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
+permission mode stays under the box, beside approve and deny. The model and effort chips that sat in that
+row until 2026-09-24 are gone.
 
 ## Shell (2026-09-06; Slack layout 2026-09-23)
 
@@ -188,8 +199,8 @@ The phone is its own presentation, not the desktop shrunk: Slack's September 202
 reference for type, colour, rows, sheets and navigation (plan `docs/plans/2026-09-22-012`). The boundary is
 the `.loki-phone` root. Everything below applies under it and nowhere else. The desktop took the same Slack
 direction later that day (above), but keeps its own palettes and layout; shared chat pieces take phone looks
-only through optional props (`touch`, `layout`, `draft`, `icons`, `attach`) that default to the desk's
-behaviour.
+only through optional props (`touch`, `layout`, `draft`) that default to the desk's behaviour; the message
+box is one for both, its sizes set by `touch`.
 
 - **Tokens.** `app/src/phone/phone.css` owns them. `.loki-phone` redeclares every `--loki-*` role with Slack's
   dark values and `:root[data-theme="light"] .loki-phone` with its light ones, and adds the `--phone-*` scales

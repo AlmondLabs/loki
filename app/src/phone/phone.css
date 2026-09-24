@@ -972,8 +972,6 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-msg-day::before { content: ""; position: absolute; top: 13px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
 .loki-phone .loki-msg-day-pill-wrap { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: var(--phone-space-2); pointer-events: none; }
 .loki-phone .loki-msg-day-pill { padding: 2px var(--phone-space-3); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-pill); background: var(--loki-bg); font-size: var(--phone-text-meta); font-weight: var(--phone-weight-strong); line-height: var(--phone-leading-tight); color: var(--loki-fg); }
-.loki-phone .loki-composer-attach { flex: none; }
-
 /* ---- The full conversation (Conversation.tsx) ------------------------------------------------------ */
 /* Regions: the header, the thread (the one scroll owner), the question or approval, the notice, the box.
    The navigation is hidden on this page, so the box owns the bottom inset (through the shared gutter). */
@@ -1028,50 +1026,37 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-convo-body .loki-banner { flex: none; margin: var(--phone-space-1) var(--phone-space-3) 0; }
 .loki-phone-convo-body [data-thread-scroll] { padding-left: calc(var(--phone-gutter) + var(--phone-safe-left)) !important; padding-right: calc(var(--phone-gutter) + var(--phone-safe-right)) !important; }
 
-/* The box, in both the page and the Inbox card: a rounded field with "+" at its start and the mic at its
-   end, send as a round icon beside it; no hairline over it (the notice pill separates). */
-.loki-phone .loki-composer { border-top: none; align-items: center; }
-.loki-phone .loki-composer-field {
-  align-items: center;
-  gap: 0;
-  min-height: var(--phone-touch);
-  box-sizing: border-box;
-  padding: 0 var(--phone-space-1);
-  border: 1px solid var(--loki-control-border);
-  border-radius: var(--phone-radius-lg);
-  background: var(--loki-well);
-}
-.loki-phone .loki-composer-field:focus-within { border-color: var(--loki-muted); }
-/* Typing: the ring goes round the whole pill ("+", text, mic), as on Search's field, not the bare text inside it. */
-.loki-phone .loki-composer-field:has(.loki-composer-text:focus-visible) { outline: 2px solid transparent; outline-offset: -1px; animation: loki-focus-flash 1s ease-out; }
-.loki-phone .loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
-.loki-phone .loki-composer-text {
-  min-height: 0;
-  border: none;
-  background: transparent;
-  font-size: var(--phone-text-body);
-  line-height: 20px;
-  scrollbar-width: none;
-}
+/* The box, in both the page and the Inbox card: the shared field (chat/chat.css) at the phone's sizes — the 24
+   radius, 15px text, the row's controls 36 and round with a 44 target each; no hairline over it (the notice
+   pill separates). The flash goes round the whole field there, as on Search's. */
+.loki-phone .loki-composer-box { gap: var(--phone-space-1); padding: var(--phone-space-2); border-radius: var(--phone-radius-lg); }
+.loki-phone .loki-field.loki-composer-text { padding: var(--phone-space-1) var(--phone-space-2); font-size: var(--phone-text-body); line-height: 20px; scrollbar-width: none; }
 /* The empty box stays one line at 320: a long placeholder ends in an ellipsis rather than wrapping. */
 .loki-phone .loki-composer-text::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.loki-phone .loki-composer-attach { position: relative; color: var(--loki-fg); border-radius: var(--phone-radius-pill); }
-.loki-phone .loki-composer-mic { border-radius: var(--phone-radius-pill); bottom: auto; top: 50%; transform: translateY(-50%); }
+.loki-phone .loki-composer-bar, .loki-phone .loki-composer-end { gap: var(--phone-space-2); }
 /* The glyphs are smaller than a fingertip; the target is not (44 around each). */
-.loki-phone .loki-composer-attach::after, .loki-phone .loki-composer-mic::after { content: ""; position: absolute; inset: -8px; }
-.loki-phone .loki-composer-attach::after { inset: -4px; }
-.loki-phone .loki-composer-send {
-  flex: none;
-  width: var(--phone-touch);
-  min-width: var(--phone-touch);
-  padding: 0;
-  border: none;
-  border-radius: var(--phone-radius-pill);
-  background: var(--loki-hover);
-  color: var(--loki-muted);
-}
-.loki-phone .loki-composer-send:not(:disabled) { background: var(--phone-affirm); color: var(--phone-on-affirm); }
-.loki-phone .loki-composer-send:disabled { opacity: 1; }
+.loki-phone .loki-composer-round::after, .loki-phone .loki-model-pill::after { content: ""; position: absolute; inset: -4px; }
+.loki-phone .loki-btn.loki-composer-send:not(:disabled) { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone .loki-chip.loki-model-pill { position: relative; min-height: 36px; padding: 0 var(--phone-space-3) 0 var(--phone-space-4); font-size: var(--phone-text-meta); }
+
+/* Select model as the phone's bottom sheet: the grip, a round close at the top left and the title centred,
+   then the grouped card on the sheet's ground (the model name at 17, its line muted), then Effort › and More
+   models › as rounded rows of their own. */
+.loki-sheet-card.loki-phone-sheet.loki-model-sheet { gap: 0; padding-top: var(--phone-space-2); background: var(--loki-bg); }
+.loki-phone .loki-model-head { display: grid; justify-items: center; gap: var(--phone-space-2); }
+.loki-phone .loki-model-grip { width: 36px; height: 5px; border-radius: var(--phone-radius-pill); background: var(--loki-control-border); }
+.loki-phone .loki-model-bar { width: 100%; grid-template-columns: var(--phone-touch) 1fr var(--phone-touch); padding: 0 0 var(--phone-space-3); }
+.loki-phone .loki-model-spacer { width: var(--phone-touch); height: var(--phone-touch); }
+.loki-phone .loki-btn.loki-model-close { position: relative; justify-self: start; border-radius: var(--phone-radius-pill); background: var(--loki-hover); color: var(--loki-fg); }
+.loki-phone .loki-model-close::after { content: ""; position: absolute; inset: -4px; }
+.loki-phone .loki-model-title { font-size: var(--phone-text-emph); }
+.loki-phone .loki-model-body { gap: var(--phone-space-3); padding: 0; }
+.loki-phone .loki-model-card { border-radius: var(--phone-radius-md); }
+.loki-phone .loki-row.loki-model-row { min-height: var(--phone-touch); padding: var(--phone-space-3) var(--phone-space-4); background: transparent; }
+.loki-phone .loki-row.loki-model-row:active { background: var(--loki-hover); }
+.loki-phone .loki-model-name, .loki-phone .loki-model-link-label { font-size: var(--phone-text-emph); }
+.loki-phone .loki-model-line, .loki-phone .loki-model-aside, .loki-phone .loki-model-status { font-size: var(--phone-text-meta); }
+.loki-phone .loki-model-provider { padding: var(--phone-space-2) var(--phone-space-4) 0; }
 
 /* Approve and deny under the box: two wide buttons, deny first, approve in the affirmative colour. */
 .loki-phone .loki-conversation-footer { flex-wrap: nowrap; }
