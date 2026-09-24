@@ -56,8 +56,12 @@ as the number; the tokens test fails a bare 6, 8, 12 or 999 outside the phone. S
 `app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
 
-Focus is one rule in `tokens.css`: a 2px ring in the accent blue, inset on every button, field and tabindex
-(so a clipped list never cuts it off) and offset on links. Nothing sets `outline: none`. Reduced motion zeroes
+Focus flashes, one rule in `tokens.css`: when focus moves by keyboard, a 2px accent-blue ring appears and
+fades over a second, so you see where focus went without a box sitting there. Controls (buttons, rows, tabs,
+links, selects, checkboxes) settle on a 2px muted ring, since nothing else shows which one Tab or Enter acts
+on; text fields settle on nothing, the caret shows them. The ring is inset (so a clipped list never cuts it
+off) and offset on links. Only the colour animates, so under reduced motion the settled ring shows at once.
+Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion zeroes
 every CSS duration *and delay*; JS-driven glides (the camera) go through `glide()` in `app/src/kit/motion.ts`.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
@@ -200,8 +204,8 @@ behaviour.
   itself before the box would leave the screen. Without `visualViewport` the layout still works at the
   shrunken layout height.
 - **Controls.** One outlined icon set (`icons.tsx`, 24 box, 1.8 stroke); no text glyphs or emoji as controls.
-  Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus is a 2px ring in the
-  link colour; a field's ring goes round its whole pill (Search, the composer). The routes' one `main` holds
+  Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus flashes as on the Mac, in the
+  link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
   row) always have a visible button that does the same.
 
@@ -212,7 +216,7 @@ behaviour.
 - Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Sentence-case sans for every label; mono only for code, data and keys.
-- Reduced motion is respected globally; focus rings are 2px accent-blue rings.
+- Reduced motion is respected globally; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
 - No real money amounts on screen, in the repo, or in recordings (R9).
 
 ## Tried and dropped

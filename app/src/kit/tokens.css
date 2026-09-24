@@ -178,22 +178,34 @@
   color: var(--loki-muted);
 }
 
-/* Focus is a 2px ring in the accent blue everywhere, drawn inside the control's edge so a scrolling list or a
-   clipped panel never cuts it off. Links get a small offset since they have no box. Nothing turns the
-   outline off: a bare field inside a sheet is still focusable and still shows its ring. */
+/* Focus flashes: when focus moves by keyboard, a 2px accent ring appears and fades over a second, so you see
+   where it went without a box sitting there. Controls (buttons, rows, tabs, links, selects, checkboxes) settle
+   on a muted ring, since nothing else shows which one Tab or Enter acts on; text fields settle on nothing, the
+   caret shows them. The ring is drawn inside the control's edge so a scrolling list or a clipped panel never
+   cuts it off; links get a small offset since they have no box. The flash animates only the colour, from the
+   accent (or --loki-focus-flash, the phone's link colour) to the rule's own outline, so reduced motion (every
+   duration zeroed below) shows the settled state straight away. An animation beats a plain declaration: a rule
+   that turns a ring off must say animation: none too. */
+@keyframes loki-focus-flash { from { outline-color: var(--loki-focus-flash, var(--loki-accent)); } }
 button:focus-visible,
 input:focus-visible,
-textarea:focus-visible,
 select:focus-visible,
 summary:focus-visible,
 [role="button"]:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--loki-accent);
+  outline: 2px solid var(--loki-muted);
   outline-offset: -2px;
+  animation: loki-focus-flash 1s ease-out;
 }
 a:focus-visible {
-  outline: 2px solid var(--loki-accent);
+  outline: 2px solid var(--loki-muted);
   outline-offset: 2px;
+  animation: loki-focus-flash 1s ease-out;
+}
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="color"], [type="file"]), textarea):focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  animation: loki-focus-flash 1s ease-out;
 }
 .loki-pulse {
   animation: loki-pulse 1.2s ease-in-out infinite;

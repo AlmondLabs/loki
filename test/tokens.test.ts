@@ -220,8 +220,14 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
     expect(label).toMatch(/font-weight:\s*600/);
     expect(label).toMatch(/color:\s*var\(--loki-muted\)/);
   });
-  test("focus is a 2px ring in the accent blue, never a hairline", () => {
-    expect(tokens).toMatch(/:focus-visible[^{]*\{[^}]*outline: 2px solid var\(--loki-accent\)/);
+  test("focus flashes: a 2px accent ring that fades in a second, to a muted ring on controls and to nothing on text fields", () => {
+    // the flash is the ring's colour animating from the accent; what it settles to is the rule's own outline
+    expect(tokens).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
+    const control = tokens.match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(control).toMatch(/outline: 2px solid var\(--loki-muted\)/);
+    expect(control).toMatch(/animation: loki-focus-flash 1s ease-out/);
+    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(field).toMatch(/outline: 2px solid transparent/);
     expect(tokens).not.toMatch(/outline: 1px solid/);
   });
   test("radius roles are named on :root: sm 6 · md 8 · lg 12 · pill 999", () => {
@@ -387,8 +393,13 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(phone).toContain("100svh");
     expect(phone).toContain("100dvh");
     expect(phone).toMatch(/\.loki-phone [^{]*:focus-visible[^{]*\{[^}]*outline: 2px solid/);
-    // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring
-    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; \}/);
+    // the phone flashes in its own link colour, through the same keyframes
+    expect(phone).toMatch(/--loki-focus-flash: var\(--phone-focus\)/);
+    // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring and no flash
+    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
+    // an animation beats a plain declaration, so every ring turned off must stop the flash too
+    const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
+    expect(off.filter((b) => !/animation: none/.test(b))).toEqual([]);
     expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
 });

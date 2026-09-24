@@ -239,20 +239,24 @@ html:has(.loki-phone-shell) body {
 .loki-phone .loki-btn--touch { font-weight: 600; }
 
 /* ---- Focus and touch ----------------------------------------------------------------------------- */
-/* A 2px ring in the link colour, off the control so it never sits on the control's own hairline. Fields
-   keep it inside, since their containers clip. */
+/* The flash from tokens.css, in the link colour: a 2px ring that fades over a second, settling on a muted ring
+   off the control (so it never sits on the control's own hairline) and on nothing in a text field, where the
+   caret shows focus. Fields keep it inside, since their containers clip. */
+.loki-phone { --loki-focus-flash: var(--phone-focus); }
 .loki-phone :is(button, a, summary, select, [role="button"], [tabindex]):focus-visible {
-  outline: 2px solid var(--phone-focus);
+  outline: 2px solid var(--loki-muted);
   outline-offset: 2px;
+  animation: loki-focus-flash 1s ease-out;
 }
 .loki-phone :is(input, textarea):focus-visible {
-  outline: 2px solid var(--phone-focus);
+  outline: 2px solid transparent;
   outline-offset: -2px;
+  animation: loki-focus-flash 1s ease-out;
 }
 /* A page's heading is where focus lands when the page opens (tabindex -1, so screen readers start there); it is
    not a control and is never tabbed to, and iOS Safari rings that programmatic focus. The controls inside it
    (the conversation's agent pill) keep their own ring. */
-.loki-phone [data-phone-heading]:focus-visible { outline-color: transparent; }
+.loki-phone [data-phone-heading]:focus-visible { outline-color: transparent; animation: none; }
 .loki-phone button, .loki-phone a, .loki-phone [role="button"] {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -480,8 +484,8 @@ html:has(.loki-phone-shell) body {
   color: var(--loki-muted);
 }
 /* The focus ring goes round the whole field (icon, text, clear), not the bare input inside it. */
-.loki-phone-search-field:focus-within { outline: 2px solid var(--phone-focus); outline-offset: -1px; }
-.loki-phone .loki-phone-search-input:focus-visible { outline-color: transparent; }
+.loki-phone-search-field:focus-within { outline: 2px solid transparent; outline-offset: -1px; animation: loki-focus-flash 1s ease-out; }
+.loki-phone .loki-phone-search-input:focus-visible { outline-color: transparent; animation: none; }
 .loki-phone-search-glass { margin-right: var(--phone-space-2); }
 /* 17px, Slack's field size (and above the 16px under which iOS zooms into a focused field). */
 .loki-phone .loki-phone-search-input {
@@ -1039,8 +1043,8 @@ span.loki-phone-section-btn { cursor: default; }
 }
 .loki-phone .loki-composer-field:focus-within { border-color: var(--loki-muted); }
 /* Typing: the ring goes round the whole pill ("+", text, mic), as on Search's field, not the bare text inside it. */
-.loki-phone .loki-composer-field:has(.loki-composer-text:focus-visible) { outline: 2px solid var(--phone-focus); outline-offset: -1px; }
-.loki-phone .loki-composer-text:focus-visible { outline-color: transparent; }
+.loki-phone .loki-composer-field:has(.loki-composer-text:focus-visible) { outline: 2px solid transparent; outline-offset: -1px; animation: loki-focus-flash 1s ease-out; }
+.loki-phone .loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
 .loki-phone .loki-composer-text {
   min-height: 0;
   border: none;
