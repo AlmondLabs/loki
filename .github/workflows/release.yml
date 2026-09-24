@@ -189,8 +189,11 @@ jobs:
 
   publish:
     name: publish (${{ needs.plan.outputs.kind }} ${{ needs.plan.outputs.version }})
-    # only when all three built: a release is never missing a system's files
+    # The Mac ships no matter what: the Windows and Linux legs are previews, so one of them failing (or being
+    # cancelled) leaves its files off this release instead of holding back the .dmg and the cask. `always()`
+    # lets the job run after a failed preview leg; the Mac build itself must have succeeded.
     needs: [plan, build, windows, linux]
+    if: always() && needs.plan.result == 'success' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     concurrency:
       group: publish-${{ needs.plan.outputs.kind }}
@@ -209,6 +212,13 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: note a preview leg that did not build
+        env:
+          WINDOWS: ${{ needs.windows.result }}
+          LINUX: ${{ needs.linux.result }}
+        run: |
+          [ "$WINDOWS" = success ] || echo "::warning title=Windows preview not on this release::the Windows build was $WINDOWS; the Mac ships without it"
+          [ "$LINUX" = success ] || echo "::warning title=Linux preview not on this release::the Linux build was $LINUX; the Mac ships without it"
       - name: publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

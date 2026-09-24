@@ -37,7 +37,9 @@ One run of `release.yml`, whatever the channel:
    Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
    `ci.yml`'s. A nightly's version builds the NSIS installer as it is: the installer's numeric product version
    drops the `-nightly.<sha>` part.
-3. **publish** waits for all three (a release is never missing a system), downloads every artifact and calls
+3. **publish** waits for all three, but only the Mac's must succeed: the Mac ships no matter what. A Windows or
+   Linux leg that failed leaves its files off that release, with a warning on the run. It downloads every artifact
+   there is and calls
    `release.ts publish` once with all of them. It has to be once: a nightly deletes and recreates the rolling
    release, so a second upload from another job would race it. Then it renders the cask from the `.dmg`, attaches
    `cask.rb` to the release and pushes it to the tap.
