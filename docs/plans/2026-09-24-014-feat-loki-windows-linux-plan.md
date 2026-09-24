@@ -178,6 +178,14 @@ flowchart LR
 - Hosted `windows-latest` runners can create symlinks (they run as administrator); tests that need one use a junction for directories.
 - `%USERPROFILE%\.letta` is where Letta Code keeps its home on Windows (inferred from `os.homedir()`; unverified).
 
+### System-Wide Impact
+
+- **The Mac build:** every unit touches code the Mac runs. The Mac paths stay behind `cfg(target_os = "macos")` or `platform === "macos"`, and the Mac CI leg must stay green at each commit.
+- **The mod inside other harnesses:** the mod also runs inside Letta Desktop and a user's `letta server`. Its new OS readers run only when `LOKI_APP_SERVER_URL` is absent and fail soft (no URL found), as `lsof` does today.
+- **Shared state in `~/.letta`:** Windows paths come from the profile folder, so loki, the mod and Letta Code must agree on it (U1); nothing moves on the Mac.
+- **Analytics:** events gain `windows` and `linux` device types (U2); `bun run analytics` reports them with no other change.
+- **Release consumers:** the Homebrew tap and `useLokiUpdate` read the release; the tap sees the same `.dmg` name, and the update check learns the new assets (U10).
+
 ### Risks & Dependencies
 
 | Risk | Mitigation |
