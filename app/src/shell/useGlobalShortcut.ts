@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useState } from "react";
-import { inTauri } from "../desk/env";
+import { inTauri, platform, type Platform } from "../desk/env";
 
 const KEY = "loki.globalShortcut";
 
 /** ⌥Space as the app holds it: on or off (Settings › keys), and why the OS refused it, if it did. */
 export interface GlobalShortcut {
-  /** False in a browser tab: only the shell can register a system-wide key. */
+  /** False in a browser tab (only the shell can register a system-wide key) and off the Mac (R3). */
   available: boolean;
   enabled: boolean;
   /** The OS's refusal, in words — usually another app already holds ⌥Space. */
   error: string | null;
   set: (enabled: boolean) => void;
 }
+
+/** The shell holds ⌥Space on the Mac only: Windows and Linux have no global shortcut yet (R3, KTD3). */
+export function shortcutAvailable(inShell: boolean, os: Platform = platform): boolean {
+  return inShell && os === "macos";
+}
+
+const AVAILABLE = shortcutAvailable(inTauri);
 
 /**
  * ⌥Space brings the inbox up from anywhere on the Mac, but Raycast, Alfred and the input-source switcher
@@ -22,7 +29,7 @@ export function useGlobalShortcut(): GlobalShortcut {
   const [enabled, setEnabled] = useState(() => localStorage.getItem(KEY) !== "off");
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!AVAILABLE) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -41,5 +48,5 @@ export function useGlobalShortcut(): GlobalShortcut {
     localStorage.setItem(KEY, on ? "on" : "off");
     setEnabled(on);
   }, []);
-  return { available: inTauri, enabled, error, set };
+  return { available: AVAILABLE, enabled, error, set };
 }

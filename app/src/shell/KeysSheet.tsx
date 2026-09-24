@@ -46,13 +46,18 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
           </section>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Meta wrap>the whole table, and the system-wide key, are in Preferences › Keys</Meta>
+          <Meta wrap>{keysSheetNote()}</Meta>
           <span style={{ flex: 1 }} />
           <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", platform, 1)}>open</Button>
         </div>
       </div>
     </Sheet>
   );
+}
+
+/** The footer's pointer to Preferences › Keys; the system-wide key is there on the Mac only (R3). */
+export function keysSheetNote(os: Platform = platform): string {
+  return os === "macos" ? "the whole table, and the system-wide key, are in Preferences › Keys" : "the whole table is in Preferences › Keys";
 }
 
 /**

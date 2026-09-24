@@ -1,9 +1,9 @@
 import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { useDictation } from "./useDictation";
+import { dictateTitle, useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Dot, IconButton, TextArea } from "../components";
-import { cmdHeld, keyFor } from "../shell/keymap";
+import { cmdHeld } from "../shell/keymap";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
@@ -228,7 +228,7 @@ export const ChatInput = forwardRef<
           disabled={disabled}
           label={listening ? "stop dictating" : "dictate"}
           aria-pressed={listening}
-          title={listening ? "stop dictating" : `dictate (${keyFor("chat.dictate")})`}
+          title={listening ? "stop dictating" : dictateTitle()}
           className="loki-composer-mic"
         >
           {icons?.mic ?? (

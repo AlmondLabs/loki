@@ -84,7 +84,7 @@ export const KEYMAP: Binding[] = [
   // --- chat (the box owns these) ---------------------------------------
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
-  { id: "chat.dictate", keys: ["cmd+d"], where: "chat", label: "dictate", typing: true, note: "the box" },
+  { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
 
   // --- inbox (the reply box usually has focus: chords) -------------------
   { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Next Card", typing: true, menu: "Inbox" },

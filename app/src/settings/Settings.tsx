@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { inTauri, modBase, platform } from "../desk/env";
+import { inTauri, modBase, notYetOn, platform, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
@@ -446,7 +446,7 @@ function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectP
 
 function PhonePage({ phone, modConnection }: { phone: PhoneApi; modConnection: ModConnection }) {
   return (
-    <Section title="Phone" hint="the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install">
+    <Section title="Phone" hint={platform === "macos" ? "the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install" : undefined}>
       <Phone phone={phone} connected={modConnection === "open"} />
     </Section>
   );
@@ -527,22 +527,30 @@ function FilesPage() {
 /** The system-wide key as its row names it; it exists on the Mac only (global.inbox has no key elsewhere). */
 const GLOBAL_KEY = `${formatKeys("alt", "macos")}Space`;
 
+/** Settings › keys: ⌥Space held or released on the Mac; a browser tab cannot hold it, and Windows and Linux have none yet (R3). */
+export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShortcut; os?: Platform }) {
+  if (os !== "macos") return <Fact label="System-wide" value={notYetOn("The system-wide key", os)} />;
+  return (
+    <Fact
+      label={GLOBAL_KEY}
+      value={
+        shortcut.available ? (
+          <span style={{ display: "inline-grid", gap: 4 }}>
+            <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
+            {shortcut.error ? <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
+          </span>
+        ) : (
+          "the app only — a browser tab cannot hold a system-wide key"
+        )
+      }
+    />
+  );
+}
+
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   return (
     <Section title="Keys" hint={platform === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems` : undefined}>
-      <Fact
-        label={GLOBAL_KEY}
-        value={
-          shortcut.available ? (
-            <span style={{ display: "inline-grid", gap: 4 }}>
-              <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
-              {shortcut.error ? <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
-            </span>
-          ) : (
-            "the app only — a browser tab cannot hold a system-wide key"
-          )
-        }
-      />
+      <GlobalKeyRow shortcut={shortcut} />
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
         <tbody>
           {keyRows().map((b, i, rows) => (

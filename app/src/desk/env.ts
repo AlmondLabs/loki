@@ -29,7 +29,15 @@ export function platformFrom(os: unknown, userAgent: string): Platform {
 
 export const platform: Platform = platformFrom(typeof window !== "undefined" ? window.__LOKI__?.os : undefined, typeof navigator !== "undefined" ? (navigator.userAgent ?? "") : "");
 
-export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+/** The system's name in a sentence. */
+const SYSTEM_NAME: Record<Platform, string> = { macos: "macOS", windows: "Windows", linux: "Linux" };
+
+/** Where a Mac extra would appear on another system, the line it shows instead (R3): "Phone pairing isn't on Linux yet". */
+export function notYetOn(what: string, os: Platform = platform): string {
+  return `${what} isn't on ${SYSTEM_NAME[os]} yet`;
+}
+
+export const inTauri =typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
 /** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
 export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
 

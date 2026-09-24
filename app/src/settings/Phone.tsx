@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Button, Chip, Dot, Row as PickRow, Switch } from "../components";
+import { notYetOn, platform, type Platform } from "../desk/env";
 import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus, type TailscaleStatus } from "../phone/model";
 
 /** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
@@ -27,13 +28,16 @@ const ROUTE_NAME: Record<LanVia, string> = { tailscale: "Tailscale", lan: "this 
  * phones are in, and which way did each one last arrive (the list). Nothing else is on the page: the
  * addresses that used to be listed live inside the route rows now, one per route.
  */
-export function Phone({ phone, connected }: { phone: PhoneApi; connected: boolean }) {
+export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; connected: boolean; os?: Platform }) {
   const { status, devices, lastCode } = phone;
+  const here = os === "macos";
   useEffect(() => {
-    if (connected) phone.refresh();
+    if (connected && here) phone.refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected]);
+  }, [connected, here]);
 
+  // Pairing, the LAN listener and Tailscale are the Mac's for now (R3, AE4): a line in their place, no controls.
+  if (!here) return <div className="loki-meta loki-meta--wrap">{notYetOn("Phone pairing", os)}</div>;
   if (!connected || !status) return <div className="loki-meta loki-meta--wrap">asking the mod…</div>;
   const on = status.enabled;
 

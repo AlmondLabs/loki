@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { KEYMAP, conflicts, takenBy, formatKeys, matches, menuSpec, resolve, tauriAccelerator, chordIds, dialogState, keySegment, shellKeyAllowed, keysOf, keyFor, keyRows, wasFor, cmdHeld, type Binding } from "../app/src/shell/keymap.ts";
-import { keysFor } from "../app/src/shell/KeysSheet.tsx";
+import { keysFor, keysSheetNote } from "../app/src/shell/KeysSheet.tsx";
+import { hideWindow } from "../app/src/shell/useWindowChrome.ts";
 import { SEGMENTS } from "../app/src/shell/shortcuts.ts";
 import { commandText } from "../app/src/chat/SlashPalette.tsx";
 import { platform, platformFrom, type Platform } from "../app/src/desk/env.ts";
@@ -284,8 +285,9 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       expect(keyRows(os).map((b) => b.id)).not.toContain("global.inbox");
     }
     expect(keyRows("macos").map((b) => b.id)).toContain("global.inbox");
-    // the table's order is WHERE_ORDER's, the same on every system
-    expect(keyRows("windows").map((b) => b.id)).toEqual(keyRows("macos").map((b) => b.id).filter((id) => id !== "global.inbox"));
+    // the table's order is WHERE_ORDER's, the same on every system, less the Mac's extras (U3: dictation too)
+    const macOnly = ["global.inbox", "chat.dictate"];
+    expect(keyRows("windows").map((b) => b.id)).toEqual(keyRows("macos").map((b) => b.id).filter((id) => !macOnly.includes(id)));
   });
   test("conflicts() and takenBy() read each system's keys", () => {
     for (const os of ["macos", "windows", "linux"] as const) expect(conflicts(KEYMAP, os)).toEqual([]);
@@ -361,5 +363,36 @@ describe("the page's system (plan 014 U2, KTD1)", () => {
     expect(platformFrom(undefined, "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)")).toBe("macos");
     expect(platformFrom(undefined, "Bun/1.2.0")).toBe("macos");
     expect(platformFrom(undefined, "")).toBe("macos");
+  });
+});
+
+describe("Hide loki and the system-wide key off the Mac (plan 014 U3, KTD4)", () => {
+  const win = () => {
+    const calls: string[] = [];
+    return { calls, hide: async () => void calls.push("hide"), minimize: async () => void calls.push("minimize") };
+  };
+  test("Hide on Windows and Linux minimises: no tray or dock could bring a hidden window back", async () => {
+    for (const os of ["windows", "linux"] as const) {
+      const w = win();
+      await hideWindow(w, os);
+      expect(w.calls).toEqual(["minimize"]);
+    }
+  });
+  test("Hide on the Mac still hides", async () => {
+    const w = win();
+    await hideWindow(w, "macos");
+    expect(w.calls).toEqual(["hide"]);
+  });
+  test("dictation's key is listed on the Mac only: Windows and Linux have no mic yet", () => {
+    expect(keyRows("macos").some((b) => b.id === "chat.dictate")).toBe(true);
+    for (const os of ["windows", "linux"] as const) {
+      expect(keyRows(os).some((b) => b.id === "chat.dictate")).toBe(false);
+      expect(keysFor("desk", KEYMAP, os).flatMap((g) => g.rows).some((b) => b.id === "chat.dictate")).toBe(false);
+    }
+  });
+  test("the keys sheet sends the system-wide key to Preferences on the Mac only", () => {
+    expect(keysSheetNote("macos")).toBe("the whole table, and the system-wide key, are in Preferences › Keys");
+    expect(keysSheetNote("windows")).toBe("the whole table is in Preferences › Keys");
+    expect(keysSheetNote("linux")).not.toContain("system-wide");
   });
 });

@@ -19,7 +19,7 @@ import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
 import type { Segment } from "./shortcuts";
 import { useNotice } from "./useNotice";
-import { useTray, useWindowTitle } from "./useWindowChrome";
+import { hideWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
 import { useRecall } from "./useRecall";
@@ -303,7 +303,7 @@ export function Shell() {
         if (column.has && !immersive) column.toggle();
       },
       "window.hide": () => {
-        if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().hide()).catch((e) => console.warn("loki: hide", e));
+        if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => hideWindow(getCurrentWindow())).catch((e) => console.warn("loki: hide", e));
       },
       "chat.toggle": () => chatKey("chat.toggle", () => setChatOpen((v) => !v)),
       "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),

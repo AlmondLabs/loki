@@ -408,9 +408,13 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
             window.build()?;
-            menu::listen(app.handle());
-            native::setup_tray(app.handle())?;
-            if let Err(e) = native::setup_shortcut(app.handle()) { eprintln!("loki: global shortcut unavailable: {e}"); }
+            // The menu bar, the tray and ⌥Space are the Mac's (plan 014 KTD3); elsewhere their commands are no-ops.
+            #[cfg(target_os = "macos")]
+            {
+                menu::listen(app.handle());
+                native::setup_tray(app.handle())?;
+                if let Err(e) = native::setup_shortcut(app.handle()) { eprintln!("loki: global shortcut unavailable: {e}"); }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {

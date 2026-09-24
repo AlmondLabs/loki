@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["image-png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "fs", "signal"] }
@@ -30,8 +30,13 @@ oxc_codegen = "0.148"
 percent-encoding = "2"
 # The capability token's bytes, from the OS random source on every system (lib.rs `new_token`).
 getrandom = "0.3"
-tauri-plugin-global-shortcut = "2"
 tauri-plugin-opener = "2"
+
+# macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
+# tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
 
 # Windows only: the harness's Job Object (harness.rs) and no console window for npm and letta (bootstrap.rs `quiet`).
 [target.'cfg(windows)'.dependencies]

@@ -1,14 +1,23 @@
 //! The parts a browser tab cannot have: a menu-bar item and dock badge that
 //! carry the waiting count, and a global shortcut (⌥Space) that brings Catch Up
 //! up from anywhere.
+//!
+//! All of it is the Mac's (plan 014 KTD3): the tray and the global-shortcut plugin are macOS-only dependencies,
+//! so a Linux build needs no appindicator library. Elsewhere the page's commands are there and do nothing, and the
+//! page hides the switches (R3).
 
-use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "macos")]
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+#[cfg(target_os = "macos")]
+use tauri::{AppHandle, Emitter, Manager};
+#[cfg(target_os = "macos")]
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+#[cfg(target_os = "macos")]
 pub const TRAY_ID: &str = "loki-tray";
 
-pub fn show_main(app: &AppHandle) {
+#[cfg(target_os = "macos")]
+fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -16,6 +25,7 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
+#[cfg(target_os = "macos")]
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID).tooltip("loki").title("").show_menu_on_left_click(false);
     if let Some(icon) = app.default_window_icon() {
@@ -34,12 +44,14 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 /// The one global shortcut: ⌥Space brings the inbox up from anywhere on the Mac.
+#[cfg(target_os = "macos")]
 fn catch_up_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::ALT), Code::Space)
 }
 
 /// Install the plugin and register ⌥Space. The page can release it or take it again (`set_global_shortcut`),
 /// since ⌥Space is also Raycast's, Alfred's and the input-source switcher's on many Macs.
+#[cfg(target_os = "macos")]
 pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
     let catch_up = catch_up_shortcut();
     app.plugin(
@@ -58,6 +70,7 @@ pub fn setup_shortcut(app: &AppHandle) -> tauri::Result<()> {
 
 /// Settings › keys: hold or release ⌥Space. Registering again after a release is how the user reclaims it
 /// from another app; the error names what went wrong so Settings can show it.
+#[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn set_global_shortcut(app: AppHandle, enabled: bool) -> Result<(), String> {
     let catch_up = catch_up_shortcut();
@@ -72,6 +85,7 @@ pub fn set_global_shortcut(app: AppHandle, enabled: bool) -> Result<(), String> 
 }
 
 /// The page tells us how many conversations are waiting; the tray title and dock badge follow.
+#[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn set_waiting(app: AppHandle, count: u32) {
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
@@ -81,4 +95,19 @@ pub fn set_waiting(app: AppHandle, count: u32) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.set_badge_count(if count > 0 { Some(count as i64) } else { None });
     }
+}
+
+/// Windows and Linux: no system-wide key yet, and Settings shows no switch for it (R3).
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+pub fn set_global_shortcut(enabled: bool) -> Result<(), String> {
+    let _ = enabled;
+    Ok(())
+}
+
+/// Windows and Linux: no tray item or dock badge to carry the count yet.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+pub fn set_waiting(count: u32) {
+    let _ = count;
 }

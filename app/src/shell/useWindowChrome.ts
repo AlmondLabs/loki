@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { inTauri } from "../desk/env";
+import { inTauri, platform, type Platform } from "../desk/env";
 import type { Segment } from "./keymap";
 import type { Desk } from "./types";
 
@@ -22,17 +22,28 @@ export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "
 }
 
 /**
- * In the shell: the tray title and dock badge carry the waiting count; ⌥Space (or a tray click) arrives
+ * "Hide loki" (window.hide): the Mac hides the window, and the dock or the menu-bar item brings it back.
+ * Windows and Linux have neither yet, so there it minimises (KTD4).
+ */
+export function hideWindow(win: { hide: () => Promise<void>; minimize: () => Promise<void> }, os: Platform = platform): Promise<void> {
+  return os === "macos" ? win.hide() : win.minimize();
+}
+
+const SHELL_ON_MAC = inTauri && platform === "macos";
+
+/**
+ * In the shell on the Mac: the tray title and dock badge carry the waiting count; ⌥Space (or a tray click) arrives
  * as loki:catch-up and `onCatchUp` brings up the inbox (pass a stable callback: the listener is
- * attached once per callback). Nothing happens in a browser tab.
+ * attached once per callback). Nothing happens in a browser tab, or on Windows and Linux (no tray, no badge,
+ * no global shortcut there yet: R3).
  */
 export function useTray(waiting: number, onCatchUp: () => void): void {
   useEffect(() => {
-    if (!inTauri) return;
+    if (!SHELL_ON_MAC) return;
     void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_waiting", { count: waiting })).catch(() => {});
   }, [waiting]);
   useEffect(() => {
-    if (!inTauri) return;
+    if (!SHELL_ON_MAC) return;
     let off: (() => void) | null = null;
     void import("@tauri-apps/api/event").then(async ({ listen }) => {
       off = await listen("loki:catch-up", onCatchUp);
