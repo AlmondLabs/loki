@@ -262,7 +262,7 @@ pub fn launch_of(os: Os, rt: &Runtime) -> (PathBuf, Vec<std::ffi::OsString>) {
     if os == Os::Windows {
         let ext = rt.letta.extension().map(|e| e.to_string_lossy().to_ascii_lowercase());
         let entry = match ext.as_deref() {
-            Some("cmd") => rt.letta.parent().map(|d| d.join("node_modules").join(PACKAGE).join("letta.js")),
+            Some("cmd") => rt.letta.parent().map(|d| d.join("node_modules").join("@letta-ai").join("letta-code").join("letta.js")),
             Some("js") => Some(rt.letta.clone()),
             _ => None,
         };

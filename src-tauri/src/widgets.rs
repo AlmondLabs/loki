@@ -24,7 +24,9 @@ pub fn widgets_dir() -> PathBuf {
 pub fn source_for(request_path: &str, root: &Path) -> Option<PathBuf> {
     let rel = request_path.strip_prefix("/widgets/")?;
     let rel = percent_encoding::percent_decode_str(rel).decode_utf8().ok()?;
-    if rel.contains("..") || rel.starts_with('/') { return None; }
+    // No way out of the root: `..`, a leading `/`, and on Windows a drive (`C:`) or a backslash, either of which
+    // makes `root.join` replace the root rather than extend it.
+    if rel.contains("..") || rel.starts_with('/') || (cfg!(windows) && (rel.contains(':') || rel.contains('\\'))) { return None; }
     let stem = rel.strip_suffix(".js")?;
     for ext in ["tsx", "jsx"] {
         let p = root.join(format!("{stem}.{ext}"));

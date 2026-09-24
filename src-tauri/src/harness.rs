@@ -4,7 +4,7 @@
 //! the user's own terminal sessions keep the global install fresh) and a scratch folder under ~/.letta
 //! (scratch.rs). It loads the mod from Letta's shared ~/.letta/mods like every harness; the mod itself serves
 //! the desk only inside a harness that hosts an app-server (mod/gate.ts), so a terminal `letta` never takes
-//! the mod's port. It is told its own address in `LOKI_APP_SERVER_URL`, so the mod needs no lookup for it.
+//! the mod's port. It is told its own address in `LOKI_OWN_APP_SERVER_URL`, so the mod needs no lookup for it.
 //!
 //! On Windows the harness is `node …\letta-code\letta.js` rather than npm's `letta.cmd` (bootstrap::launch_of),
 //! with no console window, inside a Job Object that kills the whole tree when loki's handle closes — quitting,
@@ -67,8 +67,10 @@ pub fn server_command(os: Os, rt: &Runtime, launch: &Launch) -> Command {
         // Letta's memory subagents (dreaming) run sandboxed and may only write under ~/.letta; their Bash
         // tool needs its scratch folder there, or every pass fails before its first command.
         .env("LETTA_SCRATCHPAD", launch.scratch)
-        // The mod inside learns the harness's own address from this rather than looking it up.
-        .env("LOKI_APP_SERVER_URL", LISTEN_URL);
+        // The mod inside learns the harness's own address from this rather than looking it up, and removes it
+        // (mod/index.ts): a name of its own, not LOKI_APP_SERVER_URL, which a shell or `letta` an agent starts
+        // would otherwise inherit and take as "attach here" — without loki's token.
+        .env("LOKI_OWN_APP_SERVER_URL", LISTEN_URL);
     cmd
 }
 
@@ -190,7 +192,7 @@ mod tests {
         for os in [Os::Macos, Os::Linux, Os::Windows] {
             let cmd = server_command(os, &rt, &launch(&dir));
             let env = envs(&cmd);
-            assert!(env.contains(&("LOKI_APP_SERVER_URL".into(), "ws://127.0.0.1:41600/ws".into())), "{os:?}: {env:?}");
+            assert!(env.contains(&("LOKI_OWN_APP_SERVER_URL".into(), "ws://127.0.0.1:41600/ws".into())), "{os:?}: {env:?}");
             assert!(env.contains(&("DISABLE_AUTOUPDATER".into(), "1".into())));
             assert!(env.contains(&("LETTA_SCRATCHPAD".into(), dir.to_string_lossy().into_owned())));
             let args: Vec<String> = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();

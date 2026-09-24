@@ -93,7 +93,7 @@ export function probeAppServer(url: string, timeoutMs = PROBE_TIMEOUT_MS): Promi
 /**
  * TCP ports a process is listening on: `lsof` on the Mac (GUI apps often lack /usr/sbin on PATH), /proc on
  * Linux, `netstat -ano` on Windows. Only for a harness loki did not start: loki's own tells the mod its
- * address in LOKI_APP_SERVER_URL.
+ * address in LOKI_OWN_APP_SERVER_URL.
  */
 export function listeningPorts(pid = process.pid, platform: NodeJS.Platform = process.platform): Promise<number[]> {
   if (platform === "linux") return Promise.resolve(procListeningPorts(pid));

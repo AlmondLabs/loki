@@ -141,6 +141,7 @@ pub fn ps_app_server_urls() -> Vec<String> {
     parse_ps_urls(&String::from_utf8_lossy(&out.stdout))
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))] // the Mac's ps reader; its tests run everywhere
 pub fn parse_ps_urls(ps: &str) -> Vec<String> {
     let mut urls = vec![];
     for line in ps.lines() {

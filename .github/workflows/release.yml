@@ -215,9 +215,11 @@ jobs:
         run: |
           set -euo pipefail
           ls -l dist
-          DMG="$(ls dist/loki_*_universal.dmg)"
+          DMG="$(find dist -type f -name 'loki_*_universal.dmg')"
           echo "dmg=$DMG" >> "$GITHUB_ENV"
-          bun scripts/release.ts publish "$KIND" "$VERSION" dist/*
+          # every file, wherever the artifact put it: the Linux one keeps appimage/ and deb/ folders
+          mapfile -t FILES < <(find dist -type f | sort)
+          bun scripts/release.ts publish "$KIND" "$VERSION" "${FILES[@]}"
       - name: render the cask
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

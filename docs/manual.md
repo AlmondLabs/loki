@@ -597,7 +597,7 @@ split, the hours and weekdays loki is used, and the events that never fired in t
 build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the desk, or not,
 whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics), `LOKI_WS_MODULE` (debugging only: the module the mod takes `ws` from under Bun). The
 harness loki launches gets `LETTA_SCRATCHPAD` (the scratch folder), `DISABLE_AUTOUPDATER=1` and
-`LOKI_APP_SERVER_URL` (its own address). On Linux the shell sets `GDK_BACKEND=x11` unless it is already set. Letta runs it under
+`LOKI_OWN_APP_SERVER_URL` (its own address, which the mod reads once and removes so nothing the agents start inherits it). On Linux the shell sets `GDK_BACKEND=x11` unless it is already set. Letta runs it under
 Bun when one is on PATH and under Node otherwise; `mod.log`'s `activate` line says which, and which `ws`.
 Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log` (the harness loki starts),
 `~/.letta/loki/logs/install.log` (every Letta Code install or update, appended), `~/.letta/loki/logs/events.jsonl`

@@ -175,7 +175,7 @@ place, and the Mac's side of it is what shipped before.
    `appserver.rs` takes a snapshot of processes and command lines from `sysinfo` and listening ports from
    `listeners`: Letta Desktop by process name, `letta server` and gateway URLs by command line, each probed the
    same way. The mod's own lookup (`mod/app-server.ts`, only for a harness loki did not start) reads `lsof`,
-   `/proc` on Linux, or `netstat -ano` on Windows; a harness loki starts is told `LOKI_APP_SERVER_URL`.
+   `/proc` on Linux, or `netstat -ano` on Windows; a harness loki starts is told `LOKI_OWN_APP_SERVER_URL`, which the mod reads once and removes.
 6. **Finding Node and Letta Code.** `bootstrap.rs` keeps a list of install folders per system (Homebrew on the
    Mac, `/usr/bin` and Linuxbrew on Linux, `%APPDATA%\npm`, Program Files, volta, nvm-windows, fnm and scoop on
    Windows) and runs npm as `npm.cmd` there. The mod finds its own programs (`bd`, `letta`) through
