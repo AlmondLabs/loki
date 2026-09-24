@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { log } from "./log.ts";
+import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
 
 /**
  * Tailscale, detected and read, never installed (plan Addendum 3). The phone listener asks this for
@@ -44,10 +42,8 @@ const SERVE_TIMEOUT = 15_000;
 const MAX_ERROR = 400;
 
 /** First existing of LOKI_TAILSCALE_BIN, the app bundle's CLI, Homebrew, /usr/local, then PATH. */
-export function findTailscale(): string | null {
-  const onPath = (process.env.PATH ?? "").split(":").filter(Boolean).map((d) => join(d, "tailscale"));
-  const candidates = [process.env.LOKI_TAILSCALE_BIN, "/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", ...onPath].filter((p): p is string => !!p);
-  return candidates.find((p) => existsSync(p)) ?? null;
+export function findTailscale(look: Look = {}): string | null {
+  return firstExisting([envVar("LOKI_TAILSCALE_BIN", look), "/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", ...onPath("tailscale", look)], look);
 }
 
 /** `tailscale status --json` → running, the first IPv4 in Self.TailscaleIPs, Self.DNSName without the dot. */
@@ -118,7 +114,7 @@ function dnsName(v: unknown): string | null {
 
 const defaultExec: TailscaleExec = (bin, args, timeoutMs = STATUS_TIMEOUT) =>
   new Promise((resolve, reject) => {
-    execFile(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env: process.env }, (err, stdout, stderr) => {
+    execProgram(bin, args, { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env: process.env }, (err, stdout, stderr) => {
       if (err) {
         const said = `${String(stderr ?? "")}\n${String(stdout ?? "")}`.trim();
         return reject(new Error(said || err.message));

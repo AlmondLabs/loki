@@ -21,11 +21,17 @@ pub const LISTEN_URL: &str = "ws://127.0.0.1:41600/ws";
 #[derive(Default)]
 pub struct Harness(pub Mutex<Option<Running>>);
 
-/// A started harness: the child, and on Windows the Job Object that owns its process tree.
-pub struct Running {
-    child: Child,
-    #[cfg(windows)]
-    _job: Option<job::Job>,
+/// A harness loki owns: one it started — the child, and on Windows the Job Object that owns its process tree —
+/// or, on Windows and Linux, its own from an earlier run found still holding the port (appserver::Choice::Adopt),
+/// known by pid and start time so a reused pid is never killed.
+pub enum Running {
+    Started {
+        child: Child,
+        #[cfg(windows)]
+        _job: Option<job::Job>,
+    },
+    #[cfg(any(not(target_os = "macos"), test))]
+    Adopted { pid: u32, started: Option<u64> },
 }
 
 /// A machine that never ran `letta` has no backend chosen, and `letta server` would stop to ask.
@@ -85,20 +91,35 @@ impl Harness {
         let running = {
             let job = job::Job::kill_on_close().and_then(|j| j.assign(&child).map(|_| j));
             if let Err(e) = &job { eprintln!("loki: harness job object: {e}"); }
-            Running { child, _job: job.ok() }
+            Running::Started { child, _job: job.ok() }
         };
         #[cfg(not(windows))]
-        let running = Running { child };
+        let running = Running::Started { child };
         self.stop();
         if let Ok(mut g) = self.0.lock() { *g = Some(running); }
         Ok(())
     }
 
+    /// Own loki's harness from an earlier run, `pid`: stopped on quit, restarted by an update, as if started here.
+    #[cfg(any(not(target_os = "macos"), test))]
+    pub fn adopt(&self, pid: u32) {
+        let running = Running::Adopted { pid, started: crate::appserver::os::start_time(pid) };
+        self.stop();
+        if let Ok(mut g) = self.0.lock() { *g = Some(running); }
+    }
+
     /// Kill the harness and wait for it; on Windows closing the job then takes the rest of its tree.
     pub fn stop(&self) {
-        if let Some(mut running) = self.0.lock().ok().and_then(|mut g| g.take()) {
-            let _ = running.child.kill();
-            let _ = running.child.wait();
+        match self.0.lock().ok().and_then(|mut g| g.take()) {
+            Some(Running::Started { mut child, .. }) => {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            #[cfg(any(not(target_os = "macos"), test))]
+            Some(Running::Adopted { pid, started }) => {
+                crate::appserver::os::kill(pid, started);
+            }
+            None => {}
         }
     }
 }
@@ -176,6 +197,23 @@ mod tests {
             assert_eq!(args, ["server", "--listen", LISTEN_URL, "--ws-auth", "capability-token", "--ws-token-file", "/data/token"]);
             assert_eq!(cmd.get_program(), rt.letta.as_os_str(), "{os:?}: no letta.js beside it, so the shim itself");
         }
+    }
+
+    #[test]
+    fn an_adopted_harness_is_owned_and_stopped_like_one_loki_started() {
+        let mut child = if cfg!(windows) {
+            Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(Stdio::null()).spawn().unwrap()
+        } else {
+            Command::new("sleep").arg("30").spawn().unwrap()
+        };
+        let h = Harness::default();
+        h.adopt(child.id());
+        assert!(matches!(h.0.lock().unwrap().as_ref(), Some(Running::Adopted { pid, started: Some(_) }) if *pid == child.id()), "owned, with its start time");
+        assert!(child.try_wait().unwrap().is_none());
+        h.stop();
+        let status = child.wait().unwrap();
+        assert!(!status.success(), "killed, not finished: {status:?}");
+        assert!(h.0.lock().unwrap().is_none());
     }
 
     #[test]

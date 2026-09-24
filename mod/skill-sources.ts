@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { memoryLog, memoryRoot, readLocalAgent, type MemoryCommit, type MemorySkill } from "./agents.ts";
 import { globalSkillsDir } from "./skills.ts";
@@ -68,7 +68,7 @@ export interface SkillSourcesOptions {
 /** Commit subjects that mean "this copy came from outside" — Letta's two installers and our refresh. */
 export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) )/;
 
-const DEFAULT_LOCK = join(process.env.HOME ?? "~", ".agents", ".skill-lock.json");
+const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");
 
 /** The machine in the mod's own messages, as the app's words table names it (app/src/shell/osWords.ts). */
 export function machineWord(os: NodeJS.Platform = process.platform): string {
@@ -260,7 +260,7 @@ export function parseSource(spec: string): SkillSource | null {
   const s = spec.trim();
   if (!s || /\s/.test(s)) return null;
   if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".")) {
-    const p = s.startsWith("~") ? join(process.env.HOME ?? "", s.slice(1)) : resolve(s);
+    const p = s.startsWith("~") ? join(homedir(), s.slice(1)) : resolve(s);
     return existsSync(p) ? localSource(p) : null;
   }
   const url = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/tree\/([^/]+)(?:\/(.*))?)?\/?$/i.exec(s);

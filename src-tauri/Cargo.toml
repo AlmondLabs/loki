@@ -48,3 +48,15 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 # second shell and harness on the same port (plan 014 KTD7). The Mac's app bundle already does this.
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
+
+# Windows and Linux only: the harness lookup (appserver.rs `os`) — process names and command lines, and listening
+# ports by pid. The Mac keeps `lsof` and `/bin/ps`.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+listeners = "0.6"
+
+# The same two crates for tests on every system, so the Mac's `cargo test` also compiles the Windows/Linux lookup
+# and runs it against the real OS. Never in the Mac app.
+[dev-dependencies]
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+listeners = "0.6"
