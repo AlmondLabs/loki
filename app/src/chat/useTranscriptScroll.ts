@@ -98,8 +98,7 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     const last = messages[messages.length - 1];
     if (!pinnedRef.current && last?.role !== "user") return;
     pinnedRef.current = true;
-    setUnpinned(false);
-    setLeftAt(null);
+    setUnpinned(false); // the scroll to the bottom that follows clears the new-message count too (onScroll)
     if (frame.current) return;
     frame.current = requestAnimationFrame(() => {
       frame.current = 0;
