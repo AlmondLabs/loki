@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { dictateTitle, useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
@@ -109,8 +109,10 @@ export const ChatInput = forwardRef<
     }
   }, [value, dictation.listening]);
 
-  // Grow to fit, capped; shrink back when cleared.
-  useEffect(() => {
+  // Grow to fit, capped; shrink back when cleared. Measured before paint, and with the box held at its height while
+  // the field is collapsed to read its scrollHeight: otherwise the thread above grows for that instant, WebKit pulls
+  // its scroll offset back to fit, and following the bottom pushes it down again — the thread twitched per keystroke.
+  useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
     // Empty: one line even when the placeholder would wrap.
@@ -118,8 +120,13 @@ export const ChatInput = forwardRef<
       el.style.height = "";
       return;
     }
+    const box = el.parentElement;
+    const held = box?.style.minHeight ?? "";
+    if (box) box.style.minHeight = `${box.offsetHeight}px`;
     el.style.height = "0px";
-    el.style.height = `${Math.min(el.scrollHeight, 6 * 20 + 12)}px`;
+    const next = `${Math.min(el.scrollHeight, 6 * 20 + 12)}px`;
+    el.style.height = next;
+    if (box) box.style.minHeight = held;
   }, [value]);
 
   const listening = dictation.listening;

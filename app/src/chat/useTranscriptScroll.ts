@@ -78,8 +78,10 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     const el = scrollRef.current;
     if (!el) return;
     let height = el.clientHeight;
+    // Any change of the thread's own height while the reader is at the bottom keeps them there: the message box
+    // growing a line as you type shrinks the thread, and without this its last lines slide under the box.
     const ro = new ResizeObserver(() => {
-      if (height === 0 && el.clientHeight > 0 && pinnedRef.current) el.scrollTop = el.scrollHeight;
+      if (el.clientHeight !== height && el.clientHeight > 0 && pinnedRef.current) el.scrollTop = el.scrollHeight;
       height = el.clientHeight;
     });
     ro.observe(el);
