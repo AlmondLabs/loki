@@ -27,7 +27,8 @@
 }
 .loki-sidebar-pill--up { top: 8px; }
 .loki-sidebar-pill--down { bottom: 8px; }
-.loki-sidebar-pill:focus-visible { outline: 2px solid var(--loki-fg); outline-offset: 2px; }
+/* Settles on the fg, not muted: a muted ring would vanish against the red pill. */
+.loki-sidebar-pill:focus-visible { outline: 2px solid var(--loki-fg); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }
 /* The row's context menu, at the pointer. */
 .loki-sidebar-menu {
   position: fixed;

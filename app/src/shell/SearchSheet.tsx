@@ -4,6 +4,7 @@ import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
 import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./searchModel";
+import { formatKeys } from "./keymap";
 import "./searchSheet.css";
 
 const LIST_ID = "loki-search-results";
@@ -45,7 +46,7 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
   };
   const row = (h: SearchHit, i: number) => <HitRow key={h.key} hit={h} selected={h === current} avatar={avatar} onPoint={() => setActive(i)} onOpen={() => open(h)} />;
 
-  let at = 0; // each row's place in `rows`, across the groups
+  const starts = groupStarts(groups); // each group's first row in `rows`
   return (
     <Sheet label="Search" onClose={onClose} width={640} top="10vh" className="loki-search" cardProps={{ "data-search": "" }}>
       <form role="search" className="loki-search-bar" onSubmit={(e) => (e.preventDefault(), current && open(current))}>
@@ -92,14 +93,14 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
         )}
         <div id={LIST_ID} role="listbox" aria-label={typed ? "Results" : undefined} aria-labelledby={typed ? undefined : "loki-search-recent"}>
           {typed ? (
-            groups.map((g) => (
+            groups.map((g, gi) => (
               <Group key={g.id} title={g.title} note={g.total > g.hits.length ? `${g.hits.length} of ${g.total}` : null}>
-                {g.hits.map((h) => row(h, at++))}
+                {g.hits.map((h, i) => row(h, starts[gi] + i))}
               </Group>
             ))
           ) : (
             <ul className="loki-list" role="presentation">
-              {places.map((h) => row(h, at++))}
+              {places.map((h, i) => row(h, i))}
             </ul>
           )}
         </div>
@@ -116,10 +117,21 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
         )}
       </div>
       <p id="loki-search-coverage" className="loki-meta loki-meta--wrap loki-search-coverage">
-        {COVERAGE} ↑ ↓ to move, ↵ to open.
+        {COVERAGE} ↑ ↓ to move, {formatKeys("enter")} to open.
       </p>
     </Sheet>
   );
+}
+
+/** Where each group's rows start in the flat list, the groups in order (a counter in render keeps the React Compiler off). */
+function groupStarts(groups: ReadonlyArray<{ hits: readonly unknown[] }>): number[] {
+  const out: number[] = [];
+  let at = 0;
+  for (const g of groups) {
+    out.push(at);
+    at += g.hits.length;
+  }
+  return out;
 }
 
 /** A group of options: a quiet heading, and how many of how many when capped, over its rows. */
@@ -154,7 +166,7 @@ function HitRow({ hit, selected, avatar, onPoint, onOpen }: { hit: SearchHit; se
           </span>
           <span className="loki-list-row-preview">{hit.preview}</span>
         </span>
-        {selected && <span className="loki-meta" aria-hidden>↵</span>}
+        {selected && <span className="loki-meta" aria-hidden>{formatKeys("enter")}</span>}
       </div>
     </li>
   );

@@ -114,13 +114,14 @@ export function useDeskSocket() {
           case "desk": {
             const s = msg.scope as Scope;
             console.info(`desk frame: ${s} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
-            if (typeof msg.title === "string" && msg.title) setTitles((t) => ({ ...t, [s]: msg.title as string }));
-            if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [s]: msg.status as DeskStatus }));
-            if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [s]: msg.agentName as string }));
-            if (typeof msg.agentId === "string" && msg.agentId) setAgentIds((t) => ({ ...t, [s]: msg.agentId as string }));
-            if (typeof msg.model === "string" && msg.model) setModels((t) => ({ ...t, [s]: msg.model as string }));
+            const { title, status, agentName, agentId, model, mode } = msg;
+            if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
+            if (typeof status === "string") setStatuses((t) => withScope(t, s, status as DeskStatus));
+            if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
+            if (typeof agentId === "string" && agentId) setAgentIds((t) => withScope(t, s, agentId));
+            if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
             setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
-            if (typeof msg.mode === "string" && msg.mode) setModes((t) => ({ ...t, [s]: msg.mode as string }));
+            if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
             setDesks((d) => ({ ...d, [s]: msg.state as DeskState }));
             setWidgets((w) => ({ ...w, [s]: msg.widgets as WidgetManifestEntry[] }));
             const pending = pendingRef.current;
@@ -150,7 +151,7 @@ export function useDeskSocket() {
             break;
           }
           case "desks":
-            setDeskList(msg.desks as DeskSummary[]);
+            setDeskList((list) => keepSame(list, msg.desks as DeskSummary[]));
             setDesksLoaded(true);
             break;
           case "config":
@@ -215,10 +216,11 @@ export function useDeskSocket() {
             break;
           }
           case "seen":
-            setSeenMap((msg.seen as Record<string, string>) ?? {});
+            // Every mark anywhere broadcasts the whole frame: a map it repeats keeps its object, so nothing re-renders on it.
+            setSeenMap((m) => keepSame(m, (msg.seen as Record<string, string>) ?? {}));
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
-            if (msg.viewed && typeof msg.viewed === "object") setViewedMap(msg.viewed as Record<string, string>);
-            setSnoozeMap((msg.snooze as Record<string, Snooze>) ?? {});
+            if (msg.viewed && typeof msg.viewed === "object") setViewedMap((m) => keepSame(m, msg.viewed as Record<string, string>));
+            setSnoozeMap((m) => keepSame(m, (msg.snooze as Record<string, Snooze>) ?? {}));
             {
               // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
               const next = msg.ladder && typeof msg.ladder === "object" ? clampLadder(msg.ladder as Partial<Record<keyof SnoozeLadder, unknown>>) : DEFAULT_LADDER;
@@ -226,14 +228,18 @@ export function useDeskSocket() {
             }
             if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
-          case "desk_title":
-            if (typeof msg.title === "string" && msg.title) setTitles((t) => ({ ...t, [msg.scope as Scope]: msg.title as string }));
-            if (typeof msg.status === "string") setStatuses((t) => ({ ...t, [msg.scope as Scope]: msg.status as DeskStatus }));
-            if (typeof msg.agentName === "string" && msg.agentName) setAgentNames((t) => ({ ...t, [msg.scope as Scope]: msg.agentName as string }));
-            if (typeof msg.model === "string" && msg.model) setModels((t) => ({ ...t, [msg.scope as Scope]: msg.model as string }));
-            setReasoningEfforts((current) => withReasoningEffort(current, msg.scope as Scope, msg.reasoningEffort));
-            if (typeof msg.mode === "string" && msg.mode) setModes((t) => ({ ...t, [msg.scope as Scope]: msg.mode as string }));
+          case "desk_title": {
+            // Sent again on every title refresh: a repeat keeps each map as it is.
+            const s = msg.scope as Scope;
+            const { title, status, agentName, model, mode } = msg;
+            if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
+            if (typeof status === "string") setStatuses((t) => withScope(t, s, status as DeskStatus));
+            if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
+            if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
+            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
+            if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
             break;
+          }
           case "error":
             console.warn("loki:", msg.message);
             break;
@@ -316,6 +322,25 @@ export function useDeskSocket() {
     measure,
     reportWidgetError,
   };
+}
+
+/** The map with one scope set; the same object when it already holds that value. */
+export function withScope<T>(current: Record<Scope, T>, scope: Scope, value: T): Record<Scope, T> {
+  return current[scope] === value ? current : { ...current, [scope]: value };
+}
+
+/** Plain frame data (maps, lists, strings, numbers) compared by content. */
+function sameData(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameData((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+}
+
+/** `next`, unless it holds what `prev` holds: then `prev`, so a repeated frame changes no reference. */
+export function keepSame<T>(prev: T, next: T): T {
+  return sameData(prev, next) ? prev : next;
 }
 
 /** The efforts map with one scope set, or cleared when the value is not a level. */

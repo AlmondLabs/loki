@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
+import type { ModelEntry } from "../chat/ModelPicker";
 import type { TranscriptRow } from "../chat/Transcript";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
 import { avatarUrl } from "../desk/env";
@@ -34,23 +36,22 @@ export interface ThreadView {
   error: string | null;
 }
 
-/** The phone's glyphs in the shared composer: "+" to attach, the mic, and send as an icon (Inbox uses them too). */
-export const COMPOSER_ICONS = {
-  send: <Icon name="send" size={20} />,
-  attach: <Icon name="plus" size={22} />,
-  mic: <Icon name="mic" size={18} />,
-};
-
 /**
  * One conversation, full screen, the way Slack lays out a DM on a phone. Explicit regions top to bottom:
  * the header (back, the agent and what it is doing, the actions circle), the thread (the only thing that
  * scrolls), the open question or approval, the notice pill, then the box, which owns the bottom inset
  * (the navigation is hidden on this page). The same Conversation the desk and the Inbox card show does the
- * work; the draft is the one the Inbox card for this conversation edits (session.ts).
+ * work; the draft is the one the Inbox card for this conversation edits (session.ts). The box's model pill
+ * opens Select model as a bottom sheet.
  */
 export function ConversationScreen({
   thread,
   view,
+  model = null,
+  reasoningEffort = null,
+  models = null,
+  onLoadModels,
+  onPickModel,
   item = null,
   waiting,
   banner,
@@ -69,6 +70,14 @@ export function ConversationScreen({
 }: {
   thread: Thread;
   view: ThreadView;
+  /** The model the conversation runs on (the mod's desks list) and its effort; null when not known. */
+  model?: string | null;
+  reasoningEffort?: ReasoningEffort | null;
+  /** list_models, for the pill's name and Select model; loaded on the first ask. */
+  models?: ModelEntry[] | null;
+  onLoadModels?: () => void;
+  /** Switch this conversation's model; left out (no app-server), the box has no pill. */
+  onPickModel?: (rt: Runtime, selection: ModelSelection) => Promise<void>;
   /** The conversation's Inbox item, when it has one: its unread boundary, last message day and notice. */
   item?: AttentionItem | null;
   /** The card is still actionable: offer Mark as done. */
@@ -128,10 +137,12 @@ export function ConversationScreen({
         <Conversation
           touch
           dim={false}
-          attach
           gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-          view={{ rows: view.rows, status: view.status, error: view.error, approval: view.pending, question: view.question }}
+          view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
+          models={models}
           actions={{
+            onLoadModels,
+            onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
             onSend: (text, images = []) => onSend(rt, text, images, thread.title),
             onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
             onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
@@ -142,7 +153,6 @@ export function ConversationScreen({
           notice={notice || null}
           placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
           draft={{ value: draft, onChange: setDraft }}
-          icons={COMPOSER_ICONS}
         />
       </div>
       {actionsOpen && (

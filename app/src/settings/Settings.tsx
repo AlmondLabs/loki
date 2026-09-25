@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { inTauri, modBase } from "../desk/env";
-import { KEYMAP, WHERE_ORDER, formatKeys, registerActions, takenBy } from "../shell/keymap";
+import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
+import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
+import { lokiUpgrade, lokiUpgradeNotYet, osWords, runsOn } from "../shell/osWords";
 import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
@@ -188,7 +189,7 @@ export function Settings({
 function AppearancePage() {
   const theme = useTheme();
   return (
-    <Section title="Appearance" hint="the colors on this device; system follows macOS as it changes">
+    <Section title="Appearance" hint={`the colors on this device; system follows ${systemName(keyboard)} as it changes`}>
       <Fact label="Theme" value={<ThemeChoice />} />
       <Fact label="Using" value={theme.preference === "system" ? `${theme.resolved}, from the system` : theme.resolved} />
     </Section>
@@ -221,8 +222,8 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
         <LettaCodeFact lettaVersion={lettaVersion} tools={harness.tools} />
         <LettaCliFact bootstrap={bootstrap} tools={harness.tools} onInstallLetta={onInstallLetta} />
         {inTauri && <LettaUpdateFact bootstrap={bootstrap} onCheck={onCheckLetta} onUpdate={onUpdateLetta} />}
-        <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">not found — brew install beads (the board needs it; everything else works without)</Note> : "—"} mono />
-        <Fact label="System" value="macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript" />
+        <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (the board needs it; everything else works without)`}</Note> : "—"} mono />
+        <SystemFact />
       </Section>
       {inTauri && <InstallSection install={harness.install} />}
     </>
@@ -239,7 +240,7 @@ function ScratchFacts({ scratch }: { scratch: Scratch }) {
   return (
     <>
       <HarnessScratchFact scratch={scratch} />
-      <TerminalScratchFact suggestion={scratch.settings?.terminalSuggestion ?? "$HOME/.letta/scratch"} />
+      <TerminalScratchFact suggestion={scratch.settings?.terminalSuggestion ?? "$HOME/.letta/scratch"} terminalLine={scratch.settings?.terminalLine} />
     </>
   );
 }
@@ -283,9 +284,10 @@ function scratchWord(scratch: Scratch): React.ReactNode {
 }
 
 /** The export line for a `letta` run from a terminal, with copy. */
-function TerminalScratchFact({ suggestion }: { suggestion: string }) {
+function TerminalScratchFact({ suggestion, terminalLine }: { suggestion: string; terminalLine?: string }) {
   const [copied, setCopied] = useState(false);
-  const line = `export LETTA_SCRATCHPAD="${suggestion}"`;
+  // The shell's line, in the terminal's own syntax (PowerShell on Windows); an older shell sends only the folder.
+  const line = terminalLine ?? `export LETTA_SCRATCHPAD="${suggestion}"`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(line);
@@ -311,18 +313,35 @@ function TerminalScratchFact({ suggestion }: { suggestion: string }) {
   );
 }
 
-/** The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path. */
-function LokiVersionFact({ update }: { update: LokiUpdate }) {
+/** Where loki runs, said plainly (in a browser tab, that the tab is only a view of it), over what that system needs. */
+export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
+  return <Fact label="System" value={<span>{runsOn(os, shell)}<Note>{osWords(os).system}</Note></span>} />;
+}
+
+/**
+ * The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path on the
+ * Mac; this system's file on the release elsewhere, where the build is also a preview (plan 014 R12). Those files
+ * reach a stable only once its preview PR is merged, so until then the link is the release page and says so.
+ */
+export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate; os?: Platform }) {
   const cask = update.channel === "nightly" ? "loki-nightly" : "loki";
+  const upgrade = lokiUpgrade(cask, os);
+  const preview =
+    os === "macos" ? null : (
+      <Note>
+        a preview build: built and tested in CI, not yet tried on real machines{update.issues ? <> — <a href={update.issues}>report problems</a></> : null}
+      </Note>
+    );
   const value = update.newer ? (
     <span>
       {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
-      <Note>brew upgrade --cask {cask}, or the .dmg on the release page</Note>
+      <Note>{os === "macos" ? upgrade : !update.download || update.download === update.url ? <a href={update.url ?? "#"}>{lokiUpgradeNotYet(os)}</a> : <a href={update.download}>{upgrade}</a>}</Note>
+      {preview}
     </span>
   ) : update.latest ? (
-    <span>{update.current}<Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note></span>
+    <span>{update.current}<Note>{update.channel === "nightly" ? "the newest nightly" : "the newest release"}</Note>{preview}</span>
   ) : (
-    <span>{update.current}{update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}</span>
+    <span>{update.current}{update.error ? <Note>could not check for a newer release — {update.error}</Note> : null}{preview}</span>
   );
   return <Fact label="Version" value={value} />;
 }
@@ -403,7 +422,7 @@ function UpdateNotes({ bootstrap, error }: { bootstrap: BootstrapStatus; error: 
   );
 }
 
-/** The letta CLI on this Mac: found where installers put it, being installed with npm, failed (with the install button), or as the tool scan saw it. */
+/** The letta CLI on this machine: found where installers put it, being installed with npm, failed (with the install button), or as the tool scan saw it. */
 function LettaCliFact({ bootstrap, tools, onInstallLetta }: { bootstrap: BootstrapStatus | null; tools: Tools | null; onInstallLetta: () => Promise<void> }) {
   return <Fact label="Letta CLI" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.explicit ? <Note>named by LOKI_LETTA_BIN — not npm's, so not the update button's to move</Note> : <Note>the Mac's own Letta Code — the same file a terminal runs</Note>}</span> : bootstrap.installing ? <Note tone="warn">installing with npm… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <Button size="sm" onClick={() => void onInstallLetta()} style={{ marginLeft: 8 }}>install</Button> <Note>or, in a terminal: {UPGRADE_LINE}</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — {UPGRADE_LINE}</Note> : "—"} mono />;
 }
@@ -413,7 +432,7 @@ function InstallSection({ install }: { install: InstallReport | null }) {
   return (
     <Section title="Install" hint="on launch the app puts its mod and skill where Letta looks">
       <ModFact install={install} />
-      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on this Mac loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
+      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on {osWords().machine} loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
       <Fact label="Skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : install.skill === "linked" ? <Note>a symlink to the checkout this build came from</Note> : null}</span> : "—"} />
       <Fact label="Skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
@@ -437,7 +456,7 @@ function ModFact({ install }: { install: InstallReport | null }) {
 
 function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectProvider, onDisconnectProvider, onModelsChanged }: { appServerStatus: AppServerStatus; providers: ConnectProvider[] | null; onLoadProviders: () => Promise<unknown>; onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>; onDisconnectProvider: (providerId: string) => Promise<string | null>; onModelsChanged: () => void }) {
   return (
-    <Section title="Providers" hint="who answers the models; keys are checked, then kept by Letta on this Mac">
+    <Section title="Providers" hint={`who answers the models; keys are checked, then kept by Letta on ${osWords().machine}`}>
       {appServerStatus === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="Link" value="the harness is not linked yet" />}
     </Section>
   );
@@ -445,7 +464,7 @@ function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectP
 
 function PhonePage({ phone, modConnection }: { phone: PhoneApi; modConnection: ModConnection }) {
   return (
-    <Section title="Phone" hint="the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install">
+    <Section title="Phone" hint={platform === "macos" ? "the inbox on a phone, over Tailscale or this Wi‑Fi; nothing to install" : undefined}>
       <Phone phone={phone} connected={modConnection === "open"} />
     </Section>
   );
@@ -491,7 +510,7 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
         <Fact label="Warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
         <Fact label="Reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
         <Fact label="Age" value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first" />
-        <Fact label="A reply" value="keeps the card, so the answer streams in where you are and a follow-up goes out warm; ⌘] moves on, and the answer then brings the card back by score" />
+        <Fact label="A reply" value={`keeps the card, so the answer streams in where you are and a follow-up goes out warm; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`} />
       </Section>
       <LadderSection inbox={inbox} />
     </>
@@ -523,32 +542,43 @@ function FilesPage() {
   );
 }
 
+/** The system-wide key as its row names it; it exists on the Mac only (global.inbox has no key elsewhere). */
+const GLOBAL_KEY = `${formatKeys("alt", "macos")}Space`;
+
+/** Settings › keys: ⌥Space held or released on the Mac; a browser tab cannot hold it, and Windows and Linux have none yet (R3). */
+export function GlobalKeyRow({ shortcut, os = platform }: { shortcut: GlobalShortcut; os?: Platform }) {
+  if (os !== "macos") return <Fact label="System-wide" value={notYetOn("The system-wide key", os)} />;
+  return (
+    <Fact
+      label={GLOBAL_KEY}
+      value={
+        shortcut.available ? (
+          <span style={{ display: "inline-grid", gap: 4 }}>
+            <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
+            {shortcut.error ? <Note tone="warn">{`macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ${GLOBAL_KEY}; free it there and switch this off and on`}</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
+          </span>
+        ) : (
+          "the app only — a browser tab cannot hold a system-wide key"
+        )
+      }
+    />
+  );
+}
+
 function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
   return (
-    <Section title="Keys" hint="⌘ here is ctrl on other systems">
-      <Fact
-        label="⌥Space"
-        value={
-          shortcut.available ? (
-            <span style={{ display: "inline-grid", gap: 4 }}>
-              <Switch on={shortcut.enabled} onToggle={() => shortcut.set(!shortcut.enabled)} label="bring loki up on the inbox from anywhere on the Mac" />
-              {shortcut.error ? <Note tone="warn">macOS refused it — another app (Raycast, Alfred, the input-source switcher) holds ⌥Space; free it there and switch this off and on</Note> : <Note>off, if another app wants the key or you type non-breaking spaces with it</Note>}
-            </span>
-          ) : (
-            "the app only — a browser tab cannot hold a system-wide key"
-          )
-        }
-      />
+    <Section title="Keys" hint={keyboard === "macos" ? `${formatKeys("cmd")} here is ctrl on other systems` : undefined}>
+      <GlobalKeyRow shortcut={shortcut} />
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13.5 }}>
         <tbody>
-          {WHERE_ORDER.flatMap((where) => KEYMAP.filter((b) => b.where === where)).map((b, i, rows) => (
+          {keyRows().map((b, i, rows) => (
             <tr key={b.id} style={{ borderTop: i > 0 && rows[i - 1].where !== b.where ? "1px solid var(--loki-border)" : undefined }}>
               <td className="loki-label" style={{ padding: "6px 0", width: 90, verticalAlign: "top", paddingTop: 9 }}>{i === 0 || rows[i - 1].where !== b.where ? sentence(b.where) : ""}</td>
-              <td style={{ padding: "6px 12px 6px 0", width: 170, fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)", whiteSpace: "nowrap" }}>{b.keys.map(formatKeys).join(" · ")}</td>
+              <td style={{ padding: "6px 12px 6px 0", width: 170, fontFamily: "var(--loki-mono)", fontSize: 12, color: "var(--loki-fg)", whiteSpace: "nowrap" }}>{b.keys.map((k) => formatKeys(k)).join(" · ")}</td>
               <td style={{ padding: "6px 0", color: "var(--loki-muted)" }}>
                 {b.label}
                 {b.typing ? "" : b.where === "inbox" || b.where === "desk" ? <span style={{ marginLeft: 8, fontSize: 10.5, opacity: 0.7 }}>not while typing</span> : null}
-                {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{b.was}</span>}
+                {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{wasFor(b)}</span>}
                 {takenBy(b).map((t) => (
                   <span key={t.id} className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{`not in the ${t.where}: there ${formatKeys(t.key)} is ${t.label}`}</span>
                 ))}

@@ -32,6 +32,7 @@ import { isLanVia } from "./lan.ts";
  *    arrange       {}                        tidy this desk into a grid
  *    trash         { id }                    delete the widget's file (the agent's work is gone for good)
  *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, snooze, appServer }
+ *      (a mark that moves nothing is not broadcast)
  *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
  *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
@@ -315,45 +316,47 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         }
         case "seen_mark":
           if (typeof msg.conversationId === "string") {
-            seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
+            const moved = seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
             track("conversation_marked_seen");
-            broadcast(seenFrame());
+            if (moved) broadcast(seenFrame());
           }
           return;
         case "viewed_mark":
           // Not tracked: a look happens on every open, it is not a decision.
           if (typeof msg.conversationId === "string") {
-            seen?.view(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            broadcast(seenFrame());
+            if (seen?.view(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId)) broadcast(seenFrame());
           }
           return;
         case "seen_unmark":
           if (typeof msg.conversationId === "string") {
-            seen?.unmark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
+            const moved = seen?.unmark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
             track("conversation_kept_unread");
-            broadcast(seenFrame());
+            if (moved) broadcast(seenFrame());
           }
           return;
         case "snooze_set": {
           const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
           const skips = Number(msg.skips);
           if (typeof msg.conversationId === "string" && Number.isFinite(skips) && typeof msg.until === "string" && typeof msg.stamp === "string" && typeof msg.at === "string") {
-            seen?.setSnooze(agentId, msg.conversationId, { skips, until: msg.until, stamp: msg.stamp, at: msg.at });
+            const moved = seen?.setSnooze(agentId, msg.conversationId, { skips, until: msg.until, stamp: msg.stamp, at: msg.at });
             track("card_deferred", { skips });
-            broadcast(seenFrame());
+            if (moved) broadcast(seenFrame());
           }
           break;
         }
         case "snooze_clear":
           if (typeof msg.conversationId === "string") {
-            seen?.clearSnooze(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
+            const moved = seen?.clearSnooze(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
             track("deferral_cleared");
-            broadcast(seenFrame());
+            if (moved) broadcast(seenFrame());
           }
           break;
         case "snooze_ladder": {
-          seen?.setLadder({ firstMinutes: msg.firstMinutes, growth: msg.growth });
-          broadcast(seenFrame());
+          const was = seen?.ladder();
+          const now = seen?.setLadder({ firstMinutes: msg.firstMinutes, growth: msg.growth });
+          // Unmoved (the knob clamped back to what is kept): the sender alone hears it, so its field snaps back.
+          if (was && now && was.firstMinutes === now.firstMinutes && was.growth === now.growth) client.send(seenFrame());
+          else broadcast(seenFrame());
           return;
         }
         case "trash": {

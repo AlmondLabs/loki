@@ -10,13 +10,20 @@ listener, described below.
   the harness token; the Rust side sends it as a bearer header.
 - **The mod** (`mod/`, TypeScript) runs *inside* the Letta harness with that process's privileges. It
   serves widget files and desk state on `127.0.0.1:41414` (`LOKI_PORT`). Every request, HTTP or
-  WebSocket, must carry the token from `~/.letta/loki/token` (mode 0600, generated once). Requests
-  without it get 403.
-- **The page** (`app/`, React) runs in the system WebView at `tauri://localhost`. Its only Tauri
-  permissions are the core defaults, set-title, set-theme, hide, start-dragging (the title strip that
-  moves the window), and opening URLs in the system browser (see `src-tauri/capabilities/default.json`). It cannot read files or run programs.
+  WebSocket, must carry the token from `~/.letta/loki/token` (mode 0600, generated once; on Windows the
+  file is under `%USERPROFILE%` and relies on the profile folder's own permissions). Requests without it
+  get 403.
+- **The page** (`app/`, React) runs in the system WebView (WebKit on the Mac, WebView2 on Windows,
+  WebKitGTK on Linux). Its only Tauri permissions are the core defaults, set-title, set-theme, hide,
+  start-dragging (the title strip that moves the window), minimise, maximise, close and is-maximised (the
+  window buttons loki draws on Windows and Linux), the system's folder dialog (`dialog:allow-open`, which
+  hands back only the folder you pick), and opening URLs in the system browser (see
+  `src-tauri/capabilities/default.json`). It cannot read files or run programs.
 
 ## The phone, over the LAN
+
+Mac only for now: on Windows and Linux Settings › phone says pairing isn't there yet and offers no switch,
+so the listener stays off.
 
 Settings › phone puts a second listener on the local network so a phone can use loki (its Home, Inbox,
 Agents and desk conversations). The model:
@@ -74,12 +81,16 @@ itself and the `loki://` transpiler: no remote scripts, no `eval`.
 
 ## What loki downloads
 
-loki runs the Mac's own Letta Code. Only when there is none does it run `npm install -g
+loki runs the machine's own Letta Code. Only when there is none does it run `npm install -g
 @letta-ai/letta-code@latest` from registry.npmjs.org (npm verifies package integrity), with the npm beside
-a Node 22+ already on the Mac; it downloads no Node and never runs `sudo`. Settings › letta asks the
+a Node 22.19+ already installed (`npm.cmd` on Windows); it downloads no Node on any system, never runs
+`sudo`, and never asks Windows for administrator rights. Without a Node, Welcome names the command to run
+yourself (`brew install node`, `winget install OpenJS.NodeJS.LTS`, the distribution's package). Settings › letta asks the
 registry for the newest version when you check and installs it the same way when you choose to. The app
 also asks GitHub's releases API for a newer loki (every six hours, the stable or nightly channel it came
-from) and only links to it. No other downloads.
+from) and only links to it: the release page on the Mac, that system's `-setup.exe`, AppImage or `.deb` on
+Windows and Linux. It never downloads or installs a loki itself. The Windows and Linux files are unsigned
+previews, like the Mac's `.dmg`. No other downloads.
 
 ## What loki reads
 
@@ -88,7 +99,7 @@ from) and only links to it. No other downloads.
 - The board in `~/.letta/loki/board` through the `bd` binary.
 - Nothing is uploaded, logged remotely, or telemetered. The mod keeps a local usage log
   (`~/.letta/loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only
-  `bun run analytics` on the Mac reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is
+  `bun run analytics` on this machine reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is
   the two checks above and what your agent's provider connection and widgets initiate.
 
 ## Reporting

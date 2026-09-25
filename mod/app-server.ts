@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { WebSocket } from "./ws.ts";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, readlinkSync } from "node:fs";
+import { join } from "node:path";
 import { log } from "./log.ts";
 import { paths } from "./paths.ts";
 
@@ -89,8 +90,14 @@ export function probeAppServer(url: string, timeoutMs = PROBE_TIMEOUT_MS): Promi
   });
 }
 
-/** TCP ports this process is listening on (macOS/Linux, via lsof). GUI apps often lack /usr/sbin on PATH. */
-export function listeningPorts(pid = process.pid): Promise<number[]> {
+/**
+ * TCP ports a process is listening on: `lsof` on the Mac (GUI apps often lack /usr/sbin on PATH), /proc on
+ * Linux, `netstat -ano` on Windows. Only for a harness loki did not start: loki's own tells the mod its
+ * address in LOKI_OWN_APP_SERVER_URL.
+ */
+export function listeningPorts(pid = process.pid, platform: NodeJS.Platform = process.platform): Promise<number[]> {
+  if (platform === "linux") return Promise.resolve(procListeningPorts(pid));
+  if (platform === "win32") return netstatPorts(pid);
   const bins = ["/usr/sbin/lsof", "lsof"];
   const attempt = (i: number): Promise<number[]> =>
     new Promise((resolve) => {
@@ -112,22 +119,115 @@ export function parseLsofPorts(stdout: string): number[] {
   return [...ports];
 }
 
+/** Linux: the process's sockets (fd links `socket:[inode]`) that its net/tcp{,6} lists as listening. */
+export function procListeningPorts(pid: number, root = "/proc"): number[] {
+  const fdDir = join(root, String(pid), "fd");
+  let links: string[];
+  try {
+    links = readdirSync(fdDir).map((fd) => {
+      try {
+        return readlinkSync(join(fdDir, fd));
+      } catch {
+        return ""; // closed while we looked
+      }
+    });
+  } catch {
+    return [];
+  }
+  const inodes = new Set(links.map((l) => /^socket:\[(\d+)\]$/.exec(l)?.[1]).filter((i): i is string => !!i));
+  const tables = ["tcp", "tcp6"].map((t) => {
+    try {
+      return readFileSync(join(root, String(pid), "net", t), "utf8");
+    } catch {
+      return "";
+    }
+  });
+  return parseProcNetTcp(tables.join("\n"), inodes);
+}
+
+/** Rows of /proc/net/tcp{,6} in state 0A (LISTEN) whose inode is in `inodes`: their local ports. */
+export function parseProcNetTcp(text: string, inodes: Set<string>): number[] {
+  const ports = new Set<number>();
+  for (const line of text.split("\n")) {
+    const f = line.trim().split(/\s+/);
+    if (f.length < 10 || !/^\d+:$/.test(f[0]) || f[3] !== "0A" || !inodes.has(f[9])) continue;
+    const port = parseInt(f[1].split(":").pop() ?? "", 16);
+    if (port > 0) ports.add(port);
+  }
+  return [...ports];
+}
+
+/** Windows: `netstat -ano`, from System32 (then PATH). */
+function netstatPorts(pid: number): Promise<number[]> {
+  const bins = [join(process.env.SystemRoot ?? "C:\\Windows", "System32", "netstat.exe"), "netstat"];
+  const attempt = (i: number): Promise<number[]> =>
+    new Promise((resolve) => {
+      if (i >= bins.length) return resolve([]);
+      execFile(bins[i], ["-ano"], { timeout: 4000, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (err, stdout) => {
+        if (err && !stdout) return resolve(attempt(i + 1));
+        resolve(parseNetstatPorts(String(stdout), pid));
+      });
+    });
+  return attempt(0);
+}
+
 /**
- * Second route: Letta launches its channel gateway with `--app-server-url ws://127.0.0.1:<port>/ws`
- * on the command line, and `ps` is always on PATH.
+ * `netstat -ano` rows for `pid` that listen. The state column is in the system's language (LISTENING,
+ * ABHÖREN…), so a listener is the TCP row with no remote end: `0.0.0.0:0` or `[::]:0`.
  */
-export function gatewayAppServerUrls(): Promise<string[]> {
+export function parseNetstatPorts(stdout: string, pid: number): number[] {
+  const ports = new Set<number>();
+  for (const line of stdout.split(/\r?\n/)) {
+    const f = line.trim().split(/\s+/);
+    if (f.length < 5 || f[0].toUpperCase() !== "TCP" || Number(f[f.length - 1]) !== pid || !/:0$/.test(f[2])) continue;
+    const m = /:(\d+)$/.exec(f[1]);
+    if (m) ports.add(Number(m[1]));
+  }
+  return [...ports];
+}
+
+/**
+ * Second route: Letta launches its channel gateway with `--app-server-url ws://127.0.0.1:<port>/ws` on
+ * its command line: from `ps` on the Mac (always at /bin/ps), each /proc/<pid>/cmdline on Linux, a CIM query on Windows.
+ */
+export function gatewayAppServerUrls(platform: NodeJS.Platform = process.platform): Promise<string[]> {
+  if (platform === "linux") return Promise.resolve(parseGatewayUrls(procCommandLines().join("\n")));
+  const [bin, args] = platform === "win32" ? [join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), POWERSHELL_GATEWAY_ARGS] : ["/bin/ps", ["-axo", "command"]];
   return new Promise((resolve) => {
-    execFile("/bin/ps", ["-axo", "command"], { timeout: 4000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+    execFile(bin, args, { timeout: platform === "win32" ? 10_000 : 4000, maxBuffer: 8 * 1024 * 1024, windowsHide: true }, (err, stdout) => {
       if (err && !stdout) return resolve([]);
       resolve(parseGatewayUrls(String(stdout)));
     });
   });
 }
 
+/** Windows: the command lines of processes that mention the gateway. Single quotes only, so Node's own quoting of the argument leaves it whole. */
+export const POWERSHELL_GATEWAY_ARGS = ["-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance -ClassName Win32_Process -Filter 'CommandLine LIKE ''%channel-gateway%''' | ForEach-Object { $_.CommandLine }"];
+
+/** Linux: every readable /proc/<pid>/cmdline, its NUL-separated arguments joined by spaces. */
+export function procCommandLines(root = "/proc"): string[] {
+  let pids: string[];
+  try {
+    pids = readdirSync(root).filter((d) => /^\d+$/.test(d));
+  } catch {
+    return [];
+  }
+  const lines: string[] = [];
+  for (const pid of pids) {
+    try {
+      const line = readFileSync(join(root, pid, "cmdline"), "utf8").split("\0").filter(Boolean).join(" ");
+      if (line) lines.push(line);
+    } catch {
+      // exited, or not ours to read
+    }
+  }
+  return lines;
+}
+
 export function parseGatewayUrls(psOutput: string): string[] {
   const out = new Set<string>();
-  for (const m of psOutput.matchAll(/channel-gateway\s+--app-server-url\s+(ws:\/\/[^\s]+)/g)) out.add(m[1]);
+  // Windows quotes arguments: `--app-server-url "ws://…"`.
+  for (const m of psOutput.matchAll(/channel-gateway\s+--app-server-url\s+"?(ws:\/\/[^\s"]+)/g)) out.add(m[1]);
   return [...out];
 }
 

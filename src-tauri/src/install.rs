@@ -128,12 +128,12 @@ pub fn link_checkout(checkout: &Path, home: &Path) -> Report {
     let dst = skill_dir(home);
     report.skill = match std::fs::symlink_metadata(&dst) {
         Ok(m) if m.file_type().is_symlink() => {
-            if std::fs::read_link(&dst).map(|t| t == skills).unwrap_or(false) { State::Linked } else { State::Custom }
+            if std::fs::read_link(&dst).map(|t| t == skills || (cfg!(windows) && same_dir(&dst, &skills))).unwrap_or(false) { State::Linked } else { State::Custom }
         }
         Ok(_) if dst.join(SKILL_MARKER).exists() => State::Skipped,
         Ok(_) => State::Custom,
         Err(_) => {
-            let linked = dst.parent().map(std::fs::create_dir_all).unwrap_or(Ok(())).and_then(|_| std::os::unix::fs::symlink(&skills, &dst));
+            let linked = dst.parent().map(std::fs::create_dir_all).unwrap_or(Ok(())).and_then(|_| link_dir(&skills, &dst));
             match linked {
                 Ok(()) => State::Linked,
                 Err(e) => {
@@ -145,6 +145,26 @@ pub fn link_checkout(checkout: &Path, home: &Path) -> Report {
         }
     };
     report
+}
+
+/// A directory link at `dst` to `target`. On the Mac and Linux a symlink. On Windows a directory symlink needs
+/// Developer Mode or an administrator, so a junction — which needs neither, and which `symlink_metadata` also
+/// reports as a link — stands in when the symlink is refused.
+fn link_dir(target: &Path, dst: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, dst);
+    #[cfg(windows)]
+    {
+        if std::os::windows::fs::symlink_dir(target, dst).is_ok() { return Ok(()); }
+        let out = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(dst).arg(target).output()?;
+        if out.status.success() { Ok(()) } else { Err(std::io::Error::other(String::from_utf8_lossy(&out.stderr).trim().to_string())) }
+    }
+}
+
+/// Whether two paths are the same folder once resolved: a junction reads back as its `\\?\`-prefixed target on
+/// Windows, never byte-equal to the checkout path it was made from.
+fn same_dir(a: &Path, b: &Path) -> bool {
+    std::fs::canonicalize(a).ok().is_some_and(|a| std::fs::canonicalize(b).ok() == Some(a))
 }
 
 /// Where the bundled resources are, given Tauri's resource directory (the layout differs between
@@ -368,7 +388,7 @@ mod tests {
         assert_eq!(r.skill, State::Installed);
         let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
         assert!(shim.starts_with(MARKER));
-        assert!(shim.contains(&data.join("mod").join("loki-mod.mjs").display().to_string()));
+        assert!(shim.contains(&serde_json::to_string(&data.join("mod").join("loki-mod.mjs").display().to_string()).unwrap()), "the path as the shim writes it: a JS string, backslashes escaped on Windows");
         assert_eq!(shim_path(&home), home.join(".letta").join("mods").join("loki.ts"), "Letta's shared folder: the loader has no other");
         assert!(skill_dir(&home).join("SKILL.md").is_file());
 
@@ -392,7 +412,7 @@ mod tests {
         std::fs::write(&shim, "// my shim\nexport default () => {}\n").unwrap();
         let skills = skill_dir(&home);
         std::fs::create_dir_all(skills.parent().unwrap()).unwrap();
-        std::os::unix::fs::symlink(&resources, &skills).unwrap();
+        link_dir(&resources, &skills).unwrap(); // a symlink, or on Windows a junction when symlinks are refused
         let r = run(&resources, &data, &home);
         assert_eq!(r.r#mod, State::Custom);
         assert_eq!(r.skill, State::Custom);
@@ -472,8 +492,10 @@ mod tests {
         assert!(r.error.is_none());
         let shim = std::fs::read_to_string(shim_path(&home)).unwrap();
         assert!(shim.starts_with(DEV_MARKER));
-        assert!(shim.contains(&c.join("mod").join("boot.ts").display().to_string()));
-        assert_eq!(std::fs::read_link(skill_dir(&home)).unwrap(), c.join("skills").join("loki"));
+        assert!(shim.contains(&serde_json::to_string(&c.join("mod").join("boot.ts").display().to_string()).unwrap()), "the path as the shim writes it: a JS string, backslashes escaped on Windows");
+        let link = std::fs::read_link(skill_dir(&home)).unwrap();
+        // A junction on Windows reads back `\\?\`-prefixed: there, compare the folders the two paths name.
+        if cfg!(windows) { assert!(same_dir(&link, &c.join("skills").join("loki")), "{link:?}") } else { assert_eq!(link, c.join("skills").join("loki")) }
         assert!(skill_dir(&home).join("SKILL.md").is_file());
         // The same again: still linked, nothing rewritten.
         let r = link_checkout(&c, &home);
@@ -521,7 +543,8 @@ mod tests {
         assert_eq!(find_resources(root.path()), None);
         let nested = root.path().join("bundle");
         std::fs::create_dir_all(&nested).unwrap();
-        std::os::unix::fs::symlink(&resources, nested.join("resources")).unwrap();
+        std::fs::create_dir_all(nested.join("resources").join("mod")).unwrap();
+        std::fs::copy(resources.join("mod").join("loki-mod.mjs"), nested.join("resources").join("mod").join("loki-mod.mjs")).unwrap();
         assert_eq!(find_resources(&nested), Some(nested.join("resources")));
     }
 

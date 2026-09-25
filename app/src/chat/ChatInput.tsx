@@ -1,17 +1,20 @@
-import { forwardRef, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { useDictation } from "./useDictation";
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { dictateTitle, useDictation } from "./useDictation";
 import { imageBlobs, imageFromBlob } from "./attachments";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import { Dot, IconButton, TextArea } from "../components";
+import { Icon } from "../shared/icons";
+import { cmdHeld } from "../shell/keymap";
 
 /** "what was typed" + "what was heard", one space between, no trailing space carried over. */
 const join = (a: string, b: string) => (a && b ? `${a.replace(/\s+$/, "")} ${b}` : a || b);
 
 /**
- * Message box shared by the chat panel and the Catch Up reply: Enter sends,
- * Shift+Enter inserts a newline, grows with its content up to ~6 lines.
- * The mic (or ⌘D while focused) dictates into the same box; recognition
- * stops by itself after a pause, then Enter sends as usual.
+ * The message box, one for the phone and the desktop (2026-09-24, after Claude's): one rounded field with the
+ * text on top and a row inside it — "+" to attach images, the host's tools (the model pill), then the mic and
+ * send at the end. Enter sends, Shift+Enter inserts a newline, the text grows with its content up to ~6 lines.
+ * The mic (or ⌘D while focused) dictates into the same box; recognition stops by itself after a pause, then
+ * Enter (or send) sends as usual. Images come in by paste, drop or "+".
  */
 export const ChatInput = forwardRef<
   HTMLTextAreaElement,
@@ -24,21 +27,25 @@ export const ChatInput = forwardRef<
     onEscape?: () => void;
     onFocus?: () => void;
     onBlur?: () => void;
-    /** Images attached to the draft (paste or drop them in); the host sends them with the text. */
+    /** Images attached to the draft; the host sends them with the text. Without onImages there is no "+". */
     images?: ImageAttachment[];
     onImages?: (images: ImageAttachment[]) => void;
     placeholder?: string;
     disabled?: boolean;
-    /** A "+" before the box that picks images from the device, for hosts without paste or drop (the phone). */
-    attach?: boolean;
-    /** The host's own glyphs for attach and dictate (the phone's icon set); omitted, the box's own. */
-    icons?: { attach?: ReactNode; mic?: ReactNode };
-    style?: CSSProperties;
+    /** The phone's sizes: 36 in the row (each with a 44 target), 15px text. */
+    touch?: boolean;
+    /** In the row after "+": the model pill. */
+    tools?: ReactNode;
+    /** Something to send (text or an image); send is disabled without it. */
+    canSend: boolean;
+    /** Send's name: "Send", or what happens mid-turn (it queues). */
+    sendLabel: string;
+    sendTitle?: string;
     "aria-controls"?: string;
     "aria-activedescendant"?: string;
     "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, attach = false, icons, style, ...aria }, ref) {
+>(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, touch = false, tools, canSend, sendLabel, sendTitle, ...aria }, ref) {
   const addBlobs = async (blobs: Blob[]) => {
     if (!onImages || !blobs.length) return;
     const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
@@ -84,6 +91,17 @@ export const ChatInput = forwardRef<
     dictation.toggle();
     inner.current?.focus();
   };
+  /** Enter or the send button: a dictation still running ends here, and what it still emits is dropped. */
+  const send = () => {
+    if (dictation.listening || dictation.pending) {
+      discarding.current = true; // whatever the recogniser still emits belongs to the sent message
+      base.current = "";
+      interimRef.current = "";
+      setInterim("");
+      dictation.stop();
+    }
+    onSubmit();
+  };
   useEffect(() => {
     if (!dictation.listening) {
       base.current = value; // sends/clears outside dictation reset the base
@@ -91,31 +109,38 @@ export const ChatInput = forwardRef<
     }
   }, [value, dictation.listening]);
 
-  // Grow to fit, capped; shrink back when cleared.
-  useEffect(() => {
+  // Grow to fit, capped; shrink back when cleared. Measured before paint, and with the box held at its height while
+  // the field is collapsed to read its scrollHeight: otherwise the thread above grows for that instant, WebKit pulls
+  // its scroll offset back to fit, and following the bottom pushes it down again — the thread twitched per keystroke.
+  useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return;
-    // Empty: one line (36px, md, like the send button beside it) even when the placeholder would wrap.
+    // Empty: one line even when the placeholder would wrap.
     if (!value) {
       el.style.height = "";
       return;
     }
+    const box = el.parentElement;
+    const held = box?.style.minHeight ?? "";
+    if (box) box.style.minHeight = `${box.offsetHeight}px`;
     el.style.height = "0px";
-    el.style.height = `${Math.min(el.scrollHeight, 6 * 20 + 16)}px`;
+    const next = `${Math.min(el.scrollHeight, 6 * 20 + 12)}px`;
+    el.style.height = next;
+    if (box) box.style.minHeight = held;
   }, [value]);
 
   const listening = dictation.listening;
   return (
-    <div style={{ flex: 1, position: "relative", display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+    <div className="loki-composer-box" data-listening={listening || undefined}>
       {images.length > 0 && (
-        <div data-attachments style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div data-attachments className="loki-composer-images">
           {images.map((img) => (
             <span key={img.id} style={{ position: "relative", display: "inline-block" }}>
               <img src={img.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
               <button
                 type="button"
                 onClick={() => onImages?.(images.filter((i) => i.id !== img.id))}
-                aria-label="remove image"
+                aria-label="Remove image"
                 style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-fg)", fontSize: 10.5, lineHeight: "16px", cursor: "pointer", padding: 0 }}
               >
                 ×
@@ -123,30 +148,6 @@ export const ChatInput = forwardRef<
             </span>
           ))}
         </div>
-      )}
-      <div className="loki-composer-field" data-attach={attach || undefined}>
-      {attach && onImages && (
-        <>
-          <IconButton size={36} label="attach images" onClick={() => picker.current?.click()} disabled={disabled} className="loki-composer-attach">
-            {icons?.attach ?? (
-              <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
-                <path d="M8 3v10M3 8h10" />
-              </svg>
-            )}
-          </IconButton>
-          <input
-            ref={picker}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
-              e.target.value = ""; // the same photo can be picked again
-              void addBlobs(files);
-            }}
-          />
-        </>
       )}
       <TextArea
         ref={setRef}
@@ -193,53 +194,42 @@ export const ChatInput = forwardRef<
           if (onKeyDown?.(e)) return;
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
             e.preventDefault();
-            if (listening || dictation.pending) {
-              discarding.current = true; // whatever the recogniser still emits belongs to the sent message
-              base.current = "";
-              interimRef.current = "";
-              setInterim("");
-              dictation.stop();
-            }
-            onSubmit();
+            send();
           } else if (e.key === "Escape" && onEscape) {
             e.preventDefault();
             onEscape();
-          } else if (e.key.toLowerCase() === "d" && e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && dictation.supported) {
-            // ⌘D dictates. (⌘M is minimise on a Mac and stays that way.)
+          } else if (e.key.toLowerCase() === "d" && cmdHeld(e) && !e.altKey && !e.shiftKey && dictation.supported) {
+            // ⌘D dictates (Ctrl+D off the Mac). (⌘M is minimise on a Mac and stays that way.)
             e.preventDefault();
             startDictation();
           }
         }}
-        style={{
-          flex: 1,
-          lineHeight: "20px",
-          padding: dictation.supported ? "7px 40px 7px 12px" : "7px 12px",
-          // Listening: the box's edge turns the accent until the recogniser stops.
-          ...(listening ? { borderColor: "var(--loki-accent)" } : null),
-          ...style,
-        }}
       />
-      {dictation.supported && (
-        <IconButton
-          size={28}
-          tone={listening || dictation.pending ? "brass" : "quiet"}
-          onClick={startDictation}
-          disabled={disabled}
-          label={listening ? "stop dictating" : "dictate"}
-          aria-pressed={listening}
-          title={listening ? "stop dictating" : "dictate (⌘D)"}
-          className="loki-composer-mic"
-        >
-          {icons?.mic ?? (
-            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-              <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" />
-              <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
-            </svg>
-          )}
-          {listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
-        </IconButton>
+      <ComposerBar
+        touch={touch}
+        attach={onImages ? { onClick: () => picker.current?.click() } : null}
+        tools={tools}
+        dictation={dictation.supported ? { listening, pending: dictation.pending, title: listening ? "stop dictating" : dictateTitle(), onToggle: startDictation } : null}
+        canSend={canSend}
+        sendLabel={sendLabel}
+        sendTitle={sendTitle}
+        onSend={send}
+        disabled={disabled}
+      />
+      {onImages && (
+        <input
+          ref={picker}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
+            e.target.value = ""; // the same photo can be picked again
+            void addBlobs(files);
+          }}
+        />
       )}
-      </div>
       {dictation.error && (
         <span id="loki-dictation-error" role="status" className="loki-meta loki-meta--negative" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6 }}>
           {dictation.error}
@@ -249,3 +239,54 @@ export const ChatInput = forwardRef<
     </div>
   );
 });
+
+/**
+ * The box's bottom row, one height throughout (28 on the desktop, 36 on the phone): "+" and the host's tools on
+ * the left; the mic (only where dictation works) and the round send at the end, green once there is something
+ * to send (Slack's send), a muted circle while the box is empty.
+ */
+export function ComposerBar({
+  touch = false,
+  attach,
+  tools,
+  dictation,
+  canSend,
+  sendLabel,
+  sendTitle,
+  onSend,
+  disabled,
+}: {
+  touch?: boolean;
+  attach: { onClick: () => void } | null;
+  tools?: ReactNode;
+  dictation: { listening: boolean; pending: boolean; title: string; onToggle: () => void } | null;
+  canSend: boolean;
+  sendLabel: string;
+  sendTitle?: string;
+  onSend: () => void;
+  disabled?: boolean;
+}) {
+  const size = touch ? 36 : 28;
+  const glyph = touch ? 20 : 16;
+  return (
+    <div className="loki-composer-bar">
+      {attach && (
+        <IconButton size={size} hairline label="Attach images" onClick={attach.onClick} disabled={disabled} className="loki-composer-round loki-composer-attach">
+          <Icon name="plus" size={glyph} />
+        </IconButton>
+      )}
+      {tools}
+      <span className="loki-composer-end">
+        {dictation && (
+          <IconButton size={size} tone={dictation.listening || dictation.pending ? "brass" : "quiet"} onClick={dictation.onToggle} disabled={disabled} label={dictation.listening ? "Stop dictating" : "Dictate"} aria-pressed={dictation.listening} title={dictation.title} className="loki-composer-round">
+            <Icon name="mic" size={glyph} />
+            {dictation.listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
+          </IconButton>
+        )}
+        <IconButton size={size} tone={canSend ? "positive" : "quiet"} onClick={onSend} disabled={disabled || !canSend} label={sendLabel} title={sendTitle ?? sendLabel} className="loki-composer-round loki-composer-send">
+          <Icon name="send" size={glyph} />
+        </IconButton>
+      </span>
+    </div>
+  );
+}

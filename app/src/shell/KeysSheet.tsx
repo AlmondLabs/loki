@@ -1,5 +1,6 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
-import { KEYMAP, formatKeys, takenBy, type Binding, type Segment, type Where } from "./keymap";
+import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
+import { keyboard } from "../desk/env";
 
 /**
  * The cheat sheet: `?` anywhere (outside a text box) lists the keys that work in the view showing — its own first,
@@ -38,33 +39,40 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                 <span style={{ color: "var(--loki-fg)" }}>
                   {b.label}
                   {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>not while typing</span>}
-                  {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{b.was}</span>}
+                  {b.was && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{wasFor(b)}</span>}
                 </span>
               </div>
             ))}
           </section>
         ))}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Meta wrap>the whole table, and the system-wide key, are in Preferences › Keys</Meta>
+          <Meta wrap>{keysSheetNote()}</Meta>
           <span style={{ flex: 1 }} />
-          <Button size="sm" onClick={onSettings} kbd="⌘,">open</Button>
+          <Button size="sm" onClick={onSettings} kbd={keyFor("segment.settings", keyboard, 1)}>open</Button>
         </div>
       </div>
     </Sheet>
   );
 }
 
+/** The footer's pointer to Preferences › Keys; the system-wide key is there on the Mac only (R3). */
+export function keysSheetNote(os: Platform = keyboard): string {
+  return os === "macos" ? "the whole table, and the system-wide key, are in Preferences › Keys" : "the whole table is in Preferences › Keys";
+}
+
 /**
  * The groups the sheet shows for a segment: the view's own bindings (the desk's include the chat box's), then "anywhere"
- * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar).
+ * — less the keys the view takes for itself (⌘⇧D is Deny in the inbox, listed there, not the sidebar). The rows carry
+ * the system's own keys (keysOf).
  */
-export function keysFor(segment: Segment, map: Binding[] = KEYMAP): Array<{ where: Where; title: string; rows: Binding[] }> {
+export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {
   const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
-    if (b.where !== "anywhere") return b;
-    const taken = new Set(takenBy(b, map).filter((t) => wheres.includes(t.where)).map((t) => t.key));
-    const keys = b.keys.filter((k) => !taken.has(k));
-    return keys.length === 0 ? null : keys.length === b.keys.length ? b : { ...b, keys };
+    const own = keysOf(b, os);
+    const taken = b.where === "anywhere" ? new Set(takenBy(b, map, os).filter((t) => wheres.includes(t.where)).map((t) => t.key)) : new Set<string>();
+    const keys = own.filter((k) => !taken.has(k));
+    const label = labelOf(b, os);
+    return keys.length === 0 ? null : own === b.keys && keys.length === own.length && label === b.label ? b : { ...b, keys, label };
   };
   return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where).flatMap((b) => here(b) ?? []) })).filter((g) => g.rows.length > 0);
 }

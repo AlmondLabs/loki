@@ -1,24 +1,103 @@
+import { useEffect, useState } from "react";
 import { SEGMENTS, type Segment } from "./shortcuts";
 import { LAYER } from "../kit/layers";
 import { Dot } from "../components";
-import { inTauri } from "../desk/env";
+import { inTauri, platform, type Platform } from "../desk/env";
+import { keyFor } from "./keymap";
+import { TitleMenu } from "./TitleMenu";
 
 export const SIDEBAR_WIDTH = 48;
 /**
- * The native title bar is hidden (src-tauri/src/lib.rs, overlay style), so loki draws the top edge: a strip
- * across the window at the traffic lights' standard height, the rail and the views under it. A browser tab
- * has its own chrome, so there it is nothing.
+ * The native title bar is hidden (src-tauri/src/lib.rs: overlay style on the Mac, undecorated on Windows and Linux),
+ * so loki draws the top edge: a strip across the window, the rail and the views under it. On the Mac it is the
+ * traffic lights' standard height; elsewhere it carries loki's own window buttons, at the height Windows gives its
+ * caption buttons. A browser tab has its own chrome, so there it is nothing.
  */
-export const TITLEBAR_HEIGHT = inTauri ? 28 : 0;
+export function titlebarHeight(shell: boolean = inTauri, os: Platform = platform): number {
+  return !shell ? 0 : os === "macos" ? 28 : 32;
+}
+export const TITLEBAR_HEIGHT = titlebarHeight();
 
 /**
- * The window's top edge, Slack style: the lights float at its left, and it drags the window (a double
- * click zooms). Nothing interactive goes in it; the attribute is bare so only the strip itself drags.
+ * The window's top edge, Slack style, and it drags the window (a double click zooms, or maximises). On the Mac the
+ * lights float at its left and nothing interactive goes in it. On Windows and Linux (plan 014 KTD4) it is Slack's
+ * there: ☰ at the left with the menus the Mac's menu bar shows, minimise, maximise and close at the right. The
+ * attribute is bare so only the strip itself drags, never its buttons.
  */
-export function TitleStrip() {
-  if (!TITLEBAR_HEIGHT) return null;
-  return <div data-tauri-drag-region aria-hidden className="loki-title-strip" style={{ height: TITLEBAR_HEIGHT, zIndex: LAYER.rail }} />;
+export function TitleStrip({ os = platform, shell = inTauri }: { os?: Platform; shell?: boolean }) {
+  const height = titlebarHeight(shell, os);
+  if (!height) return null;
+  if (os === "macos") return <div data-tauri-drag-region aria-hidden className="loki-title-strip" style={{ height, zIndex: LAYER.rail }} />;
+  return <OwnTitleStrip os={os} height={height} />;
 }
+
+function OwnTitleStrip({ os, height }: { os: Platform; height: number }) {
+  const maximized = useMaximized();
+  return (
+    <div data-tauri-drag-region className="loki-title-strip loki-title-strip--own" style={{ height, zIndex: LAYER.strip }}>
+      <TitleMenu os={os} />
+      <WindowControls maximized={maximized} onAction={windowAction} />
+    </div>
+  );
+}
+
+export type WindowAction = "minimize" | "toggleMaximize" | "close";
+
+/** The shell's window, its module loaded on first use; out here because an import() inside a hook keeps the React Compiler off it. */
+const currentWindow = () => import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow());
+
+function windowAction(action: WindowAction) {
+  void currentWindow().then((win) => win[action]()).catch((e) => console.warn(`loki: window ${action}`, e));
+}
+
+/** Whether the window is maximised, read at mount and again on every resize (maximising, restoring, a snap). */
+function useMaximized(): boolean {
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    let live = true;
+    let off: (() => void) | null = null;
+    void currentWindow()
+      .then(async (win) => {
+        const read = () => win.isMaximized().then((m) => live && setMaximized(m));
+        await read();
+        const unlisten = await win.onResized(() => void read());
+        if (live) off = unlisten;
+        else unlisten();
+      })
+      .catch((e) => console.warn("loki: window maximised", e));
+    return () => {
+      live = false;
+      off?.();
+    };
+  }, []);
+  return maximized;
+}
+
+/** Minimise, maximise (Restore while maximised) and close, the Windows way: flat, full strip height, close turns red. */
+export function WindowControls({ maximized, onAction }: { maximized: boolean; onAction: (action: WindowAction) => void }) {
+  const max = maximized ? "Restore" : "Maximise";
+  return (
+    <div className="loki-window-controls">
+      <button type="button" className="loki-title-btn" aria-label="Minimise" title="Minimise" onClick={() => onAction("minimize")}>
+        <svg {...glyph} aria-hidden>
+          <path d="M0 5.5h10" />
+        </svg>
+      </button>
+      <button type="button" className="loki-title-btn" aria-label={max} title={max} onClick={() => onAction("toggleMaximize")}>
+        <svg {...glyph} aria-hidden>
+          {maximized ? <path d="M2.5 2.5V.5h7v7h-2M.5 2.5h7v7h-7z" /> : <rect x="0.5" y="0.5" width="9" height="9" />}
+        </svg>
+      </button>
+      <button type="button" className="loki-title-btn loki-title-btn--close" aria-label="Close" title="Close" onClick={() => onAction("close")}>
+        <svg {...glyph} aria-hidden>
+          <path d="M.5.5l9 9M9.5.5l-9 9" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+const glyph = { width: 10, height: 10, viewBox: "0 0 10 10", fill: "none", stroke: "currentColor", strokeWidth: 1 } as const;
 
 /**
  * The rail under the top strip: six segments and nothing else. The inbox icon carries
@@ -125,7 +204,7 @@ function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void 
       onClick={onToggle}
       aria-label={open ? "Hide sidebar" : "Show sidebar"}
       aria-pressed={open}
-      title={`${open ? "Hide" : "Show"} sidebar (⌘⇧D)`}
+      title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
       className="loki-rail"
       style={{ marginTop: "auto", width: 36, height: 28, display: "grid", placeItems: "center", border: "1px solid transparent", borderRadius: "var(--loki-radius-md)", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", padding: 0 }}
     >

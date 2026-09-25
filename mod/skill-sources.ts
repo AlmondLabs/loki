@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { memoryLog, memoryRoot, readLocalAgent, type MemoryCommit, type MemorySkill } from "./agents.ts";
 import { globalSkillsDir } from "./skills.ts";
 import { log } from "./log.ts";
@@ -68,7 +68,12 @@ export interface SkillSourcesOptions {
 /** Commit subjects that mean "this copy came from outside" — Letta's two installers and our refresh. */
 export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) )/;
 
-const DEFAULT_LOCK = join(process.env.HOME ?? "~", ".agents", ".skill-lock.json");
+const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");
+
+/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/osWords.ts). */
+export function machineWord(os: NodeJS.Platform = process.platform): string {
+  return os === "darwin" ? "this Mac" : os === "win32" ? "this PC" : "this computer";
+}
 
 export class SkillSources {
   private readonly opts: SkillSourcesOptions;
@@ -132,7 +137,7 @@ export class SkillSources {
   /** Remember a source the user typed for this agent's skill; returns the parsed source or throws. */
   remember(agentId: string, name: string, spec: string): SkillSource {
     const parsed = parseSource(spec);
-    if (!parsed) throw new Error("a source is a GitHub URL, owner/repo/path, or a folder on this Mac");
+    if (!parsed) throw new Error(`a source is a GitHub URL, owner/repo/path, or a folder on ${machineWord()}`);
     const all = this.readSources();
     all[`${agentId}/${name}`] = spec.trim();
     try {
@@ -254,8 +259,9 @@ export function reconcilePrompt(name: string, label: string, upstreamPath: strin
 export function parseSource(spec: string): SkillSource | null {
   const s = spec.trim();
   if (!s || /\s/.test(s)) return null;
-  if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".")) {
-    const p = s.startsWith("~") ? join(process.env.HOME ?? "", s.slice(1)) : resolve(s);
+  // A folder: absolute for this system (`/…`, or `C:\…` on Windows), under the home (`~`), or relative (`.`).
+  if (isAbsolute(s) || s.startsWith("~") || s.startsWith(".")) {
+    const p = s.startsWith("~") ? join(homedir(), s.slice(1)) : resolve(s);
     return existsSync(p) ? localSource(p) : null;
   }
   const url = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/tree\/([^/]+)(?:\/(.*))?)?\/?$/i.exec(s);

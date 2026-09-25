@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, KeyboardEvent, MouseEvent, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, KeyboardEvent, MouseEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
 import { forwardRef, useEffect, useRef } from "react";
 import { LAYER } from "../kit/layers";
 import { Icon, type IconName } from "../shared/icons";
@@ -75,6 +75,8 @@ export function NavButton({ current, className, type = "button", ...rest }: Butt
 }
 
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** The button, for a host that hands focus back to it (the model pill). */
+  ref?: Ref<HTMLButtonElement>;
   /** Neutral when chosen. */
   active?: boolean;
   /** The blue pick: accent ink on a blue wash (a chosen agent, an open permission mode). */

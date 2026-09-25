@@ -6,6 +6,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { deskMark } from "./sidebarModel";
+import { formatKeys } from "./keymap";
 
 export const TREE_WIDTH = 560;
 
@@ -220,8 +221,10 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
     else if (action === "close") onClose();
   };
 
-  let cursor = 0;
-  const rowIndex = () => cursor++;
+  // Each option's place in `rows`, top to bottom: the sections' desks, the "new desk" row, then the archive.
+  const starts = sectionStarts(sections);
+  const newIndex = ordered.length;
+  const archiveStart = ordered.length + (onNew ? 1 : 0);
   const pickName = (agentId: string | null) => chips.find((c) => c.id === agentId)?.name ?? null;
   const statusWord = statusLine(agentFilter, chips, q, live.length + archive.length);
   /** The "new desk" row files the typed name when nothing matches it. */
@@ -264,18 +267,18 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
       <AgentChips chips={chips} liveCount={liveCount} agentFilter={agentFilter} onPick={pickAgent} />
 
       <div ref={listRef} id={listId} role="listbox" aria-label="desks" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 10px" }}>
-        {sections.map((sec) => (
+        {sections.map((sec, si) => (
           // A labelled section is a group the listbox may hold; its visible heading is the group's name, so it hides from the tree.
           <div key={sec.id} role={sec.label ? "group" : "presentation"} aria-label={sec.label || undefined}>
             {sec.label && <div aria-hidden className="loki-label" style={{ padding: "8px 10px 3px", color: sec.id === "waiting" ? "var(--loki-fg)" : undefined }}>{sec.label}</div>}
-            {sec.desks.map((d) => (
-              <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} showFace={!agentFilter} index={rowIndex()} optionId={optionId} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} />
+            {sec.desks.map((d, i) => (
+              <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} here={d.scope === current} showFace={!agentFilter} index={starts[si] + i} optionId={optionId} selected={index} onHover={setIndex} onChoose={() => choose({ kind: "desk", desk: d })} />
             ))}
           </div>
         ))}
         {onNew && (
           <NewRow
-            index={rowIndex()}
+            index={newIndex}
             optionId={optionId}
             selected={index}
             onHover={setIndex}
@@ -283,11 +286,11 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
             label={<NewRowLabel name={newName} agentFilter={agentFilter} agentName={pickName(agentFilter)} />}
           />
         )}
-        {archive.length > 0 && <ArchiveGroup archive={archive} open={showArchive || !!q} onToggle={onToggleArchive} startIndex={cursor} current={current} showFace={!agentFilter} optionId={optionId} selected={index} onHover={setIndex} onChoose={(d) => choose({ kind: "desk", desk: d })} />}
+        {archive.length > 0 && <ArchiveGroup archive={archive} open={showArchive || !!q} onToggle={onToggleArchive} startIndex={archiveStart} current={current} showFace={!agentFilter} optionId={optionId} selected={index} onHover={setIndex} onChoose={(d) => choose({ kind: "desk", desk: d })} />}
         {rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>no desks match</div>}
       </div>
       <div className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto", padding: "6px 14px", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}>
-        ↑↓ move · tab agent · ↵ choose · esc cancel
+        {`↑↓ move · tab agent · ${formatKeys("enter")} choose · ${formatKeys("escape")} cancel`}
       </div>
     </Sheet>
   );
@@ -325,6 +328,17 @@ function NewRowLabel({ name, agentFilter, agentName }: { name: string; agentFilt
 type RowHandlers = { optionId: (i: number) => string; selected: number; onHover: (i: number) => void };
 
 /** The folded group at the bottom: archived and deleted conversations. Its rows take the indices after the live ones, from `startIndex`. */
+/** Where each section's desks start among the options (a counter bumped in render keeps the React Compiler off). */
+function sectionStarts(sections: ReadonlyArray<{ desks: readonly unknown[] }>): number[] {
+  const out: number[] = [];
+  let at = 0;
+  for (const sec of sections) {
+    out.push(at);
+    at += sec.desks.length;
+  }
+  return out;
+}
+
 function ArchiveGroup({ archive, open, onToggle, startIndex, current, showFace, onChoose, ...row }: RowHandlers & { archive: DeskSummary[]; open: boolean; onToggle: () => void; startIndex: number; current: Scope; showFace: boolean; onChoose: (d: DeskSummary) => void }) {
   return (
     <div role="group" aria-label="archive" style={{ marginTop: 10 }}>

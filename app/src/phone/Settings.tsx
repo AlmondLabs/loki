@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { modBase } from "../desk/env";
+import { modBase, platform, systemName, type Platform } from "../desk/env";
 import type { Me } from "./Pair";
 import { PHONE_APPEARANCE, linkWord, routeOf, updateState, type LinkState, type UpdateState } from "./model";
 import { currentBuild } from "./UpdateBar";
@@ -10,7 +10,7 @@ import { BackButton, ConfirmSheet, Scroll, TopBar } from "./ui";
 /**
  * The pages behind More's utility rows, in Slack's Preferences grammar — groups of rows on hairlines:
  *   Preferences         appearance: System, Light or Dark (the desktop's palettes never reach the phone)
- *   Connection details  the paired Mac, its two links and route, this phone, and unpairing
+ *   Connection details  the paired Mac, its system, its two links and route, this phone, and unpairing
  *   About loki          the builds and versions, this screen, and what stays on the Mac
  * and the reload sheet More's Updates row opens. What used to be one Settings page, sorted by what it is for.
  */
@@ -52,6 +52,11 @@ function LinkFact({ state }: { state: AppServerLink }) {
   return <StateWord state={state === "open" ? "on" : state === "closed" ? "off" : "wait"}>{word}</StateWord>;
 }
 
+/** The system loki runs on, as the mod told this page (`__LOKI__.os`): the phone's own is not it. */
+export function HostSystemRow({ os = platform }: { os?: Platform }) {
+  return <FactRow label="System" value={systemName(os)} />;
+}
+
 /**
  * The paired Mac and this phone. Unpairing is the one destructive action on the phone: a named row, then
  * a sheet that says what follows and how to pair again; a failure keeps the sheet open with the error.
@@ -76,6 +81,7 @@ export function ConnectionPage({ me, link, modLink, appServerLink, banner, onUnp
     <Page title="Connection details" backLabel={backLabel} onBack={onBack} banner={banner}>
       <RowGroup title="Paired Mac">
         <FactRow label="Status" value={<StateWord state={link === "online" ? "on" : link === "offline" ? "off" : "wait"}>{linkWord(link)}</StateWord>} />
+        <HostSystemRow />
         <FactRow label="Desks (mod)" value={<LinkFact state={modLink} />} />
         <FactRow label="Chats (app-server)" value={<LinkFact state={appServerLink} />} />
         <FactRow label="Address" value={location.host} />

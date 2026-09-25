@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Tailscale, parseServeStatus, parseStatus } from "../mod/tailscale.ts";
+import { Tailscale, findTailscale, parseServeStatus, parseStatus } from "../mod/tailscale.ts";
 import { SERVE_41415, STATUS_RUNNING, STATUS_STOPPED } from "./fixtures/tailscale.ts";
 
 describe("tailscale status parsing", () => {
@@ -41,6 +41,17 @@ describe("tailscale serve status parsing", () => {
     expect(parseServeStatus("{}", name, 41415)).toBeNull();
     expect(parseServeStatus("", name, 41415)).toBeNull();
     expect(parseServeStatus("nope", name, 41415)).toBeNull();
+  });
+});
+
+describe("finding the CLI", () => {
+  test("tailscale.exe on a Windows PATH; LOKI_TAILSCALE_BIN first", () => {
+    const env = { Path: String.raw`C:\Windows\system32;C:\Program Files\Tailscale`, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
+    const exe = String.raw`C:\Program Files\Tailscale\tailscale.exe`;
+    expect(findTailscale({ platform: "win32", env, exists: (p) => p === exe })).toBe(exe);
+    expect(findTailscale({ platform: "win32", env: { ...env, LOKI_TAILSCALE_BIN: "D:\\ts.exe" }, exists: () => true })).toBe("D:\\ts.exe");
+    expect(findTailscale({ platform: "win32", env, exists: () => false })).toBeNull();
+    expect(findTailscale({ platform: "linux", env: { PATH: "/usr/sbin:/usr/bin" }, exists: (p) => p === "/usr/bin/tailscale" })).toBe("/usr/bin/tailscale");
   });
 });
 

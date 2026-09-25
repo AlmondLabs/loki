@@ -3,7 +3,7 @@ import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
@@ -45,6 +45,16 @@ export interface UseAttentionOptions {
   capture?: (event: string, properties?: Record<string, unknown>) => void;
 }
 
+/** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
+async function createNamedAgent(sock: AppServerSocket, opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string; name: string }> {
+  const created = await sock.createAgent({ personality: opts.personality, model: opts.model });
+  const body: Record<string, unknown> = {};
+  if (opts.name.trim() && opts.name.trim() !== created.name) body.name = opts.name.trim();
+  if (opts.description?.trim()) body.description = opts.description.trim();
+  if (Object.keys(body).length) await sock.updateAgent(created.id, body);
+  return { id: created.id, name: (body.name as string | undefined) ?? created.name };
+}
+
 /** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
 export type SendOrigin = "desk" | "inbox" | "lesson";
 
@@ -71,6 +81,16 @@ export function useAttention(opts: UseAttentionOptions) {
   const lastReload = useRef(0);
   /** The link dropped since it was last open: when it reopens, commands left running are settled (see settleCommands). */
   const linkDropped = useRef(false);
+
+  /**
+   * The latest options, for the actions below. The host builds `opts` afresh on every render (and the mod's calls
+   * in it), so an action that closed over it would be new each time too, and so would everything this hook
+   * returns; read at call time instead, the actions stay the same functions.
+   */
+  const optsRef = useRef(opts);
+  useEffect(() => {
+    optsRef.current = opts;
+  });
 
   /** Re-read the list now (the sidebar archived or restored something); otherwise it refreshes each minute. Stable, so effects can depend on it. */
   const reload = useCallback(() => reloadRef.current?.(), []);
@@ -140,43 +160,39 @@ export function useAttention(opts: UseAttentionOptions) {
     });
 
     let cancelled = false;
-    const load = async () => {
-      try {
-        void sock.request("app_server_info").then((info) => {
-          if (!cancelled) {
-            const ids = Array.isArray(info.supported_commands) ? (info.supported_commands as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
-            const mods = Array.isArray(info.mod_commands) ? (info.mod_commands as Array<{ id: string; description?: string; args?: string }>) : undefined;
-            setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null, advertised: fromAdvertised(ids, mods) });
-          }
-        }).catch(() => {});
-        const agents = await sock.listAgents();
-        const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
+    const subscribeLimit = opts.subscribeLimit ?? 30;
+    // Promise-style error handling here: the React Compiler cannot take a loop or a ?? inside a try block.
+    const loadOnce = async () => {
+      void sock.request("app_server_info").then((info) => {
         if (!cancelled) {
-          setAgents([...names].map(([id, name]) => ({ id, name })));
-          setAgentsLoaded(true);
+          const ids = Array.isArray(info.supported_commands) ? (info.supported_commands as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
+          const mods = Array.isArray(info.mod_commands) ? (info.mod_commands as Array<{ id: string; description?: string; args?: string }>) : undefined;
+          setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null, advertised: fromAdvertised(ids, mods) });
         }
-        // The list and the digests are the mod's, read from disk in one answer: nothing is windowed or capped here.
-        const rows = await opts.listConversations();
+      }).catch(() => {});
+      const agents = await sock.listAgents();
+      const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
+      if (!cancelled) {
+        setAgents([...names].map(([id, name]) => ({ id, name })));
+        setAgentsLoaded(true);
+      }
+      // The list and the digests are the mod's, read from disk in one answer: nothing is windowed or capped here.
+      const rows = await opts.listConversations();
+      if (cancelled) return;
+      const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+      lastReload.current = Date.now();
+      knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
+      setConversations(convs);
+      setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk }])));
+      // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
+      for (const c of convs.slice(0, subscribeLimit)) {
+        const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
+        // a conversation we cannot reach still lists; it just has no live half
+        if (!sock.isSubscribed(rt)) await sock.runtimeStart(rt).catch(() => {});
         if (cancelled) return;
-        const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
-        lastReload.current = Date.now();
-        knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
-        setConversations(convs);
-        setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk }])));
-        // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
-        for (const c of convs.slice(0, opts.subscribeLimit ?? 30)) {
-          const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
-          try {
-            if (!sock.isSubscribed(rt)) await sock.runtimeStart(rt);
-          } catch {
-            // a conversation we cannot reach still lists; it just has no live half
-          }
-          if (cancelled) return;
-        }
-      } catch (err) {
-        console.warn("loki catch up:", err);
       }
     };
+    const load = () => loadOnce().catch((err: unknown) => console.warn("loki catch up:", err));
     reloadRef.current = () => void load();
     void load();
     const refresh = setInterval(() => void load(), 60_000);
@@ -217,21 +233,19 @@ export function useAttention(opts: UseAttentionOptions) {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     if (loading.current.has(key)) return;
     loading.current.add(key);
-    try {
-      let rows: TranscriptRow[] = ((await opts.loadLocalHistory?.(rt.agent_id, rt.conversation_id)) ?? []).map(fromHistory);
+    const read = async () => {
+      let rows: TranscriptRow[] = ((await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id)) ?? []).map(fromHistory);
       if (!rows.length && socketRef.current) rows = toTranscript(await socketRef.current.listMessages(rt, 60)).map(fromHistory);
       const l = liveRef.current.get(key);
       const tail = l?.tail ?? [];
       if (l) l.tail = []; // the transcript now covers what streamed in before
       // Live rows were stamped on arrival; history that has no times of its own keeps theirs (and the last load's).
       setHistories((h) => ({ ...h, [key]: carryTimes(rows, [...(h[key] ?? []), ...tail]) }));
-    } catch (err) {
-      console.warn("loki: thread", err);
-    } finally {
-      loading.current.delete(key);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.loadLocalHistory]);
+    };
+    // A promise's catch, not try/finally (the React Compiler takes neither a finally nor a ?? inside a try): the key frees either way.
+    await read().catch((err: unknown) => console.warn("loki: thread", err));
+    loading.current.delete(key);
+  }, []);
   const loadHistory = useCallback((item: AttentionItem) => loadThread(item.runtime), [loadThread]);
 
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
@@ -265,8 +279,9 @@ export function useAttention(opts: UseAttentionOptions) {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
       const base = histories[key];
-      const liveRows: TranscriptRow[] = l ? [...l.tail, ...(l.streamingText ? [{ role: "assistant" as const, text: l.streamingText, ...(l.streamingAt ? { at: l.streamingAt } : {}) }] : [])] : [];
-      return { rows: base === undefined && !liveRows.length ? undefined : [...(base ?? []), ...liveRows], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
+      // The history's rows and the live ones keep their identity from update to update; only what changed is new.
+      const tail: TranscriptRow[] = l ? liveRows(l) : [];
+      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
     },
     [histories, live],
   );
@@ -275,15 +290,15 @@ export function useAttention(opts: UseAttentionOptions) {
     const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
     const was = l?.pending?.requestId === requestId ? l.pending : null;
     if (l && was) l.pending = null; // optimistic: the card clears at once
-    opts.markSeen(rt.agent_id, rt.conversation_id);
-    opts.capture?.("approval_decided", { behavior });
+    optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
+    optsRef.current.capture?.("approval_decided", { behavior });
     bump();
     void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
       if (ok || !l || !was) return;
       if (!l.pending) l.pending = was; // the server refused: put the request back
       bump();
     });
-  }, [opts, bump]);
+  }, [bump]);
   const approve = useCallback((item: AttentionItem, requestId: string, behavior: "allow" | "deny") => decide(item.runtime, requestId, behavior), [decide]);
 
   /** Answer a pending AskUserQuestion; the card clears at once and comes back if the server refuses. */
@@ -294,15 +309,15 @@ export function useAttention(opts: UseAttentionOptions) {
     l.pendingAsk = null;
     const summary = Object.values(answers).map((a) => (Array.isArray(a) ? a.join(", ") : a)).join(" · ");
     if (summary.trim()) l.tail.push({ role: "user", text: summary, at: new Date().toISOString() });
-    opts.markSeen(rt.agent_id, rt.conversation_id);
-    opts.capture?.("question_answered");
+    optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
+    optsRef.current.capture?.("question_answered");
     bump();
     void socketRef.current?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
       if (ok) return;
       if (!l.pendingAsk) l.pendingAsk = was;
       bump();
     });
-  }, [opts, bump]);
+  }, [bump]);
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
   const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { folder?: string | null; desk?: string | null; origin?: SendOrigin } = {}) => {
@@ -313,7 +328,7 @@ export function useAttention(opts: UseAttentionOptions) {
       liveRef.current.set(key, l);
     }
     const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
-    opts.capture?.("message_sent", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
+    optsRef.current.capture?.("message_sent", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, context });
@@ -326,8 +341,8 @@ export function useAttention(opts: UseAttentionOptions) {
     l.lastRole = "user";
     bump();
     void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, text, images, context)).catch((err) => console.warn("loki: send", err));
-    opts.markSeen(rt.agent_id, rt.conversation_id);
-  }, [opts, subscribe, bump]);
+    optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
+  }, [subscribe, bump]);
   /** Take back a message typed mid-turn before it went out. */
   const cancelQueued = useCallback((rt: Runtime, text: string) => {
     const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
@@ -348,7 +363,7 @@ export function useAttention(opts: UseAttentionOptions) {
       liveRef.current.set(key, l);
     }
     const input = commandInput(commandId, args);
-    opts.capture?.("command_run", { command: commandId });
+    optsRef.current.capture?.("command_run", { command: commandId });
     const sock = socketRef.current;
     if (!sock) {
       finishCommand(l, input, false, "not connected to the app-server");
@@ -370,7 +385,7 @@ export function useAttention(opts: UseAttentionOptions) {
       bump();
       return { success: reloaded, output: reloaded ? "reloaded" : message };
     }
-  }, [bump, opts]);
+  }, [bump]);
 
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
     const sock = socketRef.current;
@@ -385,6 +400,11 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
   /** The provider catalogue, loaded on demand; null until asked. */
   const [providers, setProviders] = useState<ConnectProvider[] | null>(null);
+  /** The catalogue as last loaded, for a failed reload to fall back on (read at call time, so loadProviders stays one function). */
+  const providersRef = useRef(providers);
+  useEffect(() => {
+    providersRef.current = providers;
+  });
   const loadProviders = useCallback(async (): Promise<ConnectProvider[]> => {
     const sock = socketRef.current;
     if (!sock) return [];
@@ -393,9 +413,8 @@ export function useAttention(opts: UseAttentionOptions) {
       setProviders(list);
       return list;
     } catch {
-      return providers ?? [];
+      return providersRef.current ?? [];
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const connectProvider = useCallback(async (providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<string | null> => {
     const sock = socketRef.current;
@@ -421,30 +440,27 @@ export function useAttention(opts: UseAttentionOptions) {
   const createAgent = useCallback(async (opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string } | { error: string }> => {
     const sock = socketRef.current;
     if (!sock) return { error: "not connected to the app-server" };
+    let made: { id: string; name: string };
     try {
-      const created = await sock.createAgent({ personality: opts.personality, model: opts.model });
-      const body: Record<string, unknown> = {};
-      if (opts.name.trim() && opts.name.trim() !== created.name) body.name = opts.name.trim();
-      if (opts.description?.trim()) body.description = opts.description.trim();
-      if (Object.keys(body).length) await sock.updateAgent(created.id, body);
-      setAgents((a) => (a.some((x) => x.id === created.id) ? a : [...a, { id: created.id, name: (body.name as string | undefined) ?? created.name }]));
-      reloadRef.current?.();
-      return { id: created.id };
+      made = await createNamedAgent(sock, opts);
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
     }
+    setAgents((a) => (a.some((x) => x.id === made.id) ? a : [...a, made]));
+    reloadRef.current?.();
+    return { id: made.id };
   }, []);
   const deleteAgent = useCallback(async (agentId: string): Promise<string | null> => {
     const sock = socketRef.current;
     if (!sock) return "not connected to the app-server";
     try {
       await sock.deleteAgent(agentId);
-      setAgents((a) => a.filter((x) => x.id !== agentId));
-      reloadRef.current?.();
-      return null;
     } catch (err) {
       return err instanceof Error ? err.message : String(err);
     }
+    setAgents((a) => a.filter((x) => x.id !== agentId));
+    reloadRef.current?.();
+    return null;
   }, []);
   const memory = useMemo(
     () => ({
@@ -477,8 +493,10 @@ export function useAttention(opts: UseAttentionOptions) {
     [],
   );
   const listModels = useCallback(async () => {
+    const sock = socketRef.current;
+    if (!sock) return [];
     try {
-      return (await socketRef.current?.listModels()) ?? [];
+      return await sock.listModels();
     } catch {
       return [];
     }
@@ -489,15 +507,15 @@ export function useAttention(opts: UseAttentionOptions) {
     if (!sock) return "not connected to the app-server";
     try {
       await sock.runtimeStart(rt, { mode });
-      const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
-      if (l) l.mode = mode;
-      opts.capture?.("mode_set", { mode });
-      bump();
-      return null;
     } catch (err) {
       return err instanceof Error ? err.message : String(err);
     }
-  }, [bump, opts]);
+    const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+    if (l) l.mode = mode;
+    optsRef.current.capture?.("mode_set", { mode });
+    bump();
+    return null;
+  }, [bump]);
   /** Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived. */
   const archiveConversation = useCallback(async (conversationId: string, archived: boolean): Promise<string | null> => {
     const sock = socketRef.current;
@@ -526,14 +544,15 @@ export function useAttention(opts: UseAttentionOptions) {
   const updateModel = useCallback(async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const sock = socketRef.current;
     if (!sock) return { applied: null, error: "not connected to the app-server" };
+    let applied: AppliedModel;
     try {
-      const applied = await sock.updateModel(rt, selection);
-      opts.capture?.("model_switched", { model: applied.handle, effort: applied.reasoningEffort });
-      return { applied, error: null };
+      applied = await sock.updateModel(rt, selection);
     } catch (err) {
       return { applied: null, error: err instanceof Error ? err.message : String(err) };
     }
-  }, [opts]);
+    optsRef.current.capture?.("model_switched", { model: applied.handle, effort: applied.reasoningEffort });
+    return { applied, error: null };
+  }, []);
 
   /**
    * Letta's sleep-time reflection for an agent: its settings (per agent, though the protocol addresses a
@@ -563,17 +582,27 @@ export function useAttention(opts: UseAttentionOptions) {
       run: async (rt: Runtime): Promise<string> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to the app-server";
+        let r: { success: boolean; output: string };
         try {
-          const r = await sock.executeCommand(rt, "reflect");
-          return r.output || (r.success ? "started" : "the harness refused");
+          r = await sock.executeCommand(rt, "reflect");
         } catch (err) {
           return err instanceof Error ? err.message : String(err);
         }
+        return r.output || (r.success ? "started" : "the harness refused");
       },
     }),
     [],
   );
 
+  const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agentId, item.id), []);
+  const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agentId, item.id), []);
+  const later = useCallback((item: AttentionItem) => {
+    const o = optsRef.current;
+    o.setSnooze(item.agentId, item.id, nextSnooze(o.snooze[keyOf(item.agentId, item.id)], stampOf(item), Date.now(), o.ladder));
+  }, []);
+  const unsnooze = useCallback((item: AttentionItem) => optsRef.current.clearSnooze(item.agentId, item.id), []);
+
+  // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.
   return {
     status,
     server,
@@ -610,11 +639,11 @@ export function useAttention(opts: UseAttentionOptions) {
     send,
     cancelQueued,
     reload,
-    seen: (item: AttentionItem) => opts.markSeen(item.agentId, item.id),
-    unread: (item: AttentionItem) => opts.unmarkSeen(item.agentId, item.id),
+    seen: markDone,
+    unread: markNotDone,
     /** "Later": defer with backoff; the deferral is void if the card moves on. */
-    later: (item: AttentionItem) => opts.setSnooze(item.agentId, item.id, nextSnooze(opts.snooze[keyOf(item.agentId, item.id)], stampOf(item), Date.now(), opts.ladder)),
-    unsnooze: (item: AttentionItem) => opts.clearSnooze(item.agentId, item.id),
+    later,
+    unsnooze,
     snoozes: opts.snooze,
   };
 }

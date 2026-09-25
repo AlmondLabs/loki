@@ -7,6 +7,7 @@ import { createRecents } from "../shared/recents";
 import type { IconName } from "../shared/icons";
 import { PAGES, pageTitle, type SettingsPage } from "../settings/pages";
 import type { Segment } from "./keymap";
+import { osWords } from "./osWords";
 
 /**
  * The desktop's ⌘K search, pure (test/desktop-search.test.ts; plan 013 U9): the desktop's adapter over
@@ -85,7 +86,7 @@ export const DESTINATIONS: readonly Page[] = [
   { key: "page:desk", target: { kind: "section", segment: "desk" }, icon: "desk", label: "Desk", line: "The desk you were on", keywords: ["desks", "canvas", "home"] },
   { key: "page:inbox", target: { kind: "section", segment: "inbox" }, icon: "inbox", label: "Inbox", line: "What waits on you", keywords: ["catch up", "waiting", "approvals"] },
   { key: "page:board", target: { kind: "section", segment: "board" }, icon: "check", label: "Board", line: "Tasks for your agents", keywords: ["tasks", "todo", "kanban"] },
-  { key: "page:agents", target: { kind: "section", segment: "agents" }, icon: "agents", label: "Agents", line: "Every agent on this Mac", keywords: ["dms", "people", "memory"] },
+  { key: "page:agents", target: { kind: "section", segment: "agents" }, icon: "agents", label: "Agents", line: `Every agent on ${osWords().machine}`, keywords: ["dms", "people", "memory"] },
   { key: "page:learn", target: { kind: "section", segment: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
   { key: "prefs", target: { kind: "preferences", page: null }, icon: "settings", label: "Preferences", line: "Settings", keywords: ["settings"] },
   ...PAGES.map(({ id }) => ({ key: `prefs:${id}`, target: { kind: "preferences", page: id } as SearchTarget, icon: "settings" as IconName, label: pageTitle(id), line: "Preferences", keywords: PREF_WORDS[id] ?? [] })),

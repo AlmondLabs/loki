@@ -258,3 +258,29 @@ describe("viewed, apart from done", () => {
     expect(viewStamp(null)).toBeNull();
   });
 });
+
+describe("a loop status that repeats changes nothing", () => {
+  const rt = { agent_id: "a", conversation_id: "c" };
+  const loop = (status: string) => ({ type: "update_loop_status", runtime: rt, loop_status: { status } });
+
+  test("WAITING_ON_INPUT again, while idle, reports no change (nothing re-renders on it)", () => {
+    const l = emptyLive();
+    applyEvent(l, loop("PROCESSING_API_RESPONSE"));
+    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "Done." } });
+    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(true); // the turn ends: the reply settles, the turn counts
+    expect(l.turns).toBe(1);
+    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(false);
+    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(false);
+    expect(l.turns).toBe(1);
+  });
+
+  test("the first status on a fresh conversation, a new status, and a repeat that still clears something all count", () => {
+    const l = emptyLive();
+    expect(applyEvent(l, loop("WAITING_ON_INPUT")).changed).toBe(true); // unknown → idle
+    expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(true);
+    expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(false);
+    l.error = "the turn failed";
+    expect(applyEvent(l, loop("PROCESSING_API_RESPONSE")).changed).toBe(true); // a running status clears the error
+    expect(l.error).toBeNull();
+  });
+});

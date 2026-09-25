@@ -20,15 +20,24 @@ export interface SnoozeRecord {
   at: string;
 }
 
+/** How long a burst of marks waits before it is written: one write per burst, and flush() on shutdown. */
+const PERSIST_DEBOUNCE_MS = 250;
+
 export class SeenStore {
   private seen: Record<string, string> = {};
   private viewed: Record<string, string> = {};
   private snooze: Record<string, SnoozeRecord> = {};
   private ladderSetting: SnoozeLadder | null = null;
   private readonly path: string;
+  private readonly debounceMs: number;
+  private readonly now: () => string;
+  private timer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(path: string) {
+  /** `now` stamps the marks (tests pin it); `debounceMs` coalesces the writes. */
+  constructor(path: string, opts: { debounceMs?: number; now?: () => string } = {}) {
     this.path = path;
+    this.debounceMs = opts.debounceMs ?? PERSIST_DEBOUNCE_MS;
+    this.now = opts.now ?? (() => new Date().toISOString());
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
       if (parsed && typeof parsed.seen === "object" && parsed.seen) {
@@ -65,40 +74,78 @@ export class SeenStore {
     return this.ladderSetting ?? DEFAULT_LADDER;
   }
 
-  /** Change one or both knobs; each is clamped to its range. */
+  /** Change one or both knobs; each is clamped to its range. Written only when the setting moves. */
   setLadder(input: Partial<Record<keyof SnoozeLadder, unknown>>): SnoozeLadder {
-    this.ladderSetting = clampLadder(input, this.ladder());
-    this.persist();
-    return this.ladderSetting;
+    const next = clampLadder(input, this.ladder());
+    if (next.firstMinutes !== this.ladderSetting?.firstMinutes || next.growth !== this.ladderSetting?.growth) {
+      this.ladderSetting = next;
+      this.persist();
+    }
+    return this.ladder();
   }
 
-  mark(agentId: string | null | undefined, conversationId: string): void {
-    this.seen[SeenStore.key(agentId, conversationId)] = new Date().toISOString();
-    this.persist();
+  /**
+   * The marks below return whether the stored value moved; one that did not writes nothing, and the bridge
+   * broadcasts nothing for it.
+   */
+  mark(agentId: string | null | undefined, conversationId: string): boolean {
+    return this.put(this.seen, SeenStore.key(agentId, conversationId), this.now());
   }
 
   /** A look: opening the conversation, or a message arriving while it is open. Never touches seen. */
-  view(agentId: string | null | undefined, conversationId: string): void {
-    this.viewed[SeenStore.key(agentId, conversationId)] = new Date().toISOString();
-    this.persist();
+  view(agentId: string | null | undefined, conversationId: string): boolean {
+    return this.put(this.viewed, SeenStore.key(agentId, conversationId), this.now());
   }
 
-  unmark(agentId: string | null | undefined, conversationId: string): void {
-    delete this.seen[SeenStore.key(agentId, conversationId)];
-    this.persist();
+  unmark(agentId: string | null | undefined, conversationId: string): boolean {
+    return this.drop(this.seen, SeenStore.key(agentId, conversationId));
   }
 
-  setSnooze(agentId: string | null | undefined, conversationId: string, rec: SnoozeRecord): void {
-    this.snooze[SeenStore.key(agentId, conversationId)] = rec;
+  setSnooze(agentId: string | null | undefined, conversationId: string, rec: SnoozeRecord): boolean {
+    const key = SeenStore.key(agentId, conversationId);
+    const was = this.snooze[key];
+    if (was && was.skips === rec.skips && was.until === rec.until && was.stamp === rec.stamp && was.at === rec.at) return false;
+    this.snooze[key] = rec;
     this.persist();
+    return true;
   }
 
-  clearSnooze(agentId: string | null | undefined, conversationId: string): void {
-    delete this.snooze[SeenStore.key(agentId, conversationId)];
-    this.persist();
+  clearSnooze(agentId: string | null | undefined, conversationId: string): boolean {
+    return this.drop(this.snooze, SeenStore.key(agentId, conversationId));
   }
 
+  /** Write now what is waiting on the debounce (the mod's shutdown; a test before it reads the file). */
+  flush(): void {
+    if (!this.timer) return;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.write();
+  }
+
+  private put(map: Record<string, string>, key: string, value: string): boolean {
+    if (map[key] === value) return false;
+    map[key] = value;
+    this.persist();
+    return true;
+  }
+
+  private drop(map: Record<string, unknown>, key: string): boolean {
+    if (!(key in map)) return false;
+    delete map[key];
+    this.persist();
+    return true;
+  }
+
+  /** Coalesced: a stream of looks is one write. Everything reads the store, not the file, so only a crash inside the window loses the last mark. */
   private persist(): void {
+    if (this.timer) return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.write();
+    }, this.debounceMs);
+  }
+
+  private write(): void {
     try {
       mkdirSync(dirname(this.path), { recursive: true });
       writeFileSync(`${this.path}.tmp`, JSON.stringify({ seen: this.seen, snooze: this.snooze, ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}), ...(this.ladderSetting ? { ladder: this.ladderSetting } : {}) }, null, 2));

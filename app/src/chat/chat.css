@@ -65,13 +65,70 @@
   font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; color: var(--loki-fg);
 }
 
-/* The box and what sits under it (Conversation.tsx, ChatInput.tsx). Static values live here so the phone
-   restyles them by class (phone/phone.css); the gutters stay inline, since the host sets them at runtime.
-   The attach layout is :where() so it adds no specificity over the phone's own field. */
-.loki-composer { position: relative; display: flex; gap: 8px; border-top: 1px solid var(--loki-border); align-items: flex-end; }
-.loki-composer-field { position: relative; display: flex; min-width: 0; }
-.loki-composer-field:where([data-attach]) { align-items: flex-end; gap: 6px; }
-.loki-composer-mic { position: absolute; right: 6px; bottom: 6px; }
+/* The message box, one for the phone and the desktop (Conversation.tsx, ChatInput.tsx; 2026-09-24, after
+   Claude's): one rounded field a step lifted from the ground, the text on top and a row inside it — "+", the
+   model pill, then the mic and send at the end, all one height (28 here, 36 on the phone). Static values live
+   here so the phone restyles them by class (phone/phone.css); the gutters stay inline, since the host sets
+   them at runtime. The focus flash goes round the whole field, not the bare text inside it. */
+.loki-composer { position: relative; display: flex; }
+.loki-composer-box {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--loki-control-border);
+  border-radius: var(--loki-radius-lg);
+  background: var(--loki-well);
+  transition: border-color 120ms ease-out;
+}
+.loki-composer-box:focus-within { border-color: var(--loki-muted); }
+/* Listening: the field's edge turns the accent until the recogniser stops. */
+.loki-composer-box[data-listening] { border-color: var(--loki-accent); }
+.loki-composer-box:has(.loki-composer-text:focus-visible) { outline: 2px solid transparent; outline-offset: -1px; animation: none; }
+.loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
+.loki-field.loki-composer-text { min-height: 0; padding: 4px 6px; border: none; background: transparent; line-height: 20px; }
+.loki-composer-images { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 4px 0; }
+.loki-composer-bar { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.loki-composer-end { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
+.loki-btn.loki-composer-round { position: relative; flex: none; border-radius: var(--loki-radius-pill); }
+.loki-composer-attach { color: var(--loki-fg); }
+/* Send: Slack's green once there is something to send; a muted circle while the box is empty. */
+.loki-btn.loki-composer-send:disabled { background: var(--loki-hover); color: var(--loki-muted); opacity: 1; }
+/* The model pill: the model in the foreground, the effort after it in the muted colour, one height with the row. */
+.loki-chip.loki-model-pill { min-height: 28px; min-width: 0; flex: 0 1 auto; padding: 0 8px 0 10px; color: var(--loki-fg); font-weight: 600; }
+.loki-model-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.loki-model-pill-effort { flex: none; color: var(--loki-muted); font-weight: 400; }
+.loki-model-pill-chev { color: var(--loki-muted); }
+/* The permission mode beside the model pill, the same height and shape; its menu opens above it. */
+.loki-mode-anchor { position: relative; display: inline-flex; min-width: 0; flex: 0 1 auto; }
+.loki-chip.loki-mode-pill { gap: 5px; font-weight: 400; }
+/* Its menu is wider than the chip it hangs from: sized to the viewport, not to the anchor. */
+.loki-mode-anchor > .loki-popover { max-width: min(300px, calc(100vw - 32px)); }
+
+/* Select model (ModelPicker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
+   chevron in Effort and More models), a card of choices split by hairlines with a check in the accent on the
+   current one, then Effort › and More models › as rounded rows of their own. */
+.loki-model-popover { max-height: min(460px, 70vh); display: flex; flex-direction: column; }
+.loki-model { display: flex; flex-direction: column; min-height: 0; }
+.loki-model-bar { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; gap: 4px; padding: 8px 8px 4px; }
+.loki-model-spacer { width: 24px; height: 24px; }
+.loki-model-title { margin: 0; text-align: center; font-family: var(--loki-font); font-size: 13.5px; font-weight: 700; color: var(--loki-fg); }
+.loki-model-body { display: grid; gap: 8px; padding: 4px 8px 8px; overflow-y: auto; min-height: 0; }
+.loki-model-card { border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); overflow: hidden; }
+.loki-row.loki-model-row { align-items: center; gap: 8px; }
+.loki-model-copy { display: grid; flex: 1; min-width: 0; gap: 1px; }
+.loki-model-name { font-size: 13.5px; font-weight: 600; color: var(--loki-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-model-line { font-size: 12px; color: var(--loki-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-model-check { flex: none; color: var(--loki-accent); }
+.loki-model-link-label { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
+.loki-model-aside { font-size: 12px; color: var(--loki-muted); }
+.loki-model-chev { flex: none; color: var(--loki-muted); }
+.loki-model-provider { padding: 6px 10px 2px; }
+.loki-model-status { margin: 0; padding: 10px; font-size: 12px; color: var(--loki-muted); }
+.loki-model-foot { padding: 5px 10px; border-top: 1px solid var(--loki-border); }
 .loki-conversation-footer { position: relative; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .loki-approval-kicker { color: var(--loki-accent); margin-bottom: 8px; }
 .loki-question-kicker { color: var(--loki-accent); font-size: 12px; font-weight: 700; }
@@ -124,6 +181,6 @@
 .loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
 .loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title { text-decoration: underline; }
-.loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-accent); outline-offset: 2px; }
+.loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-muted); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }
 .loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title { text-decoration: line-through; }
 .loki-widget-row .loki-msg-time:not(.loki-phone *) { margin-left: 0; }

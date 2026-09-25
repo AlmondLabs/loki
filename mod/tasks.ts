@@ -1,8 +1,8 @@
-import { execFile } from "node:child_process";
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { homedir } from "node:os";
 import { log } from "./log.ts";
+import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
 
 /**
  * The board: tasks for later, kept by beads (`bd`, embedded Dolt) in ONE shared
@@ -59,10 +59,9 @@ export type Runner = (args: string[]) => Promise<string>;
 /** Where the shared board lives; LOKI_BOARD_DIR for tests and experiments. */
 export const boardDir = (): string => process.env.LOKI_BOARD_DIR ?? join(homedir(), ".letta", "loki", "board");
 
-export function bdBinary(): string | null {
-  const onPath = (process.env.PATH ?? "").split(":").filter(Boolean).map((d) => join(d, "bd"));
-  const candidates = [process.env.LOKI_BD, ...onPath, "/opt/homebrew/bin/bd", "/usr/local/bin/bd", join(homedir(), "go", "bin", "bd"), join(homedir(), ".local", "bin", "bd")].filter((p): p is string => !!p);
-  return candidates.find((p) => existsSync(p)) ?? null;
+/** LOKI_BD, then PATH (`bd.exe` on Windows), then Homebrew, /usr/local, Go's and ~/.local's bin. */
+export function bdBinary(look: Look = {}): string | null {
+  return firstExisting([envVar("LOKI_BD", look), ...onPath("bd", look), "/opt/homebrew/bin/bd", "/usr/local/bin/bd", join(homedir(), "go", "bin", "bd"), join(homedir(), ".local", "bin", "bd")], look);
 }
 
 /** The one-time `bd init` for the shared board. Exported for tests. */
@@ -199,14 +198,14 @@ export class TaskBoard {
 
   private async exec(args: string[]): Promise<string> {
     const bin = bdBinary();
-    if (!bin) throw new Error("bd (beads) is not installed — brew install beads");
+    if (!bin) throw new Error(`bd (beads) is not installed — ${process.platform === "darwin" ? "brew install beads" : "npm install -g @beads/bd"}`);
     await this.ensure(bin);
     return this.spawn(bin, args);
   }
 
   private spawn(bin: string, args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      execFile(
+      execProgram(
         bin,
         args,
         { cwd: this.dir, env: { ...process.env, BEADS_DIR: join(this.dir, ".beads"), BD_NON_INTERACTIVE: "1" }, timeout: 20_000, maxBuffer: 16 * 1024 * 1024 },

@@ -1,6 +1,6 @@
 // Run the loki mod outside Letta for smoke testing: bun scripts/harness.ts
 // Control:  POST :41500/tool {name,args} | /event {name,event} | /quit
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createServer, type IncomingMessage } from "node:http";
 
 type Handler = (...args: unknown[]) => unknown;
@@ -9,7 +9,7 @@ type Command = { id: string };
 
 // The fake letta below hands the mod session-style capabilities; serve anyway (mod/gate.ts).
 process.env.LOKI_MOD_SERVE ??= "1";
-const modUrl = pathToFileURL(new URL("../mod/boot.ts", import.meta.url).pathname); // same path Letta takes
+const modUrl = pathToFileURL(fileURLToPath(new URL("../mod/boot.ts", import.meta.url))); // same path Letta takes (fileURLToPath: a URL's pathname is /C:/… on Windows)
 modUrl.searchParams.set("v", String(Date.now()));
 const mod = await import(modUrl.href);
 

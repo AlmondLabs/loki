@@ -354,9 +354,8 @@ export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: Desk
       err = await onArchive(!archived);
     } catch (e) {
       err = e instanceof Error ? e.message : String(e);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false); // after either branch: the catch cannot throw, so no finally (the React Compiler cannot take one)
     if (err) setError(err);
     else onClose();
   };

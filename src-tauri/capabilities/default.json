@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "The loki window: core APIs and the loki commands.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-set-theme", "core:window:allow-hide", "core:window:allow-start-dragging", "opener:default"]
+  "permissions": ["core:default", "core:window:allow-set-title", "core:window:allow-set-theme", "core:window:allow-hide", "core:window:allow-minimize", "core:window:allow-toggle-maximize", "core:window:allow-close", "core:window:allow-is-maximized", "core:window:allow-start-dragging", "opener:default", "dialog:allow-open"]
 }

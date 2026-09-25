@@ -1,7 +1,7 @@
-import { execFile } from "node:child_process";
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
 
 /**
  * Skills outside an agent's memory: the global folder Letta reads for every agent
@@ -79,10 +79,9 @@ export function installArgs(source: string, agentId: string, opts: { force?: boo
   return args;
 }
 
-export function lettaBinary(): string | null {
-  const onPath = (process.env.PATH ?? "").split(":").filter(Boolean).map((d) => join(d, "letta"));
-  const candidates = [process.env.LOKI_LETTA_BIN, ...onPath, join(homedir(), ".volta", "bin", "letta"), join(homedir(), ".bun", "bin", "letta"), "/opt/homebrew/bin/letta", "/usr/local/bin/letta"].filter((p): p is string => !!p);
-  return candidates.find((p) => existsSync(p)) ?? null;
+/** LOKI_LETTA_BIN, then PATH (npm's `letta.cmd` on Windows), then where installers put it on a Mac. */
+export function lettaBinary(look: Look = {}): string | null {
+  return firstExisting([envVar("LOKI_LETTA_BIN", look), ...onPath("letta", look), join(homedir(), ".volta", "bin", "letta"), join(homedir(), ".bun", "bin", "letta"), "/opt/homebrew/bin/letta", "/usr/local/bin/letta"], look);
 }
 
 export type Runner = (args: string[]) => Promise<string>;
@@ -97,7 +96,7 @@ export function installSkill(source: string, agentId: string, opts: { force?: bo
       new Promise((resolve, reject) => {
         const bin = lettaBinary();
         if (!bin) return reject(new Error("letta CLI not found"));
-        execFile(bin, args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, CI: "1" } }, (err, stdout, stderr) => {
+        execProgram(bin, args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, CI: "1" } }, (err, stdout, stderr) => {
           if (err) reject(new Error(String(stderr || stdout || err.message).trim().split("\n").slice(-3).join(" ")));
           else resolve(String(stdout).trim());
         });

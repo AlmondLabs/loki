@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EVENTS, analyticsReport, formatAnalyticsReport, isEventName, makeEvent, parseEvents, type AnalyticsEvent, type DeviceType } from "../core/analytics.ts";
+import { EVENTS, analyticsReport, formatAnalyticsReport, isDeviceType, isEventName, makeEvent, parseEvents, type AnalyticsEvent, type DeviceType } from "../core/analytics.ts";
 import { createAnalytics } from "../mod/analytics.ts";
 import { PHONE_FRAMES, createBridge } from "../mod/bridge.ts";
 import { DeskStore } from "../mod/desk-store.ts";
@@ -72,7 +72,7 @@ describe("analytics: the report", () => {
     expect(r.window.events).toBe(events.length - 1);
     expect(r.window.activeDays).toBe(3);
     expect(r.sessions.count).toBe(6);
-    expect(r.sessions.byDevice).toEqual({ mac: 3, phone: 1, mod: 2 });
+    expect(r.sessions.byDevice).toEqual({ mac: 3, windows: 0, linux: 0, phone: 1, mod: 2 });
     expect(r.sessions.medianMinutes).toBe(4.5); // spans: s1 30 · s2 12 · s3 0 · p1 6 · m1 3 · m2 0 → 3 and 6 in the middle
     expect(r.sessions.perActiveDay).toBe(2);
   });
@@ -80,9 +80,9 @@ describe("analytics: the report", () => {
   test("the events table: count, distinct sessions, and the device split", () => {
     const row = (name: string) => r.events.find((e) => e.event === name);
     expect(r.events[0].event).toBe("message_sent");
-    expect(row("view_opened")).toEqual({ event: "view_opened", count: 3, sessions: 2, mac: 3, phone: 0, mod: 0 });
-    expect(row("turn_started")).toEqual({ event: "turn_started", count: 3, sessions: 2, mac: 0, phone: 0, mod: 3 });
-    expect(row("conversation_marked_seen")).toEqual({ event: "conversation_marked_seen", count: 2, sessions: 2, mac: 1, phone: 1, mod: 0 });
+    expect(row("view_opened")).toEqual({ event: "view_opened", count: 3, sessions: 2, mac: 3, windows: 0, linux: 0, phone: 0, mod: 0 });
+    expect(row("turn_started")).toEqual({ event: "turn_started", count: 3, sessions: 2, mac: 0, windows: 0, linux: 0, phone: 0, mod: 3 });
+    expect(row("conversation_marked_seen")).toEqual({ event: "conversation_marked_seen", count: 2, sessions: 2, mac: 1, windows: 0, linux: 0, phone: 1, mod: 0 });
   });
 
   test("breakdowns follow each event's key property; a null value is left out", () => {
@@ -110,6 +110,18 @@ describe("analytics: the report", () => {
     const text = formatAnalyticsReport(r);
     for (const s of ["sessions 6 (mac 3 · phone 1 · mod 2)", "event", "message_sent", "breakdowns", "view_opened · view", "inbox passes 3 · 15 cards · median 4 a pass", "never fired"]) expect(text).toContain(s);
     expect(formatAnalyticsReport(analyticsReport([], { now: NOW, days: 7 }))).toBe("analytics · last 7 days · 0 events on 0 active days");
+  });
+  test("the desktop on Windows and Linux (plan 014 U2): its own devices, columns in the report only when they have events", () => {
+    expect(["mac", "windows", "linux", "phone", "mod"].every(isDeviceType)).toBe(true);
+    const macOnly = formatAnalyticsReport(r);
+    expect(macOnly).toContain("sessions 6 (mac 3 · phone 1 · mod 2) · median");
+    expect(macOnly).not.toMatch(/windows|linux/);
+    const pc = analyticsReport([...events, ev(0, "view_opened", { view: "inbox" }, "windows", "w1"), ev(0, "view_opened", { view: "desk" }, "linux", "l1")], { now: NOW, days: 30 });
+    expect(pc.sessions.byDevice).toEqual({ mac: 3, windows: 1, linux: 1, phone: 1, mod: 2 });
+    expect(pc.events.find((e) => e.event === "view_opened")).toMatchObject({ count: 5, mac: 3, windows: 1, linux: 1 });
+    const text = formatAnalyticsReport(pc);
+    expect(text).toContain("sessions 8 (mac 3 · windows 1 · linux 1 · phone 1 · mod 2)");
+    expect(text).toMatch(/event +count +sessions +mac +windows +linux +phone +mod/);
   });
 });
 

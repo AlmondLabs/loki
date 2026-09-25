@@ -53,11 +53,15 @@ plates · `--loki-radius-lg` **12** cards, sheets, popovers, panels · `--loki-r
 toasts; circles use half their size. A radius with a role is written as its token (`"var(--loki-radius-md)"`), never
 as the number; the tokens test fails a bare 6, 8, 12 or 999 outside the phone. Shadows: `--loki-shadow-sheet` (modals), `--loki-shadow-float` (popovers),
 `--loki-shadow-panel` (the chat), `--loki-shadow-low` (small plates). Stacking: `LAYER` in
-`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, toast 300), never arithmetic
+`app/src/kit/layers.ts` (panel 100, bubble 101, rail 110, modal 200, capture 210, strip 250, toast 300), never arithmetic
 on one; small inline z-indexes are for stacking inside one component only.
 
-Focus is one rule in `tokens.css`: a 2px ring in the accent blue, inset on every button, field and tabindex
-(so a clipped list never cuts it off) and offset on links. Nothing sets `outline: none`. Reduced motion zeroes
+Focus flashes, one rule in `tokens.css`: when focus moves by keyboard, a 2px accent-blue ring appears and
+fades over a second, so you see where focus went without a box sitting there. Controls (buttons, rows, tabs,
+links, selects, checkboxes) settle on a 2px muted ring, since nothing else shows which one Tab or Enter acts
+on; text fields settle on nothing, the caret shows them. The ring is inset (so a clipped list never cuts it
+off) and offset on links. Only the colour animates, so under reduced motion the settled ring shows at once.
+Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion zeroes
 every CSS duration *and delay*; JS-driven glides (the camera) go through `glide()` in `app/src/kit/motion.ts`.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
@@ -112,6 +116,15 @@ conversation summary, so the main chat has none), then the rest with their keys;
 arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Desk tab. Two earlier forms were dropped on 2026-09-06: a
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
+**Windows and Linux (preview, plan 014).** There the window is undecorated and the strip is Slack's for those
+systems: 32px, the height Windows gives its caption buttons, on `--loki-panel`. At its left a ☰ button the rail's
+width opens the Mac's menu bar as a popover: the menu titles (the `menuSpec()` groups), each opening its items
+beside it, keys written Ctrl, Alt, Shift, with the header menus' keyboard manners; at its right minimise, maximise (Restore, with the two-square glyph, while maximised) and close,
+46px wide, flat and full height, square because they run to the window's edge. Hover is `--loki-hover`; close
+alone hovers red (`--loki-attention`), the one place the red is not a badge, because that is what close does on
+both systems. The strip sits on `LAYER.strip`, above sheets, so the window buttons stay usable while a dialog is
+up, as a system title bar would. The strip drags; double click maximises. The rest of the window is the Mac's.
+
 The conversation is the signature surface. The Messages tab draws the thread in Slack's anatomy: a 36px face
 and bold name at the start of each run, the body under the name, the message's **time** quiet after the name
 (and in the face's column on hover for a run's later rows), a sticky **day pill** ("Today", "Yesterday", a date)
@@ -120,7 +133,18 @@ toolbar that holds only what loki does to a message (copy as markdown). A messag
 **Widget rows** sit among the messages by time, one quiet line with a tile icon in the face's column: "friday
 added Revenue chart · 14:49", the widget's title in the link blue while it is still on the desk; choosing one
 opens the Desk tab framed on that widget. Tool and event lines sit in the message column under the text they
-follow. The composer is Slack's rounded box with its pickers (model, permission mode) and send under it.
+follow. **The message box** (2026-09-24, after Claude's, one for the phone and the desktop) is one rounded field
+on the well, the text on top and a row inside it: a round "+" (attach images), the **model pill** (the model's
+name in the ink, its effort after it in the muted colour, only when the model offers levels), then the mic
+(only where dictation works) and a round send, Slack's green once there is something to send and a muted
+circle while the box is empty; every control in the row is one height (28 here, 36 on the phone with a 44
+target). The pill opens **Select model**: a popover over the box here (↑↓ Home End, Enter, Esc or a click away
+closes, focus returns to the pill; ⌘⇧M opens it too), a bottom sheet on the phone (grip, a round × at the top
+left, the title centred). Both show a card of the short list (the harness's featured models and the current
+one; each row the name, its own description or else its handle, a check in the accent on the current one),
+then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
+permission mode stays under the box, beside approve and deny. The model and effort chips that sat in that
+row until 2026-09-24 are gone.
 
 ## Shell (2026-09-06; Slack layout 2026-09-23)
 
@@ -175,8 +199,8 @@ The phone is its own presentation, not the desktop shrunk: Slack's September 202
 reference for type, colour, rows, sheets and navigation (plan `docs/plans/2026-09-22-012`). The boundary is
 the `.loki-phone` root. Everything below applies under it and nowhere else. The desktop took the same Slack
 direction later that day (above), but keeps its own palettes and layout; shared chat pieces take phone looks
-only through optional props (`touch`, `layout`, `draft`, `icons`, `attach`) that default to the desk's
-behaviour.
+only through optional props (`touch`, `layout`, `draft`) that default to the desk's behaviour; the message
+box is one for both, its sizes set by `touch`.
 
 - **Tokens.** `app/src/phone/phone.css` owns them. `.loki-phone` redeclares every `--loki-*` role with Slack's
   dark values and `:root[data-theme="light"] .loki-phone` with its light ones, and adds the `--phone-*` scales
@@ -200,8 +224,8 @@ behaviour.
   itself before the box would leave the screen. Without `visualViewport` the layout still works at the
   shrunken layout height.
 - **Controls.** One outlined icon set (`icons.tsx`, 24 box, 1.8 stroke); no text glyphs or emoji as controls.
-  Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus is a 2px ring in the
-  link colour; a field's ring goes round its whole pill (Search, the composer). The routes' one `main` holds
+  Every target is 44 × 44, a smaller glyph getting its area from an `::after`. Focus flashes as on the Mac, in the
+  link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
   row) always have a visible button that does the same.
 
@@ -212,7 +236,7 @@ behaviour.
 - Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Sentence-case sans for every label; mono only for code, data and keys.
-- Reduced motion is respected globally; focus rings are 2px accent-blue rings.
+- Reduced motion is respected globally; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
 - No real money amounts on screen, in the repo, or in recordings (R9).
 
 ## Tried and dropped

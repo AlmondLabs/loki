@@ -26,15 +26,21 @@ fn read_token() -> Option<String> {
     std::fs::read_to_string(loki_dir().join("token")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 
+/// 16 bytes from the system's random source as 32 lowercase hex chars — the shape the mod makes
+/// (`randomBytes(16).toString("hex")`). The OS source, not /dev/urandom: Windows has no such file, and
+/// reading it there silently produced no token, so the harness started pointing at a missing token file.
+fn new_token() -> Option<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).ok()?;
+    Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
 /// The capability token the harness, the mod and this shell share. The mod creates it on first
 /// activate, but a first launch starts the harness *before* any mod ran, so the shell writes it
-/// when it is missing (32 hex chars from /dev/urandom, mode 0600 — the same shape the mod makes).
+/// when it is missing (`new_token`, mode 0600 where the system has modes — the same shape the mod makes).
 fn ensure_token() -> Option<String> {
     if let Some(t) = read_token() { return Some(t); }
-    use std::io::Read;
-    let mut bytes = [0u8; 16];
-    std::fs::File::open("/dev/urandom").ok()?.read_exact(&mut bytes).ok()?;
-    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    let token = new_token()?;
     let dir = loki_dir();
     std::fs::create_dir_all(&dir).ok()?;
     let path = dir.join("token");
@@ -48,15 +54,26 @@ fn ensure_token() -> Option<String> {
     Some(token)
 }
 
+/// The system as the page names it (`__LOKI__.os`, read by `platform` in app/src/desk/env.ts): macos, windows or linux.
+/// Any other unix desktop reads as linux, the nearest in keys and chrome.
+fn page_os(os: &str) -> &'static str {
+    match os {
+        "macos" => "macos",
+        "windows" => "windows",
+        _ => "linux",
+    }
+}
+
 fn init_script() -> String {
     let token = read_token().unwrap_or_default();
     let mod_port: u16 = std::env::var("LOKI_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(41414);
     let desk = std::env::var("LOKI_DESK").ok();
     format!(
-        "window.__LOKI__ = {{ token: {token}, modPort: {port}, desk: {desk} }};",
+        "window.__LOKI__ = {{ token: {token}, modPort: {port}, desk: {desk}, os: \"{os}\" }};",
         token = serde_json::to_string(&token).unwrap_or_else(|_| "\"\"".into()),
         port = mod_port,
         desk = serde_json::to_string(&desk).unwrap_or_else(|_| "null".into()),
+        os = page_os(std::env::consts::OS),
     )
 }
 
@@ -107,7 +124,7 @@ async fn check_letta_update(app: tauri::AppHandle) -> Result<bootstrap::Status, 
         let boot = app.state::<bootstrap::BootstrapState>();
         let rt = boot.0.lock().ok().and_then(|s| s.runtime());
         let version = rt.as_ref().and_then(bootstrap::letta_version);
-        let latest = bootstrap::latest_version();
+        let latest = bootstrap::latest_version(rt.as_ref(), &home_dir());
         let mut s = boot.0.lock().map_err(|e| e.to_string())?;
         s.version = version;
         s.latest = latest?.into();
@@ -119,8 +136,8 @@ async fn check_letta_update(app: tauri::AppHandle) -> Result<bootstrap::Status, 
 }
 
 /// Settings › letta "update": `npm install -g @letta-ai/letta-code@latest` — the same command that installed it,
-/// into the same global folder — then restart the harness on it. Only for a harness loki launched (Desktop's, or
-/// one adopted from an earlier run, is not ours to restart), and never for a binary named by LOKI_LETTA_BIN.
+/// into the same global folder — then restart the harness on it. Only for a harness loki launched (Desktop's, or a
+/// `letta server` the user started, is not ours to restart), and never for a binary named by LOKI_LETTA_BIN.
 #[tauri::command]
 fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
     if app.try_state::<harness::Harness>().is_none() {
@@ -138,7 +155,7 @@ fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState
         // npm said yes but the copy did not move: say so instead of restarting the harness for nothing.
         let now = bootstrap::letta_version(&after);
         if before.is_some() && now == before {
-            return Err(format!("the install finished, but {} still reports {}", after.letta.display(), now.unwrap_or_default()));
+            return Err(format!("the install finished, but {} still reports {}", after.letta.display(), now.unwrap_or_default()).into());
         }
         Ok(after)
     });
@@ -202,11 +219,11 @@ fn install_log_line(line: &str) {
 /// An install or update, off the main thread: progress as `loki:bootstrap` events, Status.log and
 /// ~/.letta/loki/logs/install.log, and on success the harness (re)starts on the runtime the job produced — the
 /// link, already retrying, reconnects.
-fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn Fn(bootstrap::Progress)) -> Result<bootstrap::Runtime, String> + Send + 'static) {
+fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn Fn(bootstrap::Progress)) -> Result<bootstrap::Runtime, bootstrap::InstallError> + Send + 'static) {
     use tauri::Emitter;
     let home = home_dir();
     if let Some(b) = app.try_state::<bootstrap::BootstrapState>() {
-        if let Ok(mut s) = b.0.lock() { s.installing = true; s.error = None; s.log.clear(); }
+        if let Ok(mut s) = b.0.lock() { s.installing = true; s.error = None; s.node_missing = None; s.log.clear(); }
     }
     install_log_line(&format!("\n--- {opening} · {} · loki {} ---", bootstrap::stamp(), env!("CARGO_PKG_VERSION")));
     let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "start", message: opening.to_string() });
@@ -222,7 +239,7 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
         let result = job(&report);
         match &result {
             Ok(rt) => install_log_line(&format!("done: {}", rt.letta.display())),
-            Err(e) => install_log_line(&format!("error: {e}")),
+            Err(e) => install_log_line(&format!("error: {}", e.message)),
         }
         let Some(b) = app.try_state::<bootstrap::BootstrapState>() else { return };
         match result {
@@ -241,15 +258,31 @@ fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn
                 let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "done", message: "harness starting".into() });
             }
             Err(e) => {
-                if let Ok(mut s) = b.0.lock() { s.installing = false; s.error = Some(e.clone()); }
-                let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "error", message: e });
+                // No Node: Welcome's Node step, whose "check again" is this same job run again.
+                if let Ok(mut s) = b.0.lock() { s.installing = false; s.error = Some(e.message.clone()); s.node_missing = e.node_missing; }
+                let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "error", message: e.message });
             }
         }
     });
 }
 
+/// The user's home folder, where everything loki keeps lives (~/.letta/loki). It has to be the folder the
+/// mod's `os.homedir()` answers inside the harness, or the two would read different tokens and state: on
+/// Windows that is USERPROFILE (Node ignores a HOME there, such as Git Bash's), elsewhere HOME. An empty
+/// value counts as unset. `run` checks it once at launch and stops with a line on stderr when there is none,
+/// rather than keeping ~/.letta under `/` as it once did.
+fn home_from(windows: bool, var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<PathBuf> {
+    var(if windows { "USERPROFILE" } else { "HOME" }).filter(|v| !v.is_empty()).map(PathBuf::from)
+}
+
+const HOME_VAR: &str = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+
+fn platform_home() -> Option<PathBuf> {
+    home_from(cfg!(windows), |k| std::env::var_os(k))
+}
+
 fn home_dir() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"))
+    platform_home().unwrap_or_else(|| panic!("{HOME_VAR} is not set (checked at launch)"))
 }
 
 /// Release builds install on every launch; `tauri dev` leaves a developer's shim alone unless asked (LOKI_INSTALL=1).
@@ -270,13 +303,45 @@ fn dev_checkout() -> Option<PathBuf> {
     None
 }
 
+/// Linux runs loki through XWayland (plan 014 KTD8): GDK_BACKEND=x11 unless the user chose a backend, since an
+/// undecorated window on native Wayland still has open resize and unresponsive-button bugs. The value to set, if any.
+#[cfg(any(target_os = "linux", test))]
+fn gdk_backend(current: Option<&std::ffi::OsStr>) -> Option<&'static str> {
+    if current.is_some() { None } else { Some("x11") }
+}
+
+/// Called first thing in `main`, before GTK or any thread starts (setting the environment later would race them).
+#[cfg(target_os = "linux")]
+pub fn prefer_x11() {
+    if let Some(v) = gdk_backend(std::env::var_os("GDK_BACKEND").as_deref()) {
+        std::env::set_var("GDK_BACKEND", v);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if platform_home().is_none() {
+        eprintln!("loki: {HOME_VAR} is not set, so there is no home folder for ~/.letta/loki; set it and start loki again");
+        std::process::exit(1);
+    }
     let _ = ensure_token();
     let script = init_script();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // One loki per user off the Mac (plan 014 KTD7): a second launch hands over to the running one, which comes
+    // forward, and exits before it starts a harness. First of the plugins, as the plugin asks.
+    #[cfg(any(windows, target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+    }));
+    builder
         // Links leave the app through the system browser (window.open is blocked in the webview).
         .plugin(tauri_plugin_opener::init())
+        // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![appserver_send, appserver_url, client_log, install_status, tool_status, bootstrap_status, install_letta, check_letta_update, update_letta, native::set_waiting, native::set_global_shortcut, menu::set_menu, scratch_settings, set_scratch_dir])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
@@ -299,20 +364,35 @@ pub fn run() {
                 eprintln!("loki: dev: mod {:?} · skill {:?} · shim {} → {}{}", report.r#mod, report.skill, report.shim, report.mod_path, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             }
 
-            // Which harness? A running app-server if there is one (Desktop's, a `letta server`, loki's own from an
-            // earlier run); otherwise launch our own on a fixed port from the machine's Letta Code.
+            // Which harness? A running app-server if there is one (Desktop's, a `letta server`); otherwise launch our
+            // own on a fixed port from the machine's Letta Code. loki's own from an earlier run (a crash, a force-quit)
+            // is stopped and launched afresh, so it runs the current Letta Code and environment (Choice::Replace).
             let explicit = std::env::var("LOKI_APP_SERVER_URL").ok();
             let token = read_token();
-            let home_for_boot = home.clone();
+            let (home_for_boot, token_file) = (home.clone(), data.join("token"));
             // (url, bearer, launching our own?, letta runtime if found)
             let (url, bearer, own, runtime) = tauri::async_runtime::block_on(async {
                 if let Some(u) = explicit {
                     return (u, None, false, None);
                 }
-                if let Some((u, b)) = appserver::find_app_server(&[41414, 41415], token.as_deref()).await {
-                    return (u, b, false, None);
+                let launch = |token| (harness::LISTEN_URL.to_string(), token, true, bootstrap::find_letta(&home_for_boot));
+                match appserver::find_app_server(&[41414, 41415], token.as_deref(), &token_file).await {
+                    appserver::Choice::Attach { url, bearer } => (url, bearer, false, None),
+                    appserver::Choice::Launch => launch(token),
+                    appserver::Choice::Replace { pid, started } => {
+                        eprintln!("loki: app-server: a loki harness left from an earlier run (pid {pid}) — restarting it");
+                        let port = harness::LISTEN_PORT;
+                        let stopped = appserver::stop_leftover(pid, started, port, std::time::Duration::from_secs(5));
+                        if !stopped.killed { eprintln!("loki: app-server: pid {pid} was not stopped (already gone, or no longer that harness)"); }
+                        if stopped.port_free {
+                            launch(token)
+                        } else {
+                            // Never a harness that fails to bind: use the one holding the port, as loki did before.
+                            eprintln!("loki: app-server: port {port} is still held after 5 s — attaching to the harness there instead");
+                            (harness::LISTEN_URL.to_string(), token, false, None)
+                        }
+                    }
                 }
-                (harness::LISTEN_URL.to_string(), token, true, bootstrap::find_letta(&home_for_boot))
             });
             eprintln!("loki: app-server at {url} ({})", if own { "launching" } else if url == harness::LISTEN_URL { "a loki harness already running" } else { "attached" });
             // A harness that was already up loaded whatever mod it found at its start.
@@ -336,11 +416,18 @@ pub fn run() {
                     }
                 }
                 // SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the harness ourselves.
+                // Windows has no such signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there
+                // (a GUI build has no console, and its quit paths all go through the exit events below).
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    use tokio::signal::unix::{signal, SignalKind};
-                    let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
-                    tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
+                    #[cfg(unix)]
+                    {
+                        use tokio::signal::unix::{signal, SignalKind};
+                        let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
+                        tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
+                    }
+                    #[cfg(not(unix))]
+                    let Ok(()) = tokio::signal::ctrl_c().await else { return };
                     if let Some(h) = handle.try_state::<harness::Harness>() { h.stop(); }
                     handle.exit(0);
                 });
@@ -363,10 +450,18 @@ pub fn run() {
             // Mission Control and screen readers, just not drawn.
             #[cfg(target_os = "macos")]
             let window = window.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            // Windows and Linux (plan 014 KTD4): no system title bar at all; the strip draws Slack's there, with ☰ and
+            // minimise, maximise and close (Sidebar.tsx TitleStrip). The window still resizes from its edges.
+            #[cfg(not(target_os = "macos"))]
+            let window = window.decorations(false);
             window.build()?;
-            menu::listen(app.handle());
-            native::setup_tray(app.handle())?;
-            if let Err(e) = native::setup_shortcut(app.handle()) { eprintln!("loki: global shortcut unavailable: {e}"); }
+            // The menu bar, the tray and ⌥Space are the Mac's (plan 014 KTD3); elsewhere their commands are no-ops.
+            #[cfg(target_os = "macos")]
+            {
+                menu::listen(app.handle());
+                native::setup_tray(app.handle())?;
+                if let Err(e) = native::setup_shortcut(app.handle()) { eprintln!("loki: global shortcut unavailable: {e}"); }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -382,4 +477,50 @@ pub fn run() {
                 if let Some(h) = app.try_state::<harness::Harness>() { h.stop(); }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    #[test]
+    fn tokens_are_32_lowercase_hex_chars_and_fresh_each_time() {
+        let (a, b) = (new_token().unwrap(), new_token().unwrap());
+        assert_eq!(a.len(), 32, "{a}");
+        assert!(a.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)), "the mod's shape, /^[a-f0-9]{{32}}$/: {a}");
+        assert_ne!(a, b);
+    }
+
+    fn env(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<OsString> {
+        move |k| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| OsString::from(v))
+    }
+
+    #[test]
+    fn home_is_the_platforms_own_variable_and_never_slash() {
+        assert_eq!(home_from(true, env(&[("USERPROFILE", r"C:\Users\x")])), Some(PathBuf::from(r"C:\Users\x")));
+        assert_eq!(home_from(true, env(&[("USERPROFILE", r"C:\Users\x"), ("HOME", "/c/Users/x")])), Some(PathBuf::from(r"C:\Users\x")), "a Git Bash HOME does not win: os.homedir() reads USERPROFILE");
+        assert_eq!(home_from(true, env(&[("HOME", "/home/x")])), None);
+        assert_eq!(home_from(false, env(&[("HOME", "/Users/x")])), Some(PathBuf::from("/Users/x")));
+        assert_eq!(home_from(false, env(&[("USERPROFILE", r"C:\Users\x")])), None);
+        assert_eq!(home_from(false, env(&[])), None);
+        assert_eq!(home_from(false, env(&[("HOME", "")])), None, "an empty HOME is no home");
+    }
+
+    #[test]
+    fn linux_asks_for_x11_only_when_no_backend_is_chosen() {
+        assert_eq!(gdk_backend(None), Some("x11"));
+        assert_eq!(gdk_backend(Some(std::ffi::OsStr::new("wayland"))), None, "the user's own choice stands");
+        assert_eq!(gdk_backend(Some(std::ffi::OsStr::new("x11"))), None);
+    }
+
+    #[test]
+    fn the_page_is_told_its_system_in_one_of_three_words() {
+        assert_eq!(page_os("macos"), "macos");
+        assert_eq!(page_os("windows"), "windows");
+        assert_eq!(page_os("linux"), "linux");
+        assert_eq!(page_os("freebsd"), "linux");
+        let expected = if cfg!(target_os = "macos") { "macos" } else if cfg!(windows) { "windows" } else { "linux" };
+        assert!(init_script().ends_with(&format!(", os: \"{expected}\" }};")), "the script ends with the os (not printed: it carries the token)");
+    }
 }

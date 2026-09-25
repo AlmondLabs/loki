@@ -13,8 +13,17 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 pub const PREFS_FILE: &str = "shell.json";
-/// What the Settings page suggests for a `letta` run from a terminal: a sibling of loki's, never the same folder.
-pub const TERMINAL_SUGGESTION: &str = "$HOME/.letta/scratch";
+/// What the Settings page suggests for a `letta` run from a terminal: a sibling of loki's, never the same folder,
+/// in the form that terminal's shell expands (PowerShell on Windows, a POSIX shell elsewhere).
+pub fn terminal_suggestion(windows: bool) -> &'static str {
+    if windows { r"$env:USERPROFILE\.letta\scratch" } else { "$HOME/.letta/scratch" }
+}
+
+/// The whole line for that terminal's profile.
+pub fn terminal_line(windows: bool) -> String {
+    let dir = terminal_suggestion(windows);
+    if windows { format!("$env:LETTA_SCRATCHPAD = \"{dir}\"") } else { format!("export LETTA_SCRATCHPAD=\"{dir}\"") }
+}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +41,8 @@ pub struct Settings {
     pub default_path: String,
     pub is_default: bool,
     pub terminal_suggestion: String,
+    /// `terminal_suggestion` set in that shell's own syntax, ready to copy.
+    pub terminal_line: String,
 }
 
 pub fn default_dir(data: &Path) -> PathBuf {
@@ -63,7 +74,7 @@ pub fn validate(candidate: &str, home: &Path) -> Result<PathBuf, String> {
     if trimmed.is_empty() {
         return Err("empty path".into());
     }
-    let expanded = if trimmed == "~" || trimmed.starts_with("~/") { home.join(trimmed.trim_start_matches('~').trim_start_matches('/')) } else { PathBuf::from(trimmed) };
+    let expanded = match home_relative(trimmed, cfg!(windows)) { Some(rest) => home.join(rest), None => PathBuf::from(trimmed) };
     if !expanded.is_absolute() {
         return Err("the path must be absolute".into());
     }
@@ -77,6 +88,16 @@ pub fn validate(candidate: &str, home: &Path) -> Result<PathBuf, String> {
         }
     }
     Ok(expanded)
+}
+
+/// What follows `~` and its separators when `path` starts at the home (`~`, `~/…`, and on Windows `~\…` too),
+/// else None. Only on Windows is a backslash a separator; on the Mac and Linux `~\x` is a file name. A drive-letter
+/// path such as `C:\Users\x\.letta\scratch` needs nothing here: it is absolute to `Path` on Windows already.
+fn home_relative(path: &str, windows: bool) -> Option<&str> {
+    let sep = |c: char| c == '/' || (windows && c == '\\');
+    let rest = path.strip_prefix('~')?;
+    if !rest.is_empty() && !rest.starts_with(sep) { return None; }
+    Some(rest.trim_start_matches(sep))
 }
 
 /// Empty and recreate the folder (mode 0700): the logs inside belong to a process that is gone.
@@ -96,7 +117,7 @@ pub fn prepare(dir: &Path) -> Result<(), String> {
 pub fn settings(data: &Path, home: &Path) -> Settings {
     let path = effective_dir(data, home);
     let default = default_dir(data);
-    Settings { is_default: path == default, path: path.to_string_lossy().into_owned(), default_path: default.to_string_lossy().into_owned(), terminal_suggestion: TERMINAL_SUGGESTION.into() }
+    Settings { is_default: path == default, path: path.to_string_lossy().into_owned(), default_path: default.to_string_lossy().into_owned(), terminal_suggestion: terminal_suggestion(cfg!(windows)).into(), terminal_line: terminal_line(cfg!(windows)) }
 }
 
 #[cfg(test)]
@@ -131,6 +152,30 @@ mod tests {
     }
 
     #[test]
+    fn a_leading_tilde_is_the_home_with_either_separator_on_windows() {
+        assert_eq!(home_relative("~", false), Some(""));
+        assert_eq!(home_relative("~/.letta/scratch", false), Some(".letta/scratch"));
+        assert_eq!(home_relative("~\\.letta\\scratch", true), Some(".letta\\scratch"));
+        assert_eq!(home_relative("~/.letta/scratch", true), Some(".letta/scratch"));
+        assert_eq!(home_relative("~\\.letta", false), None, "a backslash is a file-name character on the Mac and Linux");
+        assert_eq!(home_relative("~someone/.letta", false), None, "another user's home is not expanded");
+        assert_eq!(home_relative("/abs/.letta", false), None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn validate_takes_drive_letter_paths_and_tilde_backslash_on_windows() {
+        let home = PathBuf::from(r"C:\Users\x");
+        assert_eq!(validate(r"C:\Users\x\.letta\scratch", &home).unwrap(), home.join(".letta").join("scratch"));
+        assert_eq!(validate(r"~\.letta\scratch", &home).unwrap(), home.join(".letta").join("scratch"));
+        assert!(validate(r"relative\path", &home).is_err());
+        assert!(validate(r"\Users\x\.letta\scratch", &home).is_err(), "no drive: not absolute on Windows");
+        assert!(validate(r"D:\elsewhere", &home).is_err());
+        assert!(validate(r"~\.letta\transcripts", &home).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn validate_keeps_the_folder_inside_the_sandbox_root_and_off_lettas_own() {
         let home = PathBuf::from("/Users/someone");
         assert_eq!(validate("~/.letta/scratch", &home).unwrap(), home.join(".letta/scratch"));
@@ -141,6 +186,14 @@ mod tests {
         assert!(validate("~/.letta/lc-local-backend/x", &home).is_err());
         assert!(validate("~/.letta/transcripts", &home).is_err());
         assert!(validate("   ", &home).is_err());
+    }
+
+    #[test]
+    fn the_terminal_line_is_each_shells_own() {
+        assert_eq!(terminal_suggestion(false), "$HOME/.letta/scratch");
+        assert_eq!(terminal_line(false), "export LETTA_SCRATCHPAD=\"$HOME/.letta/scratch\"", "the Mac's line as it was");
+        assert_eq!(terminal_suggestion(true), r"$env:USERPROFILE\.letta\scratch");
+        assert_eq!(terminal_line(true), r#"$env:LETTA_SCRATCHPAD = "$env:USERPROFILE\.letta\scratch""#, "PowerShell's form on Windows");
     }
 
     #[test]

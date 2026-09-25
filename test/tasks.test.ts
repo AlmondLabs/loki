@@ -125,8 +125,15 @@ describe("board setup", () => {
     expect(bdBinary()).toBe(process.execPath);
     delete process.env.LOKI_BD;
     process.env.PATH = "/definitely/not/here";
-    expect(bdBinary() === null || bdBinary()!.endsWith("/bd")).toBe(true);
+    expect(bdBinary() === null || /[\\/]bd(\.exe)?$/i.test(bdBinary()!)).toBe(true);
     if (prev.bd !== undefined) process.env.LOKI_BD = prev.bd;
     process.env.PATH = prev.path;
+  });
+  test("bdBinary finds bd.exe on a Windows PATH", () => {
+    const env = { Path: String.raw`C:\Windows\system32;C:\Users\someone\go\bin`, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
+    const want = String.raw`C:\Users\someone\go\bin\bd.exe`;
+    expect(bdBinary({ platform: "win32", env, exists: (p) => p === want })).toBe(want);
+    expect(bdBinary({ platform: "win32", env, exists: () => false })).toBeNull();
+    expect(bdBinary({ platform: "win32", env: { ...env, LOKI_BD: "D:\\bd.exe" }, exists: (p) => p === "D:\\bd.exe" || p === want })).toBe("D:\\bd.exe");
   });
 });

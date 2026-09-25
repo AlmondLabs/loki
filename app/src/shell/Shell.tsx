@@ -19,7 +19,8 @@ import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
 import type { Segment } from "./shortcuts";
 import { useNotice } from "./useNotice";
-import { useTray, useWindowTitle } from "./useWindowChrome";
+import { useModelList } from "./useModelList";
+import { hideCurrentWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
 import { useRecall } from "./useRecall";
@@ -126,22 +127,7 @@ export function Shell() {
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
-  // Models: fetched once from the app-server when a picker first opens; switches go per conversation.
-  // The model list belongs to one harness: it is kept with the link's identity (open, and which Letta Code), so a
-  // reconnect — an update restarting the harness — or a different version reads as no list and the next open refetches.
-  const harnessKey = `${catchUp.status === "open"}:${catchUp.server?.version ?? ""}`;
-  const [models, setModels] = useState<{ key: string; list: import("../chat/ModelPicker").ModelEntry[] } | null>(null);
-  const modelList = models && models.key === harnessKey ? models.list : null;
-  const modelsLoading = useRef<string | null>(null);
-  const loadModels = useCallback(() => {
-    if (modelList || modelsLoading.current === harnessKey) return;
-    modelsLoading.current = harnessKey;
-    void catchUp.listModels().then((m) => {
-      setModels({ key: harnessKey, list: m });
-      if (modelsLoading.current === harnessKey) modelsLoading.current = null;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelList, harnessKey]);
+  const { list: modelList, load: loadModels, forget: forgetModels } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels });
   const boot = useBootstrap();
   const welcome = welcomeFor(boot.status, catchUp);
   useEffect(() => {
@@ -170,10 +156,14 @@ export function Shell() {
   /** A request another view wants typed into the chat ("ask ira to update this"). */
   const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
 
+  // Stable for the keymap and the rail, and always the current link's: desk.desks is a fresh object each render.
+  const desksRef = useRef(desk.desks);
+  useEffect(() => {
+    desksRef.current = desk.desks;
+  });
   const openSearch = useCallback(() => {
-    desk.desks.request(); // the freshest desk titles to search
+    desksRef.current.request(); // the freshest desk titles to search
     setSearchOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /**
    * Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, search, a new desk): its Messages tab with the box focused.
@@ -303,7 +293,7 @@ export function Shell() {
         if (column.has && !immersive) column.toggle();
       },
       "window.hide": () => {
-        if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().hide()).catch((e) => console.warn("loki: hide", e));
+        if (inTauri) hideCurrentWindow();
       },
       "chat.toggle": () => chatKey("chat.toggle", () => setChatOpen((v) => !v)),
       "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),
@@ -324,7 +314,6 @@ export function Shell() {
     setSegment("desk");
     setFocusChat((n) => n + 1);
   };
-  const forgetModels = () => setModels(null);
 
   /** A search result: its section, and for a desk or a waiting item the desk on Messages (searchModel.ts SearchTarget). */
   const searchSources = useMemo(() => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items }), [desk.desks.list, catchUp.agents, catchUp.items]);

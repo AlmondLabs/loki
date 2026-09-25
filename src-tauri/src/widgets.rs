@@ -17,15 +17,16 @@ const SHARED: &[&str] = &["react", "react/jsx-runtime", "react-dom", "recharts",
 
 pub fn widgets_dir() -> PathBuf {
     if let Some(p) = std::env::var_os("LOKI_WIDGETS_DIR") { return PathBuf::from(p); }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
-    home.join(".letta").join("loki").join("widgets")
+    crate::home_dir().join(".letta").join("loki").join("widgets")
 }
 
 /// Map a request path like `/widgets/<desk>/<name>.js` to the source file on disk.
 pub fn source_for(request_path: &str, root: &Path) -> Option<PathBuf> {
     let rel = request_path.strip_prefix("/widgets/")?;
     let rel = percent_encoding::percent_decode_str(rel).decode_utf8().ok()?;
-    if rel.contains("..") || rel.starts_with('/') { return None; }
+    // No way out of the root: `..`, a leading `/`, and on Windows a drive (`C:`) or a backslash, either of which
+    // makes `root.join` replace the root rather than extend it.
+    if rel.contains("..") || rel.starts_with('/') || (cfg!(windows) && (rel.contains(':') || rel.contains('\\'))) { return None; }
     let stem = rel.strip_suffix(".js")?;
     for ext in ["tsx", "jsx"] {
         let p = root.join(format!("{stem}.{ext}"));

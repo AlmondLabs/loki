@@ -8,7 +8,6 @@ import type { TranscriptRow } from "../chat/Transcript";
 import { Conversation, Thread } from "../chat/Conversation";
 import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
-import { COMPOSER_ICONS } from "./Conversation";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, RowSection } from "./rows";
@@ -587,7 +586,6 @@ function CardConversation({ item, view, banner, card, onHold }: { item: Attentio
     <Conversation
       touch
       dim={false}
-      attach
       view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question }}
       actions={{
         onSend: (text, images = []) => card.onSend(item, text, images),
@@ -604,7 +602,6 @@ function CardConversation({ item, view, banner, card, onHold }: { item: Attentio
       notice={notice}
       placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
       draft={{ value: draft, onChange: setDraft }}
-      icons={COMPOSER_ICONS}
       onSent={onHold}
     />
   );

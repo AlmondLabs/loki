@@ -10,7 +10,11 @@ import { appDistCandidates } from "./paths.ts";
  * script that tells main.tsx it is in LAN mode. Without a dist there is nothing to serve
  * and `/` says so.
  */
-export const LAN_BOOT_SCRIPT = "<script>window.__LOKI__={lan:true}</script>";
+
+/** The host in the page's words (`__LOKI__.os`, read as `platform` in app/src/desk/env.ts), as the shell names it too. */
+export function hostOs(p: NodeJS.Platform | string = process.platform): "macos" | "windows" | "linux" {
+  return p === "darwin" ? "macos" : p === "win32" ? "windows" : "linux";
+}
 
 /**
  * The build id of a dist: a short hash of its index.html, which Vite rewrites with new asset names on
@@ -35,9 +39,12 @@ export function jsonForScript(value: unknown): string {
   return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
 }
 
-/** The boot script with the build stamped in. */
-export function bootScript(build: string | null): string {
-  return build ? `<script>window.__LOKI__={lan:true,build:${jsonForScript(build)}}</script>` : LAN_BOOT_SCRIPT;
+/**
+ * The boot script: LAN mode, the build stamped in, and the system loki runs on, so a page opened from a phone or
+ * another computer names this machine rather than its own (its keys stay its own: env.ts `keyboard`).
+ */
+export function bootScript(build: string | null, os: string = hostOs()): string {
+  return `<script>window.__LOKI__={lan:true,${build ? `build:${jsonForScript(build)},` : ""}os:${jsonForScript(os)}}</script>`;
 }
 
 const TYPES: Record<string, string> = {

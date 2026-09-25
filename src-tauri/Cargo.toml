@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["image-png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "process", "fs", "signal"] }
@@ -28,5 +28,32 @@ oxc_semantic = "0.148"
 oxc_transformer = "0.148"
 oxc_codegen = "0.148"
 percent-encoding = "2"
-tauri-plugin-global-shortcut = "2"
+# The capability token's bytes, from the OS random source on every system (lib.rs `new_token`).
+getrandom = "0.3"
 tauri-plugin-opener = "2"
+# The system's own folder dialog for a new desk, on every OS (plan 014 KTD9).
+tauri-plugin-dialog = "2"
+# The harness lookup (appserver.rs `os`): process command lines and start times, and listening ports by pid. Windows
+# and Linux discover everything with them; the Mac finds Desktop and user servers with `lsof` and `/bin/ps` and uses
+# these only for loki's own leftover harness, which it stops by pid and start time.
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+listeners = "0.6"
+
+# macOS only: the menu-bar item and dock badge (native.rs) and the global ⌥Space shortcut. Kept off Linux, whose
+# tray would need an appindicator library, and off Windows until those extras exist there (plan 014 KTD3).
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+
+# Windows only: the harness's Job Object (harness.rs) and no console window for npm and letta (bootstrap.rs `quiet`).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+# Windows and Linux: one loki per user — a second launch brings the running window forward instead of starting a
+# second shell and harness on the same port (plan 014 KTD7). The Mac's app bundle already does this.
+[target.'cfg(any(windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+# Linux only: PR_SET_PDEATHSIG, so the harness dies with loki (harness.rs `die_with_loki`).
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"

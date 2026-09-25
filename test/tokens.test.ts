@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 
 /**
  * The design tokens are a contract: inline styles pick from the scales in app/src/kit/tokens.css
@@ -21,7 +22,8 @@ function walk(dir: string, keep: (name: string) => boolean): string[] {
   }
   return out;
 }
-const read = (p: string) => ({ path: p.slice(APP.length + 1), text: readFileSync(p, "utf8") });
+// paths as "kit/tokens.css" on every system: the filters below name them with "/", and Windows joins with "\\"
+const read = (p: string) => ({ path: p.slice(APP.length + 1).replaceAll("\\", "/"), text: readFileSync(p, "utf8") });
 const files = walk(APP, (n) => /\.(tsx|ts|css)$/.test(n) && !n.endsWith(".d.ts")).map(read);
 const code = files.filter((f) => !f.path.endsWith(".css"));
 const css = files.filter((f) => f.path.endsWith(".css"));
@@ -220,9 +222,25 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
     expect(label).toMatch(/font-weight:\s*600/);
     expect(label).toMatch(/color:\s*var\(--loki-muted\)/);
   });
-  test("focus is a 2px ring in the accent blue, never a hairline", () => {
-    expect(tokens).toMatch(/:focus-visible[^{]*\{[^}]*outline: 2px solid var\(--loki-accent\)/);
+  test("focus flashes: a 2px accent ring that fades in a second, to a muted ring on controls and to nothing on text fields", () => {
+    // the flash is the ring's colour animating from the accent; what it settles to is the rule's own outline
+    expect(tokens).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
+    const control = tokens.match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(control).toMatch(/outline: 2px solid var\(--loki-muted\)/);
+    expect(control).toMatch(/animation: loki-focus-flash 1s ease-out/);
+    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(field).toMatch(/outline: 2px solid transparent/);
     expect(tokens).not.toMatch(/outline: 1px solid/);
+  });
+  test("text fields never blink: the caret shows focus; the flash is for controls only", () => {
+    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(field).toMatch(/animation: none/);
+    const phone = readFileSync(join(import.meta.dir, "..", "app", "src", "phone", "phone.css"), "utf8");
+    const chat = readFileSync(join(import.meta.dir, "..", "app", "src", "chat", "chat.css"), "utf8");
+    for (const [css, sel] of [[phone, ".loki-phone :is(input, textarea):focus-visible"], [phone, ".loki-phone-search-field:focus-within"], [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"]] as const) {
+      const rule = css.slice(css.indexOf(sel)).match(/\{([^}]*)\}/)?.[1] ?? "";
+      expect(rule, sel).toMatch(/animation: none/);
+    }
   });
   test("radius roles are named on :root: sm 6 · md 8 · lg 12 · pill 999", () => {
     const radius = (name: string) => Number(root.match(new RegExp(`--loki-radius-${name}:\\s*([\\d.]+)px`))?.[1]);
@@ -387,8 +405,46 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     expect(phone).toContain("100svh");
     expect(phone).toContain("100dvh");
     expect(phone).toMatch(/\.loki-phone [^{]*:focus-visible[^{]*\{[^}]*outline: 2px solid/);
-    // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring
-    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; \}/);
+    // the phone flashes in its own link colour, through the same keyframes
+    expect(phone).toMatch(/--loki-focus-flash: var\(--phone-focus\)/);
+    // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring and no flash
+    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
+    // an animation beats a plain declaration, so every ring turned off must stop the flash too
+    const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
+    expect(off.filter((b) => !/animation: none/.test(b))).toEqual([]);
     expect(phone).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
+  });
+});
+
+/**
+ * Keys read per system (plan 014 U2, KTD2): shortcut text comes from the keymap, so a Mac symbol in any string
+ * the app shows would read wrong on Windows and Linux. The scan reads every string, template and JSX text under
+ * app/src (comments are not strings), less the keymap's own symbol table.
+ */
+describe("keys come from the keymap: no Mac key symbol in a string outside its symbol table", () => {
+  const MAC_KEYS = /[⌘⌥⇧⌃⌫↵⏎⇥]/;
+  /** The one table the symbols live in: keymap.ts's MAC_SYMBOL. */
+  const TABLE = { file: "shell/keymap.ts", name: "MAC_SYMBOL" };
+  const strings = (path: string, text: string): string[] => {
+    const src = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const out: string[] = [];
+    const visit = (n: ts.Node, inTable: boolean) => {
+      const table = inTable || (path === TABLE.file && ts.isVariableDeclaration(n) && n.name.getText(src) === TABLE.name);
+      if (!table && (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && MAC_KEYS.test(n.text)) {
+        out.push(`${path}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}: ${n.text.trim()}`);
+      }
+      ts.forEachChild(n, (c) => visit(c, table));
+    };
+    visit(src, false);
+    return out;
+  };
+  test("the scan sees strings, templates and JSX text, and skips comments and the table", () => {
+    const sample = ['// ⌘K in a comment', '/** ⌘K */', 'const MAC_SYMBOL = { cmd: "⌘" };', 'const a = "⌘K";', "const b = `x ${a} ⌥`;", "const c = <b title=\"⇧\">↵ send</b>;"].join("\n");
+    expect(strings("x.tsx", sample).map((s) => s.split(": ")[1])).toEqual(["⌘", "⌘K", "⌥", "⇧", "↵ send"]);
+    expect(strings(TABLE.file, 'const MAC_SYMBOL = { cmd: "⌘" };')).toEqual([]);
+  });
+  test("every shortcut a user reads is formatted by the keymap", () => {
+    const hits = code.flatMap((f) => strings(f.path, f.text));
+    expect(hits).toEqual([]);
   });
 });

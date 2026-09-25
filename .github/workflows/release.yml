@@ -1,8 +1,12 @@
 # Releases, two channels, from every push to main (docs/RELEASING.md; scripts/release.ts does the deciding):
 #   nightly  every merge builds the app and replaces the rolling `nightly` prerelease and the loki-nightly cask
 #   stable   merging the release PR (branch release/next) tags vYYYY.M.D, publishes the release and pushes the loki cask
+#   preview  merging the preview PR (branch release/preview) builds Windows and Linux from the newest stable's tag and
+#            attaches them to that release; no nightly, no cask
 # The release PR itself is created by the first merge after a stable and rebuilt by every merge after that, and at
 # midnight UTC so its number is today's date. Signing is optional (the Apple secrets); TAP_TOKEN pushes the casks.
+# The preview PR is open whenever the newest stable's release lacks its Windows and Linux files. Those are unsigned
+# previews (plan 014 R12) and only ever on a stable: nightlies and the release PR are the Mac's alone.
 name: release
 on:
   push:
@@ -54,6 +58,30 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bun scripts/release.ts release-pr "${{ needs.plan.outputs.next }}"
+
+  # The preview PR, whenever the newest stable's release lacks its Windows and Linux files; closed once it has them.
+  # It waits for the Mac's build so a stable's run finds the release it just published.
+  preview-pr:
+    name: the preview PR
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success' && needs.plan.outputs.kind != 'preview'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: preview-pr
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: oven-sh/setup-bun@v2
+      - env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bun scripts/release.ts preview-pr
 
   build:
     name: build and publish (${{ needs.plan.outputs.kind }} ${{ needs.plan.outputs.version }})
@@ -147,3 +175,106 @@ jobs:
           if git diff --cached --quiet; then echo "tap already at $VERSION"; exit 0; fi
           git commit --quiet -m "loki ${KIND} ${VERSION}"
           git push --quiet origin main
+
+  # Windows: the NSIS installer, loki_<version>_x64-setup.exe, of a stable only. Its version is the tag's own, so it
+  # stamps nothing new; the step stays so the files always match the release they go on.
+  windows:
+    name: Windows preview (v${{ needs.plan.outputs.version }})
+    needs: plan
+    if: needs.plan.outputs.kind == 'preview'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      # the stable's own code, not main's: the files carry exactly what the .dmg of that tag does
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.plan.outputs.version }}
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: bun install --frozen-lockfile
+      - name: stamp the version
+        run: bun scripts/release.ts set "$VERSION"
+      - name: build the installer
+        run: bun run tauri build --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: src-tauri/target/release/bundle/nsis/loki_*_x64-setup.exe
+          if-no-files-found: error
+
+  # Linux: loki_<version>_amd64.AppImage and loki_<version>_amd64.deb, built on the oldest supported Ubuntu so they
+  # run on newer glibc too (KTD11). The apt list is ci.yml's: the 22.04 names, no appindicator (the tray is Mac-only).
+  linux:
+    name: Linux preview (v${{ needs.plan.outputs.version }})
+    needs: plan
+    if: needs.plan.outputs.kind == 'preview'
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      # the stable's own code, not main's: the files carry exactly what the .dmg of that tag does
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.plan.outputs.version }}
+      - name: linux build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
+            build-essential curl wget file patchelf
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: bun install --frozen-lockfile
+      - name: stamp the version
+        run: bun scripts/release.ts set "$VERSION"
+      - name: build the AppImage and .deb
+        run: bun run tauri build --bundles appimage,deb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            src-tauri/target/release/bundle/appimage/loki_*_amd64.AppImage
+            src-tauri/target/release/bundle/deb/loki_*_amd64.deb
+          if-no-files-found: error
+
+  attach:
+    name: attach the preview (v${{ needs.plan.outputs.version }})
+    # Whatever built goes on: one system failing leaves only its files off, with a warning; re-run its job to add them.
+    needs: [plan, windows, linux]
+    if: always() && needs.plan.outputs.kind == 'preview' && (needs.windows.result == 'success' || needs.linux.result == 'success')
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: note a preview leg that did not build
+        env:
+          WINDOWS: ${{ needs.windows.result }}
+          LINUX: ${{ needs.linux.result }}
+        run: |
+          [ "$WINDOWS" = success ] || echo "::warning title=Windows files not attached::the Windows build was $WINDOWS; re-run it to add them to v$VERSION"
+          [ "$LINUX" = success ] || echo "::warning title=Linux files not attached::the Linux build was $LINUX; re-run it to add them to v$VERSION"
+      - name: attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # every file, wherever the artifact put it: the Linux one keeps appimage/ and deb/ folders
+          mapfile -t FILES < <(find dist -type f | sort)
+          printf '%s\n' "${FILES[@]}"
+          bun scripts/release.ts attach "v$VERSION" "${FILES[@]}"

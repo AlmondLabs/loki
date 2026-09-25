@@ -189,6 +189,7 @@ describe("bridge: the later ladder", () => {
       bridge.onMessage(c, { type: "snooze_ladder", growth: 0 });
       expect(broadcasts.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5, growth: 1 } });
       expect(seen.ladder()).toEqual({ firstMinutes: 5, growth: 1 });
+      seen.flush(); // the write is coalesced; land it before the folder goes
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -215,6 +216,39 @@ describe("bridge: viewed", () => {
       bridge.onMessage(c, { type: "seen_list" });
       expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
+      seen.flush();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("bridge: a mark that changes nothing", () => {
+  test("neither writes nor broadcasts; a ladder already in force answers the sender alone", async () => {
+    const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { SeenStore } = await import("../mod/seen.ts");
+    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
+    try {
+      const path = join(dir, "attention.json");
+      const seen = new SeenStore(path, { now: () => "2026-09-25T10:00:00.000Z" });
+      const broadcasts: Array<Record<string, unknown>> = [];
+      const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
+      const c = client("c1");
+      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
+      bridge.onMessage(c, { type: "snooze_ladder", firstMinutes: 5 });
+      expect(broadcasts.length).toBe(2);
+      seen.flush();
+      writeFileSync(path, "untouched");
+      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" }); // the same instant: the same look
+      bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" }); // not done already
+      bridge.onMessage(c, { type: "snooze_clear", agentId: "a", conversationId: "x" }); // nothing deferred
+      bridge.onMessage(c, { type: "snooze_ladder", firstMinutes: 5 });
+      expect(broadcasts.length).toBe(2);
+      expect(c.sent.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5 } }); // so the sender's knob snaps back to what is kept
+      seen.flush();
+      expect(readFileSync(path, "utf8")).toBe("untouched");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

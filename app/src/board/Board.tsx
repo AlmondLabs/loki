@@ -4,7 +4,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { Button, Chip, Field, ListIcon, ListRow, ListSection } from "../components";
 import { PRIORITY_LABEL, ago, boardViews, columnOf, filterTasks, missingAgentLine, resolveBoardView, stepCursor, viewColumns, type BoardView, type Column, type ColumnId, type Dir, type Task } from "./model";
 import { useBoardView } from "./useBoardView";
-import { registerActions, typingIn } from "../shell/keymap";
+import { keyFor, registerActions, typingIn } from "../shell/keymap";
 
 /**
  * The board: four columns of tasks for later, or one of them, or one agent's tasks as a single list — the
@@ -232,7 +232,7 @@ export function Board({
         </span>
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
-        <Button size="md" tone="brass" kbd="⌘T" onClick={onNew} title="file a task yourself (⌘T)">
+        <Button size="md" tone="brass" kbd={keyFor("task.new")} onClick={onNew} title={`file a task yourself (${keyFor("task.new")})`}>
           + task
         </Button>
       </div>
@@ -279,13 +279,13 @@ export function Board({
         {sel.length > 0 ? (
           <>
             <span style={{ color: "var(--loki-fg)" }}>{sel.length} selected</span>
-            <Button size="sm" tone="paper" kbd="↵" onClick={() => onAssign(sel, false)}>assign to a desk</Button>
-            <Button size="sm" tone="positive" kbd="⌘↵" onClick={() => onAssign(sel, true)}>dispatch now</Button>
-            <Button size="sm" tone="paper" kbd="⌫" onClick={() => onClose(sel)}>done</Button>
-            <Button size="sm" kbd="esc" onClick={() => setSelected(new Set())}>clear</Button>
+            <Button size="sm" tone="paper" kbd={keyFor("board.assign")} onClick={() => onAssign(sel, false)}>assign to a desk</Button>
+            <Button size="sm" tone="positive" kbd={keyFor("board.dispatch")} onClick={() => onAssign(sel, true)}>dispatch now</Button>
+            <Button size="sm" tone="paper" kbd={keyFor("board.done")} onClick={() => onClose(sel)}>done</Button>
+            <Button size="sm" kbd={keyFor("board.clear")} onClick={() => setSelected(new Set())}>clear</Button>
           </>
         ) : (
-          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>↑↓←→ move · X select · ⇧X range · ↵ assign · ⌘↵ dispatch · ⌫ done · ⇧⌫ blocked · ⌘T new · ⌘R refresh · / filter</span>
+          <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>{BOARD_KEYS}</span>
         )}
       </div>
     </div>
@@ -312,13 +312,27 @@ function MissingAgent({ agent, tasks, onPick }: { agent: string; tasks: Task[]; 
 }
 
 /** What an empty column says for itself. */
+/** The board's key legend, read from the keymap. */
+const BOARD_KEYS = [
+  "↑↓←→ move",
+  `${keyFor("board.select")} select`,
+  `${keyFor("board.selectRange")} range`,
+  `${keyFor("board.assign")} assign`,
+  `${keyFor("board.dispatch")} dispatch`,
+  `${keyFor("board.done")} done`,
+  `${keyFor("board.blocked")} blocked`,
+  `${keyFor("task.new")} new`,
+  `${keyFor("board.refresh")} refresh`,
+  `${keyFor("board.filter")} filter`,
+].join(" · ");
+
 function emptyLine(col: Column, query: string): string {
   if (query.trim()) return "no matches";
   switch (col.id) {
     case "agent":
       return `nothing on the board for ${col.label}`;
     case "open":
-      return "nothing waiting — ask an agent to park something, or press ⌘T";
+      return `nothing waiting — ask an agent to park something, or press ${keyFor("task.new")}`;
     case "in_progress":
       return "nothing in progress";
     case "blocked":

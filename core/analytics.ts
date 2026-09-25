@@ -7,9 +7,9 @@
  * mod/bridge.ts and the app decide when, scripts/analytics.ts turns the file into a report.
  */
 
-/** Where it happened: the Mac window, a paired phone, or the mod itself (turns and tools, whichever client began them). */
-export type DeviceType = "mac" | "phone" | "mod";
-export const DEVICE_TYPES: readonly DeviceType[] = ["mac", "phone", "mod"];
+/** Where it happened: the desktop window (on a Mac, Windows or Linux), a paired phone, or the mod itself (turns and tools, whichever client began them). */
+export type DeviceType = "mac" | "windows" | "linux" | "phone" | "mod";
+export const DEVICE_TYPES: readonly DeviceType[] = ["mac", "windows", "linux", "phone", "mod"];
 
 export interface EventProperties {
   $device_type: DeviceType;
@@ -112,6 +112,8 @@ export interface EventRow {
   /** Distinct sessions the event fired in. */
   sessions: number;
   mac: number;
+  windows: number;
+  linux: number;
   phone: number;
   mod: number;
 }
@@ -162,7 +164,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     const p = e.properties;
     const t = Date.parse(e.timestamp);
     const when = new Date(t);
-    const row = rows.get(e.event) ?? { event: e.event, count: 0, sessions: 0, mac: 0, phone: 0, mod: 0 };
+    const row = rows.get(e.event) ?? { event: e.event, count: 0, sessions: 0, mac: 0, windows: 0, linux: 0, phone: 0, mod: 0 };
     row.count++;
     row[p.$device_type]++;
     rows.set(e.event, row);
@@ -192,7 +194,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   }
   inbox.perPass = median(perPass);
   for (const row of rows.values()) row.sessions = eventSessions.get(row.event)?.size ?? 0;
-  const byDevice: Record<DeviceType, number> = { mac: 0, phone: 0, mod: 0 };
+  const byDevice: Record<DeviceType, number> = { mac: 0, windows: 0, linux: 0, phone: 0, mod: 0 };
   for (const s of sessionSpan.values()) byDevice[s.device]++;
   const stamps = events.map((e) => Date.parse(e.timestamp));
   return {
@@ -229,10 +231,12 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
   out.push(`analytics · last ${w.days} days${w.from ? ` · ${w.from.slice(0, 10)} → ${w.to!.slice(0, 10)}` : ""} · ${w.events} events on ${w.activeDays} active day${w.activeDays === 1 ? "" : "s"}`);
   if (!w.events) return out.join("\n");
   const s = r.sessions;
-  out.push(`  sessions ${s.count} (mac ${s.byDevice.mac} · phone ${s.byDevice.phone} · mod ${s.byDevice.mod}) · median ${s.medianMinutes === null ? "–" : `${Math.round(s.medianMinutes)} min`} · ${s.perActiveDay ?? "–"} an active day`);
+  // Windows and Linux get their words and columns once they have events; a Mac-only log reads as it always has.
+  const devices = DEVICE_TYPES.filter((d) => (d !== "windows" && d !== "linux") || r.events.some((e) => e[d] > 0));
+  out.push(`  sessions ${s.count} (${devices.map((d) => `${d} ${s.byDevice[d]}`).join(" · ")}) · median ${s.medianMinutes === null ? "–" : `${Math.round(s.medianMinutes)} min`} · ${s.perActiveDay ?? "–"} an active day`);
   const width = Math.max(12, ...r.events.map((e) => e.event.length));
-  out.push("", `${"event".padEnd(width + 2)} ${"count".padStart(6)} ${"sessions".padStart(8)} ${"mac".padStart(6)} ${"phone".padStart(6)} ${"mod".padStart(6)}`);
-  for (const e of r.events) out.push(`  ${e.event.padEnd(width)} ${cell(e.count)} ${cell(e.sessions, 8)} ${cell(e.mac)} ${cell(e.phone)} ${cell(e.mod)}`);
+  out.push("", `${"event".padEnd(width + 2)} ${"count".padStart(6)} ${"sessions".padStart(8)} ${devices.map((d) => d.padStart(Math.max(6, d.length))).join(" ")}`);
+  for (const e of r.events) out.push(`  ${e.event.padEnd(width)} ${cell(e.count)} ${cell(e.sessions, 8)} ${devices.map((d) => cell(e[d], Math.max(6, d.length))).join(" ")}`);
   if (r.breakdowns.length) {
     out.push("", "breakdowns");
     const bw = Math.max(...r.breakdowns.map((b) => b.event.length + b.property.length + 3));

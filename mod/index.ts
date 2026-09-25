@@ -52,6 +52,15 @@ import { reasoningEffortFromSettings } from "../core/models.ts";
  * shim that dynamic-imports mod/index.ts with a cache-busting query.
  */
 
+/**
+ * The address loki's own harness is told (src-tauri/src/harness.rs). Taken once and removed from the environment,
+ * so the agents' shells and any `letta` or loki they start never inherit it as theirs; kept on globalThis so a
+ * reload of this mod inside the same harness still has it.
+ */
+const own = globalThis as { __lokiOwnAppServerUrl?: string };
+own.__lokiOwnAppServerUrl ??= process.env.LOKI_OWN_APP_SERVER_URL;
+delete process.env.LOKI_OWN_APP_SERVER_URL;
+
 function loadOrCreateToken(): string {
   try {
     const existing = readFileSync(paths.token, "utf8").trim();
@@ -143,7 +152,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
   let discovering: Promise<void> | null = null;
   const discover = (): Promise<void> => {
     if (appServerUrl) return Promise.resolve();
-    discovering ??= discoverAppServer({ exclude: [modPort], explicitUrl: process.env.LOKI_APP_SERVER_URL })
+    discovering ??= discoverAppServer({ exclude: [modPort], explicitUrl: process.env.LOKI_APP_SERVER_URL ?? own.__lokiOwnAppServerUrl })
       .then((url) => {
         if (!url) {
           log("app-server:not-found");
@@ -485,6 +494,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     clearInterval(tasksTimer);
     clearTimeout(recallFirst);
     if (recallTimer) clearInterval(recallTimer);
+    seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
   };
   letta.signal?.addEventListener("abort", shutdown, { once: true });
 

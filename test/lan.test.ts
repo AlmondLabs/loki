@@ -513,7 +513,7 @@ describe("LAN listener", () => {
 
       const index = await fetch(`${base(withApp.lan)}/inbox?code=${code}`);
       expect(index.status).toBe(200);
-      expect(await index.text()).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}"\}<\/script><\/head>/);
+      expect(await index.text()).toMatch(/<script>window\.__LOKI__=\{lan:true,build:"[a-f0-9]{12}",os:"(macos|windows|linux)"\}<\/script><\/head>/);
       expect(await (await fetch(`${base(withApp.lan)}/assets/a.js`)).text()).toBe("1");
       expect((await fetch(`${base(noApp.lan)}/`)).status).toBe(503);
 

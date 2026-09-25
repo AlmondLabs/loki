@@ -14,6 +14,15 @@ bun run dev            # Vite alone, for a browser tab
 bun run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
 
+**Windows and Linux** (the preview builds): Bun and Rust as above; in place of Xcode's tools, Windows needs the
+Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
+Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in
+`.github/workflows/ci.yml`. On Windows run the commands from Git Bash, as CI does; `~` is `%USERPROFILE%`.
+`.gitattributes` keeps every checkout LF, so the tests that read source files pass there. The test in
+`test/agents.test.ts` that makes file symlinks needs Developer Mode or an administrator shell on Windows (CI's
+runner is one). `bun run tauri build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
+release's files.
+
 For the mod, point Letta at your checkout instead of the installed copy: write the shim from the manual's
 "Install (development)" section (`docs/manual.md`) to `~/.letta/mods/loki.ts`. A shim that does not start with the managed
 marker is never overwritten by the app.
@@ -24,12 +33,14 @@ marker is never overwritten by the app.
 bun test                                          # mod, shared, app logic, design tokens
 bun run typecheck
 bun run lint
-bun run build:app && bun run build:mod            # the canvas build and the mod bundle
+bun run build:app && bun run build:mod            # the canvas build and the mod bundle (cargo test needs both)
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
 bun run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
-CI runs all of these but the doctor. `test/tokens.test.ts` fails when an inline style leaves the design scales in
+CI runs all of these but the doctor, on macOS 14, Ubuntu 22.04 and Windows (`.github/workflows/ci.yml`), each
+system as its own leg; a change to the shell or the mod that works on the Mac should be read for the other two,
+since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
 
 ## Where things are
@@ -41,7 +52,7 @@ CI runs all of these but the doctor. `test/tokens.test.ts` fails when an inline 
   phone, `app/src/shared/` what both use, `app/src/components/` the chrome primitives
   ([architecture](architecture.md#where-the-code-lives) has the full map). Every desktop shortcut lives in
   `app/src/shell/keymap.ts`.
-- `src-tauri/` the shell: finding or installing Letta Code, attaching to or launching the harness, the app-server link, widget transpiling, the install step.
+- `src-tauri/` the shell: finding or installing Letta Code, attaching to or launching the harness, the app-server link, widget transpiling, the install step. Mac-only parts (tray, badge, global key, menu bar) are behind `cfg(target_os = "macos")`; the Windows and Linux harness lookup sits beside the Mac's in `appserver.rs`.
 - `skills/loki/SKILL.md` what the agent reads; keep it in step with `mod/tools.ts`.
 - `docs/plans/` design history, dated. New behaviour gets a short plan there first.
 

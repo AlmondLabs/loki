@@ -60,7 +60,9 @@ describe("live rows are stamped on arrival", () => {
 });
 
 describe("day pills", () => {
-  const tz = process.env.TZ;
+  // Restored to the zone itself: with TZ unset, assigning the undefined back left Los Angeles in place, and the
+  // later suites that build "today" and "yesterday" in the machine's zone failed whenever the two disagreed on the day.
+  const tz = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   afterEach(() => {
     process.env.TZ = tz;
   });
