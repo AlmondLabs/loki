@@ -184,6 +184,8 @@ html:has(.loki-phone-shell) {
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
+  /* clip, where supported: hidden still lets focus scroll the shell (a sheet's row below the screen as it rises). */
+  overflow: clip;
 }
 @supports (height: 100svh) {
   .loki-phone-shell { height: 100svh; }

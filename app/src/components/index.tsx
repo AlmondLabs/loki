@@ -193,11 +193,13 @@ export function Sheet({ label, onClose, width = 560, height, top, placement = "t
     const card = cardRef.current;
     if (card && !card.contains(document.activeElement)) {
       const first = card.querySelector<HTMLElement>("[autofocus]") ?? card.querySelector<HTMLElement>(FOCUSABLE);
-      (first ?? card).focus();
+      // Without preventScroll the browser scrolls the rising sheet's first row into view: on the phone that
+      // scrolled the whole shell up under the sheet and back, so the sheet seemed to open twice.
+      (first ?? card).focus({ preventScroll: true });
     }
     return () => {
       const el = opener.current;
-      if (el instanceof HTMLElement && document.contains(el)) el.focus();
+      if (el instanceof HTMLElement && document.contains(el)) el.focus({ preventScroll: true });
     };
   }, []);
   const sheet = (
