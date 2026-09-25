@@ -1295,6 +1295,9 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-learn-grade { font-size: var(--phone-text-emph); }
 .loki-phone-learn-gap { font-size: var(--phone-text-meta); font-weight: 400; opacity: 0.85; font-variant-numeric: tabular-nums; }
 .loki-phone-learn-foot { display: flex; justify-content: space-between; gap: var(--phone-space-2); flex-wrap: wrap; }
+.loki-phone-lead-start.loki-btn { justify-content: center; }
+/* A lead's moment, quoted where it came up. */
+.loki-phone-lead-why { margin: 0; font-size: var(--phone-text-body); font-style: italic; line-height: var(--phone-leading); color: var(--loki-muted); overflow-wrap: anywhere; }
 
 /* ---- Pairing (Pair.tsx) ----------------------------------------------------------------------------- */
 .loki-phone-pair { justify-content: center; padding: calc(var(--phone-space-6) + var(--phone-safe-top)) calc(var(--phone-space-6) + var(--phone-safe-right)) calc(var(--phone-space-6) + var(--phone-safe-bottom)) calc(var(--phone-space-6) + var(--phone-safe-left)); overflow-y: auto; }

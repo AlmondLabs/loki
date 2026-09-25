@@ -26,6 +26,13 @@ export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
 }
 
 /**
+ * The mod's replies to a request (they carry its requestId): each resolves the waiting `request()` and does
+ * nothing else. A reply missing here is never resolved, and its request times out as if the mod were silent
+ * (test/desk-socket.test.ts checks this list against the replies mod/bridge.ts sends).
+ */
+export const REPLY_FRAMES: ReadonlySet<string> = new Set(["agent", "memory_file", "memory_commits", "memory_diff", "reflection_state", "agent_error", "tasks", "task_created", "tasks_updated", "task_error", "history", "folders", "folder_matches", "folder_status", "folder_picked", "skills_global", "skill_installed", "skill_refreshed", "inbox", "recall", "recall_card", "recall_ran", "recall_export", "recall_lesson", "recall_error"]);
+
+/**
  * The WebSocket to the mod and everything its frames feed: which desk this tab shows, the manifests
  * and geometry per scope, the desk list, titles and agents, the seen/snooze maps, the LAN listener's
  * status. Reconnects with backoff, and re-opens on the new desk when `switchDesk` changes the scope.
@@ -110,6 +117,15 @@ export function useDeskSocket() {
       };
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data as string) as Record<string, unknown> & { type: string };
+        // A reply to a request (a request/reply exchange, by requestId): it goes to whoever asked, nowhere else.
+        if (REPLY_FRAMES.has(String(msg.type))) {
+          const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
+          if (w) {
+            waiters.current.delete(msg.requestId as string);
+            w(msg);
+          }
+          return;
+        }
         switch (msg.type) {
           case "desk": {
             const s = msg.scope as Scope;
@@ -182,37 +198,6 @@ export function useDeskSocket() {
             // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
             const entry = parseWidgetEntry(msg.entry);
             if (entry) setWidgetLogs((s) => withEntry(s, entry));
-            break;
-          }
-          case "agent":
-          case "memory_file":
-          case "memory_commits":
-          case "memory_diff":
-          case "reflection_state":
-          case "agent_error":
-          case "tasks":
-          case "task_created":
-          case "tasks_updated":
-          case "task_error":
-          case "history":
-          case "folders":
-          case "folder_matches":
-          case "folder_status":
-          case "folder_picked":
-          case "skills_global":
-          case "skill_installed":
-          case "skill_refreshed":
-          case "inbox":
-          case "recall":
-          case "recall_card":
-          case "recall_ran":
-          case "recall_export":
-          case "recall_error": {
-            const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
-            if (w) {
-              waiters.current.delete(msg.requestId as string);
-              w(msg);
-            }
             break;
           }
           case "seen":

@@ -261,6 +261,10 @@ box is one for both, its sizes set by `touch`.
   link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
   row) always have a visible button that does the same.
+- **Learn.** As the desktop's column lists it: Learn opens on its lists — Review, Leads, Lessons under way,
+  Deleted — each its own page (`#/learn/<page>`), so the deck and the leads never share a screen. A lead is a
+  card of its own: where it came up, its title, the moment quoted, Start the lesson (the conversation opens and
+  the brief goes out as your first message), Not this, and Where it came up.
 
 ## Rules
 

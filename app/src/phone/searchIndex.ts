@@ -63,6 +63,7 @@ export const DESTINATIONS: readonly Destination[] = [
   { route: { kind: "tab", tab: "agents" }, icon: "agents", label: "Agents", line: "Every agent on the Mac", keywords: ["dms", "people"] },
   { route: { kind: "tab", tab: "more" }, icon: "more", label: "More", line: "This phone and the paired Mac", keywords: ["you", "profile"] },
   { route: { kind: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
+  { route: { kind: "learn", view: "leads" }, icon: "learn", label: "Leads", line: "Things worth learning properly, each a lesson away", keywords: ["learn", "lessons", "concepts"] },
   { route: { kind: "archive" }, icon: "archive", label: "Archived desks", line: "Desks put away, to restore", keywords: ["archive", "restore", "old desks"] },
   { route: { kind: "preferences" }, icon: "settings", label: "Preferences", line: "Appearance", keywords: ["settings", "appearance", "theme", "dark mode", "light mode"] },
   { route: { kind: "connection" }, icon: "link", label: "Connection details", line: "The paired Mac and this phone's pairing", keywords: ["paired mac", "pairing", "wi-fi", "tailscale", "unpair", "network"] },

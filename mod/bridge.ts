@@ -236,10 +236,11 @@ const isPoint = (v: unknown): boolean =>
 /**
  * The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`.
  * Reads and the user's own markers: desks, transcripts, seen/snooze, pins, recent folders, and the
- * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
- * skills, or the pairing and device frames.
+ * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
+ * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is).
+ * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;

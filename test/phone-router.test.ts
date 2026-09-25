@@ -192,6 +192,17 @@ describe("learn", () => {
     expect(formatRoute(route)).toBe("#/learn");
     roundTrip(route);
   });
+  test("its lists are pages of their own under Learn: a cold link's Back goes to Learn, then Home", () => {
+    for (const view of ["review", "leads", "lessons", "deleted"] as const) {
+      const route: Route = { kind: "learn", view };
+      expect(formatRoute(route)).toBe(`#/learn/${view}`);
+      roundTrip(route);
+      expect(parentOf(route)).toEqual({ kind: "learn" });
+      expect(ownerOf(route)).toBe("home");
+      expect(showsNav(route)).toBe(false);
+    }
+    expect(parseRoute("#/learn/nonsense")).toEqual(HOME);
+  });
 });
 
 describe("navigation labels", () => {

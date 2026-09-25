@@ -15,7 +15,7 @@ import { Pair, type Me } from "./Pair";
 import { More } from "./More";
 import { Search } from "./Search";
 import { AboutPage, ConnectionPage, Preferences } from "./Settings";
-import { Recall as RecallTab } from "./Recall";
+import { Learn } from "./Recall";
 import { useRecall } from "../shell/useRecall";
 import { useDeckPass } from "../recall/useDeckPass";
 import { TabBar } from "./TabBar";
@@ -92,6 +92,9 @@ export function Phone() {
   if (gate.kind === "unpaired") return <Pair onPaired={(me) => setGate({ kind: "paired", me })} />;
   return <Paired me={gate.me} onUnpaired={() => setGate({ kind: "unpaired" })} />;
 }
+
+/** A conversation from Learn: where a lead came up, a lesson under way. */
+const openConversation = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
 /**
  * "Mac unreachable, last seen …": both sockets reconnect by themselves; this only says so. Owns the
@@ -216,6 +219,12 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.currentId]);
 
+  // A lesson begun from Learn: its conversation opens and the brief goes out as the person's first message, the way the desktop begins one.
+  const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
+    openConversation(agentId, conversationId);
+    catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title, origin: "lesson" });
+  };
+
   // The conversation on screen, from the route: its title and agent from the desks list, the inbox, or the agent list.
   const conv = route.kind === "conversation" ? route : null;
   const prefill = usePrefill(conv);
@@ -274,7 +283,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
         {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
-        {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "learn" && <Learn view={route.view} recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} onBegin={beginLesson} onOpen={openConversation} />}
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
         {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}

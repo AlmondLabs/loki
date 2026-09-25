@@ -7,6 +7,7 @@ import { expectPop, transition } from "./transitions";
  *   #/home  #/inbox  #/agents  #/more                 the four tabs
  *   #/search[?q=…]                                    Search, from the round button beside the tabs; `q` is its query
  *   #/learn  #/archive                                Learn and the archived desks (Home's shortcuts, More's rows)
+ *   #/learn/<review|leads|lessons|deleted>          one of Learn's lists, opened from Learn
  *   #/preferences  #/connection  #/about            appearance, the paired Mac and pairing, About — under More
  *   #/agents/<agentId>                             an agent's page
  *   #/agents/<agentId>/file/<path>                 one memory file (path segments kept readable, each encoded)
@@ -25,7 +26,7 @@ export const TABS: readonly Tab[] = ["home", "inbox", "agents", "more"];
 
 export type Route =
   | { kind: "tab"; tab: Tab }
-  | { kind: "learn" }
+  | { kind: "learn"; view?: LearnPage }
   | { kind: "search"; q?: string }
   | { kind: "archive" }
   | { kind: "preferences" }
@@ -36,6 +37,11 @@ export type Route =
   | { kind: "conversation"; agentId: string; conversationId: string; prefill: string | null };
 
 export const HOME: Route = { kind: "tab", tab: "home" };
+
+/** Learn's lists, as the desktop's Learn column lists them: the deck, the leads, the lessons begun, what was deleted. */
+export type LearnPage = "review" | "leads" | "lessons" | "deleted";
+export const LEARN_PAGES: readonly LearnPage[] = ["review", "leads", "lessons", "deleted"];
+const isLearnPage = (s: string): s is LearnPage => (LEARN_PAGES as readonly string[]).includes(s);
 
 const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
 /** Single-segment pages that are not tabs. */
@@ -67,6 +73,7 @@ export function parseRoute(hash: string): Route {
   const [head, a, b, ...rest] = parts;
   if (parts.length === 1 && Object.hasOwn(LEGACY, head)) return LEGACY[head];
   if (parts.length === 1 && isChild(head)) return { kind: head };
+  if (parts.length === 2 && head === "learn" && isLearnPage(a)) return { kind: "learn", view: a };
   if (parts.length === 1 && head === "search") {
     const q = new URLSearchParams(query).get("q");
     return q ? { kind: "search", q } : { kind: "search" };
@@ -93,6 +100,7 @@ export function formatRoute(r: Route): string {
     case "search":
       return r.q ? `#/search?q=${encodeURIComponent(r.q)}` : "#/search";
     case "learn":
+      return r.view ? `#/learn/${r.view}` : "#/learn";
     case "archive":
     case "preferences":
     case "connection":
@@ -126,9 +134,10 @@ export function ownerOf(r: Route): Tab {
   }
 }
 
-/** Where Back goes when the page was opened cold: a file to its agent, everything else to its owning tab. */
+/** Where Back goes when the page was opened cold: a file to its agent, one of Learn's lists to Learn, everything else to its owning tab. */
 export function parentOf(r: Route): Route {
   if (r.kind === "file") return { kind: "agent", agentId: r.agentId };
+  if (r.kind === "learn" && r.view) return { kind: "learn" };
   return { kind: "tab", tab: ownerOf(r) };
 }
 
