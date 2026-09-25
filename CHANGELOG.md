@@ -2,6 +2,67 @@
 
 Every stable, newest first. The version is the day it shipped (UTC); nightlies are not listed.
 
+## 2026.9.25
+
+- **title menu: separators are <hr>, not role=separator divs** (8e950f9)
+- **focus: text fields no longer blink — the caret shows them; the flash stays on controls** (dcabd63)
+- **composer: typing no longer twitches the thread — the box keeps its height while the field is measured, before paint; a thread at the bottom stays there as the box grows a line** (276c5a8)
+- **perf: long threads open with their newest 60 rows and grow as you scroll up; only the last row streams** (3146c82)
+  - a window over the transcript (20 more rows near the top, place kept; the New line
+    always inside it); find searches the text and loads down to a match; ↓ latest folds back
+  - date and time formatters built once; per-row times cached
+  - streaming goes to the last row only; live rows keep their identity until they change
+  Measured: desk switch 128→19 ms (prod), phone open at 4× CPU 906→104 ms, rows
+  rendered per 10 s stream 963→64.
+- **perf: one viewed mark per streamed turn, the compiler back on the roots, no re-renders while idle** (339e630)
+  - viewed marks wait for the turn to settle (or you leaving); the mod skips no-op marks
+    and coalesces attention.json writes (250 ms, flushed on shutdown)
+  - Shell, Sidebar, DeskSidebar, Paired, Home, SearchSheet, DeskTree and useAttention
+    compile again (import() helpers, exact deps, try blocks the compiler accepts)
+  - a repeated loop status is no change; repeated seen/desks/desk frames keep their objects
+  Measured on a 10 s stream: viewed marks 62→1, commits 217→112; idle 30 s: 48→9.
+- **composer: the permission mode sits beside the model pill, inside the box** (9082ac3)
+- **composer: one rounded box on phone and desktop — +, the model pill, mic and send inside it; Select model as a sheet on the phone and a popover on the desktop, with Effort › and More models ›** (cd57d5b)
+- **windows: CI's first Windows run — skill sources take C:\ folders; three Rust tests compare paths the way Windows writes them** (b2502de)
+- **a harness loki left behind is restarted at the next launch, on every system — never one whose loki is still running** (7e1781b)
+  Replaces adoption: the leftover (loki's own launch on 41600, its loki gone) is stopped
+  while its start time still matches, the port waited on for up to 5 s, and a fresh
+  harness started from the current Letta Code; still held, loki attaches as before.
+  Linux starts the harness with the parent-death signal; Windows keeps its job object.
+- **the page knows the host's system apart from the viewer's keyboard — the mod tells a LAN tab which system loki runs on; Settings and the phone say it plainly** (331f2f1)
+  A Mac loki viewed from Windows Chrome no longer says "this PC" or hides Browse, and an
+  Android phone no longer gets Linux's not-yet lines; keys still read the viewer's way.
+- **windows/linux review fixes: publish every artifact file, not its folders; letta.js path joined per part; the harness's own address under a name only the mod reads, then removed; widget paths refuse drives and backslashes on Windows; parse_ps_urls quiet off the Mac** (2c51285)
+- **windows/linux U11: docs for three systems and the preview checklist** (7b087c0)
+- **windows/linux U10: releases carry the Windows installer and the Linux AppImage and .deb — a build job per system, one publish; the preview line in notes; the update check links this system's file** (5dbb8d6)
+- **windows/linux U9: CI on macOS, Ubuntu 22.04 and Windows — test and shell jobs matrixed, WebKitGTK packages on Linux, tests made path- and link-portable** (f978155)
+- **windows/linux U6: a running harness found on Windows and Linux — sysinfo and listeners beside the Mac's unchanged lsof/ps, an orphan of loki's own adopted there; the mod's port and gateway readers per system; PATHEXT and .cmd shims for its programs** (88660f5)
+  Also: the beads hint per system, and the mod's home from os.homedir().
+- **windows/linux U4: loki's own title strip — ☰ menu from menuSpec, minimise/maximise/close, one instance, XWayland, the webview's browser keys kept out** (a1fba51)
+- **bootstrap tests: a fake home unique per call, not per microsecond — parallel tests shared one and deleted each other's files** (2b18c77)
+- **windows/linux U8: words for each system — this PC / this computer, File Explorer, the release download for upgrades, no sudo on Windows, Minimise loki** (591a4b7)
+- **windows/linux U7: the system's own folder dialog for Browse in the app; drive paths and ~\ in folder completion** (17587a8)
+- **windows/linux U3: Mac extras only on the Mac — tray, badge, global key and menu compiled for macOS; not-yet lines for phone pairing and the system-wide key; Hide minimises elsewhere** (e1b597d)
+- **windows/linux U5: Welcome's mono style at module scope** (906af6f)
+- **windows/linux U2+U5: the page knows its system and keys read Ctrl; Letta Code and Node found, installed and run per system** (0b43134)
+  U2: __LOKI__.os and env.platform; formatKeys per system; every shown key from
+  the keymap (source scan guards it); Move Chat off Ctrl+Alt, no Alt+Space off
+  the Mac; DeviceType windows/linux.
+  U5: per-OS search (Mac order pinned), node + letta.js on Windows in a
+  kill-on-close job with no console, LOKI_APP_SERVER_URL to the harness,
+  npm view for the latest version, a Node-missing Welcome step, per-OS
+  scratch line, dev.ts on Windows.
+  One commit: both units edit lib.rs and Settings.tsx, and neither builds alone.
+- **windows/linux U1: the shell builds off the Mac — OS random token, the platform's home folder, unix-only calls gated, junction fallback, LF checkouts** (d29accc)
+- **plan 014: system-wide impact** (fde54a3)
+- **plan 014: the implementation plan for Windows and Linux — eleven units, per-OS seams, CI on three systems** (782482d)
+- **plan 014: loki on Windows and Linux — the requirements, as preview builds** (ebda46d)
+- **focus flashes: a 2px blue ring that fades in a second, settling on a muted ring on controls and nothing on text fields** (1387409)
+  A constant ring sat round the ⌘K field and every focused field as a box. Now the ring's colour animates from
+  the accent to what it settles on, so reduced motion shows the settled state at once; the phone flashes in its
+  link colour. Also: the day-pill test restored TZ by assigning undefined, which left Los Angeles in place and
+  failed the later date tests whenever the machine's day and LA's disagreed.
+
 ## 2026.9.23
 
 - **phone: archive leaves its busy state even if it throws; the fold memory is kept outside the state updater (React Doctor on #12)** (6c1b3d6)
