@@ -12,6 +12,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { archivedDesks, liveDesks } from "../shell/DeskTree";
+import { sidebarModel, type SidebarSection } from "../shell/sidebarModel";
 import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
@@ -355,6 +356,22 @@ export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
   if (kind === "learn") return c.learn ? `${c.learn} due` : "Nothing due";
   if (kind === "agents") return c.running ? `${c.running} running` : n(c.agents, "agent");
   return c.archive ? n(c.archive, "desk") : "None yet";
+}
+
+/**
+ * Home's desks, grouped as the desktop sidebar groups them (shell/sidebarModel.ts, so the two cannot drift):
+ * Pinned, then one section per agent by its latest activity, the main chat first. A conversation already in
+ * "Needs your attention" is not repeated below it (R16), and a section left with nothing is dropped.
+ */
+export function homeDeskSections(desks: DeskSummary[], items: AttentionItem[], attention: HomeAttention[], query: string, agents: Array<{ id: string; name: string | null }>): SidebarSection[] {
+  const above = new Set(attention.map((a) => `${a.item.agentId}/${a.item.id}`));
+  const named = agents.flatMap((a) => (a.name ? [{ id: a.id, name: a.name }] : []));
+  return sidebarModel(desks, items, { query, agents: named })
+    .sections.map((sec) => {
+      const rows = sec.rows.filter((r) => !above.has(`${r.desk.agentId}/${r.desk.conversationId}`));
+      return { ...sec, rows, waiting: rows.filter((r) => r.kind === "waits").length };
+    })
+    .filter((sec) => sec.rows.length > 0);
 }
 
 /** A waiting conversation on Home, with its desk when it has one (the desk names it better than the item). */

@@ -148,10 +148,10 @@ export function PhoneRow({ lead, title, preview, time, badge, unread = false, fl
  * list (`open` + `onToggle`) or one that opens the section's own page (`onTitle`). Folded, the list is
  * not rendered, and the header says so with aria-expanded.
  */
-export function RowSection({ icon, title, count, open = true, onToggle, onTitle, titleLabel, children }: { icon: IconName; title: string; count?: number | null; open?: boolean; onToggle?: () => void; onTitle?: () => void; /** The header button's name when it opens a page. */ titleLabel?: string; children: ReactNode }) {
+export function RowSection({ icon, lead, title, count, open = true, onToggle, onTitle, titleLabel, children }: { icon: IconName; /** In the icon's place: an agent's face, for its section of desks. */ lead?: ReactNode; title: string; count?: number | null; open?: boolean; onToggle?: () => void; onTitle?: () => void; /** The header button's name when it opens a page. */ titleLabel?: string; children: ReactNode }) {
   const inner = (
     <>
-      <Icon name={icon} size={18} />
+      {lead ?? <Icon name={icon} size={18} />}
       <span className="loki-phone-section-title">{title}</span>
       {count != null && count > 0 && <span className="loki-phone-section-count">{badgeCount(count)}</span>}
       {(onTitle || onToggle) && <Icon name={onTitle ? "chevron-right" : "chevron-down"} size={18} className={onToggle && !open ? "loki-phone-section-chev loki-phone-section-chev--folded" : "loki-phone-section-chev"} />}
