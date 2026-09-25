@@ -3,7 +3,8 @@ import { spring } from "../kit/spring";
 import { popFromDrag } from "./transitions";
 
 /**
- * Back by a swipe from the screen's left edge, as on iOS (the home-screen app has no browser to do it).
+ * Back by a swipe from the screen's left edge, as on iOS: only in the home-screen app, which has no browser to
+ * do it. In a Safari tab the browser's own swipe-back owns that edge; both at once would move the page twice.
  * The page follows the finger 1:1; let go past a third of the way, or with a flick, and Back carries on
  * from where the page is at the finger's speed (transitions.ts); short of that it springs home. Only on
  * pages (tabs have nowhere to go back to) and never under a sheet. A drag that starts anywhere but the
@@ -16,6 +17,10 @@ const FLICK = 500;
 
 export const edgeCommits = (dx: number, width: number, velocity: number): boolean => dx > width * COMMIT_FRACTION || (dx > SLOP * 2 && velocity > FLICK);
 
+/** Opened from the home screen (standalone), not in a browser tab. */
+export const standalone = (): boolean =>
+  typeof window !== "undefined" && ((typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+
 export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolean, onBack: () => void): void {
   const backRef = useRef(onBack);
   useLayoutEffect(() => {
@@ -24,7 +29,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
   useEffect(() => {
     const shell = shellRef.current;
     const main = shell?.querySelector<HTMLElement>(":scope > .loki-phone-main");
-    if (!on || !shell || !main) return;
+    if (!on || !shell || !main || !standalone()) return;
     let g: { id: number; x: number; y: number; on: boolean; samples: { x: number; t: number }[] } | null = null;
     const settle = () => {
       shell.removeAttribute("data-edge-drag");

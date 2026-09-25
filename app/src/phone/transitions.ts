@@ -14,6 +14,7 @@ import { formatRoute, type Arrival, type Route } from "./router";
  * Without View Transitions (older Safari), screens change at once, as they did before.
  *
  * A tap during a transition finishes it at once, so a slide never stands between a finger and the next page.
+ * Only the app's own Backs slide: the browser's (Safari's swipe-back, its back button) have animated already.
  */
 
 export type NavMotion = "push" | "pop" | "zoom" | "fade";
@@ -31,6 +32,16 @@ let zoomNext = false;
 /** Call just before opening the Inbox card's conversation: that push grows out of the card. */
 export function openFromCard(): void {
   zoomNext = true;
+}
+
+/**
+ * A Back the app itself asked for (its back chevron, its edge swipe). Any other pop is the browser's own:
+ * Safari's swipe-back has already slid the page away with its own picture, and sliding it again would play
+ * Back twice, so that one lands without a transition.
+ */
+let ownPop = false;
+export function expectPop(): void {
+  ownPop = true;
 }
 
 /**
@@ -82,6 +93,9 @@ export function transition(from: Route, to: Route, arrival: Arrival, apply: () =
   }
   const drag = dragged;
   dragged = null;
+  const ours = ownPop || !!drag;
+  ownPop = false;
+  if (arrival === "pop" && !ours) motion = null; // the browser's Back, already animated by the browser
   // A finger already sliding the page away: carry on sliding it, even out of a card's conversation.
   if (drag && motion === "zoom") motion = "pop";
   const update = () => {

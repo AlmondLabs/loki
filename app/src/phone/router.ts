@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { activeControl, focusMemory } from "./session";
-import { transition } from "./transitions";
+import { expectPop, transition } from "./transitions";
 
 /**
  * The phone's routes live in the hash, so a home-screen icon has history and swipe-back:
@@ -222,6 +222,7 @@ export function rewrite(r: Route): void {
 
 /** Back to where this page was opened from; to its parent when the app was opened on it. */
 export function back(r: Route): void {
+  expectPop(); // this Back is the app's: it slides (transitions.ts)
   if (depthOf(history.state) > 0) history.back();
   else replace(backTarget(r, null), "pop");
 }
