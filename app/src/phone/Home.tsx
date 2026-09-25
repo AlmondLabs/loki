@@ -80,12 +80,11 @@ export function Home({
   const [query, setQuery] = useState("");
   // Sections folded shut, kept on this device across launches (the desktop keeps its own).
   const [folded, setFolded] = useState<string[]>(loadFolds);
-  const toggleFold = (id: string) =>
-    setFolded((f) => {
-      const next = f.includes(id) ? f.filter((x) => x !== id) : [...f, id];
-      saveFolds(next);
-      return next;
-    });
+  const toggleFold = (id: string) => {
+    const next = folded.includes(id) ? folded.filter((x) => x !== id) : [...folded, id];
+    setFolded(next);
+    saveFolds(next);
+  };
   const [sheet, setSheet] = useState<"menu" | "new" | null>(null);
   const [acting, setActing] = useState<DeskSummary | null>(null);
 
@@ -147,7 +146,7 @@ const homeOrder = (attention: HomeAttention[], more: number, groups: SidebarSect
   `${attention.map((a) => `${a.item.agentId}/${a.item.id}`).join(",")}|${more > 0}|${groups.map((g) => (folded.includes(g.id) ? `${g.id}:-` : `${g.id}:${g.rows.map((r) => r.desk.scope).join(",")}`)).join(";")}`;
 
 /** Where Home keeps its folds on this device. */
-const FOLDS_KEY = "loki.phone.home.folded";
+const FOLDS_KEY = "loki.phone.home.folded.v1";
 function loadFolds(): string[] {
   try {
     const v: unknown = JSON.parse(localStorage.getItem(FOLDS_KEY) ?? "[]");
