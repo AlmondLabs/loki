@@ -102,6 +102,11 @@
 .loki-model-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .loki-model-pill-effort { flex: none; color: var(--loki-muted); font-weight: 400; }
 .loki-model-pill-chev { color: var(--loki-muted); }
+/* The permission mode beside the model pill, the same height and shape; its menu opens above it. */
+.loki-mode-anchor { position: relative; display: inline-flex; min-width: 0; flex: 0 1 auto; }
+.loki-chip.loki-mode-pill { gap: 5px; font-weight: 400; }
+/* Its menu is wider than the chip it hangs from: sized to the viewport, not to the anchor. */
+.loki-mode-anchor > .loki-popover { max-width: min(300px, calc(100vw - 32px)); }
 
 /* Select model (ModelPicker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
    chevron in Effort and More models), a card of choices split by hairlines with a check in the accent on the

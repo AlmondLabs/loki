@@ -64,6 +64,22 @@ describe("the message box's bottom row", () => {
     });
   }
 
+  for (const touch of [false, true]) {
+    test(`${touch ? "phone" : "desktop"}: the permission mode sits beside the model pill, inside the box, not in the row under it`, () => {
+      const html = renderToStaticMarkup(
+        createElement(Conversation, {
+          touch,
+          view: { rows: [], status: "idle", model: CURRENT, reasoningEffort: "medium", mode: "standard" },
+          actions: { onSend: () => {}, onPickModel: async () => {}, onPickMode: async () => {} },
+          models: MODELS,
+          draft: { value: { text: "", images: [] }, onChange: () => {} },
+        }),
+      );
+      expect(barLabels(html)).toEqual(["Attach images", "Model: Opus 5.5, medium effort", "permission mode", "Send"]);
+      expect(html).not.toContain("loki-conversation-footer");
+    });
+  }
+
   test("the mic sits between the pill and send, only where dictation works", () => {
     const bar = (dictation: boolean) =>
       barLabels(renderToStaticMarkup(createElement(ComposerBar, { touch: false, attach: { onClick: () => {} }, tools: null, dictation: dictation ? { listening: false, pending: false, title: "dictate", onToggle: () => {} } : null, canSend: false, sendLabel: "Send", onSend: () => {} })));

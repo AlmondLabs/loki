@@ -65,8 +65,8 @@ const NO_GUTTER: Required<Gutter> = { left: "0px", right: "0px", bottom: "0px" }
  * One conversation, the same in every room: the desk's chat panel, an inbox card, the phone's thread.
  * Top to bottom — the host's header, find, the thread (newest at the bottom, followed only while you are
  * there), the agent's open question or the tool it is paused on, the message box (its bottom row holds "+",
- * the model pill that opens Select model, the mic and send), and a last row with the permission mode on the
- * left, approve / deny when something waits, then whatever actions the host adds on the right. The host owns
+ * the model pill that opens Select model, the permission mode beside it, the mic and send), and a last row with
+ * approve / deny when something waits, then whatever actions the host adds on the right. The host owns
  * the frame around it and renders this inside a flex column.
  */
 export function Conversation({
@@ -173,7 +173,7 @@ export function Conversation({
   const effort = effortEntriesFor(models ?? [], model).length > 1 ? reasoningEffort : null;
   const hasModeMenu = !!actions.onPickMode;
   const canApprove = !!approval && !!actions.onApprove;
-  const hasFooter = hasModeMenu || canApprove || !!footer;
+  const hasFooter = canApprove || !!footer;
   const hasContent = !!draft.trim() || images.length > 0;
   const waiting = !!approval || !!question;
   const picker = hasModelPicker && <ModelPicker open={controls.pickerOpen} touch={touch} current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} pillRef={pillRef} />;
@@ -220,11 +220,18 @@ export function Conversation({
               placeholder={placeholder ?? composerPlaceholder(view, agentName)}
               touch={touch}
               tools={
-                hasModelPicker && (
+                (hasModelPicker || hasModeMenu) && (
                   <>
-                    <ModelPill ref={pillRef} name={modelName(models, model)} effort={effort} busy={controls.switching} open={controls.pickerOpen} onClick={controls.togglePicker} />
+                    {hasModelPicker && <ModelPill ref={pillRef} name={modelName(models, model)} effort={effort} busy={controls.switching} open={controls.pickerOpen} onClick={controls.togglePicker} />}
                     {/* The desktop's popover hangs above the box; the phone's sheet is drawn outside it (below), over the whole screen. */}
                     {!touch && picker}
+                    {/* The permission mode beside the model: both say how this conversation's agent works. */}
+                    {hasModeMenu && (
+                      <span className="loki-mode-anchor">
+                        <ModeChip className="loki-model-pill loki-mode-pill" mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />
+                        <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />
+                      </span>
+                    )}
                   </>
                 )
               }
@@ -238,8 +245,6 @@ export function Conversation({
 
           {hasFooter && (
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
-              {hasModeMenu && <ModeChip mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />}
-              {hasModeMenu && <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />}
               {canApprove &&
                 (() => {
                   const approve = <Button key="approve" size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>;

@@ -21,11 +21,11 @@ export function isPermissionMode(v: unknown): v is PermissionMode {
 export const modeInfo = (m: PermissionMode | null | undefined) => MODES.find((x) => x.id === m) ?? MODES[3];
 
 /** The chip: the mode's short name; red ink when nothing will ask, so an open door is never quiet. */
-export function ModeChip({ mode, onClick, busy }: { mode: PermissionMode | null; onClick: () => void; busy?: boolean }) {
+export function ModeChip({ mode, onClick, busy, className }: { mode: PermissionMode | null; onClick: () => void; busy?: boolean; className?: string }) {
   const info = modeInfo(mode);
   const loud = info.id === "unrestricted";
   return (
-    <Chip style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined} onClick={onClick} title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`} aria-label="permission mode" aria-busy={busy || undefined}>
+    <Chip className={className} style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined} onClick={onClick} title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`} aria-label="permission mode" aria-busy={busy || undefined}>
       <Shield mode={info.id} />
       {busy ? "changing…" : info.short}
       <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
