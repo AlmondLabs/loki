@@ -102,13 +102,13 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 `bun run desktop:build` for a `.app` and `.dmg` of your own. A build made on your own Mac never carries the flag.
 
 **Windows and Linux are a preview:** built and tested in CI, not yet tried on real machines. They come on stable
-releases only, a little after the `.dmg`: a stable ships for the Mac first and gains its Windows and Linux files once
-that version's preview is built (nightlies are Mac-only). Please [report what you find](https://github.com/AlmondLabs/loki/issues)
+releases only, published on their own, before or after the `.dmg` of the same version, so a release may carry the
+Mac's file, the Windows and Linux files, or both (nightlies are Mac-only). Please [report what you find](https://github.com/AlmondLabs/loki/issues)
 ([what to try](docs/preview-checklist.md)).
 Like the Mac's, these files are unsigned, so each system asks for one extra step the first time.
 
-**Windows** (64-bit Windows 10 or 11), `loki_<version>_x64-setup.exe` from the
-[latest release](https://github.com/AlmondLabs/loki/releases/latest):
+**Windows** (64-bit Windows 10 or 11), `loki_<version>_x64-setup.exe` from the newest
+[release](https://github.com/AlmondLabs/loki/releases) that has one:
 
 1. Run it. SmartScreen says "Windows protected your PC" (an unknown publisher): choose **More info**, then
    **Run anyway**.
@@ -128,8 +128,8 @@ sudo apt install libfuse2
 chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
 ```
 
-On both, upgrades are the next file from the release page; Settings › letta links the one for your system when a
-newer loki is out, or says its file is not on the release yet. There is no Homebrew, winget or Flatpak package yet.
+On both, upgrades are the next file from the releases page; Settings › letta links the one for your system when a
+newer release carries it. There is no Homebrew, winget or Flatpak package yet.
 
 You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux. The cask brings Node;
 the `.dmg`, Windows and Linux routes need a Node 22.19 or newer (`brew install node`,

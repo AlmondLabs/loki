@@ -7,9 +7,10 @@ machine. If you have one, this is what to try. Each item says what should happen
 `~/.letta/loki/logs/harness.log`, `~/.letta/loki/logs/install.log` and `~/.letta/loki/mod.log` (on Windows `~` is
 `%USERPROFILE%`). Leave out tokens, transcripts and agent memory.
 
-The files are on stable releases, attached a little after the `.dmg` (the
-[latest release](https://github.com/AlmondLabs/loki/releases/latest), or the one before while the newest is still
-Mac-only); nightlies carry none. The README's Install section has the steps.
+The files are on stable releases, published on their own before or after the `.dmg` of the same version: take
+them from the newest [release](https://github.com/AlmondLabs/loki/releases) that has them (one made by Windows and
+Linux first is not marked latest until the Mac's lands); nightlies carry none. The README's Install section has
+the steps.
 
 ## Install
 
@@ -76,4 +77,5 @@ Mac-only); nightlies carry none. The README's Install section has the steps.
 2. **New desk › Browse…** opens the system's own folder dialog; the chosen folder fills the field. Typing
    `C:\` or `~\` (Windows) or `~/` completes folders.
 3. **Update check.** On an older build, Settings › letta says a newer loki is out and links this system's file
-   (the `-setup.exe`, or the AppImage or `.deb`), not the `.dmg`.
+   (the `-setup.exe`, or the AppImage or `.deb`), not the `.dmg`, from the newest release that has it, even when a
+   newer Mac-only release is out.

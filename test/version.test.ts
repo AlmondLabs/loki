@@ -18,7 +18,7 @@ test("newer means strictly after, per component", () => {
 });
 
 /**
- * Windows (plan 014 U10): only stables are built for Windows (the preview PR), but a nightly's number would do too.
+ * Windows (plan 014 U10): only stables are built for Windows (the Windows and Linux PR), but a nightly's number would do too.
  * Tauri's NSIS bundler takes the app version as is. It parses it as semver, drops the
  * pre-release, and writes `VIProductVersion "M.m.p.B"` with B the build metadata when numeric, else 0; each part
  * is a 16-bit word in the Windows version resource (tauri-bundler windows/nsis/mod.rs try_add_numeric_build_number,

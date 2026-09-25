@@ -80,10 +80,9 @@ stops it as an unknown publisher; **More info**, then **Run anyway**, once.
 `loki_<version>_amd64.AppImage`, which needs `chmod +x` and FUSE 2 (`libfuse2`, `libfuse2t64` on Ubuntu 24.04).
 Both are built on Ubuntu 22.04.
 
-Windows and Linux files come on stable releases only, attached a little after the `.dmg` (the release's
-preview is built from that stable's own code); nightlies are Mac-only. An upgrade is the next stable's file;
-Settings › letta links it when one is out, or says it is not on the release yet. No package manager carries them
-yet.
+Windows and Linux files come on stable releases only, published on their own before or after the `.dmg` of the
+same version, so take them from the newest release that has them; nightlies are Mac-only. An upgrade is the next
+such release's file; Settings › letta links it when one is out. No package manager carries them yet.
 
 Whichever way, Letta Code need not be installed first: loki uses the one on your Mac or installs it with npm
 (Requirements). The cask brings Node; the `.dmg`, source, Windows and Linux routes need a Node 22.19 or newer only
