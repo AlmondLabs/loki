@@ -494,6 +494,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     clearInterval(tasksTimer);
     clearTimeout(recallFirst);
     if (recallTimer) clearInterval(recallTimer);
+    seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
   };
   letta.signal?.addEventListener("abort", shutdown, { once: true });
 

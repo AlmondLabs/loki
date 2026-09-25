@@ -219,7 +219,12 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const conv = route.kind === "conversation" ? route : null;
   const prefill = usePrefill(conv);
 
-  const recentFolders = useCallback(() => attention.folders.recent().then((r) => r.byAgent), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Stable for the new-desk sheet's fetch effect, and always the current link's: attention.folders is a fresh object each render.
+  const foldersRef = useRef(attention.folders);
+  useEffect(() => {
+    foldersRef.current = attention.folders;
+  });
+  const recentFolders = useCallback(() => foldersRef.current.recent().then((r) => r.byAgent), []);
   const tab = route.kind === "tab" ? route.tab : null;
   // A card up in the Inbox is a focused pass: it takes the whole screen, as Slack's Catch Up does, and its
   // own back chevron leaves it. With no card (caught up, loading, the Mac away) the navigation is back.

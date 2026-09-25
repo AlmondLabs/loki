@@ -20,7 +20,7 @@ import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
 import type { Segment } from "./shortcuts";
 import { useNotice } from "./useNotice";
 import { useModelList } from "./useModelList";
-import { hideWindow, useTray, useWindowTitle } from "./useWindowChrome";
+import { hideCurrentWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useBoard } from "./useBoard";
 import { useRecall } from "./useRecall";
@@ -156,10 +156,14 @@ export function Shell() {
   /** A request another view wants typed into the chat ("ask ira to update this"). */
   const [chatPrefill, setChatPrefill] = useState<{ text: string; tick: number } | null>(null);
 
+  // Stable for the keymap and the rail, and always the current link's: desk.desks is a fresh object each render.
+  const desksRef = useRef(desk.desks);
+  useEffect(() => {
+    desksRef.current = desk.desks;
+  });
   const openSearch = useCallback(() => {
-    desk.desks.request(); // the freshest desk titles to search
+    desksRef.current.request(); // the freshest desk titles to search
     setSearchOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /**
    * Open a desk from anywhere (the Inbox, Learn, Agents, Welcome, search, a new desk): its Messages tab with the box focused.
@@ -289,7 +293,7 @@ export function Shell() {
         if (column.has && !immersive) column.toggle();
       },
       "window.hide": () => {
-        if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => hideWindow(getCurrentWindow())).catch((e) => console.warn("loki: hide", e));
+        if (inTauri) hideCurrentWindow();
       },
       "chat.toggle": () => chatKey("chat.toggle", () => setChatOpen((v) => !v)),
       "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),

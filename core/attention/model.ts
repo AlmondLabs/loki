@@ -278,6 +278,9 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
     }
     case "update_loop_status": {
       const status = (ev.loop_status as { status?: string } | undefined)?.status;
+      // The harness repeats a status (WAITING_ON_INPUT on every idle conversation, every few seconds): a repeat
+      // that moves nothing is no change, so nothing re-renders on it.
+      const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.streamingText, l.tail.length];
       l.loop = status;
       if (status && status !== "WAITING_ON_INPUT" && status !== "WAITING_ON_APPROVAL") l.inTurn = true;
       if (status === "WAITING_ON_INPUT") {
@@ -292,7 +295,8 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         l.pendingAsk = null;
       }
       if (status && status !== "WAITING_ON_INPUT" && status !== "WAITING_ON_APPROVAL") l.error = null;
-      return { changed: true, userSpoke: false };
+      const after = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.streamingText, l.tail.length];
+      return { changed: after.some((v, i) => v !== before[i]), userSpoke: false };
     }
     case "stream_delta": {
       const d = ev.delta as Record<string, unknown> | undefined;

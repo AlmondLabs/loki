@@ -29,6 +29,14 @@ export function hideWindow(win: { hide: () => Promise<void>; minimize: () => Pro
   return os === "macos" ? win.hide() : win.minimize();
 }
 
+/**
+ * window.hide from a key or a menu: the window module loads on first use. The import() lives out here, at module
+ * level, because one inside a component keeps the React Compiler off the whole component.
+ */
+export function hideCurrentWindow(): void {
+  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => hideWindow(getCurrentWindow())).catch((e) => console.warn("loki: hide", e));
+}
+
 const SHELL_ON_MAC = inTauri && platform === "macos";
 
 /**

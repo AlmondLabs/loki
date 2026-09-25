@@ -43,8 +43,11 @@ function OwnTitleStrip({ os, height }: { os: Platform; height: number }) {
 
 export type WindowAction = "minimize" | "toggleMaximize" | "close";
 
+/** The shell's window, its module loaded on first use; out here because an import() inside a hook keeps the React Compiler off it. */
+const currentWindow = () => import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow());
+
 function windowAction(action: WindowAction) {
-  void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow()[action]()).catch((e) => console.warn(`loki: window ${action}`, e));
+  void currentWindow().then((win) => win[action]()).catch((e) => console.warn(`loki: window ${action}`, e));
 }
 
 /** Whether the window is maximised, read at mount and again on every resize (maximising, restoring, a snap). */
@@ -53,9 +56,8 @@ function useMaximized(): boolean {
   useEffect(() => {
     let live = true;
     let off: (() => void) | null = null;
-    void import("@tauri-apps/api/window")
-      .then(async ({ getCurrentWindow }) => {
-        const win = getCurrentWindow();
+    void currentWindow()
+      .then(async (win) => {
         const read = () => win.isMaximized().then((m) => live && setMaximized(m));
         await read();
         const unlisten = await win.onResized(() => void read());

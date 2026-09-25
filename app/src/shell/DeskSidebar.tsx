@@ -14,6 +14,12 @@ import "./deskSidebar.css";
 /** The row's data-launch, so the pills can find a waiting row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;
 const ARCHIVED = "archived";
+
+/** Filtering opens every fold, so a match is never hidden behind one. */
+function isFolded(pref: SidebarPref, filtering: boolean, id: string): boolean {
+  return !filtering && (id === ARCHIVED ? !pref.archivedOpen : pref.collapsed.includes(id));
+}
+
 const NO_ARCHIVE_REASON = "Archiving needs the app-server, which is not connected";
 
 /** localStorage, or nothing (a blocked store only costs the folds and the scroll). */
@@ -67,9 +73,8 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
 
   const model = useMemo(() => sidebarModel(desks, items, { query, current, agents }), [desks, items, query, current, agents]);
   const filtering = query.trim() !== "";
-  /** Filtering opens every fold, so a match is never hidden behind one. */
-  const folded = (id: string) => !filtering && (id === ARCHIVED ? !pref.archivedOpen : pref.collapsed.includes(id));
-  const waiting = useMemo(() => model.sections.filter((s) => !folded(s.id)).flatMap((s) => s.rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope)), [model, pref, filtering]); // eslint-disable-line react-hooks/exhaustive-deps
+  const folded = (id: string) => isFolded(pref, filtering, id);
+  const waiting = useMemo(() => model.sections.filter((s) => !isFolded(pref, filtering, s.id)).flatMap((s) => s.rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope)), [model, pref, filtering]);
 
   useEffect(() => {
     const s = store();
