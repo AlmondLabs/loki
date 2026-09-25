@@ -7,6 +7,7 @@ import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
+import { threadId } from "./transcriptWindow";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -18,7 +19,7 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0 }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
   // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
   const marks = new Map<number, WidgetMark[]>();
@@ -46,7 +47,7 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
       <Fragment key={i}>
         {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
         {/* Only the last row can carry the cursor; told every row, a turn's start and end re-rendered the whole thread. */}
-        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
+        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} arrived={i >= arrivedFrom} />
       </Fragment>
     );
   };
@@ -234,11 +235,13 @@ function Divider({ day }: { day: string | null }) {
 }
 
 /** One row, by role. This is the memo boundary; the shapes below are plain functions rendered inside it. */
-const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, toolbar = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; toolbar?: boolean }) {
-  if (m.role === "tool") return <ToolRow row={m} />;
-  if (m.role === "event") return <EventRow row={m} />;
-  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} toolbar={toolbar} />;
-  return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} />;
+const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, toolbar = false, arrived = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; toolbar?: boolean; /** Came in while the thread was open. */ arrived?: boolean }) {
+  // A row that came in while the thread was open carries data-arrived, and rises in (the phone's chat CSS).
+  const a = arrived || undefined;
+  if (m.role === "tool") return <ToolRow row={m} arrived={a} />;
+  if (m.role === "event") return <EventRow row={m} arrived={a} />;
+  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} toolbar={toolbar} arrived={a} />;
+  return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} arrived={a} />;
 });
 
 /**
@@ -247,10 +250,10 @@ const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, pe
  * hover (desktop). A message with no known time shows none. With `toolbar`, hovering shows Slack's small
  * action bar holding what loki already does to a message: copy it as markdown.
  */
-function Message({ row: m, last, streaming, person, first, onCancelQueued, toolbar }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; toolbar?: boolean }) {
+function Message({ row: m, last, streaming, person, first, onCancelQueued, toolbar, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; toolbar?: boolean; arrived?: true }) {
   const time = clockLabel(m.at);
   return (
-    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} className="loki-msg">
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} data-arrived={arrived} className="loki-msg">
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={person.face ?? person.name} src={person.avatar ?? null} size={36} />}
         {!first && time && <span className="loki-msg-gutter-time">{time}</span>}
@@ -284,17 +287,17 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued, toolb
 }
 
 /** A tool the agent ran: one quiet line (chat.css; the phone sets it in its sans meta). */
-function ToolRow({ row: m }: { row: TranscriptRow }) {
+function ToolRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   return (
-    <div data-row="tool" className="loki-tool-row">
+    <div data-row="tool" data-arrived={arrived} className="loki-tool-row">
       · {m.text}
     </div>
   );
 }
 
-function EventRow({ row: m }: { row: TranscriptRow }) {
+function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   return (
-    <details data-row="event" className="loki-event-row">
+    <details data-row="event" data-arrived={arrived} className="loki-event-row">
       <summary className="loki-event-summary" style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none" }}>
         ⟳ {m.text}
         {m.summary && <span className="loki-event-aside">{m.summary}</span>}
@@ -305,9 +308,9 @@ function EventRow({ row: m }: { row: TranscriptRow }) {
 }
 
 /** A user or assistant message: the bubble, and under a queued one the take-back button. */
-function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+function Bubble({ row: m, last, streaming, dim, onCancelQueued, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; arrived?: true }) {
   return (
-    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-arrived={arrived} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
       <div className="loki-bubble" data-role={m.role}>
       <div
         style={{
@@ -368,10 +371,49 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
   );
 }
 
+/**
+ * Where the rows that came in while you watched begin: the count there was when this thread was first drawn
+ * with its rows. The history, and older rows revealed by scrolling up, sit before it; a new first row is a new
+ * thread, which starts again. Until the rows load, nothing has arrived.
+ */
+export function useArrivedFrom(rows: TranscriptRow[] | undefined): number {
+  const id = rows ? threadId(rows) : null;
+  const [opened, setOpened] = useState<{ id: string | null; count: number }>({ id, count: rows?.length ?? Infinity });
+  if (opened.id !== id) setOpened({ id, count: rows?.length ?? Infinity });
+  return opened.id === id ? opened.count : Infinity;
+}
+
+/** A node of the rendered markdown (hast), as much of it as wrapping words needs. */
+type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
+
+/**
+ * While a reply streams, each word is its own span, so a word that arrives mounts and fades in (the phone's
+ * chat CSS) while the words before it stay put: spans keep their place, so only the new ones are new. Code
+ * keeps its text whole. Once the turn ends the reply renders as plain text again.
+ */
+export function rehypeWords() {
+  const wrap = (node: HastNode, inCode: boolean) => {
+    if (!node.children) return;
+    const code = inCode || node.tagName === "pre" || node.tagName === "code";
+    node.children = node.children.flatMap((child): HastNode[] => {
+      if (child.type !== "text" || code) {
+        wrap(child, code);
+        return [child];
+      }
+      const words = child.value?.match(/\S+\s*|\s+/g) ?? [];
+      return words.map((w) => (/^\s+$/.test(w) ? { type: "text", value: w } : { type: "element", tagName: "span", properties: { className: ["loki-word"] }, children: [{ type: "text", value: w }] }));
+    });
+  };
+  return (tree: HastNode) => wrap(tree, false);
+}
+const LIVE_PLUGINS = [rehypeWords];
+
 function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   return (
-    <div className="loki-md">
-      <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
+    <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={cursor ? LIVE_PLUGINS : undefined}>
+        {m.text}
+      </Markdown>
       {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
     </div>
   );

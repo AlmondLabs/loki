@@ -74,7 +74,11 @@ anything can be caught mid-motion; light things happen during a drag and lasting
 from the keyboard, nor a tab switch, animates. On the phone: pressed controls give to 97%, bottom sheets rise, follow
 a finger down and leave however they close (`components/sheetMotion.ts`) while the screen behind recedes; pages push
 and pop, the Inbox card zooms into its conversation (View Transitions, `phone/transitions.ts`); and a swipe from the
-left edge goes back (`phone/edgeSwipe.ts`).
+left edge goes back (`phone/edgeSwipe.ts`). The chat shows agents at work: a streaming reply's words fade in as
+they arrive, rows that come in while you read rise into place, "thinking" is three rising dots, and scrolled up,
+the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`): a row moving, even between
+sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
+(`kit/leave.ts`); a decided approval flies off stamped with a check or a cross, and a refused swipe shakes.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that

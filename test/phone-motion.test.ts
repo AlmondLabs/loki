@@ -72,3 +72,30 @@ describe("gestures", () => {
     expect(flingVelocity(0, 0, 1)).toBe(0);
   });
 });
+
+import { rehypeWords } from "../app/src/chat/Transcript.tsx";
+
+describe("streaming words (Transcript's rehypeWords)", () => {
+  type N = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: N[] };
+  const text = (value: string): N => ({ type: "text", value });
+  const el = (tagName: string, children: N[]): N => ({ type: "element", tagName, children });
+  const run = (tree: N) => (rehypeWords()(tree), tree);
+  const words = (n: N): string[] => (n.tagName === "span" ? [n.children![0].value!] : (n.children ?? []).flatMap(words));
+
+  test("each word becomes its own span, its trailing space with it, so an added word is a new span", () => {
+    const tree = run({ type: "root", children: [el("p", [text("Let me look")])] });
+    expect(words(tree)).toEqual(["Let ", "me ", "look"]);
+    const more = run({ type: "root", children: [el("p", [text("Let me look at")])] });
+    expect(words(more).slice(0, 3)).toEqual(words(tree).slice(0, 2).concat(["look "]));
+  });
+
+  test("code keeps its text whole, inline and in blocks; words inside marks are still wrapped", () => {
+    const tree = run({ type: "root", children: [el("p", [text("run "), el("code", [text("bun test")]), el("strong", [text("now please")])]), el("pre", [el("code", [text("const a = 1")])])] });
+    expect(words(tree)).toEqual(["run ", "now ", "please"]);
+  });
+
+  test("space alone stays text", () => {
+    const tree = run({ type: "root", children: [el("p", [text("  ")])] });
+    expect(tree.children![0].children).toEqual([text("  ")]);
+  });
+});

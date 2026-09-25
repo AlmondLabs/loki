@@ -97,7 +97,8 @@ export function Home({
     <div className="loki-phone-page" hidden={hidden}>
       <HomeHeader me={me} link={link} filtered={filtered} onMenu={() => setSheet("menu")} />
       {banner}
-      <Scroll memory="home" flush>
+      {/* Rows glide when the arrangement changes under you; not while a filter is typed (nothing moves for the keyboard). */}
+      <Scroll memory="home" flush flip={filtered ? undefined : homeOrder(sections, open.desks)}>
         <ShortcutRail counts={counts} />
         <FilterPills query={query} agentFilter={agentFilter} agents={chips} onClearQuery={() => setQuery("")} onClearAgent={() => setAgentFilter(null)} />
 
@@ -135,6 +136,10 @@ export function Home({
   );
 }
 
+/** Home's arrangement, for its rows' glide (kit/useFlip.ts): what is in each section, in order, and the desks' fold. */
+const homeOrder = (sections: { attention: HomeAttention[]; desks: DeskSummary[]; more: number }, desksOpen: boolean): string =>
+  `${sections.attention.map((a) => `${a.item.agentId}/${a.item.id}`).join(",")}|${sections.more > 0}|${desksOpen ? sections.desks.map((d) => `${d.scope}${d.pinned ? "*" : ""}`).join(",") : "-"}`;
+
 /** The filters in force, each a pill that clears it; nothing while none is on. */
 function FilterPills({ query, agentFilter, agents, onClearQuery, onClearAgent }: { query: string; agentFilter: string | null; agents: Array<{ id: string; name: string | null }>; onClearQuery: () => void; onClearAgent: () => void }) {
   const q = query.trim();
@@ -165,7 +170,7 @@ function AttentionSection({ attention, more, waiting }: { attention: HomeAttenti
           <AttentionRow key={`${a.item.agentId}/${a.item.id}`} entry={a} />
         ))}
         {more > 0 && (
-          <li>
+          <li data-flip="inbox-more">
             <button type="button" className="loki-phone-row loki-phone-row--quiet" data-launch="home:inbox-more" onClick={() => navigate({ kind: "tab", tab: "inbox" })}>
               <RowIcon name="inbox" />
               <span className="loki-phone-row-copy loki-phone-link">{more} more in Inbox</span>
@@ -186,7 +191,7 @@ function DeskSection({ shown, marks, empty, loaded, nothingMatches, filtered, op
           <DeskRow key={d.scope} desk={d} mark={marks.get(`${d.agentId}/${d.conversationId}`)} onActions={() => onActions(d)} />
         ))}
         {!filtered && (
-          <li>
+          <li data-flip="new-desk">
             <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={onNew}>
               <RowIcon name="plus" />
               <span className="loki-phone-row-copy">New desk</span>
@@ -292,6 +297,7 @@ function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
       unread
       label={`${title}, ${item.agentName ?? "agent"}, ${word}`}
       launch={`attention:${item.agentId}/${item.id}`}
+      flip={`conv:${item.agentId}/${item.id}`}
       onOpen={() => openAttention(item)}
     />
   );
@@ -326,6 +332,7 @@ export function DeskRow({ desk: d, mark, onActions }: { desk: DeskSummary; mark:
       dim={d.status !== "live"}
       label={`${name}, ${d.agentName ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${looked ? "viewed, not done" : m.title}` : ""}`}
       launch={`desk:${d.scope}`}
+      flip={d.conversationId ? `conv:${d.agentId}/${d.conversationId}` : undefined}
       onOpen={() => openDesk(d)}
       onActions={onActions}
       actionsLabel={`Actions for ${name}`}

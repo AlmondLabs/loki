@@ -16,6 +16,7 @@ import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
 import { openFromCard } from "./transitions";
 import { spring } from "../kit/spring";
+import { useLeave } from "../kit/leave";
 import {
   DRAG_SLOP,
   EMPTY_DECK,
@@ -158,6 +159,20 @@ function useDeckWidth(on: boolean) {
 }
 
 type Undo = { item: AttentionItem; via: Swipe; held: boolean };
+/** The card on its way off: which way, and why (a decision is stamped on it). */
+type Leaving = { item: AttentionItem; dir: 1 | -1; via: Via };
+
+/** Undo in the top bar: it springs in (phone.css) and, when its seconds run out or it is used, shrinks away. */
+function UndoButton({ via, onUndo }: { via: Swipe; onUndo: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  useLeave(ref, UNDO_LEAVE, 180);
+  return (
+    <button ref={ref} type="button" className="loki-phone-undo" onClick={onUndo} aria-label={via === "seen" ? "Undo Mark as done" : "Undo Later"}>
+      Undo
+    </button>
+  );
+}
+const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(0.8)" }];
 
 /**
  * What a pass does on screen as cards go: the card flying off (on the smooth spring, unless motion is reduced),
@@ -166,7 +181,7 @@ type Undo = { item: AttentionItem; via: Swipe; held: boolean };
  * puts the last one back.
  */
 function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem) => void; onLater: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
-  const [leaving, setLeaving] = useState<{ item: AttentionItem; dir: 1 | -1 } | null>(null);
+  const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [refused, setRefused] = useState(false);
   const [said, setSaid] = useState("");
@@ -192,7 +207,7 @@ function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: D
     const rest = deck.visible.filter((i) => idOf(i) !== idOf(item));
     setSaid(reviewAnnouncement(via, rest[0], rest.length));
     if (!reduced) {
-      setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1 });
+      setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1, via });
       leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), spring("smooth").ms + 30);
     }
     undoTimer.clear();
@@ -390,13 +405,7 @@ export function Inbox({
           ) : undefined
         }
         title={current ? `${visible.length} Left` : "Inbox"}
-        right={
-          undo ? (
-            <button type="button" className="loki-phone-undo" onClick={undoLast} aria-label={undo.via === "seen" ? "Undo Mark as done" : "Undo Later"}>
-              Undo
-            </button>
-          ) : undefined
-        }
+        right={undo ? <UndoButton key={idOf(undo.item)} via={undo.via} onUndo={undoLast} /> : undefined}
         progress={current && total > 0 ? done / total : null}
       />
       <div className="loki-phone-sr-only" role="status" aria-live="polite">
@@ -537,7 +546,7 @@ interface CardHandlers {
 }
 
 /** One keyed list, one component: a card keeps its DOM node as it goes shell → top → leaving, so its transform transitions between poses. */
-function Stack({ visible, leaving, drag, release, width, approval, refused, reduced, conversation, handlers, deck, banner, card, onOpen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; release: Release | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; deck: Deck; banner?: ReactNode; card: CardActions; onOpen: (item: AttentionItem) => void }) {
+function Stack({ visible, leaving, drag, release, width, approval, refused, reduced, conversation, handlers, deck, banner, card, onOpen }: { visible: AttentionItem[]; leaving: Leaving | null; drag: { dx: number } | null; release: Release | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; deck: Deck; banner?: ReactNode; card: CardActions; onOpen: (item: AttentionItem) => void }) {
   const dx = drag?.dx ?? 0;
   // Every move is a spring (kit/spring.ts): the cards behind rise on the smooth one; a card let go springs
   // home on the snappy one, or flies off on the smooth one, either way carrying the finger's speed.
@@ -553,6 +562,12 @@ function Stack({ visible, leaving, drag, release, width, approval, refused, redu
       return (
         <Card key={idOf(item)} item={item} role={role} style={{ zIndex: 3, transform: `translateX(${flyTo}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in` }}>
           <ReadOnlyThread item={item} view={conversation(item.agentId, item.id)} />
+          {/* A decision is stamped on the card as it goes: a check for Approve, a cross for Deny. */}
+          {(leaving!.via === "approve" || leaving!.via === "deny") && (
+            <span aria-hidden className="loki-phone-card-stamp" data-via={leaving!.via}>
+              <Icon name={leaving!.via === "approve" ? "check" : "close"} size={40} />
+            </span>
+          )}
         </Card>
       );
     if (role === "top") {

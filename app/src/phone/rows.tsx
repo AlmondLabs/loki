@@ -88,15 +88,17 @@ export interface PhoneRowProps {
   dim?: boolean;
   /** `data-launch`, so focus comes back to this row after the page it opened (session.ts). */
   launch?: string;
+  /** What the row is for its glide (kit/useFlip.ts) when that is not its launch key: a conversation, so it glides between sections. */
+  flip?: string;
 }
 
 /** One row inside a `<ul className="loki-phone-list">`. */
-export function PhoneRow({ lead, title, preview, time, badge, unread = false, flags, label, onOpen, onActions, actionsLabel, dim = false, launch }: PhoneRowProps) {
+export function PhoneRow({ lead, title, preview, time, badge, unread = false, flags, label, onOpen, onActions, actionsLabel, dim = false, launch, flip }: PhoneRowProps) {
   const hold = useHold(onActions);
   const count = typeof badge === "number" && badge > 0 ? badge : null;
   const dot = badge === true;
   return (
-    <li className="loki-phone-row-item" data-dim={dim || undefined}>
+    <li className="loki-phone-row-item" data-dim={dim || undefined} data-flip={flip}>
       <button
         type="button"
         className={unread ? "loki-phone-row loki-phone-row--unread" : "loki-phone-row"}
@@ -157,7 +159,7 @@ export function RowSection({ icon, title, count, open = true, onToggle, onTitle,
   );
   return (
     <section className="loki-phone-section" aria-label={title}>
-      <h2 className="loki-phone-section-head">
+      <h2 className="loki-phone-section-head" data-flip={`head:${title}`}>
         {onTitle ? (
           <button type="button" className="loki-phone-section-btn" data-launch={`section:${title}`} aria-label={titleLabel} onClick={onTitle}>
             {inner}

@@ -325,6 +325,7 @@ html:has(.loki-phone-shell) {
 
 /* One vertical scroll owner per screen; it contains its own overscroll so the page never moves. */
 .loki-phone-scroll {
+  position: relative; /* a row that leaves fades where it stood, inside the scroll (kit/useFlip.ts) */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1358,6 +1359,48 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) { animat
 .loki-phone-shell[data-edge-drag] > .loki-phone-main { background: var(--loki-bg); box-shadow: var(--phone-lift-shadow); }
 /* On a page the shell reads sideways pans from the edge itself; lists still scroll, code blocks still slide. */
 .loki-phone-shell:not([data-screen="tab"]) > .loki-phone-main { touch-action: pan-y pinch-zoom; }
+
+/* The chat as it happens. A streaming reply's words fade in as they arrive (Transcript's rehypeWords); a row
+   that comes in while you read rises into place (data-arrived), history does not; scrolled up, the chip
+   springs up and pops on each new count. */
+@keyframes loki-word-in { from { opacity: 0; } }
+.loki-phone .loki-md--live .loki-word { animation: loki-word-in 200ms ease-out; }
+@keyframes loki-rise-in { from { opacity: 0; transform: translateY(8px); } }
+.loki-phone [data-arrived] { animation: loki-rise-in var(--spring-smooth-ms) var(--spring-smooth); }
+@keyframes loki-chip-in { from { opacity: 0; translate: 0 12px; scale: 0.9; } }
+.loki-phone .loki-latest-chip { animation: loki-chip-in var(--spring-snappy-ms) var(--spring-snappy); }
+.loki-phone .loki-latest-chip > span { display: inline-block; animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy); }
+
+/* Undo springs into the top bar; it shrinks away when it goes (kit/leave.ts). */
+.loki-phone-undo { animation: loki-chip-in var(--spring-snappy-ms) var(--spring-snappy); }
+
+/* A decision on the Inbox card: a check (Approve) or a cross (Deny) pops onto it as it flies. A swipe an
+   approval refuses shakes the card, so the refusal is felt, not only outlined. */
+.loki-phone-card-stamp {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  border-radius: var(--phone-radius-pill);
+  background: var(--loki-panel);
+  box-shadow: var(--loki-shadow-float);
+  animation: loki-stamp var(--spring-bouncy-ms) var(--spring-bouncy) both;
+}
+.loki-phone-card-stamp[data-via="approve"] { color: var(--loki-positive); }
+.loki-phone-card-stamp[data-via="deny"] { color: var(--loki-negative); }
+@keyframes loki-stamp { from { opacity: 0; scale: 0.5; } }
+@keyframes loki-shake {
+  0%, 100% { translate: 0; }
+  20% { translate: -8px 0; }
+  40% { translate: 7px 0; }
+  60% { translate: -4px 0; }
+  80% { translate: 2px 0; }
+}
+.loki-phone-card[data-refused] { animation: loki-shake 360ms ease-out; }
 
 /* ---- Motion -------------------------------------------------------------------------------------- */
 /* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with

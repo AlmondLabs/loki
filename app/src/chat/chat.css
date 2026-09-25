@@ -184,3 +184,14 @@
 .loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-muted); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }
 .loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title { text-decoration: line-through; }
 .loki-widget-row .loki-msg-time:not(.loki-phone *) { margin-left: 0; }
+
+/* The agent thinking: "thinking" and three dots rising in turn, as a typing bubble's do. Transform and opacity only. */
+.loki-thinking { display: flex; align-items: baseline; gap: 4px; padding: 6px 0; color: var(--loki-muted); font-size: 12px; }
+.loki-thinking-dots { display: inline-flex; gap: 3px; }
+.loki-thinking-dots > span { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: loki-think 1.2s ease-in-out infinite; }
+.loki-thinking-dots > span:nth-child(2) { animation-delay: 0.15s; }
+.loki-thinking-dots > span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes loki-think {
+  0%, 60%, 100% { opacity: 0.35; transform: none; }
+  30% { opacity: 1; transform: translateY(-3px); }
+}

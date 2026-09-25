@@ -13,7 +13,7 @@ import { QuestionCard } from "./QuestionCard";
 import { ChatInput } from "./ChatInput";
 import { FindBar } from "./FindBar";
 import { SlashPalette } from "./SlashPalette";
-import { Transcript, type MessageLayout, type TranscriptRow } from "./Transcript";
+import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./Transcript";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./ModelPicker";
 import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./PermissionMode";
 import { useChatTicks } from "./useChatTicks";
@@ -302,8 +302,9 @@ export interface ThreadHandle {
 export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
+  const arrivedFrom = useArrivedFrom(rows);
   // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
-  const { unpinned, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets);
+  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets);
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
@@ -318,13 +319,24 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
       <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} from={start} />}
-        {status === "thinking" && !waiting && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} from={start} arrivedFrom={arrivedFrom} />}
+        {status === "thinking" && !waiting && (
+          <div className="loki-thinking" role="status">
+            thinking
+            {/* Three dots that rise in turn, as a typing bubble does (chat.css); read as "thinking". */}
+            <span className="loki-thinking-dots" aria-hidden>
+              <span />
+              <span />
+              <span />
+            </span>
+          </div>
+        )}
         {error && <div className="loki-thread-error">{error}</div>}
       </div>
       {unpinned && (
-        <Chip float onClick={jumpToLatest} aria-label="jump to latest" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>
-          ↓ latest
+        <Chip float onClick={jumpToLatest} aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"} className="loki-latest-chip" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>
+          {/* Keyed by the count: a new message makes a new label, which pops (chat.css). */}
+          <span key={fresh}>{fresh > 0 ? `↓ ${fresh} new` : "↓ latest"}</span>
         </Chip>
       )}
     </div>
