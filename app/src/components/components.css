@@ -416,7 +416,7 @@ button.loki-list-section-toggle:hover { background: var(--loki-hover); color: va
 }
 .loki-title-submenu { min-width: 260px; }
 .loki-title-menu-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; font-size: 13.5px; }
-.loki-title-menu-sep { height: 1px; margin: 4px 0; background: var(--loki-border); }
+.loki-title-menu-sep { height: 1px; margin: 4px 0; border: none; background: var(--loki-border); }
 
 /* The main pane's header (PaneHeader): the name line, then the tab row on the same hairline. */
 .loki-pane-header { flex: none; display: flex; flex-direction: column; border-bottom: 1px solid var(--loki-border); background: var(--loki-bg); }

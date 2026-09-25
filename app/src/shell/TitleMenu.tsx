@@ -54,7 +54,7 @@ export function TitleMenuPanel({ groups, open, onOpen, onPick, os = keyboard }: 
             </svg>
           </Row>
         ))}
-        <div role="separator" className="loki-title-menu-sep" />
+        <hr className="loki-title-menu-sep" />
         <Row dense role="menuitem" data-menu-id={HIDE} className="loki-title-menu-item" onClick={() => onPick(HIDE)} onPointerEnter={() => onOpen(null)}>
           <span>{labelOf(KEYMAP.find((b) => b.id === HIDE)!, os)}</span>
           <Kbd>{keyFor(HIDE, os)}</Kbd>
@@ -64,7 +64,7 @@ export function TitleMenuPanel({ groups, open, onOpen, onPick, os = keyboard }: 
         <div role="menu" aria-label={current.title} className="loki-title-menu-panel loki-title-submenu">
           {current.items.map((it, i) =>
             "separator" in it ? (
-              <div key={`sep-${i}`} role="separator" className="loki-title-menu-sep" />
+              <hr key={`sep-${i}`} className="loki-title-menu-sep" />
             ) : (
               <Row key={it.id} dense role="menuitem" data-menu-id={it.id} className="loki-title-menu-item" onClick={() => onPick(it.id)}>
                 <span>{it.label}</span>
