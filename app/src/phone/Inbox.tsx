@@ -6,6 +6,7 @@ import { formatIn } from "../../../core/attention/snooze.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import { Conversation, Thread } from "../chat/Conversation";
+import type { ModelEntry, ModelSelection, ReasoningEffort } from "../chat/ModelPicker";
 import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
 import { waitingSince } from "./model";
@@ -270,6 +271,17 @@ export interface CardActions {
   onSend: (item: AttentionItem, text: string, images: ImageAttachment[]) => void;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onCancelQueued: (item: AttentionItem, text: string) => void;
+  /** The model pill in the card's box, as on the conversation page; absent, the box has none. */
+  model?: CardModel;
+}
+
+/** What the card's model pill needs: the list, the card's model and effort, and switching it. */
+export interface CardModel {
+  models: ModelEntry[] | null;
+  onLoad: () => void;
+  modelOf: (item: AttentionItem) => string | null;
+  effortOf: (item: AttentionItem) => ReasoningEffort | null;
+  onPick?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
 }
 
 export function Inbox({
@@ -569,7 +581,7 @@ function Card({ item, role, refused = false, veil = 0, style, handlers, onOpen, 
  * session.ts under this conversation's key — the same draft the desk page shows. A message or an answer
  * from here holds the card on top until you decide it. Approve and deny are the buttons under the card.
  */
-function CardConversation({ item, view, banner, card, onHold }: { item: AttentionItem; view: CardView; banner?: ReactNode; card: CardActions; onHold: () => void }) {
+export function CardConversation({ item, view, banner, card, onHold }: { item: AttentionItem; view: CardView; banner?: ReactNode; card: CardActions; onHold: () => void }) {
   const [draft, setDraft] = useDraft(draftKey(item.agentId, item.id));
   const agentName = item.agentName ?? "the agent";
   const people = useMemo(() => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }), [item.agentName, item.agentId]);
@@ -577,17 +589,24 @@ function CardConversation({ item, view, banner, card, onHold }: { item: Attentio
   const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt) }), [people, dividerAt, item.lastMessageAt]);
   const question = view.question ?? null;
   const approval = view.pending ?? item.pendingApproval;
-  const notice = banner ?? (
-    <div className="loki-phone-notice">
-      <span className="loki-phone-ellipsis">{cardNotice(item, view.status)}</span>
-    </div>
-  );
+  const said = cardNotice(item, view.status);
+  const notice =
+    banner ??
+    (said && (
+      <div className="loki-phone-notice">
+        <span className="loki-phone-ellipsis">{said}</span>
+      </div>
+    ));
+  const model = card.model;
   return (
     <Conversation
       touch
       dim={false}
-      view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question }}
+      view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null }}
+      models={model?.models ?? null}
       actions={{
+        onLoadModels: model?.onLoad,
+        onPickModel: model?.onPick ? (selection) => model.onPick!(item, selection) : undefined,
         onSend: (text, images = []) => card.onSend(item, text, images),
         onAnswer: question
           ? (answers) => {
@@ -599,7 +618,7 @@ function CardConversation({ item, view, banner, card, onHold }: { item: Attentio
       }}
       agentName={agentName}
       layout={layout}
-      notice={notice}
+      notice={notice || null}
       placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
       draft={{ value: draft, onChange: setDraft }}
       onSent={onHold}

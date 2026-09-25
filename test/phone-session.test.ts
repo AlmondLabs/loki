@@ -349,7 +349,7 @@ describe("the conversation page", () => {
     expect(threadLine({ ...base, desk: null })).toBe("");
   });
   test("the notice over the box: the card's words while it waits, the agent at work, else nothing", () => {
-    expect(threadNotice(card(), true, "idle", "friday")).toBe("friday is waiting for your reply");
+    expect(threadNotice(card(), true, "idle", "friday")).toBeNull();
     expect(threadNotice(card({ status: "approval" }), true, "idle", "friday")).toBe("friday needs your approval");
     expect(threadNotice(null, false, "thinking", "friday")).toBe("friday is working");
     expect(threadNotice(card(), false, "streaming", "friday")).toBe("friday is writing");

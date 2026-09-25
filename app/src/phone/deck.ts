@@ -243,15 +243,18 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
 // Shared with the desktop (shared/thread.ts); the phone keeps its names.
 export { dayLabel, unreadBoundary } from "../shared/thread";
 
-/** The line above the card's message box: what the agent is waiting on, or what it is doing after your reply. */
-export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string {
+/**
+ * The line above the card's message box: what the agent is doing after your reply, or what it wants beyond a reply.
+ * None for a plain wait: the box's own "Message friday" already says it is your turn.
+ */
+export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string | null {
   const who = item.agentName ?? "The agent";
   if (chat === "streaming") return `${who} is writing`;
   if (chat === "thinking" || item.status === "running") return `${who} is working`;
   if (item.status === "approval") return `${who} needs your approval`;
   if (item.status === "question") return `${who} asked you something`;
   if (item.status === "failed") return `${who}'s last turn failed`;
-  return `${who} is waiting for your reply`;
+  return null;
 }
 
 /**

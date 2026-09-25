@@ -343,7 +343,7 @@ describe("what the card says", () => {
     expect(dayLabel("not a date", now)).toBeNull();
   });
   test("the notice says what the agent waits on, or what it is doing after your reply", () => {
-    expect(cardNotice({ status: "done", agentName: "friday" }, "idle")).toBe("friday is waiting for your reply");
+    expect(cardNotice({ status: "done", agentName: "friday" }, "idle")).toBeNull(); // a plain wait: the box's "Message friday" says it
     expect(cardNotice({ status: "approval", agentName: "friday" }, "idle")).toBe("friday needs your approval");
     expect(cardNotice({ status: "question", agentName: "friday" }, "idle")).toBe("friday asked you something");
     expect(cardNotice({ status: "failed", agentName: null }, "idle")).toBe("The agent's last turn failed");

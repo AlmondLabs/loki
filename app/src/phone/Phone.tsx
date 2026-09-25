@@ -280,7 +280,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
+        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} models={models.list} onLoadModels={models.load} />
       </main>
 
       {nav ? (
@@ -349,7 +349,28 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
  * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
  * place back from the scroll memory (their data is cached above them).
  */
-function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string }) {
+function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack, models, onLoadModels }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string; models: ModelEntry[] | null; onLoadModels: () => void }) {
+  // The Inbox card's model pill: the same switch as the conversation page, a refusal shown in the card's line for 4 s.
+  const [cardNote, setCardNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cardNote) return;
+    const t = setTimeout(() => setCardNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [cardNote]);
+  const cardModel = {
+    models,
+    onLoad: onLoadModels,
+    modelOf: (item: AttentionItem) => desk.modelOf(scopeFor(item.id, item.agentId)),
+    effortOf: (item: AttentionItem) => desk.reasoningEffortOf(scopeFor(item.id, item.agentId)),
+    onPick:
+      catchUp.status === "open"
+        ? async (item: AttentionItem, selection: ModelSelection) => {
+            const { applied, error } = await catchUp.updateModel(item.runtime, selection);
+            if (error || !applied) return setCardNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
+            desk.setDeskModel(scopeFor(item.id, item.agentId), applied.handle, applied.reasoningEffort);
+          }
+        : undefined,
+  };
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -378,7 +399,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         items={catchUp.items}
         loaded={catchUp.agentsLoaded}
         available={attention.available}
-        banner={banner}
+        banner={cardNote ? <Banner>{cardNote}</Banner> : banner}
         conversation={catchUp.conversation}
         deck={deck}
         backLabel={inboxBack}
@@ -389,6 +410,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
           onSend: (item, text, images) => catchUp.reply(item, text, images),
           onAnswer: (item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers),
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
+          model: cardModel,
         }}
         onApprove={catchUp.approve}
         onSeen={catchUp.seen}
