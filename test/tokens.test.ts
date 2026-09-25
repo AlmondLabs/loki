@@ -232,6 +232,16 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
     expect(field).toMatch(/outline: 2px solid transparent/);
     expect(tokens).not.toMatch(/outline: 1px solid/);
   });
+  test("text fields never blink: the caret shows focus; the flash is for controls only", () => {
+    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(field).toMatch(/animation: none/);
+    const phone = readFileSync(join(import.meta.dir, "..", "app", "src", "phone", "phone.css"), "utf8");
+    const chat = readFileSync(join(import.meta.dir, "..", "app", "src", "chat", "chat.css"), "utf8");
+    for (const [css, sel] of [[phone, ".loki-phone :is(input, textarea):focus-visible"], [phone, ".loki-phone-search-field:focus-within"], [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"]] as const) {
+      const rule = css.slice(css.indexOf(sel)).match(/\{([^}]*)\}/)?.[1] ?? "";
+      expect(rule, sel).toMatch(/animation: none/);
+    }
+  });
   test("radius roles are named on :root: sm 6 · md 8 · lg 12 · pill 999", () => {
     const radius = (name: string) => Number(root.match(new RegExp(`--loki-radius-${name}:\\s*([\\d.]+)px`))?.[1]);
     expect([radius("sm"), radius("md"), radius("lg"), radius("pill")]).toEqual([6, 8, 12, 999]);

@@ -87,7 +87,7 @@
 .loki-composer-box:focus-within { border-color: var(--loki-muted); }
 /* Listening: the field's edge turns the accent until the recogniser stops. */
 .loki-composer-box[data-listening] { border-color: var(--loki-accent); }
-.loki-composer-box:has(.loki-composer-text:focus-visible) { outline: 2px solid transparent; outline-offset: -1px; animation: loki-focus-flash 1s ease-out; }
+.loki-composer-box:has(.loki-composer-text:focus-visible) { outline: 2px solid transparent; outline-offset: -1px; animation: none; }
 .loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
 .loki-field.loki-composer-text { min-height: 0; padding: 4px 6px; border: none; background: transparent; line-height: 20px; }
 .loki-composer-images { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 4px 0; }

@@ -251,7 +251,7 @@ html:has(.loki-phone-shell) body {
 .loki-phone :is(input, textarea):focus-visible {
   outline: 2px solid transparent;
   outline-offset: -2px;
-  animation: loki-focus-flash 1s ease-out;
+  animation: none;
 }
 /* A page's heading is where focus lands when the page opens (tabindex -1, so screen readers start there); it is
    not a control and is never tabbed to, and iOS Safari rings that programmatic focus. The controls inside it
@@ -484,7 +484,7 @@ html:has(.loki-phone-shell) body {
   color: var(--loki-muted);
 }
 /* The focus ring goes round the whole field (icon, text, clear), not the bare input inside it. */
-.loki-phone-search-field:focus-within { outline: 2px solid transparent; outline-offset: -1px; animation: loki-focus-flash 1s ease-out; }
+.loki-phone-search-field:focus-within { outline: 2px solid transparent; outline-offset: -1px; animation: none; }
 .loki-phone .loki-phone-search-input:focus-visible { outline-color: transparent; animation: none; }
 .loki-phone-search-glass { margin-right: var(--phone-space-2); }
 /* 17px, Slack's field size (and above the 16px under which iOS zooms into a focused field). */

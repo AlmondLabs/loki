@@ -180,8 +180,9 @@
 
 /* Focus flashes: when focus moves by keyboard, a 2px accent ring appears and fades over a second, so you see
    where it went without a box sitting there. Controls (buttons, rows, tabs, links, selects, checkboxes) settle
-   on a muted ring, since nothing else shows which one Tab or Enter acts on; text fields settle on nothing, the
-   caret shows them. The ring is drawn inside the control's edge so a scrolling list or a clipped panel never
+   on a muted ring, since nothing else shows which one Tab or Enter acts on; text fields neither flash nor ring,
+   the caret shows them (a flash on every click into a box was a blink you saw all day). The transparent ring
+   stays for forced-colours mode. The ring is drawn inside the control's edge so a scrolling list or a clipped panel never
    cuts it off; links get a small offset since they have no box. The flash animates only the colour, from the
    accent (or --loki-focus-flash, the phone's link colour) to the rule's own outline, so reduced motion (every
    duration zeroed below) shows the settled state straight away. An animation beats a plain declaration: a rule
@@ -205,7 +206,7 @@ a:focus-visible {
 :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="button"], [type="submit"], [type="reset"], [type="color"], [type="file"]), textarea):focus-visible {
   outline: 2px solid transparent;
   outline-offset: -2px;
-  animation: loki-focus-flash 1s ease-out;
+  animation: none;
 }
 .loki-pulse {
   animation: loki-pulse 1.2s ease-in-out infinite;
