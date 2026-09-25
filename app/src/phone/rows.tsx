@@ -231,3 +231,55 @@ export function StateWord({ state, children }: { state: "on" | "wait" | "off"; c
     </span>
   );
 }
+
+/** Row widths for the placeholders' two lines, so a loading list looks like a list and not a grid. */
+const SKELETON_WIDTHS = [
+  [62, 84],
+  [48, 70],
+  [70, 58],
+  [54, 78],
+  [66, 64],
+] as const;
+
+/**
+ * A list still being read: rows' shapes where the rows will be, with a light passing over them, as iOS
+ * lists load. They show only after a moment, so a list that answers at once never flashes them. `label`
+ * is what a screen reader hears instead ("Reading the desks…").
+ */
+export function SkeletonRows({ label, rows = 4 }: { label: string; rows?: number }) {
+  return (
+    <div className="loki-phone-skeleton" role="status">
+      <span className="loki-phone-sr-only">{label}</span>
+      <ul aria-hidden className="loki-phone-list">
+        {SKELETON_WIDTHS.slice(0, rows).map(([title, preview]) => (
+          <li key={`${title}-${preview}`} className="loki-phone-row">
+            <span className="loki-phone-skel loki-phone-skel--face" />
+            <span className="loki-phone-row-copy">
+              <span className="loki-phone-skel loki-phone-skel--line" style={{ width: `${title}%` }} />
+              <span className="loki-phone-skel loki-phone-skel--line loki-phone-skel--thin" style={{ width: `${preview}%` }} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** A card still being read (the Inbox, Learn): its header and a few lines of body, with the same passing light. */
+export function SkeletonCard({ label }: { label: string }) {
+  return (
+    <div className="loki-phone-skeleton loki-phone-skel-card" role="status">
+      <span className="loki-phone-sr-only">{label}</span>
+      <div aria-hidden className="loki-phone-skel-card-head">
+        <span className="loki-phone-skel loki-phone-skel--face" />
+        <span className="loki-phone-row-copy">
+          <span className="loki-phone-skel loki-phone-skel--line" style={{ width: "46%" }} />
+          <span className="loki-phone-skel loki-phone-skel--line loki-phone-skel--thin" style={{ width: "68%" }} />
+        </span>
+      </div>
+      {[92, 84, 88, 52].map((w) => (
+        <span key={w} aria-hidden className="loki-phone-skel loki-phone-skel--line" style={{ width: `${w}%` }} />
+      ))}
+    </div>
+  );
+}

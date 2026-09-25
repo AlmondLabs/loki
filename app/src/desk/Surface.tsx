@@ -182,7 +182,8 @@ function MinimisedTray({ closed, connection, left, gesture }: { closed: WidgetMa
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      style={{ position: "absolute", bottom: 16, left, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", maxWidth: "60%", transition: "left 220ms ease-out" }}
+      // Moved by transform as the chat opens or closes beside it, so the move never lays the sheet out again.
+      style={{ position: "absolute", bottom: 16, left: 0, transform: `translateX(${left}px)`, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", maxWidth: "60%", transition: "transform 220ms ease-out" }}
       aria-label="minimised widgets"
     >
       <span className="loki-label" style={{ marginRight: 4 }}>Minimised</span>

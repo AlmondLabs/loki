@@ -62,7 +62,7 @@ links, selects, checkboxes) settle on a 2px muted ring, since nothing else shows
 on; text fields settle on nothing, the caret shows them. The ring is inset (so a clipped list never cuts it
 off) and offset on links. Only the colour animates, so under reduced motion the settled ring shows at once.
 Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion zeroes
-every CSS duration *and delay*; JS-driven glides (the camera) go through `glide()` in `app/src/kit/motion.ts`.
+every CSS duration *and delay*; JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/motion.ts`.
 
 Motion is springs, the way Apple's is (the phone first; the desktop follows). `app/src/kit/spring.ts` holds three,
 named after SwiftUI's: *smooth* (no bounce, sheets and screens), *snappy* (a trace of bounce, menus, pills, a card
@@ -78,7 +78,17 @@ left edge goes back (`phone/edgeSwipe.ts`). The chat shows agents at work: a str
 they arrive, rows that come in while you read rise into place, "thinking" is three rising dots, and scrolled up,
 the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`): a row moving, even between
 sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
-(`kit/leave.ts`); and a swipe an approval refuses shakes the card.
+(`kit/leave.ts`); and a swipe an approval refuses shakes the card. Waiting has a shape: a list or card still being
+read shows placeholder rows or a placeholder card after a beat, a light passing over them (`SkeletonRows`,
+`SkeletonCard`); a pass that ends springs its check in; the Mac-unreachable banner slides down and back up; and the
+message box rides up and down with the keyboard (`phone/viewport.ts`). A Learn card turns over to its answer, is
+thrown right for Got it and left for Again, and the next rises into its place.
+
+The desktop is quieter than the phone. Popovers opened by a click grow from the corner they hang from (the slash
+palette and anything a key opens are just there); a desk opened by a click fades in; a red badge springs in when its
+count goes up; the camera glides to a widget on the smooth spring, and a wheel, pinch or drag stops it
+(`desk/cameraGlide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
+shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
 
 Tool calls read the way Claude's apps show them (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a run
 of consecutive calls is one quiet line in the thread ("Ran 3 commands", "Ran a command, used 9 tools (1 failed)",

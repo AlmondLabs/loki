@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type RefObject } from "react";
+import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
@@ -115,6 +116,7 @@ export function DeskPane(props: DeskPaneProps) {
   const paneRef = useRef<HTMLDivElement>(null);
   const threadFocus = useRef<HTMLElement | null>(null);
   useTabFocus(visible, paneRef, threadFocus);
+  useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
   const name = title ?? agentName ?? "Desk";
 
@@ -353,4 +355,19 @@ function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: 
       ))}
     </Popover>
   );
+}
+
+/**
+ * Another desk opened by a click (the sidebar, a search hit): the pane fades in on it, quickly, so the eye
+ * reads a switch and not a flicker. Opened by a key (⌘K, a shortcut) it is just there, as a key's action is.
+ */
+function useSwitchFade(paneRef: RefObject<HTMLDivElement | null>, scope: string) {
+  const shown = useRef(scope);
+  useLayoutEffect(() => {
+    if (shown.current === scope) return;
+    shown.current = scope;
+    const el = paneRef.current;
+    if (!el || typeof el.animate !== "function" || lastInput() === "key" || prefersReducedMotion()) return;
+    el.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 160, easing: "ease-out" });
+  }, [paneRef, scope]);
 }

@@ -1,4 +1,6 @@
 import { useEffect, type RefObject } from "react";
+import { prefersReducedMotion } from "../kit/motion";
+import { spring } from "../kit/spring";
 
 /**
  * The on-screen keyboard. iOS Safari (and Chrome's default) lay the page out at full height and only
@@ -34,6 +36,8 @@ export function useKeyboardInset(ref: RefObject<HTMLElement | null>) {
     let frame = 0;
     const apply = () => {
       frame = 0;
+      // Only a change of height is the keyboard: the visible part scrolling moves the shell without resizing it.
+      const before = el.getBoundingClientRect().height;
       const inset = keyboardInset(window.innerHeight, vv);
       if (inset > 0) {
         el.dataset.keyboard = "";
@@ -44,6 +48,7 @@ export function useKeyboardInset(ref: RefObject<HTMLElement | null>) {
         el.style.removeProperty("--phone-viewport-top");
         el.style.removeProperty("--phone-viewport-height");
       }
+      rideKeyboard(el, before - el.getBoundingClientRect().height);
     };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(apply);
@@ -57,4 +62,28 @@ export function useKeyboardInset(ref: RefObject<HTMLElement | null>) {
       vv.removeEventListener("scroll", schedule);
     };
   }, [ref]);
+}
+
+/** Less than this is the page settling (an accessory bar, a scroll), not the keyboard coming or going. */
+const KEYBOARD_MIN = 80;
+
+/**
+ * The shell's bottom edge moved by `dy` (up is positive) because the keyboard came or went. The browser
+ * only says so once the keyboard is already there, so the message box would jump. It is drawn back where it
+ * was and springs to its new place instead, as iOS moves a box with the keyboard: transform only, so the
+ * thread under it lays out once. A ride already under way starts from where it has got to.
+ */
+function rideKeyboard(shell: HTMLElement, dy: number): void {
+  if (Math.abs(dy) < KEYBOARD_MIN || prefersReducedMotion()) return;
+  const box = shell.querySelector<HTMLElement>(".loki-composer");
+  if (!box || typeof box.animate !== "function" || !box.getClientRects().length) return;
+  let from = dy;
+  for (const a of box.getAnimations()) {
+    if (a.id !== "loki-keyboard") continue;
+    const now = getComputedStyle(box).transform;
+    if (now !== "none") from += new DOMMatrixReadOnly(now).m42;
+    a.cancel();
+  }
+  const s = spring("smooth");
+  box.animate([{ transform: `translateY(${from}px)` }, { transform: "none" }], { duration: s.ms, easing: s.easing, id: "loki-keyboard" });
 }

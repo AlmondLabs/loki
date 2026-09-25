@@ -1,6 +1,6 @@
 import { flushSync } from "react-dom";
 import { spring } from "../kit/spring";
-import { prefersReducedMotion } from "../kit/motion";
+import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { formatRoute, type Arrival, type Route } from "./router";
 
 /**
@@ -18,13 +18,6 @@ import { formatRoute, type Arrival, type Route } from "./router";
  */
 
 export type NavMotion = "push" | "pop" | "zoom" | "fade";
-
-/** The last thing that moved the app: a key, or a pointer (touch, mouse, pen). */
-let lastInput: "key" | "pointer" = "pointer";
-if (typeof window !== "undefined") {
-  window.addEventListener("keydown", () => (lastInput = "key"), true);
-  window.addEventListener("pointerdown", () => (lastInput = "pointer"), true);
-}
 
 /** The conversation opened from the Inbox card, whose Back shrinks into the card again. */
 let zoomed: string | null = null;
@@ -102,7 +95,7 @@ export function transition(from: Route, to: Route, arrival: Arrival, apply: () =
     drag?.reset();
     flushSync(apply);
   };
-  if (!start || !motion || (lastInput === "key" && !drag)) return update();
+  if (!start || !motion || (lastInput() === "key" && !drag)) return update();
   if (prefersReducedMotion()) motion = "fade";
 
   const root = document.documentElement;

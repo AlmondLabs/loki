@@ -1412,6 +1412,42 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) { animat
 }
 .loki-phone-card[data-refused] { animation: loki-shake 360ms ease-out; }
 
+/* Arriving and waiting. A list or card still being read shows its shape, after a beat (a quick answer never
+   flashes it), with a light passing over it left to right, as iOS lists load: the light is a picture moved by
+   transform, never a repainted background. */
+@keyframes loki-skel-in { from { opacity: 0; } }
+@keyframes loki-skel-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.loki-phone-skeleton { pointer-events: none; animation: loki-skel-in 240ms ease-out 300ms both; }
+.loki-phone-skel { position: relative; display: block; overflow: hidden; background: var(--loki-hover); border-radius: var(--phone-radius-sm); }
+.loki-phone-skel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--loki-panel) 70%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: loki-skel-sweep 1.4s ease-in-out infinite;
+}
+.loki-phone-skel--face { flex: none; width: 36px; height: 36px; border-radius: var(--phone-radius-pill); }
+.loki-phone-skel--line { height: 12px; }
+.loki-phone-skel--thin { height: 10px; margin-top: 6px; }
+.loki-phone-skel-card { display: grid; gap: var(--phone-space-3); margin: var(--phone-space-3); padding: var(--phone-space-4); border: 1px solid var(--loki-border); border-radius: var(--phone-radius-lg); background: var(--loki-panel); }
+.loki-phone-skel-card-head { display: flex; align-items: center; gap: var(--phone-space-3); margin-bottom: var(--phone-space-2); }
+.loki-phone-learn .loki-phone-skel-card { margin: 0; border-radius: var(--phone-radius-md); }
+
+/* Caught up: the check springs in, then the words and what the pass did rise after it, once as the pass ends. */
+@keyframes loki-mark-in { from { opacity: 0; scale: 0.5; } }
+.loki-phone-empty[data-done] > .loki-phone-empty-mark { animation: loki-mark-in var(--spring-bouncy-ms) var(--spring-bouncy) both; }
+.loki-phone-empty[data-done] > :not(.loki-phone-empty-mark) { animation: loki-rise-in var(--spring-smooth-ms) var(--spring-smooth) 120ms both; }
+
+/* A banner (the Mac unreachable) slides down from the top edge it hangs from, and back up as it goes (components Banner). */
+@keyframes loki-banner-in { from { opacity: 0; transform: translateY(-100%); } }
+.loki-phone .loki-banner { animation: loki-banner-in var(--spring-snappy-ms) var(--spring-snappy); }
+
+/* Learn (phone/Recall.tsx): the next card rises into the place of the one graded away; the turn to the answer
+   and the throw are the card's own (Web Animations), so this is only the arrival. */
+@keyframes loki-card-rise { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+.loki-phone-learn-card[data-rise] { animation: loki-card-rise var(--spring-smooth-ms) var(--spring-smooth) 60ms both; }
+
 /* ---- Motion -------------------------------------------------------------------------------------- */
 /* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with
    it, so a transition written with them never moves. Focus rings, selection and state colours stay. */

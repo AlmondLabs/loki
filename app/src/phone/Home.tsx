@@ -13,7 +13,7 @@ import { Icon, type IconName } from "./icons";
 import { homeCounts, homeDeskSections, homeSections, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
 import type { Me } from "./Pair";
 import { navigate, type Route } from "./router";
-import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
+import { Avatar, PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
 import { Scroll } from "./ui";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
@@ -241,7 +241,7 @@ function DeskSections({ groups, marks, folded, onToggle, empty, loaded, nothingM
           </li>
         </ul>
       )}
-      {empty && <p className="loki-phone-empty">{loaded ? "No desks yet. New desk starts one: an agent in a folder." : "Reading the desks…"}</p>}
+      {empty && (loaded ? <p className="loki-phone-empty">No desks yet. New desk starts one: an agent in a folder.</p> : <SkeletonRows label="Reading the desks…" />)}
       {nothingMatches && (
         <div className="loki-phone-empty">
           <p>No desks match.</p>

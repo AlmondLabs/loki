@@ -137,7 +137,8 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
     overflow: "hidden",
     zIndex: LAYER.panel,
     opacity: attentive ? 1 : 0.6,
-    transition: "opacity 220ms ease-out, box-shadow 220ms ease-out, width 200ms ease-out",
+    // The width changes at once (a menu's pick): animating it would lay the thread out on every frame.
+    transition: "opacity 220ms ease-out, box-shadow 220ms ease-out",
   };
 }
 

@@ -3,6 +3,7 @@ import type { DeskSummary } from "../desk/useDesk";
 import { Button, Field } from "../components";
 import { DeskActions, DeskRow, type ArchiveDesk } from "./Home";
 import { archiveList } from "./model";
+import { SkeletonRows } from "./rows";
 import { BackButton, Scroll, TopBar } from "./ui";
 
 /**
@@ -32,7 +33,7 @@ export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive }:
           ))}
         </ul>
         {!loaded && desks.length === 0 ? (
-          <p className="loki-phone-empty">Reading the desks…</p>
+          <SkeletonRows label="Reading the desks…" />
         ) : all.length === 0 ? (
           <div className="loki-phone-empty">
             <p className="loki-phone-headline">No archived desks</p>

@@ -15,7 +15,7 @@ export function commandText(c: SlashCommand, os: Platform = keyboard): string {
  */
 export function SlashPalette({ matches, index, listId, onHover, onPick }: { matches: SlashCommand[]; index: number; listId: string; onHover: (i: number) => void; onPick: (c: SlashCommand) => void }) {
   return (
-    <Popover role="presentation" width={420} style={{ top: "auto", bottom: "calc(100% + 6px)", left: 12, maxWidth: "calc(100% - 24px)" }}>
+    <Popover role="presentation" instant width={420} style={{ top: "auto", bottom: "calc(100% + 6px)", left: 12, maxWidth: "calc(100% - 24px)" }}>
       <div id={listId} role="listbox" aria-label="commands" style={{ maxHeight: 260, overflowY: "auto", padding: 4 }}>
         {matches.map((c, i) => (
           <Row key={c.id} dense id={`${listId}-opt-${i}`} role="option" tabIndex={-1} data-index={i} aria-selected={i === index} onMouseEnter={() => onHover(i)} onClick={() => onPick(c)} style={{ alignItems: "baseline", gap: 8 }}>

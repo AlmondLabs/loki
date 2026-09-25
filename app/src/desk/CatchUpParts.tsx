@@ -46,7 +46,7 @@ export function DeckHeader({ current, position, total, left, liveWaiting, snooze
       </div>
       {total > 0 && (
         <div aria-hidden style={{ height: 2, margin: "0 6px 10px", background: "var(--loki-border)", borderRadius: 1, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${Math.round(((total - left) / total) * 100)}%`, background: "var(--loki-accent)", transition: "width 240ms ease-out" }} />
+          <div style={{ height: "100%", transformOrigin: "0 50%", transform: `scaleX(${((total - left) / total).toFixed(3)})`, background: "var(--loki-accent)", transition: "transform 240ms ease-out" }} />
         </div>
       )}
     </>

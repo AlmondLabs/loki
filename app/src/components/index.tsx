@@ -1,8 +1,10 @@
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, KeyboardEvent, MouseEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
-import { forwardRef, useEffect, useRef } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSheetMotion } from "./sheetMotion";
 import { LAYER } from "../kit/layers";
+import { useLeave } from "../kit/leave";
+import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
 
 /**
@@ -250,15 +252,23 @@ export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
   /** Below the anchor line (the default) or above it, for chips along a panel's bottom. */
   side?: "below" | "above";
   width?: number;
+  /** Appears at once, never grows: a palette that opens as you type. */
+  instant?: boolean;
 }
 
-/** A small panel hung from a line of chips: the model picker, the mode menu. Stacks inside its component. */
-export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover({ anchor = "left", side = "below", width = 320, className, style, onPointerDown, ...rest }, ref) {
+/**
+ * A small panel hung from a line of chips: the model picker, the mode menu. Stacks inside its component.
+ * Opened by a click it grows out of the corner it hangs from, quickly (components.css); opened by a key it
+ * is simply there, as anything a key starts is.
+ */
+export const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover({ anchor = "left", side = "below", width = 320, instant = false, className, style, onPointerDown, ...rest }, ref) {
+  const [grows] = useState(() => !instant && lastInput() === "pointer");
   return (
     <div
       ref={ref}
       className={cx("loki-popover", side === "above" && "loki-popover--above", className)}
-      style={{ [anchor]: 8, width, ...style }}
+      data-grow={grows || undefined}
+      style={{ [anchor]: 8, width, transformOrigin: `${side === "above" ? "bottom" : "top"} ${anchor}`, ...style }}
       onPointerDown={(e) => {
         e.stopPropagation();
         onPointerDown?.(e);
@@ -298,10 +308,15 @@ export function Empty({ title, children, card, className, ...rest }: HTMLAttribu
   );
 }
 
+/** On the phone a banner slides back up where it came from as it goes (it slides down as it comes, phone.css); the desktop's just goes. */
+const bannerLeave = (el: HTMLElement) => (el.closest(".loki-phone") ? [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-100%)" }] : null);
+
 /** A line across the top of a surface: the Mac is unreachable, an update is ready. Tone is a dot, not a stripe. */
 export function Banner({ tone = "var(--loki-negative)", children, className, ...rest }: HTMLAttributes<HTMLDivElement> & { tone?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLeave(ref, bannerLeave, 220);
   return (
-    <div role="status" className={cx("loki-banner", className)} {...rest}>
+    <div ref={ref} role="status" className={cx("loki-banner", className)} {...rest}>
       <Dot color={tone} />
       <span style={{ minWidth: 0 }}>{children}</span>
     </div>
@@ -318,7 +333,7 @@ export function Switch({ on, onToggle, label, small = false }: { on: boolean; on
   return (
     <button type="button" role="switch" aria-checked={on} onClick={onToggle} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: on ? "var(--loki-fg)" : "var(--loki-muted)", fontSize: small ? 12 : 13.5 }}>
       <span aria-hidden style={{ width: 28, height: 16, borderRadius: "var(--loki-radius-pill)", background: on ? "var(--loki-accent)" : "var(--loki-control-border)", position: "relative", transition: "background 160ms ease-out", flex: "0 0 auto" }}>
-        <span style={{ position: "absolute", top: 2, left: on ? 14 : 2, width: 12, height: 12, borderRadius: "var(--loki-radius-sm)", background: on ? "var(--loki-bg)" : "var(--loki-muted)", transition: "left 160ms ease-out" }} />
+        <span style={{ position: "absolute", top: 2, left: 2, width: 12, height: 12, borderRadius: "var(--loki-radius-sm)", background: on ? "var(--loki-bg)" : "var(--loki-muted)", transform: on ? "translateX(12px)" : "none", transition: "transform 160ms ease-out, background-color 160ms ease-out" }} />
       </span>
       {label}
     </button>
@@ -391,6 +406,13 @@ export interface ListRowProps {
 export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread = false, note, live = false, current = false, dim = false, flags, label, onOpen, onMenu, actions, launch }: ListRowProps) {
   const count = badge != null && badge > 0 ? badge : null;
   const status = rowStatus({ unread, badge: count, badgeNoun, live, note });
+  // The badge springs in when something new needs you (its count goes up), not when the list first draws.
+  const [shown, setShown] = useState(count);
+  const [pops, setPops] = useState(0);
+  if (shown !== count) {
+    setShown(count);
+    if (count !== null && (shown === null || count > shown)) setPops((n) => n + 1);
+  }
   const liveDot = live ? <span aria-hidden className="loki-list-row-live" /> : null;
   return (
     <li className="loki-list-item" data-dim={dim || undefined} data-current={current || undefined}>
@@ -427,7 +449,7 @@ export function ListRow({ lead, title, preview, time, badge, badgeNoun, unread =
         </span>
         {status && <span className="sr-only">{status}</span>}
         {count !== null ? (
-          <span className="loki-list-badge" aria-hidden>
+          <span key={pops} className="loki-list-badge" data-pop={pops > 0 || undefined} aria-hidden>
             {countText(count)}
           </span>
         ) : time ? (

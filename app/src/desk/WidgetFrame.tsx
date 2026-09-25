@@ -3,6 +3,7 @@ import type { Gesture, Size, WidgetLayout, WidgetManifestEntry } from "../../../
 import { MIN_FRAME, RESIZE_MIN, WIDGET_MAX_WIDTH } from "../../../core/desk-core.ts";
 import { Dot, IconButton } from "../components";
 import { useFrameKeyboard } from "./useFrameKeyboard";
+import { prefersReducedMotion } from "../kit/motion";
 
 /**
  * Standard widget chrome: drag by the title bar, close, focus-to-front, an
@@ -24,7 +25,7 @@ export function WidgetFrame({
 }: {
   entry: WidgetManifestEntry;
   layout: WidgetLayout;
-  /** The camera is pointing here: accent ring that fades when it moves on. */
+  /** The camera is pointing here: a glow that fades when it moves on. */
   highlighted?: boolean;
   /** Position in the desk's render order; staggers the settle-in animation. */
   order?: number;
@@ -51,6 +52,17 @@ export function WidgetFrame({
   });
 
   const { onKeyDown, announcement } = useFrameKeyboard({ entry, layout, sized, gesture, onFocus, frameRef, lastSentRef: lastSent });
+
+  // The agent rewrote the widget: it glows once, so the eye finds what changed. Not on the desk's first load.
+  const glowRef = useRef<HTMLSpanElement>(null);
+  const shownHash = useRef(entry.hash);
+  useEffect(() => {
+    if (shownHash.current === entry.hash) return;
+    shownHash.current = entry.hash;
+    const el = glowRef.current;
+    if (!el || typeof el.animate !== "function" || prefersReducedMotion()) return;
+    el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 1200, easing: "ease-out" });
+  }, [entry.hash]);
 
   // Report the rendered size (canvas units: offsetWidth/Height ignore the viewport transform).
   useEffect(() => {
@@ -177,10 +189,8 @@ export function WidgetFrame({
         border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
         borderRadius: "var(--loki-radius)",
         animationDelay: `${Math.min(order, 12) * 35}ms`,
-        boxShadow: highlighted
-          ? "0 0 0 3px var(--loki-brass-soft), 0 0 40px 4px var(--loki-brass-glow), var(--loki-shadow-panel)"
-          : "var(--loki-shadow-panel)",
-        transition: "box-shadow 500ms ease-out, border-color 500ms ease-out",
+        boxShadow: "var(--loki-shadow-panel)",
+        transition: "border-color 500ms ease-out",
         overflow: "hidden",
         userSelect: "none",
         display: "flex",
@@ -194,6 +204,8 @@ export function WidgetFrame({
         {announcement}
       </span>
       <ResizeGrip onResizeStart={onResizeStart} onResizeMove={onResizeMove} onResizeEnd={onResizeEnd} />
+      {/* The glow: where the camera points (held), or what the agent just changed (once). Opacity only (tokens.css). */}
+      <span ref={glowRef} aria-hidden className="loki-frame-glow" data-on={highlighted || undefined} />
     </div>
   );
 }

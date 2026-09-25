@@ -11,7 +11,7 @@ import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
-import { Avatar, RowSection } from "./rows";
+import { Avatar, RowSection, SkeletonCard } from "./rows";
 import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
 import { openFromCard } from "./transitions";
@@ -437,32 +437,38 @@ export function Inbox({
 }
 
 /**
- * No card up: why (no harness, the Mac unreachable, still reading, caught up), what this pass did, and
+ * No card up: still reading (a card's shape), or why (no harness, the Mac unreachable, caught up), what this pass did, and
  * what to do next; the deferred cards follow as a folded section, each with Bring back.
  */
 function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; /** Ready cards this pass went past; the badge still counts them. */ passedOver: number; onAgain: () => void; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void; backLabel: string; onClose: () => void; onConnection: () => void }) {
   const summary = summaryLine(pass);
   const macProblem = !available || !!banner;
+  if (!loaded && !macProblem)
+    return (
+      <div className="loki-phone-scroll loki-phone-scroll--flush">
+        <SkeletonCard label="Reading the inbox…" />
+      </div>
+    );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
   const again = loaded && !macProblem && passedOver > 0;
-  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : !loaded ? "Reading the inbox…" : again ? "End of this pass" : "You're caught up";
+  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : again ? "End of this pass" : "You're caught up";
   const line = !available
     ? "Open loki on the Mac so its mod can find Letta's app-server."
     : banner
       ? "Cards come back when it reconnects; nothing in this pass is lost."
-      : !loaded
-        ? "The Mac is listing conversations."
-        : again
-          ? `${passedOver === 1 ? "1 card is" : `${passedOver} cards are`} still waiting on you: a question stays until it is answered.`
-          : running > 0
+      : again
+        ? `${passedOver === 1 ? "1 card is" : `${passedOver} cards are`} still waiting on you: a question stays until it is answered.`
+        : running > 0
           ? `${running} still running. They land here when they finish.`
           : "Nothing is waiting on you.";
+  // The pass came to its end (or there was nothing to pass): the check springs in and what the pass did rises after it.
+  const done = loaded && !macProblem;
   return (
     <>
       {banner}
       <div className="loki-phone-scroll loki-phone-scroll--flush">
-        <div className="loki-phone-empty" role="status">
-          <Icon name={macProblem ? "laptop" : loaded ? "check" : "inbox"} size={32} />
+        <div className="loki-phone-empty" role="status" data-done={done || undefined}>
+          <Icon name={macProblem ? "laptop" : "check"} size={32} className="loki-phone-empty-mark" />
           <p className="loki-phone-headline">{title}</p>
           <p>{line}</p>
           {summary && <p className="loki-phone-meta">This pass: {summary}</p>}
@@ -470,7 +476,7 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
             <Button size="touch" tone="paper" onClick={onConnection}>
               Connection details
             </Button>
-          ) : loaded ? (
+          ) : (
             <div className="loki-phone-empty-actions">
               {again && (
                 <Button size="touch" tone="paper" onClick={onAgain}>
@@ -481,7 +487,7 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
                 Back to {backLabel}
               </Button>
             </div>
-          ) : null}
+          )}
         </div>
         {snoozed.length > 0 && (
           <RowSection icon="clock" title="Later" count={snoozed.length} open={showDeferred} onToggle={onToggleDeferred}>
