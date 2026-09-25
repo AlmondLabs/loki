@@ -1,5 +1,7 @@
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, InputHTMLAttributes, KeyboardEvent, MouseEvent, ReactNode, Ref, TextareaHTMLAttributes } from "react";
 import { forwardRef, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { useSheetMotion } from "./sheetMotion";
 import { LAYER } from "../kit/layers";
 import { Icon, type IconName } from "../shared/icons";
 
@@ -175,10 +177,16 @@ export interface SheetProps {
 /**
  * A modal sheet over a veil: aria-modal, Escape and a click on the veil close it, and focus returns to
  * where it was when the sheet closes. (A Tab loop inside the sheet is the next step; see docs/design.md.)
+ * A bottom sheet (the phone's) is drawn at the phone shell's root, above the screen it covers so that
+ * screen can recede under it, and moves as an iOS sheet does (sheetMotion.ts).
  */
 export function Sheet({ label, onClose, width = 560, height, top, placement = "top", scroll, zIndex = LAYER.modal, escape = !!onClose, className, style, cardProps, children }: SheetProps) {
   const opener = useRef<Element | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const veilRef = useRef<HTMLDivElement>(null);
+  const bottom = placement === "bottom";
+  const shell = bottom && typeof document !== "undefined" ? document.querySelector<HTMLElement>(".loki-phone-shell") : null;
+  useSheetMotion(veilRef, cardRef, onClose, !!shell);
   useEffect(() => {
     opener.current = document.activeElement;
     // Focus lands inside: on the control that asked for it, else the first one, else the card itself.
@@ -192,8 +200,9 @@ export function Sheet({ label, onClose, width = 560, height, top, placement = "t
       if (el instanceof HTMLElement && document.contains(el)) el.focus();
     };
   }, []);
-  return (
+  const sheet = (
     <div
+      ref={veilRef}
       className={cx("loki-veil", scroll && "loki-veil--scroll", placement === "bottom" && "loki-veil--bottom")}
       data-sheet
       style={{ zIndex, ...(top ? ({ "--sheet-top": top } as CSSProperties) : null) }}
@@ -230,6 +239,7 @@ export function Sheet({ label, onClose, width = 560, height, top, placement = "t
       </div>
     </div>
   );
+  return shell ? createPortal(sheet, shell) : sheet;
 }
 
 export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {

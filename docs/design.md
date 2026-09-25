@@ -64,6 +64,18 @@ off) and offset on links. Only the colour animates, so under reduced motion the 
 Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion zeroes
 every CSS duration *and delay*; JS-driven glides (the camera) go through `glide()` in `app/src/kit/motion.ts`.
 
+Motion is springs, the way Apple's is (the phone first; the desktop follows). `app/src/kit/spring.ts` holds three,
+named after SwiftUI's: *smooth* (no bounce, sheets and screens), *snappy* (a trace of bounce, menus, pills, a card
+springing home) and *bouncy* (small confirmations only: the send button, the inbox badge). `bun scripts/springs.ts`
+writes them into `tokens.css` as `--spring-<name>` (a `linear()` curve) and `--spring-<name>-ms`; each looks settled by
+~300 ms. The rules, from Rauno Freiberg's and Emil Kowalski's essays: only transform and opacity move, so it runs on the
+compositor while agents stream; a finger's speed carries into the spring it lets go of (`spring(name, velocity)`);
+anything can be caught mid-motion; light things happen during a drag and lasting ones on release; nothing done
+from the keyboard, nor a tab switch, animates. On the phone: pressed controls give to 97%, bottom sheets rise, follow
+a finger down and leave however they close (`components/sheetMotion.ts`) while the screen behind recedes; pages push
+and pop, the Inbox card zooms into its conversation (View Transitions, `phone/transitions.ts`); and a swipe from the
+left edge goes back (`phone/edgeSwipe.ts`).
+
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
@@ -236,7 +248,7 @@ box is one for both, its sizes set by `touch`.
 - Structure encodes truth: no numbering, eyebrows, or dividers that do not carry information.
 - Chrome is rounded on the radius scale; nothing on screen is a square plate unless it runs edge to edge.
 - Sentence-case sans for every label; mono only for code, data and keys.
-- Reduced motion is respected globally; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
+- Motion is springs, only transform and opacity, never for the keyboard; reduced motion is respected globally; focus is a 2px accent-blue flash that settles on a muted ring (controls) or nothing (text fields).
 - No real money amounts on screen, in the repo, or in recordings (R9).
 
 ## Tried and dropped

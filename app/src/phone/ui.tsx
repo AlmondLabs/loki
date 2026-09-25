@@ -30,7 +30,7 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
       </div>
       {progress !== null && (
         <div aria-hidden className="loki-phone-progress">
-          <div className="loki-phone-progress-fill" style={{ width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` }} />
+          <div className="loki-phone-progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progress)).toFixed(3)})` }} />
         </div>
       )}
     </header>

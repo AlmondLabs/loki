@@ -168,6 +168,13 @@ html:has(.loki-phone-shell) body {
   overscroll-behavior: none;
 }
 
+/* What shows behind a receded screen or a page being swiped away, and the shadow a page casts as it slides over
+   another. On the document, not the shell: the screen transitions' pictures hang off the root and inherit from it. */
+html:has(.loki-phone-shell) {
+  --phone-behind: #000;
+  --phone-lift-shadow: -12px 0 32px rgb(0 0 0 / 0.3);
+}
+
 /* The shell: the whole screen, one column. Fixed to the viewport (the fallback), then the small and the
    dynamic viewport where supported, so browser toolbars never leave a band under the navigation. */
 .loki-phone-shell {
@@ -313,7 +320,8 @@ html:has(.loki-phone-shell) body {
 }
 .loki-phone-topbar-actions { flex: 0 0 auto; display: flex; align-items: center; gap: var(--phone-space-1); }
 .loki-phone-progress { height: 2px; background: var(--loki-border); overflow: hidden; }
-.loki-phone-progress-fill { height: 100%; background: var(--loki-accent); transition: width var(--phone-dur) var(--phone-ease); }
+/* Filled by scale, not width: a transform moves on the compositor without laying the bar out again. */
+.loki-phone-progress-fill { height: 100%; background: var(--loki-accent); transform-origin: 0 50%; transition: transform var(--spring-smooth-ms) var(--spring-smooth); }
 
 /* One vertical scroll owner per screen; it contains its own overscroll so the page never moves. */
 .loki-phone-scroll {
@@ -724,7 +732,7 @@ html:has(.loki-phone-shell) body {
 span.loki-phone-section-btn { cursor: default; }
 .loki-phone-section-title { flex: 1; min-width: 0; font-size: var(--phone-text-emph); font-weight: var(--phone-weight-heavy); line-height: var(--phone-leading-tight); }
 .loki-phone-section-count { font-size: var(--phone-text-meta); color: var(--loki-muted); font-variant-numeric: tabular-nums; }
-.loki-phone-section-chev { color: var(--loki-muted); transition: transform var(--phone-dur-fast) var(--phone-ease); }
+.loki-phone-section-chev { color: var(--loki-muted); transition: transform var(--spring-snappy-ms) var(--spring-snappy); }
 .loki-phone-section-chev--folded { transform: rotate(-90deg); }
 
 .loki-phone-row-item { position: relative; display: flex; align-items: stretch; }
@@ -1270,6 +1278,86 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-pair-cta.loki-btn { justify-content: center; border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
 .loki-phone-pair-cta.loki-btn:disabled { border-color: var(--loki-border); background: var(--loki-hover); color: var(--loki-muted); }
 .loki-phone-pair-foot { margin: 0; font-size: var(--phone-text-meta); line-height: var(--phone-leading); color: var(--loki-muted); }
+
+/* ---- Motion: springs ---------------------------------------------------------------------------- */
+/* The phone moves the way iOS does: springs (kit/spring.ts, --spring-* in kit/tokens.css), only transform and
+   opacity, and nothing for what is done from a keyboard. Colour changes keep their short eased fades. */
+
+/* Things you press give under the finger, to 97%, and spring back. List rows highlight instead, as iOS lists do. */
+.loki-phone :is(.loki-phone-icon-btn, .loki-phone-nav-item, .loki-phone-search-btn, .loki-phone-decide-btn, .loki-phone-undo, .loki-phone-card-who, .loki-phone-convo-who, .loki-phone-circle, .loki-phone-tile, .loki-btn, .loki-chip) {
+  transition:
+    scale var(--spring-snappy-ms) var(--spring-snappy),
+    background-color var(--phone-dur-fast) var(--phone-ease),
+    color var(--phone-dur-fast) var(--phone-ease),
+    border-color var(--phone-dur-fast) var(--phone-ease),
+    opacity var(--phone-dur-fast) var(--phone-ease);
+}
+.loki-phone :is(.loki-phone-icon-btn, .loki-phone-nav-item, .loki-phone-search-btn, .loki-phone-decide-btn, .loki-phone-undo, .loki-phone-card-who, .loki-phone-convo-who, .loki-phone-circle, .loki-phone-tile, .loki-btn, .loki-chip):active:not(:disabled) { scale: 0.97; }
+/* Small round controls give a little more, or the press is too small to see. */
+.loki-phone :is(.loki-phone-icon-btn, .loki-phone-search-btn, .loki-phone-circle, .loki-composer-round):active:not(:disabled) { scale: 0.92; }
+
+/* Small confirmations bounce: the send button as it comes alive, the inbox badge on a new count. */
+@keyframes loki-pop { from { scale: 0.8; } to { scale: 1; } }
+.loki-phone .loki-composer-send:not(:disabled) { animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy); }
+.loki-phone-nav-badge { animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy); }
+
+/* Bottom sheets rise on the smooth spring over a fading veil; they leave the same way (sheetMotion.ts). */
+@keyframes loki-sheet-rise { from { transform: translateY(100%); } to { transform: none; } }
+.loki-phone .loki-veil--bottom { animation: loki-veil 200ms ease-out both; }
+.loki-phone .loki-sheet-card--bottom { animation: loki-sheet-rise var(--spring-smooth-ms) var(--spring-smooth) both; }
+/* A sheet that fits takes a vertical drag anywhere; one that scrolls, only by its grip and head. */
+.loki-phone :is(.loki-sheet-card--bottom[data-fits], .loki-model-head, .loki-phone-sheet-head) { touch-action: none; }
+
+/* While a sheet is up the screen behind it recedes: down a little, smaller, its corners rounded, on black, as
+   on iOS. --sheet-lift (1 up, toward 0 as the sheet is pulled down) lets it follow a drag; the floating
+   navigation steps out of the way. A sheet on its way out (data-leaving) already lets it come back. */
+.loki-phone-shell { background: var(--loki-bg); transition: background-color 200ms ease-out; }
+.loki-phone-main {
+  transform-origin: 50% 0;
+  transition: transform var(--spring-smooth-ms) var(--spring-smooth), border-radius var(--spring-smooth-ms) var(--spring-smooth);
+}
+.loki-phone-shell:has(> .loki-veil--bottom:not([data-leaving])) { background: var(--phone-behind); }
+.loki-phone-shell:has(> .loki-veil--bottom:not([data-leaving])) > .loki-phone-main {
+  overflow: hidden;
+  background: var(--loki-bg);
+  border-radius: calc(12px * var(--sheet-lift, 1));
+  transform: translateY(calc((var(--phone-safe-top) + 10px) * var(--sheet-lift, 1))) scale(calc(1 - 0.06 * var(--sheet-lift, 1)));
+}
+.loki-phone-shell[data-sheet-drag] > .loki-phone-main { transition: none; }
+.loki-phone-dock { transition: opacity 160ms ease-out; }
+.loki-phone-shell:has(> .loki-veil--bottom:not([data-leaving])) > .loki-phone-dock { opacity: 0; }
+
+/* Inbox: past the commit distance the word under the card pops, so you know letting go will do it. */
+.loki-phone-reveal-read, .loki-phone-reveal-later { transition: scale var(--spring-bouncy-ms) var(--spring-bouncy); }
+.loki-phone-reveal [data-armed] { scale: 1.12; }
+
+/* Screens (transitions.ts). The browser takes a picture of the screen before and after; these move the two.
+   push: the page comes in from the right, over the one it left, which drifts a third left and dims.
+   pop: the page goes off to the right (from where a finger left it, --nav-from) and the one under comes forward.
+   zoom: the Inbox card grows into its conversation, and shrinks back into it. fade: reduced motion. */
+@keyframes loki-nav-in { from { transform: translateX(100%); } }
+@keyframes loki-nav-under-out { to { transform: translateX(-30%); filter: brightness(0.7); } }
+@keyframes loki-nav-out { to { transform: translateX(calc(100% - var(--nav-from, 0px))); } }
+@keyframes loki-nav-under-in { from { transform: translateX(-30%); filter: brightness(0.7); } }
+html[data-nav="push"]:has(.loki-phone-shell)::view-transition-old(root) { animation: loki-nav-under-out var(--spring-smooth-ms) var(--spring-smooth) both; }
+html[data-nav="push"]:has(.loki-phone-shell)::view-transition-new(root) { animation: loki-nav-in var(--spring-smooth-ms) var(--spring-smooth) both; box-shadow: var(--phone-lift-shadow); }
+html[data-nav="pop"]:has(.loki-phone-shell)::view-transition-old(root) { z-index: 1; animation: loki-nav-out var(--nav-ms, var(--spring-smooth-ms)) var(--nav-ease, var(--spring-smooth)) both; box-shadow: var(--phone-lift-shadow); }
+html[data-nav="pop"]:has(.loki-phone-shell)::view-transition-new(root) { animation: loki-nav-under-in var(--nav-ms, var(--spring-smooth-ms)) var(--nav-ease, var(--spring-smooth)) both; }
+html[data-nav="zoom"] .loki-phone-shell[data-screen="tab"] .loki-phone-inbox:not([data-away]) .loki-phone-card[data-role="top"],
+html[data-nav="zoom"] .loki-phone-shell[data-screen="conversation"] > .loki-phone-main { view-transition-name: loki-zoom; }
+html[data-nav="zoom"]:has(.loki-phone-shell)::view-transition-group(loki-zoom) { animation-duration: var(--spring-smooth-ms); animation-timing-function: var(--spring-smooth); overflow: clip; }
+html[data-nav="zoom"]:has(.loki-phone-shell)::view-transition-old(loki-zoom),
+html[data-nav="zoom"]:has(.loki-phone-shell)::view-transition-new(loki-zoom) { height: 100%; object-fit: cover; object-position: top; animation-duration: 220ms; }
+html[data-nav="zoom"]:has(.loki-phone-shell)::view-transition-old(root),
+html[data-nav="zoom"]:has(.loki-phone-shell)::view-transition-new(root) { animation-duration: 220ms; }
+html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-old(root),
+html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) { animation-duration: 160ms; }
+
+/* A page being swiped back from the left edge (edgeSwipe.ts): it casts a shadow on the darker ground it uncovers. */
+.loki-phone-shell[data-edge-drag] { background: var(--phone-behind); }
+.loki-phone-shell[data-edge-drag] > .loki-phone-main { background: var(--loki-bg); box-shadow: var(--phone-lift-shadow); }
+/* On a page the shell reads sideways pans from the edge itself; lists still scroll, code blocks still slide. */
+.loki-phone-shell:not([data-screen="tab"]) > .loki-phone-main { touch-action: pan-y pinch-zoom; }
 
 /* ---- Motion -------------------------------------------------------------------------------------- */
 /* tokens.css already zeroes every duration under reduced motion; the phone's own durations go to zero with

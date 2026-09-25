@@ -24,6 +24,7 @@ import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, t
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
 import { useKeyboardInset } from "./viewport";
+import { useEdgeSwipe } from "./edgeSwipe";
 import { useModelList } from "../shell/useModelList";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
@@ -242,6 +243,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   useFocusOnRoute(shellRef, place, arrival === "pop");
   // The on-screen keyboard: where it only shrinks the visual viewport, the shell fits what is visible (viewport.ts).
   useKeyboardInset(shellRef);
+  // On a page, a swipe from the left edge goes back, as on iOS (edgeSwipe.ts).
+  useEdgeSwipe(shellRef, route.kind !== "tab", onBack);
   // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
   // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
   useEffect(() => {
@@ -267,7 +270,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const health = useHealthBuild();
   const update = <UpdateBar servedBuild={desk.servedBuild} health={health} />;
   return (
-    <div ref={shellRef} className="loki-phone loki-phone-shell">
+    <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
         {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}

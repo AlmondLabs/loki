@@ -1,4 +1,3 @@
-import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, type KeyboardEvent, type Ref, type RefObject } from "react";
 import { Chip, Field, IconButton, Meta, Popover, Row, Sheet, sentence } from "../components";
 import { Icon } from "../shared/icons";
@@ -359,19 +358,13 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, loadi
         </div>
       </Sheet>
     );
-    // Drawn at the phone's root, not where the pill is: the Inbox card moves by transform, and a transformed
-    // ancestor becomes a fixed sheet's frame, so the sheet filled the card instead of the screen. The root keeps
-    // the phone's styles, which are scoped under .loki-phone.
-    const root = typeof document === "undefined" ? null : (document.querySelector(".loki-phone") ?? document.body);
-    if (!root) return sheet;
-    // React still bubbles a portal's events through the tree it came from: without this a drag in the sheet would
-    // swipe the card underneath.
+    // The Sheet draws itself at the phone shell's root, out of the Inbox card's transform. React still bubbles a
+    // portal's events through the tree it came from: without this a drag in the sheet would swipe the card underneath.
     const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
-    return createPortal(
+    return (
       <div style={{ display: "contents" }} onPointerDown={stop} onPointerMove={stop} onPointerUp={stop} onPointerCancel={stop}>
         {sheet}
-      </div>,
-      root,
+      </div>
     );
   }
   return (

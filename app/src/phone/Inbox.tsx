@@ -14,18 +14,21 @@ import { Icon } from "./icons";
 import { Avatar, RowSection } from "./rows";
 import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
+import { openFromCard } from "./transitions";
+import { spring } from "../kit/spring";
 import {
   DRAG_SLOP,
   EMPTY_DECK,
-  FLY_EASE,
-  FLY_MS,
+  FLY_PAST,
   UNDO_MS,
+  armed,
   canCommit,
   cardNotice,
   cardsToDraw,
   commitCard,
   dayLabel,
   deckQueue,
+  flingVelocity,
   holdCard,
   isHorizontalDrag,
   passTotal,
@@ -157,7 +160,7 @@ function useDeckWidth(on: boolean) {
 type Undo = { item: AttentionItem; via: Swipe; held: boolean };
 
 /**
- * What a pass does on screen as cards go: the card flying off (for FLY_MS, unless motion is reduced),
+ * What a pass does on screen as cards go: the card flying off (on the smooth spring, unless motion is reduced),
  * the Undo button's card (for UNDO_MS after Later or Mark as done), the flash when an approval refuses,
  * and the sentence a screen reader hears. `commit` takes the card off and tells the parent; `undoLast`
  * puts the last one back.
@@ -190,7 +193,7 @@ function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: D
     setSaid(reviewAnnouncement(via, rest[0], rest.length));
     if (!reduced) {
       setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1 });
-      leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), FLY_MS + 30);
+      leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), spring("smooth").ms + 30);
     }
     undoTimer.clear();
     if (via === "seen" || via === "later") {
@@ -221,11 +224,13 @@ const OWN_GESTURE = "textarea, input, select, button, a, pre, summary, [data-att
  */
 function useSwipe({ width, approval, current, onCommit, onRefuse }: { width: number; approval: boolean; current: AttentionItem | undefined; onCommit: (item: AttentionItem, via: Swipe) => void; onRefuse: () => void }) {
   const [drag, setDrag] = useState<{ dx: number } | null>(null);
-  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; samples: { x: number; t: number }[] } | null>(null);
+  // Where and how fast the last drag was let go: the spring home, or off, carries that speed.
+  const [release, setRelease] = useState<Release | null>(null);
+  const start = useRef<{ x: number; y: number; id: number; dragging: boolean; base: number; samples: { x: number; t: number }[] } | null>(null);
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     if ((e.target as Element).closest(OWN_GESTURE)) return;
-    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, dragging: false, samples: [{ x: e.clientX, t: e.timeStamp }] };
+    start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, dragging: false, base: 0, samples: [{ x: e.clientX, t: e.timeStamp }] };
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
     const s = start.current;
@@ -235,6 +240,8 @@ function useSwipe({ width, approval, current, onCommit, onRefuse }: { width: num
     if (!s.dragging) {
       if (!isHorizontalDrag(dx, dy)) return;
       s.dragging = true;
+      // Caught while still springing home: the finger takes it from where it is, not from the middle.
+      s.base = currentOffset(e.currentTarget);
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
@@ -243,19 +250,21 @@ function useSwipe({ width, approval, current, onCommit, onRefuse }: { width: num
     }
     s.samples.push({ x: e.clientX, t: e.timeStamp });
     if (s.samples.length > 12) s.samples.shift();
-    setDrag({ dx });
+    setDrag({ dx: dx + s.base });
   };
   const finish = (e: ReactPointerEvent<HTMLElement>, cancelled: boolean) => {
     const s = start.current;
     if (!s || s.id !== e.pointerId) return;
     start.current = null;
     if (!s.dragging) return;
-    const dx = e.clientX - s.x;
+    const dx = e.clientX - s.x + s.base;
+    const v = cancelled ? 0 : velocityOf(s.samples);
+    const decision = cancelled || !current ? null : swipeDecision(dx, width, v, { approval });
+    if (current) setRelease({ id: idOf(current), committed: !!decision, dx: approval ? refusedOffset(dx) : dx, v: approval ? 0 : v });
     if (cancelled || !current) {
       setDrag(null);
       return;
     }
-    const decision = swipeDecision(dx, width, velocityOf(s.samples), { approval });
     if (decision) onCommit(current, decision);
     else {
       setDrag(null);
@@ -263,7 +272,17 @@ function useSwipe({ width, approval, current, onCommit, onRefuse }: { width: num
     }
   };
   const handlers: CardHandlers = { onPointerDown, onPointerMove, onPointerUp: (e) => finish(e, false), onPointerCancel: (e) => finish(e, true) };
-  return { drag, clear: () => setDrag(null), handlers };
+  return { drag, release, clear: () => setDrag(null), handlers };
+}
+
+/** A drag let go: which card, whether it went, where it was (px) and how fast it was going (px per ms). */
+type Release = { id: string; committed: boolean; dx: number; v: number };
+
+/** The card's translateX as it is drawn right now, mid-spring included. */
+function currentOffset(el: Element): number {
+  const t = getComputedStyle(el).transform;
+  if (!t || t === "none" || typeof DOMMatrixReadOnly === "undefined") return 0;
+  return new DOMMatrixReadOnly(t).m41;
 }
 
 /** What the card's conversation can do: reply (text, images), answer the open question, take back a queued message. */
@@ -390,7 +409,7 @@ export function Inbox({
         <>
           <div ref={deckRef} className="loki-phone-deck">
             <Reveal dx={swipe.drag?.dx ?? 0} width={width} approval={approval} />
-            <Stack visible={visible} leaving={leaving} drag={swipe.drag} width={width} approval={approval} refused={refused} reduced={reduced} conversation={conversation} handlers={swipe.handlers} deck={deck} banner={banner} card={card} onOpen={onOpen} />
+            <Stack visible={visible} leaving={leaving} drag={swipe.drag} release={swipe.release} width={width} approval={approval} refused={refused} reduced={reduced} conversation={conversation} handlers={swipe.handlers} deck={deck} banner={banner} card={card} onOpen={onOpen} />
           </div>
           <Decisions
             item={current}
@@ -496,12 +515,14 @@ function DeferredRow({ item, onOpen, onUnsnooze }: { item: AttentionItem; onOpen
 function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
   const read = !approval && dx > 0 ? revealOpacity(dx, width) : 0;
   const later = !approval && dx < 0 ? revealOpacity(dx, width) : 0;
+  // Past the commit distance the word under the card pops (phone.css): letting go now does it.
+  const ready = !approval && armed(dx, width);
   return (
     <div aria-hidden className="loki-phone-reveal">
-      <span className="loki-phone-reveal-read" style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
+      <span className="loki-phone-reveal-read" data-armed={(ready && dx > 0) || undefined} style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
         <Icon name="check" size={20} /> Mark as done
       </span>
-      <span className="loki-phone-reveal-later" style={{ opacity: later, transform: `scale(${0.9 + later * 0.1})` }}>
+      <span className="loki-phone-reveal-later" data-armed={(ready && dx < 0) || undefined} style={{ opacity: later, transform: `scale(${0.9 + later * 0.1})` }}>
         Later <Icon name="clock" size={20} />
       </span>
     </div>
@@ -516,13 +537,21 @@ interface CardHandlers {
 }
 
 /** One keyed list, one component: a card keeps its DOM node as it goes shell → top → leaving, so its transform transitions between poses. */
-function Stack({ visible, leaving, drag, width, approval, refused, reduced, conversation, handlers, deck, banner, card, onOpen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; deck: Deck; banner?: ReactNode; card: CardActions; onOpen: (item: AttentionItem) => void }) {
+function Stack({ visible, leaving, drag, release, width, approval, refused, reduced, conversation, handlers, deck, banner, card, onOpen }: { visible: AttentionItem[]; leaving: { item: AttentionItem; dir: 1 | -1 } | null; drag: { dx: number } | null; release: Release | null; width: number; approval: boolean; refused: boolean; reduced: boolean; conversation: (agentId: string, conversationId: string) => CardView; handlers: CardHandlers; deck: Deck; banner?: ReactNode; card: CardActions; onOpen: (item: AttentionItem) => void }) {
   const dx = drag?.dx ?? 0;
-  const move = reduced ? "none" : `transform ${FLY_MS}ms ${FLY_EASE}, opacity ${FLY_MS}ms ${FLY_EASE}`;
+  // Every move is a spring (kit/spring.ts): the cards behind rise on the smooth one; a card let go springs
+  // home on the snappy one, or flies off on the smooth one, either way carrying the finger's speed.
+  const rise = spring("smooth");
+  const move = reduced ? "none" : `transform ${rise.ms}ms ${rise.easing}`;
+  const flyTo = leaving ? leaving.dir * (width + FLY_PAST) : 0;
+  // Only the card that was let go carries the speed: a card sent off by a button, or rising into the top place, starts still.
+  const flung = leaving && release?.committed && release.id === idOf(leaving.item) ? release : null;
+  const fly = spring("smooth", flung ? flingVelocity(flung.dx, flyTo, flung.v) : 0);
+  const homeFrom = (item: AttentionItem) => (release && !release.committed && release.id === idOf(item) ? spring("snappy", flingVelocity(release.dx, 0, release.v)) : rise);
   return cardsToDraw(visible, leaving?.item ?? null).map(({ item, role, index }) => {
     if (role === "leaving")
       return (
-        <Card key={idOf(item)} item={item} role={role} style={{ zIndex: 3, transform: `translateX(${leaving!.dir * (width + 80)}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: move }}>
+        <Card key={idOf(item)} item={item} role={role} style={{ zIndex: 3, transform: `translateX(${flyTo}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in` }}>
           <ReadOnlyThread item={item} view={conversation(item.agentId, item.id)} />
         </Card>
       );
@@ -534,9 +563,12 @@ function Stack({ visible, leaving, drag, width, approval, refused, reduced, conv
           item={item}
           role={role}
           refused={refused}
-          style={{ zIndex: 2, transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none", transition: drag ? "none" : move }}
+          style={{ zIndex: 2, transform: drag ? `translateX(${offset}px) rotate(${rotationFor(offset, width)}deg)` : "none", transition: drag || reduced ? "none" : `transform ${homeFrom(item).ms}ms ${homeFrom(item).easing}` }}
           handlers={handlers}
-          onOpen={() => onOpen(item)}
+          onOpen={() => {
+            openFromCard(); // the conversation grows out of the card (transitions.ts)
+            onOpen(item);
+          }}
         >
           <CardConversation item={item} view={conversation(item.agentId, item.id)} banner={banner} card={card} onHold={() => deck.hold(item)} />
         </Card>

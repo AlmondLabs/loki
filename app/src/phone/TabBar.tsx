@@ -28,7 +28,8 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
                 <span className="loki-phone-nav-icon">
                   <Icon name={TAB_ICON[t]} size={24} />
                   {n > 0 && (
-                    <span aria-hidden className="loki-phone-nav-badge">
+                    // Keyed by the count: a new number is a new badge, which pops in (phone.css).
+                    <span key={n} aria-hidden className="loki-phone-nav-badge">
                       {badgeText(n)}
                     </span>
                   )}

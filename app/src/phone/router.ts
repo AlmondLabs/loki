@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { activeControl, focusMemory } from "./session";
+import { transition } from "./transitions";
 
 /**
  * The phone's routes live in the hash, so a home-screen icon has history and swipe-back:
@@ -239,11 +240,16 @@ export function useRouteState(): RouteState {
       if (location.hash !== canonical) history.replaceState(history.state, "", url(canonical));
     };
     canonicalize();
+    let shown = parseRoute(location.hash);
     const on = () => {
       const arrival = pending ?? "pop"; // nothing pending: history moved by itself (Back, swipe-back, a typed address)
       pending = null;
       canonicalize();
-      setState(read(arrival));
+      const next = read(arrival);
+      const from = shown;
+      shown = next.route;
+      // The screen change moves the way iOS's do (transitions.ts); the state lands either way.
+      transition(from, next.route, arrival, () => setState(next));
     };
     window.addEventListener("hashchange", on);
     return () => window.removeEventListener("hashchange", on);

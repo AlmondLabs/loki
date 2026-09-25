@@ -62,6 +62,22 @@
   --loki-display: var(--loki-font);
   --loki-label: var(--loki-font);
   --loki-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  /* springs: written by scripts/springs.ts from kit/spring.ts — do not edit by hand */
+  --spring-smooth: linear(0, 0.0193, 0.0673, 0.1324, 0.2064, 0.2836, 0.3601, 0.4333, 0.5018, 0.5648, 0.6217, 0.6728, 0.7181, 0.758, 0.7929, 0.8232, 0.8495, 0.8722, 0.8917, 0.9084, 0.9227, 0.9348, 0.9452, 0.9539, 0.9613, 0.9676, 0.9728, 0.9773, 0.981, 0.9841, 0.9868, 0.989, 0.9908, 0.9924, 0.9936, 0.9947, 0.9956, 0.9964, 0.997, 0.9975, 0.9979, 0.9983, 0.9986, 0.9988, 1);
+  --spring-smooth-ms: 516ms;
+  --spring-snappy: linear(0, 0.026, 0.0905, 0.1773, 0.2746, 0.3741, 0.4702, 0.5594, 0.6397, 0.7102, 0.7708, 0.822, 0.8644, 0.899, 0.9268, 0.9486, 0.9656, 0.9784, 0.988, 0.9948, 0.9996, 1.0028, 1.0048, 1.0058, 1.0063, 1.0062, 1.0059, 1.0054, 1.0048, 1.0042, 1.0036, 1.003, 1.0025, 1.002, 1.0016, 1.0012, 1);
+  --spring-snappy-ms: 420ms;
+  --spring-bouncy: linear(0, 0.0159, 0.0579, 0.1182, 0.1906, 0.2699, 0.352, 0.4338, 0.5127, 0.5872, 0.656, 0.7184, 0.7741, 0.8231, 0.8655, 0.9016, 0.9318, 0.9568, 0.9769, 0.9928, 1.0051, 1.0142, 1.0206, 1.0248, 1.0273, 1.0283, 1.0282, 1.0273, 1.0257, 1.0238, 1.0216, 1.0193, 1.017, 1.0147, 1.0125, 1.0105, 1.0087, 1.007, 1.0055, 1.0043, 1.0032, 1.0023, 1.0015, 1);
+  --spring-bouncy-ms: 512ms;
+  /* end springs */
+}
+/* Where linear() is missing (older WebKitGTK), the springs fall back to the eased curves they replaced. */
+@supports not (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring-smooth: cubic-bezier(0.2, 0, 0, 1);
+    --spring-snappy: cubic-bezier(0.2, 0, 0, 1);
+    --spring-bouncy: cubic-bezier(0.34, 1.3, 0.64, 1);
+  }
 }
 
 /* Daylight: Slack's light desktop — a pale grey ground, white panels, grey hairlines, near-black ink. */
