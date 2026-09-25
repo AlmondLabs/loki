@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
-import { lokiUpgrade, lokiUpgradeNotYet, osWords, runsOn } from "../shell/osWords";
+import { lokiUpgrade, osWords, runsOn } from "../shell/osWords";
 import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
@@ -320,8 +320,8 @@ export function SystemFact({ os = platform, shell = inTauri }: { os?: Platform; 
 
 /**
  * The app's own version, and the newest release on GitHub once it answered. Homebrew is the upgrade path on the
- * Mac; this system's file on the release elsewhere, where the build is also a preview (plan 014 R12). Those files
- * reach a stable only once its preview PR is merged, so until then the link is the release page and says so.
+ * Mac; this system's file on the release elsewhere, where the build is also a preview (plan 014 R12). There the
+ * check reads the newest release carrying that file, so the link is the file (the release page if it has none).
  */
 export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate; os?: Platform }) {
   const cask = update.channel === "nightly" ? "loki-nightly" : "loki";
@@ -335,7 +335,7 @@ export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate;
   const value = update.newer ? (
     <span>
       {update.current} · <a href={update.url ?? "#"}>{update.latest} is out</a>
-      <Note>{os === "macos" ? upgrade : !update.download || update.download === update.url ? <a href={update.url ?? "#"}>{lokiUpgradeNotYet(os)}</a> : <a href={update.download}>{upgrade}</a>}</Note>
+      <Note>{os === "macos" ? upgrade : <a href={update.download ?? update.url ?? "#"}>{upgrade}</a>}</Note>
       {preview}
     </span>
   ) : update.latest ? (

@@ -1,12 +1,12 @@
 # Releases, two channels, from every push to main (docs/RELEASING.md; scripts/release.ts does the deciding):
 #   nightly  every merge builds the app and replaces the rolling `nightly` prerelease and the loki-nightly cask
-#   stable   merging the release PR (branch release/next) tags vYYYY.M.D, publishes the release and pushes the loki cask
-#   preview  merging the preview PR (branch release/preview) builds Windows and Linux from the newest stable's tag and
-#            attaches them to that release; no nightly, no cask
-# The release PR itself is created by the first merge after a stable and rebuilt by every merge after that, and at
-# midnight UTC so its number is today's date. Signing is optional (the Apple secrets); TAP_TOKEN pushes the casks.
-# The preview PR is open whenever the newest stable's release lacks its Windows and Linux files. Those are unsigned
-# previews (plan 014 R12) and only ever on a stable: nightlies and the release PR are the Mac's alone.
+#   stable   merging the release PR (branch release/next) publishes vYYYY.M.D with the .dmg and pushes the loki cask
+#   preview  merging the Windows and Linux PR (branch release/preview) builds main on Windows and Linux and puts the
+#            files on vYYYY.M.D; no nightly, no cask
+# Both PRs propose the same day's version and are rebuilt from main by every merge, and at midnight UTC so their
+# number is today's date. Whichever is merged first creates the tag and the release; the other adds its files to it.
+# Signing is optional (the Apple secrets); TAP_TOKEN pushes the casks. The Windows and Linux files are unsigned
+# previews (plan 014 R12) and only ever on a stable: nightlies are the Mac's alone.
 name: release
 on:
   push:
@@ -27,13 +27,17 @@ jobs:
       kind: ${{ steps.plan.outputs.kind }}
       version: ${{ steps.plan.outputs.version }}
       next: ${{ steps.plan.outputs.next }}
+      preview: ${{ steps.plan.outputs.preview }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
       - uses: oven-sh/setup-bun@v2
+      # the releases say which stables the Mac has shipped (a .dmg); a tag alone may be Windows and Linux's
       - id: plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun scripts/release.ts plan
 
   release-pr:
@@ -59,12 +63,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bun scripts/release.ts release-pr "${{ needs.plan.outputs.next }}"
 
-  # The preview PR, whenever the newest stable's release lacks its Windows and Linux files; closed once it has them.
-  # It waits for the Mac's build so a stable's run finds the release it just published.
+  # The Windows and Linux PR, on the same runs as the release PR and for the same day; closed while that day's
+  # release has its Windows and Linux files.
   preview-pr:
-    name: the preview PR
-    needs: [plan, build]
-    if: always() && needs.plan.result == 'success' && needs.plan.outputs.kind != 'preview'
+    name: the Windows and Linux PR
+    needs: plan
+    if: needs.plan.outputs.kind == 'nightly' || needs.plan.outputs.kind == 'repush'
     runs-on: ubuntu-latest
     concurrency:
       group: preview-pr
@@ -81,7 +85,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          bun scripts/release.ts preview-pr
+          bun scripts/release.ts preview-pr "${{ needs.plan.outputs.preview }}"
 
   build:
     name: build and publish (${{ needs.plan.outputs.kind }} ${{ needs.plan.outputs.version }})
@@ -135,6 +139,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         with:
           args: --target universal-apple-darwin
+      # a new release, or the .dmg onto the one the Windows and Linux PR made first (then latest, with the full notes)
       - name: publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -176,8 +181,8 @@ jobs:
           git commit --quiet -m "loki ${KIND} ${VERSION}"
           git push --quiet origin main
 
-  # Windows: the NSIS installer, loki_<version>_x64-setup.exe, of a stable only. Its version is the tag's own, so it
-  # stamps nothing new; the step stays so the files always match the release they go on.
+  # Windows: the NSIS installer, loki_<version>_x64-setup.exe, of a stable only: main at the merge, stamped with the
+  # marker's version like the Mac's build is.
   windows:
     name: Windows preview (v${{ needs.plan.outputs.version }})
     needs: plan
@@ -189,10 +194,7 @@ jobs:
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      # the stable's own code, not main's: the files carry exactly what the .dmg of that tag does
       - uses: actions/checkout@v4
-        with:
-          ref: v${{ needs.plan.outputs.version }}
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
@@ -219,10 +221,7 @@ jobs:
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      # the stable's own code, not main's: the files carry exactly what the .dmg of that tag does
       - uses: actions/checkout@v4
-        with:
-          ref: v${{ needs.plan.outputs.version }}
       - name: linux build packages
         run: |
           sudo apt-get update
@@ -248,15 +247,26 @@ jobs:
           if-no-files-found: error
 
   attach:
-    name: attach the preview (v${{ needs.plan.outputs.version }})
+    name: publish Windows and Linux (v${{ needs.plan.outputs.version }})
     # Whatever built goes on: one system failing leaves only its files off, with a warning; re-run its job to add them.
+    # The release exists when the Mac merged first (upload); otherwise this creates the tag at the merge and a release
+    # not marked latest. Its own queue, not the Mac stable's: GitHub keeps one waiting job per queue and would drop a
+    # waiting Mac stable for a newer attach. If both merges find no release, the one whose create loses joins the
+    # release the other made (release.ts createOrJoin).
     needs: [plan, windows, linux]
     if: always() && needs.plan.outputs.kind == 'preview' && (needs.windows.result == 'success' || needs.linux.result == 'success')
     runs-on: ubuntu-latest
+    concurrency:
+      group: attach-preview
+      cancel-in-progress: false
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
+      # the history and tags too: a release created here gets the notes since the last stable
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
       - uses: oven-sh/setup-bun@v2
       - uses: actions/download-artifact@v4
         with:
@@ -269,7 +279,7 @@ jobs:
         run: |
           [ "$WINDOWS" = success ] || echo "::warning title=Windows files not attached::the Windows build was $WINDOWS; re-run it to add them to v$VERSION"
           [ "$LINUX" = success ] || echo "::warning title=Linux files not attached::the Linux build was $LINUX; re-run it to add them to v$VERSION"
-      - name: attach to the release
+      - name: put them on the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

@@ -2,8 +2,9 @@
 
 Nothing is tagged by hand. `.github/workflows/release.yml` runs on every push to `main` (and at midnight UTC,
 and on request from the Actions tab) and `scripts/release.ts` decides what the run does. There are two channels,
-nightly and stable, both the Mac's alone, and two PRs the workflow keeps for you: the release PR, which makes a
-stable, and the preview PR, which adds Windows and Linux to a stable that already shipped.
+nightly (the Mac's alone) and stable, and two PRs the workflow keeps for you, both for the same day's version: the
+release PR, which ships the Mac's stable, and the Windows and Linux PR, which ships their files for that version.
+Merge them in either order: the first creates the day's release, the second adds its files to it.
 
 ## How a change ships
 
@@ -11,37 +12,64 @@ stable, and the preview PR, which adds Windows and Linux to a stable that alread
    rolling `nightly` prerelease, and `Casks/loki-nightly.rb` in the tap. Nightlies are Mac-only. Anyone on
    `brew install --cask almondlabs/loki/loki-nightly` gets it with `brew upgrade`. Only the newest merge matters:
    a nightly build still running is cancelled when the next merge lands.
-2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "release: 2026.9.28":
-   one commit that bumps the version files and prepends the notes to `CHANGELOG.md`. Every further merge rebuilds
-   it from `main`, so there is always exactly one, and its notes are everything since the last stable. Do not push
-   to it; anything that should ship goes through an ordinary PR.
-3. **Merge the release PR** when you want a stable. That merge builds once more, tags `v2026.9.28`, publishes the
-   release (not a draft) with the `.dmg` and the rendered cask attached, and pushes `Casks/loki.rb` to the tap.
+2. **The same merge creates or refreshes both release PRs**, each one commit on top of `main`, rebuilt from `main`
+   and force-pushed by every further merge and by the midnight run, so there is always exactly one of each and
+   their number is today's date. Do not push to either; anything that should ship goes through an ordinary PR.
+   1. **The release PR**, branch `release/next`, titled "release: 2026.9.28": it bumps the version files and
+      prepends the notes to `CHANGELOG.md`; its notes are everything since the last stable.
+   2. **The Windows and Linux PR**, branch `release/preview`, titled "release: Windows and Linux 2026.9.28": it
+      writes `v2026.9.28` to `.github/preview.txt`. It is closed while that day's release already has its Windows
+      and Linux files, and moves to the new date at midnight like the release PR.
+3. **Merge the release PR** when you want the Mac's stable. That merge builds once more and publishes
+   `v2026.9.28` with the `.dmg` and the rendered cask attached, marked latest, and pushes `Casks/loki.rb` to the tap.
    `brew upgrade --cask loki` follows. That merge produces no nightly; the stable is that build.
-4. **The same run opens the preview PR**, branch `release/preview`, titled "release: Windows and Linux preview for
-   v2026.9.28": one commit that writes the tag to `.github/preview.txt`. It stays open, rebuilt from `main` by every
-   run, as long as the newest stable's release lacks its Windows and Linux files, and follows the newest stable
-   when another ships first. Do not push to it.
-5. **Merge the preview PR** when you want Windows and Linux for that stable. The merge builds the `v2026.9.28`
-   tag's code, not `main`'s, on Windows and Linux and attaches the `-setup.exe`, the AppImage and the `.deb` to
-   the existing v2026.9.28 release, with the preview line (below) put at the top of its notes. It makes no
-   nightly and touches neither the `.dmg` nor the casks. The next run finds the files there and leaves the preview
-   PR closed until the next stable.
+4. **Merge the Windows and Linux PR** when you want Windows and Linux. The merge builds `main` as it is at that
+   merge on Windows and Linux, stamps `2026.9.28`, and puts the `-setup.exe`, the AppImage and the `.deb` on
+   `v2026.9.28`, with the preview line (below) at the top of its notes. It makes no nightly and touches neither the
+   `.dmg` nor the casks.
+
+### Either order
+
+The two merges share `v2026.9.28`, and their files come from whatever `main` was at each merge: if something
+landed between the two, the Mac's and the Windows and Linux files are built from different commits. That is
+accepted; the version is the day, not a commit.
+
+1. **The Mac first.** Its merge creates the tag at the release PR's merge and the release, as it always has. The
+   Windows and Linux PR stays open for the same day (the release PR moves to tomorrow, one stable a day). Merging it
+   uploads its files to the existing release with `--clobber` and adds the preview line to the notes.
+2. **Windows and Linux first.** Its merge creates the tag **at its own merge commit** and a release with the Windows
+   and Linux files and the notes since the last stable, **not marked latest** (`--latest=false`): GitHub's latest is
+   what the Mac's update check, the `.dmg` link and the cask's livecheck read, and this release has no `.dmg` yet.
+   The release PR stays at the same day. Merging it builds the Mac's stable as usual, uploads the `.dmg` and
+   `cask.rb` to the existing release with `--clobber`, marks it latest and replaces the notes with the full stable
+   notes and the preview line. The tag is not moved: it stays at the Windows and Linux merge, so `git checkout
+   v2026.9.28` is that commit, not the release PR's (the `.dmg`'s code is the release PR's merge on `main`), and the
+   next stable's notes count from the tag, so commits merged between the two merges are listed in both days' notes.
+3. **Only one of them.** The midnight run (when there is anything since the last stable) moves both to the new
+   day. A day whose Windows and Linux PR was never merged keeps a Mac-only release; a day whose release PR was never
+   merged keeps a Windows and Linux release that is never latest. Windows and Linux find their newest file either
+   way (Settings › letta reads the releases list, not latest). With nothing merged since the Mac's stable, no run
+   refreshes the PRs, so the Windows and Linux PR still names that day and its merge joins that day's release.
 
 ## What a release run builds
 
-1. **plan** (`bun scripts/release.ts plan`) decides stable, nightly, repush, preview or nothing, and the version.
-   A release PR landing is recognised by the version files naming a date the tags do not have; the preview PR
-   landing by the push itself changing `.github/preview.txt` to an existing stable's tag (only on a push: the
-   midnight and manual runs never rebuild a preview). Commits titled `release: …`, the two PRs' own, do not count
-   as something to ship, so a preview merge alone never makes a nightly or a release PR.
+1. **plan** (`bun scripts/release.ts plan`) decides stable, nightly, repush, preview or nothing, and the versions.
+   It asks GitHub which stables the Mac has shipped: releases with a `.dmg` (a tag alone may be Windows and Linux's).
+   The Windows and Linux PR landing is recognised by the push itself changing `.github/preview.txt` (only on a push:
+   the midnight and manual runs never rebuild a preview), and is a preview of that version whatever else the merge
+   carries. A release PR landing is recognised by the version files naming a date the Mac has not shipped, whether or
+   not Windows and Linux made its tag already. Commits titled `release: …`, the two PRs' own, do not count as
+   something to ship, so a Windows and Linux merge alone never makes a nightly. A Windows and Linux PR merged with an
+   older day's number whose release does not exist (a merge in the minutes after midnight) ships nothing: both PRs
+   are refreshed to today, as a stale release PR is.
 2. **A nightly or a stable** is the Mac's: one `macos-14` job builds the universal `.dmg` with
    `tauri-apps/tauri-action@v0` (`--target universal-apple-darwin`), publishes it with `release.ts publish`, renders
-   the cask from it, attaches `cask.rb` to the release and pushes it to the tap. Then **the preview PR** job
-   (`release.ts preview-pr`) opens, refreshes or closes the preview PR against the newest stable's release; it
-   waits for the Mac's job so a stable's run finds the release it just published.
-3. **A preview** is two build jobs, each checking out the stable's tag, stamping its version (`release.ts set`)
-   and uploading its files as an artifact, then **attach**:
+   the cask from it, attaches `cask.rb` to the release and pushes it to the tap. A nightly or a repush also runs
+   **the release PR** and **the Windows and Linux PR** jobs (`release.ts release-pr`, `release.ts preview-pr`), both
+   with the version `plan` gives: today's, except that the release PR moves to tomorrow once the Mac shipped today,
+   while the Windows and Linux PR stays on today until that release has its files.
+3. **A preview** is two build jobs, each checking out the merge, stamping the version (`release.ts set`) and
+   uploading its files as an artifact, then **publish Windows and Linux**:
 
    | job | runner | how | files |
    |---|---|---|---|
@@ -49,14 +77,17 @@ stable, and the preview PR, which adds Windows and Linux to a stable that alread
    | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `bun run tauri build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
 
    Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
-   `ci.yml`'s. **attach** downloads whatever built and runs `release.ts attach v<v> <files…>`: `gh release upload
-   --clobber`, so a re-run replaces rather than fails, then the preview line on top of the notes if they do not
-   carry it yet. One system failing leaves only its files off, with a warning on the run. **Re-run its failed
-   jobs** from the Actions tab to add them: the preview PR does not reopen for a tag `main` already records.
+   `ci.yml`'s. The last job downloads whatever built and runs `release.ts attach v<v> <files…>`: with a release
+   there, `gh release upload --clobber` (a re-run replaces rather than fails) and the preview line on top of the notes
+   if they do not carry it yet; with none, `gh release create --target <merge> --latest=false`. It has its own queue
+   (a shared one could drop a waiting Mac stable); if both merges find no release at once, the one whose create
+   loses joins the release the other made. One system failing leaves only its files off, with a
+   warning on the run. **Re-run its failed jobs** from the Actions tab to add them: the Windows and Linux PR does
+   not reopen for a version `main` already records.
 
 The preview line (`previewLine` in `scripts/release.ts`) says Windows and Linux are built and tested in CI, not
-yet tried on real machines, with the issues link. It opens the preview PR's body and, once attached, that
-release's notes; the release PR, `CHANGELOG.md` and the nightly do not carry it. Take it out of `previewLine` when
+yet tried on real machines, with the issues link. It opens the Windows and Linux PR's body and the notes of a
+release carrying their files; the release PR, `CHANGELOG.md` and the nightly do not carry it. Take it out of `previewLine` when
 people have confirmed the builds, and the README's and Settings' preview notes with it.
 [preview-checklist.md](preview-checklist.md) is what to ask them to try.
 
@@ -67,13 +98,15 @@ zeros: `2026.9.28`, then `2026.10.2`. A nightly is that day plus the merge it wa
 `2026.9.28-nightly.a96ee85`. Both are three integers, so semver, macOS and Homebrew all order them, and the app's
 own check for a newer release keeps working (`core/version.ts`).
 
-- **Tags are the source of truth.** The newest `v*` tag is the current stable; `package.json`,
-  `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` (and the lockfile) hold that same number between releases.
+- **The releases are the source of truth.** The newest `v*` release with a `.dmg` is the current stable;
+  `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` (and the lockfile) hold that same number
+  between releases.
   Only the release PR changes them; a checkout therefore shows the last stable in Settings and stays quiet about
   updates. A nightly build gets its number stamped on the runner and nothing is committed.
 - **One stable a day.** A version has three integer slots and the date uses all of them. A second release PR
   merged on the same day ships nothing: the workflow leaves the PR open proposing tomorrow's date, and the merge
-  still made a nightly.
+  still made a nightly. The Windows and Linux PR closes once the day's release has its files and reopens for a later
+  day on the next run that refreshes the release PR.
 - **The number tracks the calendar.** The release PR's number goes stale at midnight, so the midnight run refreshes
   it. If a release PR is merged with yesterday's number anyway (a merge in the minute after midnight), the run does
   not tag: it force-pushes the PR with today's number and asks for one more merge. Nothing wrong ever ships.
@@ -93,7 +126,7 @@ add a fine-grained token with *Contents* and *Pull requests* write access to thi
 **`RELEASE_TOKEN`** secret; the workflow prefers it when present.
 
 Merging the release PR needs the same one approval as any PR (the `requires-pr` ruleset). The PR's author is the
-Actions bot, so you can approve it yourself. All of this holds for the preview PR too.
+Actions bot, so you can approve it yourself. All of this holds for the Windows and Linux PR too.
 
 ## Homebrew tap (one-time setup)
 
@@ -166,4 +199,5 @@ same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appim
 needs the apt packages in `ci.yml`). Neither needs the Finder workaround.
 
 `bun scripts/release.ts plan` says what the workflow would do for the checkout as it stands, and
-`bun scripts/release.ts notes` prints the notes the release PR would carry. Neither writes anything.
+`bun scripts/release.ts notes` prints the notes the release PR would carry. Neither writes anything; both ask
+GitHub (`gh`, signed in) which releases carry a `.dmg`.
