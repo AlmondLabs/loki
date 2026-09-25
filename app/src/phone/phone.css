@@ -1117,7 +1117,33 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-approval-input { max-height: 30vh; border-radius: var(--phone-radius-sm); font-size: var(--phone-text-meta); }
 
 /* Tool and event rows: quiet sans meta lines between messages, lined up with the message text. */
-.loki-phone .loki-tool-row { margin: 2px 0 2px 44px; font-family: var(--loki-font); font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); }
+.loki-phone .loki-steps { margin: 2px 0 2px 44px; font-family: var(--loki-font); font-size: var(--phone-text-meta); line-height: var(--phone-leading-tight); }
+.loki-phone .loki-steps-line { min-height: 32px; }
+
+/* A run of tools, opened (ToolSteps.tsx): a bottom sheet with the grip, a round close (or back, in a step) and the
+   title; the steps on a thin timeline, each its icon, a verb and what it was done to; a step opens its input and
+   output in the same sheet. */
+.loki-sheet-card.loki-phone-sheet.loki-steps-sheet { gap: 0; padding-top: var(--phone-space-2); background: var(--loki-bg); }
+.loki-phone .loki-steps-head { display: grid; justify-items: center; gap: var(--phone-space-2); touch-action: none; }
+.loki-phone .loki-steps-grip { width: 36px; height: 5px; border-radius: var(--phone-radius-pill); background: var(--loki-control-border); }
+.loki-phone .loki-steps-bar { width: 100%; display: grid; grid-template-columns: var(--phone-touch) minmax(0, 1fr) var(--phone-touch); align-items: center; gap: var(--phone-space-2); padding-bottom: var(--phone-space-3); }
+.loki-phone .loki-steps-round { display: grid; place-items: center; width: var(--phone-touch); height: var(--phone-touch); padding: 0; border: none; border-radius: var(--phone-radius-pill); background: var(--loki-hover); color: var(--loki-fg); cursor: pointer; }
+.loki-phone .loki-steps-round-spacer { width: var(--phone-touch); height: var(--phone-touch); }
+.loki-phone .loki-steps-title { margin: 0; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; font-size: var(--phone-text-emph); font-weight: var(--phone-weight-strong); }
+.loki-phone .loki-steps-timeline { list-style: none; margin: 0; padding: 0 0 var(--phone-space-2); }
+.loki-phone .loki-steps-timeline li { position: relative; }
+/* the thread between two steps' icons */
+.loki-phone .loki-steps-timeline li + li::before { content: ""; position: absolute; left: calc(var(--phone-space-3) + 10px); top: -12px; width: 1px; height: 24px; background: var(--loki-border); }
+.loki-phone .loki-steps-timeline .loki-steps-step { width: 100%; min-height: 64px; align-items: center; gap: var(--phone-space-4); padding: var(--phone-space-2) var(--phone-space-3); border: none; border-radius: var(--phone-radius-md); background: transparent; color: var(--loki-fg); font: inherit; text-align: left; }
+.loki-phone .loki-steps-timeline .loki-steps-step:active { background: var(--loki-hover); }
+.loki-phone .loki-steps-timeline .loki-steps-icon { margin-top: 0; color: var(--loki-muted); }
+.loki-phone .loki-steps-timeline .loki-steps-verb { font-size: var(--phone-text-emph); }
+.loki-phone .loki-steps-timeline .loki-steps-target { font-size: var(--phone-text-body); color: var(--loki-muted); }
+.loki-phone .loki-steps-failed { font-size: var(--phone-text-meta); }
+.loki-phone .loki-steps-detail { margin: 0; gap: var(--phone-space-4); padding-bottom: var(--phone-space-2); }
+.loki-phone .loki-steps-heading { margin: 0 0 var(--phone-space-2); font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
+.loki-phone .loki-steps-code { max-height: none; padding: var(--phone-space-3) var(--phone-space-4); border-radius: var(--phone-radius-md); font-size: var(--phone-text-meta); }
+.loki-phone .loki-steps-none { font-size: var(--phone-text-body); }
 .loki-phone .loki-event-row { margin: var(--phone-space-2) 0 var(--phone-space-2) 44px; font-size: var(--phone-text-meta); }
 .loki-phone .loki-event-summary { font-family: var(--loki-font); letter-spacing: normal; min-height: var(--phone-touch); display: flex; align-items: center; gap: var(--phone-space-1); flex-wrap: wrap; }
 .loki-phone .loki-event-aside { margin-left: 0; font-family: var(--loki-font); }

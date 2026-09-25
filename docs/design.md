@@ -80,6 +80,13 @@ the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`
 sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
 (`kit/leave.ts`); and a swipe an approval refuses shakes the card.
 
+Tool calls read the way Claude's apps show them (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a run
+of consecutive calls is one quiet line in the thread ("Ran 3 commands", "Ran a command, used 9 tools (1 failed)",
+"Running" breathing while the last one waits). On the phone it opens a bottom sheet of the steps on a thin timeline,
+each a verb and what it was done to, and a step opens its command and output in the same sheet; on the desktop the
+steps unfold in place. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
+from the live stream, Letta's history and the local log alike.
+
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest

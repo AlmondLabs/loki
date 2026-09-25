@@ -149,6 +149,14 @@ const PATHS = {
   ),
   moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />,
   // an agent's memory: a page with its corner folded, and the folder that holds pages
+  // a prompt in a window: the shell, for the commands an agent ran
+  terminal: (
+    <>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+      <path d="m7 10 3 2.5L7 15" />
+      <path d="M12.5 15H17" />
+    </>
+  ),
   file: (
     <>
       <path d="M6 3h8l4 4v14H6z" />

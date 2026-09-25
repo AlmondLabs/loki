@@ -187,7 +187,7 @@ describe("the mod's local history", () => {
       expect(readLocalTranscript("local-conv-t", null, 400, backend)).toEqual([
         { role: "user", text: "hi", at: "2026-09-22T17:48:21.948Z" },
         { role: "assistant", text: "hello", at: "2026-09-22T17:48:30.000Z" },
-        { role: "tool", text: "Bash", at: "2026-09-22T17:48:30.000Z" },
+        { role: "tool", text: "Bash", at: "2026-09-22T17:48:30.000Z", tool: { name: "Bash" } },
         { role: "user", text: "untimed" },
       ]);
     } finally {

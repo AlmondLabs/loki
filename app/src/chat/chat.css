@@ -47,7 +47,27 @@
 /* Tool and event rows between messages (Transcript.tsx): muted sans meta, the way Slack sets an app's
    notice in a thread. The detail a row opens is data and keeps its own box. The phone restyles them under
    its own root (phone/phone.css). */
-.loki-tool-row { font-size: 12px; color: var(--loki-muted); font-family: var(--loki-font); margin: 2px 0 2px 14px; overflow-wrap: anywhere; }
+/* A run of tools (ToolSteps.tsx): one quiet line, "Ran 3 commands ›", breathing while it runs; on the desktop the
+   steps unfold in place under it, and each step its input and output. */
+.loki-steps { font-size: 12px; color: var(--loki-muted); font-family: var(--loki-font); margin: 2px 0 2px 14px; }
+.loki-steps-line { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.loki-steps-line:hover { color: var(--loki-fg); }
+.loki-steps-chev { flex: none; opacity: 0.7; }
+@keyframes loki-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.loki-steps-line[data-running] .loki-steps-label { animation: loki-breathe 1.6s ease-in-out infinite; }
+.loki-steps-list { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; }
+.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; cursor: pointer; list-style: none; }
+.loki-steps-step::-webkit-details-marker { display: none; }
+.loki-steps-icon { flex: none; margin-top: 1px; }
+.loki-steps-text { display: grid; min-width: 0; }
+.loki-steps-verb { display: inline-flex; align-items: baseline; gap: 6px; color: var(--loki-fg); }
+.loki-steps-failed { color: var(--loki-negative); }
+.loki-steps-target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-steps-detail { display: grid; gap: 8px; margin: 4px 0 8px 24px; }
+.loki-steps-heading { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--loki-muted); }
+.loki-steps-code { margin: 0; padding: 8px 10px; max-height: 240px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font-family: var(--loki-mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-steps-code[data-failed] { border-color: var(--loki-negative); }
+.loki-steps-none { margin: 0; color: var(--loki-muted); }
 .loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }
 .loki-event-summary { font-family: var(--loki-font); }
 .loki-event-aside { color: var(--loki-fg); opacity: 0.75; margin-left: 8px; font-family: var(--loki-font); }
@@ -176,7 +196,7 @@
 .loki-widget-row-icon:not(.loki-phone *) { flex: none; display: flex; justify-content: flex-end; width: 36px; color: var(--loki-muted); }
 .loki-widget-row-text:not(.loki-phone *) { min-width: 0; overflow-wrap: anywhere; }
 /* Tool and event lines among avatar-led messages sit in the message column (face 36px + gap 8px), under the text they follow. */
-:is(.loki-msg, .loki-widget-row) ~ :is(.loki-tool-row, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
+:is(.loki-msg, .loki-widget-row) ~ :is(.loki-steps, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
 .loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
 .loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }

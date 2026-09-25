@@ -1,3 +1,4 @@
+import type { ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
@@ -36,7 +37,7 @@ export interface UseAttentionOptions {
   /** How long "later" hides a card (the mod's setting; ladder.ts has the defaults). */
   ladder?: SnoozeLadder;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
-  loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null }>>;
+  loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }>>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */

@@ -8,6 +8,8 @@ import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcriptWindow";
+import { ToolSteps } from "./ToolSteps";
+import { toolRuns } from "../shared/toolSteps";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -19,7 +21,7 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
   // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
   const marks = new Map<number, WidgetMark[]>();
@@ -39,10 +41,24 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
     });
   }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
+  // Consecutive tool calls read as one line (chat/ToolSteps.tsx); a widget row, a day or the New line ends a run.
+  const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
   const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
   const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
   const message = (m: TranscriptRow, i: number) => {
     const last = i === rows.length - 1;
+    if (m.role === "tool") {
+      const end = tools.get(i);
+      if (end === undefined) return null; // inside a run, drawn with its first row
+      const run = rows.slice(i, end);
+      const running = busy && end === rows.length && !run[run.length - 1].tool?.output;
+      return (
+        <Fragment key={i}>
+          {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
+          <ToolSteps rows={run} running={running} arrived={i >= arrivedFrom || undefined} />
+        </Fragment>
+      );
+    }
     return (
       <Fragment key={i}>
         {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
@@ -238,7 +254,6 @@ function Divider({ day }: { day: string | null }) {
 const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, toolbar = false, arrived = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; toolbar?: boolean; /** Came in while the thread was open. */ arrived?: boolean }) {
   // A row that came in while the thread was open carries data-arrived, and rises in (the phone's chat CSS).
   const a = arrived || undefined;
-  if (m.role === "tool") return <ToolRow row={m} arrived={a} />;
   if (m.role === "event") return <EventRow row={m} arrived={a} />;
   if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} toolbar={toolbar} arrived={a} />;
   return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} arrived={a} />;
@@ -282,15 +297,6 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued, toolb
           <CopyMarkdown text={m.text} className="loki-msg-action" />
         </div>
       )}
-    </div>
-  );
-}
-
-/** A tool the agent ran: one quiet line (chat.css; the phone sets it in its sans meta). */
-function ToolRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
-  return (
-    <div data-row="tool" data-arrived={arrived} className="loki-tool-row">
-      · {m.text}
     </div>
   );
 }
