@@ -1,6 +1,6 @@
 [package]
 name = "loki"
-version = "2026.9.23"
+version = "2026.9.25"
 description = "loki — a memory palace your agent builds"
 edition = "2021"
 license = "Apache-2.0"
