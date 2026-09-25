@@ -14,18 +14,21 @@ export type { TranscriptRow };
 /**
  * Rows are memoised: parsing markdown for a long thread on every keystroke in
  * the message box made typing lag. A row re-renders only when its own text,
- * its last-ness, or the streaming cursor changes. The take-back handler reaches only queued rows,
+ * its last-ness, or (on the last row alone) the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
+ * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void } & MessageLayout) {
-  // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout.
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0 }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number } & MessageLayout) {
+  const first = Math.max(0, Math.min(from, rows.length));
+  // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
   const marks = new Map<number, WidgetMark[]>();
-  if (people) for (const w of widgets ?? []) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  if (people) for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  const shown = first ? rows.slice(first) : rows;
   // Day pills only in the message layout, and only where the messages carry times; then the pills name the day and the New line does not.
-  const timed = !!people && rows.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
+  const timed = !!people && shown.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
   // The thread as it reads, messages and widget rows together, so each widget row falls in its own day.
-  const items = timed ? timeline(rows, marks) : null;
-  const itemPills = items ? dayPills(items.map((it) => ({ at: it.row ? it.row.at : it.mark.at }))) : null;
+  const items = timed ? timeline(rows, marks, first) : null;
+  const itemPills = items ? dayPills(items.map((it) => it.row ?? it.mark)) : null;
   // A day that opens on a widget row breaks the run too; the widget row already does.
   let pills: Array<string | null> | null = null;
   if (items && itemPills) {
@@ -34,25 +37,32 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
       if (it.row) pills![it.i] = itemPills[k];
     });
   }
-  const firsts = people ? runStarts(rows, dividerAt, pills, marks) : null;
+  const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
   const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
   const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
-  const message = (m: TranscriptRow, i: number) => (
-    <Fragment key={i}>
-      {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
-      <Row row={m} last={i === rows.length - 1} streaming={streaming} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
-    </Fragment>
-  );
+  const message = (m: TranscriptRow, i: number) => {
+    const last = i === rows.length - 1;
+    return (
+      <Fragment key={i}>
+        {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
+        {/* Only the last row can carry the cursor; told every row, a turn's start and end re-rendered the whole thread. */}
+        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
+      </Fragment>
+    );
+  };
   if (!items || !itemPills)
     return (
       <>
-        {rows.map((m, i) => (
-          <Fragment key={i}>
-            {marksAt(i)}
-            {message(m, i)}
-            {i === rows.length - 1 && marksAt(rows.length)}
-          </Fragment>
-        ))}
+        {shown.map((m, k) => {
+          const i = first + k;
+          return (
+            <Fragment key={i}>
+              {marksAt(i)}
+              {message(m, i)}
+              {i === rows.length - 1 && marksAt(rows.length)}
+            </Fragment>
+          );
+        })}
         {!rows.length && marksAt(0)}
       </>
     );
@@ -63,18 +73,19 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
     else days[days.length - 1].end = k + 1;
   });
   const draw = (d: { start: number; end: number }) => items.slice(d.start, d.end).map((it) => (it.row ? message(it.row, it.i) : widgetRow(it.mark)));
+  // Keyed by the day, not its place: revealing older rows adds to the top day, and must not remount it.
   return (
     <>
       {days.map((d) =>
         d.label ? (
-          <section key={`day-${d.start}`} className="loki-msg-day" aria-label={d.label}>
+          <section key={`day-${d.label}`} className="loki-msg-day" aria-label={d.label}>
             <div className="loki-msg-day-pill-wrap">
               <span className="loki-msg-day-pill">{d.label}</span>
             </div>
             {draw(d)}
           </section>
         ) : (
-          <Fragment key={`lead-${d.start}`}>{draw(d)}</Fragment>
+          <Fragment key="lead">{draw(d)}</Fragment>
         ),
       )}
     </>
@@ -83,10 +94,10 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
 
 type TimelineItem = { i: number; row: TranscriptRow; mark?: undefined } | { i: number; row?: undefined; mark: WidgetMark };
 
-/** The thread in reading order: each row's widget marks, then the row; the marks after the last row at the end. */
-function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]>): TimelineItem[] {
+/** The thread in reading order from row `from`: each row's widget marks, then the row; the marks after the last row at the end. */
+function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]>, from = 0): TimelineItem[] {
   const out: TimelineItem[] = [];
-  for (let i = 0; i <= rows.length; i++) {
+  for (let i = from; i <= rows.length; i++) {
     for (const mark of marks.get(i) ?? []) out.push({ i, mark });
     if (i < rows.length) out.push({ i, row: rows[i] });
   }
@@ -96,16 +107,18 @@ function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]
 /**
  * Which rows start a run: a message whose author differs from the last message's, or the first after the
  * divider, a day pill (`pills`, from dayPills) or a widget row (`breaks`, keyed by the row it sits before). Tool and event rows neither start nor break one.
+ * From row `from` on (the first drawn starts one); the rows before it are false.
  */
-export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null, pills: Array<string | null> | null = null, breaks: ReadonlyMap<number, unknown> | null = null): boolean[] {
-  const out: boolean[] = [];
+export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null, pills: Array<string | null> | null = null, breaks: ReadonlyMap<number, unknown> | null = null, from = 0): boolean[] {
+  const out: boolean[] = new Array<boolean>(rows.length).fill(false);
   let author: TranscriptRow["role"] | null = null;
-  rows.forEach((m, i) => {
+  for (let i = from; i < rows.length; i++) {
+    const m = rows[i];
     if (i === dividerAt || pills?.[i] || breaks?.has(i)) author = null;
     const speaks = m.role === "user" || m.role === "assistant";
-    out.push(speaks && m.role !== author);
+    out[i] = speaks && m.role !== author;
     if (speaks) author = m.role;
-  });
+  }
   return out;
 }
 

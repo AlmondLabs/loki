@@ -151,7 +151,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   move). A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part,
   and opening or closing a left chat slides the sheet so nothing ends up under it. Esc (outside a text box) or
   the Messages tab goes back to the conversation where you left it. Both tabs are the same conversation with the
-  same draft. ⌘L focuses the message box and ⌘F finds in the transcript, on whichever tab shows. Under the message
+  same draft. ⌘L focuses the message box and ⌘F finds in the transcript, on whichever tab shows. A long thread
+  opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
+  as you scroll up, keeping your place; find reaches the older ones too, and ↓ latest folds it back. Under the message
   box sit two chips for the conversation: its **permission mode** (strict, standard, accept edits, unrestricted;
   ⌘⇧P) and its **model** (⌘⇧M, type to filter every handle the harness offers). Both apply per conversation
   through the app-server; a main chat's model is the agent's. Inbox cards carry the same chips in their actions

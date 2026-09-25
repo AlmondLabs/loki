@@ -219,6 +219,36 @@ export function settleCommands(l: Live): boolean {
   return changed;
 }
 
+/**
+ * The live rows as the transcript draws them: the tail, then the streaming reply. The tail's rows are
+ * changed in place (a command's outcome, a queued message going out), so each is handed out as a copy that
+ * stays the same object until the row changes; the transcript's rows are memoised on identity, and a fresh
+ * copy per update re-rendered the thread, a stale one missed the change.
+ */
+export function liveRows(l: Live): LiveRow[] {
+  const out = l.tail.map((r) => {
+    const was = shown.get(r);
+    if (was && sameRow(was, r)) return was;
+    const copy = { ...r };
+    shown.set(r, copy);
+    return copy;
+  });
+  if (l.streamingText) {
+    const was = streamingShown.get(l);
+    const at = l.streamingAt ?? undefined;
+    if (was && was.text === l.streamingText && was.at === at) out.push(was);
+    else {
+      const row: LiveRow = { role: "assistant", text: l.streamingText, ...(at ? { at } : {}) };
+      streamingShown.set(l, row);
+      out.push(row);
+    }
+  }
+  return out;
+}
+const shown = new WeakMap<LiveRow, LiveRow>();
+const streamingShown = new WeakMap<Live, LiveRow>();
+const sameRow = (a: LiveRow, b: LiveRow) => a.role === b.role && a.text === b.text && a.summary === b.summary && a.detail === b.detail && a.images === b.images && a.queued === b.queued && a.at === b.at;
+
 /** "idle" | "thinking" | "streaming" — what a chat box should show for this conversation. */
 export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "streaming" {
   if (!l?.loop || l.loop === "WAITING_ON_INPUT" || l.loop === "WAITING_ON_APPROVAL") return "idle";

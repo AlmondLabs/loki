@@ -184,6 +184,7 @@ export function Conversation({
       {findOpen && (
         <FindBar
           fieldRef={findRef}
+          onFind={(query) => threadRef.current?.reveal(query)}
           onFound={() => threadRef.current?.unpin()}
           onEscape={() => {
             setFindOpen(false);
@@ -289,6 +290,8 @@ export function ConversationHeader({ title, agentName, agentId, children, right 
 export interface ThreadHandle {
   /** Stop following the bottom (find moved the selection into view; the next delta must not pull it away). */
   unpin: () => void;
+  /** Mount the rows above the window that hold `query`, before find searches the page. */
+  reveal: (query: string) => void;
 }
 
 /**
@@ -299,8 +302,9 @@ export interface ThreadHandle {
 export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
-  const { unpinned, onScroll, jumpToLatest, unpin } = useTranscriptScroll(scrollRef, list, status);
-  useImperativeHandle(ref, () => ({ unpin }), [unpin]);
+  // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
+  const { unpinned, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets);
+  useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
   const cancelQueuedRef = useRef(onCancelQueued);
@@ -314,7 +318,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
       <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} from={start} />}
         {status === "thinking" && !waiting && <div style={{ color: "var(--loki-muted)", fontSize: 12, padding: "6px 0" }}>thinking…</div>}
         {error && <div className="loki-thread-error">{error}</div>}
       </div>

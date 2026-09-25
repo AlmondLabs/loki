@@ -71,6 +71,36 @@ export function holdMark(prev: HeldMark | null, key: string | null, item: { view
 }
 
 const DAY_MS = 86_400_000;
+
+// The formats the thread writes, and one Intl.DateTimeFormat per locale and format, built on first use: every
+// message's time went through toLocaleTimeString, which builds a formatter per call (20 ms on a long thread).
+const CLOCK: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+const WEEKDAY: Intl.DateTimeFormatOptions = { weekday: "long" };
+const SHORT_DATE: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" };
+const LONG_DATE: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
+const formatters = new Map<Intl.DateTimeFormatOptions, Map<string, Intl.DateTimeFormat>>();
+let built = 0;
+
+/**
+ * A local date and time in `locale`, through the cached formatter. The formatter works in UTC on the local
+ * clock's reading (the day and hour as the user's zone has them), so it never holds a time zone of its own
+ * and stays right when the zone changes under it.
+ */
+function format(locale: string | undefined, options: Intl.DateTimeFormatOptions, d: Date): string {
+  let byLocale = formatters.get(options);
+  if (!byLocale) formatters.set(options, (byLocale = new Map()));
+  let f = byLocale.get(locale ?? "");
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" });
+    byLocale.set(locale ?? "", f);
+    built++;
+  }
+  return f.format(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()));
+}
+
+/** How many formatters have been built (a test's handle on "once per format"). */
+export const formattersBuilt = () => built;
+
 const startOfDay = (t: number) => {
   const d = new Date(t);
   d.setHours(0, 0, 0, 0);
@@ -85,9 +115,9 @@ export function dayLabel(iso: string | null | undefined, now: number = Date.now(
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   const d = new Date(t);
-  if (days < 7) return d.toLocaleDateString("en-GB", { weekday: "long" });
+  if (days < 7) return format("en-GB", WEEKDAY, d);
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
-  return d.toLocaleDateString("en-GB", sameYear ? { weekday: "short", day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "numeric" });
+  return format("en-GB", sameYear ? SHORT_DATE : LONG_DATE, d);
 }
 
 /** A calendar day in the user's time zone, as a comparable key. */
@@ -104,18 +134,27 @@ const dayKey = (t: number) => {
 export function dayPills(rows: ReadonlyArray<{ at?: string }>, now: number = Date.now()): Array<string | null> {
   let last: string | null = null;
   return rows.map((r) => {
-    const t = r.at ? Date.parse(r.at) : Number.NaN;
-    if (!Number.isFinite(t)) return null;
-    const key = dayKey(t);
-    if (key === last) return null;
+    const key = dayOf(r);
+    if (key === null || key === last) return null;
     last = key;
     return dayLabel(r.at, now);
   });
+}
+
+/**
+ * Each row's calendar day. The parsed time is kept per row (a settled row is the same object from update to
+ * update); the day is read from it each time, in the zone the user is in now.
+ */
+const times = new WeakMap<object, { at: string | undefined; t: number }>();
+function dayOf(r: { at?: string }): string | null {
+  let hit = times.get(r);
+  if (!hit || hit.at !== r.at) times.set(r, (hit = { at: r.at, t: r.at ? Date.parse(r.at) : Number.NaN }));
+  return Number.isFinite(hit.t) ? dayKey(hit.t) : null;
 }
 
 /** A message's time the way the user's locale writes a clock ("10:42 AM", "10:42"); null without one. */
 export function clockLabel(iso: string | null | undefined): string | null {
   const t = iso ? Date.parse(iso) : Number.NaN;
   if (!Number.isFinite(t)) return null;
-  return new Date(t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return format(undefined, CLOCK, new Date(t));
 }
