@@ -1374,25 +1374,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) { animat
 /* Undo springs into the top bar; it shrinks away when it goes (kit/leave.ts). */
 .loki-phone-undo { animation: loki-chip-in var(--spring-snappy-ms) var(--spring-snappy); }
 
-/* A decision on the Inbox card: a check (Approve) or a cross (Deny) pops onto it as it flies. A swipe an
-   approval refuses shakes the card, so the refusal is felt, not only outlined. */
-.loki-phone-card-stamp {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  width: 88px;
-  height: 88px;
-  margin: -44px 0 0 -44px;
-  border-radius: var(--phone-radius-pill);
-  background: var(--loki-panel);
-  box-shadow: var(--loki-shadow-float);
-  animation: loki-stamp var(--spring-bouncy-ms) var(--spring-bouncy) both;
-}
-.loki-phone-card-stamp[data-via="approve"] { color: var(--loki-positive); }
-.loki-phone-card-stamp[data-via="deny"] { color: var(--loki-negative); }
-@keyframes loki-stamp { from { opacity: 0; scale: 0.5; } }
+/* A swipe an approval refuses shakes the card, as iOS shakes a wrong passcode: the refusal is felt, not only outlined. */
 @keyframes loki-shake {
   0%, 100% { translate: 0; }
   20% { translate: -8px 0; }

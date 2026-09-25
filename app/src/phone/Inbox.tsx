@@ -159,8 +159,8 @@ function useDeckWidth(on: boolean) {
 }
 
 type Undo = { item: AttentionItem; via: Swipe; held: boolean };
-/** The card on its way off: which way, and why (a decision is stamped on it). */
-type Leaving = { item: AttentionItem; dir: 1 | -1; via: Via };
+/** The card on its way off, and which way it goes. */
+type Leaving = { item: AttentionItem; dir: 1 | -1 };
 
 /** Undo in the top bar: it springs in (phone.css) and, when its seconds run out or it is used, shrinks away. */
 function UndoButton({ via, onUndo }: { via: Swipe; onUndo: () => void }) {
@@ -207,7 +207,7 @@ function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: D
     const rest = deck.visible.filter((i) => idOf(i) !== idOf(item));
     setSaid(reviewAnnouncement(via, rest[0], rest.length));
     if (!reduced) {
-      setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1, via });
+      setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1 });
       leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), spring("smooth").ms + 30);
     }
     undoTimer.clear();
@@ -562,12 +562,6 @@ function Stack({ visible, leaving, drag, release, width, approval, refused, redu
       return (
         <Card key={idOf(item)} item={item} role={role} style={{ zIndex: 3, transform: `translateX(${flyTo}px) rotate(${leaving!.dir * 12}deg)`, opacity: 0, transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in` }}>
           <ReadOnlyThread item={item} view={conversation(item.agentId, item.id)} />
-          {/* A decision is stamped on the card as it goes: a check for Approve, a cross for Deny. */}
-          {(leaving!.via === "approve" || leaving!.via === "deny") && (
-            <span aria-hidden className="loki-phone-card-stamp" data-via={leaving!.via}>
-              <Icon name={leaving!.via === "approve" ? "check" : "close"} size={40} />
-            </span>
-          )}
         </Card>
       );
     if (role === "top") {

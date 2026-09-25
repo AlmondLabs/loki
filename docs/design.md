@@ -78,7 +78,7 @@ left edge goes back (`phone/edgeSwipe.ts`). The chat shows agents at work: a str
 they arrive, rows that come in while you read rise into place, "thinking" is three rising dots, and scrolled up,
 the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`): a row moving, even between
 sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
-(`kit/leave.ts`); a decided approval flies off stamped with a check or a cross, and a refused swipe shakes.
+(`kit/leave.ts`); and a swipe an approval refuses shakes the card.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
