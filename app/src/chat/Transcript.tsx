@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useState } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -21,7 +21,7 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
   // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
   const marks = new Map<number, WidgetMark[]>();
@@ -63,7 +63,7 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
       <Fragment key={i}>
         {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
         {/* Only the last row can carry the cursor; told every row, a turn's start and end re-rendered the whole thread. */}
-        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} arrived={i >= arrivedFrom} />
+        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} arrived={i >= arrivedFrom} />
       </Fragment>
     );
   };
@@ -158,8 +158,6 @@ export interface MessageLayout {
   people?: { user: Person; assistant: Person };
   dividerAt?: number | null;
   dividerDay?: string | null;
-  /** The hover action bar on each message (the desktop's Messages tab); the phone leaves it off. */
-  toolbar?: boolean;
   /** The desk's widget changes among the messages (desk/widgetRows.ts widgetMarks); the host keeps the array stable. */
   widgets?: WidgetMark[];
   /** Choosing a widget row that is still on the desk: open the Desk tab framed on it. */
@@ -251,24 +249,74 @@ function Divider({ day }: { day: string | null }) {
 }
 
 /** One row, by role. This is the memo boundary; the shapes below are plain functions rendered inside it. */
-const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, toolbar = false, arrived = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; toolbar?: boolean; /** Came in while the thread was open. */ arrived?: boolean }) {
+/**
+ * A long press on a message, where the host wants one (the phone): the host's handler gets the row and opens
+ * the message's actions. Without a provider nothing is attached, and the browser keeps its own selection.
+ */
+export const MessageHold = createContext<((row: TranscriptRow) => void) | null>(null);
+
+/** How long a finger rests on a message before its actions open, as on iOS. */
+const HOLD_MS = 500;
+/** A finger that moves this far is scrolling or swiping (an Inbox card), not holding. */
+const HOLD_SLOP = 8;
+
+/** The long press's handlers for a message's row: a finger resting there opens its actions; a move, a scroll or a lift cancels. */
+function useMessageHold(row: TranscriptRow) {
+  const onHold = useContext(MessageHold);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const from = useRef({ x: 0, y: 0 });
+  if (!onHold || !row.text) return {};
+  const end = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  return {
+    "data-hold": "",
+    onPointerDown: (e: PointerEvent) => {
+      if (e.pointerType === "mouse" || (e.target as Element).closest("button, a, summary, input, textarea")) return;
+      end();
+      from.current = { x: e.clientX, y: e.clientY };
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        onHold(row);
+      }, HOLD_MS);
+    },
+    onPointerMove: (e: PointerEvent) => {
+      if (timer.current && Math.hypot(e.clientX - from.current.x, e.clientY - from.current.y) > HOLD_SLOP) end();
+    },
+    onPointerUp: end,
+    onPointerCancel: end,
+    onPointerLeave: end,
+    // Android's long press (and a right-click) arrives as a context menu: the message's actions, not the browser's.
+    onContextMenu: (e: MouseEvent) => {
+      e.preventDefault();
+      end();
+      onHold(row);
+    },
+  };
+}
+
+const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, arrived = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; /** Came in while the thread was open. */ arrived?: boolean }) {
   // A row that came in while the thread was open carries data-arrived, and rises in (the phone's chat CSS).
   const a = arrived || undefined;
   if (m.role === "event") return <EventRow row={m} arrived={a} />;
-  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} toolbar={toolbar} arrived={a} />;
+  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} arrived={a} />;
   return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} arrived={a} />;
 });
 
 /**
  * A message in the avatar-led layout: the face and bold name at the start of a run, with the message's
  * quiet time after the name; later messages in the run keep their time in the face's column, shown on
- * hover (desktop). A message with no known time shows none. With `toolbar`, hovering shows Slack's small
- * action bar holding what loki already does to a message: copy it as markdown.
+ * hover (desktop). A message with no known time shows none. Under every message, yours and the agent's, its
+ * copy button (as markdown): faint on the desktop until the row is hovered, always there on the phone; the
+ * message still streaming gets it when it is done. Where a host provides MessageHold (the phone), a long press
+ * on the message opens its actions instead of the browser's text selection.
  */
-function Message({ row: m, last, streaming, person, first, onCancelQueued, toolbar, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; toolbar?: boolean; arrived?: true }) {
+function Message({ row: m, last, streaming, person, first, onCancelQueued, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; arrived?: true }) {
   const time = clockLabel(m.at);
+  const hold = useMessageHold(m);
   return (
-    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} data-arrived={arrived} className="loki-msg">
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} data-arrived={arrived} className="loki-msg" {...hold}>
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={person.face ?? person.name} src={person.avatar ?? null} size={36} />}
         {!first && time && <span className="loki-msg-gutter-time">{time}</span>}
@@ -291,12 +339,12 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued, toolb
             queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
           </Button>
         )}
+        {m.text && !(last && streaming) && (
+          <div className="loki-msg-actions">
+            <CopyMarkdown text={m.text} className="loki-msg-action" />
+          </div>
+        )}
       </div>
-      {toolbar && m.text && !(last && streaming) && (
-        <div className="loki-msg-toolbar" role="toolbar" aria-label="Message actions">
-          <CopyMarkdown text={m.text} className="loki-msg-action" />
-        </div>
-      )}
     </div>
   );
 }

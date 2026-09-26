@@ -109,7 +109,7 @@ export function DeskPane(props: DeskPaneProps) {
         onFrameWidget(widgetId);
       }
     : undefined;
-  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), toolbar: true, widgets, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
+  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
 
   const summary = desk.desks.list.find((d) => d.scope === scope) ?? null;
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.

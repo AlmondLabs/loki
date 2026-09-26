@@ -9,6 +9,7 @@ import { Conversation, type ChatStatus } from "../chat/Conversation";
 import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
 import { dayLabel, threadNotice, unreadBoundary } from "./deck";
+import { useMessageActions } from "./MessageActions";
 import { SheetRow } from "./Home";
 import { useViewed } from "../shared/useViewed";
 import { doneAction } from "../shell/sidebarModel";
@@ -118,6 +119,7 @@ export function ConversationScreen({
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
   const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt) }), [people, dividerAt, item?.lastMessageAt]);
+  const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
     banner ??
@@ -134,27 +136,30 @@ export function ConversationScreen({
       <ThreadHeader thread={thread} view={view} waiting={waiting} backLabel={backLabel} onBack={onBack} onActions={() => setActionsOpen(true)} />
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
-        <Conversation
-          touch
-          dim={false}
-          gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-          view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
-          models={models}
-          actions={{
-            onLoadModels,
-            onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-            onSend: (text, images = []) => onSend(rt, text, images, thread.title),
-            onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
-            onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
-          }}
-          agentName={agentName}
-          prefill={prefill}
-          layout={layout}
-          notice={notice || null}
-          placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
-          draft={{ value: draft, onChange: setDraft }}
-        />
+        {message.wrap(
+          <Conversation
+            touch
+            dim={false}
+            gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
+            models={models}
+            actions={{
+              onLoadModels,
+              onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
+              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+              onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
+              onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
+            }}
+            agentName={agentName}
+            prefill={prefill}
+            layout={layout}
+            notice={notice || null}
+            placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
+            draft={{ value: draft, onChange: setDraft }}
+          />
+        )}
       </div>
+      {message.sheet}
       {actionsOpen && (
         <Sheet label={`${thread.title ?? agentName} actions`} onClose={() => setActionsOpen(false)} placement="bottom" className="loki-phone-sheet">
           <ul className="loki-phone-list">

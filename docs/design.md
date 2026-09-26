@@ -263,6 +263,11 @@ box is one for both, its sizes set by `touch`.
   link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
   row) always have a visible button that does the same.
+- **Messages.** Under every message, yours and the agent's, its copy button (as markdown), always there; a long
+  press on a message opens its actions (`MessageActions.tsx`): Copy, and Select text, which shows the message
+  on its own where selection works (the thread keeps the browser's selection and callout off so the press is
+  ours). A finger that moves (a scroll, a card swipe) is not a hold. The desktop has the same copy button under
+  each message, faint until the row is hovered; the hover toolbar it replaced is gone.
 - **Learn.** As the desktop's column lists it: Learn opens on its lists — Review, Leads, Lessons under way,
   Deleted — each its own page (`#/learn/<page>`), so the deck and the leads never share a screen. A lead is a
   card of its own: where it came up, its title, the moment quoted, Start the lesson (the conversation opens and

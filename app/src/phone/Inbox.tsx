@@ -12,6 +12,7 @@ import { Button } from "../components";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, RowSection, SkeletonCard } from "./rows";
+import { useMessageActions } from "./MessageActions";
 import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
 import { openFromCard } from "./transitions";
@@ -645,31 +646,35 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
       </div>
     ));
   const model = card.model;
-  return (
-    <Conversation
-      touch
-      dim={false}
-      view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null }}
-      models={model?.models ?? null}
-      actions={{
-        onLoadModels: model?.onLoad,
-        onPickModel: model?.onPick ? (selection) => model.onPick!(item, selection) : undefined,
-        onSend: (text, images = []) => card.onSend(item, text, images),
-        onAnswer: question
-          ? (answers) => {
-              card.onAnswer(item, question.requestId, answers);
-              onHold();
-            }
-          : undefined,
-        onCancelQueued: (text) => card.onCancelQueued(item, text),
-      }}
-      agentName={agentName}
-      layout={layout}
-      notice={notice || null}
-      placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
-      draft={{ value: draft, onChange: setDraft }}
-      onSent={onHold}
-    />
+  const message = useMessageActions({ user: "You", assistant: item.agentName ?? "Agent" });
+  return message.wrap(
+    <>
+      {message.sheet}
+      <Conversation
+        touch
+        dim={false}
+        view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null }}
+        models={model?.models ?? null}
+        actions={{
+          onLoadModels: model?.onLoad,
+          onPickModel: model?.onPick ? (selection) => model.onPick!(item, selection) : undefined,
+          onSend: (text, images = []) => card.onSend(item, text, images),
+          onAnswer: question
+            ? (answers) => {
+                card.onAnswer(item, question.requestId, answers);
+                onHold();
+              }
+            : undefined,
+          onCancelQueued: (text) => card.onCancelQueued(item, text),
+        }}
+        agentName={agentName}
+        layout={layout}
+        notice={notice || null}
+        placeholder={question ? "Answer, or pick above" : approval ? "Reply, or decide below" : `Message ${agentName}`}
+        draft={{ value: draft, onChange: setDraft }}
+        onSent={onHold}
+      />
+    </>,
   );
 }
 

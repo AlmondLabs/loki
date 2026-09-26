@@ -323,7 +323,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
       <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} toolbar={layout?.toolbar} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} from={start} arrivedFrom={arrivedFrom} busy={status !== "idle"} />}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} from={start} arrivedFrom={arrivedFrom} busy={status !== "idle"} />}
         {status === "thinking" && !waiting && (
           <div className="loki-thinking" role="status">
             thinking
