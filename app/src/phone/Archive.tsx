@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { DeskSummary } from "../desk/useDesk";
 import { Button, Field } from "../components";
-import { DeskActions, DeskRow, type ArchiveDesk } from "./Home";
+import { DeskActions, DeskRow, type ArchiveDesk, type RenameDeskName } from "./Home";
 import { archiveList } from "./model";
 import { SkeletonRows } from "./rows";
 import { BackButton, Scroll, TopBar } from "./ui";
@@ -12,7 +12,7 @@ import { BackButton, Scroll, TopBar } from "./ui";
  * press (or a row's actions button) restores one to Desks while the app-server is reachable — offline,
  * the action stays visible and says why it cannot run. Back returns to wherever the page was opened from.
  */
-export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive }: { desks: DeskSummary[]; /** The mod has answered with the desk list. */ loaded: boolean; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the app-server cannot take it. */ onArchive: ArchiveDesk | null }) {
+export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive, onRename }: { desks: DeskSummary[]; /** The mod has answered with the desk list. */ loaded: boolean; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the app-server cannot take it. */ onArchive: ArchiveDesk | null; onRename: RenameDeskName | null }) {
   const [query, setQuery] = useState("");
   const [acting, setActing] = useState<DeskSummary | null>(null);
   const all = useMemo(() => archiveList(desks, null, ""), [desks]);
@@ -50,7 +50,7 @@ export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive }:
           )
         )}
       </Scroll>
-      {acting && <DeskActions desk={acting} onClose={() => setActing(null)} onPin={null} onArchive={onArchive ? (archived) => onArchive(acting, archived) : null} />}
+      {acting && <DeskActions desk={acting} onClose={() => setActing(null)} onPin={null} onArchive={onArchive ? (archived) => onArchive(acting, archived) : null} onRename={onRename ? (name) => onRename(acting, name) : null} />}
     </div>
   );
 }

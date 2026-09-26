@@ -9,7 +9,8 @@ import { AgentPage, FilePage } from "./Agent";
 import { Agents, knownDescription } from "./Agents";
 import { ConversationScreen, type Thread } from "./Conversation";
 import { Archive } from "./Archive";
-import { Home, type ArchiveDesk } from "./Home";
+import { Home, type ArchiveDesk, type RenameDeskName } from "./Home";
+import { canRename } from "../shell/sidebarModel";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { More } from "./More";
@@ -271,6 +272,18 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
           return err;
         }
       : null;
+  // Rename goes the same way; the new name shows at once (the mod re-broadcasts titles only at a turn's end).
+  const onRename: RenameDeskName | null =
+    attention.available && catchUp.status === "open"
+      ? async (d, name) => {
+          if (!d.conversationId) return "this desk has no conversation";
+          const err = await catchUp.renameConversation(d.conversationId, name);
+          if (err) return err;
+          desk.setDeskTitle(d.scope, name);
+          desk.desks.request();
+          return null;
+        }
+      : null;
 
   const link = linkState(desk.connection, catchUp.status, attention.available);
   // What Search looks through: only what the phone already holds (searchIndex.ts), agent descriptions from the Agents cache.
@@ -282,17 +295,17 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
-        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} onRename={onRename} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
         {route.kind === "learn" && <Learn view={route.view} recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} onBegin={beginLesson} onOpen={openConversation} />}
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
-        {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
+        {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} onRename={onRename} />}
         {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "about" && <AboutPage version={catchUp.server?.version ?? null} servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} models={models.list} onLoadModels={models.load} />
+        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} onRename={onRename} inboxBack={labelOf(inboxFrom)} models={models.list} onLoadModels={models.load} />
       </main>
 
       {nav ? (
@@ -311,7 +324,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
  * model is the mod's word for the conversation (the desks list), switched through the app-server as the desktop
  * does; a refused switch says why in the banner for a few seconds.
  */
-function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
+function ConversationPage({ conv, desk, catchUp, onRename, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; onRename: RenameDeskName | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
@@ -345,6 +358,7 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
       prefill={prefill}
       pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
+      rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
       onBack={onBack}
       onLoad={(rt) => void catchUp.loadThread(rt)}
       onDecide={catchUp.decide}
@@ -363,7 +377,7 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
  * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
  * place back from the scroll memory (their data is cached above them).
  */
-function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack, models, onLoadModels }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string; models: ModelEntry[] | null; onLoadModels: () => void }) {
+function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, onRename, inboxBack, models, onLoadModels }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; onRename: RenameDeskName | null; inboxBack: string; models: ModelEntry[] | null; onLoadModels: () => void }) {
   // The Inbox card's model pill: the same switch as the conversation page, a refusal shown in the card's line for 4 s.
   const [cardNote, setCardNote] = useState<string | null>(null);
   useEffect(() => {
@@ -406,6 +420,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         onRefresh={desk.desks.request}
         onPin={desk.desks.pin}
         onArchive={onArchive}
+        onRename={onRename}
         recentFolders={recentFolders}
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
       />

@@ -229,6 +229,9 @@ List and detail, as Slack's desktop: a 48px **rail**, a **list column** beside i
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1-5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Inbox** keeps its screen (the Slack look only); Enter or O on a card opens its desk on Messages.
+  Once two agents have cards waiting, pills over the deck filter the pass by agent (All, then each agent, busiest
+  first, with its count); a pill that is on stays at 0 when its cards are cleared, and undo takes back that
+  agent's last decision.
 
 ## Phone (Slack mode, 2026-09-23)
 

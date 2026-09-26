@@ -170,6 +170,13 @@ const PATHS = {
       <path d="M8 9h8M8 12h8M8 15h5" />
     </>
   ),
+  // rename: a pencil
+  pencil: (
+    <>
+      <path d="M4 20h4L19 9l-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </>
+  ),
   file: (
     <>
       <path d="M6 3h8l4 4v14H6z" />

@@ -21,6 +21,7 @@ export function useDeckActions({
   onLater,
   onUnsnooze,
   onApprove,
+  agent = null,
 }: {
   current: AttentionItem | undefined;
   decided: Decision[];
@@ -33,6 +34,8 @@ export function useDeckActions({
   onLater: (item: AttentionItem) => void;
   onUnsnooze: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
+  /** The agent pill on, if one is: undo takes back that agent's last decision, the one you can see. */
+  agent?: string | null;
 }) {
   const [flash, setFlash] = useState<string | null>(null);
   /** Replies and answers sent this pass. A reply keeps you on the card; only next/later/approve/deny move it. */
@@ -63,12 +66,14 @@ export function useDeckActions({
     setTimeout(() => setFlash(null), 900);
   };
   const undo = () => {
-    const last = decided[decided.length - 1];
+    let at = decided.length - 1;
+    while (at >= 0 && agent && decided[at].item.agentId !== agent) at--;
+    const last = decided[at];
     if (!last) return;
     if (last.action === "seen") onUnread(last.item);
     else onUnsnooze(last.item);
     setDir("back");
-    setDecided((d) => d.slice(0, -1));
+    setDecided((d) => d.filter((_, i) => i !== at));
     setQueue((q) => [last.item, ...q]);
   };
   const approve = (behavior: "allow" | "deny") => {

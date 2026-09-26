@@ -15,6 +15,8 @@ import type { Me } from "./Pair";
 import { navigate, type Route } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
 import { Scroll } from "./ui";
+import { RenameSheet } from "./RenameSheet";
+import { canRename } from "../shell/sidebarModel";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
@@ -27,6 +29,8 @@ function openAttention(item: AttentionItem) {
 
 /** Archive or restore a desk's conversation through the app-server; resolves to an error, or null when done. */
 export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
+/** Rename a desk's conversation through the app-server; resolves to an error, or null when done. */
+export type RenameDeskName = (d: DeskSummary, name: string) => Promise<string | null>;
 
 /** What the presence dot and its name say about the paired Mac. */
 const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecting: "connecting to the Mac", offline: "Mac unreachable" };
@@ -53,6 +57,7 @@ export function Home({
   onRefresh,
   onPin,
   onArchive,
+  onRename,
   recentFolders,
   onCreate,
 }: {
@@ -72,6 +77,7 @@ export function Home({
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
   /** Null while the app-server cannot take it (not reachable, or not on this Mac). */
   onArchive: ArchiveDesk | null;
+  onRename: RenameDeskName | null;
   /** `folders_get`: the folders each agent worked in, most recent first. */
   recentFolders: () => Promise<Record<string, string[]>>;
   /** A new conversation through the app-server; resolves to its runtime. */
@@ -136,7 +142,7 @@ export function Home({
         />
       )}
       {sheet === "new" && <NewSheet agents={chips} defaultAgentId={null} recentFolders={recentFolders} onCreate={onCreate} onClose={() => setSheet(null)} />}
-      {acting && <ActingDesk desk={acting} onPin={onPin} onArchive={onArchive} onClose={() => setActing(null)} />}
+      {acting && <ActingDesk desk={acting} onPin={onPin} onArchive={onArchive} onRename={onRename} onClose={() => setActing(null)} />}
     </div>
   );
 }
@@ -175,10 +181,10 @@ function FilterPills({ query, onClearQuery }: { query: string; onClearQuery: () 
 }
 
 /** A desk's actions sheet from Home: pin only for a live desk with a conversation, archive while the app-server takes it. */
-function ActingDesk({ desk, onPin, onArchive, onClose }: { desk: DeskSummary; onPin: (agentId: string, conversationId: string, pinned: boolean) => void; onArchive: ArchiveDesk | null; onClose: () => void }) {
+function ActingDesk({ desk, onPin, onArchive, onRename, onClose }: { desk: DeskSummary; onPin: (agentId: string, conversationId: string, pinned: boolean) => void; onArchive: ArchiveDesk | null; onRename: RenameDeskName | null; onClose: () => void }) {
   const { agentId, conversationId } = desk;
   const pin = agentId && conversationId && desk.status === "live" ? (p: boolean) => onPin(agentId, conversationId, p) : null;
-  return <DeskActions desk={desk} onClose={onClose} onPin={pin} onArchive={onArchive ? (archived) => onArchive(desk, archived) : null} />;
+  return <DeskActions desk={desk} onClose={onClose} onPin={pin} onArchive={onArchive ? (archived) => onArchive(desk, archived) : null} onRename={onRename ? (name) => onRename(desk, name) : null} />;
 }
 
 /** "Needs your attention": the first of the ready queue, then "n more in Inbox"; absent when nothing waits. */
@@ -388,12 +394,13 @@ export function DeskRow({ desk: d, mark, onActions, inAgent = false, inPinned = 
 const canArchive = (d: DeskSummary) => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
 
 /**
- * A desk's actions, as a bottom sheet: open it, pin or unpin (live desks), archive or restore. Archive
+ * A desk's actions, as a bottom sheet: open it, pin or unpin (live desks), rename, archive or restore. Archive
  * waits for the app-server and stays open with its error when it fails; `onArchive` null means the
  * app-server cannot take it now, and the row says so instead of vanishing.
  */
-export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: DeskSummary; onClose: () => void; onPin: ((pinned: boolean) => void) | null; onArchive: ((archived: boolean) => Promise<string | null>) | null }) {
+export function DeskActions({ desk: d, onClose, onPin, onArchive, onRename }: { desk: DeskSummary; onClose: () => void; onPin: ((pinned: boolean) => void) | null; onArchive: ((archived: boolean) => Promise<string | null>) | null; onRename: ((name: string) => Promise<string | null>) | null }) {
   const [busy, setBusy] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const archived = d.status === "archived";
   const archive = async () => {
@@ -410,6 +417,7 @@ export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: Desk
     if (err) setError(err);
     else onClose();
   };
+  if (renaming && onRename) return <RenameSheet name={d.title ?? ""} onRename={onRename} onClose={onClose} />;
   return (
     <Sheet label={`${deskName(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-head">
@@ -422,6 +430,7 @@ export function DeskActions({ desk: d, onClose, onPin, onArchive }: { desk: Desk
       <ul className="loki-phone-list">
         <SheetRow icon="chevron-right" label="Open desk" onClick={() => (onClose(), openDesk(d))} />
         {onPin && <SheetRow icon="pin" label={d.pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!d.pinned), onClose())} />}
+        {canRename(d) && <SheetRow icon="pencil" label="Rename" aside={onRename ? null : "Not connected"} disabled={!onRename} onClick={() => setRenaming(true)} />}
         {canArchive(d) && <SheetRow icon="archive" label={busy ? (archived ? "Restoring…" : "Archiving…") : archived ? "Restore to Desks" : "Archive"} aside={onArchive ? null : "Not connected"} disabled={!onArchive || busy} onClick={() => void archive()} />}
       </ul>
       {error && (
