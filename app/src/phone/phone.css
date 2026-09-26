@@ -1060,6 +1060,7 @@ span.loki-phone-section-btn { cursor: default; }
 /* The glyphs are smaller than a fingertip; the target is not (44 around each). */
 .loki-phone .loki-composer-round::after, .loki-phone .loki-model-pill::after { content: ""; position: absolute; inset: -4px; }
 .loki-phone .loki-btn.loki-composer-send:not(:disabled) { border-color: var(--phone-affirm); background: var(--phone-affirm); color: var(--phone-on-affirm); }
+.loki-phone .loki-btn.loki-composer-stop { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); }
 .loki-phone .loki-chip.loki-model-pill { position: relative; min-height: 36px; padding: 0 var(--phone-space-3) 0 var(--phone-space-4); font-size: var(--phone-text-meta); }
 
 /* Select model as the phone's bottom sheet: the grip, a round close at the top left and the title centred,
@@ -1342,7 +1343,7 @@ span.loki-phone-section-btn { cursor: default; }
 
 /* Small confirmations bounce: the send button as it comes alive, the inbox badge on a new count. */
 @keyframes loki-pop { from { scale: 0.8; } to { scale: 1; } }
-.loki-phone .loki-composer-send:not(:disabled) { animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy); }
+.loki-phone :is(.loki-composer-send:not(:disabled), .loki-composer-stop) { animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy); }
 .loki-phone-nav-badge { animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy); }
 
 /* Bottom sheets rise on the smooth spring over a fading veil; they leave the same way (sheetMotion.ts). */

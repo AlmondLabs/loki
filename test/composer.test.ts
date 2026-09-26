@@ -94,6 +94,26 @@ describe("the message box's bottom row", () => {
     expect(send(conversation(true, "ship it"))).not.toContain("disabled");
   });
 
+  test("while the agent works, an empty box's send is Stop; typing brings send back (it queues); no handler, no Stop", () => {
+    const working = (text: string, onStop?: () => Promise<string | null>) =>
+      barLabels(
+        renderToStaticMarkup(
+          createElement(Conversation, {
+            view: { rows: [], status: "streaming" },
+            actions: { onSend: () => {}, ...(onStop ? { onStop } : {}) },
+            draft: { value: { text, images: [] }, onChange: () => {} },
+          }),
+        ),
+      );
+    const stop = async () => null;
+    expect(working("", stop)).toEqual(["Attach images", "Stop"]);
+    expect(working("and also this", stop)).toEqual(["Attach images", "Queue: sends when this turn ends"]);
+    expect(working("")).toEqual(["Attach images", "Queue: sends when this turn ends"]);
+    // idle: never Stop
+    const idle = renderToStaticMarkup(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {}, onStop: stop } }));
+    expect(barLabels(idle)).toEqual(["Attach images", "Send"]);
+  });
+
   test("without a model handler there is no pill", () => {
     const html = renderToStaticMarkup(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {} } }));
     expect(barLabels(html)).toEqual(["Attach images", "Send"]);

@@ -48,6 +48,8 @@ interface CatchUpProps {
   onUnread: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
+  /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
+  onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   /** The model a card's conversation runs on, and the switcher (shared with the desk chat). */
@@ -193,6 +195,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),
+          onStop: deck.onStop ? () => deck.onStop!(current) : undefined,
           onAnswer: current.pendingQuestion ? (answers) => deck.onAnswer(current, current.pendingQuestion!.requestId, answers) : undefined,
           onApprove: current.pendingApproval ? actions.approve : undefined,
           commands: deck.commands,

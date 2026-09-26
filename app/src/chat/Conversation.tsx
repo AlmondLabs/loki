@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import "./chat.css";
 import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
@@ -50,6 +50,8 @@ export interface ConversationActions {
   onLoadModels?: () => void;
   /** Take back a message typed mid-turn before it went out. */
   onCancelQueued?: (text: string) => void;
+  /** Stop the agent's turn where it is, so the person can take over (the harness's abort_message); resolves to an error or null. */
+  onStop?: () => Promise<string | null>;
 }
 
 /** Safe-area insets a host adds inside the thread and under the last row (the phone's notch and home indicator). */
@@ -176,6 +178,17 @@ export function Conversation({
   const canApprove = !!approval && !!actions.onApprove;
   const hasFooter = canApprove || !!footer;
   const hasContent = !!draft.trim() || images.length > 0;
+  // Stop, asked for and not yet ended: the button waits until the harness says the turn is over.
+  const running = view.status !== "idle";
+  const [stopping, setStopping] = useState(false);
+  if (stopping && !running) setStopping(false);
+  const stop = actions.onStop
+    ? () => {
+        setStopping(true);
+        // Refused (the link down, the harness said no): the button comes back so it can be tried again.
+        void actions.onStop!().then((err) => err && setStopping(false));
+      }
+    : undefined;
   const waiting = !!approval || !!question;
   const picker = hasModelPicker && <ModelPicker open={controls.pickerOpen} touch={touch} current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} pillRef={pillRef} />;
 
@@ -241,6 +254,8 @@ export function Conversation({
                 )
               }
               canSend={hasContent}
+              onStop={running ? stop : undefined}
+              stopping={stopping}
               sendLabel={view.status === "idle" ? "Send" : "Queue: sends when this turn ends"}
               sendTitle={view.status === "idle" ? undefined : "the agent is mid-turn; this is kept and sent when the turn ends"}
               {...palette.aria}

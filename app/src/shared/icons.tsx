@@ -157,6 +157,7 @@ const PATHS = {
       <path d="M12.5 15H17" />
     </>
   ),
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor" />,
   copy: (
     <>
       <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />

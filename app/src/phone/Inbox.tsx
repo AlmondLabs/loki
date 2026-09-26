@@ -306,6 +306,8 @@ export interface CardActions {
   onSend: (item: AttentionItem, text: string, images: ImageAttachment[]) => void;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onCancelQueued: (item: AttentionItem, text: string) => void;
+  /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
+  onStop?: (item: AttentionItem) => Promise<string | null>;
   /** The model pill in the card's box, as on the conversation page; absent, the box has none. */
   model?: CardModel;
 }
@@ -666,6 +668,7 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
               }
             : undefined,
           onCancelQueued: (text) => card.onCancelQueued(item, text),
+          onStop: card.onStop ? () => card.onStop!(item) : undefined,
         }}
         agentName={agentName}
         layout={layout}

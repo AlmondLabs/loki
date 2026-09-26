@@ -117,6 +117,10 @@
 .loki-composer-attach { color: var(--loki-fg); }
 /* Send: Slack's green once there is something to send; a muted circle while the box is empty. */
 .loki-btn.loki-composer-send:disabled { background: var(--loki-hover); color: var(--loki-muted); opacity: 1; }
+/* Stop, in send's place while the agent works (Claude's): a filled round in the ink colour with a square in it. */
+.loki-btn.loki-composer-stop { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); }
+.loki-btn.loki-composer-stop:hover:not(:disabled) { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); opacity: 0.85; }
+.loki-btn.loki-composer-stop:disabled { opacity: 0.5; }
 /* The model pill: the model in the foreground, the effort after it in the muted colour, one height with the row. */
 .loki-chip.loki-model-pill { min-height: 28px; min-width: 0; flex: 0 1 auto; padding: 0 8px 0 10px; color: var(--loki-fg); font-weight: 600; }
 .loki-model-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

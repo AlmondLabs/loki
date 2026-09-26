@@ -541,6 +541,18 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, []);
+  /** Stop a conversation's turn (the composer's stop button); resolves to an error message or null. */
+  const stop = useCallback(async (rt: Runtime): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    try {
+      const aborted = await sock.abortTurn(rt);
+      optsRef.current.capture?.("turn_stopped", { aborted });
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  }, []);
   /** Switch a conversation's model; returns the applied handle/effort or an error. */
   const updateModel = useCallback(async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const sock = socketRef.current;
@@ -624,6 +636,7 @@ export function useAttention(opts: UseAttentionOptions) {
     reflection,
     listModels,
     updateModel,
+    stop,
     setMode,
     archiveConversation,
     renameConversation,

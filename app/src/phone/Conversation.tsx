@@ -63,6 +63,7 @@ export function ConversationScreen({
   onBack,
   onLoad,
   onDecide,
+  onStop,
   onAnswer,
   onSend,
   onSeen,
@@ -95,6 +96,8 @@ export function ConversationScreen({
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
+  /** Stop this conversation's turn, so you can take over; resolves to an error or null. */
+  onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
   onSend: (rt: Runtime, text: string, images: ImageAttachment[], desk: string | null) => void;
   /** Done: the Inbox's clear (seen_mark). */
@@ -149,6 +152,7 @@ export function ConversationScreen({
               onSend: (text, images = []) => onSend(rt, text, images, thread.title),
               onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
               onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
+              onStop: onStop ? () => onStop(rt) : undefined,
             }}
             agentName={agentName}
             prefill={prefill}

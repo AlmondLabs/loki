@@ -348,6 +348,7 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
       onBack={onBack}
       onLoad={(rt) => void catchUp.loadThread(rt)}
       onDecide={catchUp.decide}
+      onStop={catchUp.stop}
       onAnswer={catchUp.answer}
       onSend={(rt, text, images, deskTitle) => catchUp.send(rt, text, images, { desk: deskTitle })}
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
@@ -424,6 +425,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
           onSend: (item, text, images) => catchUp.reply(item, text, images),
           onAnswer: (item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers),
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
+          onStop: (item) => catchUp.stop(item.runtime),
           model: cardModel,
         }}
         onApprove={catchUp.approve}

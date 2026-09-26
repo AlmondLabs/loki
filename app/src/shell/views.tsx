@@ -53,6 +53,7 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onApprove={catchUp.approve}
       onAnswer={(item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers)}
       onReply={catchUp.reply}
+      onStop={(item) => catchUp.stop(item.runtime)}
       onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
       conversation={catchUp.conversation}
       loadHistory={(item) => void catchUp.loadHistory(item)}

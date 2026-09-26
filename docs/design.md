@@ -178,7 +178,9 @@ picks, kept by the mod for the Mac and the phone alike, then Letta Code's own `r
 featured models up to five, only ones your account can reach per `available_handles`, and the current
 one; each row the name, its own description or else its handle, a check in the accent on the current one),
 then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
-permission mode stays under the box, beside approve and deny. The model and effort chips that sat in that
+permission mode stays under the box, beside approve and deny. While the agent works and the box is empty, send
+becomes **Stop** (Claude's: a filled round with a square), which ends the turn where it is — an approval it waits
+on too — through the app-server's `abort_message`, so you can take over; typing brings send back (it queues). The model and effort chips that sat in that
 row until 2026-09-24 are gone.
 
 ## Shell (2026-09-06; Slack layout 2026-09-23)
