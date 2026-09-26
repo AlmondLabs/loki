@@ -2,6 +2,16 @@
 
 Every stable, newest first. The version is the day it shipped (UTC); nightlies are not listed.
 
+## 2026.9.26
+
+- **releases: two release PRs tracking main — the Mac's and Windows and Linux's, sharing the day's tag** (09ee21b)
+  Every merge to main refreshes release/next (the Mac stable) and release/preview
+  ("release: Windows and Linux <date>"), both built from main. Whichever merges first
+  creates v<date> (Windows and Linux's not marked latest, so the Mac's update check and
+  cask stay on a release with a .dmg); the other joins it. Separate queues, so a waiting
+  Mac stable is never dropped; a lost create race joins the release instead of failing.
+  Windows and Linux find their update in the newest release that has their file.
+
 ## 2026.9.25
 
 - **title menu: separators are <hr>, not role=separator divs** (8e950f9)
