@@ -439,6 +439,30 @@ html:has(.loki-phone-shell) {
 }
 .loki-phone-search-btn:active { background: var(--loki-hover); }
 
+/* Home's compose button (New desk), Slack's: a circle at the bottom right, over the list, above the dock */
+.loki-phone-compose {
+  position: absolute;
+  right: calc(var(--phone-space-4) + var(--phone-safe-right));
+  bottom: calc(max(var(--phone-nav-clearance, 0px), var(--phone-safe-bottom)) + var(--phone-space-3));
+  z-index: var(--phone-layer-bar);
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--phone-nav-border);
+  border-radius: var(--phone-radius-pill);
+  background: var(--phone-nav-surface);
+  box-shadow: var(--loki-shadow-float);
+  color: var(--loki-fg);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.loki-phone-compose:active { background: var(--loki-hover); }
+/* Home's list ends clear of it too, so the last desk's time and dot can scroll out from under it. */
+.loki-phone-page:has(> .loki-phone-compose) .loki-phone-scroll::after { height: calc(max(var(--phone-nav-clearance, 0px), var(--phone-safe-bottom)) + 56px + var(--phone-space-3)); }
+
 /* The update notice: a strip at the bottom of a full-screen page, or docked above the capsule on a tab. */
 .loki-phone-update {
   flex: 0 0 auto;
@@ -1329,7 +1353,7 @@ span.loki-phone-section-btn { cursor: default; }
    opacity, and nothing for what is done from a keyboard. Colour changes keep their short eased fades. */
 
 /* Things you press give under the finger, to 97%, and spring back. List rows highlight instead, as iOS lists do. */
-.loki-phone :is(.loki-phone-icon-btn, .loki-phone-nav-item, .loki-phone-search-btn, .loki-phone-decide-btn, .loki-phone-undo, .loki-phone-card-who, .loki-phone-convo-who, .loki-phone-circle, .loki-phone-tile, .loki-btn, .loki-chip) {
+.loki-phone :is(.loki-phone-icon-btn, .loki-phone-nav-item, .loki-phone-search-btn, .loki-phone-compose, .loki-phone-decide-btn, .loki-phone-undo, .loki-phone-card-who, .loki-phone-convo-who, .loki-phone-circle, .loki-phone-tile, .loki-btn, .loki-chip) {
   transition:
     scale var(--spring-snappy-ms) var(--spring-snappy),
     background-color var(--phone-dur-fast) var(--phone-ease),
@@ -1337,7 +1361,7 @@ span.loki-phone-section-btn { cursor: default; }
     border-color var(--phone-dur-fast) var(--phone-ease),
     opacity var(--phone-dur-fast) var(--phone-ease);
 }
-.loki-phone :is(.loki-phone-icon-btn, .loki-phone-nav-item, .loki-phone-search-btn, .loki-phone-decide-btn, .loki-phone-undo, .loki-phone-card-who, .loki-phone-convo-who, .loki-phone-circle, .loki-phone-tile, .loki-btn, .loki-chip):active:not(:disabled) { scale: 0.97; }
+.loki-phone :is(.loki-phone-icon-btn, .loki-phone-nav-item, .loki-phone-search-btn, .loki-phone-compose, .loki-phone-decide-btn, .loki-phone-undo, .loki-phone-card-who, .loki-phone-convo-who, .loki-phone-circle, .loki-phone-tile, .loki-btn, .loki-chip):active:not(:disabled) { scale: 0.97; }
 /* Small round controls give a little more, or the press is too small to see. */
 .loki-phone :is(.loki-phone-icon-btn, .loki-phone-search-btn, .loki-phone-circle, .loki-composer-round):active:not(:disabled) { scale: 0.92; }
 

@@ -265,9 +265,10 @@ Settings is asked for one more time; it stays valid ten minutes). From then on t
 float in a capsule at the bottom — Home, Inbox, Agents, More, the Inbox carrying the waiting count — with a round
 Search button beside them:
 
-1. **Home**: the loki header (its menu holds the filter, the agent scope, refresh and a new desk), a row of
+1. **Home**: the loki header (its menu holds the filter, refresh and Archived desks), a row of
    shortcuts with their counts (Inbox, Learn, Agents, Archive), **Needs your attention** — the head of the
-   Inbox queue — then **Desks**, pinned first. A long press on a desk (or its actions button) pins or archives it.
+   Inbox queue — then **Desks**, pinned first. A long press on a desk (or its actions button) pins, renames or archives it. The round
+   compose button at the bottom right starts a new desk.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
    **Later** and **Mark as done**; swipe left for Later, right for Mark as done. An approval refuses both, and

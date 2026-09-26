@@ -70,10 +70,18 @@
       </div>
     </div>
     <script>
-      // Shown only if nothing has rendered after eight seconds: the app's first paint is well under one.
+      // Shown only if nothing has rendered after eight seconds: the app's first paint is well under one. A slow
+      // link can still bring the app in later; the notice then goes, so it never sits over a working page.
       setTimeout(function () {
         var root = document.getElementById("root");
-        if (root && !root.firstChild) document.getElementById("loki-fallback").hidden = false;
+        var fallback = document.getElementById("loki-fallback");
+        if (!root || root.firstChild) return;
+        fallback.hidden = false;
+        new MutationObserver(function (_, seen) {
+          if (!root.firstChild) return;
+          fallback.hidden = true;
+          seen.disconnect();
+        }).observe(root, { childList: true });
       }, 8000);
     </script>
     <script type="module" src="/src/main.tsx"></script>

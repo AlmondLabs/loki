@@ -40,7 +40,7 @@ const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecti
  * profile with the Mac's presence), a rail of shortcuts with their counts, then "Needs your attention"
  * — the head of the Inbox queue — and the live desks grouped as the desktop sidebar groups them (Pinned, then
  * one folding section per agent), each conversation in one place, never two (model.ts homeSections,
- * homeDeskSections). The filter, refresh and a new desk live in the menu; while a
+ * homeDeskSections). The filter and refresh live in the menu, New desk in the compose button; while a
  * filter is on it shows as a pill that clears it. A long press on a desk (or its actions button) pins or
  * archives it. Home stays mounted under other pages, so all of this — and the scroll — survives a round trip.
  */
@@ -131,12 +131,15 @@ export function Home({
           onClearFilters={() => setQuery("")}
         />
       </Scroll>
+      {/* Slack's compose button: New desk, always in the same place under the thumb, above the tab bar. */}
+      <button type="button" className="loki-phone-compose" aria-label="New desk" onClick={() => setSheet("new")}>
+        <Icon name="compose" size={24} />
+      </button>
 
       {sheet === "menu" && (
         <HomeMenu
           query={query}
           onQuery={setQuery}
-          onNew={() => setSheet("new")}
           onRefresh={() => (onRefresh(), setSheet(null))}
           onClose={() => setSheet(null)}
         />
@@ -460,9 +463,9 @@ export function SheetRow({ icon, label, aside = null, disabled = false, onClick 
 
 /**
  * Home's menu: the filter that used to sit over the list (desks group by agent below, as on the desktop, so
- * there is no agent scope), then a new desk and a refresh. The filter applies as you type, so closing the sheet shows the narrowed list at once.
+ * there is no agent scope), then a refresh and the archive (New desk is the compose button over the list). The filter applies as you type, so closing the sheet shows the narrowed list at once.
  */
-function HomeMenu({ query, onQuery, onNew, onRefresh, onClose }: { query: string; onQuery: (q: string) => void; onNew: () => void; onRefresh: () => void; onClose: () => void }) {
+function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQuery: (q: string) => void; onRefresh: () => void; onClose: () => void }) {
   return (
     <Sheet label="Home menu" onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <Field
@@ -483,7 +486,6 @@ function HomeMenu({ query, onQuery, onNew, onRefresh, onClose }: { query: string
         data-form-type="other"
       />
       <ul className="loki-phone-list">
-        <SheetRow icon="plus" label="New desk" onClick={onNew} />
         <SheetRow icon="refresh" label="Refresh desks" onClick={onRefresh} />
         <SheetRow icon="archive" label="Archived desks" onClick={() => (onClose(), navigate({ kind: "archive" }))} />
       </ul>
