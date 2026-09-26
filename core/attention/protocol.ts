@@ -302,7 +302,7 @@ export class AppServerSocket {
   /** list_models: every concrete model preset this harness can run, including selectable effort variants. */
   async listModels(): Promise<ModelEntry[]> {
     const res = await this.request("list_models", {}, 20_000);
-    return modelEntriesFromWire(res.entries);
+    return modelEntriesFromWire(res.entries, res.available_handles);
   }
 
   /** conversation_update: archive / unarchive (and other record fields). The main chat cannot be updated. */

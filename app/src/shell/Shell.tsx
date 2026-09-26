@@ -127,7 +127,7 @@ export function Shell() {
   const [focusChat, setFocusChat] = useState(0);
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
-  const { list: modelList, load: loadModels, forget: forgetModels } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels });
+  const { list: modelList, load: loadModels, forget: forgetModels } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
   const boot = useBootstrap();
   const welcome = welcomeFor(boot.status, catchUp);
   useEffect(() => {
@@ -142,6 +142,7 @@ export function Shell() {
     const { applied, error } = await catchUp.updateModel(rt, selection);
     if (error || !applied) return notice(`model: ${error ?? "the app-server did not return the applied model"}`);
     desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+    desk.models.used(applied.handle);
     const effort = applied.reasoningEffort ? ` · effort ${effortLabel(applied.reasoningEffort)}` : "";
     notice(`${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${applied.handle.split("/").pop()}${effort}`);
   };

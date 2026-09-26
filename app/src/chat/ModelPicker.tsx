@@ -12,6 +12,10 @@ export interface ModelGroup {
   label: string;
   isDefault: boolean;
   isFeatured: boolean;
+  /** This account can reach it (list_models' available_handles); true when the harness did not say. */
+  available: boolean;
+  /** Its place among the models used lately, 0 the latest; undefined when not among them. */
+  recent?: number;
 }
 
 export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
@@ -22,6 +26,8 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
       existing.entries.push(entry);
       existing.isDefault ||= entry.isDefault === true;
       existing.isFeatured ||= entry.isFeatured === true;
+      existing.available &&= entry.available !== false;
+      if (entry.recent !== undefined) existing.recent = Math.min(existing.recent ?? entry.recent, entry.recent);
     } else {
       groups.set(entry.handle, {
         handle: entry.handle,
@@ -29,6 +35,8 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
         label: entry.label,
         isDefault: entry.isDefault === true,
         isFeatured: entry.isFeatured === true,
+        available: entry.available !== false,
+        ...(entry.recent !== undefined ? { recent: entry.recent } : {}),
       });
     }
   }
@@ -73,7 +81,9 @@ export function effortLabel(effort: ReasoningEffort): string {
   return effort;
 }
 
-/** How many models the short list shows when the harness marks none as featured. */
+/** How many models the quick picks hold (the current model may make one more). */
+const SHORT_MAX = 5;
+/** How many models the short list shows when nothing is recent or featured. */
 const SHORT_FALLBACK = 4;
 /** The long list's cap: a harness can offer a few hundred handles; the filter finds the rest. */
 const MORE_CAP = 160;
@@ -94,14 +104,20 @@ export function modelName(entries: ModelEntry[] | null, handle: string | null | 
 }
 
 /**
- * The picker's two lists: the short one (the featured models, else the first few, and the current model so its
- * check is in view) in the harness's order, and More models, the rest, by handle.
+ * The picker's two lists. The quick picks: the models you used lately, latest first (mod/models.ts), then the
+ * harness's featured models in its order to fill up to five, only ones this account can reach; with neither,
+ * the first few it can reach; and the current model, so its check is in view. More models: the rest, by handle,
+ * unreachable ones included (the filter finds anything).
  */
 export function modelLists(entries: ModelEntry[] | null, current: string | null): { short: ModelGroup[]; more: ModelGroup[] } {
   const groups = groupModelEntries(entries ?? []);
-  const featured = groups.filter((group) => group.isFeatured);
-  const base = featured.length ? featured : groups.slice(0, SHORT_FALLBACK);
-  const short = groups.filter((group) => base.includes(group) || group.handle === current);
+  const reachable = groups.filter((group) => group.available);
+  const recent = reachable.filter((group) => group.recent !== undefined).sort((a, b) => a.recent! - b.recent!);
+  const featured = reachable.filter((group) => group.isFeatured && !recent.includes(group));
+  const picks = [...recent, ...featured].slice(0, SHORT_MAX);
+  const base = picks.length ? picks : reachable.slice(0, SHORT_FALLBACK);
+  const now = groups.find((group) => group.handle === current);
+  const short = now && !base.includes(now) ? [...base, now] : base;
   const more = groups.filter((group) => !short.includes(group)).sort((a, b) => a.handle.localeCompare(b.handle));
   return { short, more };
 }

@@ -74,6 +74,8 @@ export function useDeskSocket() {
   const [pairCode, setPairCode] = useState<PairCode | null>(null);
   /** The canvas build the mod is serving now (`app_build`, broadcast when it changes); the phone reloads on it. */
   const [servedBuild, setServedBuild] = useState<string | null>(null);
+  /** The models used lately, latest first (mod/models.ts): sent when the link opens and again after every pick anywhere. */
+  const [recentModels, setRecentModels] = useState<string[]>([]);
   /** Each desk's widget change log (desk/widgetRows.ts): from history replies and live `widget_change` frames, for any desk. */
   const [widgetLogs, setWidgetLogs] = useState<WidgetLogs>({});
   /** Pending request/reply exchanges with the mod, by requestId. */
@@ -194,6 +196,12 @@ export function useDeskSocket() {
           case "app_build":
             if (typeof msg.build === "string") setServedBuild(msg.build);
             break;
+          case "models_recent":
+            if (Array.isArray(msg.recent)) {
+              const next = msg.recent.filter((h): h is string => typeof h === "string");
+              setRecentModels((cur) => (cur.length === next.length && cur.every((h, i) => h === next[i]) ? cur : next));
+            }
+            break;
           case "widget_change": {
             // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
             const entry = parseWidgetEntry(msg.entry);
@@ -299,6 +307,7 @@ export function useDeskSocket() {
     devices,
     pairCode,
     servedBuild,
+    recentModels,
     widgetLogs,
     setWidgetLogs,
     waiters,

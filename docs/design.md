@@ -173,7 +173,9 @@ name in the ink, its effort after it in the muted colour, only when the model of
 circle while the box is empty; every control in the row is one height (28 here, 36 on the phone with a 44
 target). The pill opens **Select model**: a popover over the box here (↑↓ Home End, Enter, Esc or a click away
 closes, focus returns to the pill; ⌘⇧M opens it too), a bottom sheet on the phone (grip, a round × at the top
-left, the title centred). Both show a card of the short list (the harness's featured models and the current
+left, the title centred). Both show a card of the quick picks (the models you used lately, latest first — loki's
+picks, kept by the mod for the Mac and the phone alike, then Letta Code's own `recentModels` — then the harness's
+featured models up to five, only ones your account can reach per `available_handles`, and the current
 one; each row the name, its own description or else its handle, a check in the accent on the current one),
 then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
 permission mode stays under the box, beside approve and deny. The model and effort chips that sat in that

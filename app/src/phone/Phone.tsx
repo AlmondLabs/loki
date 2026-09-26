@@ -193,7 +193,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
   // The model list for Select model, as the desktop shell keeps it: once per harness, on the first ask.
-  const models = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels });
+  const models = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
   useUnpairWatch(desk.connection, onUnpaired);
 
   const waiting = catchUpQueue(catchUp.items).length;
@@ -327,6 +327,7 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
     const { applied, error } = await catchUp.updateModel(rt, selection);
     if (error || !applied) return setNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
     desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+    desk.models.used(applied.handle);
   };
   return (
     <ConversationScreen
@@ -380,6 +381,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
             const { applied, error } = await catchUp.updateModel(item.runtime, selection);
             if (error || !applied) return setCardNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
             desk.setDeskModel(scopeFor(item.id, item.agentId), applied.handle, applied.reasoningEffort);
+            desk.models.used(applied.handle);
           }
         : undefined,
   };
