@@ -110,7 +110,7 @@ function CaptureForm({ onClose, onCreate, context }: CaptureProps) {
       </div>
       <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px 12px" }}>
         <span>
-          filed by you{context.desk ? ` · from ${context.desk === "shared" ? "the shared desk" : `desk ${context.desk}`}` : ""}
+          filed by you{context.desk ? ` · from ${context.desk === "shared" ? "the shared canvas" : `chat ${context.desk}`}` : ""}
           {context.agentName ? ` · ${context.agentName}'s thread` : ""}
         </span>
         {error && <span style={{ color: "var(--loki-negative)" }}>{error}</span>}

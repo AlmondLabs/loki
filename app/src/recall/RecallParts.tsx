@@ -174,7 +174,7 @@ export function WorkerStrip({ worker, running, onSettings, onRun, onExport, card
 export function RecallKeys({ revealed }: { revealed: boolean }) {
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {revealed ? "← again · → got it (space too) · X delete · E edit · O open the desk · Z undo · esc back" : "space or → show the answer · X delete · E edit · O open the desk · Z undo · esc back"}
+      {revealed ? "← again · → got it (space too) · X delete · E edit · O open the chat · Z undo · esc back" : "space or → show the answer · X delete · E edit · O open the chat · Z undo · esc back"}
     </div>
   );
 }
@@ -196,11 +196,11 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
       <p style={{ margin: 0 }}>
         In the same call it also names <b>leads</b>: concepts that went by in a conversation without being understood. Each waits under the
         leads tab until you start it — a <code style={{ fontFamily: "var(--loki-mono)" }}>[Learn]</code> conversation with the agent that was
-        there, which teaches by asking, on a desk it furnishes with the outline — or say "not this", which it remembers.
+        there, which teaches by asking, in a chat whose canvas it furnishes with the outline — or say "not this", which it remembers.
       </p>
       <p style={{ margin: 0, color: "var(--loki-muted)" }}>
         It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at
-        all while no conversation has new text. The hidden conversations sit in the desk sidebar as "recall" desks, so you can read what it was asked.
+        all while no conversation has new text. The hidden conversations sit in the chats sidebar as "recall" chats, so you can read what it was asked.
         Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/recall/</code>. It is off until you turn it on,
         and Settings › learn turns it off again.
       </p>
@@ -289,8 +289,8 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
       )}
       {leads.map((l) => (
         <section key={l.id} aria-label={`lead: ${l.title}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", overflow: "hidden", display: "grid" }}>
-          {/* The card is the start: one click opens the lesson's desk with the chat and sends the brief. */}
-          <Row flush onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent: the desk opens, the brief goes out, the agent begins" style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}>
+          {/* The card is the start: one click opens the lesson's chat with the chat and sends the brief. */}
+          <Row flush onClick={() => onStart(l.id)} disabled={starting !== null} title="a [Learn] conversation with this agent: the chat opens, the brief goes out, the agent begins" style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}>
             <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {l.source.agentName && <Chip static>{l.source.agentName}</Chip>}
               <Meta>{l.source.title ?? "a conversation"} · {ago(l.createdAt)}</Meta>
@@ -299,7 +299,7 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
             </span>
             <span style={{ display: "block", fontSize: 22, fontWeight: 700, lineHeight: 1.3, color: "var(--loki-fg)", textWrap: "balance" as never }}>{l.title}</span>
             <span style={{ display: "block", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-muted)", fontStyle: "italic", overflowWrap: "anywhere" }}>{l.why}</span>
-            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontWeight: 600 }}>{starting === l.id ? "furnishing the desk…" : "start the lesson →"}</span>
+            <span style={{ display: "block", fontSize: 12, color: starting === l.id ? "var(--loki-muted)" : "var(--loki-accent)", fontWeight: 600 }}>{starting === l.id ? "furnishing the canvas…" : "start the lesson →"}</span>
           </Row>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", padding: "10px 20px 12px" }}>
             <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">not this</Button>
@@ -314,13 +314,13 @@ export function LeadList({ leads, lessons, worker, starting, onStart, onResume, 
           <Meta>lessons under way</Meta>
           {lessons.map((s) => (
             <div key={s.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
-              <Row flush onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's desk" style={{ minWidth: 0 }}>
+              <Row flush onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's chat" style={{ minWidth: 0 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--loki-fg)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.lead.title}</span>
                 {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
                 <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.startedAt)}`}</Meta>
               </Row>
               {s.empty && (
-                <Button size="sm" tone="brass" onClick={() => onResume(s)} title="open the desk and send the brief as your first message">
+                <Button size="sm" tone="brass" onClick={() => onResume(s)} title="open the chat and send the brief as your first message">
                   send the brief
                 </Button>
               )}

@@ -187,9 +187,9 @@ describe("agents on the phone", () => {
     expect(liveDeskCount(desks, "a3")).toBe(0);
   });
   test("the label", () => {
-    expect(liveDesksLabel(0)).toBe("no desks live");
-    expect(liveDesksLabel(1)).toBe("1 desk live");
-    expect(liveDesksLabel(3)).toBe("3 desks live");
+    expect(liveDesksLabel(0)).toBe("no chats live");
+    expect(liveDesksLabel(1)).toBe("1 chat live");
+    expect(liveDesksLabel(3)).toBe("3 chats live");
   });
   test("memory folders: system first, root last, skills and the face left out", () => {
     const at = "2026-09-07T12:00:00Z";
@@ -300,12 +300,12 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     expect(shortcutLine("inbox", c)).toBe("12 waiting");
     expect(shortcutLine("learn", c)).toBe("31 due");
     expect(shortcutLine("agents", c)).toBe("2 running");
-    expect(shortcutLine("archive", c)).toBe("85 desks");
+    expect(shortcutLine("archive", c)).toBe("85 chats");
     const none = { inbox: 0, learn: 0, agents: 1, running: 0, archive: 1 };
     expect(shortcutLine("inbox", none)).toBe("All caught up");
     expect(shortcutLine("learn", none)).toBe("Nothing due");
     expect(shortcutLine("agents", none)).toBe("1 agent");
-    expect(shortcutLine("archive", none)).toBe("1 desk");
+    expect(shortcutLine("archive", none)).toBe("1 chat");
     expect(shortcutLine("archive", { ...none, archive: 0 })).toBe("None yet");
   });
   test("an actionable desk appears once: in attention, not again in the desk list", () => {
@@ -393,9 +393,9 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
   });
   test("the preview says what is going on first, then who the agent is", () => {
     expect(agentLine(rows[0], "writes the plans")).toBe("2 waiting · writes the plans");
-    expect(agentLine(rows[1], null)).toBe("Working · 1 desk live");
-    expect(agentLine(rows[2], "")).toBe("no desks live");
-    expect(agentLine(rows[2], undefined)).toBe("no desks live");
+    expect(agentLine(rows[1], null)).toBe("Working · 1 chat live");
+    expect(agentLine(rows[2], "")).toBe("no chats live");
+    expect(agentLine(rows[2], undefined)).toBe("no chats live");
   });
 });
 

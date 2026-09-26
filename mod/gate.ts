@@ -16,6 +16,6 @@ export function shouldServe(capabilities: Capabilities, env: Record<string, stri
   if (env.LOKI_MOD_SERVE === "0") return { serve: false, reason: "LOKI_MOD_SERVE=0" };
   const events = capabilities?.events;
   const lifecycle = typeof events === "object" && events !== null ? events.lifecycle === true : false;
-  if (lifecycle) return { serve: false, reason: "a session harness (lifecycle events on): no app-server here; the desk is served by the harness that hosts one" };
+  if (lifecycle) return { serve: false, reason: "a session harness (lifecycle events on): no app-server here; loki is served by the harness that hosts one" };
   return { serve: true, reason: "a listener harness (no lifecycle events): it hosts the app-server" };
 }

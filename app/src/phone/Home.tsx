@@ -131,8 +131,8 @@ export function Home({
           onClearFilters={() => setQuery("")}
         />
       </Scroll>
-      {/* Slack's compose button: New desk, always in the same place under the thumb, above the tab bar. */}
-      <button type="button" className="loki-phone-compose" aria-label="New desk" onClick={() => setSheet("new")}>
+      {/* Slack's compose button: New chat, always in the same place under the thumb, above the tab bar. */}
+      <button type="button" className="loki-phone-compose" aria-label="New chat" onClick={() => setSheet("new")}>
         <Icon name="compose" size={24} />
       </button>
 
@@ -232,7 +232,7 @@ function DeskSections({ groups, marks, folded, onToggle, empty, loaded, nothingM
             open={filtered || !folded.includes(g.id)}
             onToggle={filtered ? undefined : () => onToggle(g.id)}
           >
-            <ul className="loki-phone-list" aria-label={pinned ? "pinned desks" : `${g.title}'s desks`}>
+            <ul className="loki-phone-list" aria-label={pinned ? "pinned chats" : `${g.title}'s chats`}>
               {g.rows.map((r) => (
                 <DeskRow key={r.desk.scope} desk={r.desk} mark={marks.get(`${r.desk.agentId}/${r.desk.conversationId}`)} onActions={() => onActions(r.desk)} inAgent={!pinned} inPinned={pinned} />
               ))}
@@ -241,19 +241,19 @@ function DeskSections({ groups, marks, folded, onToggle, empty, loaded, nothingM
         );
       })}
       {!filtered && (
-        <ul className="loki-phone-list" aria-label="new desk">
+        <ul className="loki-phone-list" aria-label="new chat">
           <li data-flip="new-desk">
             <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={onNew}>
               <RowIcon name="plus" />
-              <span className="loki-phone-row-copy">New desk</span>
+              <span className="loki-phone-row-copy">New chat</span>
             </button>
           </li>
         </ul>
       )}
-      {empty && (loaded ? <p className="loki-phone-empty">No desks yet. New desk starts one: an agent in a folder.</p> : <SkeletonRows label="Reading the desks…" />)}
+      {empty && (loaded ? <p className="loki-phone-empty">No chats yet. New chat starts one: an agent in a folder.</p> : <SkeletonRows label="Reading the chats…" />)}
       {nothingMatches && (
         <div className="loki-phone-empty">
-          <p>No desks match.</p>
+          <p>No chats match.</p>
           <Button size="touch" tone="paper" onClick={onClearFilters}>
             Clear filter
           </Button>
@@ -336,7 +336,7 @@ const snippet = (text: string | null | undefined) => (text ? text.replace(/\s+/g
 
 /** A waiting conversation: the agent's face, the desk's name (else the item's), agent · what it waits on, the time, a dot when unread. */
 function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
-  const title = desk?.title ?? item.title ?? "new desk";
+  const title = desk?.title ?? item.title ?? "new chat";
   const word = BADGE[item.status].label;
   return (
     <PhoneRow
@@ -356,7 +356,7 @@ function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
 
 /** What a desk row is called: its title, or "new desk" while it is live and untitled, or its scope once archived. */
 export function deskName(d: DeskSummary): string {
-  return d.title ?? (d.status === "live" ? "new desk" : d.scope);
+  return d.title ?? (d.status === "live" ? "new chat" : d.scope);
 }
 
 /**
@@ -431,10 +431,10 @@ export function DeskActions({ desk: d, onClose, onPin, onArchive, onRename }: { 
         </div>
       </div>
       <ul className="loki-phone-list">
-        <SheetRow icon="chevron-right" label="Open desk" onClick={() => (onClose(), openDesk(d))} />
+        <SheetRow icon="chevron-right" label="Open chat" onClick={() => (onClose(), openDesk(d))} />
         {onPin && <SheetRow icon="pin" label={d.pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!d.pinned), onClose())} />}
         {canRename(d) && <SheetRow icon="pencil" label="Rename" aside={onRename ? null : "Not connected"} disabled={!onRename} onClick={() => setRenaming(true)} />}
-        {canArchive(d) && <SheetRow icon="archive" label={busy ? (archived ? "Restoring…" : "Archiving…") : archived ? "Restore to Desks" : "Archive"} aside={onArchive ? null : "Not connected"} disabled={!onArchive || busy} onClick={() => void archive()} />}
+        {canArchive(d) && <SheetRow icon="archive" label={busy ? (archived ? "Restoring…" : "Archiving…") : archived ? "Restore to Chats" : "Archive"} aside={onArchive ? null : "Not connected"} disabled={!onArchive || busy} onClick={() => void archive()} />}
       </ul>
       {error && (
         <p role="alert" className="loki-phone-error">
@@ -474,8 +474,8 @@ function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQue
         name="desk-filter"
         value={query}
         onChange={(e) => onQuery(e.target.value)}
-        placeholder="Filter desks"
-        aria-label="Filter desks"
+        placeholder="Filter chats"
+        aria-label="Filter chats"
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="none"
@@ -486,8 +486,8 @@ function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQue
         data-form-type="other"
       />
       <ul className="loki-phone-list">
-        <SheetRow icon="refresh" label="Refresh desks" onClick={onRefresh} />
-        <SheetRow icon="archive" label="Archived desks" onClick={() => (onClose(), navigate({ kind: "archive" }))} />
+        <SheetRow icon="refresh" label="Refresh chats" onClick={onRefresh} />
+        <SheetRow icon="archive" label="Archived chats" onClick={() => (onClose(), navigate({ kind: "archive" }))} />
       </ul>
       <Button size="touch" tone="paper" block onClick={onClose}>
         Done
@@ -550,13 +550,13 @@ function useNewDesk(agents: Array<{ id: string; name: string | null }>, defaultA
 function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: { agents: Array<{ id: string; name: string | null }>; defaultAgentId: string | null; recentFolders: () => Promise<Record<string, string[]>>; onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>; onClose: () => void }) {
   const { agentId, setAgentId, name, setName, recent, agentName, folder, busy, error, canStart, start } = useNewDesk(agents, defaultAgentId, recentFolders, onCreate, onClose);
   return (
-    <Sheet label="New desk" onClose={onClose} placement="bottom" className="loki-phone-sheet">
+    <Sheet label="New chat" onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-copy">
-        <div className="loki-phone-meta">New desk</div>
+        <div className="loki-phone-meta">New chat</div>
         <div className="loki-phone-title">{agentName ? `With ${agentName}` : "With an agent"}</div>
       </div>
       <AgentPicker agents={agents} agentId={agentId} onPick={setAgentId} />
-      <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" aria-label="Desk name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
+      <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" aria-label="Chat name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
       <FolderLine recent={recent} folder={folder} agentName={agentName} />
       {error && (
         <p role="alert" className="loki-phone-error">
@@ -595,7 +595,7 @@ function FolderLine({ recent, folder, agentName }: { recent: Record<string, stri
   const short = folder ? folder.replace(/^\/Users\/[^/]+/, "~") : null;
   return (
     <p className={folder || recent === null ? "loki-phone-meta loki-phone-wrap" : "loki-phone-error"}>
-      {recent === null ? "Asking the Mac for folders…" : folder ? `In ${short}` : `${agentName ?? "This agent"} has no recent folder on the Mac; start its first desk there.`}
+      {recent === null ? "Asking the Mac for folders…" : folder ? `In ${short}` : `${agentName ?? "This agent"} has no recent folder on the Mac; start its first chat there.`}
     </p>
   );
 }

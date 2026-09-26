@@ -6,7 +6,7 @@ responsibilities, which of them are real processes on your Mac, and the path a m
 
 ## The four responsibilities
 
-Picture the agent as a remote worker with a brain, a memory, a pair of hands, and a desk. Four jobs,
+Picture the agent as a remote worker with a brain, a memory, a pair of hands, and a canvas. Four jobs,
 and each can live in a different place. That separation is the whole reason the system has moving
 parts.
 
@@ -28,13 +28,13 @@ machine, enforces the permission mode, raises approvals, and hosts mods. **Tools
 here, never in the cloud brain**, because this is the machine that has your files. loki's mod lives
 inside this process.
 
-**4. loki — the desk and the window.** The mod (inside the harness) owns the desk: widget files,
+**4. loki — the canvas and the window.** The mod (inside the harness) owns each chat's canvas: widget files,
 geometry, gestures, the board, pins, and reading agent memory for the Agents page. The Rust shell is
 the native window that finds or installs and starts the harness, holds the authenticated socket, and, on
 the Mac, draws the tray, dock badge and global shortcut. The canvas renders chat, inbox, board, agents and the
 widgets themselves. The same canvas has three clients: the desktop window, a browser tab on the Mac,
 and — when Settings › phone is on — a phone on the Wi‑Fi, which the mod serves directly and which has its
-own presentation (`app/src/phone/`): Home, Inbox, Agents and More, with a desk's conversation, search and
+own presentation (`app/src/phone/`): Home, Inbox, Agents and More, with a chat, search and
 Learn a page away, and no widget canvas.
 
 ## The one rule that removes the confusion
@@ -87,7 +87,7 @@ on, a third on the local network, guarded by a per-device cookie:
 | port | server | speaks |
 | --- | --- | --- |
 | 41600 | the app-server (Letta Code) | the agent list, runtime subscriptions, streaming, approvals (the inbox's conversation list is the mod's, from disk) |
-| 41414 | loki's mod, loopback | desk state, gestures, each desk's widget change log, the board, agents, pins, folders, done / viewed / snooze marks, Learn, agent faces, and the app-server tunnel |
+| 41414 | loki's mod, loopback | canvas state, gestures, each chat's widget change log, the board, agents, pins, folders, done / viewed / snooze marks, Learn, agent faces, and the app-server tunnel |
 | 41415 | loki's mod, LAN (off by default) | the canvas build as a single-page app, `/pair` `/me` `/unpair`, and the same `/ws`, `/appserver` and face routes for paired phones |
 
 When Tailscale runs on the Mac the same 41415 listener is reached by the tailnet name instead of the Wi‑Fi
@@ -120,13 +120,14 @@ The canvas speaks two protocols, and knowing which one owns a thing tells you wh
 
 1. **Letta's app-server protocol** (the Rust link or the `/appserver` tunnel; `core/attention/protocol.ts`,
    `app/src/shell/transport.ts`): the agent list, conversations, streaming turns, approvals, models and
-   permission modes. A desk's name is Letta's conversation `summary`, so renaming a desk is a
+   permission modes. A chat's name is Letta's conversation `summary`, so renaming a chat is a
    `conversation_update` over this socket, not a mod frame; archiving and restoring are the same call.
-2. **loki's own protocol** (the mod's `/ws`; documented frame by frame at the top of `mod/bridge.ts`):
-   `desk`, `state`, `widgets` and `desk_title` sync a desk; `gesture`, `measure`, `arrange` and `trash` come
+2. **loki's own protocol** (the mod's `/ws`; documented frame by frame at the top of `mod/bridge.ts`). The UI
+   calls a desk a chat and its widget surface the Canvas tab; the code and the wire keep the name desk.
+   `desk`, `state`, `widgets` and `desk_title` sync a chat; `gesture`, `measure`, `arrange` and `trash` come
    back; `widget_change` goes to every socket when a widget is added, changed or removed, and `history_get`
-   returns a desk's widget log beside its messages. The Inbox's marks live here too: `seen_mark` /
-   `seen_unmark` are done and not done, `viewed_mark` is a look (opening a desk un-bolds it, but its Inbox
+   returns a chat's widget log beside its messages. The Inbox's marks live here too: `seen_mark` /
+   `seen_unmark` are done and not done, `viewed_mark` is a look (opening a chat un-bolds it, but its Inbox
    card and the sidebar's ring stay until you act or mark it done), and `snooze_*` is Later; each change
    broadcasts `seen { seen, viewed, snooze, … }`, so the desktop and a phone read the same marks from the mod's
    `attention.json`. Board (`task_*`), Learn (`recall_*`), agents (`agent_get`, `memory_*`,
@@ -140,15 +141,15 @@ The canvas speaks two protocols, and knowing which one owns a thing tells you wh
    version range), `attention/` (the Inbox: the app-server client, the attention model, queue, snooze and
    ladder, `useAttention`), `recall/` (Learn's cards and scheduling).
 2. `mod/` — the code inside `letta server`. `index.ts` wires it; `gate.ts` lets only the harness that hosts an
-   app-server serve the desk; `server.ts` holds the ports and `bridge.ts` the protocol; `desk-store.ts`,
-   `persist.ts` and `widgets-fs.ts` keep desks and watch widget files; `widget-log.ts` keeps each desk's
-   widget change log; `desks.ts` maps desks to conversations and reads the Inbox's conversations from disk;
+   app-server serve the app; `server.ts` holds the ports and `bridge.ts` the protocol; `desk-store.ts`,
+   `persist.ts` and `widgets-fs.ts` keep each chat's canvas and watch widget files; `widget-log.ts` keeps each chat's
+   widget change log; `desks.ts` maps chats to conversations and reads the Inbox's conversations from disk;
    `seen.ts` keeps the done, viewed and snooze marks; `gestures.ts` turns what you did into the `turn_start`
    note; `tasks.ts`, `pins.ts`, `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back
    the board, pins, folders, the Agents pages and Learn; `lan.ts`, `pairing.ts`, `devices.ts`, `tailscale.ts`
    and `static.ts` are the phone listener.
 3. `app/src/` — the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, list column,
-   desk sidebar, ⌘K search, keymap, Preferences host); `desk/` a desk's pane (Messages and Desk tabs, the
+   Chats sidebar, ⌘K search, keymap, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, the
    sheet, widget frames, rename); `chat/` the thread and composer; `board/`, `agents/`, `recall/` (Learn) and
    `settings/` the other sections; `phone/` the phone; `shared/` logic both surfaces share (drafts, the
    thread's times and New line, viewed marks, search ranking, recents); `components/` the chrome primitives;
@@ -186,7 +187,7 @@ place, and the Mac's side of it is what shipped before.
    Windows) and runs npm as `npm.cmd` there. The mod finds its own programs (`bd`, `letta`) through
    `mod/programs.ts`, which tries each `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere;
-   the skill link falls back to a junction where Windows refuses a symlink. The new-desk sheet's Browse… opens
+   the skill link falls back to a junction where Windows refuses a symlink. The new-chat sheet's Browse… opens
    the system's folder dialog (`tauri-plugin-dialog`) in the app on every system; the mod's AppleScript chooser
    serves browser tabs on the Mac only.
 8. **Builds.** CI runs the tests and `cargo test` on macOS 14, Ubuntu 22.04 and Windows; a release builds the
@@ -204,7 +205,7 @@ You type in the chat box and press Enter.
 3. The frame reaches the app-server. In the desktop shell the Rust side forwards it over the
    authenticated socket to `letta` on 41600; in a browser tab it goes through the mod's `/appserver`
    tunnel to the same place.
-4. The turn begins, and loki's mod gets first say: at `turn_start` it appends what you did on the desk
+4. The turn begins, and loki's mod gets first say: at `turn_start` it appends what you did on the canvas
    since last turn and any board tasks assigned to this conversation onto your message.
 5. The harness assembles the turn with the Letta server — your augmented message plus memory, history
    and tools — and calls the model.
@@ -214,7 +215,7 @@ You type in the chat box and press Enter.
 7. Each fragment streams back to the page over the same path, and the reducer folds it into live state:
    the reply types out, tool markers appear, the status and turn counter update.
 8. When the turn ends, anything the agent chose to remember is saved in the Letta server, and your
-   desk, board and inbox reflect it.
+   canvas, board and inbox reflect it.
 
 That is the whole machine: four roles, one rule about where the hands stay, two processes on your Mac,
 and a message that walks from your box to the brain and back.

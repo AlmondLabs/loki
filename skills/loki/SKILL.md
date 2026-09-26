@@ -1,13 +1,15 @@
 ---
 name: loki
-description: Furnish the user's loki canvas (browser widget desk) by writing widget files. Use when the user asks to see something on the canvas/desk, to visualize data, to add a control they can operate, or when a live visual beats prose. Also use to read what the user did on the desk.
+description: Furnish the user's loki canvas by writing widget files. Use when the user asks to see something on the canvas (older chats call it the desk), to visualize data, to add a control they can operate, or when a live visual beats prose. Also use to read what the user did on the canvas.
 ---
 
-# loki — the desk is a directory
+# loki — the canvas is a directory
 
-The canvas is the loki app (or a browser tab) that renders files: each conversation's
-desk is its **Desk** tab, beside the **Messages** tab that shows the conversation.
-There is no render tool. To put something on the desk, write a file. To change
+loki (the app, or a browser tab) renders files: each conversation is a **chat**, and
+its canvas is the chat's **Canvas** tab, beside the **Messages** tab that shows the
+conversation. "Desk" is the old name for both; if the user or your memory says desk,
+they mean the chat's canvas. There is no render tool. To put something on the canvas,
+write a file. To change
 it, edit the file. To remove it, delete the file. Vite hot-reloads the tab
 within a second.
 
@@ -17,7 +19,7 @@ within a second.
 ~/.letta/loki/widgets/shared/…              # widgets that belong to no conversation
 ```
 
-`<desk>` is this conversation's desk id. `desk_state` returns it as `desk` and
+`<desk>` is this conversation's canvas id (the tool keeps its old name). `desk_state` returns it as `desk` and
 the absolute directory as `widgetsDir`. Call `desk_state` first if you do not
 know it. Widget id = `<desk>/<name>`.
 
@@ -60,7 +62,7 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   interaction; never keep interactive state only in React. The write is what
   makes the gesture visible to you.
 - You never position widgets. New files are placed automatically in free space
-  next to what is already there; the user can tidy the desk with one click.
+  next to what is already there; the user can tidy the canvas with one click.
 - You never set a width either. A frame sizes itself to your content up to about
   760px, then reflows below that; the user can drag a frame's corner to pin a
   size. So author fluid content: no fixed pixel widths, no wide fixed grids that
@@ -79,7 +81,7 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
 
 ## How you hear back
 
-- **Automatically:** what the user did on the desk since your last turn (moves,
+- **Automatically:** what the user did on the canvas since your last turn (moves,
   slider values, checkboxes, closes, render errors) is appended to their next
   message inside `<loki-desk>` tags.
 - **On demand:** `desk_state` returns every widget with its data *as the user
@@ -88,7 +90,7 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   `{ widgetIds: [...] }` frames several together. Targets are highlighted
   briefly. New files glide automatically.
 - **In the thread:** each widget you add, change or remove shows as a line in the
-  user's Messages tab; clicking it opens the Desk tab on that widget. No need to
+  user's Messages tab; clicking it opens the Canvas tab on that widget. No need to
   narrate where a widget went.
 
 There is no `loki_render` or `loki_author` tool. If you remember them from an
@@ -104,11 +106,11 @@ widget's frame and in `error`.
 
 - No real money amounts on screen, in files, or in recordings. Synthetic
   finances only. Real data in safe domains only (travel, chores, sleep, gym).
-- A widget the user minimised sits in the desk tray; its file still exists and
+- A widget the user minimised sits in the canvas tray; its file still exists and
   `desk_state` marks it `minimisedByUser`. Rewrite the file if you want it back.
   A widget the user trashed is gone: its file was deleted.
-- Write only inside the widgets directory. The loki repo itself is the desk,
-  not the furniture.
+- Write only inside the widgets directory. The loki repo itself is the easel,
+  not the painting.
 
 ## Tasks for later: the board (`loki_task`)
 
@@ -127,7 +129,7 @@ loki_task { action: "close", id, reason }  done
 
 - Title: one imperative line. Description: what, why, where to look — enough for
   someone starting cold. Priority 0 (urgent) to 4 (someday), default 2. The
-  source conversation, desk and folder are stamped for you; the folder's name
+  source conversation, chat and folder are stamped for you; the folder's name
   becomes a label.
 - Always tell the user the id you filed.
 - When the user assigns tasks to your conversation from the board, they arrive

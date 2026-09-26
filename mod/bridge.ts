@@ -311,7 +311,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const after = store.arrange(client.scope);
           if (after !== before) {
             const ids = Object.entries(after.layout).filter(([, l]) => !l.hidden).map(([id]) => id);
-            gestures.record(client.scope, `tidied the desk (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
+            gestures.record(client.scope, `tidied the canvas (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
             track("desk_arranged");
             broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, client.scope === SHARED_SCOPE ? undefined : client.scope);
           }
@@ -556,7 +556,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
               })
               .catch(fail);
           } else if (msg.type === "task_assign") {
-            if (typeof msg.conversationId !== "string" || typeof msg.desk !== "string") return fail(new Error("assign needs a conversation and a desk"));
+            if (typeof msg.conversationId !== "string" || typeof msg.desk !== "string") return fail(new Error("assign needs a conversation and a chat"));
             void board
               .assign(ids, { agent: typeof msg.agentName === "string" ? msg.agentName : null, agentId: typeof msg.agentId === "string" ? msg.agentId : null, conversation: msg.conversationId, desk: msg.desk }, msg.start === true ? "in_progress" : "open")
               .then(done)

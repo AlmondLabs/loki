@@ -37,7 +37,7 @@ export function environmentReminder(opts: { now?: Date; folder?: string | null; 
     `User's device local time: ${when}`,
   ];
   if (opts.folder) lines.push(`Current remote working directory: ${opts.folder}`);
-  if (opts.desk) lines.push(`The user is looking at the loki desk for this conversation ("${opts.desk}").`);
+  if (opts.desk) lines.push(`The user is looking at this conversation in loki, the chat ("${opts.desk}").`);
   lines.push("</system-reminder>");
   return lines.join("\n");
 }

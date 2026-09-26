@@ -5,7 +5,7 @@ import { keyFor, type Segment } from "./keymap";
 const segment = (id: Segment, label: string) => ({ id, label, key: keyFor(`segment.${id}`) });
 
 export const SEGMENTS: Array<{ id: Segment; label: string; key: string }> = [
-  segment("desk", "Desk"),
+  segment("desk", "Chats"),
   segment("inbox", "Inbox"),
   segment("board", "Board"),
   segment("agents", "Agents"),

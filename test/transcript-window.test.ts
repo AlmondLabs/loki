@@ -88,7 +88,7 @@ describe("find with a window", () => {
 
   test("an event's summary and a widget row's title are found too", () => {
     const rows = thread(200);
-    rows[5] = { role: "event", text: "desk activity", summary: "the aardvark widget changed" };
+    rows[5] = { role: "event", text: "canvas activity", summary: "the aardvark widget changed" };
     expect(findStart(rows, 140, "aardvark")).toBe(5);
     expect(findStart(rows, 140, "okapi", [{ before: 9, who: "ira", change: "added", title: "Okapi chart" }])).toBe(9);
   });

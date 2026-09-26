@@ -133,7 +133,7 @@ describe("keymap: ⌘K is search (plan 013 U9)", () => {
     const item = menuSpec()
       .flatMap((m) => m.items.map((i) => ({ menu: m.title, ...i })))
       .find((i) => "id" in i && i.id === "search.open") as { menu: string; label: string; accelerator: string | null };
-    expect(item).toMatchObject({ menu: "Desk", label: "Search", accelerator: "CmdOrCtrl+K" });
+    expect(item).toMatchObject({ menu: "Go", label: "Search", accelerator: "CmdOrCtrl+K" });
   });
   test("search up lets only ⌘K through (it closes it); a sheet over it wins", () => {
     const el = (attrs: string[]) => ({ hasAttribute: (a: string) => attrs.includes(a) });
@@ -224,7 +224,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       for (const k of b.keys) expect(formatKeys(k, "macos")).toBe(macBefore(k));
     }
     expect(SEGMENTS.map((s) => s.key)).toEqual(["⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6"]);
-    expect(wasFor(KEYMAP.find((b) => b.id === "search.open")!, "macos")).toBe("was the desks tree: desks are in the sidebar now (⌘⇧D shows or hides it)");
+    expect(wasFor(KEYMAP.find((b) => b.id === "search.open")!, "macos")).toBe("was the desks tree: chats are in the sidebar now (⌘⇧D shows or hides it)");
     expect(menuSpec(KEYMAP, "macos")).toEqual(menuSpec());
   });
   test("covers AE5: Ctrl+K opens search on Windows, from the message box too, and the keys sheet lists it as Ctrl K", () => {
@@ -306,7 +306,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     for (const os of PC) expect(takenBy(toggle, KEYMAP, os)).toEqual([{ where: "inbox", key: "cmd+shift+d", id: "inbox.deny", label: "Deny" }]);
   });
   test("the menu's accelerators follow the system's keys", () => {
-    const moved: Binding[] = [{ id: "x", keys: ["alt+cmd+j"], keysOn: { windows: ["cmd+j"] }, where: "anywhere", label: "X", menu: "Desk" }];
+    const moved: Binding[] = [{ id: "x", keys: ["alt+cmd+j"], keysOn: { windows: ["cmd+j"] }, where: "anywhere", label: "X", menu: "Go" }];
     const accel = (os: Platform) => (menuSpec(moved, os)[0].items[0] as { accelerator: string | null }).accelerator;
     expect(accel("macos")).toBe("Alt+CmdOrCtrl+J");
     expect(accel("windows")).toBe("CmdOrCtrl+J");
@@ -324,7 +324,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
   });
   test("a was line names the key it points to on each system", () => {
     const search = KEYMAP.find((b) => b.id === "search.open")!;
-    expect(wasFor(search, "windows")).toBe("was the desks tree: desks are in the sidebar now (Ctrl Shift D shows or hides it)");
+    expect(wasFor(search, "windows")).toBe("was the desks tree: chats are in the sidebar now (Ctrl Shift D shows or hides it)");
     expect(wasFor(KEYMAP.find((b) => b.id === "desk.new")!, "windows")).toBeUndefined();
   });
   test("⌘ held means ⌘ alone on the Mac (Ctrl+D deletes forward in a Mac text box) and Ctrl alone elsewhere", () => {
@@ -337,12 +337,12 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(cmdHeld(ev("d"), "macos")).toBe(false);
   });
   test("the (⌘K) on the search command comes from the keymap; core's text names no key", () => {
-    const desks = LOKI_COMMANDS.find((c) => c.id === "desks")!;
+    const desks = LOKI_COMMANDS.find((c) => c.id === "chats")!;
     expect(desks.description).not.toMatch(MAC_KEYS);
-    expect(commandText(desks, "macos")).toBe("search desks, agents and pages (⌘K)");
-    expect(commandText(desks, "windows")).toBe("search desks, agents and pages (Ctrl K)");
+    expect(commandText(desks, "macos")).toBe("search chats, agents and pages (⌘K)");
+    expect(commandText(desks, "windows")).toBe("search chats, agents and pages (Ctrl K)");
     // the others read as before: no key appended
-    for (const c of LOKI_COMMANDS.filter((c) => c.id !== "desks")) expect(commandText(c, "windows")).toBe(c.description);
+    for (const c of LOKI_COMMANDS.filter((c) => c.id !== "chats")) expect(commandText(c, "windows")).toBe(c.description);
   });
 });
 

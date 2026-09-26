@@ -128,7 +128,7 @@ function Conversations({ agentId, desks, items }: { agentId: string; desks: Desk
           <DeskRow key={x.scope} desk={x} mark={marks.get(x.conversationId!)} onActions={null} />
         ))}
       </ul>
-      {mine.length === 0 && <p className="loki-phone-empty">No live desks. Message opens its main chat.</p>}
+      {mine.length === 0 && <p className="loki-phone-empty">No live chats. Message opens its main chat.</p>}
     </RowSection>
   );
 }

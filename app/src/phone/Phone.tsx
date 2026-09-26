@@ -266,7 +266,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onArchive: ArchiveDesk | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
-          if (!d.conversationId) return "this desk has no conversation";
+          if (!d.conversationId) return "this chat has no conversation";
           const err = await catchUp.archiveConversation(d.conversationId, archived);
           if (!err) desk.desks.request();
           return err;
@@ -276,7 +276,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onRename: RenameDeskName | null =
     attention.available && catchUp.status === "open"
       ? async (d, name) => {
-          if (!d.conversationId) return "this desk has no conversation";
+          if (!d.conversationId) return "this chat has no conversation";
           const err = await catchUp.renameConversation(d.conversationId, name);
           if (err) return err;
           desk.setDeskTitle(d.scope, name);

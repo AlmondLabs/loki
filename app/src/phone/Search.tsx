@@ -8,7 +8,7 @@ import { buildIndex, cleanQuery, recentPlaceHits, search, type GroupId, type Hit
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
 
 /** What Search covers, said plainly wherever it would otherwise look like message search. */
-const COVERAGE = "Searches desk titles, agents, waiting items and pages on this phone — not message text.";
+const COVERAGE = "Searches chat titles, agents, waiting items and pages on this phone — not message text.";
 const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "more" } as const satisfies Record<GroupId, string>;
 
 /**

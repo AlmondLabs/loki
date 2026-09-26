@@ -162,7 +162,7 @@ export function deckKey(id: string, typing: boolean): string {
 export function CardActions({ current, typing, advance, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
   return (
     <>
-      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open desk</Button>
+      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open chat</Button>
       <span style={{ flex: 1 }} />
       <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={deckKey("inbox.later", typing)}>← later</Button>
       <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={deckKey("inbox.next", typing)}>next →</Button>

@@ -141,7 +141,7 @@ describe("bridge", () => {
     const a = store.get("c1").layout["c1/a"].position;
     const b = store.get("c1").layout["c1/b"].position;
     expect(a).not.toEqual(b);
-    expect(gestures.peek("c1")).toEqual(["tidied the desk (auto-arranged 2 widgets)"]);
+    expect(gestures.peek("c1")).toEqual(["tidied the canvas (auto-arranged 2 widgets)"]);
     expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widgetIds: expect.arrayContaining(["c1/a", "c1/b"]) });
   });
 

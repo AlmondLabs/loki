@@ -47,7 +47,7 @@ export function useBoard(desk: Desk, segment: Segment, notice: (m: string) => vo
    * about them on the user's next message there. Dispatch: assign, then post the tasks so the agent starts now.
    */
   const assignTo = async (target: AssignTarget, ids: string[], start: boolean) => {
-    if (!target.conversationId) return notice("that desk has no conversation to assign to");
+    if (!target.conversationId) return notice("that chat has no conversation to assign to");
     const r = await desk.board.assign(ids, { agentId: target.agentId, agentName: target.agentName, conversationId: target.conversationId, desk: target.scope }, start);
     if (!r.ok) return notice(r.message);
     const assigned = r.tasks.length ? r.tasks : (tasks ?? []).filter((t) => ids.includes(t.id));

@@ -133,7 +133,7 @@ describe("agents column", () => {
     expect(rows.map((r) => r.id)).toEqual(["a1", "a2"]);
     expect(rows[0]).toMatchObject({ waiting: 2, running: false, preview: "Can I run the migration?" });
     // nothing said yet: the live desks stand in
-    expect(rows[1]).toMatchObject({ waiting: 0, running: true, preview: "2 desks live" });
+    expect(rows[1]).toMatchObject({ waiting: 0, running: true, preview: "2 chats live" });
   });
 
   test("rows with faces, the waiting badge with its count in words, the shown agent current, and + new agent in the header", async () => {

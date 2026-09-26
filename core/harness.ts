@@ -49,7 +49,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     const desk = m[1] ?? null;
     const lines = m[2].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
     out.push({
-      text: "desk activity",
+      text: "canvas activity",
       summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
       detail: lines.length ? lines.join("\n") : null,
     });

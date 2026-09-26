@@ -24,7 +24,7 @@ import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, ty
 
 const TABS: readonly Tab<DeskTab>[] = [
   { id: "messages", label: "Messages" },
-  { id: "desk", label: "Desk" },
+  { id: "desk", label: "Canvas" },
 ];
 const panelId = (t: DeskTab) => `loki-desk-panel-${t}`;
 
@@ -118,7 +118,7 @@ export function DeskPane(props: DeskPaneProps) {
   useTabFocus(visible, paneRef, threadFocus);
   useSwitchFade(paneRef, scope);
   const live = agentState({ status: view.status, approval: view.approval, question: view.question });
-  const name = title ?? agentName ?? "Desk";
+  const name = title ?? agentName ?? "Chat";
 
   return (
     <div className="loki-desk-pane" ref={paneRef}>
@@ -164,7 +164,7 @@ export function DeskPane(props: DeskPaneProps) {
             prefill={prefillFor("messages")}
           />
         </div>
-        <div id={panelId("desk")} role="tabpanel" aria-label="Desk" className="loki-desk-pane-panel" style={{ visibility: tab === "desk" ? "inherit" : "hidden" }} aria-hidden={tab !== "desk"}>
+        <div id={panelId("desk")} role="tabpanel" aria-label="Canvas" className="loki-desk-pane-panel" style={{ visibility: tab === "desk" ? "inherit" : "hidden" }} aria-hidden={tab !== "desk"}>
           <Surface
             {...props}
             chat={chat}
@@ -262,22 +262,22 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
           { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
         ]
       : []),
-    { id: "desk.new", label: "New desk…", keys: keyFor("desk.new") },
+    { id: "desk.new", label: "New chat…", keys: keyFor("desk.new") },
   ];
   return (
     <>
       {canPin && (
-        <IconButton size={28} label={summary!.pinned ? "Unpin desk" : "Pin desk"} aria-pressed={!!summary!.pinned} onClick={() => desk.desks.pin(agentId!, conversationId!, !summary!.pinned)}>
+        <IconButton size={28} label={summary!.pinned ? "Unpin chat" : "Pin chat"} aria-pressed={!!summary!.pinned} onClick={() => desk.desks.pin(agentId!, conversationId!, !summary!.pinned)}>
           <Icon name="pin" size={16} />
         </IconButton>
       )}
       {canArchive && (
-        <IconButton size={28} label={archived ? "Restore desk" : "Archive desk"} onClick={archive}>
+        <IconButton size={28} label={archived ? "Restore chat" : "Archive chat"} onClick={archive}>
           <Icon name="archive" size={16} />
         </IconButton>
       )}
       <span className="loki-desk-pane-menu-anchor">
-        <IconButton size={28} label="More desk actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+        <IconButton size={28} label="More chat actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
           <Icon name="more" size={16} />
         </IconButton>
         {menuOpen && (
@@ -331,7 +331,7 @@ function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: 
     <Popover
       ref={ref}
       role="menu"
-      aria-label="Desk actions"
+      aria-label="Chat actions"
       anchor="right"
       width={260}
       // hung from a 28px button: the popover's own cap (its parent's width) would crush it

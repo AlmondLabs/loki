@@ -244,7 +244,7 @@ export function liveDeskCount(desks: Array<{ agentId: string | null; status: str
 
 /** "3 desks live", "1 desk live", "no desks live". */
 export function liveDesksLabel(n: number): string {
-  return n === 0 ? "no desks live" : `${n} desk${n === 1 ? "" : "s"} live`;
+  return n === 0 ? "no chats live" : `${n} chat${n === 1 ? "" : "s"} live`;
 }
 
 /**
@@ -355,7 +355,7 @@ export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
   if (kind === "inbox") return c.inbox ? `${c.inbox} waiting` : "All caught up";
   if (kind === "learn") return c.learn ? `${c.learn} due` : "Nothing due";
   if (kind === "agents") return c.running ? `${c.running} running` : n(c.agents, "agent");
-  return c.archive ? n(c.archive, "desk") : "None yet";
+  return c.archive ? n(c.archive, "chat") : "None yet";
 }
 
 /**
@@ -507,7 +507,7 @@ export function moreSections(s: { link: LinkState; agents: number; running: numb
       rows: [
         { id: "agents", icon: "agents", label: "Agents", aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null, to: { kind: "tab", tab: "agents" } },
         { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
-        { id: "archive", icon: "archive", label: "Archived desks", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
+        { id: "archive", icon: "archive", label: "Archived chats", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
         { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },
       ],
     },

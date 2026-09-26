@@ -198,7 +198,7 @@ function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame
           <Icon name="widget" size={16} />
         </span>
         {onShowDesk ? (
-          <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show the desk" onClick={onShowDesk}>
+          <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show the canvas" onClick={onShowDesk}>
             {words}
           </button>
         ) : (
@@ -221,10 +221,10 @@ function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame
       {w.gone || !onFrame ? (
         <span className="loki-widget-row-text">
           {words}
-          {w.gone && <span>{w.change === "removed" ? " · it is gone from the desk" : " · since removed from the desk"}</span>}
+          {w.gone && <span>{w.change === "removed" ? " · it is gone from the canvas" : " · since removed from the canvas"}</span>}
         </span>
       ) : (
-        <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show it on the desk" onClick={() => onFrame(w.widgetId)}>
+        <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show it on the canvas" onClick={() => onFrame(w.widgetId)}>
           {words}
         </button>
       )}

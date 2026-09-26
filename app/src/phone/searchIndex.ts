@@ -19,7 +19,7 @@ import { formatRoute, parseRoute, type Route } from "./router";
 export const GROUP_MAX = 5;
 
 export type GroupId = "desks" | "agents" | "inbox" | "pages";
-const GROUP_TITLE: Record<GroupId, string> = { desks: "Desks", agents: "Agents", inbox: "Inbox", pages: "Pages" };
+const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Inbox", pages: "Pages" };
 const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
 
 /** What the row starts with: the agent's face, or an icon. */
@@ -58,13 +58,13 @@ export interface Destination {
 
 /** The places Search can open by name: the tabs and the pages under Home and More. */
 export const DESTINATIONS: readonly Destination[] = [
-  { route: { kind: "tab", tab: "home" }, icon: "home", label: "Home", line: "Desks and what needs you", keywords: ["desks", "start"] },
+  { route: { kind: "tab", tab: "home" }, icon: "home", label: "Home", line: "Chats and what needs you", keywords: ["chats", "desks", "start"] },
   { route: { kind: "tab", tab: "inbox" }, icon: "inbox", label: "Inbox", line: "What waits on you", keywords: ["catch up", "waiting", "approvals", "activity"] },
   { route: { kind: "tab", tab: "agents" }, icon: "agents", label: "Agents", line: "Every agent on the Mac", keywords: ["dms", "people"] },
   { route: { kind: "tab", tab: "more" }, icon: "more", label: "More", line: "This phone and the paired Mac", keywords: ["you", "profile"] },
   { route: { kind: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
   { route: { kind: "learn", view: "leads" }, icon: "learn", label: "Leads", line: "Things worth learning properly, each a lesson away", keywords: ["learn", "lessons", "concepts"] },
-  { route: { kind: "archive" }, icon: "archive", label: "Archived desks", line: "Desks put away, to restore", keywords: ["archive", "restore", "old desks"] },
+  { route: { kind: "archive" }, icon: "archive", label: "Archived chats", line: "Chats put away, to restore", keywords: ["archive", "restore", "old chats", "desks"] },
   { route: { kind: "preferences" }, icon: "settings", label: "Preferences", line: "Appearance", keywords: ["settings", "appearance", "theme", "dark mode", "light mode"] },
   { route: { kind: "connection" }, icon: "link", label: "Connection details", line: "The paired Mac and this phone's pairing", keywords: ["paired mac", "pairing", "wi-fi", "tailscale", "unpair", "network"] },
   { route: { kind: "about" }, icon: "info", label: "About loki", line: "Version and build", keywords: ["version", "build", "updates"] },
@@ -78,7 +78,7 @@ export { MAX_QUERY, cleanQuery, normalize, tierOf } from "../shared/search";
 // ---- The index ------------------------------------------------------------------------------------
 
 /** Home's name for a desk: its title, else "new desk" while live, else its scope. */
-const deskTitle = (d: DeskSummary): string => d.title ?? (d.status === "live" ? "new desk" : d.scope);
+const deskTitle = (d: DeskSummary): string => d.title ?? (d.status === "live" ? "new chat" : d.scope);
 const time = (iso: string | null | undefined): number => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isFinite(t) ? t : 0;

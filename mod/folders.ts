@@ -157,7 +157,7 @@ export function gitBranch(path: string): string | null {
 export function pickFolder(defaultPath?: string): Promise<string | null> {
   if (process.platform !== "darwin") return Promise.resolve(null);
   const start = defaultPath && existsSync(defaultPath) ? ` default location (POSIX file ${JSON.stringify(defaultPath)})` : "";
-  const script = `POSIX path of (choose folder with prompt "Folder for the new desk"${start})`;
+  const script = `POSIX path of (choose folder with prompt "Folder for the new chat"${start})`;
   return new Promise((resolveP) => {
     execFile("/usr/bin/osascript", ["-e", script], { timeout: 120_000 }, (err, stdout) => {
       if (err) return resolveP(null); // cancelled (osascript exits 1) or no UI session

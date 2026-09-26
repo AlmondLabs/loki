@@ -63,7 +63,7 @@ export function Welcome({
       <div>
         <Title page>Welcome to loki</Title>
         <div style={{ fontSize: 13.5, color: "var(--loki-muted)", marginTop: 6, lineHeight: 1.5 }}>
-          A memory palace your agent builds. Two things before the first desk: a model to think with, and an agent to think.
+          A memory palace your agent builds. Two things before the first chat: a model to think with, and an agent to think.
         </div>
       </div>
 
@@ -138,7 +138,7 @@ function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: Retur
           </Button>
         )}
         <Button size="sm" tone="positive" kbd={formatKeys("enter")} onClick={() => void create()} disabled={busy || !name.trim()}>
-          {busy ? "creating…" : "create and open the desk"}
+          {busy ? "creating…" : "create and open the chat"}
         </Button>
       </div>
     </div>

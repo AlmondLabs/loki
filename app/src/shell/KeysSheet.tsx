@@ -77,4 +77,4 @@ export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform 
   return wheres.map((where) => ({ where, title: TITLE[where] ?? sentence(where), rows: map.filter((b) => b.where === where).flatMap((b) => here(b) ?? []) })).filter((g) => g.rows.length > 0);
 }
 
-const TITLE: Partial<Record<Where, string>> = { anywhere: "Everywhere in loki", chat: "The message box", desk: "On the desk", inbox: "In the inbox", board: "On the board", learn: "In Learn", agents: "In Agents", settings: "In Settings" };
+const TITLE: Partial<Record<Where, string>> = { anywhere: "Everywhere in loki", chat: "The message box", desk: "In a chat", inbox: "In the inbox", board: "On the board", learn: "In Learn", agents: "In Agents", settings: "In Settings" };

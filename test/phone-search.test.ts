@@ -95,7 +95,7 @@ describe("matching", () => {
   test("named pages match by name and by the words people use for them", () => {
     expect(titles(src(), "prefer", "pages")).toEqual(["Preferences"]);
     expect(titles(src(), "theme", "pages")).toEqual(["Preferences"]);
-    expect(titles(src(), "archive", "pages")).toContain("Archived desks");
+    expect(titles(src(), "archive", "pages")).toContain("Archived chats");
     expect(search(src(), "connection").find((g) => g.id === "pages")?.hits[0].route).toEqual({ kind: "connection" });
     for (const d of DESTINATIONS) expect(d.route.kind).not.toBe("search");
   });

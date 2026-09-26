@@ -95,7 +95,7 @@ export function useDeskSocket() {
       const url = new URL(location.href);
       url.searchParams.set("desk", next);
       history.replaceState(null, "", url);
-      setScope(next); // the connection effect re-runs on the new desk
+      setScope(next); // the connection effect re-runs on the new chat
     },
     [scope],
   );

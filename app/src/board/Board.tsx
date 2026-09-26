@@ -279,7 +279,7 @@ export function Board({
         {sel.length > 0 ? (
           <>
             <span style={{ color: "var(--loki-fg)" }}>{sel.length} selected</span>
-            <Button size="sm" tone="paper" kbd={keyFor("board.assign")} onClick={() => onAssign(sel, false)}>assign to a desk</Button>
+            <Button size="sm" tone="paper" kbd={keyFor("board.assign")} onClick={() => onAssign(sel, false)}>assign to a chat</Button>
             <Button size="sm" tone="positive" kbd={keyFor("board.dispatch")} onClick={() => onAssign(sel, true)}>dispatch now</Button>
             <Button size="sm" tone="paper" kbd={keyFor("board.done")} onClick={() => onClose(sel)}>done</Button>
             <Button size="sm" kbd={keyFor("board.clear")} onClick={() => setSelected(new Set())}>clear</Button>

@@ -34,8 +34,8 @@ export function RenameSheet({ name, onRename, onClose }: { name: string; onRenam
     else onClose();
   };
   return (
-    <Sheet label="Rename desk" onClose={onClose} placement="bottom" className="loki-phone-sheet">
-      <div className="loki-phone-title">Rename desk</div>
+    <Sheet label="Rename chat" onClose={onClose} placement="bottom" className="loki-phone-sheet">
+      <div className="loki-phone-title">Rename chat</div>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -46,7 +46,7 @@ export function RenameSheet({ name, onRename, onClose }: { name: string; onRenam
           ref={fieldRef}
           size="touch"
           name="desk-name"
-          aria-label="Desk name"
+          aria-label="Chat name"
           enterKeyHint="done"
           autoComplete="off"
           spellCheck={false}

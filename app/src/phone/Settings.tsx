@@ -82,7 +82,7 @@ export function ConnectionPage({ me, link, modLink, appServerLink, banner, onUnp
       <RowGroup title="Paired Mac">
         <FactRow label="Status" value={<StateWord state={link === "online" ? "on" : link === "offline" ? "off" : "wait"}>{linkWord(link)}</StateWord>} />
         <HostSystemRow />
-        <FactRow label="Desks (mod)" value={<LinkFact state={modLink} />} />
+        <FactRow label="Chats (mod)" value={<LinkFact state={modLink} />} />
         <FactRow label="Chats (app-server)" value={<LinkFact state={appServerLink} />} />
         <FactRow label="Address" value={location.host} />
         <FactRow label="Route" value={routeOf(location.host, location.protocol)} />
@@ -119,7 +119,7 @@ export function AboutPage({ version, servedBuild, banner, backLabel = "more", on
         <FactRow label="Viewport" value={<ViewportFact />} />
       </RowGroup>
       <RowGroup title="On the Mac">
-        <li className="loki-phone-fact loki-phone-fact--prose">Providers, agents, skills and the desk itself live in loki on the Mac. This phone reads the desks, answers the Inbox and talks to the agents; the Mac does the rest.</li>
+        <li className="loki-phone-fact loki-phone-fact--prose">Providers, agents, skills and the canvas itself live in loki on the Mac. This phone reads the chats, answers the Inbox and talks to the agents; the Mac does the rest.</li>
       </RowGroup>
       {reload && <ReloadSheet state={update} onClose={() => setReload(false)} />}
     </Page>
