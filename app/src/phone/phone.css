@@ -974,7 +974,8 @@ span.loki-phone-section-btn { cursor: default; }
 /* Under every message, its copy button, always there (a phone has no hover), its touch area the full 44. A long
    press on the message opens its actions (phone/MessageActions.tsx), so the browser's own selection and callout
    stay off the thread; Select text in that sheet gives the text back to select. */
-.loki-phone .loki-msg-actions { display: flex; margin: 2px 0 -4px -4px; }
+.loki-phone .loki-msg-actions { display: flex; align-items: center; min-height: 24px; margin: 2px 0 -4px -4px; }
+.loki-phone .loki-msg-actions .loki-msg-time { margin-left: var(--phone-space-1); }
 .loki-phone .loki-msg-action { position: relative; opacity: 0.55; color: var(--loki-muted); }
 .loki-phone .loki-msg-action::after { content: ""; position: absolute; inset: -10px; }
 .loki-phone .loki-msg-action[data-copied="true"] { opacity: 1; }
@@ -989,7 +990,6 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-msg-divider-new { color: var(--loki-negative); }
 /* Message times: quiet after the author's name; a touch screen has no hover, so a run's later rows show none. */
 .loki-phone .loki-msg-time { margin-left: var(--phone-space-2); font-size: var(--phone-text-meta); font-weight: 400; color: var(--loki-muted); }
-.loki-phone .loki-msg-gutter-time { display: none; }
 /* Day pills: a hairline across the day's top, the pill sticky at the thread's top until the next day's pushes it off. */
 .loki-phone .loki-msg-day { position: relative; }
 .loki-phone .loki-msg-day::before { content: ""; position: absolute; top: 13px; left: 0; right: 0; height: 1px; background: var(--loki-border); }

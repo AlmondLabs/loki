@@ -263,7 +263,8 @@ box is one for both, its sizes set by `touch`.
   link colour; a field's flash goes round its whole pill (Search, the composer). The routes' one `main` holds
   whatever screen is up; the dock is the `primary` navigation beside it. Gestures (swipe a card, long-press a
   row) always have a visible button that does the same.
-- **Messages.** Under every message, yours and the agent's, its copy button (as markdown), always there; a long
+- **Messages.** Under every message, yours and the agent's, its copy button (as markdown), always there, and its
+  time beside it (the name above no longer carries one); a long
   press on a message opens its actions (`MessageActions.tsx`): Copy, and Select text, which shows the message
   on its own where selection works (the thread keeps the browser's selection and callout off so the press is
   ours). A finger that moves (a scroll, a card swipe) is not a hold. The desktop has the same copy button under

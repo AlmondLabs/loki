@@ -305,33 +305,24 @@ const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, pe
 });
 
 /**
- * A message in the avatar-led layout: the face and bold name at the start of a run, with the message's
- * quiet time after the name; later messages in the run keep their time in the face's column, shown on
- * hover (desktop). A message with no known time shows none. Under every message, yours and the agent's, its
- * copy button (as markdown): faint on the desktop until the row is hovered, always there on the phone; the
- * message still streaming gets it when it is done. Where a host provides MessageHold (the phone), a long press
+ * A message in the avatar-led layout: the face and bold name at the start of a run. Under every message,
+ * yours and the agent's, a quiet row: its copy button (as markdown; faint on the desktop until the row is
+ * hovered, always there on the phone), then its time. A message still streaming shows its time and gets
+ * the button when it is done; one with no known time shows none. Where a host provides MessageHold (the phone), a long press
  * on the message opens its actions instead of the browser's text selection.
  */
 function Message({ row: m, last, streaming, person, first, onCancelQueued, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; arrived?: true }) {
   const time = clockLabel(m.at);
   const hold = useMessageHold(m);
+  // Copy waits for a streaming reply to finish; its time is there from the start.
+  const copyable = !!m.text && !(last && streaming);
   return (
     <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} data-arrived={arrived} className="loki-msg" {...hold}>
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={person.face ?? person.name} src={person.avatar ?? null} size={36} />}
-        {!first && time && <span className="loki-msg-gutter-time">{time}</span>}
       </span>
       <div className="loki-msg-copy">
-        {first && (
-          <div className="loki-msg-name">
-            {person.name}
-            {time && (
-              <time className="loki-msg-time" dateTime={m.at}>
-                {time}
-              </time>
-            )}
-          </div>
-        )}
+        {first && <div className="loki-msg-name">{person.name}</div>}
         {!first && <span className="sr-only">{person.name}: </span>}
         <div className="loki-msg-body">{m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}</div>
         {m.queued && (
@@ -339,9 +330,14 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued, arriv
             queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
           </Button>
         )}
-        {m.text && !(last && streaming) && (
+        {(copyable || time) && (
           <div className="loki-msg-actions">
-            <CopyMarkdown text={m.text} className="loki-msg-action" />
+            {copyable && <CopyMarkdown text={m.text} className="loki-msg-action" />}
+            {time && (
+              <time className="loki-msg-time" dateTime={m.at}>
+                {time}
+              </time>
+            )}
           </div>
         )}
       </div>
