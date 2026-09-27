@@ -4,7 +4,7 @@
  * reveal shows, what this pass has done, and which cards the deck must not show again.
  */
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, stampOf } from "../../../core/attention/queue.ts";
+import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
 
 /** Which way a swipe went: right is "seen" (Mark as done), left is "later" (Later). */
 export type Swipe = "seen" | "later";
@@ -156,7 +156,7 @@ export function visibleQueue(queue: AttentionItem[], dismissed: Dismissed): Atte
  * gone or its stamp changed.
  */
 export function pruneDismissed(d: Dismissed, items: AttentionItem[]): Dismissed {
-  const live = new Map(catchUpQueue(items).map((i) => [idOf(i), stampOf(i)]));
+  const live = new Map(inboxQueue(items).map((i) => [idOf(i), stampOf(i)]));
   const next: Dismissed = new Map();
   for (const [id, stamp] of d) if (live.get(id) === stamp) next.set(id, stamp);
   return next;
@@ -219,7 +219,7 @@ const same = (a: AttentionItem) => (b: AttentionItem) => idOf(a) === idOf(b);
 
 /** The cards in this pass, in order: the queue minus what went, the held card (its live copy) if it left the queue, the top card first. */
 export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[] {
-  const visible = visibleQueue(catchUpQueue(items), s.dismissed);
+  const visible = visibleQueue(inboxQueue(items), s.dismissed);
   const held = s.held ? (items.find(same(s.held)) ?? null) : null;
   return toFront(held && !visible.some(same(held)) ? [held, ...visible] : visible, s.topId);
 }

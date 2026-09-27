@@ -10,7 +10,7 @@ import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
 import type { SnoozeLadder } from "./ladder.ts";
-import { catchUpQueue, idOf, stampOf } from "./queue.ts";
+import { idOf, inboxQueue, stampOf } from "./queue.ts";
 import { focusShares, type FocusAction, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
@@ -245,7 +245,7 @@ export function useAttention(opts: UseAttentionOptions) {
     itemsRef.current = items;
   });
   const decided = useCallback((item: AttentionItem, action: CardAction) => {
-    const queue = catchUpQueue(itemsRef.current, true);
+    const queue = inboxQueue(itemsRef.current, true);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
     const now = queue[at] ?? item;
     optsRef.current.capture?.("inbox_card_decided", { action, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(now.score * 10) / 10, focus: Math.round(now.focus * 100) / 100, reason: now.reason, status: now.status, snoozed: !!now.snooze });

@@ -1,7 +1,8 @@
 import type { AttentionItem, AttentionStatus } from "./model.ts";
 import { byScore } from "./priority.ts";
 
-const ACTIONABLE: AttentionStatus[] = ["approval", "question", "failed", "done"];
+/** What needs you: an agent stopped on you, a failed turn, or something new from the agent. The badges count these. */
+const NEEDS_YOU: AttentionStatus[] = ["approval", "question", "failed", "done"];
 export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
 /**
  * What about this item you would be deciding on. Keyed on content — the last
@@ -11,14 +12,26 @@ export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
  */
 export const stampOf = (i: AttentionItem) => `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}|${i.turns}`;
 
-/** The ready queue: every card that can be acted on now, in the order the items came (buildItems stamps and sorts by score). */
+/**
+ * What needs you now, snoozed cards left out unless asked: the count on the Inbox's badge, Home's "Needs your
+ * attention", Search's waiting group. In the order the items came (buildItems stamps and sorts by score).
+ */
 export function catchUpQueue(items: AttentionItem[], includeSnoozed = false): AttentionItem[] {
-  return items.filter((i) => ACTIONABLE.includes(i.status) && (includeSnoozed || !i.snooze));
+  return items.filter((i) => NEEDS_YOU.includes(i.status) && (includeSnoozed || !i.snooze));
 }
 
-/** The wait queue: actionable items currently hidden by a deferral. */
+/**
+ * The Inbox: every chat you have not archived (a chat is not done until it is archived; the list the mod hands
+ * over already leaves archived ones out), except one whose agent is mid-turn, where there is nothing for you to
+ * do yet. Snoozed ones stay out unless asked. Ranked by score, so what needs you comes first (priority.ts).
+ */
+export function inboxQueue(items: AttentionItem[], includeSnoozed = false): AttentionItem[] {
+  return items.filter((i) => i.status !== "running" && (includeSnoozed || !i.snooze));
+}
+
+/** The wait queue: Inbox chats hidden by a deferral. */
 export function snoozedItems(items: AttentionItem[]): AttentionItem[] {
-  return items.filter((i) => ACTIONABLE.includes(i.status) && !!i.snooze);
+  return items.filter((i) => i.status !== "running" && !!i.snooze);
 }
 
 export interface Decision {
@@ -45,7 +58,7 @@ export function popHead(queue: AttentionItem[]): AttentionItem[] {
  * lost until the next ⌘⇧K; being warm and yours, it lands right behind the head.
  */
 export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[], includeSnoozed = false): AttentionItem[] {
-  const actionable = catchUpQueue(items, includeSnoozed);
+  const actionable = inboxQueue(items, includeSnoozed);
   const actionableIds = new Set(actionable.map(idOf));
   const lastDecision = new Map<string, Decision>();
   for (const d of decided) lastDecision.set(idOf(d.item), d); // last decision wins

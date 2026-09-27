@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { AttentionItem } from "../core/attention/model.ts";
-import { AGE_POINTS_PER_HOUR, BLOCKED_POINTS, FOCUS_POINTS, WAITING_POINTS_PER_HOUR, byScore, reasonOf, scoreOf, scored } from "../core/attention/priority.ts";
+import { AGE_POINTS_PER_HOUR, BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS, WAITING_POINTS_PER_HOUR, byScore, reasonOf, scoreOf, scored } from "../core/attention/priority.ts";
 import { isScheduledPrompt } from "../core/harness.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
@@ -11,7 +11,8 @@ import { attentionItem } from "./fixtures/attention.ts";
 
 const NOW = new Date("2026-09-16T10:00:00Z").getTime();
 const at = (minutesAgo: number) => new Date(NOW - minutesAgo * 60_000).toISOString();
-const item = (id: string, over: Partial<AttentionItem> = {}) => attentionItem(id, { lastMessageAt: at(60), ...over });
+// read by default: "new" is its own term, tested on its own
+const item = (id: string, over: Partial<AttentionItem> = {}) => attentionItem(id, { lastMessageAt: at(60), unread: false, ...over });
 
 describe("the score", () => {
   test("blocked dwarfs everything: an approval or a question scores 100 before age; a failed turn is not blocked", () => {
@@ -23,6 +24,16 @@ describe("the score", () => {
     expect(scored([item("new", { status: "approval", lastMessageAt: at(6) }), item("old", { status: "approval", lastMessageAt: at(50) })], NOW).map((i) => i.id)).toEqual(["old", "new"]);
     // a day-old approval in a chat you left still beats the chat with all your focus
     expect(scoreOf(item("b", { status: "approval", lastMessageAt: at(24 * 60) }), NOW, 0)).toBeGreaterThan(scoreOf(item("f", { lastMessageAt: at(0) }), NOW, 1));
+  });
+
+  test("new: the agent said something since you last looked, +10; a blocked card does not add it", () => {
+    expect(scoreOf(item("n", { unread: true, lastMessageAt: at(0) }), NOW)).toBeCloseTo(NEW_POINTS, 5);
+    expect(reasonOf(item("n", { unread: true }))).toBe("new");
+    // focus worth more than new names the card by its focus
+    expect(reasonOf(item("n", { unread: true }), 0.8)).toBe("focus");
+    expect(scoreOf(item("b", { status: "question", unread: true, lastMessageAt: at(0) }), NOW)).toBeCloseTo(BLOCKED_POINTS, 5);
+    // a new card from a chat you have left outranks a read one in the chat you are working in, until focus passes 2/3
+    expect(scoreOf(item("n", { unread: true }), NOW, 0)).toBeGreaterThan(scoreOf(item("r"), NOW, 0.6));
   });
 
   test("focus: the chat's share of your engagement, worth up to 15 points", () => {

@@ -7,12 +7,14 @@ import { attentionItem } from "./fixtures/attention.ts";
 const item = attentionItem;
 
 describe("catch up queue merge", () => {
-  test("new items join behind the head by score; the current card never moves; resolved items drop out", () => {
+  test("new items join behind the head by score; the current card never moves; a chat whose agent is mid-turn drops out, a read one stays", () => {
     const a = item("a"), b = item("b"), c = item("c");
-    const q = mergeQueue([a, b], [a, item("b", { status: "idle", unread: false }), c], []);
+    const q = mergeQueue([a, b], [a, item("b", { status: "running" }), c], []);
     expect(q.map((i) => i.id)).toEqual(["a", "c"]);
-    // current card stays even if it stopped being actionable
-    expect(mergeQueue([a], [item("a", { status: "idle" })], []).map((i) => i.id)).toEqual(["a"]);
+    // a chat you have read is still in the Inbox: it stays until it is archived
+    expect(mergeQueue([a, b], [a, item("b", { status: "idle", unread: false })], []).map((i) => i.id)).toEqual(["a", "b"]);
+    // the current card stays even if its agent started a turn
+    expect(mergeQueue([a], [item("a", { status: "running" })], []).map((i) => i.id)).toEqual(["a"]);
   });
 
   test("a conversation decided this pass comes back only when it has moved on", () => {

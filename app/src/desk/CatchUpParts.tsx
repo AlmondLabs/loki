@@ -1,5 +1,5 @@
 import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
+import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
@@ -32,31 +32,27 @@ export function ago(iso: string | null): string {
   return `${Math.round(h / 24)}d`;
 }
 
-/** The title line and the progress bar: where you are in the pass, what is live, what is deferred. */
-export function DeckHeader({ current, position, total, left, liveWaiting, snoozedCount, showSnoozed }: { current: AttentionItem | undefined; position: number; total: number; left: number; liveWaiting: number; snoozedCount: number; showSnoozed: boolean }) {
+/**
+ * The title line: what needs you and how many chats are in the Inbox. A chat stays until it is archived, so there
+ * is no pass to count down and no progress bar; the counts follow the live list.
+ */
+export function DeckHeader({ needYou, chats, snoozedCount, showSnoozed }: { needYou: number; chats: number; snoozedCount: number; showSnoozed: boolean }) {
   return (
-    <>
-      <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
-        <span>Catch up</span>
-        <span>
-          {current ? `${position} of ${total} · ${left} left in this pass` : total ? `${total} of ${total}` : ""}
-          <span style={{ marginLeft: 14, color: liveWaiting > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{liveWaiting} waiting</span>
-          {snoozedCount > 0 && <span style={{ marginLeft: 14, color: showSnoozed ? "var(--loki-accent)" : "var(--loki-muted)" }}>{snoozedCount} snoozed{showSnoozed ? " · shown" : ""}</span>}
-        </span>
-      </div>
-      {total > 0 && (
-        <div aria-hidden style={{ height: 2, margin: "0 6px 10px", background: "var(--loki-border)", borderRadius: 1, overflow: "hidden" }}>
-          <div style={{ height: "100%", transformOrigin: "0 50%", transform: `scaleX(${((total - left) / total).toFixed(3)})`, background: "var(--loki-accent)", transition: "transform 240ms ease-out" }} />
-        </div>
-      )}
-    </>
+    <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
+      <span>Inbox</span>
+      <span>
+        <span style={{ color: needYou > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{needYou} need you</span>
+        <span style={{ marginLeft: 14 }}>{chats} {chats === 1 ? "chat" : "chats"}</span>
+        {snoozedCount > 0 && <span style={{ marginLeft: 14, color: showSnoozed ? "var(--loki-accent)" : "var(--loki-muted)" }}>{snoozedCount} snoozed{showSnoozed ? " · shown" : ""}</span>}
+      </span>
+    </div>
   );
 }
 
 /** One pill per agent with cards this pass, busiest first, after All; its name and how many wait. */
 export function agentPills(items: AttentionItem[], showSnoozed: boolean): { agentId: string; name: string; count: number }[] {
   const by = new Map<string, { agentId: string; name: string; count: number }>();
-  for (const i of catchUpQueue(items, showSnoozed)) {
+  for (const i of inboxQueue(items, showSnoozed)) {
     const p = by.get(i.agentId) ?? { agentId: i.agentId, name: i.agentName ?? "agent", count: 0 };
     p.count++;
     by.set(i.agentId, p);

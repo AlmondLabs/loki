@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, snoozedItems, stampOf, type Decision } from "../../../core/attention/queue.ts";
+import { catchUpQueue, idOf, inboxQueue, snoozedItems, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { Snooze } from "../../../core/attention/snooze.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
@@ -137,7 +137,6 @@ function CatchUpDeck(props: DeckProps) {
     [],
   );
 
-  const total = queue.length + decided.length;
   const snoozed = snoozedItems(shown);
   const nextDue = snoozed.map((i) => i.snooze!.until).sort()[0] ?? null;
 
@@ -148,7 +147,7 @@ function CatchUpDeck(props: DeckProps) {
       style={{ position: "absolute", inset: 0, background: "var(--loki-bg)", display: "grid", gridTemplateRows: "100%", gridTemplateColumns: "minmax(0, 1fr)", justifyItems: "center", padding: "20px 24px 16px", boxSizing: "border-box", animation: "loki-veil 160ms ease-out both" }}
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        <DeckHeader current={current} position={total - queue.length + 1} total={total} left={queue.length} liveWaiting={liveWaitingCount(shown)} snoozedCount={snoozed.length} showSnoozed={showSnoozed} />
+        <DeckHeader needYou={liveWaitingCount(shown)} chats={inboxQueue(shown, showSnoozed).length} snoozedCount={snoozed.length} showSnoozed={showSnoozed} />
         <AgentPills items={items} showSnoozed={showSnoozed} agent={agent} onAgent={setAgent} />
         {!current ? (
           <CaughtUp items={shown} snoozedCount={snoozed.length} nextDue={nextDue} decided={decided} replies={actions.replies} />

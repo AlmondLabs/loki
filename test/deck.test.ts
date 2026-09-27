@@ -212,15 +212,17 @@ describe("dismissed unless the stamp changed", () => {
     // b unchanged and still actionable (the round trip has not landed): kept
     expect(pruneDismissed(d, [b]).size).toBe(1);
   });
-  test("an entry only bridges the round trip: once the snooze or the seen marker lands, it goes", () => {
+  test("an entry lasts while the chat is unchanged: a snooze or a turn starting takes it out of the Inbox, and the entry goes", () => {
     const b = item("b");
     const d = dismiss(new Map(), b);
     const snooze = { skips: 1, until: "2026-09-07T10:05:00Z", stamp: stampOf(b), at: "2026-09-07T10:00:00Z" };
     // the snooze arrived: the queue hides b by itself; forget the entry so an unsnooze shows it again
     expect(pruneDismissed(d, [item("b", { snooze })]).size).toBe(0);
     expect(visibleQueue([b], pruneDismissed(d, [item("b", { snooze })])).map((i) => i.id)).toEqual(["b"]);
-    // marked seen: idle now, same thing
-    expect(pruneDismissed(d, [item("b", { status: "idle", unread: false })]).size).toBe(0);
+    // marked read: still in the Inbox (a chat stays until it is archived), so the card stays dismissed for this visit
+    expect(pruneDismissed(d, [item("b", { status: "idle", unread: false })]).size).toBe(1);
+    // the agent is mid-turn: out of the Inbox for now, and the entry goes
+    expect(pruneDismissed(d, [item("b", { status: "running" })]).size).toBe(0);
   });
 });
 

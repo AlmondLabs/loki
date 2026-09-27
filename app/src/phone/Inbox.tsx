@@ -33,7 +33,6 @@ import {
   flingVelocity,
   holdCard,
   isHorizontalDrag,
-  passTotal,
   reconcileDeck,
   refusedOffset,
   revealOpacity,
@@ -381,8 +380,8 @@ export function Inbox({
   const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit: () => swipe.clear() });
   const swipe = useSwipe({ width, approval, current, onCommit: commit, onRefuse: flashRefused });
 
-  const done = passTotal(deck.pass);
-  const total = done + visible.length;
+  // What needs you (the badge's count), and every chat still in the Inbox: a chat stays until it is archived, so there is no pass to count down.
+  const needYou = catchUpQueue(items).length;
 
   // The last card going (or a new pass starting) takes the pressed button with it; focus would fall to the
   // page body, so it moves to the pass's heading instead, where the next thing to read or press starts.
@@ -407,9 +406,8 @@ export function Inbox({
             </button>
           ) : undefined
         }
-        title={current ? `${visible.length} Left` : "Inbox"}
+        title={current ? (needYou ? `${needYou} need you` : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`) : "Inbox"}
         right={undo ? <UndoButton key={idOf(undo.item)} via={undo.via} onUndo={undoLast} /> : undefined}
-        progress={current && total > 0 ? done / total : null}
       />
       <div className="loki-phone-sr-only" role="status" aria-live="polite">
         {said}
@@ -454,7 +452,7 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
     );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
   const again = loaded && !macProblem && passedOver > 0;
-  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : again ? "End of this pass" : "You're caught up";
+  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : again ? "You've been through every chat" : "You're caught up";
   const line = !available
     ? "Open loki on the Mac so its mod can find Letta's app-server."
     : banner

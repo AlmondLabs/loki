@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { catchUpQueue, mergeQueue, type Decision } from "../../../core/attention/queue.ts";
+import { inboxQueue, mergeQueue, type Decision } from "../../../core/attention/queue.ts";
 
 /**
  * The pass's queue and what it has decided so far. The current card never moves under your hands,
@@ -9,7 +9,7 @@ import { catchUpQueue, mergeQueue, type Decision } from "../../../core/attention
  * a new pill (`filter`) builds the queue afresh from them, so the card on top changes with it.
  */
 export function useDeckQueue(items: AttentionItem[], showSnoozed: boolean, filter: string | null = null) {
-  const [queue, setQueue] = useState<AttentionItem[]>(() => catchUpQueue(items, showSnoozed));
+  const [queue, setQueue] = useState<AttentionItem[]>(() => inboxQueue(items, showSnoozed));
   const [decided, setDecided] = useState<Decision[]>([]);
   const filterRef = useRef(filter);
 
