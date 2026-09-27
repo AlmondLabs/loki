@@ -45,14 +45,14 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
-      onSeen={catchUp.seen}
+      onSeen={(item) => (catchUp.decided(item, "done"), catchUp.seen(item))}
       onUnread={catchUp.unread}
-      onLater={catchUp.later}
+      onLater={(item) => (catchUp.decided(item, "later"), catchUp.later(item))}
       onUnsnooze={catchUp.unsnooze}
       snoozes={catchUp.snoozes}
-      onApprove={catchUp.approve}
-      onAnswer={(item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers)}
-      onReply={catchUp.reply}
+      onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny"), catchUp.approve(item, requestId, behavior))}
+      onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer"), catchUp.answer(item.runtime, requestId, answers))}
+      onReply={(item, text, images) => (catchUp.decided(item, "reply"), catchUp.reply(item, text, images))}
       onStop={(item) => catchUp.stop(item.runtime)}
       onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
       conversation={catchUp.conversation}

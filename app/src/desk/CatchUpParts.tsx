@@ -142,7 +142,7 @@ export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash 
   return (
     <ConversationHeader title={current.title ?? current.id} agentName={current.agentName} agentId={current.agentId} right={needsYou(current.status) ? <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}><Dot color={badge.color} />{flash ?? badge.label}</Chip> : <Chip tone={badge.color}>{flash ?? badge.label}</Chip>}>
       <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
-      {reason && <Meta style={reason === "warm" ? NOTED : undefined}>{reason}</Meta>}
+      {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
       {timesAround > 1 && <Meta style={NOTED}>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
       {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}

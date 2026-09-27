@@ -162,6 +162,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     seen: attention.seen,
     viewed: attention.viewed,
     snooze: attention.snooze,
+    focus: attention.focus,
+    engage: attention.engage,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     setSnooze: attention.setSnooze,
@@ -402,6 +404,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
   };
   const { attention } = desk;
   const later = (item: AttentionItem) => {
+    catchUp.decided(item, "later");
     catchUp.unread(item);
     if (!item.pendingApproval) catchUp.later(item); // approvals never snooze
   };
@@ -437,14 +440,14 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         onOpen={openItem}
         onConnection={() => navigate({ kind: "connection" })}
         card={{
-          onSend: (item, text, images) => catchUp.reply(item, text, images),
-          onAnswer: (item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers),
+          onSend: (item, text, images) => (catchUp.decided(item, "reply"), catchUp.reply(item, text, images)),
+          onAnswer: (item, requestId, answers) => (catchUp.decided(item, "answer"), catchUp.answer(item.runtime, requestId, answers)),
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
           onStop: (item) => catchUp.stop(item.runtime),
           model: cardModel,
         }}
-        onApprove={catchUp.approve}
-        onSeen={catchUp.seen}
+        onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny"), catchUp.approve(item, requestId, behavior))}
+        onSeen={(item) => (catchUp.decided(item, "done"), catchUp.seen(item))}
         onLater={later}
         onUnsnooze={catchUp.unsnooze}
         onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}

@@ -226,6 +226,37 @@ describe("bridge: viewed", () => {
   });
 });
 
+describe("bridge: focus", () => {
+  test("a look adds a read's weight; focus_add adds answers and decisions, from the phone too; the seen frame carries it", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { SeenStore } = await import("../mod/seen.ts");
+    const dir = mkdtempSync(join(tmpdir(), "loki-focus-"));
+    try {
+      const seen = new SeenStore(join(dir, "attention.json"));
+      const broadcasts: Array<Record<string, unknown>> = [];
+      const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
+      const c = client("c1");
+      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
+      expect((broadcasts.at(-1)!.focus as Record<string, { w: number }>)["a/x"].w).toBe(0.25);
+      bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "x", action: "answer" });
+      bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "y", action: "decide" });
+      const focus = broadcasts.at(-1)!.focus as Record<string, { w: number }>;
+      expect(focus["a/x"].w).toBeCloseTo(1.25, 3);
+      expect(focus["a/y"].w).toBe(0.5);
+      // messages are counted where turns start, never from a client: a client cannot claim one
+      const before = broadcasts.length;
+      bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "x", action: "message" });
+      expect(broadcasts.length).toBe(before);
+      expect(PHONE_FRAMES.has("focus_add")).toBe(true);
+      seen.flush();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("bridge: a mark that changes nothing", () => {
   test("neither writes nor broadcasts; a ladder already in force answers the sender alone", async () => {
     const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");

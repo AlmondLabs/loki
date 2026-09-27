@@ -528,22 +528,35 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 ### The order
 
 The deck is a scheduler's ready queue: one score per card, one list, no sections. The score is
-`blocked ? 100 : 0` (an approval, a question, a failed turn — an agent is stopped) `+ warm ? 10 : 0` (the
-agent spoke under four minutes ago, so the provider still has the conversation's prompt cached and a reply
-now costs a tenth of one typed later) `+ yours ? 5 : 0` (the turn answers a message you sent, not a
-scheduled task's prompt) `− 0.1` an hour since the last message (`+ 0.1` for a blocked card). Blocked agents
-come first, the one waiting longest ahead, then warm replies to you, then colder ones, then reports nobody
-asked for — a cron's digest, a background job. For everything else age only settles ties and lets old cards
-drift down. Each card says the largest term after
-its time: `warm`, `reply to you`, `report` (blocked cards say it with their badge). The order is recomputed
-on every event — an approval or reply on the card in front of you, a turn finishing or blocking anywhere,
-the half-minute clock that fades warmth — and again whenever a card is popped, but the card in front of you
-never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts` is the score.
+`blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer) `+ 15 × focus`
+(the chat's share of what you have been doing lately) `− 0.1` an hour since the last message (`+ 0.1` for a
+blocked card, so the agent waiting longest comes first). A failed turn is not blocked: nothing waits on you,
+so it ranks like any other card.
+
+**Focus is learned, never set.** Every chat keeps a weight that your actions add to — a message you send
+(from the Mac, the phone, the Inbox or the terminal) adds 1, answering a question 1, approving or denying ½,
+opening and reading the chat ¼ (at most once every half hour) — and that halves every 12 hours. A chat's
+focus is its weight over everyone's weight plus 2. Work a task hard and its chat rises; start another task and
+the old one gives up its share as soon as you engage elsewhere, then fades in a day or two, with nothing to
+park. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
+scheduled prompts never add focus, so a busy cron cannot talk its way up. The Mac's loki process keeps the
+weights (`focus` in `state/attention.json`), so the Mac and the phone rank alike.
+
+Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
+badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
+finishing or blocking anywhere, the half-minute clock — and again whenever a card is popped, but the card in
+front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
+is the score, `core/attention/focus.ts` the focus.
+
+**What the ranking is tuned for: engagement.** Every Inbox decision is logged (`inbox_card_decided`: what you
+did, where the card stood, its score, focus and reason), and `bun run analytics` reports how often you engage
+with a card (reply, answer, approve, deny) rather than clear or defer it, how often that card was the one on
+top, and the median rank of the cards you engaged with. The weights above are the starting point.
 
 **A reply keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
-into the card, and a follow-up typed then goes out while the conversation's prompt is still cached — five
-turns in ten minutes cost about a quarter of the same five spread over a day. Moving on is yours (→ or ⌘]);
-if you do, the answer brings the card back by score, warm and yours, behind whatever you are reading then.
+into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
+is yours (→ or ⌘]); if you do, the answer brings the card back by score — higher now, since your reply added to
+its chat's focus — behind whatever you are reading then.
 
 ### Later, with backoff
 

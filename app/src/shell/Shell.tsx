@@ -77,6 +77,8 @@ export function Shell() {
     seen: attention.seen,
     viewed: attention.viewed,
     snooze: attention.snooze,
+    focus: attention.focus,
+    engage: attention.engage,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
     setSnooze: attention.setSnooze,

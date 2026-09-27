@@ -231,3 +231,22 @@ describe("analytics: the phone's screen names", () => {
     }
   });
 });
+
+describe("analytics: engagement, the inbox ranking's metric", () => {
+  test("counts your actions and, of the Inbox cards decided, the engaged share, how often it was the top card, and the median rank", () => {
+    const now = Date.parse("2026-09-27T12:00:00Z");
+    const e = (event: string, properties: Record<string, unknown> = {}, minutesAgo = 10) => makeEvent(event, "u", { $device_type: "mac", $lib: "loki", $session_id: "s", ...properties }, new Date(now - minutesAgo * 60_000));
+    const log = [
+      e("message_sent", { origin: "inbox" }),
+      e("question_answered"),
+      e("inbox_card_decided", { action: "reply", rank: 1, reason: "focus" }),
+      e("inbox_card_decided", { action: "answer", rank: 3, reason: "blocked" }),
+      e("inbox_card_decided", { action: "done", rank: 1, reason: "other" }),
+      e("inbox_card_decided", { action: "later", rank: 2, reason: "other" }),
+    ];
+    const g = analyticsReport(log, { now, days: 7 }).engagement;
+    expect(g).toMatchObject({ actions: 2, cards: 4, engaged: 2, top: 1, medianRank: 2 });
+    expect(Object.fromEntries(g.byReason)).toEqual({ other: { cards: 2, engaged: 0 }, focus: { cards: 1, engaged: 1 }, blocked: { cards: 1, engaged: 1 } });
+    expect(formatAnalyticsReport(analyticsReport(log, { now, days: 7 }))).toContain("engaged 50% · of those, the top card 50% · median rank 2");
+  });
+});

@@ -50,19 +50,19 @@ describe("catch up queue merge", () => {
     expect(mergeQueue([], [deferred], [{ ...decided[0], via: "next" as const, action: "seen" as const }], true)).toEqual([]);
   });
 
-  test("what arrives is placed by score, not appended: a warm reply to you goes right behind the head, a cold report to the back", () => {
+  test("what arrives is placed by score, not appended: a card from the chat in focus goes right behind the head, a quiet one to the back", () => {
     const now = new Date("2026-09-16T10:00:00Z").getTime();
-    // items arrive stamped, as buildItems hands them over
-    const stamp = (i: AttentionItem) => scored([i], now)[0];
+    // items arrive stamped, as buildItems hands them over; "focused" is the chat you have been working in
+    const stamp = (i: AttentionItem) => scored([i], now, { "a1/focused": 0.5 })[0];
     const head = stamp(item("head", { lastMessageAt: "2026-09-16T06:00:00Z" }));
     const old = stamp(item("old", { lastMessageAt: "2026-09-16T07:00:00Z" }));
-    const report = stamp(item("report", { lastMessageAt: "2026-09-16T09:59:00Z", lastAsk: "schedule" }));
-    const warm = stamp(item("warm", { lastMessageAt: "2026-09-16T09:58:00Z", lastAsk: "person" }));
-    const q = mergeQueue([head, old], [head, old, report, warm], []);
-    expect(q.map((i) => i.id)).toEqual(["head", "warm", "report", "old"]);
+    const quiet = stamp(item("quiet", { lastMessageAt: "2026-09-16T09:59:00Z" }));
+    const focused = stamp(item("focused", { lastMessageAt: "2026-09-16T09:58:00Z" }));
+    const q = mergeQueue([head, old], [head, old, quiet, focused], []);
+    expect(q.map((i) => i.id)).toEqual(["head", "focused", "quiet", "old"]);
     // the head stays even when something blocked arrives; the blocked card is next
     const blocked = stamp(item("blocked", { status: "approval", pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" }, lastMessageAt: "2026-09-16T09:59:30Z" }));
-    expect(mergeQueue(q, [head, old, report, warm, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "warm", "report", "old"]);
+    expect(mergeQueue(q, [head, old, quiet, focused, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "focused", "quiet", "old"]);
   });
 
   test("popHead drops the head and orders the rest by their stamped score", () => {

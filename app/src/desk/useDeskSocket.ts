@@ -4,6 +4,7 @@ import { scopeFor } from "../../../core/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import type { Snooze } from "../../../core/attention/snooze.ts";
+import type { FocusEntry } from "../../../core/attention/focus.ts";
 import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
@@ -62,6 +63,7 @@ export function useDeskSocket() {
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
   const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
+  const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
   /** How long "later" hides a card (Settings › inbox); the mod keeps it beside the markers. */
   const [ladder, setLadder] = useState<SnoozeLadder>(DEFAULT_LADDER);
   /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
@@ -214,6 +216,8 @@ export function useDeskSocket() {
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
             if (msg.viewed && typeof msg.viewed === "object") setViewedMap((m) => keepSame(m, msg.viewed as Record<string, string>));
             setSnoozeMap((m) => keepSame(m, (msg.snooze as Record<string, Snooze>) ?? {}));
+            // A mod from before focus sends none: keep what we have.
+            if (msg.focus && typeof msg.focus === "object") setFocusMap((m) => keepSame(m, msg.focus as Record<string, FocusEntry>));
             {
               // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
               const next = msg.ladder && typeof msg.ladder === "object" ? clampLadder(msg.ladder as Partial<Record<keyof SnoozeLadder, unknown>>) : DEFAULT_LADDER;
@@ -299,6 +303,7 @@ export function useDeskSocket() {
     seenMap,
     viewedMap,
     snoozeMap,
+    focusMap,
     ladder,
     tasksVersion,
     recallVersion,

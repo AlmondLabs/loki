@@ -16,6 +16,7 @@ import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { Snooze } from "../../../core/attention/snooze.ts";
+import type { FocusAction } from "../../../core/attention/focus.ts";
 import type { SnoozeLadder } from "../../../core/attention/ladder.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
@@ -91,6 +92,7 @@ export function useDesk() {
     seenMap,
     viewedMap,
     snoozeMap,
+    focusMap,
     ladder,
     tasksVersion,
     recallVersion,
@@ -283,6 +285,9 @@ export function useDesk() {
     tunnelUrl,
     seen: seenMap,
     snooze: snoozeMap,
+    /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
+    focus: focusMap,
+    engage: (agentId: string, conversationId: string, action: FocusAction) => send({ type: "focus_add", agentId, conversationId, action }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */

@@ -16,7 +16,8 @@ import type { LokiUpdate } from "../shell/useLokiUpdate";
 import type { GlobalShortcut } from "../shell/useGlobalShortcut";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallSettings } from "../recall/RecallParts";
-import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attention/priority.ts";
+import { BLOCKED_POINTS, FOCUS_POINTS } from "../../../core/attention/priority.ts";
+import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
 import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { within, type Range } from "../../../core/range.ts";
 import { ThemeChoice } from "./ThemeChoice";
@@ -506,11 +507,10 @@ function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
   return (
     <>
       <Section title="Order" hint="one score per card, one list; the card in front of you never moves until you act on it">
-        <Fact label="Blocked" value={`+${BLOCKED_POINTS} — an approval, a question, a failed turn: an agent is stopped`} />
-        <Fact label="Warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
-        <Fact label="Reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
+        <Fact label="Blocked" value={`+${BLOCKED_POINTS} — an approval or a question: an agent is stopped until you answer`} />
+        <Fact label="Focus" value={`up to +${FOCUS_POINTS} — the chat's share of what you have been doing lately: your messages, answers, decisions and reads, each fading by half every ${FOCUS_HALF_LIFE_H} hours. Learned from you: the task you are on rises, one you have moved on from fades`} />
         <Fact label="Age" value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first" />
-        <Fact label="A reply" value={`keeps the card, so the answer streams in where you are and a follow-up goes out warm; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`} />
+        <Fact label="A reply" value={`keeps the card, so the answer streams in where you are; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`} />
       </Section>
       <LadderSection inbox={inbox} />
     </>

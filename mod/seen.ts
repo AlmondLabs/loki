@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../core/attention/ladder.ts";
+import { addFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core/attention/focus.ts";
 
 /**
  * Catch Up state the mod keeps on disk, keyed by agent + conversation (every
@@ -9,6 +10,8 @@ import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../core/attentio
  *  - viewed: when the user last looked at it (opened it, a new message arrived while it was open); a look
  *            is not done, so the two move apart: the sidebar's bold follows viewed, the Inbox follows seen
  *  - snooze: "later" deferrals with their backoff count (see core/attention/snooze.ts)
+ *  - focus:  each chat's engagement weight, fading by half every 12 hours (core/attention/focus.ts): the
+ *            inbox ranks by its share; your messages, answers, decisions and reads add to it
  *  - ladder: how long "later" hides a card — the first deferral in minutes and the growth per further one
  *            (core/attention/ladder.ts); absent means the defaults
  * The browser decides what these mean; the mod only remembers them.
@@ -27,6 +30,7 @@ export class SeenStore {
   private seen: Record<string, string> = {};
   private viewed: Record<string, string> = {};
   private snooze: Record<string, SnoozeRecord> = {};
+  private focus: Record<string, FocusEntry> = {};
   private ladderSetting: SnoozeLadder | null = null;
   private readonly path: string;
   private readonly debounceMs: number;
@@ -44,6 +48,7 @@ export class SeenStore {
         this.seen = parsed.seen as Record<string, string>;
         if (parsed.viewed && typeof parsed.viewed === "object") this.viewed = parsed.viewed as Record<string, string>;
         if (parsed.snooze && typeof parsed.snooze === "object") this.snooze = parsed.snooze as Record<string, SnoozeRecord>;
+        if (parsed.focus && typeof parsed.focus === "object") this.focus = parsed.focus as Record<string, FocusEntry>;
         if (parsed.ladder && typeof parsed.ladder === "object") this.ladderSetting = clampLadder(parsed.ladder as Partial<Record<keyof SnoozeLadder, unknown>>);
       } else {
         this.seen = parsed as Record<string, string>; // v1 file: a flat map of markers
@@ -67,6 +72,20 @@ export class SeenStore {
 
   snoozes(): Record<string, SnoozeRecord> {
     return { ...this.snooze };
+  }
+
+  focusAll(): Record<string, FocusEntry> {
+    return { ...this.focus };
+  }
+
+  /** One engagement with a chat; false when it adds nothing (a repeat open inside the gap), so nothing is broadcast. */
+  engage(agentId: string | null | undefined, conversationId: string, action: FocusAction): boolean {
+    const key = SeenStore.key(agentId, conversationId);
+    const next = addFocus(this.focus[key], action, Date.parse(this.now()));
+    if (!next) return false;
+    this.focus = { ...pruneFocus(this.focus, Date.parse(this.now())), [key]: next };
+    this.persist();
+    return true;
   }
 
   /** The "later" ladder in force: the person's setting, else the defaults. */
@@ -148,7 +167,7 @@ export class SeenStore {
   private write(): void {
     try {
       mkdirSync(dirname(this.path), { recursive: true });
-      writeFileSync(`${this.path}.tmp`, JSON.stringify({ seen: this.seen, snooze: this.snooze, ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}), ...(this.ladderSetting ? { ladder: this.ladderSetting } : {}) }, null, 2));
+      writeFileSync(`${this.path}.tmp`, JSON.stringify({ seen: this.seen, snooze: this.snooze, ...(Object.keys(this.viewed).length ? { viewed: this.viewed } : {}), ...(Object.keys(this.focus).length ? { focus: this.focus } : {}), ...(this.ladderSetting ? { ladder: this.ladderSetting } : {}) }, null, 2));
       renameSync(`${this.path}.tmp`, this.path);
     } catch {
       // best effort

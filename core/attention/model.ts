@@ -125,6 +125,8 @@ export interface AttentionItem extends ConversationInfo {
   score: number;
   /** The one word that explains the score: what the card shows after its time. */
   reason: Reason;
+  /** The chat's share of your recent engagement, 0 to 1 (focus.ts), as scored. */
+  focus: number;
   runtime: Runtime;
 }
 
@@ -452,8 +454,8 @@ export function viewStamp(item: Pick<AttentionItem, "agentId" | "id" | "unread" 
 
 /**
  * Combine everything into the item list, each item stamped with its score and reason at `now` and the
- * list ordered highest first (priority.ts): blocked agents, then warm replies to you, then colder ones,
- * then reports.
+ * list ordered highest first (priority.ts): blocked agents, then the chats you have been engaging with
+ * (`focus`, each chat's share by "agentId/conversationId"), then the rest by age.
  */
 export function buildItems(
   conversations: ConversationInfo[],
@@ -462,6 +464,7 @@ export function buildItems(
   seen: Record<string, string>,
   now = Date.now(),
   viewed: Record<string, string> = {},
+  focus: Record<string, number> = {},
 ): AttentionItem[] {
   const out: Unscored[] = [];
   for (const c of conversations) {
@@ -497,5 +500,5 @@ export function buildItems(
       runtime: { agent_id: c.agentId, conversation_id: c.id },
     });
   }
-  return scored(out, now);
+  return scored(out, now, focus);
 }

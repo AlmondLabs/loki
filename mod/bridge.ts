@@ -35,6 +35,7 @@ import { isLanVia } from "./lan.ts";
  *      (a mark that moves nothing is not broadcast)
  *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
  *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
+ *    focus_add { agentId, conversationId, action: "answer" | "decide" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
  *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
                                             (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
@@ -245,13 +246,13 @@ const isPoint = (v: unknown): boolean =>
  * and a model picked there, for the shared quick picks.
  * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
   /** The seen markers, the deferrals and the "later" ladder, as one frame; sent on request and broadcast on every change. */
-  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
+  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, snooze: seen?.snoozes() ?? {}, focus: seen?.focusAll?.() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
 
   const deskFrame = (scope: Scope) => {
     const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
@@ -328,10 +329,19 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
             if (moved) broadcast(seenFrame());
           }
           return;
+        case "focus_add":
+          // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
+          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide")) {
+            if (seen?.engage?.(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId, msg.action)) broadcast(seenFrame());
+          }
+          return;
         case "viewed_mark":
           // Not tracked: a look happens on every open, it is not a decision.
           if (typeof msg.conversationId === "string") {
-            if (seen?.view(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId)) broadcast(seenFrame());
+            const agent = typeof msg.agentId === "string" ? msg.agentId : null;
+            const looked = seen?.view(agent, msg.conversationId);
+            const engaged = seen?.engage?.(agent, msg.conversationId, "open"); // opening and reading is engagement too
+            if (looked || engaged) broadcast(seenFrame());
           }
           return;
         case "seen_unmark":
