@@ -23,20 +23,20 @@ export function buildUserContent(text: string, images: ImageAttachment[] = [], c
 }
 
 /**
- * The environment note Letta Desktop attaches to every typed message, in the
- * same shape, so an agent talked to from the canvas keeps its sense of time and
- * place. Rendered transcripts strip system reminders, so the user never sees it.
+ * The environment note Letta Desktop attaches to every typed message, in the same shape, so an agent talked to
+ * from loki keeps its sense of time (it has no clock, and chats run for days) and knows which chat you are on.
+ * The folder is not in it: Letta Code sends its own environment context (working directory, git) at a session's
+ * start and whenever the folder changes. Rendered transcripts strip system reminders, so you never see it.
  */
-export function environmentReminder(opts: { now?: Date; folder?: string | null; desk?: string | null; locale?: string } = {}): string {
+export function environmentReminder(opts: { now?: Date; desk?: string | null; locale?: string } = {}): string {
   const now = opts.now ?? new Date();
   const when = now.toLocaleString(opts.locale ?? undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZoneName: "short" });
   const lines = [
     "<system-reminder>",
     "This is an automated message providing context about the user's environment.",
-    "The user is sending a message via the loki canvas (a browser tab, not the Letta desktop app).",
+    "The user is sending a message via loki, on their Mac or a paired phone (not the Letta desktop app).",
     `User's device local time: ${when}`,
   ];
-  if (opts.folder) lines.push(`Current remote working directory: ${opts.folder}`);
   if (opts.desk) lines.push(`The user is looking at this conversation in loki, the chat ("${opts.desk}").`);
   lines.push("</system-reminder>");
   return lines.join("\n");

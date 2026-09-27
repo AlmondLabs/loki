@@ -49,6 +49,7 @@ export const EVENTS: Record<string, string> = {
   command_run: "a harness slash command run { command }",
   model_switched: "a conversation's model switched { model, effort }",
   mode_set: "a conversation's permission mode set { mode }",
+  folder_changed: "a conversation moved to another folder { desk, agent }",
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
   inbox_card_shown: "a card came to the top of the inbox { desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
   inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, rank, of, score, focus, reason, status, new, idle_min, dwell_ms }",

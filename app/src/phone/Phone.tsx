@@ -27,7 +27,7 @@ import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } fr
 import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edgeSwipe";
 import { useModelList } from "../shell/useModelList";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/ModelPicker";
@@ -371,6 +371,19 @@ function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, on
                     return err;
                   }
                 : null,
+            }
+          : null
+      }
+      folder={
+        attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
+          ? {
+              // The live folder (Letta Code's device status) first, else what the Mac's records say; the agent's recent folders to choose from.
+              load: async () => {
+                const r = await attention.folders.recent();
+                const current = catchUp.conversation(thread.agentId, thread.conversationId).cwd ?? r.byConversation[conversationDirName(thread.conversationId, thread.agentId)] ?? null;
+                return { current, choices: r.byAgent[thread.agentId] ?? [] };
+              },
+              onMove: (folder) => catchUp.changeFolder({ agent_id: thread.agentId, conversation_id: thread.conversationId }, folder),
             }
           : null
       }

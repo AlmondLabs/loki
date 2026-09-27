@@ -22,7 +22,7 @@ export interface DeskConversationHandlers {
  */
 export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: ReturnType<typeof useAttention>, chat: DeskChatModel, { onLoadModels, onPickModel, onPickMode }: DeskConversationHandlers): { view: ConversationView; actions: ConversationActions } {
   const { scope, title, attention } = desk;
-  const { deskRuntime, deskChat, pendingApproval, pendingQuestion, deskFolder } = chat;
+  const { deskRuntime, deskChat, pendingApproval, pendingQuestion } = chat;
   const view: ConversationView = {
     rows: deskChat?.rows ?? [],
     status: deskChat?.status ?? "idle",
@@ -34,7 +34,7 @@ export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: Retu
     question: pendingQuestion,
   };
   const actions: ConversationActions = {
-    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { folder: deskFolder.current, desk: title, origin: "desk" }),
+    onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { desk: title, origin: "desk" }),
     onAnswer: (answers) => {
       if (deskRuntime && pendingQuestion) catchUp.answer(deskRuntime, pendingQuestion.requestId, answers);
     },

@@ -99,6 +99,8 @@ export interface Live {
   queued: QueuedSend[];
   /** From update_device_status: the permission mode the harness applies to this conversation right now. */
   mode?: string;
+  /** From update_device_status: the folder the conversation works in right now. */
+  cwd?: string;
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -128,6 +130,18 @@ export interface AttentionItem extends ConversationInfo {
 }
 
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
+
+/**
+ * Whether an event answers a folder change under way (useAttention changeFolder), read after the event was folded
+ * in: "moved" when a device status shows the new folder (or, the folder before being known, any other), the
+ * error's words when Letta Code refused it with a loop error, null when the event says nothing about it.
+ */
+export function folderMoveAnswer(ev: ServerEvent, cwd: string | undefined, move: { from: string | undefined; to: string }): "moved" | { error: string } | null {
+  if (ev.type === "update_device_status") return cwd && (cwd === move.to || (move.from !== undefined && cwd !== move.from)) ? "moved" : null;
+  const d = ev.type === "stream_delta" ? (ev.delta as { message_type?: string; message?: string } | undefined) : undefined;
+  if (d?.message_type === "loop_error" || d?.message_type === "error_message") return { error: String(d.message ?? "the folder did not change") };
+  return null;
+}
 const TEXT_LIMIT = 700;
 
 export function emptyLive(): Live {
@@ -303,12 +317,19 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
       return { changed: true, userSpoke: false };
     }
     case "update_device_status": {
-      const m = (ev.device_status as { current_permission_mode?: string } | undefined)?.current_permission_mode;
+      const status = ev.device_status as { current_permission_mode?: string; current_working_directory?: string } | undefined;
+      const m = status?.current_permission_mode;
+      const cwd = status?.current_working_directory;
+      let changed = false;
       if (m && m !== l.mode) {
         l.mode = m;
-        return { changed: true, userSpoke: false };
+        changed = true;
       }
-      return { changed: false, userSpoke: false };
+      if (cwd && cwd !== l.cwd) {
+        l.cwd = cwd;
+        changed = true;
+      }
+      return { changed, userSpoke: false };
     }
     case "update_loop_status": {
       const status = (ev.loop_status as { status?: string } | undefined)?.status;

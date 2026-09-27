@@ -17,6 +17,8 @@ import { useDeskChat } from "./useDeskChat";
 import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
 import { widgetMarks } from "./widgetRows";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "./RenameDesk";
+import { ChangeFolder } from "./NewDesk";
+import { conversationDirName } from "../../../core/desk-core.ts";
 import { canRename, doneAction } from "../shell/sidebarModel";
 import { useViewed } from "../shared/useViewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
@@ -72,11 +74,11 @@ function useRouted(value: number, visible: PaneView | null): TickRoute {
  */
 export function DeskPane(props: DeskPaneProps) {
   const { desk, catchUp, active, tab, onTab, chatOpen, models, notice } = props;
-  const { scope, title, agentName, agentId, conversationId, connection, attention } = desk;
+  const { scope, title, agentName, agentId, conversationId, attention } = desk;
   const visible = paneView(active, tab);
   const onMessages = visible === "messages";
 
-  const chat = useDeskChat({ agentId, conversationId, connection, showing: active || chatOpen, catchUp, attention });
+  const chat = useDeskChat({ agentId, conversationId, showing: active || chatOpen, catchUp });
   // One draft for both views, keyed by the conversation; before the desk knows its conversation each box keeps its own.
   const key = agentId && conversationId ? draftKey(agentId, conversationId) : null;
   const [draftValue, setDraft] = useDraft(key);
@@ -207,6 +209,7 @@ type MenuItem = { id: string; label: string; keys?: string; disabled?: boolean; 
 const RENAME = "desk.rename";
 const DONE = "desk.done";
 const UNDONE = "desk.undone";
+const MOVE = "desk.folder";
 
 /** Read by hand, the Inbox's own paths: Mark as read clears what is new (seen_mark), Mark as unread puts it back (seen_unmark). A chat is done only when archived. */
 function markDone(catchUp: ReturnType<typeof useAttention>, item: AttentionItem | null, done: boolean) {
@@ -235,6 +238,7 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
 function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: ReturnType<typeof useDesk>; catchUp: ReturnType<typeof useAttention>; item: AttentionItem | null; summary: ReturnType<typeof useDesk>["desks"]["list"][number] | null; tab: DeskTab; notice: (m: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [moving, setMoving] = useState(false);
   const { agentId, conversationId } = desk;
   const connected = catchUp.status === "open";
   const canPin = !!summary && !!agentId && !!conversationId && summary.status === "live";
@@ -252,6 +256,7 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
   const items: MenuItem[] = [
     ...(done === "done" ? [{ id: DONE, label: "Mark as read", keys: keyFor("desk.done") }] : done === "undone" ? [{ id: UNDONE, label: "Mark as unread" }] : []),
     ...(summary && canRename(summary) ? [{ id: RENAME, label: "Rename…", disabled: !connected, title: connected ? undefined : NO_RENAME_REASON }] : []),
+    ...(agentId && conversationId && summary?.status !== "deleted" ? [{ id: MOVE, label: "Change folder…", disabled: !connected, title: connected ? undefined : "Needs Letta Code's app-server" }] : []),
     { id: "chat.find", label: "Find in conversation…", keys: keyFor("chat.find") },
     { id: "chat.model", label: "Change model…", keys: keyFor("chat.model") },
     { id: "chat.mode", label: "Change permission mode…", keys: keyFor("chat.mode") },
@@ -286,6 +291,7 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
             onPick={(id) => {
               setMenuOpen(false);
               if (id === RENAME) setRenaming(true);
+              else if (id === MOVE) setMoving(true);
               else if (id === DONE || id === UNDONE) markDone(catchUp, item, id === DONE);
               else runAction(id);
             }}
@@ -293,6 +299,21 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
           />
         )}
       </span>
+      {moving && agentId && conversationId && (
+        <ChangeFolder
+          onClose={() => setMoving(false)}
+          agentId={agentId}
+          agentName={desk.agentName ?? null}
+          conversationKey={conversationDirName(conversationId, agentId)}
+          title={desk.title ?? summary?.title ?? null}
+          folders={desk.attention.folders}
+          onMove={async (folder) => {
+            const err = await catchUp.changeFolder({ agent_id: agentId, conversation_id: conversationId }, folder);
+            if (!err) notice(`${desk.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
+            return err;
+          }}
+        />
+      )}
       {renaming && summary && <RenameDesk name={desk.title ?? summary.title ?? ""} onClose={() => setRenaming(false)} onRename={(name) => renameDesk(desk, catchUp, notice)(summary, name)} />}
     </>
   );

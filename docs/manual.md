@@ -276,7 +276,7 @@ Search button beside them:
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
    **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
    it comes back on your next visit. Open chat opens the conversation full screen, whose actions sheet has
-   **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
+   **Change folder** and **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
    the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
    been past every chat it says "You've been through every chat", how many still need you, and **Go through
    again**.
@@ -435,6 +435,14 @@ completion, or Browse… for the system's folder dialog; the git branch shows wh
 folder is a checkout) and an optional name. Start creates the conversation
 through Letta's app-server, so it appears in Desktop too, and the canvas
 opens the empty chat on Messages with the message box focused.
+
+**Change folder.** A chat can move to another folder later: **Change folder…** in the chat header's ⋯ menu opens
+the same folder field, starting on the chat's folder (recents, completion, Browse…); Move needs a folder that
+exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders
+that agent has worked in. Letta Code moves the conversation (its own `/chdir`, kept in
+`~/.letta/remote-settings.json`) and tells the agent on its next turn that the working directory changed, with
+the new folder's environment. loki's hidden note on each message carries the time and the chat, not the folder:
+the folder is Letta Code's to tell.
 
 ## Questions from the agent
 

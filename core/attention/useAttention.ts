@@ -4,7 +4,7 @@ import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, beginCommand, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
@@ -26,6 +26,9 @@ export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "an
 export type CardVia = "key" | "click" | "swipe" | "tap";
 /** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
 export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
+
+/** How long a folder change waits for Letta Code's answer. */
+const FOLDER_MOVE_MS = 8000;
 
 /** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
 const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
@@ -90,6 +93,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<AppServerSocket | null>(null);
   const liveRef = useRef(new Map<string, Live>());
+  /** Folder changes waiting on Letta Code's answer, by conversation key (changeFolder). */
+  const folderMoves = useRef(new Map<string, { from: string | undefined; to: string; done: (err: string | null) => void }>());
   const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Conversations the list knows about; an event from an unknown one means the list is stale (a new desk, an empty conversation that just got its first turn). */
   const knownRef = useRef(new Set<string>());
@@ -153,10 +158,19 @@ export function useAttention(opts: UseAttentionOptions) {
       }
       const wasInTurn = l.inTurn;
       const asked = { approval: l.pending?.requestId ?? null, question: l.pendingAsk?.requestId ?? null };
+      const errorBefore = l.error;
       const { changed, userSpoke } = applyEvent(l, ev);
       // A new permission request or question (approval_requested). Every window and phone sees the same request; the
       // mod keeps the first report of each (`once`).
       const request = l.pending && l.pending.requestId !== asked.approval ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" } : l.pendingAsk && l.pendingAsk.requestId !== asked.question ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" } : null;
+      // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
+      const move = folderMoves.current.get(key);
+      const answer = move ? folderMoveAnswer(ev, l.cwd, move) : null;
+      if (move && answer === "moved") move.done(null);
+      else if (move && answer && answer !== "moved") {
+        move.done(answer.error);
+        l.error = errorBefore; // the refusal is the folder dialog's to show; the chat did not fail
+      }
       if (request) optsRef.current.capture?.("approval_requested", { desk: deskOf(agent, conv), agent, tool: request.tool, kind: request.kind, once: `request:${request.id}` });
       if (userSpoke) opts.markSeen(agent, conv);
       if (changed) bump();
@@ -330,13 +344,13 @@ export function useAttention(opts: UseAttentionOptions) {
    * approval. `rows` is undefined until the transcript has been asked for.
    */
   const conversation = useCallback(
-    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null } => {
+    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null; cwd: string | null } => {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
       const base = histories[key];
       // The history's rows and the live ones keep their identity from update to update; only what changed is new.
       const tail: TranscriptRow[] = l ? liveRows(l) : [];
-      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
+      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null };
     },
     [histories, live],
   );
@@ -377,14 +391,14 @@ export function useAttention(opts: UseAttentionOptions) {
   }, [bump]);
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
-  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { folder?: string | null; desk?: string | null; origin?: SendOrigin } = {}) => {
+  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     let l = liveRef.current.get(key);
     if (!l) {
       l = emptyLive();
       liveRef.current.set(key, l);
     }
-    const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
+    const context = environmentReminder({ desk: env.desk }); // what Desktop attaches: local time; and the chat
     optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
@@ -560,6 +574,43 @@ export function useAttention(opts: UseAttentionOptions) {
     }
   }, []);
   /** Set a conversation's permission mode (runtime_start with `mode`); resolves to an error message or null. */
+  /**
+   * Move a conversation to another folder; resolves to an error or null once Letta Code has answered (a device
+   * status with the new folder, or a loop error), or after FOLDER_MOVE_MS with no answer. Letta Code keeps the
+   * folder (its cwdMap) and tells the agent on its next turn that the working directory changed.
+   */
+  const changeFolder = useCallback(async (rt: Runtime, cwd: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    const to = cwd.trim().replace(/(.)\/+$/, "$1");
+    if (!to) return "no folder";
+    if (!sock.isSubscribed(rt)) {
+      try {
+        await sock.runtimeStart(rt); // its device status and errors come to subscribers
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+    }
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const from = liveRef.current.get(key)?.cwd;
+    folderMoves.current.get(key)?.done("replaced by a newer change");
+    return new Promise<string | null>((resolve) => {
+      const timer = setTimeout(() => move.done("Letta Code did not answer; the folder may not have changed"), FOLDER_MOVE_MS);
+      const move = {
+        from,
+        to,
+        done: (err: string | null) => {
+          clearTimeout(timer);
+          if (folderMoves.current.get(key) === move) folderMoves.current.delete(key);
+          if (!err) optsRef.current.capture?.("folder_changed", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id });
+          resolve(err);
+        },
+      };
+      folderMoves.current.set(key, move);
+      sock.changeFolder(rt, to).catch((err) => move.done(err instanceof Error ? err.message : String(err)));
+    });
+  }, []);
+
   const setMode = useCallback(async (rt: Runtime, mode: string): Promise<string | null> => {
     const sock = socketRef.current;
     if (!sock) return "not connected to the app-server";
@@ -700,6 +751,7 @@ export function useAttention(opts: UseAttentionOptions) {
     updateModel,
     stop,
     setMode,
+    changeFolder,
     archiveConversation,
     renameConversation,
     createDesk,

@@ -145,7 +145,7 @@ line (a `#` and the chat's name, or the agent's face and name) with a quiet asid
 right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
 button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), pin,
 archive and a "More chat actions" menu: Mark as read (⌘⇧↵) or Mark as unread first, Rename… (Letta's
-conversation summary, so the main chat has none), then the rest with their keys; the sheet's own actions (⌘⇧A
+conversation summary, so the main chat has none), Change folder…, then the rest with their keys; the sheet's own actions (⌘⇧A
 arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Canvas tab. Two earlier forms were dropped on 2026-09-06: a
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
