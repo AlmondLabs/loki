@@ -269,7 +269,9 @@ Search button beside them:
 1. **Home**: the loki header (its menu holds the filter, **Refresh chats** and **Archived chats**), a row of
    shortcuts with their counts (Inbox, Learn, Agents, Archive), **Needs your attention** — the head of the
    Inbox queue — then **Chats**, pinned first. A long press on a chat (or its actions button) opens its actions sheet: pin,
-   **Rename** or archive. The round compose button at the bottom right starts a new chat.
+   **Rename** or archive. The round compose button at the bottom right starts a new chat: pick the agent, a name if
+   you like, and the folder, from the folders that agent has worked in on the Mac (its most recent to begin with,
+   the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
    **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
