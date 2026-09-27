@@ -242,7 +242,7 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
   const archived = summary?.status === "archived";
   const archive = () => {
     if (!conversationId) return;
-    void catchUp.archiveConversation(conversationId, !archived).then((err) => {
+    void catchUp.archiveConversation(conversationId, !archived, "chat_header").then((err) => {
       if (err) return notice(`archive: ${err}`);
       notice(`${desk.title ?? desk.scope} ${archived ? "restored" : "archived"}`);
       desk.desks.request();

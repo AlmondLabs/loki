@@ -62,9 +62,13 @@ interface CatchUpProps {
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
   /** The deck closed: what this visit did, for analytics. Not called for a visit that decided nothing. */
   onPass?: PassSummaryHandler;
+  /** A card came to the top (analytics: its dwell clock starts). */
+  onShown?: (item: AttentionItem) => void;
+  /** An agent pill chosen, null for All (analytics). */
+  onFilter?: (agent: string | null) => void;
 }
 
-export type PassSummaryHandler = (pass: { decided: number; next: number; archive: number; approve: number; deny: number; replies: number }) => void;
+export type PassSummaryHandler = (pass: { decided: number; next: number; archive: number; approve: number; deny: number; replies: number; shown: number; duration_ms: number }) => void;
 
 type DeckProps = CatchUpProps;
 
@@ -96,6 +100,15 @@ function CatchUpDeck(props: DeckProps) {
     else if (id === "mode" && props.onPickMode) setModeTick((t) => t + 1);
     else props.onCommand?.(item, id, args);
   };
+  // Analytics: each card that comes to the top, once per stay there (a card gets there many ways: an effect, not a handler).
+  const seenCards = useRef(new Set<string>());
+  const currentId = current ? idOf(current) : null;
+  useEffect(() => {
+    if (!current || !currentId) return;
+    seenCards.current.add(currentId);
+    props.onShown?.(current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId]);
   const actions = useDeckActions({ current, decided: allDecided, agent, setDecided, setQueue, onSeen: props.onSeen, onUnread: props.onUnread, onArchive: props.onArchive, onUnarchive: props.onUnarchive, onApprove: props.onApprove });
   useDeckKeys({ typing, current, decided, replyRef, next: actions.next, archive: actions.archive, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose });
 
@@ -119,16 +132,17 @@ function CatchUpDeck(props: DeckProps) {
   }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
 
   // The visit's tally, read when the deck unmounts (closing it is what ends a visit).
-  const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass });
+  const [openedAt] = useState(() => Date.now());
+  const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass, openedAt });
   useEffect(() => {
-    passRef.current = { decided: allDecided, replies: actions.replies, onPass: props.onPass };
+    passRef.current = { decided: allDecided, replies: actions.replies, onPass: props.onPass, openedAt };
   });
   useEffect(
     () => () => {
-      const { decided: d, replies, onPass } = passRef.current;
+      const { decided: d, replies, onPass, openedAt: began } = passRef.current;
       if (!onPass || (!d.length && !replies)) return;
       const by = (via: Decision["via"]) => d.filter((x) => x.via === via).length;
-      onPass({ decided: d.length, next: by("next"), archive: by("archive"), approve: by("approve"), deny: by("deny"), replies });
+      onPass({ decided: d.length, next: by("next"), archive: by("archive"), approve: by("approve"), deny: by("deny"), replies, shown: seenCards.current.size, duration_ms: Date.now() - began });
     },
     [],
   );
@@ -142,7 +156,7 @@ function CatchUpDeck(props: DeckProps) {
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
         <DeckHeader needYou={liveWaitingCount(shown)} chats={inboxQueue(shown).length} />
-        <AgentPills items={items} agent={agent} onAgent={setAgent} />
+        <AgentPills items={items} agent={agent} onAgent={(a) => (setAgent(a), props.onFilter?.(a))} />
         {!current ? (
           <CaughtUp items={shown} decided={decided} replies={actions.replies} />
         ) : (

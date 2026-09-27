@@ -180,7 +180,7 @@ const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(
  * and the sentence a screen reader hears. `commit` takes the card off and tells the parent; `undoLast`
  * puts the last one back.
  */
-function usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem) => void; onArchive: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
+function usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem, how: "swipe" | "tap") => void; onArchive: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [refused, setRefused] = useState(false);
@@ -194,7 +194,7 @@ function usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit }: { deck:
     setSaid(item && !item.pendingApproval ? "A main chat cannot be archived." : "This one needs Approve or Deny.");
     refuseTimer.set(() => setRefused(false), 420);
   };
-  const commit = (item: AttentionItem, via: Via) => {
+  const commit = (item: AttentionItem, via: Via, how: "swipe" | "tap" = "tap") => {
     const held = deck.heldId === idOf(item);
     if (!deck.commit(item, via)) {
       onCommit();
@@ -202,7 +202,7 @@ function usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit }: { deck:
       return;
     }
     onCommit();
-    if (via === "seen") onSeen(item);
+    if (via === "seen") onSeen(item, how);
     else if (via === "archive") onArchive(item);
     const rest = deck.visible.filter((i) => idOf(i) !== idOf(item));
     setSaid(reviewAnnouncement(via, rest[0], rest.length));
@@ -334,6 +334,7 @@ export function Inbox({
   onConnection,
   onApprove,
   onSeen,
+  onShown,
   onArchive,
   onUndo,
   card,
@@ -360,7 +361,10 @@ export function Inbox({
   /** The pairing and connection details, for the states where the Mac is the problem. */
   onConnection: () => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
-  onSeen: (item: AttentionItem) => void;
+  /** Next: `how` it was made, for analytics. */
+  onSeen: (item: AttentionItem, how: "swipe" | "tap") => void;
+  /** A card came to the top while the Inbox is on screen (analytics: its dwell clock starts). */
+  onShown?: (item: AttentionItem) => void;
   /** Archive the chat: done, it leaves the Inbox. */
   onArchive: (item: AttentionItem) => void;
   /** Take back the last Next or Archive: "seen" → unmark seen, "archive" → restore the chat. */
@@ -375,7 +379,12 @@ export function Inbox({
   const approval = !!current?.pendingApproval;
 
   const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit: () => swipe.clear() });
-  const swipe = useSwipe({ width, approval, current, onCommit: commit, onRefuse: flashRefused });
+  const swipe = useSwipe({ width, approval, current, onCommit: (item, via) => commit(item, via, "swipe"), onRefuse: flashRefused });
+  const currentId = current ? idOf(current) : null;
+  useEffect(() => {
+    if (current && !hidden) onShown?.(current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId, hidden]);
 
   // What needs you (the badge's count), and every chat still in the Inbox: a chat stays until it is archived, so there is no pass to count down.
   const needYou = catchUpQueue(items).length;

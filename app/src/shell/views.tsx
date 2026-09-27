@@ -2,6 +2,7 @@ import type { MutableRefObject } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { runAction } from "./keymap";
+import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
 import { Board } from "../board/Board";
@@ -37,6 +38,9 @@ export function RecallView({ recall, active, onOpenDesk, onBegin }: { recall: Re
   return <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} onBegin={onBegin} />;
 }
 
+/** How the Inbox's last move was made, for analytics: the last input was a key or a click. */
+const via = () => (lastInput() === "key" ? "key" : "click");
+
 /** The inbox: every conversation's cards, with the model and mode pickers per conversation. */
 export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, onPickMode, onOpenDesk, onClose, onPass }: { desk: Desk; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; onPickModel: PickModel; onPickMode: PickMode; onOpenDesk: OpenDesk; onClose: () => void; onPass: PassSummaryHandler }) {
   return (
@@ -45,15 +49,21 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
-      onSeen={(item, via) => (via === "next" && catchUp.decided(item, "next"), catchUp.seen(item))}
-      onUnread={catchUp.unread}
-      onArchive={(item) => (catchUp.decided(item, "archive"), catchUp.archive(item))}
-      onUnarchive={(item) => void catchUp.unarchive(item)}
-      onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny"), catchUp.approve(item, requestId, behavior))}
-      onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer"), catchUp.answer(item.runtime, requestId, answers))}
-      onReply={(item, text, images) => (catchUp.decided(item, "reply"), catchUp.reply(item, text, images))}
+      onSeen={(item, moved) => (moved === "next" && catchUp.decided(item, "next", via()), catchUp.seen(item))}
+      onUnread={(item) => (catchUp.undone(item, "next"), catchUp.unread(item))}
+      onArchive={(item) => (catchUp.decided(item, "archive", via()), catchUp.archive(item))}
+      onUnarchive={(item) => (catchUp.undone(item, "archive"), void catchUp.unarchive(item))}
+      onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny", via()), catchUp.approve(item, requestId, behavior))}
+      onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer", via()), catchUp.answer(item.runtime, requestId, answers))}
+      onReply={(item, text, images) => (catchUp.decided(item, "reply", via()), catchUp.reply(item, text, images))}
       onStop={(item) => catchUp.stop(item.runtime)}
-      onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
+      onShown={catchUp.shown}
+      onFilter={catchUp.filtered}
+      onOpenDesk={(agentId, conversationId) => {
+        const item = catchUp.items.find((i) => i.agentId === agentId && i.id === conversationId);
+        if (item) catchUp.decided(item, "open", via());
+        onOpenDesk(agentId, conversationId, { chat: true });
+      }}
       conversation={catchUp.conversation}
       loadHistory={(item) => void catchUp.loadHistory(item)}
       modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}

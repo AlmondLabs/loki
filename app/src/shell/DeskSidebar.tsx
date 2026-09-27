@@ -425,7 +425,7 @@ export function DeskSidebarView({ desk, catchUp, notice, onOpen, onNew }: { desk
       onDone={(item, done) => (done ? catchUp.seen(item) : catchUp.unread(item))}
       onArchive={(d, archived) => {
         if (!d.conversationId) return;
-        void catchUp.archiveConversation(d.conversationId, archived).then((err) => {
+        void catchUp.archiveConversation(d.conversationId, archived, "sidebar").then((err) => {
           if (err) return notice(`archive: ${err}`);
           notice(`${d.title ?? d.scope} ${archived ? "archived" : "restored"}`);
           desk.desks.request();

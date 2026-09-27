@@ -560,10 +560,14 @@ finishing or blocking anywhere, the half-minute clock — and again whenever a c
 front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
 is the score, `core/attention/focus.ts` the focus.
 
-**What the ranking is tuned for: engagement.** Every Inbox decision is logged (`inbox_card_decided`: what you
-did, where the card stood, its score, focus and reason), and `bun run analytics` reports how often you engage
-with a card (reply, answer, approve, deny) rather than move past or archive it, how often that card was the one on
-top, and the median rank of the cards you engaged with. The weights above are the starting point.
+**What the ranking is tuned for: engagement.** Every card that comes to the top is logged (`inbox_card_shown`),
+and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
+chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
+how long the card was on top). `bun run analytics` reports how often you engage with a card (reply, answer,
+approve, deny or open it) rather than move past or archive it, how often that card was the one on top, the median
+rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
+shown at, how many Nexts and Archives you took back, and how long a finished turn waits for you. The weights
+above are the starting point.
 
 **A reply keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
 into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
@@ -604,14 +608,17 @@ or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per devi
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
 handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
 `message_sent`, `inbox_pass_completed` (one per inbox visit: how many next, archive, approve, deny and replies),
-`inbox_card_decided` (action next, archive, approve, deny, reply or answer); `core/analytics.ts` lists them all
-with their properties. The file rotates
+`inbox_card_shown`, `inbox_card_decided` (action next, archive, approve, deny, reply, answer or open),
+`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod), `approval_requested` (reported by
+every window that saw it and written once), `chat_archived` and `chat_restored` (where from); `core/analytics.ts`
+lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the harness's environment turns it off.
 
 `bun run analytics` (or `bun run analytics -- --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
 property (views by name, turns by chat, sends by origin, models picked), the inbox visits and their decision
-split, the hours and weekdays loki is used, and the events that never fired in the period.
+split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
+period.
 
 ## Environment variables
 
