@@ -272,10 +272,10 @@ Search button beside them:
    **Rename** or archive. The round compose button at the bottom right starts a new chat.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
-   **Archive** and **Next**; swipe right for next (a left swipe does nothing: archiving is by its button only). Next reads the chat and moves on; it comes
-   back on your next visit. Archive is done: the chat leaves the inbox. A main chat refuses Archive, and an
-   approval refuses both: the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six
-   seconds after any of them. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
+   **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
+   it comes back on your next visit. Open chat opens the conversation full screen, whose actions sheet has
+   **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
+   the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
    been past every chat it says "You've been through every chat", how many still need you, and **Go through
    again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable

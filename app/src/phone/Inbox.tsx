@@ -54,8 +54,8 @@ import {
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
  * one or two peeking from behind, "N Left" on top. The card is the conversation itself — who it is
  * with, the thread with the unread line, what the agent waits on, and a working message box — so a card
- * can be read and answered without leaving the Inbox. Under it, Archive (done: the chat leaves the Inbox) and
- * Next (read, move on: the chat stays for your next visit); a right swipe is Next, and nothing archives by swipe.
+ * can be read and answered without leaving the Inbox. Under it, Open chat and Next (read, move on: the chat
+ * stays for your next visit); a right swipe is Next. Archiving (done) is in the chat's actions sheet.
  * Approvals refuse both, and the two buttons become Deny and Approve. Undo sits in the top bar for six
  * seconds after Archive or Next. The pure parts (when a drag
  * commits, the lean, the pass itself, what the card says) are in deck.ts.
@@ -420,7 +420,7 @@ export function Inbox({
           </div>
           <Decisions
             item={current}
-            onArchive={() => commit(current, "archive")}
+            onOpen={() => onOpen(current)}
             onSeen={() => commit(current, "seen")}
             onApprove={(behavior) => {
               if (!current.pendingApproval) return;
@@ -647,17 +647,16 @@ function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView })
 }
 
 /**
- * The two big buttons under the card; every swipe has one. Archive and Next, or — for an approval,
- * which refuses both — Deny and Approve. The same two elements in both cases, so focus stays put as the
+ * The two big buttons under the card: Open chat (the card's conversation, full screen, where its actions
+ * sheet can archive it) and Next, or — for an approval, which leaves only by its decision — Deny and Approve. The same two elements in both cases, so focus stays put as the
  * next card comes up.
  */
-function Decisions({ item, onArchive, onSeen, onApprove }: { item: AttentionItem; onArchive: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
+function Decisions({ item, onOpen, onSeen, onApprove }: { item: AttentionItem; onOpen: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
   const approval = !!item.pendingApproval;
-  const main = item.id === "default";
   return (
     <div className="loki-phone-decide">
-      <button type="button" className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"} onClick={approval ? () => onApprove("deny") : onArchive} disabled={!approval && main} aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : main ? "A main chat cannot be archived" : "Archive: done with this chat, it leaves the Inbox"}>
-        {approval ? "Deny" : "Archive"}
+      <button type="button" className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"} onClick={approval ? () => onApprove("deny") : onOpen} aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Open chat"}>
+        {approval ? "Deny" : "Open chat"}
       </button>
       <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={approval ? () => onApprove("allow") : onSeen} aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}>
         {approval ? "Approve" : "Next"}

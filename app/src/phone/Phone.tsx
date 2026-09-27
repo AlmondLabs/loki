@@ -293,7 +293,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
-        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} onRename={onRename} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} onRename={onRename} onArchive={onArchive} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
         {route.kind === "learn" && <Learn view={route.view} recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} onBegin={beginLesson} onOpen={openConversation} />}
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} onRename={onRename} />}
@@ -322,7 +322,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
  * model is the mod's word for the conversation (the desks list), switched through the app-server as the desktop
  * does; a refused switch says why in the banner for a few seconds.
  */
-function ConversationPage({ conv, desk, catchUp, onRename, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; onRename: RenameDeskName | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
+function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; onRename: RenameDeskName | null; onArchive: ArchiveDesk | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
@@ -357,6 +357,21 @@ function ConversationPage({ conv, desk, catchUp, onRename, models, onLoadModels,
       pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
       rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
+      archive={
+        thread.conversationId !== "default" && convDesk?.status !== "deleted"
+          ? {
+              archived: convDesk?.status === "archived",
+              // Any chat but a main one can go, desk or not: an Inbox chat need not be on the mod's desk list.
+              onArchive: onArchive
+                ? async (archived) => {
+                    const err = await catchUp.archiveConversation(thread.conversationId, archived);
+                    if (!err) desk.desks.request();
+                    return err;
+                  }
+                : null,
+            }
+          : null
+      }
       onBack={onBack}
       onLoad={(rt) => void catchUp.loadThread(rt)}
       onDecide={catchUp.decide}
