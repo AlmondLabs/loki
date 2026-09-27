@@ -9,7 +9,7 @@ listener, described below.
   app-server frames between the page and that harness over a loopback WebSocket. The page never holds
   the harness token; the Rust side sends it as a bearer header.
 - **The mod** (`mod/`, TypeScript) runs *inside* the Letta harness with that process's privileges. It
-  serves widget files and desk state on `127.0.0.1:41414` (`LOKI_PORT`). Every request, HTTP or
+  serves widget files and chat state on `127.0.0.1:41414` (`LOKI_PORT`). Every request, HTTP or
   WebSocket, must carry the token from `~/.letta/loki/token` (mode 0600, generated once; on Windows the
   file is under `%USERPROFILE%` and relies on the profile folder's own permissions). Requests without it
   get 403.
@@ -26,7 +26,7 @@ Mac only for now: on Windows and Linux Settings › phone says pairing isn't the
 so the listener stays off.
 
 Settings › phone puts a second listener on the local network so a phone can use loki (its Home, Inbox,
-Agents and desk conversations). The model:
+Agents and chats). The model:
 
 - **Off by default.** Nothing listens beyond loopback until you switch "reachable on this Wi‑Fi" on. The
   choice is persisted (`~/.letta/loki/state/lan.json`) and the rail shows a green dot on the settings
@@ -71,7 +71,7 @@ Mac's MagicDNS name. The model changes in one place:
 
 The point of loki is that your agent writes widgets: `.tsx` files under `~/.letta/loki/widgets/`. The
 shell transpiles them on request at `loki://localhost/widgets/…` and the page runs them. **A widget runs
-with the page's privileges**, which means: it can call the mod with the page's token (desk state, other
+with the page's privileges**, which means: it can call the mod with the page's token (chat state, other
 widgets' files) and reach the network (`connect-src https:`), but nothing outside the WebView. Treat
 widgets the way you treat the agent's shell commands: the permission mode you choose per conversation
 (strict, standard, accept edits, unrestricted) governs whether the agent may write files at all.

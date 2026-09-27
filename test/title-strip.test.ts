@@ -90,8 +90,8 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
           expect(mine && !("separator" in mine) && mine.keys !== null).toBe(it.accelerator !== null);
         }
       }
-      const desk = groups.find((g) => g.title === "Desk")!;
-      expect(desk.items).toContainEqual({ id: "search.open", label: "Search", keys: "Ctrl K" });
+      const go = groups.find((g) => g.title === "Go")!;
+      expect(go.items).toContainEqual({ id: "search.open", label: "Search", keys: "Ctrl K" });
     }
   });
 
@@ -101,7 +101,7 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
     try {
       const groups = titleMenus("windows");
       const picked: string[] = [];
-      const tree = TitleMenuPanel({ groups, os: "windows", open: "Desk", onOpen: () => {}, onPick: (id) => (picked.push(id), runMenuItem(id)) });
+      const tree = TitleMenuPanel({ groups, os: "windows", open: "Go", onOpen: () => {}, onPick: (id) => (picked.push(id), runMenuItem(id)) });
       const click = (id: string) => (elements(tree).find((el) => el.props["data-menu-id"] === id)!.props.onClick as () => void)();
       click("desk.new");
       click("window.hide");

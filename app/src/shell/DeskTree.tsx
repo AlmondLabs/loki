@@ -65,7 +65,7 @@ export function sectionDesks(desks: DeskSummary[], agentFilter: string | null, i
   const sections: Section[] = [
     { id: "waiting", label: "Waiting on you", desks: waiting },
     { id: "pinned", label: "Pinned", desks: pinned },
-    { id: "rest", label: pinned.length || waiting.length ? "Everything else" : "Desks", desks: rest },
+    { id: "rest", label: pinned.length || waiting.length ? "Everything else" : "Chats", desks: rest },
   ];
   return sections.filter((sec) => sec.desks.length > 0);
 }
@@ -117,7 +117,7 @@ function buildRows(ordered: DeskSummary[], archive: DeskSummary[], newRow: Row |
   return out;
 }
 
-const plural = (n: number) => `${n} desk${n === 1 ? "" : "s"}`;
+const plural = (n: number) => `${n} chat${n === 1 ? "" : "s"}`;
 
 type Chip = { id: string; name: string | null; count: number };
 
@@ -232,7 +232,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
 
   return (
     // Escape is the input's (below) and the shell's (window-level, when nothing is typing); the sheet stays out of it.
-    <Sheet label="desks" onClose={onClose} width={TREE_WIDTH} top="6vh" escape={false} cardProps={{ "data-tree": true }}>
+    <Sheet label="chats" onClose={onClose} width={TREE_WIDTH} top="6vh" escape={false} cardProps={{ "data-tree": true }}>
       {heading && <div className="loki-label" style={{ padding: "12px 16px 0", color: "var(--loki-fg)" }}>{heading}</div>}
       <Field
         bare
@@ -250,8 +250,8 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
           setIndex(0);
         }}
         onKeyDown={onKey}
-        placeholder={agentFilter ? `find a desk of ${pickName(agentFilter) ?? "this agent"}…` : "find a desk…"}
-        aria-label="find a desk"
+        placeholder={agentFilter ? `find a chat of ${pickName(agentFilter) ?? "this agent"}…` : "find a chat…"}
+        aria-label="find a chat"
         role="combobox"
         aria-expanded={true}
         aria-autocomplete="list"
@@ -266,7 +266,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
 
       <AgentChips chips={chips} liveCount={liveCount} agentFilter={agentFilter} onPick={pickAgent} />
 
-      <div ref={listRef} id={listId} role="listbox" aria-label="desks" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 10px" }}>
+      <div ref={listRef} id={listId} role="listbox" aria-label="chats" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 8px 10px" }}>
         {sections.map((sec, si) => (
           // A labelled section is a group the listbox may hold; its visible heading is the group's name, so it hides from the tree.
           <div key={sec.id} role={sec.label ? "group" : "presentation"} aria-label={sec.label || undefined}>
@@ -287,7 +287,7 @@ function TreeSheet({ onClose, desks, agents, items, current, onNew, heading, onP
           />
         )}
         {archive.length > 0 && <ArchiveGroup archive={archive} open={showArchive || !!q} onToggle={onToggleArchive} startIndex={archiveStart} current={current} showFace={!agentFilter} optionId={optionId} selected={index} onHover={setIndex} onChoose={(d) => choose({ kind: "desk", desk: d })} />}
-        {rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>no desks match</div>}
+        {rows.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 14 }}>no chats match</div>}
       </div>
       <div className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto", padding: "6px 14px", borderTop: "1px solid var(--loki-border)", fontFamily: "var(--loki-mono)" }}>
         {`↑↓ move · tab agent · ${formatKeys("enter")} choose · ${formatKeys("escape")} cancel`}
@@ -321,7 +321,7 @@ function NewRowLabel({ name, agentFilter, agentName }: { name: string; agentFilt
       {agentFilter ? ` with ${agentName}` : ""}
     </>
   ) : (
-    `new desk${agentFilter ? ` with ${agentName}` : "…"}`
+    `new chat${agentFilter ? ` with ${agentName}` : "…"}`
   );
 }
 
@@ -390,7 +390,7 @@ function DeskRow({ desk: d, mark, here, showFace, index, optionId, selected, onH
       {showFace && (d.agentId ? <AgentFace name={d.agentName} src={avatarUrl(d.agentId)} size={18} /> : <AgentChip name={d.agentName} size={9.5} />)}
       <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: fresh ? 700 : undefined, color: "var(--loki-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {d.pinned && <span aria-label="pinned" title="pinned" style={{ color: "var(--loki-accent)", marginRight: 6, fontSize: 10.5 }}>⌖</span>}
-        {d.title ?? (d.status === "live" ? "new desk" : d.scope)}
+        {d.title ?? (d.status === "live" ? "new chat" : d.scope)}
         {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
       </span>
       <span className="loki-meta">{when(d.lastActive)}</span>

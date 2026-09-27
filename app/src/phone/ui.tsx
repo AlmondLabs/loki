@@ -1,4 +1,5 @@
 import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useFlip } from "../kit/useFlip";
 import { Button, Sheet } from "../components";
 import { Icon } from "./icons";
 import { useScrollMemory } from "./session";
@@ -30,7 +31,7 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
       </div>
       {progress !== null && (
         <div aria-hidden className="loki-phone-progress">
-          <div className="loki-phone-progress-fill" style={{ width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%` }} />
+          <div className="loki-phone-progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progress)).toFixed(3)})` }} />
         </div>
       )}
     </header>
@@ -42,9 +43,10 @@ export function TopBar({ left, title, sub, right, progress = null, height = 48 }
  * (phone.css); full-screen children add their own bottom inset. `memory` names the destination whose
  * offset it keeps, so a tab switch or a page and back returns to the same place (session.ts).
  */
-export function Scroll({ children, style, memory, flush = false }: { children: ReactNode; style?: CSSProperties; memory?: string; /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean }) {
+export function Scroll({ children, style, memory, flush = false, flip }: { children: ReactNode; style?: CSSProperties; memory?: string; /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean; /** The rows' arrangement: when it changes, rows glide to their new places (kit/useFlip.ts). */ flip?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useScrollMemory(ref, memory);
+  useFlip(ref, flip);
   return (
     <div ref={ref} className={flush ? "loki-phone-scroll loki-phone-scroll--flush" : "loki-phone-scroll"} style={style}>
       {children}

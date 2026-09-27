@@ -41,11 +41,15 @@ export const ChatInput = forwardRef<
     /** Send's name: "Send", or what happens mid-turn (it queues). */
     sendLabel: string;
     sendTitle?: string;
+    /** The agent is working: with nothing typed, send becomes Stop, which ends the turn so you can take over. Typed text still sends (it queues). */
+    onStop?: () => void;
+    /** A stop was asked for and the turn has not ended yet. */
+    stopping?: boolean;
     "aria-controls"?: string;
     "aria-activedescendant"?: string;
     "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, touch = false, tools, canSend, sendLabel, sendTitle, ...aria }, ref) {
+>(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, touch = false, tools, canSend, sendLabel, sendTitle, onStop, stopping = false, ...aria }, ref) {
   const addBlobs = async (blobs: Blob[]) => {
     if (!onImages || !blobs.length) return;
     const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
@@ -214,6 +218,7 @@ export const ChatInput = forwardRef<
         sendLabel={sendLabel}
         sendTitle={sendTitle}
         onSend={send}
+        stop={onStop && !canSend ? { onStop, stopping } : null}
         disabled={disabled}
       />
       {onImages && (
@@ -254,6 +259,7 @@ export function ComposerBar({
   sendLabel,
   sendTitle,
   onSend,
+  stop = null,
   disabled,
 }: {
   touch?: boolean;
@@ -264,6 +270,8 @@ export function ComposerBar({
   sendLabel: string;
   sendTitle?: string;
   onSend: () => void;
+  /** In send's place while the agent works and nothing is typed. */
+  stop?: { onStop: () => void; stopping: boolean } | null;
   disabled?: boolean;
 }) {
   const size = touch ? 36 : 28;
@@ -283,9 +291,15 @@ export function ComposerBar({
             {dictation.listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
           </IconButton>
         )}
-        <IconButton size={size} tone={canSend ? "positive" : "quiet"} onClick={onSend} disabled={disabled || !canSend} label={sendLabel} title={sendTitle ?? sendLabel} className="loki-composer-round loki-composer-send">
-          <Icon name="send" size={glyph} />
-        </IconButton>
+        {stop ? (
+          <IconButton size={size} onClick={stop.onStop} disabled={stop.stopping} label={stop.stopping ? "Stopping" : "Stop"} title={stop.stopping ? "stopping…" : "stop the agent's turn"} className="loki-composer-round loki-composer-stop">
+            <Icon name="stop" size={glyph} />
+          </IconButton>
+        ) : (
+          <IconButton size={size} tone={canSend ? "positive" : "quiet"} onClick={onSend} disabled={disabled || !canSend} label={sendLabel} title={sendTitle ?? sendLabel} className="loki-composer-round loki-composer-send">
+            <Icon name="send" size={glyph} />
+          </IconButton>
+        )}
       </span>
     </div>
   );

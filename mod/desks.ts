@@ -4,7 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
-import { extractHarnessEvents, isScheduledPrompt, stripHarnessMarkup, toolLabel } from "../core/harness.ts";
+import { extractHarnessEvents, isScheduledPrompt, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../core/harness.ts";
+import type { ToolStep } from "../core/attention/transcript.ts";
 import type { AskedBy } from "../core/attention/priority.ts";
 import type { Runtime } from "./app-server.ts";
 import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
@@ -207,14 +208,17 @@ export interface LocalTranscriptMessage {
   detail?: string | null;
   /** When the log line was written (its ISO `timestamp`); absent on lines without one. */
   at?: string;
+  /** On a tool row, for the thread's steps: the call's input and, from its toolResult line, what came back. */
+  tool?: ToolStep;
 }
 
 /**
  * The conversation's full text transcript from the local backend log
  * (`messages.jsonl`). Unlike the app-server's message list, this survives
  * compaction, so a tab opened late still sees the whole conversation.
- * Tool calls become one-line markers, harness notices (background task
- * results, compaction) become event rows; tool results and thinking are
+ * Tool calls become one-line markers carrying their step (the input, and the
+ * result from its toolResult line, paired by call id), harness notices
+ * (background task results, compaction) become event rows; thinking is
  * skipped. Only the last `limit` rows are returned, oldest first.
  */
 export function readLocalTranscript(
@@ -226,7 +230,19 @@ export function readLocalTranscript(
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   if (!existsSync(path)) return [];
   const out: LocalTranscriptMessage[] = [];
-  for (const line of readFileSync(path, "utf8").split("\n")) out.push(...transcriptRows(line));
+  const calls = new Map<string, LocalTranscriptMessage>();
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const result = toolResultOf(line);
+    const row = result ? calls.get(result.id) : undefined;
+    if (result) {
+      if (row?.tool) row.tool = withResult(row.tool, result.content, result.failed);
+      continue;
+    }
+    for (const r of transcriptRows(line, true)) {
+      out.push(r);
+      if (r.tool?.id) calls.set(r.tool.id, r);
+    }
+  }
   return out.length > limit ? out.slice(out.length - limit) : out;
 }
 
@@ -249,8 +265,24 @@ export function readLocalTranscriptSince(
   return { rows, lines };
 }
 
-/** One log line → its transcript rows: user and assistant text, harness notices as events, tool calls as markers. */
-function transcriptRows(line: string): LocalTranscriptMessage[] {
+/** A toolResult line: which call it answers, what came back, and whether it failed; null for any other line. */
+function toolResultOf(line: string): { id: string; content: unknown; failed: boolean } | null {
+  if (!line.includes('"toolResult"')) return null; // most lines, without parsing them twice
+  try {
+    const e = JSON.parse(line) as { type?: string; message?: { role?: string; toolCallId?: unknown; content?: unknown; isError?: unknown } };
+    const m = e.message;
+    if (e.type !== "message" || m?.role !== "toolResult" || typeof m.toolCallId !== "string") return null;
+    return { id: m.toolCallId, content: m.content, failed: m.isError === true };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One log line → its transcript rows: user and assistant text, harness notices as events, tool calls as markers
+ * (with their step when `steps`: the thread shows them; the recall worker reads text and does not need them).
+ */
+function transcriptRows(line: string, steps = false): LocalTranscriptMessage[] {
   if (!line.trim()) return [];
   let entry: { type?: string; timestamp?: unknown; message?: { role?: string; content?: unknown; metadata?: { created_at?: unknown } } };
   try {
@@ -271,17 +303,17 @@ function transcriptRows(line: string): LocalTranscriptMessage[] {
   }
   const text = (role === "user" ? stripHarnessMarkup(raw) : raw).trim();
   if (text) out.push({ role, text, ...at });
-  if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t, ...at });
+  if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t.label, ...at, ...(steps ? { tool: t.step } : {}) });
   return out;
 }
 
-function toolCalls(content: unknown): string[] {
+function toolCalls(content: unknown): Array<{ label: string; step: ToolStep }> {
   if (!Array.isArray(content)) return [];
-  const out: string[] = [];
+  const out: Array<{ label: string; step: ToolStep }> = [];
   for (const part of content) {
     if (typeof part === "object" && part !== null && (part as { type?: string }).type === "toolCall") {
-      const p = part as { name?: string; arguments?: unknown };
-      if (p.name) out.push(toolLabel(p.name, p.arguments));
+      const p = part as { name?: string; arguments?: unknown; id?: unknown };
+      if (p.name) out.push({ label: toolLabel(p.name, p.arguments), step: toolStep(p.name, p.arguments, typeof p.id === "string" ? p.id : null) });
     }
   }
   return out;

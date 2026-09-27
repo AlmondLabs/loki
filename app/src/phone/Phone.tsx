@@ -9,13 +9,14 @@ import { AgentPage, FilePage } from "./Agent";
 import { Agents, knownDescription } from "./Agents";
 import { ConversationScreen, type Thread } from "./Conversation";
 import { Archive } from "./Archive";
-import { Home, type ArchiveDesk } from "./Home";
+import { Home, type ArchiveDesk, type RenameDeskName } from "./Home";
+import { canRename } from "../shell/sidebarModel";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { More } from "./More";
 import { Search } from "./Search";
 import { AboutPage, ConnectionPage, Preferences } from "./Settings";
-import { Recall as RecallTab } from "./Recall";
+import { Learn } from "./Recall";
 import { useRecall } from "../shell/useRecall";
 import { useDeckPass } from "../recall/useDeckPass";
 import { TabBar } from "./TabBar";
@@ -24,6 +25,7 @@ import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, t
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
 import { useKeyboardInset } from "./viewport";
+import { useEdgeSwipe } from "./edgeSwipe";
 import { useModelList } from "../shell/useModelList";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
@@ -91,6 +93,9 @@ export function Phone() {
   if (gate.kind === "unpaired") return <Pair onPaired={(me) => setGate({ kind: "paired", me })} />;
   return <Paired me={gate.me} onUnpaired={() => setGate({ kind: "unpaired" })} />;
 }
+
+/** A conversation from Learn: where a lead came up, a lesson under way. */
+const openConversation = (agentId: string, conversationId: string) => navigate({ kind: "conversation", agentId, conversationId, prefill: null });
 
 /**
  * "Mac unreachable, last seen …": both sockets reconnect by themselves; this only says so. Owns the
@@ -189,7 +194,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
   // The model list for Select model, as the desktop shell keeps it: once per harness, on the first ask.
-  const models = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels });
+  const models = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
   useUnpairWatch(desk.connection, onUnpaired);
 
   const waiting = catchUpQueue(catchUp.items).length;
@@ -214,6 +219,12 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     if (deck.current) void catchUp.loadHistory(deck.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deck.currentId]);
+
+  // A lesson begun from Learn: its conversation opens and the brief goes out as the person's first message, the way the desktop begins one.
+  const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
+    openConversation(agentId, conversationId);
+    catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { desk: title, origin: "lesson" });
+  };
 
   // The conversation on screen, from the route: its title and agent from the desks list, the inbox, or the agent list.
   const conv = route.kind === "conversation" ? route : null;
@@ -242,6 +253,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   useFocusOnRoute(shellRef, place, arrival === "pop");
   // The on-screen keyboard: where it only shrinks the visual viewport, the shell fits what is visible (viewport.ts).
   useKeyboardInset(shellRef);
+  // On a page, a swipe from the left edge goes back, as on iOS (edgeSwipe.ts).
+  useEdgeSwipe(shellRef, route.kind !== "tab", onBack);
   // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
   // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
   useEffect(() => {
@@ -253,10 +266,22 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onArchive: ArchiveDesk | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
-          if (!d.conversationId) return "this desk has no conversation";
+          if (!d.conversationId) return "this chat has no conversation";
           const err = await catchUp.archiveConversation(d.conversationId, archived);
           if (!err) desk.desks.request();
           return err;
+        }
+      : null;
+  // Rename goes the same way; the new name shows at once (the mod re-broadcasts titles only at a turn's end).
+  const onRename: RenameDeskName | null =
+    attention.available && catchUp.status === "open"
+      ? async (d, name) => {
+          if (!d.conversationId) return "this chat has no conversation";
+          const err = await catchUp.renameConversation(d.conversationId, name);
+          if (err) return err;
+          desk.setDeskTitle(d.scope, name);
+          desk.desks.request();
+          return null;
         }
       : null;
 
@@ -267,20 +292,20 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const health = useHealthBuild();
   const update = <UpdateBar servedBuild={desk.servedBuild} health={health} />;
   return (
-    <div ref={shellRef} className="loki-phone loki-phone-shell">
+    <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
-        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
-        {route.kind === "learn" && <RecallTab recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} />}
+        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} onRename={onRename} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+        {route.kind === "learn" && <Learn view={route.view} recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} onBegin={beginLesson} onOpen={openConversation} />}
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
-        {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} />}
+        {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} onRename={onRename} />}
         {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "about" && <AboutPage version={catchUp.server?.version ?? null} servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
-        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} inboxBack={labelOf(inboxFrom)} />
+        <Screen tab={tab} me={me} link={link} desk={desk} catchUp={catchUp} deck={deck} due={recall.due} banner={banner} recentFolders={recentFolders} onArchive={onArchive} onRename={onRename} inboxBack={labelOf(inboxFrom)} models={models.list} onLoadModels={models.load} />
       </main>
 
       {nav ? (
@@ -299,7 +324,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
  * model is the mod's word for the conversation (the desks list), switched through the app-server as the desktop
  * does; a refused switch says why in the banner for a few seconds.
  */
-function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
+function ConversationPage({ conv, desk, catchUp, onRename, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; onRename: RenameDeskName | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
@@ -315,6 +340,7 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
     const { applied, error } = await catchUp.updateModel(rt, selection);
     if (error || !applied) return setNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
     desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+    desk.models.used(applied.handle);
   };
   return (
     <ConversationScreen
@@ -332,9 +358,11 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
       prefill={prefill}
       pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
+      rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
       onBack={onBack}
       onLoad={(rt) => void catchUp.loadThread(rt)}
       onDecide={catchUp.decide}
+      onStop={catchUp.stop}
       onAnswer={catchUp.answer}
       onSend={(rt, text, images, deskTitle) => catchUp.send(rt, text, images, { desk: deskTitle })}
       onSeen={(rt) => attention.markSeen(rt.agent_id, rt.conversation_id)}
@@ -349,7 +377,29 @@ function ConversationPage({ conv, desk, catchUp, models, onLoadModels, banner, b
  * current pass and the draft survive a round trip; Agents and More mount with their tab and get their
  * place back from the scroll memory (their data is cached above them).
  */
-function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, inboxBack }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; inboxBack: string }) {
+function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders, onArchive, onRename, inboxBack, models, onLoadModels }: { tab: Tab | null; me: Me; link: LinkState; desk: DeskApi; catchUp: CatchUp; deck: Deck; due: number; banner: ReactNode; recentFolders: () => Promise<Record<string, string[]>>; onArchive: ArchiveDesk | null; onRename: RenameDeskName | null; inboxBack: string; models: ModelEntry[] | null; onLoadModels: () => void }) {
+  // The Inbox card's model pill: the same switch as the conversation page, a refusal shown in the card's line for 4 s.
+  const [cardNote, setCardNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cardNote) return;
+    const t = setTimeout(() => setCardNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [cardNote]);
+  const cardModel = {
+    models,
+    onLoad: onLoadModels,
+    modelOf: (item: AttentionItem) => desk.modelOf(scopeFor(item.id, item.agentId)),
+    effortOf: (item: AttentionItem) => desk.reasoningEffortOf(scopeFor(item.id, item.agentId)),
+    onPick:
+      catchUp.status === "open"
+        ? async (item: AttentionItem, selection: ModelSelection) => {
+            const { applied, error } = await catchUp.updateModel(item.runtime, selection);
+            if (error || !applied) return setCardNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
+            desk.setDeskModel(scopeFor(item.id, item.agentId), applied.handle, applied.reasoningEffort);
+            desk.models.used(applied.handle);
+          }
+        : undefined,
+  };
   const { attention } = desk;
   const later = (item: AttentionItem) => {
     catchUp.unread(item);
@@ -370,6 +420,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         onRefresh={desk.desks.request}
         onPin={desk.desks.pin}
         onArchive={onArchive}
+        onRename={onRename}
         recentFolders={recentFolders}
         onCreate={(agentId, folder, name) => catchUp.createDesk(agentId, folder, name).then((rt) => (desk.desks.request(), rt))}
       />
@@ -378,7 +429,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         items={catchUp.items}
         loaded={catchUp.agentsLoaded}
         available={attention.available}
-        banner={banner}
+        banner={cardNote ? <Banner>{cardNote}</Banner> : banner}
         conversation={catchUp.conversation}
         deck={deck}
         backLabel={inboxBack}
@@ -389,6 +440,8 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
           onSend: (item, text, images) => catchUp.reply(item, text, images),
           onAnswer: (item, requestId, answers) => catchUp.answer(item.runtime, requestId, answers),
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
+          onStop: (item) => catchUp.stop(item.runtime),
+          model: cardModel,
         }}
         onApprove={catchUp.approve}
         onSeen={catchUp.seen}

@@ -6,7 +6,7 @@ import { avatarUrl } from "../desk/env";
 import type { DeskSummary } from "../desk/useDesk";
 import { AGENT_FILTERS, agentLine, agentRows, agentsShown, type AgentFilter, type AgentRowModel, type LinkState } from "./model";
 import { navigate } from "./router";
-import { Avatar, PhoneRow } from "./rows";
+import { Avatar, PhoneRow, SkeletonRows } from "./rows";
 import { Button, Chip } from "../components";
 import { Scroll, TopBar } from "./ui";
 
@@ -92,7 +92,11 @@ export function Agents({ agents, loaded, link, desks, items, api, banner }: { ag
         </ul>
         {rows.length === 0 ? (
           !loaded ? (
-            <p className="loki-phone-empty">{link === "offline" ? "The Mac is unreachable. Agents show once it answers." : "Asking the Mac…"}</p>
+            link === "offline" ? (
+              <p className="loki-phone-empty">The Mac is unreachable. Agents show once it answers.</p>
+            ) : (
+              <SkeletonRows label="Asking the Mac…" />
+            )
           ) : (
             <div className="loki-phone-empty">
               <p className="loki-phone-headline">No agents yet</p>

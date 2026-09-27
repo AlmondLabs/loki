@@ -99,6 +99,7 @@ export function useDesk() {
     devices,
     pairCode,
     servedBuild,
+    recentModels,
     widgetLogs,
     setWidgetLogs,
     waiters,
@@ -411,6 +412,8 @@ export function useDesk() {
     attention,
     phone,
     servedBuild,
+    /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
+    models: { recent: recentModels, used: (handle: string) => send({ type: "models_recent_add", handle }) },
     board,
     tasksVersion,
     recall,

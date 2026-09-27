@@ -41,3 +41,18 @@ describe("rename protocol", () => {
     socket.close();
   });
 });
+
+describe("stop protocol", () => {
+  test("abort_message for the conversation; says whether a turn was running", async () => {
+    const { socket, sent } = fake(() => ({ type: "abort_message_response", success: true, aborted: true }));
+    expect(await socket.abortTurn({ agent_id: "a1", conversation_id: "c1" })).toBe(true);
+    expect(sent[0]).toMatchObject({ type: "abort_message", runtime: { agent_id: "a1", conversation_id: "c1" } });
+    socket.close();
+  });
+
+  test("a refusal throws the app-server's own words", async () => {
+    const { socket } = fake(() => ({ type: "abort_message_response", success: false, aborted: false, error: "no such runtime" }));
+    await expect(socket.abortTurn({ agent_id: "a1", conversation_id: "c1" })).rejects.toThrow("no such runtime");
+    socket.close();
+  });
+});

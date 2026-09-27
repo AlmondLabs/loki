@@ -60,7 +60,7 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
             e.preventDefault();
             if (rows.length) setActive((a) => (Math.min(a, rows.length - 1) + (e.key === "ArrowDown" ? 1 : -1) + rows.length) % rows.length);
           }}
-          placeholder="Search desks, agents and pages"
+          placeholder="Search chats, agents and pages"
           aria-label="Search"
           role="combobox"
           aria-expanded={rows.length > 0}
@@ -112,7 +112,7 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
         {!typed && places.length === 0 && (
           <div className="loki-search-empty">
             <p className="loki-search-miss">Search loki</p>
-            <p className="loki-meta loki-meta--wrap">Desks and pages you open show here.</p>
+            <p className="loki-meta loki-meta--wrap">Chats and pages you open show here.</p>
           </div>
         )}
       </div>

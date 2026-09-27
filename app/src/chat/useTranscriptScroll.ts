@@ -17,6 +17,8 @@ import { REVEAL_PX, anchorTop, findStart, keepStart, openStart, revealStart, thr
 export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>, messages: TranscriptRow[], status: string, dividerAt: number | null = null, marks?: ReadonlyArray<{ before: number; who: string; change: string; title: string }>) {
   const pinnedRef = useRef(true);
   const [unpinned, setUnpinned] = useState(false);
+  // How many rows there were when the reader scrolled away: past it, the chip counts what came in since.
+  const [leftAt, setLeftAt] = useState<number | null>(null);
   // The window, per thread: a new first row is a new thread and opens on its newest rows again.
   const id = threadId(messages);
   const [win, setWin] = useState(() => ({ id, start: openStart(messages.length, dividerAt) }));
@@ -34,6 +36,7 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     const pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
     pinnedRef.current = pinned;
     setUnpinned(!pinned);
+    setLeftAt((at) => (pinned ? null : (at ?? messages.length)));
     if (start > 0 && nearTop(el)) revealAbove(el, anchor, setWin);
   };
   const jumpToLatest = () => {
@@ -41,6 +44,7 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     if (!el) return;
     pinnedRef.current = true;
     setUnpinned(false);
+    setLeftAt(null);
     el.scrollTo({ top: el.scrollHeight });
     // Back at the bottom: the window folds to the newest rows again (the layout effect keeps the bottom in view).
     const fold = openStart(messages.length, dividerAt);
@@ -49,6 +53,7 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
   const unpin = () => {
     pinnedRef.current = false;
     setUnpinned(true);
+    setLeftAt((at) => at ?? messages.length);
   };
   /** Mount the oldest row holding `query` before the browser's find runs over the page (it only sees what is mounted). */
   const reveal = (query: string) => {
@@ -93,7 +98,7 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     const last = messages[messages.length - 1];
     if (!pinnedRef.current && last?.role !== "user") return;
     pinnedRef.current = true;
-    setUnpinned(false);
+    setUnpinned(false); // the scroll to the bottom that follows clears the new-message count too (onScroll)
     if (frame.current) return;
     frame.current = requestAnimationFrame(() => {
       frame.current = 0;
@@ -107,7 +112,9 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
     },
     [],
   );
-  return { unpinned, onScroll, jumpToLatest, unpin, start, reveal };
+  // Rows that came in since the reader scrolled away (a new thread starts at none).
+  const fresh = unpinned && leftAt !== null ? Math.max(0, messages.length - leftAt) : 0;
+  return { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal };
 }
 
 type Win = { id: string; start: number };

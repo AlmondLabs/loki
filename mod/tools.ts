@@ -72,8 +72,8 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
     letta.tools.register({
       name: "desk_state",
       description:
-        "Read the loki canvas (the user's browser widget desk). Returns the widgets on this conversation's desk " +
-        "and on the shared desk: file, type, title, data (with the user's gesture edits applied), position, and any " +
+        "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
+        "and on the shared canvas: file, type, title, data (with the user's gesture edits applied), position, and any " +
         "build/runtime error. To ADD or CHANGE a widget, write a file — do not look for a render tool: " +
         `${deps.widgetsDir}/<desk>/<name>.json for a kit widget ({ "type", "title", "data" }; kit types — ${kitLine}) ` +
         `or <name>.tsx for a custom React component (export default function Widget({ data, onSet }); import kit pieces from "@loki/kit"). ` +
@@ -82,7 +82,7 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
       parameters: {
         type: "object",
         properties: {
-          desk: { type: "string", description: 'Desk id; omit for the active conversation. "shared" for the shared desk only.' },
+          desk: { type: "string", description: 'Canvas id (a conversation id); omit for the active conversation. "shared" for the shared canvas only.' },
         },
         additionalProperties: false,
       },

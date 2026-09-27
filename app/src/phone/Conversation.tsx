@@ -9,7 +9,9 @@ import { Conversation, type ChatStatus } from "../chat/Conversation";
 import { avatarUrl } from "../desk/env";
 import { Button, Sheet } from "../components";
 import { dayLabel, threadNotice, unreadBoundary } from "./deck";
+import { useMessageActions } from "./MessageActions";
 import { SheetRow } from "./Home";
+import { RenameSheet } from "./RenameSheet";
 import { useViewed } from "../shared/useViewed";
 import { doneAction } from "../shell/sidebarModel";
 import { Icon } from "./icons";
@@ -59,9 +61,11 @@ export function ConversationScreen({
   prefill = null,
   pinned = null,
   onPin,
+  rename = null,
   onBack,
   onLoad,
   onDecide,
+  onStop,
   onAnswer,
   onSend,
   onSeen,
@@ -91,9 +95,13 @@ export function ConversationScreen({
   /** The desk's pin state, when the mod knows this conversation as a desk; null hides the action. */
   pinned?: boolean | null;
   onPin?: (pinned: boolean) => void;
+  /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the app-server cannot take it. */
+  rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
+  /** Stop this conversation's turn, so you can take over; resolves to an error or null. */
+  onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
   onSend: (rt: Runtime, text: string, images: ImageAttachment[], desk: string | null) => void;
   /** Done: the Inbox's clear (seen_mark). */
@@ -106,6 +114,7 @@ export function ConversationScreen({
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     onLoad(rt);
@@ -118,6 +127,7 @@ export function ConversationScreen({
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
   const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt) }), [people, dividerAt, item?.lastMessageAt]);
+  const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
     banner ??
@@ -134,33 +144,38 @@ export function ConversationScreen({
       <ThreadHeader thread={thread} view={view} waiting={waiting} backLabel={backLabel} onBack={onBack} onActions={() => setActionsOpen(true)} />
       {/* The phone's column is the reading measure (phone.css lifts the desktop's bubble cap under this class). */}
       <div className="loki-phone-thread loki-phone-convo-body">
-        <Conversation
-          touch
-          dim={false}
-          gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-          view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
-          models={models}
-          actions={{
-            onLoadModels,
-            onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
-            onSend: (text, images = []) => onSend(rt, text, images, thread.title),
-            onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
-            onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
-          }}
-          agentName={agentName}
-          prefill={prefill}
-          layout={layout}
-          notice={notice || null}
-          placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
-          draft={{ value: draft, onChange: setDraft }}
-        />
+        {message.wrap(
+          <Conversation
+            touch
+            dim={false}
+            gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
+            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
+            models={models}
+            actions={{
+              onLoadModels,
+              onPickModel: onPickModel ? (selection) => onPickModel(rt, selection) : undefined,
+              onSend: (text, images = []) => onSend(rt, text, images, thread.title),
+              onAnswer: view.question ? (answers) => onAnswer(rt, view.question!.requestId, answers) : undefined,
+              onApprove: view.pending ? (behavior) => onDecide(rt, view.pending!.requestId, behavior) : undefined,
+              onStop: onStop ? () => onStop(rt) : undefined,
+            }}
+            agentName={agentName}
+            prefill={prefill}
+            layout={layout}
+            notice={notice || null}
+            placeholder={view.question ? "Answer, or pick above" : view.pending ? "Reply, or decide below" : `Message ${agentName}`}
+            draft={{ value: draft, onChange: setDraft }}
+          />
+        )}
       </div>
+      {message.sheet}
       {actionsOpen && (
         <Sheet label={`${thread.title ?? agentName} actions`} onClose={() => setActionsOpen(false)} placement="bottom" className="loki-phone-sheet">
           <ul className="loki-phone-list">
             {canSee && <SheetRow icon="check" label="Mark as done" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
             {canUndo && <SheetRow icon="history" label="Mark as not done" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
             {pinned !== null && onPin && <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />}
+            {rename && <SheetRow icon="pencil" label="Rename" aside={rename.onRename ? null : "Not connected"} disabled={!rename.onRename} onClick={() => (setActionsOpen(false), setRenaming(true))} />}
             <SheetRow icon="person" label={`${thread.agentName ?? "Agent"}'s profile`} onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))} />
           </ul>
           <Button size="touch" tone="paper" block onClick={() => setActionsOpen(false)}>
@@ -168,6 +183,7 @@ export function ConversationScreen({
           </Button>
         </Sheet>
       )}
+      {renaming && rename?.onRename && <RenameSheet name={rename.name} onRename={rename.onRename} onClose={() => setRenaming(false)} />}
     </>
   );
 }

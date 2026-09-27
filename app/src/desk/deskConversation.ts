@@ -52,6 +52,7 @@ export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: Retu
     onPickModel: deskRuntime && onPickModel ? (selection) => onPickModel(scope, deskRuntime, selection) : undefined,
     onPickMode: deskRuntime && onPickMode ? (m) => onPickMode(scope, deskRuntime, m) : undefined,
     onCancelQueued: (text) => deskRuntime && catchUp.cancelQueued(deskRuntime, text),
+    onStop: deskRuntime ? () => catchUp.stop(deskRuntime) : undefined,
   };
   return { view, actions };
 }

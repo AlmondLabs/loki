@@ -206,7 +206,7 @@ const PAGE_TABS: readonly Tab<AgentPage>[] = AGENT_PAGES.map((p) => ({ id: p, la
 function NoAgents({ onNew }: { onNew: () => void }) {
   return (
     <EmptyPane title="No agents yet.">
-      <p>An agent keeps its own memory, desks and skills here.</p>
+      <p>An agent keeps its own memory, chats and skills here.</p>
       <div style={{ marginTop: 12 }}>
         <Button tone="brass" onClick={onNew}>new agent</Button>
       </div>

@@ -187,6 +187,17 @@ export class AppServerSocket {
     return res;
   }
 
+  /**
+   * abort_message: stop the conversation's turn where it is (an approval it waits on is interrupted too), so the
+   * person can take over. Resolves to whether anything was running; the harness then reports the turn's end
+   * (loop status, turn_finished) as for any turn.
+   */
+  async abortTurn(rt: Runtime): Promise<boolean> {
+    const res = await this.request("abort_message", { runtime: rt }, 15_000);
+    if (res.success === false) throw new Error(typeof res.error === "string" ? res.error : "the harness did not stop the turn");
+    return (res as { aborted?: boolean }).aborted === true;
+  }
+
   /** Answer an AskUserQuestion: an allow decision carrying the tool input with `answers` filled in. */
   async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
     try {
@@ -302,7 +313,7 @@ export class AppServerSocket {
   /** list_models: every concrete model preset this harness can run, including selectable effort variants. */
   async listModels(): Promise<ModelEntry[]> {
     const res = await this.request("list_models", {}, 20_000);
-    return modelEntriesFromWire(res.entries);
+    return modelEntriesFromWire(res.entries, res.available_handles);
   }
 
   /** conversation_update: archive / unarchive (and other record fields). The main chat cannot be updated. */

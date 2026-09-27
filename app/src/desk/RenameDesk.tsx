@@ -50,13 +50,13 @@ export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
   };
 
   const sheet = (
-    <Sheet label="Rename desk" onClose={onClose} width={440} top="18vh">
+    <Sheet label="Rename chat" onClose={onClose} width={440} top="18vh">
       <div style={{ padding: "16px 18px 4px", display: "grid", gap: 12 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)" }}>Rename desk</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)" }}>Rename chat</div>
         <Field
           ref={fieldRef}
           name="desk-name"
-          aria-label="Desk name"
+          aria-label="Chat name"
           autoComplete="off"
           data-1p-ignore
           data-lpignore="true"
@@ -109,7 +109,7 @@ export const NO_RENAME_REASON = "Not connected";
  */
 export function renameDesk(desk: Desk, catchUp: CatchUp, notice: (m: string) => void) {
   return async (d: Pick<DeskSummary, "scope" | "conversationId">, name: string): Promise<string | null> => {
-    if (!d.conversationId) return "this desk has no conversation to rename";
+    if (!d.conversationId) return "this chat has no conversation to rename";
     const err = await catchUp.renameConversation(d.conversationId, name);
     if (err) return err;
     desk.setDeskTitle(d.scope, name);

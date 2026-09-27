@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A memory palace your agent builds.</b><br>
-  A desk for <a href="https://docs.letta.com">Letta Code</a> agents on macOS, with Windows and Linux in preview:
+  A canvas for <a href="https://docs.letta.com">Letta Code</a> agents on macOS, with Windows and Linux in preview:
   live widgets the agent writes as files, an inbox of everything waiting on you, a shared task board, flashcards
   from your conversations, and your phone as a remote.
 </p>
@@ -19,12 +19,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/desk.png" width="900" alt="A desk's Desk tab, beside its Messages tab: a plan for Saturday, last night's sleep, the week's runs as a bar chart, a packing list, a run streak, a thermostat slider">
+  <img src="docs/images/desk.png" width="900" alt="A chat's Canvas tab, beside its Messages tab: a plan for Saturday, last night's sleep, the week's runs as a bar chart, a packing list, a run streak, a thermostat slider">
 </p>
 
-Agents talk in text. loki gives yours a desk. Ask for a chart, a checklist, a slider, a plan for the day, and
-the agent writes a small file; a second later it is on the desk, and you can drag it, tick it, slide it. What
-you did rides along on your next message, so the agent sees the desk the way you left it.
+Agents talk in text. loki gives yours a canvas. Ask for a chart, a checklist, a slider, a plan for the day, and
+the agent writes a small file; a second later it is on the canvas, and you can drag it, tick it, slide it. What
+you did rides along on your next message, so the agent sees the canvas the way you left it.
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
@@ -51,19 +51,19 @@ that provider charges. Everything else, including the Homebrew install of the fi
 
 | | | |
 |---|---|---|
-| **Desk** | ⌘1 | One desk per conversation, furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Desks sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Desk** is the canvas, to pan, zoom, arrange, undo. ⌘K finds any desk, agent or page. |
-| **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards, highest score first: blocked agents, then warm replies to you (their prompt is still cached, so answering now is cheap), then the rest. Approve and reply inline; a reply keeps the card while the answer streams in. Opening a desk only marks it viewed: its card stays until you act or **Mark as done** (⌘⇧↵). ⌥Space opens it from anywhere on the Mac. |
-| **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a desk, or dispatch so the agent starts now. |
+| **Chats** | ⌘1 | One chat per conversation, its canvas furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Chats sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Canvas** holds the widgets, to pan, zoom, arrange, undo. ⌘K finds any chat, agent or page. |
+| **Inbox** | ⌘2 | Every conversation that is waiting on you, as cards, highest score first: blocked agents, then warm replies to you (their prompt is still cached, so answering now is cheap), then the rest. Approve and reply inline; a reply keeps the card while the answer streams in. Opening a chat only marks it viewed: its card stays until you act or **Mark as done** (⌘⇧↵). ⌥Space opens it from anywhere on the Mac. |
+| **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a chat, or dispatch so the agent starts now. |
 | **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, Letta's reflection settings, and its skills with one-click refresh from upstream. |
-| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches on a desk of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
-| **Phone** | | The inbox, every desk's conversation, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and done agree with the Mac. Mac only for now. |
+| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
+| **Phone** | | The inbox, every chat, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and done agree with the Mac. Mac only for now. |
 
 Keys are written the Mac's way. On Windows and Linux ⌘ is Ctrl and ⌥ is Alt, and loki shows them that way; the
 phone, ⌥Space, dictation and the menu-bar item are not there yet ([the manual](docs/manual.md#windows-and-linux)
 lists what differs).
 
 <p align="center">
-  <img src="docs/images/board.png" width="900" alt="The board: a sidebar of views and agents, then open, in progress, blocked and done columns, each task stamped with who filed it and which desk holds it">
+  <img src="docs/images/board.png" width="900" alt="The board: a sidebar of views and agents, then open, in progress, blocked and done columns, each task stamped with who filed it and which chat holds it">
 </p>
 
 <p align="center">
@@ -137,7 +137,7 @@ the `.dmg`, Windows and Linux routes need a Node 22.19 or newer (`brew install n
 never downloads Node; Welcome says what to run and checks again. On first launch loki uses the Letta Code already
 on the machine — the same `letta` a terminal runs — or installs it with `npm install -g @letta-ai/letta-code`,
 asks for a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and others; you pay that provider,
-loki never sees the key), and helps you name your first agent. Then ask it to put something on the desk. If
+loki never sees the key), and helps you name your first agent. Then ask it to put something on the canvas. If
 Letta Desktop or a `letta server` is already running, loki attaches to that harness instead of launching one.
 loki runs whatever Letta Code is installed; it was last tested with 0.32.10, and Settings › Letta says where
 yours stands against that and offers the update.
@@ -146,17 +146,17 @@ yours stands against that and offers the update.
 
 Say, in the chat:
 
-> put my runs this week on the desk as a bar chart
+> put my runs this week on the canvas as a bar chart
 
 The agent writes one file:
 
 ```json
-// ~/.letta/loki/widgets/<desk>/runs.json
+// ~/.letta/loki/widgets/<desk>/runs.json   (<desk> is the chat's id)
 { "type": "chart-card", "title": "Runs this week",
   "data": { "kind": "bar", "yLabel": "km", "points": [ { "x": "Mon", "y": 5.2 }, { "x": "Wed", "y": 8.1 } ] } }
 ```
 
-and the chart is on the desk before the reply finishes. Five kit widgets need only JSON (`stat`, `list-card`,
+and the chart is on the canvas before the reply finishes. Five kit widgets need only JSON (`stat`, `list-card`,
 `chart-card`, `slider-control`, `info-card`); anything else is a `.tsx` file with a default-exported React
 component. Editing the file changes the widget; deleting it removes it. The [skill](skills/loki/SKILL.md)
 the agent reads is the whole contract.
@@ -165,19 +165,19 @@ the agent reads is the whole contract.
 
 ```mermaid
 flowchart LR
-  you([you]) <--> app[loki.app<br/>the desk, inbox, board]
+  you([you]) <--> app[loki.app<br/>chats, inbox, board]
   app <-->|"/appserver tunnel"| mod[loki mod<br/>inside the Letta Code harness]
   mod <--> harness[Letta Code<br/>agents, memory, tools]
   harness --> files[("~/.letta/loki/widgets/<br/>.json and .tsx")]
   files -->|"watched, hot-reloaded"| app
-  app -->|"what you did on the desk<br/>rides on your next message"| mod
+  app -->|"what you did on the canvas<br/>rides on your next message"| mod
 ```
 
 Three parts, one repo: a **Letta mod** that runs inside the harness and owns the files, a **Rust shell** that
 finds or installs Letta Code, launches or attaches to the harness and hosts the window, and a **React app** that
-renders the desk. The mod streams conversations to the app through a tunnel, the app watches the widget files
-through Vite, and your gestures on the desk go back to the agent as context on the next turn. Every Letta
-harness on the Mac loads the mod, but only the one hosting an app-server serves the desk; a terminal `letta`
+renders the canvas. The mod streams conversations to the app through a tunnel, the app watches the widget files
+through Vite, and your gestures on the canvas go back to the agent as context on the next turn. Every Letta
+harness on the Mac loads the mod, but only the one hosting an app-server serves the app; a terminal `letta`
 session logs one line and stands down. Nothing leaves your machine except your messages to the provider you
 chose. [docs/architecture.md](docs/architecture.md) has the long version.
 

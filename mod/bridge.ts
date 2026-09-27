@@ -70,6 +70,8 @@ import { isLanVia } from "./lan.ts";
  *    widget_status { id, error }             runtime/HMR error from the tab (null clears)
  *    list_desks    {}
  *    pin_set       { agentId, conversationId, pinned }   → broadcast desks (pins live in ~/.letta/pinned-conversations.json)
+ *    models_recent_add { handle }   a model picked in loki → broadcast models_recent { recent } (mod/models.ts);
+ *                                   every connection also gets models_recent when it opens
  *  The phone listener (mod/lan.ts), controlled from Settings:
  *    lan_get {}                    reply: lan_status { enabled, address, addresses, host, port, appServed, error, via, tailscale }
  *                                  (re-reads Tailscale first; tailscale = { installed, running, ip, name, serveUrl, error } | null)
@@ -171,6 +173,8 @@ export interface BridgeDeps {
   };
   /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
+  /** The models used lately, for the picker's quick picks (mod/models.ts): loki's picks, then Letta Code's own. */
+  recentModels?: { read: () => string[]; add: (handle: string) => string[] };
   /** Recall (mod/recall.ts, mod/recall-worker.ts): the cards on disk and a way to run the worker now. */
   recall?: {
     store: import("./recall.ts").RecallStore;
@@ -236,10 +240,12 @@ const isPoint = (v: unknown): boolean =>
 /**
  * The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`.
  * Reads and the user's own markers: desks, transcripts, seen/snooze, pins, recent folders, and the
- * read-only agent pages (record, memory tree and files, git log and diffs). Never gestures, the board,
- * skills, or the pairing and device frames.
+ * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
+ * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
+ * and a model picked there, for the shared quick picks.
+ * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
@@ -258,6 +264,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       client.send({ type: "config", appServer: appServerAvailable?.() ?? false });
       client.send(deskFrame(client.scope));
       if (client.scope !== SHARED_SCOPE) client.send(deskFrame(SHARED_SCOPE));
+      if (deps.recentModels) client.send({ type: "models_recent", recent: deps.recentModels.read() });
     },
 
     onMessage(client: Client, msg: Record<string, unknown>) {
@@ -304,7 +311,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const after = store.arrange(client.scope);
           if (after !== before) {
             const ids = Object.entries(after.layout).filter(([, l]) => !l.hidden).map(([id]) => id);
-            gestures.record(client.scope, `tidied the desk (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
+            gestures.record(client.scope, `tidied the canvas (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
             track("desk_arranged");
             broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, client.scope === SHARED_SCOPE ? undefined : client.scope);
           }
@@ -395,6 +402,11 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           deps.setPin(msg.agentId, msg.conversationId, msg.pinned === true);
           track("desk_pinned", { pinned: msg.pinned === true });
           deps.broadcast({ type: "desks", desks: listDesks?.() ?? [] }); // every tab's tree follows
+          return;
+        }
+        case "models_recent_add": {
+          if (typeof msg.handle !== "string" || !msg.handle || !deps.recentModels) return;
+          deps.broadcast({ type: "models_recent", recent: deps.recentModels.add(msg.handle) }); // the Mac's windows and the phones pick from the same list
           return;
         }
         case "folders_get": {
@@ -544,7 +556,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
               })
               .catch(fail);
           } else if (msg.type === "task_assign") {
-            if (typeof msg.conversationId !== "string" || typeof msg.desk !== "string") return fail(new Error("assign needs a conversation and a desk"));
+            if (typeof msg.conversationId !== "string" || typeof msg.desk !== "string") return fail(new Error("assign needs a conversation and a chat"));
             void board
               .assign(ids, { agent: typeof msg.agentName === "string" ? msg.agentName : null, agentId: typeof msg.agentId === "string" ? msg.agentId : null, conversation: msg.conversationId, desk: msg.desk }, msg.start === true ? "in_progress" : "open")
               .then(done)

@@ -149,6 +149,34 @@ const PATHS = {
   ),
   moon: <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" />,
   // an agent's memory: a page with its corner folded, and the folder that holds pages
+  // a prompt in a window: the shell, for the commands an agent ran
+  terminal: (
+    <>
+      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+      <path d="m7 10 3 2.5L7 15" />
+      <path d="M12.5 15H17" />
+    </>
+  ),
+  stop: <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor" />,
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />
+      <path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" />
+    </>
+  ),
+  select: (
+    <>
+      <path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2" />
+      <path d="M8 9h8M8 12h8M8 15h5" />
+    </>
+  ),
+  // rename: a pencil
+  pencil: (
+    <>
+      <path d="M4 20h4L19 9l-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </>
+  ),
   file: (
     <>
       <path d="M6 3h8l4 4v14H6z" />

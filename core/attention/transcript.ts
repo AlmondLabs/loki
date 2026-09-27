@@ -2,9 +2,24 @@
  * One row of a conversation as loki shows it everywhere (desk chat, Catch Up, the phone):
  * user and assistant bubbles, quiet tool markers, collapsible harness events.
  */
+/**
+ * A tool the agent ran, as the thread's steps show it: what it was, what it was given (the command, the path,
+ * or the whole input), what came back, and whether it failed. Input and output are capped (TOOL_TEXT_MAX) so a
+ * long log never rides every frame; `id` pairs a result with its call. Rows from before this was kept have none.
+ */
+export interface ToolStep {
+  name: string;
+  id?: string;
+  input?: string;
+  output?: string;
+  failed?: boolean;
+}
+
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";
   text: string;
+  /** On a tool row: the call, its input and its result, when they were seen. */
+  tool?: ToolStep;
   summary?: string | null;
   detail?: string | null;
   /** Data URLs of images sent with a user message (live rows only; history shows a marker). */
@@ -20,8 +35,9 @@ export interface TranscriptRow {
 }
 
 /** A harness history message as a row: its time kept when it has one, left off when it has none. */
-export function fromHistory(m: { role: TranscriptRow["role"]; text: string; summary?: string | null; detail?: string | null; at?: string | null }): TranscriptRow {
+export function fromHistory(m: { role: TranscriptRow["role"]; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }): TranscriptRow {
   const row: TranscriptRow = { role: m.role, text: m.text };
+  if (m.tool) row.tool = m.tool;
   if (m.summary !== undefined) row.summary = m.summary;
   if (m.detail !== undefined) row.detail = m.detail;
   if (m.at) row.at = m.at;

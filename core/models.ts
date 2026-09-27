@@ -9,6 +9,10 @@ export interface ModelEntry {
   isDefault?: boolean;
   isFeatured?: boolean;
   reasoningEffort?: ReasoningEffort;
+  /** False when the harness named the handles this account can reach and this is not one (`available_handles`). */
+  available?: false;
+  /** Among the models used lately (mod/models.ts): 0 is the latest. Set by the app, not the wire. */
+  recent?: number;
 }
 
 /** A concrete list_models preset. The id preserves provider-specific settings attached to that preset. */
@@ -32,9 +36,14 @@ export function isReasoningEffort(value: unknown): value is ReasoningEffort {
   return typeof value === "string" && (REASONING_EFFORTS as readonly string[]).includes(value);
 }
 
-/** Normalize the list_models wire entries while retaining effort metadata from each preset. */
-export function modelEntriesFromWire(value: unknown): ModelEntry[] {
+/**
+ * Normalize the list_models wire entries while retaining effort metadata from each preset. `availableHandles`
+ * is the reply's `available_handles`: a list marks every other handle unavailable; null (the lookup failed) or
+ * absent (an older harness) marks none.
+ */
+export function modelEntriesFromWire(value: unknown, availableHandles?: unknown): ModelEntry[] {
   if (!Array.isArray(value)) return [];
+  const reachable = Array.isArray(availableHandles) ? new Set(availableHandles.filter((h): h is string => typeof h === "string")) : null;
   return value.flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const entry = raw as Record<string, unknown>;
@@ -49,6 +58,7 @@ export function modelEntriesFromWire(value: unknown): ModelEntry[] {
       ...(typeof entry.description === "string" ? { description: entry.description } : {}),
       ...(entry.isDefault === true ? { isDefault: true } : {}),
       ...(entry.isFeatured === true ? { isFeatured: true } : {}),
+      ...(reachable && !reachable.has(handle) ? { available: false as const } : {}),
     };
     const efforts = reasoningEffortsFromWireEntry(entry, updateArgs, handle);
     return efforts.length ? efforts.map((reasoningEffort) => ({ ...base, reasoningEffort })) : [base];
@@ -101,4 +111,11 @@ export function reasoningEffortFromSettings(value: unknown): ReasoningEffort | n
   }
   if (settings.thinking && typeof settings.thinking === "object" && (settings.thinking as Record<string, unknown>).type === "disabled") return "none";
   return null;
+}
+
+/** The entries with each handle's place among the models used lately (`recent`, 0 the latest); the rest unmarked. */
+export function withRecent(entries: ModelEntry[], recent: readonly string[]): ModelEntry[] {
+  if (!recent.length) return entries;
+  const rank = new Map(recent.map((h, i) => [h, i]));
+  return entries.map((entry) => (rank.has(entry.handle) ? { ...entry, recent: rank.get(entry.handle)! } : entry));
 }

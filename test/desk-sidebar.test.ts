@@ -225,11 +225,11 @@ describe("the sidebar, rendered", () => {
     const { DeskSidebar } = await import("../app/src/shell/DeskSidebar.tsx");
     const noop = () => {};
     const html = renderToStaticMarkup(createElement(DeskSidebar, { desks, agents: [], items: [item("a1", "jira", "approval")], current: "aws", connected: false, onOpen: noop, onNew: noop, onPin: noop, onArchive: noop, onRename: async () => null, avatar: () => null }));
-    expect(html).toContain('aria-label="New desk"');
-    expect(html).toContain('placeholder="Find a desk…"');
+    expect(html).toContain('aria-label="New chat"');
+    expect(html).toContain('placeholder="Find a chat…"');
     expect(html.indexOf(">Pinned<")).toBeLessThan(html.indexOf(">ira<"));
     expect(html.indexOf(">ira<")).toBeLessThan(html.indexOf(">friday<"));
-    expect(html).toContain('aria-label="New desk with friday"');
+    expect(html).toContain('aria-label="New chat with friday"');
     expect(html).toContain("unread, 1 needs approval</span>");
     expect(html).toMatch(/aria-current="page"[^>]*>(?:(?!<\/button>).)*aws/);
     // The archive is folded by default: its entry shows, its rows do not.
@@ -247,8 +247,8 @@ describe("the rename dialog, rendered", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { RenameDesk } = await import("../app/src/desk/RenameDesk.tsx");
     const html = renderToStaticMarkup(createElement(RenameDesk, { name: "Meeting notes", onClose: () => {}, onRename: async () => null }));
-    expect(html).toContain('aria-label="Rename desk"');
-    expect(html).toContain(">Rename desk<");
+    expect(html).toContain('aria-label="Rename chat"');
+    expect(html).toContain(">Rename chat<");
     expect(html).toContain('value="Meeting notes"');
     expect(html).toContain(`maxLength="${DESK_NAME_MAX}"`);
     expect(html).toMatch(/<button[^>]*disabled[^>]*>Save<\/button>/);

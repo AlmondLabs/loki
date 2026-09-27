@@ -5,6 +5,8 @@
  * the mod for the chat mirror, the browser for the Catch Up thread.
  */
 
+import type { ToolStep } from "./attention/transcript.ts";
+
 export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
@@ -47,7 +49,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     const desk = m[1] ?? null;
     const lines = m[2].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
     out.push({
-      text: "desk activity",
+      text: "canvas activity",
       summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
       detail: lines.length ? lines.join("\n") : null,
     });
@@ -97,6 +99,8 @@ export interface TranscriptMessage {
   at: string | null;
   summary?: string | null;
   detail?: string | null;
+  /** On a tool row: the call and, once it came back, its result (attention/transcript.ts ToolStep). */
+  tool?: ToolStep;
 }
 
 /**
@@ -123,8 +127,19 @@ export function toTranscript(messages: Array<Record<string, unknown>>): Transcri
       }
       case "tool_call_message":
       case "approval_request_message": {
-        const tc = m.tool_call as { name?: string; arguments?: unknown } | undefined;
-        if (tc?.name) out.push({ role: "tool", text: toolLabel(tc.name, tc.arguments), at });
+        const tc = m.tool_call as { name?: string; arguments?: unknown; tool_call_id?: string } | undefined;
+        if (!tc?.name) break;
+        const id = tc.tool_call_id;
+        // The same call can come as a tool call and again as its approval request: one row.
+        if (id && out.some((r) => r.tool?.id === id)) break;
+        out.push({ role: "tool", text: toolLabel(tc.name, tc.arguments), at, tool: toolStep(tc.name, tc.arguments, id) });
+        break;
+      }
+      case "tool_return_message": {
+        const id = typeof m.tool_call_id === "string" ? m.tool_call_id : null;
+        let row: TranscriptMessage | undefined;
+        for (let k = out.length - 1; k >= 0 && id && !row; k--) if (out[k].tool?.id === id) row = out[k];
+        if (row?.tool) row.tool = withResult(row.tool, m.tool_return, m.status === "error");
         break;
       }
       default:
@@ -142,6 +157,60 @@ export function looksLikeQuestion(text: string | null): boolean {
   if (!text) return false;
   const tail = text.trim().split("\n").filter(Boolean).slice(-3).join(" ");
   return /\?\s*$/.test(tail) || /\b(should I|do you want|which (one|of)|let me know|your call|confirm)\b/i.test(tail);
+}
+
+/** The most of a tool's input or output a step keeps: enough to read, not a whole log on every frame. */
+export const TOOL_TEXT_MAX = 4000;
+
+const cap = (s: string): string => (s.length > TOOL_TEXT_MAX ? `${s.slice(0, TOOL_TEXT_MAX)}\n… ${s.length - TOOL_TEXT_MAX} more characters` : s);
+
+const argsOf = (input: unknown): Record<string, unknown> | null => {
+  if (input && typeof input === "object" && !Array.isArray(input)) return input as Record<string, unknown>;
+  if (typeof input !== "string") return null;
+  try {
+    const parsed = JSON.parse(input) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null; // partial or non-JSON arguments
+  }
+};
+
+/**
+ * What a step shows as the tool's input: the part a reader recognises in full (the shell command, the path, the
+ * pattern), else the whole input as JSON; nothing when it has none, or it has not finished arriving.
+ */
+export function toolInput(name: string, input: unknown): string | undefined {
+  const args = argsOf(input);
+  if (!args) return undefined;
+  const pick = ["command", "file_path", "path", "pattern", "query", "url", "prompt", "description"].find((k) => typeof args[k] === "string" && (args[k] as string).trim());
+  if (pick && name !== "AskUserQuestion") return cap((args[pick] as string).trim());
+  const json = JSON.stringify(args, null, 2);
+  return json === "{}" ? undefined : cap(json);
+}
+
+/** What came back from a tool, as text: a string, the text of content parts, or JSON for anything else. */
+export function toolOutput(raw: unknown): string | undefined {
+  let text: string;
+  if (typeof raw === "string") text = raw;
+  else if (Array.isArray(raw)) text = raw.map((p) => (typeof p === "string" ? p : p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : "")).join("\n");
+  else if (raw === undefined || raw === null) return undefined;
+  else text = JSON.stringify(raw, null, 2);
+  return text ? cap(text) : undefined;
+}
+
+/** A call as a step: its name, its id, and its input when it has one. */
+export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
+  const step: ToolStep = { name };
+  if (id) step.id = id;
+  const given = toolInput(name, input);
+  if (given !== undefined) step.input = given;
+  return step;
+}
+
+/** The step once its result came back (a new object: rows that changed are new). */
+export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolStep {
+  const output = toolOutput(raw);
+  return { ...step, ...(output !== undefined ? { output } : {}), ...(failed ? { failed: true } : {}) };
 }
 
 /**

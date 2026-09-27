@@ -56,9 +56,12 @@ export const drafts = createDrafts();
  * the empty draft and ignores writes. Every screen showing the same conversation sees the same text.
  */
 export function useDraft(key: string | null, store: Drafts = drafts): [Draft, (d: Draft) => void, () => void] {
+  const read = () => (key ? store.get(key) : EMPTY_DRAFT);
+  // the same read for a server render (the tests render cards to markup)
   const draft = useSyncExternalStore(
     useCallback((fn: () => void) => (key ? store.subscribe(key, fn) : () => {}), [key, store]),
-    () => (key ? store.get(key) : EMPTY_DRAFT),
+    read,
+    read,
   );
   const set = useCallback((d: Draft) => key && store.set(key, d), [key, store]);
   const clear = useCallback(() => key && store.clear(key), [key, store]);

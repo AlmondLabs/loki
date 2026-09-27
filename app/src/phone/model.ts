@@ -12,6 +12,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { DeskSummary } from "../desk/useDesk";
 import { archivedDesks, liveDesks } from "../shell/DeskTree";
+import { sidebarModel, type SidebarSection } from "../shell/sidebarModel";
 import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
@@ -243,7 +244,7 @@ export function liveDeskCount(desks: Array<{ agentId: string | null; status: str
 
 /** "3 desks live", "1 desk live", "no desks live". */
 export function liveDesksLabel(n: number): string {
-  return n === 0 ? "no desks live" : `${n} desk${n === 1 ? "" : "s"} live`;
+  return n === 0 ? "no chats live" : `${n} chat${n === 1 ? "" : "s"} live`;
 }
 
 /**
@@ -354,7 +355,23 @@ export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
   if (kind === "inbox") return c.inbox ? `${c.inbox} waiting` : "All caught up";
   if (kind === "learn") return c.learn ? `${c.learn} due` : "Nothing due";
   if (kind === "agents") return c.running ? `${c.running} running` : n(c.agents, "agent");
-  return c.archive ? n(c.archive, "desk") : "None yet";
+  return c.archive ? n(c.archive, "chat") : "None yet";
+}
+
+/**
+ * Home's desks, grouped as the desktop sidebar groups them (shell/sidebarModel.ts, so the two cannot drift):
+ * Pinned, then one section per agent by its latest activity, the main chat first. A conversation already in
+ * "Needs your attention" is not repeated below it (R16), and a section left with nothing is dropped.
+ */
+export function homeDeskSections(desks: DeskSummary[], items: AttentionItem[], attention: HomeAttention[], query: string, agents: Array<{ id: string; name: string | null }>): SidebarSection[] {
+  const above = new Set(attention.map((a) => `${a.item.agentId}/${a.item.id}`));
+  const named = agents.flatMap((a) => (a.name ? [{ id: a.id, name: a.name }] : []));
+  return sidebarModel(desks, items, { query, agents: named })
+    .sections.map((sec) => {
+      const rows = sec.rows.filter((r) => !above.has(`${r.desk.agentId}/${r.desk.conversationId}`));
+      return { ...sec, rows, waiting: rows.filter((r) => r.kind === "waits").length };
+    })
+    .filter((sec) => sec.rows.length > 0);
 }
 
 /** A waiting conversation on Home, with its desk when it has one (the desk names it better than the item). */
@@ -490,7 +507,7 @@ export function moreSections(s: { link: LinkState; agents: number; running: numb
       rows: [
         { id: "agents", icon: "agents", label: "Agents", aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null, to: { kind: "tab", tab: "agents" } },
         { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
-        { id: "archive", icon: "archive", label: "Archived desks", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
+        { id: "archive", icon: "archive", label: "Archived chats", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
         { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },
       ],
     },

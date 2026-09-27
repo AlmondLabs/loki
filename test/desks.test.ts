@@ -66,7 +66,7 @@ describe("desk registry", () => {
 });
 
 describe("local transcript", () => {
-  test("keeps user/assistant text across compactions, marks tool calls, drops tool results and harness markup", () => {
+  test("keeps user/assistant text across compactions, marks tool calls with their results, drops harness markup", () => {
     const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {
       const dir = join(backend, "conversations", conversationDirName("local-conv-9"));
@@ -75,7 +75,7 @@ describe("local transcript", () => {
         { type: "session", id: "local-conv-9" },
         { type: "message", message: { role: "user", content: [{ type: "text", text: "<system-reminder>env</system-reminder>\nhello there" }] } },
         { type: "message", message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } },
-        { type: "message", message: { role: "toolResult", content: [{ type: "text", text: "ok" }] } },
+        { type: "message", message: { role: "toolResult", toolCallId: "t1", toolName: "Bash", isError: false, content: [{ type: "text", text: "ok" }] } },
         { type: "compaction", summary: "…" },
         { type: "message", message: { role: "assistant", content: [{ type: "text", text: "done." }] } },
         "not json",
@@ -84,7 +84,7 @@ describe("local transcript", () => {
       writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => (typeof l === "string" ? l : JSON.stringify(l))).join("\n") + "\n");
       expect(readLocalTranscript("local-conv-9", null, 400, backend)).toEqual([
         { role: "user", text: "hello there" },
-        { role: "tool", text: "Bash" },
+        { role: "tool", text: "Bash", tool: { name: "Bash", id: "t1", output: "ok" } },
         { role: "assistant", text: "done." },
         { role: "user", text: "plain string" },
       ]);
@@ -145,7 +145,7 @@ describe("digestLocalConversation", () => {
       write(backend, "c-asked", [
         { type: "message", message: { role: "user", content: "go" } },
         { type: "message", message: { role: "assistant", content: [{ type: "text", text: "Which one?" }, { type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } },
-        { type: "message", message: { role: "toolResult", content: [{ type: "text", text: "ok" }] } },
+        { type: "message", message: { role: "toolResult", toolCallId: "t1", toolName: "Bash", isError: false, content: [{ type: "text", text: "ok" }] } },
         { type: "message", message: { role: "user", content: "<task-notification><task-id>t</task-id></task-notification>" } },
         "not json",
       ]);

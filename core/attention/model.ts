@@ -1,4 +1,5 @@
-import { extractHarnessEvents, isScheduledPrompt, looksLikeQuestion, messageText, stripHarnessMarkup } from "../harness.ts";
+import { extractHarnessEvents, isScheduledPrompt, looksLikeQuestion, messageText, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../harness.ts";
+import type { ToolStep } from "./transcript.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
 import type { ImageAttachment } from "./content.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
@@ -59,6 +60,8 @@ export interface LiveRow {
   queued?: boolean;
   /** When the row arrived (ISO), the same field as TranscriptRow.at. */
   at?: string;
+  /** On a tool row: the call, its input as it streams in, and its result (TranscriptRow.tool). */
+  tool?: ToolStep;
 }
 
 /** A message typed mid-turn, waiting for the conversation to go idle. */
@@ -85,6 +88,8 @@ export interface Live {
   tail: LiveRow[];
   /** Tool calls already announced (a call streams as several deltas). */
   toolsSeen: Set<string>;
+  /** A call's arguments as they stream in, by call id, until the input parses. */
+  toolArgs: Map<string, string>;
   /** Messages this tab sent and already showed; their echo as user_message is not shown twice. */
   ownSends: string[];
   /** Turns the agent has completed since this tab connected — a turn is new content even when it ended in a tool call. */
@@ -127,7 +132,7 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
 const TEXT_LIMIT = 700;
 
 export function emptyLive(): Live {
-  return { pending: null, pendingAsk: null, error: null, streamingText: "", streamingAt: null, lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, tail: [], toolsSeen: new Set(), ownSends: [], turns: 0, inTurn: false, queued: [] };
+  return { pending: null, pendingAsk: null, error: null, streamingText: "", streamingAt: null, lastAssistantText: null, lastRole: null, lastMessageAt: null, lastAsk: null, tail: [], toolsSeen: new Set(), toolArgs: new Map(), ownSends: [], turns: 0, inTurn: false, queued: [] };
 }
 
 /**
@@ -355,17 +360,29 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         return { changed: true, userSpoke: true };
       }
       if (mt === "tool_call_message" || mt === "approval_request_message") {
-        const tc = d?.tool_call as { name?: string; tool_call_id?: string } | undefined;
+        const tc = d?.tool_call as { name?: string; tool_call_id?: string; arguments?: unknown } | undefined;
         if (!tc?.name) return { changed: false, userSpoke: false };
         const key = tc.tool_call_id ?? `${tc.name}:${l.tail.length}`;
-        if (l.toolsSeen.has(key)) return { changed: false, userSpoke: false };
+        // The input streams in pieces after the call is announced: keep adding it until it parses, then show it.
+        const args = typeof tc.arguments === "string" ? (l.toolArgs.get(key) ?? "") + tc.arguments : tc.arguments;
+        if (typeof args === "string") l.toolArgs.set(key, args);
+        if (l.toolsSeen.has(key)) return { changed: tc.tool_call_id ? updateToolInput(l, tc.tool_call_id, tc.name, args) : false, userSpoke: false };
         l.toolsSeen.add(key);
         // The same call arrives as a tool_call_message and again as an approval_request_message
         // (with its own id, or none): one marker is enough.
         const last = l.tail[l.tail.length - 1];
-        if (last?.role === "tool" && last.text === tc.name && !l.streamingText.trim()) return { changed: false, userSpoke: false };
+        if (last?.role === "tool" && (last.tool?.name ?? last.text) === tc.name && !l.streamingText.trim()) return { changed: false, userSpoke: false };
         settle(l, now); // assistant text may resume after the tool; this closes the current bubble
-        l.tail.push({ role: "tool", text: tc.name, at: now });
+        l.tail.push({ role: "tool", text: toolLabel(tc.name, args), at: now, tool: toolStep(tc.name, args, tc.tool_call_id) });
+        return { changed: true, userSpoke: false };
+      }
+      if (mt === "tool_return_message") {
+        const r = d as { tool_call_id?: string; tool_return?: unknown; status?: string };
+        const at = r.tool_call_id ? l.tail.findIndex((row) => row.tool?.id === r.tool_call_id) : -1;
+        if (at < 0) return { changed: false, userSpoke: false };
+        const row = l.tail[at];
+        l.tail[at] = { ...row, tool: withResult(row.tool!, r.tool_return, r.status === "error") };
+        l.toolArgs.delete(r.tool_call_id!);
         return { changed: true, userSpoke: false };
       }
       if (mt === "error_message" || mt === "loop_error") {
@@ -398,6 +415,18 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
     default:
       return { changed: false, userSpoke: false };
   }
+}
+
+/** A streamed call's input grew: its row gets the label and input it now parses to (a new row object), if either changed. */
+function updateToolInput(l: Live, id: string, name: string, args: unknown): boolean {
+  const at = l.tail.findIndex((row) => row.tool?.id === id);
+  if (at < 0) return false;
+  const row = l.tail[at];
+  const step = toolStep(name, args, id);
+  const text = toolLabel(name, args);
+  if (step.input === row.tool?.input && text === row.text) return false;
+  l.tail[at] = { ...row, text, tool: { ...row.tool, ...step } };
+  return true;
 }
 
 const instant = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Number.NaN);

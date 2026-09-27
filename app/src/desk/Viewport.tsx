@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, type ReactNode } from "react";
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
+import { stopGlide } from "./cameraGlide";
 
 /**
  * Pannable/zoomable surface with Figma's input model:
@@ -9,7 +10,7 @@ import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from 
  * The library's own wheel handling is off; we apply transforms directly,
  * coalescing all input that arrives within one animation frame. Widgets carry
  * `.loki-no-pan` so dragging one never pans the canvas.
- * Camera glides (zoomToElement) keep the library's easing.
+ * Camera glides to widgets are springs (cameraGlide.ts); a wheel, pinch or drag stops one where it is.
  */
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;
@@ -89,6 +90,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      stopGlide(); // the person's hand takes the camera from a glide under way
       const rect = el.getBoundingClientRect();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? rect.height : 1; // lines / pages → px
       if (e.ctrlKey || e.metaKey) {
@@ -112,6 +114,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
     };
     const onGestureChange = (e: Event) => {
       e.preventDefault();
+      stopGlide();
       const g = e as Event & { scale: number; clientX: number; clientY: number };
       const rect = el.getBoundingClientRect();
       zoom *= g.scale / gestureScale;
@@ -149,6 +152,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
       />
       <TransformWrapper
         onTransform={(_ref, state) => paintGrid(state.positionX, state.positionY, state.scale)}
+        onPanningStart={stopGlide}
         ref={inner}
         initialScale={1}
         minScale={MIN_SCALE}

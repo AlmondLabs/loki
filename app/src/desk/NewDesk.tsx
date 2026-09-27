@@ -49,7 +49,7 @@ type OpenDialog = (options: { directory: true; multiple: false; defaultPath?: st
 /** The system's folder dialog (tauri-plugin-dialog), opened at the typed folder. Resolves null when cancelled or unavailable. */
 export async function dialogPick(defaultPath?: string, open: OpenDialog = async (options) => (await import("@tauri-apps/plugin-dialog")).open(options)): Promise<string | null> {
   try {
-    const picked = await open({ directory: true, multiple: false, defaultPath, title: "Folder for the new desk" });
+    const picked = await open({ directory: true, multiple: false, defaultPath, title: "Folder for the new chat" });
     const path = Array.isArray(picked) ? picked[0] : picked;
     return path || null;
   } catch (err) {
@@ -200,7 +200,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
   return (
     // Escape is the card's: it closes the folder list first, then the sheet.
     <Sheet
-      label="new desk"
+      label="new chat"
       onClose={onClose}
       width={560}
       top="72px"
@@ -219,7 +219,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
       }}
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
-        <div className="loki-label">New desk</div>
+        <div className="loki-label">New chat</div>
         <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>A fresh conversation{agentName ? ` with ${agentName}` : ""}</div>
       </div>
 
@@ -250,7 +250,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
 
         <div>
           <div className="loki-label" style={{ marginBottom: 6 }}>Name <span style={{ fontWeight: 400 }}>· optional, Letta names it from the first exchange otherwise</span></div>
-          <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this desk is about" aria-label="desk name" autoComplete="off" />
+          <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this chat is about" aria-label="chat name" autoComplete="off" />
         </div>
 
         {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}

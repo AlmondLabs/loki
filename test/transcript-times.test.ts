@@ -187,7 +187,7 @@ describe("the mod's local history", () => {
       expect(readLocalTranscript("local-conv-t", null, 400, backend)).toEqual([
         { role: "user", text: "hi", at: "2026-09-22T17:48:21.948Z" },
         { role: "assistant", text: "hello", at: "2026-09-22T17:48:30.000Z" },
-        { role: "tool", text: "Bash", at: "2026-09-22T17:48:30.000Z" },
+        { role: "tool", text: "Bash", at: "2026-09-22T17:48:30.000Z", tool: { name: "Bash" } },
         { role: "user", text: "untimed" },
       ]);
     } finally {
@@ -208,12 +208,13 @@ describe("Transcript draws the times in the message layout only", () => {
   ];
   const people = { user: { name: "You" }, assistant: { name: "ira" } };
 
-  test("author rows show their time, each day opens with a pill, and the New line leaves the day to the pills", () => {
+  test("each message shows its time next to its copy button, each day opens with a pill, and the New line leaves the day to the pills", () => {
     const html = renderToStaticMarkup(createElement(Transcript, { rows, people, dividerAt: 2, dividerDay: "Today" }));
     expect(html.match(/class="loki-msg-day-pill"/g)?.length).toBe(2);
     expect(html).toContain(">Yesterday</span>");
     expect(html).toContain(">Today</span>");
-    expect(html.match(/<time class="loki-msg-time"/g)?.length).toBe(3); // a new day starts a new run: "fresh" names its author again
+    expect(html.match(/<time class="loki-msg-time"/g)?.length).toBe(3); // every timed message, beside its copy button; "untimed" has none
+    expect(html.match(/class="loki-msg-actions"><button[^]*?<\/button><time class="loki-msg-time"/g)?.length).toBe(3);
     expect(html).toContain(clockLabel(today.toISOString())!);
     expect(html).not.toContain("loki-msg-divider-day");
     expect(html).toContain("loki-msg-divider-new");

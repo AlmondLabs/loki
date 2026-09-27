@@ -39,19 +39,19 @@ export interface Binding {
   was?: string;
 }
 
-export const MENUS = ["Desk", "Chat", "Inbox", "Board", "Learn", "View"] as const;
+export const MENUS = ["Go", "Chat", "Inbox", "Board", "Learn", "View"] as const;
 
 export const KEYMAP: Binding[] = [
   // --- anywhere ------------------------------------------------------
-  { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Desk", typing: true, menu: "View/segments" },
+  { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Inbox", typing: true, menu: "View/segments" },
   { id: "segment.board", keys: ["cmd+3"], where: "anywhere", label: "Board", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
-  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Desk", was: "was the desks tree: desks are in the sidebar now ({column.toggle} shows or hides it)" },
-  { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Desk…", typing: true, menu: "Desk" },
+  { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go", was: "was the desks tree: chats are in the sidebar now ({column.toggle} shows or hides it)" },
+  { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat…", typing: true, menu: "Go" },
   { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
   { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
@@ -63,10 +63,10 @@ export const KEYMAP: Binding[] = [
   // --- desk ----------------------------------------------------------
   // ⌘[ and ⌘] step through what a section is made of: desks here, cards in the inbox, columns on the
   // board, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
-  { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Desk", typing: true, menu: "Desk/step" },
-  { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Desk", typing: true, menu: "Desk/step" },
+  { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Chat", typing: true, menu: "Go/step" },
+  { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Chat", typing: true, menu: "Go/step" },
   // Done is the Inbox's clear (seen); opening a desk only views it. The desk's header menu offers the same, and Mark as Not Done.
-  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Done", typing: true, menu: "Desk/done" },
+  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Done", typing: true, menu: "Go/done" },
   { id: "chat.toggle", keys: ["cmd+/"], where: "desk", label: "Show / Hide Chat", typing: true, menu: "Chat" },
   { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
   { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },
@@ -80,9 +80,9 @@ export const KEYMAP: Binding[] = [
   { id: "view.reset", keys: ["cmd+shift+0"], where: "desk", label: "Actual Size (1:1)", typing: true, menu: "View" },
   { id: "view.zoomIn", keys: ["cmd+=", "cmd+shift+="], where: "desk", label: "Zoom In", typing: true, menu: "View" },
   { id: "view.zoomOut", keys: ["cmd+-"], where: "desk", label: "Zoom Out", typing: true, menu: "View" },
-  { id: "desk.arrange", keys: ["cmd+shift+a"], where: "desk", label: "Arrange Widgets", typing: true, menu: "Desk/sheet" },
-  { id: "desk.undo", keys: ["cmd+z"], where: "desk", label: "Undo Widget Move", menu: "Desk/sheet", menuAccel: false },
-  { id: "desk.messages", keys: ["escape"], where: "desk", label: "back to Messages from the Desk tab", note: "handled by the shell" },
+  { id: "desk.arrange", keys: ["cmd+shift+a"], where: "desk", label: "Arrange Widgets", typing: true, menu: "View/canvas" },
+  { id: "desk.undo", keys: ["cmd+z"], where: "desk", label: "Undo Widget Move", menu: "View/canvas", menuAccel: false },
+  { id: "desk.messages", keys: ["escape"], where: "desk", label: "back to Messages from the Canvas tab", note: "handled by the shell" },
 
   // --- chat (the box owns these) ---------------------------------------
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
@@ -94,7 +94,7 @@ export const KEYMAP: Binding[] = [
   { id: "inbox.later", keys: ["cmd+[", "left"], where: "inbox", label: "Later (backs off each time)", typing: true, menu: "Inbox" },
   { id: "inbox.approve", keys: ["cmd+enter", "a"], where: "inbox", label: "Approve", typing: true, menu: "Inbox/decide" },
   { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Inbox/decide" },
-  { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Desk", typing: true, menu: "Inbox/go" },
+  { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Inbox/go" },
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
   { id: "inbox.snoozed", keys: ["cmd+s", "s"], where: "inbox", label: "Show Snoozed", typing: true, menu: "Inbox/go" },
   { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Inbox/go", menuAccel: false },
@@ -106,7 +106,7 @@ export const KEYMAP: Binding[] = [
   { id: "board.right", keys: ["right"], where: "board", label: "next column" },
   { id: "board.select", keys: ["x", "space"], where: "board", label: "select" },
   { id: "board.selectRange", keys: ["shift+x"], where: "board", label: "select a range" },
-  { id: "board.assign", keys: ["enter"], where: "board", label: "Assign to a Desk…", menu: "Board/act" },
+  { id: "board.assign", keys: ["enter"], where: "board", label: "Assign to a Chat…", menu: "Board/act" },
   { id: "board.dispatch", keys: ["cmd+enter"], where: "board", label: "Dispatch (assign and start now)…", typing: true, menu: "Board/act" },
   { id: "board.done", keys: ["backspace"], where: "board", label: "Done (strike from the board)", menu: "Board/act", menuAccel: false },
   { id: "board.blocked", keys: ["shift+backspace"], where: "board", label: "Blocked / Unblocked", menu: "Board/act", menuAccel: false },
@@ -123,7 +123,7 @@ export const KEYMAP: Binding[] = [
   { id: "recall.delete", keys: ["x", "backspace"], where: "learn", label: "Delete Card (the worker learns from it)", menu: "Learn", menuAccel: false },
   { id: "recall.undo", keys: ["z"], where: "learn", label: "Undo Delete", menu: "Learn", menuAccel: false },
   { id: "recall.edit", keys: ["e"], where: "learn", label: "Edit Card", menu: "Learn", menuAccel: false },
-  { id: "recall.open", keys: ["cmd+o", "o"], where: "learn", label: "Open the Source Desk", typing: true, menu: "Learn/go" },
+  { id: "recall.open", keys: ["cmd+o", "o"], where: "learn", label: "Open the Source Chat", typing: true, menu: "Learn/go" },
   { id: "recall.refresh", keys: ["cmd+r"], where: "learn", label: "Refresh", typing: true, menu: "Learn/go" },
   { id: "learn.prevView", keys: ["cmd+["], where: "learn", label: "Previous View", typing: true, menu: "Learn/step" },
   { id: "learn.nextView", keys: ["cmd+]"], where: "learn", label: "Next View", typing: true, menu: "Learn/step" },

@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useState } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -7,6 +7,9 @@ import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
+import { threadId } from "./transcriptWindow";
+import { ToolSteps } from "./ToolSteps";
+import { toolRuns } from "../shared/toolSteps";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -18,7 +21,7 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, toolbar = false, widgets, onFrameWidget, onShowDesk, from = 0 }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
   // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
   const marks = new Map<number, WidgetMark[]>();
@@ -38,15 +41,29 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
     });
   }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
+  // Consecutive tool calls read as one line (chat/ToolSteps.tsx); a widget row, a day or the New line ends a run.
+  const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
   const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
   const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
   const message = (m: TranscriptRow, i: number) => {
     const last = i === rows.length - 1;
+    if (m.role === "tool") {
+      const end = tools.get(i);
+      if (end === undefined) return null; // inside a run, drawn with its first row
+      const run = rows.slice(i, end);
+      const running = busy && end === rows.length && !run[run.length - 1].tool?.output;
+      return (
+        <Fragment key={i}>
+          {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
+          <ToolSteps rows={run} running={running} arrived={i >= arrivedFrom || undefined} />
+        </Fragment>
+      );
+    }
     return (
       <Fragment key={i}>
         {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
         {/* Only the last row can carry the cursor; told every row, a turn's start and end re-rendered the whole thread. */}
-        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} toolbar={toolbar} />
+        <Row row={m} last={last} streaming={streaming && last} dim={dim} onCancelQueued={m.queued ? onCancelQueued : undefined} person={people && (m.role === "user" || m.role === "assistant") ? people[m.role] : undefined} first={firsts?.[i] ?? false} arrived={i >= arrivedFrom} />
       </Fragment>
     );
   };
@@ -141,8 +158,6 @@ export interface MessageLayout {
   people?: { user: Person; assistant: Person };
   dividerAt?: number | null;
   dividerDay?: string | null;
-  /** The hover action bar on each message (the desktop's Messages tab); the phone leaves it off. */
-  toolbar?: boolean;
   /** The desk's widget changes among the messages (desk/widgetRows.ts widgetMarks); the host keeps the array stable. */
   widgets?: WidgetMark[];
   /** Choosing a widget row that is still on the desk: open the Desk tab framed on it. */
@@ -183,7 +198,7 @@ function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame
           <Icon name="widget" size={16} />
         </span>
         {onShowDesk ? (
-          <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show the desk" onClick={onShowDesk}>
+          <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show the canvas" onClick={onShowDesk}>
             {words}
           </button>
         ) : (
@@ -206,10 +221,10 @@ function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame
       {w.gone || !onFrame ? (
         <span className="loki-widget-row-text">
           {words}
-          {w.gone && <span>{w.change === "removed" ? " · it is gone from the desk" : " · since removed from the desk"}</span>}
+          {w.gone && <span>{w.change === "removed" ? " · it is gone from the canvas" : " · since removed from the canvas"}</span>}
         </span>
       ) : (
-        <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show it on the desk" onClick={() => onFrame(w.widgetId)}>
+        <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show it on the canvas" onClick={() => onFrame(w.widgetId)}>
           {words}
         </button>
       )}
@@ -234,38 +249,80 @@ function Divider({ day }: { day: string | null }) {
 }
 
 /** One row, by role. This is the memo boundary; the shapes below are plain functions rendered inside it. */
-const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, toolbar = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; toolbar?: boolean }) {
-  if (m.role === "tool") return <ToolRow row={m} />;
-  if (m.role === "event") return <EventRow row={m} />;
-  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} toolbar={toolbar} />;
-  return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} />;
+/**
+ * A long press on a message, where the host wants one (the phone): the host's handler gets the row and opens
+ * the message's actions. Without a provider nothing is attached, and the browser keeps its own selection.
+ */
+export const MessageHold = createContext<((row: TranscriptRow) => void) | null>(null);
+
+/** How long a finger rests on a message before its actions open, as on iOS. */
+const HOLD_MS = 500;
+/** A finger that moves this far is scrolling or swiping (an Inbox card), not holding. */
+const HOLD_SLOP = 8;
+
+/** The long press's handlers for a message's row: a finger resting there opens its actions; a move, a scroll or a lift cancels. */
+function useMessageHold(row: TranscriptRow) {
+  const onHold = useContext(MessageHold);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const from = useRef({ x: 0, y: 0 });
+  if (!onHold || !row.text) return {};
+  const end = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  return {
+    "data-hold": "",
+    onPointerDown: (e: PointerEvent) => {
+      if (e.pointerType === "mouse" || (e.target as Element).closest("button, a, summary, input, textarea")) return;
+      end();
+      from.current = { x: e.clientX, y: e.clientY };
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        onHold(row);
+      }, HOLD_MS);
+    },
+    onPointerMove: (e: PointerEvent) => {
+      if (timer.current && Math.hypot(e.clientX - from.current.x, e.clientY - from.current.y) > HOLD_SLOP) end();
+    },
+    onPointerUp: end,
+    onPointerCancel: end,
+    onPointerLeave: end,
+    // Android's long press (and a right-click) arrives as a context menu: the message's actions, not the browser's.
+    onContextMenu: (e: MouseEvent) => {
+      e.preventDefault();
+      end();
+      onHold(row);
+    },
+  };
+}
+
+const Row = memo(function Row({ row: m, last, streaming, dim, onCancelQueued, person, first = false, arrived = false }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; person?: Person; first?: boolean; /** Came in while the thread was open. */ arrived?: boolean }) {
+  // A row that came in while the thread was open carries data-arrived, and rises in (the phone's chat CSS).
+  const a = arrived || undefined;
+  if (m.role === "event") return <EventRow row={m} arrived={a} />;
+  if (person) return <Message row={m} last={last} streaming={streaming} person={person} first={first} onCancelQueued={onCancelQueued} arrived={a} />;
+  return <Bubble row={m} last={last} streaming={streaming} dim={dim} onCancelQueued={onCancelQueued} arrived={a} />;
 });
 
 /**
- * A message in the avatar-led layout: the face and bold name at the start of a run, with the message's
- * quiet time after the name; later messages in the run keep their time in the face's column, shown on
- * hover (desktop). A message with no known time shows none. With `toolbar`, hovering shows Slack's small
- * action bar holding what loki already does to a message: copy it as markdown.
+ * A message in the avatar-led layout: the face and bold name at the start of a run. Under every message,
+ * yours and the agent's, a quiet row: its copy button (as markdown; faint on the desktop until the row is
+ * hovered, always there on the phone), then its time. A message still streaming shows its time and gets
+ * the button when it is done; one with no known time shows none. Where a host provides MessageHold (the phone), a long press
+ * on the message opens its actions instead of the browser's text selection.
  */
-function Message({ row: m, last, streaming, person, first, onCancelQueued, toolbar }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; toolbar?: boolean }) {
+function Message({ row: m, last, streaming, person, first, onCancelQueued, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; person: Person; first: boolean; onCancelQueued?: (row: TranscriptRow) => void; arrived?: true }) {
   const time = clockLabel(m.at);
+  const hold = useMessageHold(m);
+  // Copy waits for a streaming reply to finish; its time is there from the start.
+  const copyable = !!m.text && !(last && streaming);
   return (
-    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} className="loki-msg">
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-first={first ? "true" : undefined} data-arrived={arrived} className="loki-msg" {...hold}>
       <span className="loki-msg-face" aria-hidden>
         {first && <AgentFace name={person.face ?? person.name} src={person.avatar ?? null} size={36} />}
-        {!first && time && <span className="loki-msg-gutter-time">{time}</span>}
       </span>
       <div className="loki-msg-copy">
-        {first && (
-          <div className="loki-msg-name">
-            {person.name}
-            {time && (
-              <time className="loki-msg-time" dateTime={m.at}>
-                {time}
-              </time>
-            )}
-          </div>
-        )}
+        {first && <div className="loki-msg-name">{person.name}</div>}
         {!first && <span className="sr-only">{person.name}: </span>}
         <div className="loki-msg-body">{m.role === "assistant" ? <AssistantBody row={m} cursor={last && streaming} /> : <UserBody row={m} />}</div>
         {m.queued && (
@@ -273,28 +330,24 @@ function Message({ row: m, last, streaming, person, first, onCancelQueued, toolb
             queued · sends when this turn ends{onCancelQueued ? " · take back" : ""}
           </Button>
         )}
+        {(copyable || time) && (
+          <div className="loki-msg-actions">
+            {copyable && <CopyMarkdown text={m.text} className="loki-msg-action" />}
+            {time && (
+              <time className="loki-msg-time" dateTime={m.at}>
+                {time}
+              </time>
+            )}
+          </div>
+        )}
       </div>
-      {toolbar && m.text && !(last && streaming) && (
-        <div className="loki-msg-toolbar" role="toolbar" aria-label="Message actions">
-          <CopyMarkdown text={m.text} className="loki-msg-action" />
-        </div>
-      )}
     </div>
   );
 }
 
-/** A tool the agent ran: one quiet line (chat.css; the phone sets it in its sans meta). */
-function ToolRow({ row: m }: { row: TranscriptRow }) {
+function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   return (
-    <div data-row="tool" className="loki-tool-row">
-      · {m.text}
-    </div>
-  );
-}
-
-function EventRow({ row: m }: { row: TranscriptRow }) {
-  return (
-    <details data-row="event" className="loki-event-row">
+    <details data-row="event" data-arrived={arrived} className="loki-event-row">
       <summary className="loki-event-summary" style={{ cursor: m.detail ? "pointer" : "default", listStyle: m.detail ? "disclosure-closed" : "none" }}>
         ⟳ {m.text}
         {m.summary && <span className="loki-event-aside">{m.summary}</span>}
@@ -305,9 +358,9 @@ function EventRow({ row: m }: { row: TranscriptRow }) {
 }
 
 /** A user or assistant message: the bubble, and under a queued one the take-back button. */
-function Bubble({ row: m, last, streaming, dim, onCancelQueued }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void }) {
+function Bubble({ row: m, last, streaming, dim, onCancelQueued, arrived }: { row: TranscriptRow; last: boolean; streaming: boolean; dim: boolean; onCancelQueued?: (row: TranscriptRow) => void; arrived?: true }) {
   return (
-    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
+    <div data-row={m.role} data-queued={m.queued ? "true" : undefined} data-arrived={arrived} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", margin: "8px 0" }}>
       <div className="loki-bubble" data-role={m.role}>
       <div
         style={{
@@ -368,10 +421,49 @@ function CopyMarkdown({ text, className = "loki-bubble-copy" }: { text: string; 
   );
 }
 
+/**
+ * Where the rows that came in while you watched begin: the count there was when this thread was first drawn
+ * with its rows. The history, and older rows revealed by scrolling up, sit before it; a new first row is a new
+ * thread, which starts again. Until the rows load, nothing has arrived.
+ */
+export function useArrivedFrom(rows: TranscriptRow[] | undefined): number {
+  const id = rows ? threadId(rows) : null;
+  const [opened, setOpened] = useState<{ id: string | null; count: number }>({ id, count: rows?.length ?? Infinity });
+  if (opened.id !== id) setOpened({ id, count: rows?.length ?? Infinity });
+  return opened.id === id ? opened.count : Infinity;
+}
+
+/** A node of the rendered markdown (hast), as much of it as wrapping words needs. */
+type HastNode = { type: string; tagName?: string; value?: string; properties?: Record<string, unknown>; children?: HastNode[] };
+
+/**
+ * While a reply streams, each word is its own span, so a word that arrives mounts and fades in (the phone's
+ * chat CSS) while the words before it stay put: spans keep their place, so only the new ones are new. Code
+ * keeps its text whole. Once the turn ends the reply renders as plain text again.
+ */
+export function rehypeWords() {
+  const wrap = (node: HastNode, inCode: boolean) => {
+    if (!node.children) return;
+    const code = inCode || node.tagName === "pre" || node.tagName === "code";
+    node.children = node.children.flatMap((child): HastNode[] => {
+      if (child.type !== "text" || code) {
+        wrap(child, code);
+        return [child];
+      }
+      const words = child.value?.match(/\S+\s*|\s+/g) ?? [];
+      return words.map((w) => (/^\s+$/.test(w) ? { type: "text", value: w } : { type: "element", tagName: "span", properties: { className: ["loki-word"] }, children: [{ type: "text", value: w }] }));
+    });
+  };
+  return (tree: HastNode) => wrap(tree, false);
+}
+const LIVE_PLUGINS = [rehypeWords];
+
 function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   return (
-    <div className="loki-md">
-      <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
+    <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={cursor ? LIVE_PLUGINS : undefined}>
+        {m.text}
+      </Markdown>
       {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
     </div>
   );

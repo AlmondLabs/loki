@@ -4,6 +4,7 @@ import type { Gesture } from "../../../core/desk-core.ts";
 import type { CameraTarget, VisibleWidget } from "./useDesk";
 import { registerActions } from "../shell/keymap";
 import { glide } from "../kit/motion";
+import { glideTo, stopGlide } from "./cameraGlide";
 
 /** The mounted frames for these widget ids (a frame's element id is `widget-<desk>--<name>`). */
 const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);
@@ -53,13 +54,13 @@ export function useCamera({
     const { left, right } = insetRef.current;
     return { left, w: Math.max(200, vw - left - right), h: vh };
   };
-  /** Move the camera so `els` sit centred in the stage at scale `s`. */
-  const frameAt = (els: HTMLElement[], s: number, ms = 600) => {
+  /** Glide the camera, on the smooth spring, until `els` sit centred in the stage at scale `s`. */
+  const frameAt = (els: HTMLElement[], s: number) => {
     const api = viewportRef.current;
     if (!api) return;
     const st = stage();
     const b = boundsOf(els);
-    api.setTransform(st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s, glide(ms), "easeOut");
+    glideTo(api, st.left + st.w / 2 - b.cx * s, st.h / 2 - b.cy * s, s);
   };
   // Widgets the camera is pointing at glow for a few seconds, so the eye finds them.
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
@@ -78,6 +79,7 @@ export function useCamera({
     const api = viewportRef.current;
     if (!api) return;
     const { positionX, positionY, scale: s } = api.instance.state;
+    stopGlide();
     const next = Math.min(4, Math.max(0.1, s * factor));
     const k = next / s;
     const st = stage();
@@ -89,6 +91,7 @@ export function useCamera({
   const resetZoom = () => {
     const api = viewportRef.current;
     if (!api) return;
+    stopGlide();
     const { positionX, positionY, scale: s } = api.instance.state;
     const st = stage();
     const cx = st.left + st.w / 2;

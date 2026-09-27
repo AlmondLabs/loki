@@ -10,22 +10,22 @@ People who run personal Letta Code agents on a Mac and want one place to see wha
 
 ## Product Purpose
 
-Loki gives each agent conversation a persistent desk of live widgets, gathers work that needs the user into an inbox, and keeps the agent aware of changes made on the desk. Success means the user can understand and act on their agents' work without reconstructing it from terminal transcripts.
+Loki gives each agent conversation a chat with a persistent canvas of live widgets, gathers work that needs the user into an inbox, and keeps the agent aware of changes made on the canvas. Success means the user can understand and act on their agents' work without reconstructing it from terminal transcripts.
 
 ## Brand Personality
 
-Quiet, precise, and personal. The interface wears Slack's familiar look and layout on the desktop and the phone, so it reads at a glance and can stay open all day: agents are the people you message, desks are the channels, and the red badge is only for what waits on you. It stays specific to the person and agents using it.
+Quiet, precise, and personal. The interface wears Slack's familiar look and layout on the desktop and the phone, so it reads at a glance and can stay open all day: agents are the people you message, chats are the channels, and the red badge is only for what waits on you. It stays specific to the person and agents using it.
 
 ## Anti-references
 
-Avoid generic dark SaaS dashboards, decorative control-room chrome, glass panels, ornamental accent colour, and visual structure that does not carry information. Do not make the desk look like a metrics dashboard or turn agent activity into spectacle.
+Avoid generic dark SaaS dashboards, decorative control-room chrome, glass panels, ornamental accent colour, and visual structure that does not carry information. Do not make the canvas look like a metrics dashboard or turn agent activity into spectacle.
 
 ## Design Principles
 
 - Keep the person's current task in front and move application chrome out of the way.
 - Spend emphasis on states that require a decision or response.
 - Make agent activity readable as work with a source, status, and next action.
-- Use one interaction vocabulary across the desk, inbox, settings, and phone.
+- Use one interaction vocabulary across chats, inbox, settings, and phone.
 - Preserve local ownership: the app explains what stays on the Mac and what reaches a provider.
 
 ## Accessibility & Inclusion

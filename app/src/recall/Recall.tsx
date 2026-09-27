@@ -271,7 +271,7 @@ function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, o
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
         <Button size="sm" onClick={onDelete} kbd="X" title="delete — it joins the pile the worker reads as 'not this'">delete</Button>
         <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>edit</Button>
-        {canOpen && <Button size="sm" onClick={onOpen} kbd="O">open the desk</Button>}
+        {canOpen && <Button size="sm" onClick={onOpen} kbd="O">open the chat</Button>}
       </div>
     </section>
   );

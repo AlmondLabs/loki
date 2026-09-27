@@ -37,7 +37,7 @@ describe("sections", () => {
   test("nothing waiting, nothing pinned: one section, by last message, labelled plainly", () => {
     const secs = sectionDesks(desks.map((d) => ({ ...d, pinned: false })), null, []);
     expect(secs).toHaveLength(1);
-    expect(secs[0].label).toBe("Desks");
+    expect(secs[0].label).toBe("Chats");
     expect(secs[0].desks.map((d) => d.scope)).toEqual(["jira", "aws", "cost", "email", "old"]);
   });
   test("the agent filter applies inside every section", () => {
@@ -67,9 +67,9 @@ describe("the live region's words", () => {
   const chips = [{ id: "a1", name: "friday", count: 3 }, { id: "a2", name: null, count: 0 }];
   test("all agents, or the agent and its desk count; while typing, how many match", () => {
     expect(statusLine(null, chips, "", 5)).toBe("all agents");
-    expect(statusLine("a1", chips, "", 5)).toBe("friday · 3 desks");
-    expect(statusLine("a2", chips, "", 5)).toBe("agent · 0 desks");
-    expect(statusLine(null, chips, "ji", 1)).toBe("all agents · 1 desk match");
-    expect(statusLine("a1", chips, "ji", 2)).toBe("friday · 3 desks · 2 desks match");
+    expect(statusLine("a1", chips, "", 5)).toBe("friday · 3 chats");
+    expect(statusLine("a2", chips, "", 5)).toBe("agent · 0 chats");
+    expect(statusLine(null, chips, "ji", 1)).toBe("all agents · 1 chat match");
+    expect(statusLine("a1", chips, "ji", 2)).toBe("friday · 3 chats · 2 chats match");
   });
 });

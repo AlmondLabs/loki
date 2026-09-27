@@ -14,3 +14,16 @@ export function prefersReducedMotion(): boolean {
 export function glide(ms: number): number {
   return prefersReducedMotion() ? 0 : ms;
 }
+
+/**
+ * The last way the person drove the page: a key or a pointer. What a key starts never animates (a desk
+ * switched by shortcut, Enter in a list); the same thing by click or touch may.
+ */
+let input: "key" | "pointer" = "pointer";
+if (typeof window !== "undefined") {
+  window.addEventListener("keydown", () => (input = "key"), true);
+  window.addEventListener("pointerdown", () => (input = "pointer"), true);
+}
+export function lastInput(): "key" | "pointer" {
+  return input;
+}

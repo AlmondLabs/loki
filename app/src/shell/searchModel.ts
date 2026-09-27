@@ -22,10 +22,10 @@ import { osWords } from "./osWords";
 export const GROUP_MAX = 5;
 
 /** What search covers, said wherever it could pass for message search (the phone says the same). */
-export const COVERAGE = "Searches desk titles, agents, waiting items and pages — not message text.";
+export const COVERAGE = "Searches chat titles, agents, waiting items and pages — not message text.";
 
 export type GroupId = "desks" | "agents" | "waiting" | "pages";
-const GROUP_TITLE: Record<GroupId, string> = { desks: "Desks", agents: "Agents", waiting: "Waiting", pages: "Pages" };
+const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", waiting: "Waiting", pages: "Pages" };
 
 /**
  * Where a hit goes. A desk opens on Messages with the box focused (Shell's openDesk). A waiting item opens
@@ -83,7 +83,7 @@ const PREF_WORDS: Partial<Record<SettingsPage, string[]>> = {
 
 /** The places search opens by name: the rail's sections, Preferences, and each Preferences page. */
 export const DESTINATIONS: readonly Page[] = [
-  { key: "page:desk", target: { kind: "section", segment: "desk" }, icon: "desk", label: "Desk", line: "The desk you were on", keywords: ["desks", "canvas", "home"] },
+  { key: "page:desk", target: { kind: "section", segment: "desk" }, icon: "desk", label: "Chats", line: "The chat you were on", keywords: ["chats", "desks", "desk", "canvas", "home"] },
   { key: "page:inbox", target: { kind: "section", segment: "inbox" }, icon: "inbox", label: "Inbox", line: "What waits on you", keywords: ["catch up", "waiting", "approvals"] },
   { key: "page:board", target: { kind: "section", segment: "board" }, icon: "check", label: "Board", line: "Tasks for your agents", keywords: ["tasks", "todo", "kanban"] },
   { key: "page:agents", target: { kind: "section", segment: "agents" }, icon: "agents", label: "Agents", line: `Every agent on ${osWords().machine}`, keywords: ["dms", "people", "memory"] },
@@ -103,7 +103,7 @@ type OpenableDesk = DeskSummary & { agentId: string; conversationId: string };
 const openable = (d: DeskSummary): d is OpenableDesk => !!d.agentId && !!d.conversationId && d.status !== "deleted";
 
 /** The sidebar's name for a desk (DeskSidebar): its title, else Main chat, New desk, or its scope. */
-const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversationId === "default" ? "Main chat" : d.status === "live" ? "New desk" : d.scope);
+const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversationId === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
 const time = (iso: string | null | undefined): number => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isFinite(t) ? t : 0;

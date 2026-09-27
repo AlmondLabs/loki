@@ -78,5 +78,8 @@ is near an existing lead, lesson or dismissed lead is dropped (`similarFront` on
    open the source; dismissed leads under "deleted" with restore; Learn titles out of the inbox; the brief.
 2. A "learning" group in the desks tree with the progress mark; `[Learn]` stripped from the row title.
 3. Sessions on the FSRS schedule; "n lessons due" in Recall's header; the learned shelf; the memory line.
-4. The phone: leads read-only, lessons list; start stays on the Mac (no `recall_lead_start` in PHONE_FRAMES).
+4. ~~The phone: leads read-only, lessons list; start stays on the Mac~~ — changed 2026-09-26 on the user's ask:
+   the phone's Learn opens on its lists (Review, Leads, Lessons under way, Deleted), each its own page
+   (`#/learn/<page>`), never the deck and the leads on one screen; leads start, set aside and come back from
+   the phone (`recall_lead_start`, `recall_lead_dismiss`, `recall_lead_restore` in PHONE_FRAMES), one tap each.
 5. ~~Rename the section to Learn~~ — done with slice 1.

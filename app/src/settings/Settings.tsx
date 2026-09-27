@@ -213,10 +213,10 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
       <Section title="Scratch" hint="where Letta's Bash tool keeps background output; dreaming runs sandboxed and may only write under ~/.letta">
         <ScratchFacts scratch={scratch} />
       </Section>
-      <Section title="Mod" hint="desk layout, widget files, transcripts">
+      <Section title="Mod" hint="canvas layout, widget files, transcripts">
         <Fact label="Endpoint" value={modBase()} mono />
         <Fact label="Link" value={<Status s={modConnection} />} />
-        <Fact label="Desks" value={String(deskCount)} />
+        <Fact label="Chats" value={String(deskCount)} />
       </Section>
       <Section title="Requirements" hint="what loki needs on this machine, and where it found it">
         <LettaCodeFact lettaVersion={lettaVersion} tools={harness.tools} />
@@ -432,7 +432,7 @@ function InstallSection({ install }: { install: InstallReport | null }) {
   return (
     <Section title="Install" hint="on launch the app puts its mod and skill where Letta looks">
       <ModFact install={install} />
-      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on {osWords().machine} loads it; the mod serves the desk only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
+      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on {osWords().machine} loads it; the mod serves loki only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
       <Fact label="Skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : install.skill === "linked" ? <Note>a symlink to the checkout this build came from</Note> : null}</span> : "—"} />
       <Fact label="Skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
@@ -496,7 +496,7 @@ function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement }: { 
     <Section title="Chat" hint="how the panel sits on the sheet">
       <Fact label="Position" value={<Choice options={CHAT_PLACEMENTS} value={chatPlacement} onPick={onChatPlacement} labels={{ center: "centre" }} />} />
       <Fact label="Side width" value={<Choice options={["narrow", "wide"] as ChatWidth[]} value={chatWidth} onPick={onChatWidth} />} />
-      <Fact label="Empty desk" value="opens the chat centred until the first widget lands" />
+      <Fact label="Empty canvas" value="opens the chat centred until the first widget lands" />
     </Section>
   );
 }
@@ -531,8 +531,8 @@ function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
 function FilesPage() {
   return (
     <Section title="Files" hint="everything loki keeps, in one folder">
-      <Fact label="Widgets" value={`${HOME}/widgets/<desk>/`} mono />
-      <Fact label="Layout" value={`${HOME}/state/<desk>.json`} mono />
+      <Fact label="Widgets" value={`${HOME}/widgets/<chat>/`} mono />
+      <Fact label="Layout" value={`${HOME}/state/<chat>.json`} mono />
       <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
       <Fact label="Board" value={`${HOME}/board  (beads · bd, embedded Dolt, prefix lk)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />

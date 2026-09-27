@@ -153,7 +153,7 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
 
   const rowOf = (r: SidebarRow, inPinned: boolean) => {
     const d = r.desk;
-    const name = d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New desk" : d.scope);
+    const name = d.title ?? (r.main ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
     return (
       <ListRow
         key={d.scope}
@@ -224,10 +224,10 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
   return (
     <>
       <ColumnHeader
-        title="Desks"
+        title="Chats"
         actions={
           onNew && (
-            <IconButton label="New desk" title="New desk" onClick={() => onNew(null)}>
+            <IconButton label="New chat" title="New chat" onClick={() => onNew(null)}>
               <Icon name="plus" size={16} />
             </IconButton>
           )
@@ -244,8 +244,8 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           data-lpignore="true"
           data-bwignore
           data-form-type="other"
-          placeholder="Find a desk…"
-          aria-label="Find a desk"
+          placeholder="Find a chat…"
+          aria-label="Find a chat"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onFieldKey}
@@ -266,7 +266,7 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
                 onToggle={filtering ? undefined : () => fold(s.id)}
                 actions={
                   onNew && s.agentId ? (
-                    <IconButton size={24} label={`New desk with ${s.title}`} title={`New desk with ${s.title}`} onClick={() => onNew(s.agentId)}>
+                    <IconButton size={24} label={`New chat with ${s.title}`} title={`New chat with ${s.title}`} onClick={() => onNew(s.agentId)}>
                       <Icon name="plus" size={14} />
                     </IconButton>
                   ) : undefined
@@ -283,7 +283,7 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           )}
           {model.empty && (
             <div role="status" className="loki-sidebar-empty">
-              <span className="loki-meta loki-meta--wrap">No desks match “{query.trim()}”.</span>
+              <span className="loki-meta loki-meta--wrap">No chats match “{query.trim()}”.</span>
               <Button
                 onClick={() => {
                   setQuery("");
@@ -296,18 +296,18 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           )}
           {!filtering && !hasRows && model.archived.length === 0 && (
             <div className="loki-sidebar-empty">
-              <span className="loki-meta loki-meta--wrap">No desks yet.</span>
-              {onNew && <Button onClick={() => onNew(null)}>New desk</Button>}
+              <span className="loki-meta loki-meta--wrap">No chats yet.</span>
+              {onNew && <Button onClick={() => onNew(null)}>New chat</Button>}
             </div>
           )}
         </div>
         {pills.up && (
-          <button type="button" className="loki-sidebar-pill loki-sidebar-pill--up" onClick={() => reveal(pills.up)} aria-label="Scroll up to a desk that needs you">
+          <button type="button" className="loki-sidebar-pill loki-sidebar-pill--up" onClick={() => reveal(pills.up)} aria-label="Scroll up to a chat that needs you">
             <span aria-hidden>↑</span> Needs you
           </button>
         )}
         {pills.down && (
-          <button type="button" className="loki-sidebar-pill loki-sidebar-pill--down" onClick={() => reveal(pills.down)} aria-label="Scroll down to a desk that needs you">
+          <button type="button" className="loki-sidebar-pill loki-sidebar-pill--down" onClick={() => reveal(pills.down)} aria-label="Scroll down to a chat that needs you">
             <span aria-hidden>↓</span> Needs you
           </button>
         )}
@@ -362,7 +362,7 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
     <div
       ref={ref}
       role="menu"
-      aria-label={`${d.title ?? "Desk"} actions`}
+      aria-label={`${d.title ?? "Chat"} actions`}
       className="loki-sidebar-menu"
       style={{ left: Math.max(8, left), top: Math.max(8, top) }}
       onKeyDown={(e) => {

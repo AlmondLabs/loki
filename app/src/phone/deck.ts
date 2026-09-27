@@ -21,9 +21,8 @@ export const MAX_ROTATION = 8;
 export const DRAG_SLOP = 8;
 /** How long the undo pill stays, ms. */
 export const UNDO_MS = 6000;
-/** The fly-off / spring timing. */
-export const FLY_MS = 220;
-export const FLY_EASE = "cubic-bezier(.2,.8,.2,1)";
+/** How far past the deck's edge a card flies before it is gone, px. */
+export const FLY_PAST = 80;
 
 /**
  * What releasing a dragged card does. Approvals go nowhere either way: a decision is the only way
@@ -49,6 +48,20 @@ export function rotationFor(dx: number, width: number): number {
   if (!(width > 0)) return 0;
   const r = (dx / (width * COMMIT_FRACTION)) * MAX_ROTATION;
   return Math.max(-MAX_ROTATION, Math.min(MAX_ROTATION, r));
+}
+
+/** The drag has gone far enough that letting go commits: the reveal under the card says so. */
+export function armed(dx: number, width: number): boolean {
+  return width > 0 && Math.abs(dx) >= width * COMMIT_FRACTION;
+}
+
+/**
+ * A spring's start velocity for a card let go at `from` (px) moving at `v` (px per ms), heading for `to`:
+ * the finger's speed as a share of the distance left, per second (kit/spring.ts). 0 when there is no distance.
+ */
+export function flingVelocity(from: number, to: number, v: number): number {
+  const d = to - from;
+  return Math.abs(d) < 1 ? 0 : (v * 1000) / d;
 }
 
 /** How strongly the reveal under the card shows: full at the commit distance. */
@@ -243,15 +256,18 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
 // Shared with the desktop (shared/thread.ts); the phone keeps its names.
 export { dayLabel, unreadBoundary } from "../shared/thread";
 
-/** The line above the card's message box: what the agent is waiting on, or what it is doing after your reply. */
-export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string {
+/**
+ * The line above the card's message box: what the agent is doing after your reply, or what it wants beyond a reply.
+ * None for a plain wait: the box's own "Message friday" already says it is your turn.
+ */
+export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string | null {
   const who = item.agentName ?? "The agent";
   if (chat === "streaming") return `${who} is writing`;
   if (chat === "thinking" || item.status === "running") return `${who} is working`;
   if (item.status === "approval") return `${who} needs your approval`;
   if (item.status === "question") return `${who} asked you something`;
   if (item.status === "failed") return `${who}'s last turn failed`;
-  return `${who} is waiting for your reply`;
+  return null;
 }
 
 /**

@@ -19,6 +19,7 @@ import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, formatTasksContext } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
+import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
@@ -299,6 +300,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
+    recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
     lan: {

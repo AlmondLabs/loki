@@ -155,17 +155,23 @@ describe("desk pane: the agent pill's live state", () => {
   });
 });
 
-describe("desk pane: the hover toolbar holds only what loki does to a message", () => {
-  const rows = [{ role: "assistant" as const, text: "done — see the chart" }];
+describe("messages: copy under every message", () => {
+  const rows = [
+    { role: "user" as const, text: "make the chart weekly" },
+    { role: "assistant" as const, text: "done — see the chart" },
+    { role: "assistant" as const, text: "still writing" },
+  ];
   const people = { user: { name: "You" }, assistant: { name: "ira" } };
-  test("the Messages tab's rows carry a copy action; the phone's layout (no toolbar) does not", async () => {
+  test("yours and the agent's each carry a copy button under them; the one still streaming waits until it is done", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { Transcript } = await import("../app/src/chat/Transcript.tsx");
-    const on = renderToStaticMarkup(createElement(Transcript, { rows, people, toolbar: true }));
-    expect(on).toContain('role="toolbar"');
-    expect(on).toContain('aria-label="copy as markdown"');
-    expect(renderToStaticMarkup(createElement(Transcript, { rows, people }))).not.toContain('role="toolbar"');
+    const done = renderToStaticMarkup(createElement(Transcript, { rows, people }));
+    expect(done.match(/class="loki-msg-actions"/g)?.length).toBe(3);
+    expect(done).toContain('aria-label="copy as markdown"');
+    expect(done).not.toContain('role="toolbar"');
+    const streaming = renderToStaticMarkup(createElement(Transcript, { rows, people, streaming: true }));
+    expect(streaming.match(/class="loki-msg-actions"/g)?.length).toBe(2);
   });
 });
 

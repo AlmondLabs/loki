@@ -47,7 +47,27 @@
 /* Tool and event rows between messages (Transcript.tsx): muted sans meta, the way Slack sets an app's
    notice in a thread. The detail a row opens is data and keeps its own box. The phone restyles them under
    its own root (phone/phone.css). */
-.loki-tool-row { font-size: 12px; color: var(--loki-muted); font-family: var(--loki-font); margin: 2px 0 2px 14px; overflow-wrap: anywhere; }
+/* A run of tools (ToolSteps.tsx): one quiet line, "Ran 3 commands ›", breathing while it runs; on the desktop the
+   steps unfold in place under it, and each step its input and output. */
+.loki-steps { font-size: 12px; color: var(--loki-muted); font-family: var(--loki-font); margin: 2px 0 2px 14px; }
+.loki-steps-line { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.loki-steps-line:hover { color: var(--loki-fg); }
+.loki-steps-chev { flex: none; opacity: 0.7; }
+@keyframes loki-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.loki-steps-line[data-running] .loki-steps-label { animation: loki-breathe 1.6s ease-in-out infinite; }
+.loki-steps-list { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; }
+.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; cursor: pointer; list-style: none; }
+.loki-steps-step::-webkit-details-marker { display: none; }
+.loki-steps-icon { flex: none; margin-top: 1px; }
+.loki-steps-text { display: grid; min-width: 0; }
+.loki-steps-verb { display: inline-flex; align-items: baseline; gap: 6px; color: var(--loki-fg); }
+.loki-steps-failed { color: var(--loki-negative); }
+.loki-steps-target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-steps-detail { display: grid; gap: 8px; margin: 4px 0 8px 24px; }
+.loki-steps-heading { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--loki-muted); }
+.loki-steps-code { margin: 0; padding: 8px 10px; max-height: 240px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font-family: var(--loki-mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-steps-code[data-failed] { border-color: var(--loki-negative); }
+.loki-steps-none { margin: 0; color: var(--loki-muted); }
 .loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }
 .loki-event-summary { font-family: var(--loki-font); }
 .loki-event-aside { color: var(--loki-fg); opacity: 0.75; margin-left: 8px; font-family: var(--loki-font); }
@@ -97,6 +117,10 @@
 .loki-composer-attach { color: var(--loki-fg); }
 /* Send: Slack's green once there is something to send; a muted circle while the box is empty. */
 .loki-btn.loki-composer-send:disabled { background: var(--loki-hover); color: var(--loki-muted); opacity: 1; }
+/* Stop, in send's place while the agent works (Claude's): a filled round in the ink colour with a square in it. */
+.loki-btn.loki-composer-stop { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); }
+.loki-btn.loki-composer-stop:hover:not(:disabled) { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); opacity: 0.85; }
+.loki-btn.loki-composer-stop:disabled { opacity: 0.5; }
 /* The model pill: the model in the foreground, the effort after it in the muted colour, one height with the row. */
 .loki-chip.loki-model-pill { min-height: 28px; min-width: 0; flex: 0 1 auto; padding: 0 8px 0 10px; color: var(--loki-fg); font-weight: 600; }
 .loki-model-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -155,14 +179,14 @@
 .loki-msg-divider-day:not(.loki-phone *) { color: var(--loki-fg); }
 .loki-msg-divider-rule:not(.loki-phone *) { flex: 1; height: 1px; background: var(--loki-attention); }
 .loki-msg-divider-new:not(.loki-phone *) { color: var(--loki-negative); }
-/* Message times (TranscriptRow.at): quiet after the author's name; on a run's later rows, in the face's column on hover. */
+/* Message times (TranscriptRow.at): quiet, beside the copy button under the message (and after a widget row's words). */
 .loki-msg-time:not(.loki-phone *) { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--loki-muted); }
-.loki-msg-gutter-time:not(.loki-phone *) { display: block; visibility: hidden; padding-top: 3px; font-size: 10.5px; line-height: 1.3; color: var(--loki-muted); text-align: right; white-space: nowrap; }
-.loki-msg:not(.loki-phone *):hover .loki-msg-gutter-time { visibility: visible; }
-/* The hover action bar (Slack's): a small raised strip at the row's top right, only while the row is hovered or holds focus. */
-.loki-msg:not(.loki-phone *) { position: relative; }
-.loki-msg-toolbar:not(.loki-phone *) { position: absolute; top: -12px; right: 20px; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); box-shadow: var(--loki-shadow-panel); visibility: hidden; z-index: 2; }
-.loki-msg:not(.loki-phone *):hover .loki-msg-toolbar, .loki-msg:not(.loki-phone *):focus-within .loki-msg-toolbar { visibility: visible; }
+/* Under every message, its copy button: faint until the row is hovered or holds focus, and full for a beat after it
+   copied. The row is always there, so nothing shifts on hover; it rides a little into the next message's space. */
+.loki-msg-actions:not(.loki-phone *) { display: flex; align-items: center; gap: 2px; min-height: 24px; margin: 0 0 -6px -4px; }
+.loki-msg-actions .loki-msg-time:not(.loki-phone *) { margin-left: 4px; }
+.loki-msg-action:not(.loki-phone *) { opacity: 0.35; transition: opacity 120ms ease-out; }
+.loki-msg:not(.loki-phone *):hover .loki-msg-action, .loki-msg-action:not(.loki-phone *):focus-visible, .loki-msg-action[data-copied="true"] { opacity: 1; }
 .loki-msg-action[data-copied="true"] { color: var(--loki-positive); }
 /* A day's block and its pill: the hairline runs across the day's top; the pill rides the thread's top edge
    until the next day's block pushes it off. */
@@ -176,7 +200,7 @@
 .loki-widget-row-icon:not(.loki-phone *) { flex: none; display: flex; justify-content: flex-end; width: 36px; color: var(--loki-muted); }
 .loki-widget-row-text:not(.loki-phone *) { min-width: 0; overflow-wrap: anywhere; }
 /* Tool and event lines among avatar-led messages sit in the message column (face 36px + gap 8px), under the text they follow. */
-:is(.loki-msg, .loki-widget-row) ~ :is(.loki-tool-row, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
+:is(.loki-msg, .loki-widget-row) ~ :is(.loki-steps, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
 .loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
 .loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
@@ -184,3 +208,14 @@
 .loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-muted); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }
 .loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title { text-decoration: line-through; }
 .loki-widget-row .loki-msg-time:not(.loki-phone *) { margin-left: 0; }
+
+/* The agent thinking: "thinking" and three dots rising in turn, as a typing bubble's do. Transform and opacity only. */
+.loki-thinking { display: flex; align-items: baseline; gap: 4px; padding: 6px 0; color: var(--loki-muted); font-size: 12px; }
+.loki-thinking-dots { display: inline-flex; gap: 3px; }
+.loki-thinking-dots > span { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: loki-think 1.2s ease-in-out infinite; }
+.loki-thinking-dots > span:nth-child(2) { animation-delay: 0.15s; }
+.loki-thinking-dots > span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes loki-think {
+  0%, 60%, 100% { opacity: 0.35; transform: none; }
+  30% { opacity: 1; transform: translateY(-3px); }
+}

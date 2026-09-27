@@ -113,7 +113,7 @@ export function sidebarModel(desks: DeskSummary[], items: AttentionItem[], opts:
   const q = (opts.query ?? "").trim().toLowerCase();
   const itemOf = new Map(items.map((i) => [`${i.agentId}/${i.id}`, i]));
   const names = new Map((opts.agents ?? []).map((a) => [a.id, a.name]));
-  const agentName = (d: DeskSummary) => (d.agentId ? (names.get(d.agentId) ?? d.agentName) : d.agentName) ?? (d.agentId ? "Agent" : "Other desks");
+  const agentName = (d: DeskSummary) => (d.agentId ? (names.get(d.agentId) ?? d.agentName) : d.agentName) ?? (d.agentId ? "Agent" : "Other chats");
   const matches = (d: DeskSummary) => !q || (d.title ?? "").toLowerCase().includes(q) || agentName(d).toLowerCase().includes(q);
   const row = (d: DeskSummary): SidebarRow => ({ desk: d, ...deskRowState(itemOf.get(`${d.agentId}/${d.conversationId}`), d), main: d.conversationId === "default", current: d.scope === opts.current });
 

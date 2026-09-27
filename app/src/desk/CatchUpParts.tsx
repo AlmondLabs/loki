@@ -46,10 +46,45 @@ export function DeckHeader({ current, position, total, left, liveWaiting, snooze
       </div>
       {total > 0 && (
         <div aria-hidden style={{ height: 2, margin: "0 6px 10px", background: "var(--loki-border)", borderRadius: 1, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${Math.round(((total - left) / total) * 100)}%`, background: "var(--loki-accent)", transition: "width 240ms ease-out" }} />
+          <div style={{ height: "100%", transformOrigin: "0 50%", transform: `scaleX(${((total - left) / total).toFixed(3)})`, background: "var(--loki-accent)", transition: "transform 240ms ease-out" }} />
         </div>
       )}
     </>
+  );
+}
+
+/** One pill per agent with cards this pass, busiest first, after All; its name and how many wait. */
+export function agentPills(items: AttentionItem[], showSnoozed: boolean): { agentId: string; name: string; count: number }[] {
+  const by = new Map<string, { agentId: string; name: string; count: number }>();
+  for (const i of catchUpQueue(items, showSnoozed)) {
+    const p = by.get(i.agentId) ?? { agentId: i.agentId, name: i.agentName ?? "agent", count: 0 };
+    p.count++;
+    by.set(i.agentId, p);
+  }
+  return [...by.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+/**
+ * Slack's filter pills over the deck: All, then each agent with something waiting. Shown once two agents
+ * wait (one agent is All already), or while a pill is on, which stays with its count at 0 once its cards are
+ * cleared, so you can see you are done with it and go back to All.
+ */
+export function AgentPills({ items, showSnoozed, agent, onAgent }: { items: AttentionItem[]; showSnoozed: boolean; agent: string | null; onAgent: (agent: string | null) => void }) {
+  const pills = agentPills(items, showSnoozed);
+  if (agent && !pills.some((p) => p.agentId === agent)) pills.push({ agentId: agent, name: items.find((i) => i.agentId === agent)?.agentName ?? "agent", count: 0 });
+  if (pills.length < 2 && !agent) return null;
+  const all = pills.reduce((n, p) => n + p.count, 0);
+  return (
+    <div role="group" aria-label="Filter by agent" style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 6px 10px" }}>
+      <Chip active={!agent} aria-pressed={!agent} onClick={() => onAgent(null)}>
+        All <Meta>{all}</Meta>
+      </Chip>
+      {pills.map((p) => (
+        <Chip key={p.agentId} active={agent === p.agentId} aria-pressed={agent === p.agentId} onClick={() => onAgent(agent === p.agentId ? null : p.agentId)}>
+          {p.name} <Meta>{p.count}</Meta>
+        </Chip>
+      ))}
+    </div>
   );
 }
 
@@ -127,7 +162,7 @@ export function deckKey(id: string, typing: boolean): string {
 export function CardActions({ current, typing, advance, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
   return (
     <>
-      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open desk</Button>
+      <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open chat</Button>
       <span style={{ flex: 1 }} />
       <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={deckKey("inbox.later", typing)}>← later</Button>
       <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={deckKey("inbox.next", typing)}>next →</Button>

@@ -9,7 +9,7 @@ import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./CatchUpParts";
+import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
 import { useDeckKeys } from "./useDeckKeys";
 import { useDeckQueue } from "./useDeckQueue";
@@ -48,6 +48,8 @@ interface CatchUpProps {
   onUnread: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
+  /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
+  onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   /** The model a card's conversation runs on, and the switcher (shared with the desk chat). */
@@ -72,7 +74,12 @@ type DeckProps = CatchUpProps & { showSnoozed: boolean; setShowSnoozed: (update:
 
 function CatchUpDeck(props: DeckProps) {
   const { onClose, items, snoozes, conversation, loadHistory, onOpenDesk, showSnoozed, setShowSnoozed } = props;
-  const { queue, setQueue, decided, setDecided } = useDeckQueue(items, showSnoozed);
+  /** The agent pill on: only that agent's cards come up this pass; null is All. */
+  const [agent, setAgent] = useState<string | null>(null);
+  const shown = useMemo(() => (agent ? items.filter((i) => i.agentId === agent) : items), [items, agent]);
+  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, showSnoozed, agent);
+  // What the header counts and undo takes back: this agent's part of the pass.
+  const decided = agent ? allDecided.filter((d) => d.item.agentId === agent) : allDecided;
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
   const [modeTick, setModeTick] = useState(0);
@@ -93,7 +100,7 @@ function CatchUpDeck(props: DeckProps) {
     else if (id === "mode" && props.onPickMode) setModeTick((t) => t + 1);
     else props.onCommand?.(item, id, args);
   };
-  const actions = useDeckActions({ current, decided, setDecided, setQueue, snoozedShown: showSnoozed, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove });
+  const actions = useDeckActions({ current, decided: allDecided, agent, setDecided, setQueue, snoozedShown: showSnoozed, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove });
   useDeckKeys({ typing, current, decided, replyRef, advance: actions.advance, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose, setShowSnoozed });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
@@ -118,7 +125,7 @@ function CatchUpDeck(props: DeckProps) {
   // The pass's tally, read when the deck unmounts (closing it is what ends a pass).
   const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass });
   useEffect(() => {
-    passRef.current = { decided, replies: actions.replies, onPass: props.onPass };
+    passRef.current = { decided: allDecided, replies: actions.replies, onPass: props.onPass };
   });
   useEffect(
     () => () => {
@@ -131,7 +138,7 @@ function CatchUpDeck(props: DeckProps) {
   );
 
   const total = queue.length + decided.length;
-  const snoozed = snoozedItems(items);
+  const snoozed = snoozedItems(shown);
   const nextDue = snoozed.map((i) => i.snooze!.until).sort()[0] ?? null;
 
   // One column capped at the pane (minmax(0, 1fr)): an auto column grew to the card's 1100px and clipped it in a 1100-wide window.
@@ -141,9 +148,10 @@ function CatchUpDeck(props: DeckProps) {
       style={{ position: "absolute", inset: 0, background: "var(--loki-bg)", display: "grid", gridTemplateRows: "100%", gridTemplateColumns: "minmax(0, 1fr)", justifyItems: "center", padding: "20px 24px 16px", boxSizing: "border-box", animation: "loki-veil 160ms ease-out both" }}
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        <DeckHeader current={current} position={total - queue.length + 1} total={total} left={queue.length} liveWaiting={liveWaitingCount(items)} snoozedCount={snoozed.length} showSnoozed={showSnoozed} />
+        <DeckHeader current={current} position={total - queue.length + 1} total={total} left={queue.length} liveWaiting={liveWaitingCount(shown)} snoozedCount={snoozed.length} showSnoozed={showSnoozed} />
+        <AgentPills items={items} showSnoozed={showSnoozed} agent={agent} onAgent={setAgent} />
         {!current ? (
-          <CaughtUp items={items} snoozedCount={snoozed.length} nextDue={nextDue} decided={decided} replies={actions.replies} />
+          <CaughtUp items={shown} snoozedCount={snoozed.length} nextDue={nextDue} decided={decided} replies={actions.replies} />
         ) : (
           <Card key={idOf(current)} current={current} thread={thread} decided={decided} priorSnooze={snoozes[idOf(current)]} typing={typing} setTyping={setTyping} replyRef={replyRef} actions={actions} deck={props} onCommand={(id, args) => runCommand(current, id, args)} modelTick={modelTick} modeTick={modeTick} />
         )}
@@ -193,6 +201,7 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),
+          onStop: deck.onStop ? () => deck.onStop!(current) : undefined,
           onAnswer: current.pendingQuestion ? (answers) => deck.onAnswer(current, current.pendingQuestion!.requestId, answers) : undefined,
           onApprove: current.pendingApproval ? actions.approve : undefined,
           commands: deck.commands,

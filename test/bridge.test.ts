@@ -141,7 +141,7 @@ describe("bridge", () => {
     const a = store.get("c1").layout["c1/a"].position;
     const b = store.get("c1").layout["c1/b"].position;
     expect(a).not.toEqual(b);
-    expect(gestures.peek("c1")).toEqual(["tidied the desk (auto-arranged 2 widgets)"]);
+    expect(gestures.peek("c1")).toEqual(["tidied the canvas (auto-arranged 2 widgets)"]);
     expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widgetIds: expect.arrayContaining(["c1/a", "c1/b"]) });
   });
 
@@ -216,6 +216,9 @@ describe("bridge: viewed", () => {
       bridge.onMessage(c, { type: "seen_list" });
       expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
+      // Learn's leads work from the phone (a lesson started there opens its conversation); the writer's settings do not.
+      for (const type of ["recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"]) expect(PHONE_FRAMES.has(type)).toBe(true);
+      expect(PHONE_FRAMES.has("recall_settings")).toBe(false);
       seen.flush();
     } finally {
       rmSync(dir, { recursive: true, force: true });
