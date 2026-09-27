@@ -6,7 +6,7 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
 
-/** Which way a swipe went: right is "seen" (Next: read, move on; the chat stays), left is "archive" (done: the chat leaves). */
+/** How a card goes by hand: "seen" (Next: read, move on; the chat stays) by the right swipe or the button, "archive" (done: the chat leaves) by its button only. */
 export type Swipe = "seen" | "archive";
 /** How a card left the deck this visit. */
 export type Via = Swipe | "approve" | "deny";
@@ -32,7 +32,9 @@ export const FLY_PAST = 80;
 export function swipeDecision(dx: number, width: number, velocity: number, opts: { approval: boolean }): Swipe | null {
   if (opts.approval) return null;
   if (!Number.isFinite(dx) || !Number.isFinite(width) || width <= 0) return null;
-  const dir: Swipe = dx > 0 ? "seen" : "archive";
+  // Only a right swipe commits (Next); archiving is too final for a stray swipe, so it has its button alone.
+  if (dx <= 0) return null;
+  const dir: Swipe = "seen";
   if (Math.abs(dx) >= width * COMMIT_FRACTION) return dir;
   if (Math.abs(dx) > DRAG_SLOP && Math.abs(velocity) >= FLICK_VELOCITY && Math.sign(velocity) === Math.sign(dx)) return dir;
   return null;

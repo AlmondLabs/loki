@@ -149,8 +149,8 @@ export function CardActions({ current, typing, next, archive, onOpenDesk, onClos
   return (
     <>
       <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open chat</Button>
-      <span style={{ flex: 1 }} />
       <Button size="sm" onClick={archive} disabled={main} title={main ? "a main chat cannot be archived" : "done with this chat: it leaves the Inbox"} kbd={deckKey("inbox.archive", typing)}>archive</Button>
+      <span style={{ flex: 1 }} />
       <Button size="sm" tone="paper" onClick={next} title="read it and move on: the chat stays for your next visit" kbd={deckKey("inbox.next", typing)}>next →</Button>
     </>
   );

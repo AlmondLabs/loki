@@ -71,11 +71,11 @@ const plain = { approval: false };
 const approval = { approval: true };
 
 describe("swipe decision", () => {
-  test("past 40 % of the width: right is seen (Next), left is archive", () => {
+  test("past 40 % of the width, right is seen (Next); a left swipe never commits: archiving has its button alone", () => {
     expect(swipeDecision(W * COMMIT_FRACTION, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBe("archive");
+    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBeNull();
     expect(swipeDecision(200, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-200, W, 0, plain)).toBe("archive");
+    expect(swipeDecision(-W, W, 0, plain)).toBeNull();
   });
   test("short of the distance and slow: springs back", () => {
     expect(swipeDecision(W * COMMIT_FRACTION - 1, W, 0, plain)).toBeNull();
@@ -85,7 +85,7 @@ describe("swipe decision", () => {
   });
   test("a fast flick commits short of the distance, in the drag's own direction", () => {
     expect(swipeDecision(40, W, FLICK_VELOCITY, plain)).toBe("seen");
-    expect(swipeDecision(-40, W, -FLICK_VELOCITY, plain)).toBe("archive");
+    expect(swipeDecision(-40, W, -FLICK_VELOCITY, plain)).toBeNull();
     // fast but the other way (a flick back toward rest): no
     expect(swipeDecision(40, W, -1.5, plain)).toBeNull();
     // a flick that never cleared the slop is a twitch

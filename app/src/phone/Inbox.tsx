@@ -54,8 +54,8 @@ import {
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
  * one or two peeking from behind, "N Left" on top. The card is the conversation itself — who it is
  * with, the thread with the unread line, what the agent waits on, and a working message box — so a card
- * can be read and answered without leaving the Inbox. Under it, Archive and Next; swipe left to archive
- * (done: the chat leaves the Inbox), right for Next (read, move on: the chat stays for your next visit).
+ * can be read and answered without leaving the Inbox. Under it, Archive (done: the chat leaves the Inbox) and
+ * Next (read, move on: the chat stays for your next visit); a right swipe is Next, and nothing archives by swipe.
  * Approvals refuse both, and the two buttons become Deny and Approve. Undo sits in the top bar for six
  * seconds after Archive or Next. The pure parts (when a drag
  * commits, the lean, the pass itself, what the card says) are in deck.ts.
@@ -492,19 +492,16 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
   );
 }
 
-/** Under the top card while it is dragged: Next on the left as the card goes right, Archive on the right. Approvals reveal nothing. */
+/** Under the top card while it is dragged right: Next. A left drag reveals nothing (it springs back), nor does an approval. */
 function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
   const read = !approval && dx > 0 ? revealOpacity(dx, width) : 0;
-  const archive = !approval && dx < 0 ? revealOpacity(dx, width) : 0;
+
   // Past the commit distance the word under the card pops (phone.css): letting go now does it.
   const ready = !approval && armed(dx, width);
   return (
     <div aria-hidden className="loki-phone-reveal">
       <span className="loki-phone-reveal-read" data-armed={(ready && dx > 0) || undefined} style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
         <Icon name="check" size={20} /> Next
-      </span>
-      <span className="loki-phone-reveal-later" data-armed={(ready && dx < 0) || undefined} style={{ opacity: archive, transform: `scale(${0.9 + archive * 0.1})` }}>
-        Archive <Icon name="archive" size={20} />
       </span>
     </div>
   );
