@@ -45,7 +45,7 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
-      onSeen={(item) => (catchUp.decided(item, "next"), catchUp.seen(item))}
+      onSeen={(item, via) => (via === "next" && catchUp.decided(item, "next"), catchUp.seen(item))}
       onUnread={catchUp.unread}
       onArchive={(item) => (catchUp.decided(item, "archive"), catchUp.archive(item))}
       onUnarchive={(item) => void catchUp.unarchive(item)}

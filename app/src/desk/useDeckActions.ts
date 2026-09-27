@@ -27,7 +27,8 @@ export function useDeckActions({
   decided: Decision[];
   setDecided: Dispatch<SetStateAction<Decision[]>>;
   setQueue: Dispatch<SetStateAction<AttentionItem[]>>;
-  onSeen: (item: AttentionItem) => void;
+  /** Marked read on the way past; `via` says what moved it (an approval moves the card too, and is logged as one). */
+  onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
   /** Archive the chat (done); resolves to an error or null. */
   onArchive: (item: AttentionItem) => Promise<string | null>;
@@ -54,7 +55,7 @@ export function useDeckActions({
   /** Next: read, move on; the chat comes back on a later visit, or in this one if it moves on. */
   const next = (via: "next" | "approve" | "deny" = "next") => {
     if (!current) return;
-    onSeen(current);
+    onSeen(current, via);
     decide(current, "seen", via);
   };
   /** Archive: done with the chat. A main chat cannot be archived; the card stays and says so. */

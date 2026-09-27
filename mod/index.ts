@@ -1,4 +1,4 @@
-import { isScheduledPrompt, messageText } from "../core/harness.ts";
+import { personTyped } from "../core/harness.ts";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import type { Scope } from "../core/desk-core.ts";
@@ -429,9 +429,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
     log("event:turn_start", { desk: scope, attached: lines.length });
     if (convId) {
       seen.mark(runtime.agentId, convId); // you just spoke in this conversation
-      // Your message is engagement, typed anywhere; a scheduled task's prompt is not you.
-      const typed = Array.isArray(ev?.input) ? ev.input.map((m) => messageText((m as { content?: unknown }).content)).join("\n") : "";
-      if (!isScheduledPrompt(typed)) seen.engage(runtime.agentId, convId, "message");
+      // Your message is engagement, typed anywhere; a scheduled task's prompt, or a turn with nothing typed, is not you.
+      if (personTyped(ev?.input)) seen.engage(runtime.agentId, convId, "message");
       broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), focus: seen.focusAll(), appServer: appServerUrl !== null });
     }
     // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation.
