@@ -17,8 +17,7 @@ import type { AttentionItem } from "./model.ts";
  * Age settles ties and lets old cards drift down, except for a stopped agent, the one case where waiting makes
  * a card more urgent. A failed turn is not blocked: nothing waits on you, so it ranks by its chat's focus.
  * The score is stamped on every item once per rebuild (buildItems, on each event and the half-minute clock),
- * so the deck, the phone and the card's label all read the same instant. Deferred cards are the wait queue
- * (snooze.ts); they re-enter here when due or when their content changes, at their natural score.
+ * so the deck, the phone and the card's label all read the same instant.
  */
 export const BLOCKED_POINTS = 100;
 export const NEW_POINTS = 10;

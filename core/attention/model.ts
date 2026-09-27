@@ -101,12 +101,9 @@ export interface Live {
   mode?: string;
 }
 
-import type { Snooze } from "./snooze.ts";
 import { askQuestions, type AskQuestion } from "./content.ts";
 
 export interface AttentionItem extends ConversationInfo {
-  /** Set by the attention hook: the deferral currently hiding this item, if any. */
-  snooze?: Snooze | null;
   status: AttentionStatus;
   lastAssistantText: string | null;
   lastRole: "user" | "assistant" | null;

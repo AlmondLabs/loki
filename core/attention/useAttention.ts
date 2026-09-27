@@ -8,9 +8,7 @@ import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatS
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
-import { activeSnooze, nextSnooze, type Snooze } from "./snooze.ts";
-import type { SnoozeLadder } from "./ladder.ts";
-import { idOf, inboxQueue, stampOf } from "./queue.ts";
+import { idOf, inboxQueue } from "./queue.ts";
 import { focusShares, type FocusAction, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
@@ -21,8 +19,8 @@ import type { MakeTransport } from "./transport.ts";
  * through the mod's tunnel, supplies the live half — approvals, questions, streaming — for the
  * most recent ones, and the seen markers are the mod's too.
  */
-/** What you did with an Inbox card: cleared it, put it off, decided an approval, replied, or answered its question. */
-export type CardAction = "done" | "later" | "approve" | "deny" | "reply" | "answer";
+/** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
+export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer";
 
 export interface UseAttentionOptions {
   /** The mod says whether an app-server was discovered. */
@@ -33,17 +31,12 @@ export interface UseAttentionOptions {
   seen: Record<string, string>;
   /** When each conversation was last looked at (the mod's viewed markers); a look is not done. */
   viewed?: Record<string, string>;
-  snooze: Record<string, Snooze>;
   /** Each chat's focus weight (the mod's, core/attention/focus.ts): what the inbox ranks by after blocked agents. */
   focus?: Record<string, FocusEntry>;
   /** Tell the mod about an engagement the app-server carries and the mod cannot see (a decision, an answer). */
   engage?: (agentId: string, conversationId: string, action: FocusAction) => void;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
-  setSnooze: (agentId: string, conversationId: string, rec: Snooze) => void;
-  clearSnooze: (agentId: string, conversationId: string) => void;
-  /** How long "later" hides a card (the mod's setting; ladder.ts has the defaults). */
-  ladder?: SnoozeLadder;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
   loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }>>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
@@ -225,15 +218,15 @@ export function useAttention(opts: UseAttentionOptions) {
     [],
   );
 
-  // The clock tick: snoozes come due and warmth fades without any other event, so the items are rebuilt twice a minute.
+  // The clock tick: focus fades and cards age without any other event, so the items are rebuilt twice a minute.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
   const items = useMemo(
-    () => buildItems(conversations, digests, live, opts.seen, now, opts.viewed, focusShares(opts.focus ?? {}, now)).map((i) => ({ ...i, snooze: activeSnooze(i, opts.snooze[keyOf(i.agentId, i.id)], now) })),
-    [conversations, digests, opts.seen, opts.viewed, opts.snooze, opts.focus, live, now],
+    () => buildItems(conversations, digests, live, opts.seen, now, opts.viewed, focusShares(opts.focus ?? {}, now)),
+    [conversations, digests, opts.seen, opts.viewed, opts.focus, live, now],
   );
 
   /**
@@ -245,10 +238,10 @@ export function useAttention(opts: UseAttentionOptions) {
     itemsRef.current = items;
   });
   const decided = useCallback((item: AttentionItem, action: CardAction) => {
-    const queue = inboxQueue(itemsRef.current, true);
+    const queue = inboxQueue(itemsRef.current);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
     const now = queue[at] ?? item;
-    optsRef.current.capture?.("inbox_card_decided", { action, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(now.score * 10) / 10, focus: Math.round(now.focus * 100) / 100, reason: now.reason, status: now.status, snoozed: !!now.snooze });
+    optsRef.current.capture?.("inbox_card_decided", { action, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(now.score * 10) / 10, focus: Math.round(now.focus * 100) / 100, reason: now.reason, status: now.status });
   }, []);
 
   // The app-server only lists what is still in the agent's context, so a compacted
@@ -542,13 +535,18 @@ export function useAttention(opts: UseAttentionOptions) {
     bump();
     return null;
   }, [bump]);
-  /** Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived. */
+  /**
+   * Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived.
+   * Archiving is how a chat leaves the Inbox, so it goes from the list at once; a restore reads the list again.
+   */
   const archiveConversation = useCallback(async (conversationId: string, archived: boolean): Promise<string | null> => {
     const sock = socketRef.current;
     if (!sock) return "not connected to the app-server";
     if (conversationId === "default") return "a main chat cannot be archived";
     try {
       await sock.updateConversation(conversationId, { archived });
+      if (archived) setConversations((c) => c.filter((x) => x.id !== conversationId));
+      else reloadRef.current?.();
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : String(err);
@@ -634,11 +632,10 @@ export function useAttention(opts: UseAttentionOptions) {
 
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agentId, item.id), []);
   const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agentId, item.id), []);
-  const later = useCallback((item: AttentionItem) => {
-    const o = optsRef.current;
-    o.setSnooze(item.agentId, item.id, nextSnooze(o.snooze[keyOf(item.agentId, item.id)], stampOf(item), Date.now(), o.ladder));
-  }, []);
-  const unsnooze = useCallback((item: AttentionItem) => optsRef.current.clearSnooze(item.agentId, item.id), []);
+  /** Done with a chat: it is archived and leaves the Inbox; resolves to an error or null. */
+  const archive = useCallback((item: AttentionItem) => archiveConversation(item.id, true), [archiveConversation]);
+  /** Undo of an archive: the chat comes back. */
+  const unarchive = useCallback((item: AttentionItem) => archiveConversation(item.id, false), [archiveConversation]);
 
   // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.
   return {
@@ -680,10 +677,8 @@ export function useAttention(opts: UseAttentionOptions) {
     reload,
     seen: markDone,
     unread: markNotDone,
-    /** "Later": defer with backoff; the deferral is void if the card moves on. */
-    later,
-    unsnooze,
-    snoozes: opts.snooze,
+    archive,
+    unarchive,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,
   };

@@ -15,9 +15,7 @@ import type { ReflectionState } from "../../../mod/reflection.ts";
 import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
-import type { Snooze } from "../../../core/attention/snooze.ts";
 import type { FocusAction } from "../../../core/attention/focus.ts";
-import type { SnoozeLadder } from "../../../core/attention/ladder.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { LanVia } from "../phone/model";
 import type { ReasoningEffort } from "../../../core/models.ts";
@@ -91,9 +89,7 @@ export function useDesk() {
     appServer,
     seenMap,
     viewedMap,
-    snoozeMap,
     focusMap,
-    ladder,
     tasksVersion,
     recallVersion,
     lanStatus,
@@ -284,7 +280,6 @@ export function useDesk() {
     capture,
     tunnelUrl,
     seen: seenMap,
-    snooze: snoozeMap,
     /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
     focus: focusMap,
     engage: (agentId: string, conversationId: string, action: FocusAction) => send({ type: "focus_add", agentId, conversationId, action }),
@@ -293,10 +288,6 @@ export function useDesk() {
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */
     viewed: viewedMap,
     markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
-    setSnooze: (agentId: string, conversationId: string, rec: Snooze) => send({ type: "snooze_set", agentId, conversationId, ...rec }),
-    /** How long "later" hides a card, and the setter (Settings › inbox): the mod clamps and broadcasts. */
-    ladder,
-    setLadder: (input: Partial<SnoozeLadder>) => send({ type: "snooze_ladder", ...input }),
     /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((m) => ((m?.conversations as InboxConversation[] | undefined) ?? [])),
     /**
@@ -315,7 +306,6 @@ export function useDesk() {
       check: (path: string) => request("folder_check", { path }, 3000).then((m) => (m ? { ok: m.ok === true, path: String(m.path ?? path), branch: (m.branch as string | null) ?? null, reason: (m.reason as string | undefined) } : { ok: false, path, branch: null, reason: "no answer from the mod" })),
       pick: (defaultPath?: string) => request("folder_pick", { defaultPath }, 180_000).then((m) => ((m?.path as string | null | undefined) ?? null)),
     },
-    clearSnooze: (agentId: string, conversationId: string) => send({ type: "snooze_clear", agentId, conversationId }),
   };
 
   /**

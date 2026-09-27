@@ -161,14 +161,10 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     makeTransport,
     seen: attention.seen,
     viewed: attention.viewed,
-    snooze: attention.snooze,
     focus: attention.focus,
     engage: attention.engage,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
-    setSnooze: attention.setSnooze,
-    clearSnooze: attention.clearSnooze,
-    ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
     capture,
@@ -403,11 +399,6 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         : undefined,
   };
   const { attention } = desk;
-  const later = (item: AttentionItem) => {
-    catchUp.decided(item, "later");
-    catchUp.unread(item);
-    if (!item.pendingApproval) catchUp.later(item); // approvals never snooze
-  };
   return (
     <>
       <Home
@@ -447,10 +438,12 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
           model: cardModel,
         }}
         onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny"), catchUp.approve(item, requestId, behavior))}
-        onSeen={(item) => (catchUp.decided(item, "done"), catchUp.seen(item))}
-        onLater={later}
-        onUnsnooze={catchUp.unsnooze}
-        onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : catchUp.unsnooze(item))}
+        onSeen={(item) => (catchUp.decided(item, "next"), catchUp.seen(item))}
+        onArchive={(item) => {
+          catchUp.decided(item, "archive");
+          void catchUp.archive(item).then((err) => err && setCardNote(`Archive: ${err}`));
+        }}
+        onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item))}
       />
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} link={link} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} />}
       {tab === "more" && <More me={me} link={link} agents={catchUp.agents.length} running={homeCounts({ items: catchUp.items, due, agents: catchUp.agents, desks: desk.desks.list }).running} due={due} archived={archiveList(desk.desks.list, null, "").length} servedBuild={desk.servedBuild} banner={banner} />}

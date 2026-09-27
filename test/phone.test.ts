@@ -212,7 +212,7 @@ describe("agents on the phone", () => {
 
 describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)", () => {
   const item = (over: Partial<AttentionItem>): AttentionItem =>
-    ({ id: "c", agentId: "a", agentName: "ira", title: "t", status: "done", unread: false, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a", conversation_id: "c" }, ...over }) as AttentionItem;
+    ({ id: "c", agentId: "a", agentName: "ira", title: "t", status: "done", unread: false, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a", conversation_id: "c" }, ...over }) as AttentionItem;
   test("waits on you: the red attention dot, filled", () => {
     const m = deskMark(item({ status: "approval" }), "live");
     expect(m.kind).toBe("waits");
@@ -226,9 +226,8 @@ describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)",
     expect(m.color).toBe("transparent");
     expect(m.border).toBe("var(--loki-fg)");
   });
-  test("finished and read, or snoozed: nothing", () => {
+  test("finished and read: nothing", () => {
     expect(deskMark(item({ status: "done", unread: false }), "live").kind).toBe("none");
-    expect(deskMark(item({ status: "done", unread: true, snooze: { until: "2026-09-08T00:00:00Z" } as unknown as AttentionItem["snooze"] }), "live").kind).toBe("none");
   });
   test("running: a muted ring that pulses", () => {
     const m = deskMark(item({ status: "running" }), "live");
@@ -275,7 +274,7 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
   const desk = (over: Partial<DeskSummary>): DeskSummary =>
     ({ scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`, title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
   const item = (over: Partial<AttentionItem>): AttentionItem =>
-    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
   const desks = [
     desk({ conversationId: "c1", title: "Loki mobile", lastActive: "2026-09-20T10:00:00Z" }),
     desk({ conversationId: "c2", title: "QuizUp", agentId: "a2", agentName: "jira", lastActive: "2026-09-21T10:00:00Z" }),
@@ -288,7 +287,7 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     item({ id: "c1", status: "approval" }),
     item({ id: "c9", agentId: "a2", agentName: "jira", status: "question", title: "Main chat" }),
     item({ id: "c2", agentId: "a2", agentName: "jira", status: "running", unread: false }),
-    item({ id: "c3", status: "done", snooze: { until: "2026-09-30T00:00:00Z" } as unknown as AttentionItem["snooze"] }),
+    item({ id: "c3", status: "idle", unread: false }), // a quiet chat: in the Inbox, but not waiting on you
   ];
 
   test("shortcut counts: waiting inbox items, due cards, agents running, archived desks with a conversation", () => {
@@ -362,7 +361,7 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
   const desk = (over: Partial<DeskSummary>): DeskSummary =>
     ({ scope: "s", title: "t", status: "live", agentName: "ira", agentId: "a1", conversationId: "c", model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...over }) as DeskSummary;
   const item = (over: Partial<AttentionItem>): AttentionItem =>
-    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, snooze: null, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
+    ({ id: "c", agentId: "a1", agentName: "ira", title: "t", status: "done", unread: true, lastMessageAt: null, lastAssistantText: null, pendingApproval: null, pendingQuestion: null, error: null, runtime: { agent_id: "a1", conversation_id: "c" }, ...over }) as AttentionItem;
   const agents = [
     { id: "a1", name: "ira" },
     { id: "a2", name: "jira" },
@@ -373,11 +372,11 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
     item({ id: "c1", status: "question" }),
     item({ id: "c2", status: "approval" }),
     item({ id: "c4", agentId: "a2", status: "running", unread: false }),
-    item({ id: "c5", status: "done", snooze: { until: "2099-01-01T00:00:00Z" } as unknown as AttentionItem["snooze"] }),
+    item({ id: "c5", status: "idle", unread: false }),
   ];
   const rows = agentRows(agents, desks, items);
 
-  test("each agent in the app-server's order: live desks, a turn running, and what waits on you (snoozed left out)", () => {
+  test("each agent in the app-server's order: live desks, a turn running, and what waits on you (a quiet chat left out)", () => {
     expect(rows.map((r) => [r.id, r.live, r.running, r.waiting])).toEqual([
       ["a1", 2, false, 2],
       ["a2", 1, true, 0],

@@ -45,11 +45,10 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onClose={onClose}
       onPass={onPass}
       items={catchUp.items}
-      onSeen={(item) => (catchUp.decided(item, "done"), catchUp.seen(item))}
+      onSeen={(item) => (catchUp.decided(item, "next"), catchUp.seen(item))}
       onUnread={catchUp.unread}
-      onLater={(item) => (catchUp.decided(item, "later"), catchUp.later(item))}
-      onUnsnooze={catchUp.unsnooze}
-      snoozes={catchUp.snoozes}
+      onArchive={(item) => (catchUp.decided(item, "archive"), catchUp.archive(item))}
+      onUnarchive={(item) => void catchUp.unarchive(item)}
       onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny"), catchUp.approve(item, requestId, behavior))}
       onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer"), catchUp.answer(item.runtime, requestId, answers))}
       onReply={(item, text, images) => (catchUp.decided(item, "reply"), catchUp.reply(item, text, images))}
@@ -106,7 +105,7 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
 /** Preferences (the Settings sheet): the harness and mod facts come from the two models; the chat preferences from useChatLayout. */
 export function SettingsView({ desk, catchUp, boot, onInstallLetta, onCheckLetta, onUpdateLetta, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut, recall, scratch, onClose }: { onClose: () => void; update: LokiUpdate; shortcut: GlobalShortcut; recall: RecallModel; scratch: Scratch; desk: Desk; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
   const { attention } = desk;
-  return <Preferences onClose={onClose} appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} scratch={scratch} inbox={{ ladder: attention.ladder, onLadder: attention.setLadder }} />;
+  return <Preferences onClose={onClose} appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} scratch={scratch} />;
 }
 
 /** First launch, over the empty desk: the provider, the first agent, its desk. */

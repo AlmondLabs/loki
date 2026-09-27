@@ -170,32 +170,6 @@ describe("bridge", () => {
   });
 });
 
-describe("bridge: the later ladder", () => {
-  test("seen carries the ladder; snooze_ladder sets a knob, clamps it and broadcasts the new seen frame", async () => {
-    const { mkdtempSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const { SeenStore } = await import("../mod/seen.ts");
-    const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
-    try {
-      const seen = new SeenStore(join(dir, "attention.json"));
-      const broadcasts: object[] = [];
-      const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m), seen });
-      const c = client("c1");
-      bridge.onMessage(c, { type: "seen_list" });
-      expect(c.sent[0]).toMatchObject({ type: "seen", ladder: { firstMinutes: 10, growth: 3 } });
-      bridge.onMessage(c, { type: "snooze_ladder", firstMinutes: 5 });
-      expect(broadcasts.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5, growth: 3 } });
-      bridge.onMessage(c, { type: "snooze_ladder", growth: 0 });
-      expect(broadcasts.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5, growth: 1 } });
-      expect(seen.ladder()).toEqual({ firstMinutes: 5, growth: 1 });
-      seen.flush(); // the write is coalesced; land it before the folder goes
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("bridge: viewed", () => {
   test("viewed_mark stamps a look and broadcasts the seen frame with it; seen_list carries it; the phone may send it", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
@@ -258,7 +232,7 @@ describe("bridge: focus", () => {
 });
 
 describe("bridge: a mark that changes nothing", () => {
-  test("neither writes nor broadcasts; a ladder already in force answers the sender alone", async () => {
+  test("neither writes nor broadcasts", async () => {
     const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
@@ -271,16 +245,12 @@ describe("bridge: a mark that changes nothing", () => {
       const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
-      bridge.onMessage(c, { type: "snooze_ladder", firstMinutes: 5 });
-      expect(broadcasts.length).toBe(2);
+      expect(broadcasts.length).toBe(1);
       seen.flush();
       writeFileSync(path, "untouched");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" }); // the same instant: the same look
       bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" }); // not done already
-      bridge.onMessage(c, { type: "snooze_clear", agentId: "a", conversationId: "x" }); // nothing deferred
-      bridge.onMessage(c, { type: "snooze_ladder", firstMinutes: 5 });
-      expect(broadcasts.length).toBe(2);
-      expect(c.sent.at(-1)).toMatchObject({ type: "seen", ladder: { firstMinutes: 5 } }); // so the sender's knob snaps back to what is kept
+      expect(broadcasts.length).toBe(1);
       seen.flush();
       expect(readFileSync(path, "utf8")).toBe("untouched");
     } finally {

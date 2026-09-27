@@ -71,11 +71,11 @@ const plain = { approval: false };
 const approval = { approval: true };
 
 describe("swipe decision", () => {
-  test("past 40 % of the width: right is seen, left is later", () => {
+  test("past 40 % of the width: right is seen (Next), left is archive", () => {
     expect(swipeDecision(W * COMMIT_FRACTION, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBe("later");
+    expect(swipeDecision(-W * COMMIT_FRACTION, W, 0, plain)).toBe("archive");
     expect(swipeDecision(200, W, 0, plain)).toBe("seen");
-    expect(swipeDecision(-200, W, 0, plain)).toBe("later");
+    expect(swipeDecision(-200, W, 0, plain)).toBe("archive");
   });
   test("short of the distance and slow: springs back", () => {
     expect(swipeDecision(W * COMMIT_FRACTION - 1, W, 0, plain)).toBeNull();
@@ -85,7 +85,7 @@ describe("swipe decision", () => {
   });
   test("a fast flick commits short of the distance, in the drag's own direction", () => {
     expect(swipeDecision(40, W, FLICK_VELOCITY, plain)).toBe("seen");
-    expect(swipeDecision(-40, W, -FLICK_VELOCITY, plain)).toBe("later");
+    expect(swipeDecision(-40, W, -FLICK_VELOCITY, plain)).toBe("archive");
     // fast but the other way (a flick back toward rest): no
     expect(swipeDecision(40, W, -1.5, plain)).toBeNull();
     // a flick that never cleared the slop is a twitch
@@ -167,20 +167,20 @@ describe("pass summary", () => {
     expect(summaryLine(s)).toBe("");
     s = tally(s, "seen");
     s = tally(s, "seen");
-    s = tally(s, "later");
+    s = tally(s, "archive");
     s = tally(s, "approve");
-    expect(s).toEqual({ seen: 2, later: 1, approved: 1, denied: 0 });
-    expect(summaryLine(s)).toBe("2 marked as read · 1 for later · 1 approved");
+    expect(s).toEqual({ seen: 2, archived: 1, approved: 1, denied: 0 });
+    expect(summaryLine(s)).toBe("2 moved past · 1 archived · 1 approved");
     expect(passTotal(s)).toBe(4);
     s = tally(s, "deny");
-    expect(summaryLine(s)).toBe("2 marked as read · 1 for later · 1 approved · 1 denied");
+    expect(summaryLine(s)).toBe("2 moved past · 1 archived · 1 approved · 1 denied");
   });
   test("undo takes one back and never goes below zero", () => {
     let s = tally(EMPTY_PASS, "seen");
     s = tally(s, "seen", -1);
     expect(s.seen).toBe(0);
-    s = tally(s, "later", -1);
-    expect(s.later).toBe(0);
+    s = tally(s, "archive", -1);
+    expect(s.archived).toBe(0);
   });
 });
 
@@ -212,13 +212,9 @@ describe("dismissed unless the stamp changed", () => {
     // b unchanged and still actionable (the round trip has not landed): kept
     expect(pruneDismissed(d, [b]).size).toBe(1);
   });
-  test("an entry lasts while the chat is unchanged: a snooze or a turn starting takes it out of the Inbox, and the entry goes", () => {
+  test("an entry lasts while the chat is unchanged: a turn starting takes it out of the Inbox, and the entry goes", () => {
     const b = item("b");
     const d = dismiss(new Map(), b);
-    const snooze = { skips: 1, until: "2026-09-07T10:05:00Z", stamp: stampOf(b), at: "2026-09-07T10:00:00Z" };
-    // the snooze arrived: the queue hides b by itself; forget the entry so an unsnooze shows it again
-    expect(pruneDismissed(d, [item("b", { snooze })]).size).toBe(0);
-    expect(visibleQueue([b], pruneDismissed(d, [item("b", { snooze })])).map((i) => i.id)).toEqual(["b"]);
     // marked read: still in the Inbox (a chat stays until it is archived), so the card stays dismissed for this visit
     expect(pruneDismissed(d, [item("b", { status: "idle", unread: false })]).size).toBe(1);
     // the agent is mid-turn: out of the Inbox for now, and the entry goes
@@ -238,22 +234,22 @@ describe("the top card stays on top", () => {
 
 /**
  * The deck as one state (U4): the pass a person is in the middle of — what went, what is on top, the card
- * held after a reply, the tally — as pure steps, so Later, Mark as done, undo and the approval refusal are
+ * held after a reply, the tally — as pure steps, so Next, Archive, undo and the approval refusal are
  * checked here rather than in a browser.
  */
-describe("the review pass: Later, Mark as done, undo, approvals", () => {
+describe("the review pass: Next, Archive, undo, approvals", () => {
   const three = () => [item("a"), item("b"), item("c")];
   const ask = item("q", { status: "approval", pendingApproval: { requestId: "r1", toolName: "Bash", input: "ls", at: "2026-09-07T10:01:00Z" } });
 
-  test("Later advances once: the next card is on top and one fewer is left", () => {
+  test("Archive advances once: the next card is on top and one fewer is left", () => {
     const items = three();
     let s = EMPTY_DECK;
     expect(deckQueue(items, s).map((i) => i.id)).toEqual(["a", "b", "c"]);
-    s = commitCard(s, items[0], "later");
+    s = commitCard(s, items[0], "archive");
     expect(deckQueue(items, s).map((i) => i.id)).toEqual(["b", "c"]);
-    expect(s.pass).toEqual({ ...EMPTY_PASS, later: 1 });
+    expect(s.pass).toEqual({ ...EMPTY_PASS, archived: 1 });
   });
-  test("Mark as done advances once, and undo puts the same card back on top with the count restored", () => {
+  test("Next advances once, and undo puts the same card back on top with the count restored", () => {
     const items = three();
     let s = commitCard(EMPTY_DECK, items[0], "seen");
     expect(deckQueue(items, s)).toHaveLength(2);
@@ -263,17 +259,25 @@ describe("the review pass: Later, Mark as done, undo, approvals", () => {
   });
   test("an undone card returns on top even when the list has re-sorted under it", () => {
     const [a, b, c] = three();
-    let s = commitCard(EMPTY_DECK, b, "later");
-    s = undoCard(s, b, "later");
+    let s = commitCard(EMPTY_DECK, b, "archive");
+    s = undoCard(s, b, "archive");
     expect(deckQueue([a, b, c], s)[0].id).toBe("b");
   });
-  test("an approval refuses Later and Mark as done: the state does not move", () => {
+  test("an approval refuses Next and Archive: the state does not move", () => {
     const s = EMPTY_DECK;
-    expect(canCommit(ask, "later")).toBe(false);
+    expect(canCommit(ask, "archive")).toBe(false);
     expect(canCommit(ask, "seen")).toBe(false);
-    expect(commitCard(s, ask, "later")).toBe(s);
+    expect(commitCard(s, ask, "archive")).toBe(s);
     expect(commitCard(s, ask, "seen")).toBe(s);
     expect(deckQueue([ask], s).map((i) => i.id)).toEqual(["q"]);
+  });
+  test("a main chat cannot be archived, only moved past", () => {
+    const main = item("default");
+    const s = EMPTY_DECK;
+    expect(canCommit(main, "archive")).toBe(false);
+    expect(commitCard(s, main, "archive")).toBe(s);
+    expect(canCommit(main, "seen")).toBe(true);
+    expect(commitCard(s, main, "seen").pass.seen).toBe(1);
   });
   test("only approve or deny takes an approval off; a plain card cannot be approved", () => {
     expect(canCommit(ask, "approve")).toBe(true);
@@ -293,7 +297,7 @@ describe("the review pass: Later, Mark as done, undo, approvals", () => {
     const running = item("a", { status: "running", unread: false, lastRole: "user" });
     expect(deckQueue([running, b, c], s).map((i) => i.id)).toEqual(["a", "b", "c"]);
     expect(deckQueue([running, b, c], s)[0]).toBe(running); // the live copy, so the thread and state are current
-    s = commitCard(s, running, "later");
+    s = commitCard(s, running, "archive");
     expect(deckQueue([running, b, c], s).map((i) => i.id)).toEqual(["b", "c"]);
     expect(s.held).toBeNull();
   });
@@ -353,9 +357,10 @@ describe("what the card says", () => {
     expect(cardNotice({ status: "running", agentName: "friday" }, "idle")).toBe("friday is working");
     expect(cardNotice({ status: "done", agentName: "friday" }, "streaming")).toBe("friday is writing");
   });
-  test("screen readers hear the outcome, the next card and the count", () => {
-    expect(reviewAnnouncement("seen", { id: "b", title: "Fix the shell" }, 2)).toBe("Marked as read. Next: Fix the shell. 2 left.");
-    expect(reviewAnnouncement("later", { id: "b", title: null }, 1)).toBe("Moved to Later. Next: b. 1 left.");
-    expect(reviewAnnouncement("approve", undefined, 0)).toBe("Approved. You're caught up.");
+  test("screen readers hear the outcome and the next card", () => {
+    expect(reviewAnnouncement("seen", { id: "b", title: "Fix the shell" }, 2)).toBe("Moved on. Next: Fix the shell.");
+    expect(reviewAnnouncement("archive", { id: "b", title: null }, 1)).toBe("Archived. Next: b.");
+    expect(reviewAnnouncement("approve", undefined, 0)).toBe("Approved. You've been through every chat.");
+    expect(reviewAnnouncement("deny", { id: "b", title: "b" }, 0)).toBe("Denied. You've been through every chat.");
   });
 });

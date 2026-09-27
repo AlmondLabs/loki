@@ -11,7 +11,7 @@ import type { AttentionItem } from "../core/attention/model.ts";
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
   ({ scope: scope as DeskSummary["scope"], title: scope, status: "live", agentName: "friday", agentId: "a1", conversationId: scope, model: null, reasoningEffort: null, pinned: false, widgets: 0, active: false, lastActive: "2026-09-08T10:00:00Z", ...over }) as DeskSummary;
-const item = (agentId: string, id: string, status: AttentionItem["status"], over: Partial<AttentionItem> = {}): AttentionItem => ({ id, agentId, status, unread: false, snooze: null, ...over }) as unknown as AttentionItem;
+const item = (agentId: string, id: string, status: AttentionItem["status"], over: Partial<AttentionItem> = {}): AttentionItem => ({ id, agentId, status, unread: false, ...over }) as unknown as AttentionItem;
 
 const desks = [
   desk("default-a1", { conversationId: "default", title: "friday", lastActive: "2026-09-01T09:00:00Z" }),

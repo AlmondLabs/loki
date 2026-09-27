@@ -84,7 +84,7 @@ export function ConversationScreen({
   onPickModel?: (rt: Runtime, selection: ModelSelection) => Promise<void>;
   /** The conversation's Inbox item, when it has one: its unread boundary, last message day and notice. */
   item?: AttentionItem | null;
-  /** The card is still actionable: offer Mark as done. */
+  /** The chat has something new for you: offer Mark as read. */
   waiting: boolean;
   /** "Mac unreachable · last seen …": takes the notice's place, over the box, so the thread stays readable. */
   banner?: ReactNode;
@@ -172,8 +172,8 @@ export function ConversationScreen({
       {actionsOpen && (
         <Sheet label={`${thread.title ?? agentName} actions`} onClose={() => setActionsOpen(false)} placement="bottom" className="loki-phone-sheet">
           <ul className="loki-phone-list">
-            {canSee && <SheetRow icon="check" label="Mark as done" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
-            {canUndo && <SheetRow icon="history" label="Mark as not done" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
+            {canSee && <SheetRow icon="check" label="Mark as read" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
+            {canUndo && <SheetRow icon="history" label="Mark as unread" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
             {pinned !== null && onPin && <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />}
             {rename && <SheetRow icon="pencil" label="Rename" aside={rename.onRename ? null : "Not connected"} disabled={!rename.onRename} onClick={() => (setActionsOpen(false), setRenaming(true))} />}
             <SheetRow icon="person" label={`${thread.agentName ?? "Agent"}'s profile`} onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))} />

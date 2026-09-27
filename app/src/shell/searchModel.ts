@@ -73,7 +73,7 @@ interface Page {
 /** Words for the Preferences pages beyond their names. */
 const PREF_WORDS: Partial<Record<SettingsPage, string[]>> = {
   letta: ["harness", "letta code", "mod", "version", "update", "install"],
-  inbox: ["later", "snooze"],
+  inbox: ["order", "score", "focus", "archive"],
   providers: ["models", "api key", "openai", "anthropic"],
   phone: ["pairing", "wi-fi", "lan"],
   appearance: ["theme", "dark mode", "light mode"],
@@ -132,7 +132,7 @@ const itemHit = (i: AttentionItem, agentName: string): SearchHit => ({
   place: deskPlace(scopeFor(i.id, i.agentId)),
   group: "waiting",
   title: i.title || "Untitled conversation",
-  preview: [agentName, WAITS[i.status], i.snooze ? "later" : null].filter(Boolean).join(" · "),
+  preview: [agentName, WAITS[i.status]].filter(Boolean).join(" · "),
   target: { kind: "desk", agentId: i.agentId, conversationId: i.id },
   lead: { agent: { id: i.agentId, name: agentName } },
   dim: false,
@@ -149,8 +149,8 @@ export function buildIndex(src: SearchSources): SearchIndex {
   const out: Indexed<SearchHit>[] = [];
   for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d, name(d.agentId, d.agentName)), fields: [deskTitle(d), name(d.agentId, d.agentName)], recency: time(d.lastActive) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
-  // The actionable items, Later included: what the Inbox holds, not every conversation.
-  for (const i of catchUpQueue(src.items, true)) {
+  // What needs you: the waiting group; every chat is findable by its title among the chats above.
+  for (const i of catchUpQueue(src.items)) {
     const n = name(i.agentId, i.agentName);
     out.push({ hit: itemHit(i, n), fields: [i.title ?? "", n], recency: time(i.lastMessageAt) });
   }

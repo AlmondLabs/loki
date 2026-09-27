@@ -13,36 +13,31 @@ export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
 export const stampOf = (i: AttentionItem) => `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}|${i.turns}`;
 
 /**
- * What needs you now, snoozed cards left out unless asked: the count on the Inbox's badge, Home's "Needs your
- * attention", Search's waiting group. In the order the items came (buildItems stamps and sorts by score).
+ * What needs you now: the count on the Inbox's badge, Home's "Needs your attention", Search's waiting group.
+ * In the order the items came (buildItems stamps and sorts by score).
  */
-export function catchUpQueue(items: AttentionItem[], includeSnoozed = false): AttentionItem[] {
-  return items.filter((i) => NEEDS_YOU.includes(i.status) && (includeSnoozed || !i.snooze));
+export function catchUpQueue(items: AttentionItem[]): AttentionItem[] {
+  return items.filter((i) => NEEDS_YOU.includes(i.status));
 }
 
 /**
  * The Inbox: every chat you have not archived (a chat is not done until it is archived; the list the mod hands
  * over already leaves archived ones out), except one whose agent is mid-turn, where there is nothing for you to
- * do yet. Snoozed ones stay out unless asked. Ranked by score, so what needs you comes first (priority.ts).
+ * do yet. Nothing is deferred: moving on (Next) keeps a chat in the Inbox for your next visit. Ranked by score,
+ * so what needs you comes first (priority.ts).
  */
-export function inboxQueue(items: AttentionItem[], includeSnoozed = false): AttentionItem[] {
-  return items.filter((i) => i.status !== "running" && (includeSnoozed || !i.snooze));
-}
-
-/** The wait queue: Inbox chats hidden by a deferral. */
-export function snoozedItems(items: AttentionItem[]): AttentionItem[] {
-  return items.filter((i) => i.status !== "running" && !!i.snooze);
+export function inboxQueue(items: AttentionItem[]): AttentionItem[] {
+  return items.filter((i) => i.status !== "running");
 }
 
 export interface Decision {
   item: AttentionItem;
-  action: "seen" | "unread";
-  /** How the card was cleared, for the pass summary. */
-  via?: "next" | "later" | "approve" | "deny";
+  /** Next marks the chat read and moves on; Archive is done, and the chat leaves the Inbox. */
+  action: "seen" | "archived";
+  /** How the card went, for the visit's summary. */
+  via?: "next" | "archive" | "approve" | "deny";
   /** stampOf(item) when decided; the same conversation comes back if it has moved on since. */
   stamp: string;
-  /** Whether snoozed cards were shown when this was decided; "show snoozed" only revisits cards deferred while they were hidden. */
-  snoozedShown?: boolean;
 }
 
 /** The head is popped: the card under your hands is done with, and the rest are ordered again by their score. */
@@ -51,14 +46,14 @@ export function popHead(queue: AttentionItem[]): AttentionItem[] {
 }
 
 /**
- * Fold live items into an open pass, on every event: the head (index 0) never moves; items no
- * longer actionable drop out; everything behind the head — what was there and what just arrived —
- * is ordered by score. A conversation decided earlier in this pass comes back if it has a newer
- * message or a new approval, so a reply that lands while the deck is open is queued rather than
- * lost until the next ⌘⇧K; being warm and yours, it lands right behind the head.
+ * Fold live items into an open visit, on every event: the head (index 0) never moves; chats that left the
+ * Inbox (archived, or their agent started a turn) drop out; everything behind the head — what was there and
+ * what just arrived — is ordered by score. A chat you moved past earlier in this visit comes back only if it
+ * has a newer message or a new approval, so a reply that lands while the deck is open is queued rather than
+ * waiting for the next visit; being new, it lands near the top.
  */
-export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[], includeSnoozed = false): AttentionItem[] {
-  const actionable = inboxQueue(items, includeSnoozed);
+export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decided: Decision[]): AttentionItem[] {
+  const actionable = inboxQueue(items);
   const actionableIds = new Set(actionable.map(idOf));
   const lastDecision = new Map<string, Decision>();
   for (const d of decided) lastDecision.set(idOf(d.item), d); // last decision wins
@@ -68,11 +63,7 @@ export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decid
     const id = idOf(i);
     if (known.has(id)) return false;
     const prev = lastDecision.get(id);
-    if (!prev || prev.stamp !== stampOf(i)) return true;
-    // "Show snoozed" is an explicit request to revisit cards deferred earlier in this pass while
-    // snoozed cards were hidden. A card deferred with them already shown was just sent away: keep it
-    // out, or every "later" would loop it straight back.
-    return includeSnoozed && !!i.snooze && prev.via === "later" && !prev.snoozedShown;
+    return !prev || prev.stamp !== stampOf(i);
   });
   const next = keep.length ? [keep[0], ...byScore([...keep.slice(1), ...fresh])] : byScore(fresh);
   // The kept items are the queue's own objects, so identity says whether anything moved.

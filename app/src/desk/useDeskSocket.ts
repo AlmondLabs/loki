@@ -3,9 +3,7 @@ import type { DeskState, Gesture, Scope, Size, WidgetManifestEntry } from "../..
 import { scopeFor } from "../../../core/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
-import type { Snooze } from "../../../core/attention/snooze.ts";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
-import { DEFAULT_LADDER, clampLadder, type SnoozeLadder } from "../../../core/attention/ladder.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
@@ -35,7 +33,7 @@ export const REPLY_FRAMES: ReadonlySet<string> = new Set(["agent", "memory_file"
 
 /**
  * The WebSocket to the mod and everything its frames feed: which desk this tab shows, the manifests
- * and geometry per scope, the desk list, titles and agents, the seen/snooze maps, the LAN listener's
+ * and geometry per scope, the desk list, titles and agents, the seen and focus maps, the LAN listener's
  * status. Reconnects with backoff, and re-opens on the new desk when `switchDesk` changes the scope.
  * Gestures and measures that arrive before the socket is open wait in `pendingRef` / `pendingMeasures`
  * and go out with the next desk frame. `waiters` holds the request/reply exchanges `useDesk` opens.
@@ -62,10 +60,7 @@ export function useDeskSocket() {
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
-  const [snoozeMap, setSnoozeMap] = useState<Record<string, Snooze>>({});
   const [focusMap, setFocusMap] = useState<Record<string, FocusEntry>>({});
-  /** How long "later" hides a card (Settings › inbox); the mod keeps it beside the markers. */
-  const [ladder, setLadder] = useState<SnoozeLadder>(DEFAULT_LADDER);
   /** Bumped when the mod says the board changed (another tab, an agent's loki_task call). */
   const [tasksVersion, setTasksVersion] = useState(0);
   /** Bumped when the mod says the cards changed (a review here, the worker writing, another tab): the Recall view refetches. */
@@ -215,14 +210,8 @@ export function useDeskSocket() {
             setSeenMap((m) => keepSame(m, (msg.seen as Record<string, string>) ?? {}));
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
             if (msg.viewed && typeof msg.viewed === "object") setViewedMap((m) => keepSame(m, msg.viewed as Record<string, string>));
-            setSnoozeMap((m) => keepSame(m, (msg.snooze as Record<string, Snooze>) ?? {}));
             // A mod from before focus sends none: keep what we have.
             if (msg.focus && typeof msg.focus === "object") setFocusMap((m) => keepSame(m, msg.focus as Record<string, FocusEntry>));
-            {
-              // Every seen broadcast carries the ladder; keep the same object while its values hold, so nothing re-renders on it.
-              const next = msg.ladder && typeof msg.ladder === "object" ? clampLadder(msg.ladder as Partial<Record<keyof SnoozeLadder, unknown>>) : DEFAULT_LADDER;
-              setLadder((prev) => (prev.firstMinutes === next.firstMinutes && prev.growth === next.growth ? prev : next));
-            }
             if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
           case "desk_title": {
@@ -302,9 +291,7 @@ export function useDeskSocket() {
     appServer,
     seenMap,
     viewedMap,
-    snoozeMap,
     focusMap,
-    ladder,
     tasksVersion,
     recallVersion,
     lanStatus,

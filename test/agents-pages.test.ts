@@ -118,7 +118,7 @@ describe("agents selection", () => {
 
 /** The Agents column as Slack DMs (app/src/agents/rows.ts, AgentsColumn). */
 describe("agents column", () => {
-  const item = (agentId: string, id: string, status: string, extra = {}) => ({ id, agentId, status, lastAssistantText: null, lastMessageAt: null, archived: false, snooze: null, ...extra });
+  const item = (agentId: string, id: string, status: string, extra = {}) => ({ id, agentId, status, lastAssistantText: null, lastMessageAt: null, archived: false, ...extra });
   const agents = [{ id: "a1", name: "ira" }, { id: "a2", name: "friday" }];
   const desks = [{ agentId: "a1", status: "live" }, { agentId: "a2", status: "live" }, { agentId: "a2", status: "live" }];
   const items = [

@@ -47,7 +47,8 @@ describe("keymap: resolution", () => {
     const next = (segment: Parameters<typeof resolve>[1]) => resolve(ev("]", { meta: true }), segment)?.id;
     const prev = (segment: Parameters<typeof resolve>[1]) => resolve(ev("[", { meta: true }), segment)?.id;
     expect([next("desk"), prev("desk")]).toEqual(["desk.next", "desk.prev"]);
-    expect([next("inbox"), prev("inbox")]).toEqual(["inbox.next", "inbox.later"]);
+    expect([next("inbox"), prev("inbox")]).toEqual(["inbox.next", undefined]); // the Inbox only moves on; there is no Later to step back to
+    expect(resolve(ev("e"), "inbox")?.id).toBe("inbox.archive");
     expect([next("board"), prev("board")]).toEqual(["board.nextColumn", "board.prevColumn"]);
     expect([next("learn"), prev("learn")]).toEqual(["learn.nextView", "learn.prevView"]);
     expect([next("agents"), prev("agents")]).toEqual(["agents.next", "agents.prev"]);

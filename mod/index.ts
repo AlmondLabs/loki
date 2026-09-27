@@ -432,7 +432,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       // Your message is engagement, typed anywhere; a scheduled task's prompt is not you.
       const typed = Array.isArray(ev?.input) ? ev.input.map((m) => messageText((m as { content?: unknown }).content)).join("\n") : "";
       if (!isScheduledPrompt(typed)) seen.engage(runtime.agentId, convId, "message");
-      broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), snooze: seen.snoozes(), focus: seen.focusAll(), ladder: seen.ladder(), appServer: appServerUrl !== null });
+      broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), focus: seen.focusAll(), appServer: appServerUrl !== null });
     }
     // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation.
     const blocks: string[] = [];
