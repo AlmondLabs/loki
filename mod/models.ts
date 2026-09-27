@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 
 /**
  * The models you have used lately, for the model picker's quick picks (app/src/chat/ModelPicker.tsx modelLists):
- * the ones picked in loki, newest first (kept here, so the Mac and the phone share them), then Letta Code's own
+ * loki's own, least recently used first — a model picked in loki, or the model of a chat you send a message in, moves to
+ * the front (kept here, so the Mac and the phone share them) — then Letta Code's own
  * recent models (`recentModels` in ~/.letta/settings.json, which its terminal picker keeps). Letta's file is only
  * read: a model picked in loki goes through the app-server, which does not add to it.
  */

@@ -123,13 +123,14 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
 - **Chats** (⌘1): the sidebar lists your chats — **Pinned** first, then one section per agent (each folds, each
   with a "+" for a new chat with that agent), then **Archived**, folded. A chat's name goes bold when its agent
   wrote since you looked, a red badge says it waits on you, a green dot that its agent is working. A finished
-  chat also carries a small ring after its name until it is **done**. Looking is not done: opening a chat (or
-  having it open, the window in front, when a message arrives) marks it **viewed**, which drops the bold and
-  keeps the ring and its Inbox card, so bold + ring is new since you looked, the ring alone is viewed but not
-  done, and neither is done. Done is what the Inbox's → does, a reply, an approval or an answer; by hand it is
-  **Mark as done** (⌘⇧↵ on the open chat, or the row's right-click menu, or the chat header's ⋯ menu), and
-  **Mark as not done** in the same menus puts the ring and the Inbox card back (the bold stays off: you have
-  seen it). Viewed and done are kept by the mod, so the phone and the Mac agree on both. "Find a
+  chat also carries a small ring after its name until it is **read**. Opening a chat (or having it open, the
+  window in front, when a message arrives) marks it **viewed**, which drops the bold and keeps the ring, so bold +
+  ring is new since you looked, the ring alone is viewed but not read, and neither is read. Read is what the
+  Inbox's → does, a reply, an approval or an answer; by hand it is **Mark as read** (⌘⇧↵ on the open chat, or
+  the row's right-click menu, or the chat header's ⋯ menu), and **Mark as unread** in the same menus puts the
+  ring back (the bold stays off: you have seen it). None of these is done: a chat is done only when it is
+  archived, and until then it stays in the Inbox. Viewed and read are kept by the mod, so the phone and the Mac
+  agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
   Hover a row for pin and archive, right-click it for the same with open, rename and restore. **Rename…** (also in
   the chat header's ⋯ menu) opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
@@ -138,7 +139,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (mark as done or not done, rename, find, model,
+  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (mark as read or unread, rename, find, model,
   permission mode, new chat, and on the Canvas tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line before what came since you last looked (it stays put while the chat is open, as
@@ -189,8 +190,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      the preview note), which harness the app is on, the harness's **scratch**
      folder (see Requirements) with apply, back to the default, and the line for a terminal, how it reaches the
      mod, requirements and install status.
-  2. **inbox**: how the deck orders its cards (see "The order") and the two knobs of the Later ladder (see
-     "Later, with backoff").
+  2. **inbox**: how the deck orders its cards (see "The order") and what Next and Archive do.
   3. **providers**: the harness's catalogue, connected first; a row opens into the fields it needs, keys are
      checked with the provider before Letta keeps them; OAuth ones say which `letta connect` to run.
   4. **phone**: the LAN switch, the route (Tailscale or this Wi‑Fi), the pairing QR and code, paired phones.
@@ -219,7 +219,7 @@ Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made o
 on the board, views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump
 back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar (the ☰ menu
-on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Done; **View** holds Arrange
+on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
 Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the board, the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
 itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
@@ -272,8 +272,12 @@ Search button beside them:
    **Rename** or archive. The round compose button at the bottom right starts a new chat.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
-   **Later** and **Mark as done**; swipe left for Later, right for Mark as done. An approval refuses both, and
-   the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after either.
+   **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
+   it comes back on your next visit. Open chat opens the conversation full screen, whose actions sheet has
+   **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
+   the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
+   been past every chat it says "You've been through every chat", how many still need you, and **Go through
+   again**.
 3. **Agents**: a list like Slack's direct messages (All, Running, Waiting on you); an agent opens a readable
    profile with its memory, changes and skills in one scroll.
 4. **More**: the paired Mac, then Agents, Learn, Archived chats and Preferences (appearance), then Updates,
@@ -283,10 +287,10 @@ Search button beside them:
 
 **Learn** (from Home or More) is the same deck, thumb-sized: review, delete and undo; the writer's switch and
 knobs stay on the Mac. A tap on a chat or a card opens the conversation: the transcript, the approval or
-question card, and a reply box. Opening a conversation marks it viewed, not done, as on the Mac: a chat's name
+question card, and a reply box. Opening a conversation marks it viewed, not read, as on the Mac: a chat's name
 on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
-came since your last look on either device. The conversation's actions sheet has **Mark as done** and, once
-done, **Mark as not done**, and pin. No board on the phone.
+came since your last look on either device. The conversation's actions sheet has **Mark as read** and, once
+read, **Mark as unread**, and pin. No board on the phone.
 
 The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
@@ -327,7 +331,7 @@ Only the things a mod can do:
   stretch of any conversation quiet for ten minutes, asks its agent in its hidden "recall" conversation, and writes
   cards up to the day's cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
-  and keeps the done (`seen_mark`), viewed (`viewed_mark`) and snooze markers the inbox and the sidebar need
+  and keeps the read (`seen_mark`), viewed (`viewed_mark`) and focus marks the inbox and the sidebar need
 - keeps each chat's widget change log (`~/.letta/loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
   to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget
 - reads and writes pins in Letta Desktop's own `~/.letta/pinned-conversations.json`, so a pin shows in both
@@ -436,7 +440,7 @@ When an agent calls `AskUserQuestion`, the conversation (on either tab) and the 
 a question card instead of a permission block: each question with its options
 (pick one, or pick many), and an "or answer in your own words" line. Answer
 sends everything back in one go. A typed reply in the message box while a
-single question is open is treated as the answer. Questions are never snoozed.
+single question is open is treated as the answer.
 
 ## Images
 
@@ -454,15 +458,19 @@ recognition is available, so treat it like any other cloud dictation.
 
 ## Inbox (Catch Up)
 
-The app knows which conversations are waiting on you. The inbox icon on the rail shows the count; click it, press
+A chat is not done until it is archived. The inbox holds every chat you have not archived, except one whose agent
+is mid-turn, where there is nothing to do yet. The inbox icon on the rail counts what needs you; click it, press
 ⌘2, or ⌥Space from anywhere for a Slack-style deck, one conversation per card with the recent thread inside it (newest at the bottom,
-tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) marks it done and moves on, ← or ⌘[ (**← later**) defers it (see "Later, with backoff"), A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, S or ⌘S shows or hides the snoozed ones, Z undoes the last decision (the ⌘ forms work while typing a reply), Esc returns to Chats.
+tool calls as muted markers), highest score first (see "The order" below). → or ⌘] (the card's **next →**) reads the chat and moves on: it stays in the inbox and comes back on your next visit in its place by score, or sooner in this visit if the agent says something new. E or ⌘E (the card's **archive**) is done: the chat is archived and leaves the inbox. A main chat cannot be archived, so it always stays, and an approval leaves only by Approve or Deny. A or ⌘↵ approves, D or ⌘⇧D denies, R focuses the reply box, O or ⌘O opens that chat on Messages with the message box focused, Z or ⌘Z undoes the last decision (an archive included; the ⌘ forms work while typing a reply), Esc returns to Chats.
+The header reads "n need you · m chats". Once you have been past every chat the deck says "You've been through
+every chat." with what this visit did ("5 moved past · 2 archived · 1 approved · 1 reply"). Closing the inbox
+ends a visit; opening it again starts a fresh one.
 Catch Up runs in the browser. Its list is the mod's: every open conversation of your agents read from the local
 backend on disk (`inbox_list`), main chats included, with who spoke last taken from the tail of each log — nothing is
 windowed by age or capped by count, so a conversation only leaves the inbox when it is archived (main chats are
-never archived; they leave by being done). The live half — runtime subscriptions, streaming, approvals, answers —
+never archived, so they always stay). The live half — runtime subscriptions, streaming, approvals, answers —
 speaks Letta's app-server protocol through the mod's `/appserver` tunnel, which exists because the app-server
-refuses browser origins. The done (`seen`), viewed and snooze markers and the Later ladder live in
+refuses browser origins. The read (`seen`), viewed and focus marks live in
 `~/.letta/loki/state/attention.json`, so the phone and the Mac share them.
 
 Slash commands work in the message box, and in the reply box of an inbox card, as they do in Letta Desktop: type `/` and a palette lists what the box can
@@ -527,33 +535,40 @@ Every chat row, chat header, message and inbox card shows the face of the agent 
 
 ### The order
 
-The deck is a scheduler's ready queue: one score per card, one list, no sections. The score is
-`blocked ? 100 : 0` (an approval, a question, a failed turn — an agent is stopped) `+ warm ? 10 : 0` (the
-agent spoke under four minutes ago, so the provider still has the conversation's prompt cached and a reply
-now costs a tenth of one typed later) `+ yours ? 5 : 0` (the turn answers a message you sent, not a
-scheduled task's prompt) `− 0.1` an hour since the last message (`+ 0.1` for a blocked card). Blocked agents
-come first, the one waiting longest ahead, then warm replies to you, then colder ones, then reports nobody
-asked for — a cron's digest, a background job. For everything else age only settles ties and lets old cards
-drift down. Each card says the largest term after
-its time: `warm`, `reply to you`, `report` (blocked cards say it with their badge). The order is recomputed
-on every event — an approval or reply on the card in front of you, a turn finishing or blocking anywhere,
-the half-minute clock that fades warmth — and again whenever a card is popped, but the card in front of you
-never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts` is the score.
+The deck is a scheduler's ready queue: one score per card, one list, no sections. Every chat you have not archived
+is in it, except one whose agent is mid-turn. The score is
+`blocked ? 100 : 0` (an approval or a question — an agent is stopped until you answer) `+ new ? 10 : 0` (the
+agent said something since you last looked) `+ 15 × focus`
+(the chat's share of what you have been doing lately) `− 0.1` an hour since the last message (`+ 0.1` for a
+blocked card, so the agent waiting longest comes first). A failed turn is not blocked: nothing waits on you,
+so it ranks like any other card. The badges (the rail's Inbox count, the phone's tab, Home's **Needs your
+attention**, search's waiting group) count only what needs you: an approval, a question, a failed turn, or
+something new.
+
+**Focus is learned, never set.** Every chat keeps a weight that your actions add to — a message you send
+(from the Mac, the phone, the Inbox or the terminal) adds 1, answering a question 1, approving or denying ½,
+opening and reading the chat ¼ (at most once every half hour) — and that halves every 12 hours. A chat's
+focus is its weight over everyone's weight plus 2. Work a task hard and its chat rises; start another task and
+the old one gives up its share as soon as you engage elsewhere, then fades in a day or two, with nothing to
+park. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
+scheduled prompts never add focus, so a busy cron cannot talk its way up. The Mac's loki process keeps the
+weights (`focus` in `state/attention.json`), so the Mac and the phone rank alike.
+
+Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
+badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
+finishing or blocking anywhere, the half-minute clock — and again whenever a card is popped, but the card in
+front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
+is the score, `core/attention/focus.ts` the focus.
+
+**What the ranking is tuned for: engagement.** Every Inbox decision is logged (`inbox_card_decided`: what you
+did, where the card stood, its score, focus and reason), and `bun run analytics` reports how often you engage
+with a card (reply, answer, approve, deny) rather than move past or archive it, how often that card was the one on
+top, and the median rank of the cards you engaged with. The weights above are the starting point.
 
 **A reply keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
-into the card, and a follow-up typed then goes out while the conversation's prompt is still cached — five
-turns in ten minutes cost about a quarter of the same five spread over a day. Moving on is yours (→ or ⌘]);
-if you do, the answer brings the card back by score, warm and yours, behind whatever you are reading then.
-
-### Later, with backoff
-
-"Later" (←) on a card defers it Anki-style — the wait queue beside the ready queue: it leaves the pass and comes back
-after a gap that grows each time you defer the same card in a day, at whatever score it then has. The gap is a
-ladder with two knobs in Settings › inbox: the **first** deferral in minutes (default 10) and the **growth** per
-further one (default ×3), so by default 10m · 30m · 1h 30m · 4h 30m · 13h 30m, and never more than a day. The
-mod keeps the setting beside the seen markers, so the phone defers by the same ladder. A card that moves on
-(new reply, new approval) returns at once, labelled "back". Approvals never defer. The ladder resets each day.
-The deck shows how many are snoozed and when the next is due; S shows them anyway. `core/attention/ladder.ts`.
+into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
+is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
+its chat's focus — behind whatever you are reading then.
 
 ## Board (tasks for later)
 
@@ -580,7 +595,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 
 ## Analytics
 
-loki keeps product analytics on itself — which views you open, which chats get turns, how an inbox pass went,
+loki keeps product analytics on itself — which views you open, which chats get turns, how an inbox visit went,
 what you send from where, which models and modes you pick — as events in `~/.letta/loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
 writes the file, nothing sends it anywhere, and `bun run analytics` on this machine is the only reader. The
@@ -588,12 +603,14 @@ writes the file, nothing sends it anywhere, and `bun run analytics` on this mach
 or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
 handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
-`message_sent`, `inbox_pass_completed`; `core/analytics.ts` lists them all with their properties. The file rotates
+`message_sent`, `inbox_pass_completed` (one per inbox visit: how many next, archive, approve, deny and replies),
+`inbox_card_decided` (action next, archive, approve, deny, reply or answer); `core/analytics.ts` lists them all
+with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the harness's environment turns it off.
 
 `bun run analytics` (or `bun run analytics -- --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
-property (views by name, turns by chat, sends by origin, models picked), the inbox passes and their decision
+property (views by name, turns by chat, sends by origin, models picked), the inbox visits and their decision
 split, the hours and weekdays loki is used, and the events that never fired in the period.
 
 ## Environment variables

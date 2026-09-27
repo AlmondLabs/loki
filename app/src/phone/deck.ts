@@ -1,14 +1,14 @@
 /**
- * The phone's Catch Up deck, the pure half — no DOM, so test/deck.test.ts runs it under bun:
+ * The phone's Inbox deck, the pure half — no DOM, so test/deck.test.ts runs it under bun:
  * when a drag becomes a swipe and which way it commits, how far a card leans and how strongly the
- * reveal shows, what this pass has done, and which cards the deck must not show again.
+ * reveal shows, what this visit has done, and which cards the deck must not show again.
  */
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, stampOf } from "../../../core/attention/queue.ts";
+import { idOf, inboxQueue, stampOf } from "../../../core/attention/queue.ts";
 
-/** Which way a swipe went: right is "seen" (Mark as done), left is "later" (Later). */
-export type Swipe = "seen" | "later";
-/** How a card left the deck this pass. */
+/** How a card goes by hand: "seen" (Next: read, move on; the chat stays) by the right swipe or the button, "archive" (done: the chat leaves) by its button only. */
+export type Swipe = "seen" | "archive";
+/** How a card left the deck this visit. */
 export type Via = Swipe | "approve" | "deny";
 
 /** A release past this share of the card's width commits. */
@@ -32,7 +32,9 @@ export const FLY_PAST = 80;
 export function swipeDecision(dx: number, width: number, velocity: number, opts: { approval: boolean }): Swipe | null {
   if (opts.approval) return null;
   if (!Number.isFinite(dx) || !Number.isFinite(width) || width <= 0) return null;
-  const dir: Swipe = dx > 0 ? "seen" : "later";
+  // Only a right swipe commits (Next); archiving is too final for a stray swipe, so it has its button alone.
+  if (dx <= 0) return null;
+  const dir: Swipe = "seen";
   if (Math.abs(dx) >= width * COMMIT_FRACTION) return dir;
   if (Math.abs(dx) > DRAG_SLOP && Math.abs(velocity) >= FLICK_VELOCITY && Math.sign(velocity) === Math.sign(dx)) return dir;
   return null;
@@ -96,30 +98,30 @@ export function stackPose(index: number): { scale: number; offsetY: number; opac
   return { scale: 0.94, offsetY: 12, opacity: 0.45 };
 }
 
-/** What this pass has done, for the "n of N" and the end screen. */
+/** What this visit has done, for the end screen. */
 export interface PassSummary {
   seen: number;
-  later: number;
+  archived: number;
   approved: number;
   denied: number;
 }
-export const EMPTY_PASS: PassSummary = { seen: 0, later: 0, approved: 0, denied: 0 };
+export const EMPTY_PASS: PassSummary = { seen: 0, archived: 0, approved: 0, denied: 0 };
 
 /** Count one card leaving (delta 1) or coming back by undo (delta -1). */
 export function tally(s: PassSummary, via: Via, delta = 1): PassSummary {
-  const key = via === "seen" ? "seen" : via === "later" ? "later" : via === "approve" ? "approved" : "denied";
+  const key = via === "seen" ? "seen" : via === "archive" ? "archived" : via === "approve" ? "approved" : "denied";
   return { ...s, [key]: Math.max(0, s[key] + delta) };
 }
 
 export function passTotal(s: PassSummary): number {
-  return s.seen + s.later + s.approved + s.denied;
+  return s.seen + s.archived + s.approved + s.denied;
 }
 
-/** "4 marked as read · 1 for later · 2 approved" — only the parts that happened, in the buttons' words; "" when nothing did. */
+/** "4 moved past · 1 archived · 2 approved" — only the parts that happened; "" when nothing did. */
 export function summaryLine(s: PassSummary): string {
   const parts: string[] = [];
-  if (s.seen) parts.push(`${s.seen} marked as read`);
-  if (s.later) parts.push(`${s.later} for later`);
+  if (s.seen) parts.push(`${s.seen} moved past`);
+  if (s.archived) parts.push(`${s.archived} archived`);
   if (s.approved) parts.push(`${s.approved} approved`);
   if (s.denied) parts.push(`${s.denied} denied`);
   return parts.join(" · ");
@@ -156,7 +158,7 @@ export function visibleQueue(queue: AttentionItem[], dismissed: Dismissed): Atte
  * gone or its stamp changed.
  */
 export function pruneDismissed(d: Dismissed, items: AttentionItem[]): Dismissed {
-  const live = new Map(catchUpQueue(items).map((i) => [idOf(i), stampOf(i)]));
+  const live = new Map(inboxQueue(items).map((i) => [idOf(i), stampOf(i)]));
   const next: Dismissed = new Map();
   for (const [id, stamp] of d) if (live.get(id) === stamp) next.set(id, stamp);
   return next;
@@ -202,24 +204,25 @@ export interface DeckState {
   topId: string | null;
   /**
    * A reply, or an answer, from the card marks it seen and starts the agent, which takes it out of the
-   * actionable queue; the card stays in hand anyway until you decide it (Later or Mark as done), so the
-   * pass does not jump under the message you just sent. Only ever the top card; gone with the item.
+   * actionable queue; the card stays in hand anyway until you decide it (Next or Archive), so the
+   * visit does not jump under the message you just sent. Only ever the top card; gone with the item.
    */
   held: AttentionItem | null;
   pass: PassSummary;
 }
 export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS }) as DeckState;
 
-/** The ways off a card: an approval only by its decision, anything else only by Later or Mark as done. */
+/** The ways off a card: an approval only by its decision, anything else by Next or Archive; a main chat cannot be archived. */
 export function canCommit(item: AttentionItem, via: Via): boolean {
-  return item.pendingApproval ? via === "approve" || via === "deny" : via === "seen" || via === "later";
+  if (item.pendingApproval) return via === "approve" || via === "deny";
+  return via === "seen" || (via === "archive" && item.id !== "default");
 }
 
 const same = (a: AttentionItem) => (b: AttentionItem) => idOf(a) === idOf(b);
 
 /** The cards in this pass, in order: the queue minus what went, the held card (its live copy) if it left the queue, the top card first. */
 export function deckQueue(items: AttentionItem[], s: DeckState): AttentionItem[] {
-  const visible = visibleQueue(catchUpQueue(items), s.dismissed);
+  const visible = visibleQueue(inboxQueue(items), s.dismissed);
   const held = s.held ? (items.find(same(s.held)) ?? null) : null;
   return toFront(held && !visible.some(same(held)) ? [held, ...visible] : visible, s.topId);
 }
@@ -280,10 +283,10 @@ export function threadNotice(item: Pick<AttentionItem, "status" | "agentName"> |
   return null;
 }
 
-const DONE: Record<Via, string> = { seen: "Marked as read", later: "Moved to Later", approve: "Approved", deny: "Denied" };
+const DONE: Record<Via, string> = { seen: "Moved on", archive: "Archived", approve: "Approved", deny: "Denied" };
 
-/** What a screen reader hears after a card goes: the outcome, the next card, how many are left. */
+/** What a screen reader hears after a card goes: the outcome and the next card. */
 export function reviewAnnouncement(via: Via, next: Pick<AttentionItem, "title" | "id"> | undefined, left: number): string {
-  if (!next || left <= 0) return `${DONE[via]}. You're caught up.`;
-  return `${DONE[via]}. Next: ${next.title ?? next.id}. ${left} left.`;
+  if (!next || left <= 0) return `${DONE[via]}. You've been through every chat.`;
+  return `${DONE[via]}. Next: ${next.title ?? next.id}.`;
 }

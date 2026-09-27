@@ -1,5 +1,4 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
-import { DEFAULT_LADDER } from "../core/attention/ladder.ts";
 import { isEventName } from "../core/analytics.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { ReasoningEffort } from "../core/models.ts";
@@ -31,11 +30,10 @@ import { isLanVia } from "./lan.ts";
  *    measure       { id, size }              rendered size of a widget (drives placement)
  *    arrange       {}                        tidy this desk into a grid
  *    trash         { id }                    delete the widget's file (the agent's work is gone for good)
- *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, snooze, appServer }
+ *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, focus, appServer }
  *      (a mark that moves nothing is not broadcast)
  *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
- *    snooze_set { agentId, conversationId, skips, until, stamp, at } / snooze_clear { agentId, conversationId }
- *    snooze_ladder { firstMinutes?, growth? }   how long "later" hides a card (core/attention/ladder.ts); broadcast: seen { …, ladder }
+ *    focus_add { agentId, conversationId, action: "answer" | "decide" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
                                             (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
@@ -239,19 +237,19 @@ const isPoint = (v: unknown): boolean =>
 
 /**
  * The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`.
- * Reads and the user's own markers: desks, transcripts, seen/snooze, pins, recent folders, and the
+ * Reads and the user's own markers: desks, transcripts, seen and focus, pins, recent folders, and the
  * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
  * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
  * and a model picked there, for the shared quick picks.
  * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
  */
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "snooze_set", "snooze_clear", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
-  /** The seen markers, the deferrals and the "later" ladder, as one frame; sent on request and broadcast on every change. */
-  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, snooze: seen?.snoozes() ?? {}, ladder: seen?.ladder() ?? DEFAULT_LADDER, appServer: appServerAvailable?.() ?? false });
+  /** The seen and viewed markers and the focus weights, as one frame; sent on request and broadcast on every change. */
+  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll?.() ?? {}, appServer: appServerAvailable?.() ?? false });
 
   const deskFrame = (scope: Scope) => {
     const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
@@ -269,7 +267,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
 
     onMessage(client: Client, msg: Record<string, unknown>) {
       // A paired phone shares this bridge with the desktop but not its authority: it reads desks and
-      // transcripts and keeps its seen/snooze markers, nothing else (no gestures, board, pins, folders,
+      // transcripts and keeps its seen markers, nothing else (no gestures, board, pins, folders,
       // skills, agents, and never the pairing and device frames that mint or evict phones).
       if (client.deviceId && !PHONE_FRAMES.has(String(msg.type))) {
         return client.send({ type: "error", requestId: msg.requestId, message: `${String(msg.type)} is not available on the phone` });
@@ -328,10 +326,19 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
             if (moved) broadcast(seenFrame());
           }
           return;
+        case "focus_add":
+          // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
+          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide")) {
+            if (seen?.engage?.(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId, msg.action)) broadcast(seenFrame());
+          }
+          return;
         case "viewed_mark":
           // Not tracked: a look happens on every open, it is not a decision.
           if (typeof msg.conversationId === "string") {
-            if (seen?.view(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId)) broadcast(seenFrame());
+            const agent = typeof msg.agentId === "string" ? msg.agentId : null;
+            const looked = seen?.view(agent, msg.conversationId);
+            const engaged = seen?.engage?.(agent, msg.conversationId, "open"); // opening and reading is engagement too
+            if (looked || engaged) broadcast(seenFrame());
           }
           return;
         case "seen_unmark":
@@ -341,31 +348,6 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
             if (moved) broadcast(seenFrame());
           }
           return;
-        case "snooze_set": {
-          const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-          const skips = Number(msg.skips);
-          if (typeof msg.conversationId === "string" && Number.isFinite(skips) && typeof msg.until === "string" && typeof msg.stamp === "string" && typeof msg.at === "string") {
-            const moved = seen?.setSnooze(agentId, msg.conversationId, { skips, until: msg.until, stamp: msg.stamp, at: msg.at });
-            track("card_deferred", { skips });
-            if (moved) broadcast(seenFrame());
-          }
-          break;
-        }
-        case "snooze_clear":
-          if (typeof msg.conversationId === "string") {
-            const moved = seen?.clearSnooze(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            track("deferral_cleared");
-            if (moved) broadcast(seenFrame());
-          }
-          break;
-        case "snooze_ladder": {
-          const was = seen?.ladder();
-          const now = seen?.setLadder({ firstMinutes: msg.firstMinutes, growth: msg.growth });
-          // Unmoved (the knob clamped back to what is kept): the sender alone hears it, so its field snaps back.
-          if (was && now && was.firstMinutes === now.firstMinutes && was.growth === now.growth) client.send(seenFrame());
-          else broadcast(seenFrame());
-          return;
-        }
         case "trash": {
           if (typeof msg.id !== "string" || !deleteWidgetFile) return;
           const entry = widgets.get(msg.id);

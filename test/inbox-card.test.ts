@@ -26,7 +26,8 @@ const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   viewedAt: null,
   lastAsk: null,
   score: 0,
-  reason: "report",
+  reason: "other",
+  focus: 0,
   runtime: { agent_id: "a1", conversation_id: "c1" },
   ...over,
 });

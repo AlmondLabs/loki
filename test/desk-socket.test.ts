@@ -11,15 +11,15 @@ describe("desk socket: an identical frame keeps its references", () => {
   const seenFrame = () => ({
     seen: { "a/c1": "2026-09-25T10:00:00Z", "a/c2": "2026-09-24T09:00:00Z" },
     viewed: { "a/c1": "2026-09-25T10:01:00Z" },
-    snooze: { "a/c3": { skips: 1, until: "2026-09-25T11:00:00Z", stamp: "s", at: "2026-09-25T10:00:00Z" } },
+    focus: { "a/c3": { w: 1.5, t: "2026-09-25T10:00:00Z" } },
   });
 
-  test("the seen, viewed and snooze maps stay the same objects when a seen frame repeats them", () => {
+  test("the seen, viewed and focus maps stay the same objects when a seen frame repeats them", () => {
     const held = seenFrame();
     const again = seenFrame(); // fresh objects off the wire, the same content
     expect(keepSame(held.seen, again.seen)).toBe(held.seen);
     expect(keepSame(held.viewed, again.viewed)).toBe(held.viewed);
-    expect(keepSame(held.snooze, again.snooze)).toBe(held.snooze);
+    expect(keepSame(held.focus, again.focus)).toBe(held.focus);
   });
 
   test("a change anywhere takes the new object", () => {
@@ -28,8 +28,8 @@ describe("desk socket: an identical frame keeps its references", () => {
     expect(keepSame(held.viewed, moved)).toBe(moved);
     const added = { ...seenFrame().seen, "a/c9": "2026-09-25T10:05:00Z" };
     expect(keepSame(held.seen, added)).toBe(added);
-    const deeper = { "a/c3": { ...seenFrame().snooze["a/c3"], skips: 2 } };
-    expect(keepSame(held.snooze, deeper)).toBe(deeper);
+    const deeper = { "a/c3": { ...seenFrame().focus["a/c3"], w: 2 } };
+    expect(keepSame(held.focus, deeper)).toBe(deeper);
     const fewer = { "a/c1": "2026-09-25T10:00:00Z" };
     expect(keepSame(held.seen, fewer)).toBe(fewer);
   });

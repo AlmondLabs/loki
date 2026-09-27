@@ -12,30 +12,30 @@ export function useDeckKeys({
   current,
   decided,
   replyRef,
-  advance,
+  next,
+  archive,
   approve,
   undo,
   onOpenDesk,
   onClose,
-  setShowSnoozed,
 }: {
   typing: boolean;
   current: AttentionItem | undefined;
   decided: Decision[];
   replyRef: RefObject<HTMLTextAreaElement | null>;
-  advance: (action: "seen" | "unread") => void;
+  next: () => void;
+  archive: () => void;
   approve: (behavior: "allow" | "deny") => void;
   undo: () => void;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onClose: () => void;
-  setShowSnoozed: (update: (v: boolean) => boolean) => void;
 }) {
   // The deck's actions, by keymap id (the shell's key handler and the menu dispatch to them). The keymap
-  // decides which keys reach here while the reply box has focus: ⌘] ⌘[ ⌘↵ ⌘⌫ ⌘O ⌘S do, plain letters do not.
+  // decides which keys reach here while the reply box has focus: ⌘] ⌘E ⌘↵ ⌘⇧D ⌘O do, plain letters do not.
   useEffect(() => {
     return registerActions({
-      "inbox.next": () => advance("seen"),
-      "inbox.later": () => advance("unread"),
+      "inbox.next": () => next(),
+      "inbox.archive": () => archive(),
       "inbox.approve": () => {
         if (current?.pendingApproval) approve("allow");
       },
@@ -49,7 +49,6 @@ export function useDeckKeys({
         onClose();
       },
       "inbox.undo": () => undo(),
-      "inbox.snoozed": () => setShowSnoozed((v) => !v),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typing, current, decided]);

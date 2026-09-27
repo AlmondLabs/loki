@@ -1,6 +1,5 @@
 import type { AttentionItem, AttentionStatus } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, type Decision } from "../../../core/attention/queue.ts";
-import { formatIn, ordinal, type Snooze } from "../../../core/attention/snooze.ts";
+import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
 import { ConversationHeader } from "../chat/Conversation";
@@ -32,31 +31,26 @@ export function ago(iso: string | null): string {
   return `${Math.round(h / 24)}d`;
 }
 
-/** The title line and the progress bar: where you are in the pass, what is live, what is deferred. */
-export function DeckHeader({ current, position, total, left, liveWaiting, snoozedCount, showSnoozed }: { current: AttentionItem | undefined; position: number; total: number; left: number; liveWaiting: number; snoozedCount: number; showSnoozed: boolean }) {
+/**
+ * The title line: what needs you and how many chats are in the Inbox. A chat stays until it is archived, so there
+ * is no pass to count down and no progress bar; the counts follow the live list.
+ */
+export function DeckHeader({ needYou, chats }: { needYou: number; chats: number }) {
   return (
-    <>
-      <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
-        <span>Catch up</span>
-        <span>
-          {current ? `${position} of ${total} · ${left} left in this pass` : total ? `${total} of ${total}` : ""}
-          <span style={{ marginLeft: 14, color: liveWaiting > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{liveWaiting} waiting</span>
-          {snoozedCount > 0 && <span style={{ marginLeft: 14, color: showSnoozed ? "var(--loki-accent)" : "var(--loki-muted)" }}>{snoozedCount} snoozed{showSnoozed ? " · shown" : ""}</span>}
-        </span>
-      </div>
-      {total > 0 && (
-        <div aria-hidden style={{ height: 2, margin: "0 6px 10px", background: "var(--loki-border)", borderRadius: 1, overflow: "hidden" }}>
-          <div style={{ height: "100%", transformOrigin: "0 50%", transform: `scaleX(${((total - left) / total).toFixed(3)})`, background: "var(--loki-accent)", transition: "transform 240ms ease-out" }} />
-        </div>
-      )}
-    </>
+    <div className="loki-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 6px 10px" }}>
+      <span>Inbox</span>
+      <span>
+        <span style={{ color: needYou > 0 ? "var(--loki-fg)" : "var(--loki-muted)" }}>{needYou} need you</span>
+        <span style={{ marginLeft: 14 }}>{chats} {chats === 1 ? "chat" : "chats"}</span>
+      </span>
+    </div>
   );
 }
 
-/** One pill per agent with cards this pass, busiest first, after All; its name and how many wait. */
-export function agentPills(items: AttentionItem[], showSnoozed: boolean): { agentId: string; name: string; count: number }[] {
+/** One pill per agent with chats in the Inbox, busiest first, after All; its name and how many chats. */
+export function agentPills(items: AttentionItem[]): { agentId: string; name: string; count: number }[] {
   const by = new Map<string, { agentId: string; name: string; count: number }>();
-  for (const i of catchUpQueue(items, showSnoozed)) {
+  for (const i of inboxQueue(items)) {
     const p = by.get(i.agentId) ?? { agentId: i.agentId, name: i.agentName ?? "agent", count: 0 };
     p.count++;
     by.set(i.agentId, p);
@@ -69,8 +63,8 @@ export function agentPills(items: AttentionItem[], showSnoozed: boolean): { agen
  * wait (one agent is All already), or while a pill is on, which stays with its count at 0 once its cards are
  * cleared, so you can see you are done with it and go back to All.
  */
-export function AgentPills({ items, showSnoozed, agent, onAgent }: { items: AttentionItem[]; showSnoozed: boolean; agent: string | null; onAgent: (agent: string | null) => void }) {
-  const pills = agentPills(items, showSnoozed);
+export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; agent: string | null; onAgent: (agent: string | null) => void }) {
+  const pills = agentPills(items);
   if (agent && !pills.some((p) => p.agentId === agent)) pills.push({ agentId: agent, name: items.find((i) => i.agentId === agent)?.agentName ?? "agent", count: 0 });
   if (pills.length < 2 && !agent) return null;
   const all = pills.reduce((n, p) => n + p.count, 0);
@@ -88,17 +82,12 @@ export function AgentPills({ items, showSnoozed, agent, onAgent }: { items: Atte
   );
 }
 
-/** The card with nothing waiting: what is still running, what is deferred, and what this pass did. */
-export function CaughtUp({ items, snoozedCount, nextDue, decided, replies }: { items: AttentionItem[]; snoozedCount: number; nextDue: string | null; decided: Decision[]; replies: number }) {
+/** No card left: every chat moved past this visit (or none at all). What is still running, and what this visit did. */
+export function CaughtUp({ items, decided, replies }: { items: AttentionItem[]; decided: Decision[]; replies: number }) {
   const running = items.filter((i) => i.status === "running").length;
   return (
-    <Empty card title="You're caught up.">
-      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>{running > 0 ? `${running} still running` : "nothing is waiting on you"}</div>
-      {snoozedCount > 0 && nextDue && (
-        <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 6 }}>
-          {snoozedCount} snoozed · next back in {formatIn(nextDue)} · <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>S</span> to show them now
-        </div>
-      )}
+    <Empty card title={decided.length ? "You've been through every chat." : "Nothing in the Inbox."}>
+      <div className="loki-meta loki-meta--wrap" style={{ marginTop: 8 }}>{running > 0 ? `${running} still running` : "no agent is working right now"}</div>
       {(decided.length > 0 || replies > 0) && (
         <div style={{ fontSize: 12, color: "var(--loki-fg)", marginTop: 10, fontWeight: 600 }}>{passSummary(decided, replies)}</div>
       )}
@@ -108,14 +97,14 @@ export function CaughtUp({ items, snoozedCount, nextDue, decided, replies }: { i
   );
 }
 
-/** "3 cleared this pass · 1 approved · 2 for later · 1 reply". */
+/** "5 moved past · 2 archived · 1 approved · 1 reply". */
 export function passSummary(decided: Decision[], replies: number): string {
   return [
-    `${decided.length} cleared this pass`,
-    ...(["approve", "deny", "later"] as const)
+    `${decided.length} moved past`,
+    ...(["archive", "approve", "deny"] as const)
       .map((k) => [k, decided.filter((d) => d.via === k).length] as const)
       .filter(([, n]) => n > 0)
-      .map(([k, n]) => `${n} ${k === "approve" ? "approved" : k === "deny" ? "denied" : "for later"}`),
+      .map(([k, n]) => `${n} ${k === "approve" ? "approved" : k === "deny" ? "denied" : "archived"}`),
     ...(replies > 0 ? [`${replies} ${replies === 1 ? "reply" : "replies"}`] : []),
   ].join(" · ");
 }
@@ -123,29 +112,25 @@ export function passSummary(decided: Decision[], replies: number): string {
 /** The statuses that wait on you: a red dot beside fg words, never red text (red text is not AA). */
 export const needsYou = (status: AttentionStatus) => status === "approval" || status === "question";
 
-/** A meta word worth noticing (warm, came back, deferred again): fg semibold instead of the old brass. */
+/** A meta word worth noticing (in focus, came back): fg semibold instead of the old brass. */
 const NOTED = { color: "var(--loki-fg)", fontWeight: 600 } as const;
 
 export interface CardHeaderProps {
   current: AttentionItem;
   cameBack: boolean;
-  timesAround: number;
-  priorSnooze: Snooze | undefined;
   flash: string | null;
 }
 
-/** Title, who and when, the deferral history, and the status badge. The mode and model chips sit in the card's last row. */
-export function CardHeader({ current, cameBack, timesAround, priorSnooze, flash }: CardHeaderProps) {
+/** Title, who and when, why it ranks here, and the status badge. The mode and model chips sit in the card's last row. */
+export function CardHeader({ current, cameBack, flash }: CardHeaderProps) {
   const badge = BADGE[current.status];
   /** The one word that explains the card's place in the queue (priority.ts); blocked cards say it with the badge. */
   const reason = REASON_LABEL[current.reason];
   return (
     <ConversationHeader title={current.title ?? current.id} agentName={current.agentName} agentId={current.agentId} right={needsYou(current.status) ? <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}><Dot color={badge.color} />{flash ?? badge.label}</Chip> : <Chip tone={badge.color}>{flash ?? badge.label}</Chip>}>
       <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
-      {reason && <Meta style={reason === "warm" ? NOTED : undefined}>{reason}</Meta>}
+      {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
-      {timesAround > 1 && <Meta style={NOTED}>{ordinal(timesAround)} time around · deferred {ago(priorSnooze!.at)} ago</Meta>}
-      {current.snooze && <Meta>snoozed · due in {formatIn(current.snooze.until)}</Meta>}
     </ConversationHeader>
   );
 }
@@ -159,13 +144,14 @@ export function deckKey(id: string, typing: boolean): string {
  * The deck's moves, at the end of the card's last row (the Conversation puts the switchers and approve /
  * deny before them). The kbd hints switch grammar: letters when nothing has focus, ⌘ chords while you type.
  */
-export function CardActions({ current, typing, advance, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; advance: (action: "seen" | "unread") => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
+export function CardActions({ current, typing, next, archive, onOpenDesk, onClose }: { current: AttentionItem; typing: boolean; next: () => void; archive: () => void; onOpenDesk: (agentId: string, conversationId: string) => void; onClose: () => void }) {
+  const main = current.id === "default";
   return (
     <>
       <Button size="sm" onClick={() => { onOpenDesk(current.agentId, current.id); onClose(); }} kbd={deckKey("inbox.open", typing)}>open chat</Button>
+      <Button size="sm" onClick={archive} disabled={main} title={main ? "a main chat cannot be archived" : "done with this chat: it leaves the Inbox"} kbd={deckKey("inbox.archive", typing)}>archive</Button>
       <span style={{ flex: 1 }} />
-      <Button size="sm" onClick={() => advance("unread")} title="not now — comes back later, later each time" kbd={deckKey("inbox.later", typing)}>← later</Button>
-      <Button size="sm" tone="paper" onClick={() => advance("seen")} kbd={deckKey("inbox.next", typing)}>next →</Button>
+      <Button size="sm" tone="paper" onClick={next} title="read it and move on: the chat stays for your next visit" kbd={deckKey("inbox.next", typing)}>next →</Button>
     </>
   );
 }
@@ -174,13 +160,13 @@ export function CardActions({ current, typing, advance, onOpenDesk, onClose }: {
 export function KeysHint({ typing }: { typing: boolean }) {
   return (
     <div className="loki-meta loki-meta--wrap" style={{ textAlign: "center", marginTop: 12, fontFamily: "var(--loki-mono)" }}>
-      {typing ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.later")} later · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · ${keyFor("inbox.snoozed")} snoozed · esc back to the deck's keys` : "→ next · ← later · A approve · D deny · R reply · O open · S snoozed · Z undo · esc close"}
+      {typing ? `enter send (you stay on the card) · ${keyFor("inbox.next")} next · ${keyFor("inbox.archive")} archive · ${keyFor("inbox.approve")} approve · ${keyFor("inbox.deny")} deny · ${keyFor("inbox.open")} open · esc back to the deck's keys` : "→ next · E archive · A approve · D deny · R reply · O open · Z undo · esc close"}
     </div>
   );
 }
 
-/** How many conversations are live right now, whatever this pass has decided. */
+/** How many chats need you right now, whatever this visit has decided. */
 export const liveWaitingCount = (items: AttentionItem[]) => catchUpQueue(items).length;
 
-/** True when this conversation was already decided in this pass and has come back with something new. */
+/** True when this chat was already moved past in this visit and has come back with something new. */
 export const cameBackIn = (decided: Decision[], current: AttentionItem) => decided.some((d) => idOf(d.item) === idOf(current));

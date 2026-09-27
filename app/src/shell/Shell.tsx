@@ -76,15 +76,15 @@ export function Shell() {
     makeTransport,
     seen: attention.seen,
     viewed: attention.viewed,
-    snooze: attention.snooze,
+    focus: attention.focus,
+    engage: attention.engage,
     markSeen: attention.markSeen,
     unmarkSeen: attention.unmarkSeen,
-    setSnooze: attention.setSnooze,
-    clearSnooze: attention.clearSnooze,
-    ladder: attention.ladder,
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
     capture,
+    // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
+    sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
   });
   const { message: boardNotice, notice } = useNotice();
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.

@@ -932,12 +932,11 @@ span.loki-phone-section-btn { cursor: default; }
   font-size: var(--phone-text-meta);
   line-height: var(--phone-leading);
 }
-/* What a drag reveals under the card: Mark as done on the left, Later on the right. */
+/* What a right drag reveals under the card: Next. */
 .loki-phone-reveal { position: absolute; inset: 0 0 12px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--phone-space-6); pointer-events: none; font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); }
-.loki-phone-reveal-read, .loki-phone-reveal-later { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
+.loki-phone-reveal-read { display: inline-flex; align-items: center; gap: var(--phone-space-2); }
 .loki-phone-reveal-read { color: var(--loki-positive); }
-.loki-phone-reveal-later { color: var(--loki-muted); }
-/* Later and Mark as done (or Deny and Approve): two big buttons under the card, clear of the home indicator
+/* Archive and Next (or Deny and Approve): two big buttons under the card, clear of the home indicator
    (the navigation is hidden while a card is up, so this row owns the bottom inset). */
 .loki-phone-decide {
   flex: none;
@@ -1397,7 +1396,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-shell:has(> .loki-veil--bottom:not([data-leaving])) > .loki-phone-dock { opacity: 0; }
 
 /* Inbox: past the commit distance the word under the card pops, so you know letting go will do it. */
-.loki-phone-reveal-read, .loki-phone-reveal-later { transition: scale var(--spring-bouncy-ms) var(--spring-bouncy); }
+.loki-phone-reveal-read { transition: scale var(--spring-bouncy-ms) var(--spring-bouncy); }
 .loki-phone-reveal [data-armed] { scale: 1.12; }
 
 /* Screens (transitions.ts). The browser takes a picture of the screen before and after; these move the two.

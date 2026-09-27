@@ -208,7 +208,7 @@ const RENAME = "desk.rename";
 const DONE = "desk.done";
 const UNDONE = "desk.undone";
 
-/** Done by hand, the Inbox's own paths: Mark as done clears it (seen_mark), Mark as not done puts it back (seen_unmark). */
+/** Read by hand, the Inbox's own paths: Mark as read clears what is new (seen_mark), Mark as unread puts it back (seen_unmark). A chat is done only when archived. */
 function markDone(catchUp: ReturnType<typeof useAttention>, item: AttentionItem | null, done: boolean) {
   if (!item || doneAction(item) !== (done ? "done" : "undone")) return;
   if (done) catchUp.seen(item);
@@ -250,7 +250,7 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
   };
   const done = doneAction(item);
   const items: MenuItem[] = [
-    ...(done === "done" ? [{ id: DONE, label: "Mark as done", keys: keyFor("desk.done") }] : done === "undone" ? [{ id: UNDONE, label: "Mark as not done" }] : []),
+    ...(done === "done" ? [{ id: DONE, label: "Mark as read", keys: keyFor("desk.done") }] : done === "undone" ? [{ id: UNDONE, label: "Mark as unread" }] : []),
     ...(summary && canRename(summary) ? [{ id: RENAME, label: "Rename…", disabled: !connected, title: connected ? undefined : NO_RENAME_REASON }] : []),
     { id: "chat.find", label: "Find in conversation…", keys: keyFor("chat.find") },
     { id: "chat.model", label: "Change model…", keys: keyFor("chat.model") },

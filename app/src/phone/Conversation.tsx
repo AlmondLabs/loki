@@ -62,6 +62,7 @@ export function ConversationScreen({
   pinned = null,
   onPin,
   rename = null,
+  archive = null,
   onBack,
   onLoad,
   onDecide,
@@ -84,7 +85,7 @@ export function ConversationScreen({
   onPickModel?: (rt: Runtime, selection: ModelSelection) => Promise<void>;
   /** The conversation's Inbox item, when it has one: its unread boundary, last message day and notice. */
   item?: AttentionItem | null;
-  /** The card is still actionable: offer Mark as done. */
+  /** The chat has something new for you: offer Mark as read. */
   waiting: boolean;
   /** "Mac unreachable · last seen …": takes the notice's place, over the box, so the thread stays readable. */
   banner?: ReactNode;
@@ -97,6 +98,8 @@ export function ConversationScreen({
   onPin?: (pinned: boolean) => void;
   /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the app-server cannot take it. */
   rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
+  /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the app-server cannot take it. */
+  archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
@@ -115,6 +118,16 @@ export function ConversationScreen({
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
   const [actionsOpen, setActionsOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [archiving, setArchiving] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  const toggleArchive = async () => {
+    if (!archive?.onArchive) return;
+    setArchiving({ busy: true, error: null });
+    const err = await archive.onArchive(!archive.archived);
+    setArchiving({ busy: false, error: err });
+    if (err) return;
+    setActionsOpen(false);
+    if (!archive.archived) onBack(); // archived: done with it, back to where you came from
+  };
 
   useEffect(() => {
     onLoad(rt);
@@ -172,12 +185,18 @@ export function ConversationScreen({
       {actionsOpen && (
         <Sheet label={`${thread.title ?? agentName} actions`} onClose={() => setActionsOpen(false)} placement="bottom" className="loki-phone-sheet">
           <ul className="loki-phone-list">
-            {canSee && <SheetRow icon="check" label="Mark as done" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
-            {canUndo && <SheetRow icon="history" label="Mark as not done" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
+            {canSee && <SheetRow icon="check" label="Mark as read" onClick={() => (onSeen(rt), setActionsOpen(false))} />}
+            {canUndo && <SheetRow icon="history" label="Mark as unread" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
             {pinned !== null && onPin && <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />}
             {rename && <SheetRow icon="pencil" label="Rename" aside={rename.onRename ? null : "Not connected"} disabled={!rename.onRename} onClick={() => (setActionsOpen(false), setRenaming(true))} />}
+            {archive && <SheetRow icon="archive" label={archiving.busy ? (archive.archived ? "Restoring…" : "Archiving…") : archive.archived ? "Restore" : "Archive"} aside={archive.onArchive ? null : "Not connected"} disabled={!archive.onArchive || archiving.busy} onClick={() => void toggleArchive()} />}
             <SheetRow icon="person" label={`${thread.agentName ?? "Agent"}'s profile`} onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))} />
           </ul>
+          {archiving.error && (
+            <p role="alert" className="loki-phone-error">
+              {archiving.error}
+            </p>
+          )}
           <Button size="touch" tone="paper" block onClick={() => setActionsOpen(false)}>
             Cancel
           </Button>

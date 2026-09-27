@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { catchUpQueue, idOf, snoozedItems, stampOf, type Decision } from "../../../core/attention/queue.ts";
-import type { Snooze } from "../../../core/attention/snooze.ts";
+import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -15,10 +14,11 @@ import { useDeckKeys } from "./useDeckKeys";
 import { useDeckQueue } from "./useDeckQueue";
 
 /**
- * Catch Up: one waiting conversation at a time, a decision per card.
- *   → / space  mark seen, next        ← keep unread, next
- *   A approve  D deny                 R reply       O open desk       Z undo     Esc close
- * Highest score first (core/attention/priority.ts): blocked agents, warm replies to you, the rest. A reply keeps the card.
+ * The Inbox: every chat you have not archived, one at a time, highest score first (core/attention/priority.ts):
+ * blocked agents, then what is new, then the chats in focus, then the rest.
+ *   ⌘] / →  next (read, move on; the chat stays for your next visit)     ⌘E / E  archive (done: it leaves)
+ *   A approve  D deny   R reply   O open the chat   Z undo   Esc close
+ * A reply keeps the card.
  */
 
 /** Status → label and colour; the phone inbox (app/src/phone/Inbox.tsx) uses the same table. */
@@ -26,25 +26,21 @@ export { BADGE };
 export { catchUpQueue };
 
 export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
-  /** S: bring deferred cards back into this pass, in a quieter style. Remembered across passes. */
-  const [showSnoozed, setShowSnoozed] = useState(false);
-  // Closed: nothing mounted, so each opening is a fresh pass — the queue is built from what waits right now.
+  // Closed: nothing mounted, so each opening is a fresh visit — the queue is built from the Inbox right now.
   if (!open) return null;
-  return <CatchUpDeck {...props} showSnoozed={showSnoozed} setShowSnoozed={setShowSnoozed} />;
+  return <CatchUpDeck {...props} />;
 }
 
 interface CatchUpProps {
   onClose: () => void;
   items: AttentionItem[];
-  /** "Later" with backoff, and its undo. */
-  onLater: (item: AttentionItem) => void;
-  onUnsnooze: (item: AttentionItem) => void;
-  /** Raw deferral records by "agentId/conversationId" (expired ones included) for the "nth time around" label. */
-  snoozes: Record<string, Snooze>;
+  /** Archive the chat (done: it leaves the Inbox), resolving to an error or null; and its undo. */
+  onArchive: (item: AttentionItem) => Promise<string | null>;
+  onUnarchive: (item: AttentionItem) => void;
   /** The live conversation model behind a card; `rows` is undefined until loaded. */
   conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null };
   loadHistory: (item: AttentionItem) => void;
-  onSeen: (item: AttentionItem) => void;
+  onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
@@ -64,21 +60,21 @@ interface CatchUpProps {
   /** Slash commands the reply box offers, and the runner for the ones the deck does not handle itself (/model and /mode open the card's own chips). */
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
-  /** The deck closed: what this pass did, for analytics. Not called for a pass that decided nothing. */
+  /** The deck closed: what this visit did, for analytics. Not called for a visit that decided nothing. */
   onPass?: PassSummaryHandler;
 }
 
-export type PassSummaryHandler = (pass: { decided: number; next: number; later: number; approve: number; deny: number; replies: number }) => void;
+export type PassSummaryHandler = (pass: { decided: number; next: number; archive: number; approve: number; deny: number; replies: number }) => void;
 
-type DeckProps = CatchUpProps & { showSnoozed: boolean; setShowSnoozed: (update: (v: boolean) => boolean) => void };
+type DeckProps = CatchUpProps;
 
 function CatchUpDeck(props: DeckProps) {
-  const { onClose, items, snoozes, conversation, loadHistory, onOpenDesk, showSnoozed, setShowSnoozed } = props;
-  /** The agent pill on: only that agent's cards come up this pass; null is All. */
+  const { onClose, items, conversation, loadHistory, onOpenDesk } = props;
+  /** The agent pill on: only that agent's cards come up this visit; null is All. */
   const [agent, setAgent] = useState<string | null>(null);
   const shown = useMemo(() => (agent ? items.filter((i) => i.agentId === agent) : items), [items, agent]);
-  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, showSnoozed, agent);
-  // What the header counts and undo takes back: this agent's part of the pass.
+  const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, agent);
+  // What undo takes back: this agent's part of the visit.
   const decided = agent ? allDecided.filter((d) => d.item.agentId === agent) : allDecided;
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
@@ -100,8 +96,8 @@ function CatchUpDeck(props: DeckProps) {
     else if (id === "mode" && props.onPickMode) setModeTick((t) => t + 1);
     else props.onCommand?.(item, id, args);
   };
-  const actions = useDeckActions({ current, decided: allDecided, agent, setDecided, setQueue, snoozedShown: showSnoozed, onSeen: props.onSeen, onUnread: props.onUnread, onLater: props.onLater, onUnsnooze: props.onUnsnooze, onApprove: props.onApprove });
-  useDeckKeys({ typing, current, decided, replyRef, advance: actions.advance, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose, setShowSnoozed });
+  const actions = useDeckActions({ current, decided: allDecided, agent, setDecided, setQueue, onSeen: props.onSeen, onUnread: props.onUnread, onArchive: props.onArchive, onUnarchive: props.onUnarchive, onApprove: props.onApprove });
+  useDeckKeys({ typing, current, decided, replyRef, next: actions.next, archive: actions.archive, approve: actions.approve, undo: actions.undo, onOpenDesk, onClose });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
   useEffect(() => {
@@ -122,7 +118,7 @@ function CatchUpDeck(props: DeckProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.agentId, current?.id, !!current?.pendingApproval, !!current?.pendingQuestion]);
 
-  // The pass's tally, read when the deck unmounts (closing it is what ends a pass).
+  // The visit's tally, read when the deck unmounts (closing it is what ends a visit).
   const passRef = useRef({ decided, replies: actions.replies, onPass: props.onPass });
   useEffect(() => {
     passRef.current = { decided: allDecided, replies: actions.replies, onPass: props.onPass };
@@ -132,14 +128,11 @@ function CatchUpDeck(props: DeckProps) {
       const { decided: d, replies, onPass } = passRef.current;
       if (!onPass || (!d.length && !replies)) return;
       const by = (via: Decision["via"]) => d.filter((x) => x.via === via).length;
-      onPass({ decided: d.length, next: by("next"), later: by("later"), approve: by("approve"), deny: by("deny"), replies });
+      onPass({ decided: d.length, next: by("next"), archive: by("archive"), approve: by("approve"), deny: by("deny"), replies });
     },
     [],
   );
 
-  const total = queue.length + decided.length;
-  const snoozed = snoozedItems(shown);
-  const nextDue = snoozed.map((i) => i.snooze!.until).sort()[0] ?? null;
 
   // One column capped at the pane (minmax(0, 1fr)): an auto column grew to the card's 1100px and clipped it in a 1100-wide window.
   return (
@@ -148,12 +141,12 @@ function CatchUpDeck(props: DeckProps) {
       style={{ position: "absolute", inset: 0, background: "var(--loki-bg)", display: "grid", gridTemplateRows: "100%", gridTemplateColumns: "minmax(0, 1fr)", justifyItems: "center", padding: "20px 24px 16px", boxSizing: "border-box", animation: "loki-veil 160ms ease-out both" }}
     >
       <div style={{ width: 1100, maxWidth: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        <DeckHeader current={current} position={total - queue.length + 1} total={total} left={queue.length} liveWaiting={liveWaitingCount(shown)} snoozedCount={snoozed.length} showSnoozed={showSnoozed} />
-        <AgentPills items={items} showSnoozed={showSnoozed} agent={agent} onAgent={setAgent} />
+        <DeckHeader needYou={liveWaitingCount(shown)} chats={inboxQueue(shown).length} />
+        <AgentPills items={items} agent={agent} onAgent={setAgent} />
         {!current ? (
-          <CaughtUp items={shown} snoozedCount={snoozed.length} nextDue={nextDue} decided={decided} replies={actions.replies} />
+          <CaughtUp items={shown} decided={decided} replies={actions.replies} />
         ) : (
-          <Card key={idOf(current)} current={current} thread={thread} decided={decided} priorSnooze={snoozes[idOf(current)]} typing={typing} setTyping={setTyping} replyRef={replyRef} actions={actions} deck={props} onCommand={(id, args) => runCommand(current, id, args)} modelTick={modelTick} modeTick={modeTick} />
+          <Card key={idOf(current)} current={current} thread={thread} decided={decided} typing={typing} setTyping={setTyping} replyRef={replyRef} actions={actions} deck={props} onCommand={(id, args) => runCommand(current, id, args)} modelTick={modelTick} modeTick={modeTick} />
         )}
         <KeysHint typing={typing} />
       </div>
@@ -165,11 +158,9 @@ function CatchUpDeck(props: DeckProps) {
  * One card: the shared Conversation in the card's frame — its header on top, the deck's moves in the
  * last row. Keyed on the card by the deck, so the box and the chips start fresh with each conversation.
  */
-function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyRef, actions, deck, onCommand, modelTick, modeTick }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; priorSnooze: Snooze | undefined; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; actions: ReturnType<typeof useDeckActions>; deck: DeckProps; onCommand: (id: string, args: string) => void; modelTick: number; modeTick: number }) {
+function Card({ current, thread, decided, typing, setTyping, replyRef, actions, deck, onCommand, modelTick, modeTick }: { current: AttentionItem; thread: ReturnType<CatchUpProps["conversation"]> | undefined; decided: Decision[]; typing: boolean; setTyping: (v: boolean) => void; replyRef: RefObject<HTMLTextAreaElement | null>; actions: ReturnType<typeof useDeckActions>; deck: DeckProps; onCommand: (id: string, args: string) => void; modelTick: number; modeTick: number }) {
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
-  /** Today's deferral history for the current card, expired or not. */
-  const timesAround = priorSnooze && priorSnooze.stamp === stampOf(current) ? priorSnooze.skips + 1 : 0;
   const { agentId, id } = current;
   const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor } = deck;
   return (
@@ -212,8 +203,8 @@ function Card({ current, thread, decided, priorSnooze, typing, setTyping, replyR
         }}
         models={deck.models ?? null}
         agentName={current.agentName}
-        header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} timesAround={timesAround} priorSnooze={priorSnooze} flash={actions.flash} />}
-        footer={<CardActions current={current} typing={typing} advance={actions.advance} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />}
+        header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} />}
+        footer={<CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />}
         hints={{ approve: deckKey("inbox.approve", typing), deny: deckKey("inbox.deny", typing) }}
         inputRef={replyRef}
         onTyping={setTyping}

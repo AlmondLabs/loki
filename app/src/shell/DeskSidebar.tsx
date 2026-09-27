@@ -381,7 +381,7 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
       </Row>
       {onDone && item && done && (
         <Row dense role="menuitem" onClick={pick(() => onDone(item, done === "done"))}>
-          {done === "done" ? "Mark as done" : "Mark as not done"}
+          {done === "done" ? "Mark as read" : "Mark as unread"}
         </Row>
       )}
       {canRename(d) && (

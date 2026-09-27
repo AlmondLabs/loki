@@ -65,8 +65,8 @@ export const KEYMAP: Binding[] = [
   // board, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
   { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Chat", typing: true, menu: "Go/step" },
   { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Chat", typing: true, menu: "Go/step" },
-  // Done is the Inbox's clear (seen); opening a desk only views it. The desk's header menu offers the same, and Mark as Not Done.
-  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Done", typing: true, menu: "Go/done" },
+  // Read is the Inbox's clear (seen); opening a chat only views it, and only archiving is done. The header menu offers it too, and Mark as Unread.
+  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Read", typing: true, menu: "Go/done" },
   { id: "chat.toggle", keys: ["cmd+/"], where: "desk", label: "Show / Hide Chat", typing: true, menu: "Chat" },
   { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
   { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },
@@ -90,13 +90,12 @@ export const KEYMAP: Binding[] = [
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
 
   // --- inbox (the reply box usually has focus: chords) -------------------
-  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Next Card", typing: true, menu: "Inbox" },
-  { id: "inbox.later", keys: ["cmd+[", "left"], where: "inbox", label: "Later (backs off each time)", typing: true, menu: "Inbox" },
+  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Next", typing: true, menu: "Inbox" },
+  { id: "inbox.archive", keys: ["cmd+e", "e"], where: "inbox", label: "Archive the Chat", typing: true, menu: "Inbox" },
   { id: "inbox.approve", keys: ["cmd+enter", "a"], where: "inbox", label: "Approve", typing: true, menu: "Inbox/decide" },
   { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Inbox/decide" },
   { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Inbox/go" },
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
-  { id: "inbox.snoozed", keys: ["cmd+s", "s"], where: "inbox", label: "Show Snoozed", typing: true, menu: "Inbox/go" },
   { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Inbox/go", menuAccel: false },
 
   // --- board (nothing has focus by default: plain keys) ------------------

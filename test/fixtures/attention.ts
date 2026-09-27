@@ -20,7 +20,8 @@ export const attentionItem = (id: string, over: Partial<AttentionItem> = {}): At
   viewedAt: null,
   lastAsk: null,
   score: 0,
-  reason: "report",
+  reason: "other",
+  focus: 0,
   runtime: { agent_id: "a1", conversation_id: id },
   ...over,
 });

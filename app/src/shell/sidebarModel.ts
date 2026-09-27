@@ -21,7 +21,7 @@ export function deskMark(item: AttentionItem | undefined, status: DeskSummary["s
   if (item) {
     if (item.status === "approval" || item.status === "question") return { kind: "waits", color: "var(--loki-attention)", border: "var(--loki-attention)", title: item.status === "approval" ? "needs approval" : "asked you", pulse: false };
     if (item.status === "failed") return { kind: "failed", color: "var(--loki-negative)", border: "var(--loki-negative)", title: "failed", pulse: false };
-    if (item.status === "done" && item.unread && !item.snooze) return { kind: "finished", color: "transparent", border: "var(--loki-fg)", title: "finished, unread", pulse: false };
+    if (item.status === "done" && item.unread) return { kind: "finished", color: "transparent", border: "var(--loki-fg)", title: "finished, unread", pulse: false };
     if (item.status === "running") return { kind: "running", color: "transparent", border: "var(--loki-muted)", title: "running", pulse: true };
   }
   return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };

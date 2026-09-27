@@ -80,7 +80,7 @@ the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`
 sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
 (`kit/leave.ts`); and a swipe an approval refuses shakes the card. Waiting has a shape: a list or card still being
 read shows placeholder rows or a placeholder card after a beat, a light passing over them (`SkeletonRows`,
-`SkeletonCard`); a pass that ends springs its check in; the Mac-unreachable banner slides down and back up; and the
+`SkeletonCard`); the end of an Inbox visit springs its check in; the Mac-unreachable banner slides down and back up; and the
 message box rides up and down with the keyboard (`phone/viewport.ts`). A Learn card turns over to its answer, is
 thrown right for Got it and left for Again, and the next rises into its place.
 
@@ -144,7 +144,7 @@ is up. There is no top bar of search or history. Each pane draws its own header 
 line (a `#` and the chat's name, or the agent's face and name) with a quiet aside and the actions on the
 right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
 button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), pin,
-archive and a "More chat actions" menu: Mark as done (⌘⇧↵) or Mark as not done first, Rename… (Letta's
+archive and a "More chat actions" menu: Mark as read (⌘⇧↵) or Mark as unread first, Rename… (Letta's
 conversation summary, so the main chat has none), then the rest with their keys; the sheet's own actions (⌘⇧A
 arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Canvas tab. Two earlier forms were dropped on 2026-09-06: a
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
@@ -174,7 +174,7 @@ circle while the box is empty; every control in the row is one height (28 here, 
 target). The pill opens **Select model**: a popover over the box here (↑↓ Home End, Enter, Esc or a click away
 closes, focus returns to the pill; ⌘⇧M opens it too), a bottom sheet on the phone (grip, a round × at the top
 left, the title centred). Both show a card of the quick picks (the models you used lately, latest first — loki's
-picks, kept by the mod for the Mac and the phone alike, then Letta Code's own `recentModels` — then the harness's
+list, least recently used: picking a model or sending a message in a chat moves that chat's model to the front, kept by the mod for the Mac and the phone alike, then Letta Code's own `recentModels` — then the harness's
 featured models up to five, only ones your account can reach per `available_handles`, and the current
 one; each row the name, its own description or else its handle, a check in the accent on the current one),
 then Effort › (that model's levels) and More models › (the rest, filtered by provider or name). The
@@ -198,16 +198,17 @@ Internals keep the name desk.
   no column, ⌘⇧D stays Deny) or the rail's toggle.
   A window under 1100 wide folds it away until asked for, without touching the saved choice. Each section's
   list mounts on first visit and then stays, hidden, so its scroll and folds survive switching. The column's
-  48px header (the section's name and a "+") sits level with the pane's header. Inbox has no column: the pass
+  48px header (the section's name and a "+") sits level with the pane's header. Inbox has no column: the deck
   is the whole pane. Settings has none either: it is a sheet.
 - **Chats sidebar.** A filter ("Find a chat…", by chat or agent name; ↓ into the rows, ↑↓ between them, ↵ opens
   the first match), then **Pinned**, then one folding section per agent with its own "+", then a folded
   **Archived**. A row is `#` and the chat's name: a red badge (and bold) when it waits on you, a green dot while
   its agent works, and for a chat whose agent has finished a small ring after the name, bold as well while there
-  is news since you last looked. **Viewed is not done**: opening a chat un-bolds it, but the ring (and its Inbox
-  card) stay until you act or Mark as done; bold and ring is new, the ring alone is "viewed, not done", neither is
-  done. The phone reads the same marks through the mod. Hover shows pin and archive; a right click opens the row
-  menu (open, Mark as done or not done, Rename…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a red "Needs you"
+  is news since you last looked. **Viewed is not read, and read is not done**: opening a chat views it
+  (un-bolds it), the ring stays until you act or Mark as read, and only archiving takes the chat out of the Inbox;
+  bold and ring is new, the ring alone is "viewed, not read", neither is read. The phone reads the same marks
+  through the mod. Hover shows pin and archive; a right click opens the row menu (open, Mark as read or unread,
+  Rename…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a red "Needs you"
   pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
   replaced the desks tree drawer (2026-09-23, approved by the user); the tree lives on only as the Board's
   assign-to-chat picker.
@@ -232,8 +233,8 @@ Internals keep the name desk.
   the left (an ARIA tab list; focus follows the page), the page on the right, sentence case, confirmations as sheets. ⌘, (or ⌘6) toggles it, ⌘1-5 close it
   and go, ⌘[ ⌘] step its pages; every other dialog still blocks the shell's keys.
 - **Inbox** keeps its screen (the Slack look only); Enter or O on a card opens its chat on Messages.
-  Once two agents have cards waiting, pills over the deck filter the pass by agent (All, then each agent, busiest
-  first, with its count); a pill that is on stays at 0 when its cards are cleared, and undo takes back that
+  Once two agents have cards waiting, pills over the deck filter the visit by agent (All, then each agent, busiest
+  first, with its count); a pill that is on stays at 0 when its cards are archived, and undo takes back that
   agent's last decision.
 
 ## Phone (Slack mode, 2026-09-23)
@@ -255,7 +256,7 @@ box is one for both, its sizes set by `touch`.
 - **Safe areas.** Each bottom inset has one owner. On a tab the floating dock (TabBar.tsx) sits on the home
   indicator and publishes `--phone-nav-clearance`; the one scroll owner adds it once at its end
   (`.loki-phone-scroll::after`) and a fixed bottom stops above it (`.loki-phone-above-nav`). With the navigation
-  hidden — a conversation, the Inbox pass, any page — the composer or the decide buttons pad themselves with
+  hidden — a conversation, the Inbox deck, any page — the composer or the decide buttons pad themselves with
   `--phone-safe-bottom`. Nothing else adds bottom space, so there is never a band under the capsule.
 - **One scroll owner.** The document never scrolls (`html:has(.loki-phone-shell)` pins it); the shell is
   `100dvh` over `100svh` over fixed inset. Each screen has exactly one vertical scroller: the page's

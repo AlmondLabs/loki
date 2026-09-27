@@ -7,12 +7,14 @@ import { attentionItem } from "./fixtures/attention.ts";
 const item = attentionItem;
 
 describe("catch up queue merge", () => {
-  test("new items join behind the head by score; the current card never moves; resolved items drop out", () => {
+  test("new items join behind the head by score; the current card never moves; a chat whose agent is mid-turn drops out, a read one stays", () => {
     const a = item("a"), b = item("b"), c = item("c");
-    const q = mergeQueue([a, b], [a, item("b", { status: "idle", unread: false }), c], []);
+    const q = mergeQueue([a, b], [a, item("b", { status: "running" }), c], []);
     expect(q.map((i) => i.id)).toEqual(["a", "c"]);
-    // current card stays even if it stopped being actionable
-    expect(mergeQueue([a], [item("a", { status: "idle" })], []).map((i) => i.id)).toEqual(["a"]);
+    // a chat you have read is still in the Inbox: it stays until it is archived
+    expect(mergeQueue([a, b], [a, item("b", { status: "idle", unread: false })], []).map((i) => i.id)).toEqual(["a", "b"]);
+    // the current card stays even if its agent started a turn
+    expect(mergeQueue([a], [item("a", { status: "running" })], []).map((i) => i.id)).toEqual(["a"]);
   });
 
   test("a conversation decided this pass comes back only when it has moved on", () => {
@@ -33,36 +35,19 @@ describe("catch up queue merge", () => {
     expect(mergeQueue([], [approval], decided).map((i) => i.id)).toEqual(["a"]);
   });
 
-  test("showing snoozed cards brings back cards deferred earlier in this pass", () => {
-    const a = item("a");
-    const snooze = { skips: 1, until: "2026-09-05T10:30:00Z", stamp: stampOf(a), at: "2026-09-05T10:00:00Z" };
-    const deferred = item("a", { snooze });
-    const decided = [{ item: a, action: "unread" as const, via: "later" as const, stamp: stampOf(a), snoozedShown: false }];
-
-    expect(mergeQueue([], [deferred], decided)).toEqual([]);
-    expect(mergeQueue([], [deferred], decided, true).map((i) => i.id)).toEqual(["a"]);
-
-    // Deferred while snoozed cards were already shown — first time or again — it stays out instead of looping straight back.
-    const deferredShown = [{ ...decided[0], snoozedShown: true }];
-    expect(mergeQueue([], [deferred], deferredShown, true)).toEqual([]);
-    expect(mergeQueue([], [deferred], [{ ...deferredShown[0], item: deferred }], true)).toEqual([]);
-    // Moving on with "next" is not a deferral: showing snoozed cards does not bring it back.
-    expect(mergeQueue([], [deferred], [{ ...decided[0], via: "next" as const, action: "seen" as const }], true)).toEqual([]);
-  });
-
-  test("what arrives is placed by score, not appended: a warm reply to you goes right behind the head, a cold report to the back", () => {
+  test("what arrives is placed by score, not appended: a card from the chat in focus goes right behind the head, a quiet one to the back", () => {
     const now = new Date("2026-09-16T10:00:00Z").getTime();
-    // items arrive stamped, as buildItems hands them over
-    const stamp = (i: AttentionItem) => scored([i], now)[0];
+    // items arrive stamped, as buildItems hands them over; "focused" is the chat you have been working in
+    const stamp = (i: AttentionItem) => scored([i], now, { "a1/focused": 0.5 })[0];
     const head = stamp(item("head", { lastMessageAt: "2026-09-16T06:00:00Z" }));
     const old = stamp(item("old", { lastMessageAt: "2026-09-16T07:00:00Z" }));
-    const report = stamp(item("report", { lastMessageAt: "2026-09-16T09:59:00Z", lastAsk: "schedule" }));
-    const warm = stamp(item("warm", { lastMessageAt: "2026-09-16T09:58:00Z", lastAsk: "person" }));
-    const q = mergeQueue([head, old], [head, old, report, warm], []);
-    expect(q.map((i) => i.id)).toEqual(["head", "warm", "report", "old"]);
+    const quiet = stamp(item("quiet", { lastMessageAt: "2026-09-16T09:59:00Z" }));
+    const focused = stamp(item("focused", { lastMessageAt: "2026-09-16T09:58:00Z" }));
+    const q = mergeQueue([head, old], [head, old, quiet, focused], []);
+    expect(q.map((i) => i.id)).toEqual(["head", "focused", "quiet", "old"]);
     // the head stays even when something blocked arrives; the blocked card is next
     const blocked = stamp(item("blocked", { status: "approval", pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" }, lastMessageAt: "2026-09-16T09:59:30Z" }));
-    expect(mergeQueue(q, [head, old, report, warm, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "warm", "report", "old"]);
+    expect(mergeQueue(q, [head, old, quiet, focused, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "focused", "quiet", "old"]);
   });
 
   test("popHead drops the head and orders the rest by their stamped score", () => {

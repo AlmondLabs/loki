@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { ImageAttachment } from "../../../core/attention/content.ts";
-import { catchUpQueue, idOf, snoozedItems } from "../../../core/attention/queue.ts";
-import { formatIn } from "../../../core/attention/snooze.ts";
+import { catchUpQueue, idOf } from "../../../core/attention/queue.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import { Conversation, Thread } from "../chat/Conversation";
@@ -11,7 +10,7 @@ import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
-import { Avatar, RowSection, SkeletonCard } from "./rows";
+import { Avatar, SkeletonCard } from "./rows";
 import { useMessageActions } from "./MessageActions";
 import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
@@ -33,7 +32,6 @@ import {
   flingVelocity,
   holdCard,
   isHorizontalDrag,
-  passTotal,
   reconcileDeck,
   refusedOffset,
   revealOpacity,
@@ -56,9 +54,10 @@ import {
  * The inbox as a review pass, the way Slack's Catch Up works on a phone: one card at a time, the next
  * one or two peeking from behind, "N Left" on top. The card is the conversation itself — who it is
  * with, the thread with the unread line, what the agent waits on, and a working message box — so a card
- * can be read and answered without leaving the pass. Under it, Later and Mark as done; swipe left for
- * Later, right for Mark as done. Approvals refuse both, and the two buttons become Deny and Approve.
- * Undo sits in the top bar for six seconds after Later or Mark as done. The pure parts (when a drag
+ * can be read and answered without leaving the Inbox. Under it, Open chat and Next (read, move on: the chat
+ * stays for your next visit); a right swipe is Next. Archiving (done) is in the chat's actions sheet.
+ * Approvals refuse both, and the two buttons become Deny and Approve. Undo sits in the top bar for six
+ * seconds after Archive or Next. The pure parts (when a drag
  * commits, the lean, the pass itself, what the card says) are in deck.ts.
  */
 
@@ -82,7 +81,7 @@ export interface CardView {
 /**
  * A pass, held by the parent (Phone.tsx) beside the transcripts it fetches for the top card, so it
  * survives the Inbox being out of sight: the cards in order, the one on top, the tally, and the card
- * held after a reply. `commit` is false when the card refuses that way off (Later on an approval).
+ * held after a reply. `commit` is false when the card refuses that way off (Archive on an approval, or on a main chat).
  */
 export interface Deck {
   visible: AttentionItem[];
@@ -95,7 +94,7 @@ export interface Deck {
   undo: (item: AttentionItem, via: Via, wasHeld: boolean) => void;
   /** Something went out from this card: keep it on top until it is decided. */
   hold: (item: AttentionItem) => void;
-  /** A fresh pass: the cards passed over in this one (a question sent to Later, which never snoozes) come back. */
+  /** A fresh visit: the cards moved past in this one come back. */
   again: () => void;
 }
 
@@ -168,7 +167,7 @@ function UndoButton({ via, onUndo }: { via: Swipe; onUndo: () => void }) {
   const ref = useRef<HTMLButtonElement>(null);
   useLeave(ref, UNDO_LEAVE, 180);
   return (
-    <button ref={ref} type="button" className="loki-phone-undo" onClick={onUndo} aria-label={via === "seen" ? "Undo Mark as done" : "Undo Later"}>
+    <button ref={ref} type="button" className="loki-phone-undo" onClick={onUndo} aria-label={via === "seen" ? "Undo Next" : "Undo Archive"}>
       Undo
     </button>
   );
@@ -177,11 +176,11 @@ const UNDO_LEAVE: Keyframe[] = [{ opacity: 1 }, { opacity: 0, transform: "scale(
 
 /**
  * What a pass does on screen as cards go: the card flying off (on the smooth spring, unless motion is reduced),
- * the Undo button's card (for UNDO_MS after Later or Mark as done), the flash when an approval refuses,
+ * the Undo button's card (for UNDO_MS after Archive or Next), the flash when a card refuses that way off,
  * and the sentence a screen reader hears. `commit` takes the card off and tells the parent; `undoLast`
  * puts the last one back.
  */
-function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem) => void; onLater: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
+function usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit }: { deck: Deck; reduced: boolean; onSeen: (item: AttentionItem) => void; onArchive: (item: AttentionItem) => void; onUndo: (item: AttentionItem, via: Swipe) => void; onCommit: () => void }) {
   const [leaving, setLeaving] = useState<Leaving | null>(null);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [refused, setRefused] = useState(false);
@@ -190,29 +189,29 @@ function usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit }: { deck: D
   const leaveTimer = useTimer();
   const refuseTimer = useTimer();
 
-  const flashRefused = () => {
+  const flashRefused = (item?: AttentionItem) => {
     setRefused(true);
-    setSaid("This one needs Approve or Deny.");
+    setSaid(item && !item.pendingApproval ? "A main chat cannot be archived." : "This one needs Approve or Deny.");
     refuseTimer.set(() => setRefused(false), 420);
   };
   const commit = (item: AttentionItem, via: Via) => {
     const held = deck.heldId === idOf(item);
     if (!deck.commit(item, via)) {
       onCommit();
-      flashRefused();
+      flashRefused(item);
       return;
     }
     onCommit();
     if (via === "seen") onSeen(item);
-    else if (via === "later") onLater(item);
+    else if (via === "archive") onArchive(item);
     const rest = deck.visible.filter((i) => idOf(i) !== idOf(item));
     setSaid(reviewAnnouncement(via, rest[0], rest.length));
     if (!reduced) {
-      setLeaving({ item, dir: via === "later" || via === "deny" ? -1 : 1 });
+      setLeaving({ item, dir: via === "archive" || via === "deny" ? -1 : 1 });
       leaveTimer.set(() => setLeaving((l) => (l && idOf(l.item) === idOf(item) ? null : l)), spring("smooth").ms + 30);
     }
     undoTimer.clear();
-    if (via === "seen" || via === "later") {
+    if (via === "seen" || via === "archive") {
       setUndo({ item, via, held });
       undoTimer.set(() => setUndo(null), UNDO_MS);
     } else setUndo(null);
@@ -335,8 +334,7 @@ export function Inbox({
   onConnection,
   onApprove,
   onSeen,
-  onLater,
-  onUnsnooze,
+  onArchive,
   onUndo,
   card,
 }: {
@@ -363,26 +361,24 @@ export function Inbox({
   onConnection: () => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
   onSeen: (item: AttentionItem) => void;
-  onLater: (item: AttentionItem) => void;
-  onUnsnooze: (item: AttentionItem) => void;
-  /** Take back the last Later or Mark as done: "seen" → unmark seen, "later" → clear the snooze. */
+  /** Archive the chat: done, it leaves the Inbox. */
+  onArchive: (item: AttentionItem) => void;
+  /** Take back the last Next or Archive: "seen" → unmark seen, "archive" → restore the chat. */
   onUndo: (item: AttentionItem, via: Swipe) => void;
   card: CardActions;
 }) {
   const reduced = useReducedMotion();
-  const [showDeferred, setShowDeferred] = useState(false);
   const { visible, current } = deck;
   const { deckRef, width } = useDeckWidth(!!current);
 
-  const snoozed = snoozedItems(items);
   const running = items.filter((i) => i.status === "running").length;
   const approval = !!current?.pendingApproval;
 
-  const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onLater, onUndo, onCommit: () => swipe.clear() });
+  const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit: () => swipe.clear() });
   const swipe = useSwipe({ width, approval, current, onCommit: commit, onRefuse: flashRefused });
 
-  const done = passTotal(deck.pass);
-  const total = done + visible.length;
+  // What needs you (the badge's count), and every chat still in the Inbox: a chat stays until it is archived, so there is no pass to count down.
+  const needYou = catchUpQueue(items).length;
 
   // The last card going (or a new pass starting) takes the pressed button with it; focus would fall to the
   // page body, so it moves to the pass's heading instead, where the next thing to read or press starts.
@@ -407,16 +403,15 @@ export function Inbox({
             </button>
           ) : undefined
         }
-        title={current ? `${visible.length} Left` : "Inbox"}
+        title={current ? (needYou ? `${needYou} need you` : `${visible.length} ${visible.length === 1 ? "chat" : "chats"}`) : "Inbox"}
         right={undo ? <UndoButton key={idOf(undo.item)} via={undo.via} onUndo={undoLast} /> : undefined}
-        progress={current && total > 0 ? done / total : null}
       />
       <div className="loki-phone-sr-only" role="status" aria-live="polite">
         {said}
       </div>
 
       {!current ? (
-        <EmptyDeck available={available} loaded={loaded} banner={banner} running={running} passedOver={catchUpQueue(items).length} onAgain={deck.again} pass={deck.pass} snoozed={snoozed} showDeferred={showDeferred} onToggleDeferred={() => setShowDeferred((v) => !v)} onOpen={onOpen} onUnsnooze={onUnsnooze} backLabel={backLabel} onClose={onClose} onConnection={onConnection} />
+        <EmptyDeck available={available} loaded={loaded} banner={banner} running={running} passedOver={catchUpQueue(items).length} onAgain={deck.again} pass={deck.pass} backLabel={backLabel} onClose={onClose} onConnection={onConnection} />
       ) : (
         <>
           <div ref={deckRef} className="loki-phone-deck">
@@ -425,7 +420,7 @@ export function Inbox({
           </div>
           <Decisions
             item={current}
-            onLater={() => commit(current, "later")}
+            onOpen={() => onOpen(current)}
             onSeen={() => commit(current, "seen")}
             onApprove={(behavior) => {
               if (!current.pendingApproval) return;
@@ -440,10 +435,10 @@ export function Inbox({
 }
 
 /**
- * No card up: still reading (a card's shape), or why (no harness, the Mac unreachable, caught up), what this pass did, and
- * what to do next; the deferred cards follow as a folded section, each with Bring back.
+ * No card up: still reading (a card's shape), or why (no harness, the Mac unreachable, every chat moved past), what
+ * this visit did, and what to do next.
  */
-function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pass, snoozed, showDeferred, onToggleDeferred, onOpen, onUnsnooze, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; /** Ready cards this pass went past; the badge still counts them. */ passedOver: number; onAgain: () => void; pass: PassSummary; snoozed: AttentionItem[]; showDeferred: boolean; onToggleDeferred: () => void; onOpen: (item: AttentionItem) => void; onUnsnooze: (item: AttentionItem) => void; backLabel: string; onClose: () => void; onConnection: () => void }) {
+function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pass, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; /** Chats this visit went past; the badge still counts the ones that need you. */ passedOver: number; onAgain: () => void; pass: PassSummary; backLabel: string; onClose: () => void; onConnection: () => void }) {
   const summary = summaryLine(pass);
   const macProblem = !available || !!banner;
   if (!loaded && !macProblem)
@@ -454,13 +449,13 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
     );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
   const again = loaded && !macProblem && passedOver > 0;
-  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : again ? "End of this pass" : "You're caught up";
+  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : again ? "You've been through every chat" : "You're caught up";
   const line = !available
     ? "Open loki on the Mac so its mod can find Letta's app-server."
     : banner
-      ? "Cards come back when it reconnects; nothing in this pass is lost."
+      ? "Cards come back when it reconnects; nothing in the Inbox is lost."
       : again
-        ? `${passedOver === 1 ? "1 card is" : `${passedOver} cards are`} still waiting on you: a question stays until it is answered.`
+        ? `${passedOver === 1 ? "1 chat still needs" : `${passedOver} chats still need`} you. Every chat stays until you archive it.`
         : running > 0
           ? `${running} still running. They land here when they finish.`
           : "Nothing is waiting on you.";
@@ -474,7 +469,7 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
           <Icon name={macProblem ? "laptop" : "check"} size={32} className="loki-phone-empty-mark" />
           <p className="loki-phone-headline">{title}</p>
           <p>{line}</p>
-          {summary && <p className="loki-phone-meta">This pass: {summary}</p>}
+          {summary && <p className="loki-phone-meta">This visit: {summary}</p>}
           {macProblem ? (
             <Button size="touch" tone="paper" onClick={onConnection}>
               Connection details
@@ -492,56 +487,21 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
             </div>
           )}
         </div>
-        {snoozed.length > 0 && (
-          <RowSection icon="clock" title="Later" count={snoozed.length} open={showDeferred} onToggle={onToggleDeferred}>
-            <ul className="loki-phone-list">
-              {snoozed.map((item) => (
-                <DeferredRow key={idOf(item)} item={item} onOpen={() => onOpen(item)} onUnsnooze={() => onUnsnooze(item)} />
-              ))}
-            </ul>
-          </RowSection>
-        )}
       </div>
     </>
   );
 }
 
-/** A card sent to Later: the agent's face, its title, when it comes back, and Bring back beside it. */
-function DeferredRow({ item, onOpen, onUnsnooze }: { item: AttentionItem; onOpen: () => void; onUnsnooze: () => void }) {
-  const title = item.title ?? item.id;
-  return (
-    <li className="loki-phone-row-item" data-dim>
-      <button type="button" className="loki-phone-row" onClick={onOpen}>
-        <Avatar name={item.agentName} src={avatarUrl(item.agentId)} />
-        <span className="loki-phone-row-copy">
-          <span className="loki-phone-row-title">
-            <span className="loki-phone-ellipsis">{title}</span>
-          </span>
-          <span className="loki-phone-row-preview">
-            {item.agentName ?? "agent"} · back in {item.snooze ? formatIn(item.snooze.until) : "a while"}
-          </span>
-        </span>
-      </button>
-      <button type="button" className="loki-phone-row-action" onClick={onUnsnooze} aria-label={`Bring back ${title}`}>
-        Bring back
-      </button>
-    </li>
-  );
-}
-
-/** Under the top card while it is dragged: Mark as done on the left as the card goes right, Later on the right. Approvals reveal nothing. */
+/** Under the top card while it is dragged right: Next. A left drag reveals nothing (it springs back), nor does an approval. */
 function Reveal({ dx, width, approval }: { dx: number; width: number; approval: boolean }) {
   const read = !approval && dx > 0 ? revealOpacity(dx, width) : 0;
-  const later = !approval && dx < 0 ? revealOpacity(dx, width) : 0;
+
   // Past the commit distance the word under the card pops (phone.css): letting go now does it.
   const ready = !approval && armed(dx, width);
   return (
     <div aria-hidden className="loki-phone-reveal">
       <span className="loki-phone-reveal-read" data-armed={(ready && dx > 0) || undefined} style={{ opacity: read, transform: `scale(${0.9 + read * 0.1})` }}>
-        <Icon name="check" size={20} /> Mark as done
-      </span>
-      <span className="loki-phone-reveal-later" data-armed={(ready && dx < 0) || undefined} style={{ opacity: later, transform: `scale(${0.9 + later * 0.1})` }}>
-        Later <Icon name="clock" size={20} />
+        <Icon name="check" size={20} /> Next
       </span>
     </div>
   );
@@ -687,19 +647,19 @@ function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView })
 }
 
 /**
- * The two big buttons under the card; every swipe has one. Later and Mark as done, or — for an approval,
- * which refuses both — Deny and Approve. The same two elements in both cases, so focus stays put as the
+ * The two big buttons under the card: Open chat (the card's conversation, full screen, where its actions
+ * sheet can archive it) and Next, or — for an approval, which leaves only by its decision — Deny and Approve. The same two elements in both cases, so focus stays put as the
  * next card comes up.
  */
-function Decisions({ item, onLater, onSeen, onApprove }: { item: AttentionItem; onLater: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
+function Decisions({ item, onOpen, onSeen, onApprove }: { item: AttentionItem; onOpen: () => void; onSeen: () => void; onApprove: (behavior: "allow" | "deny") => void }) {
   const approval = !!item.pendingApproval;
   return (
     <div className="loki-phone-decide">
-      <button type="button" className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"} onClick={approval ? () => onApprove("deny") : onLater} aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Later: comes back later, a little later each time"}>
-        {approval ? "Deny" : "Later"}
+      <button type="button" className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"} onClick={approval ? () => onApprove("deny") : onOpen} aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Open chat"}>
+        {approval ? "Deny" : "Open chat"}
       </button>
       <button type="button" className="loki-phone-decide-btn loki-phone-decide-btn--affirm" onClick={approval ? () => onApprove("allow") : onSeen} aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}>
-        {approval ? "Approve" : "Mark as done"}
+        {approval ? "Approve" : "Next"}
       </button>
     </div>
   );

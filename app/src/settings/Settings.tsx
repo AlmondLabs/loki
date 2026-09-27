@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/osWords";
-import { Button, Chip, Dot, Field, IconButton, Meta, Sheet, Switch, Title, sentence } from "../components";
+import { Button, Chip, Dot, Field, IconButton, Sheet, Switch, Title, sentence } from "../components";
 import type { Scratch } from "../shell/useScratch";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
 import { MIN_LETTA_CODE, TESTED_LETTA_CODE, UPGRADE_LINE, lettaStanding } from "../../../core/compat.ts";
@@ -16,9 +16,8 @@ import type { LokiUpdate } from "../shell/useLokiUpdate";
 import type { GlobalShortcut } from "../shell/useGlobalShortcut";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import { RecallSettings } from "../recall/RecallParts";
-import { BLOCKED_POINTS, WARM_POINTS, YOURS_POINTS } from "../../../core/attention/priority.ts";
-import { LADDER_RANGE, formatGap, ladderSteps, type SnoozeLadder } from "../../../core/attention/ladder.ts";
-import { within, type Range } from "../../../core/range.ts";
+import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
+import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
 import { ThemeChoice } from "./ThemeChoice";
 import { PAGES, SETTINGS_PAGE_KEY, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 import { PageList } from "./PageList";
@@ -28,11 +27,6 @@ const HOME = "~/.letta/loki";
 
 export { PAGES, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 
-/** Settings › inbox: the "later" ladder in force and its setter (useDesk().attention). */
-export interface InboxSettingsApi {
-  ladder: SnoozeLadder;
-  onLadder: (input: Partial<SnoozeLadder>) => void;
-}
 const PAGE_KEY = SETTINGS_PAGE_KEY;
 
 type AppServerStatus = "connecting" | "open" | "closed" | "unavailable";
@@ -90,7 +84,6 @@ export function Settings({
   shortcut,
   recall,
   scratch,
-  inbox,
   onClose,
 }: {
   appServerStatus: AppServerStatus;
@@ -125,8 +118,6 @@ export function Settings({
   recall: RecallModel;
   /** The harness's scratch folder (Settings › letta). */
   scratch: Scratch;
-  /** The deck's "later" ladder (Settings › inbox). */
-  inbox: InboxSettingsApi;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
 }) {
@@ -168,7 +159,7 @@ export function Settings({
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
           {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} />}
-          {page === "inbox" && <InboxPage inbox={inbox} />}
+          {page === "inbox" && <InboxPage />}
           {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
           {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
           {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
@@ -501,30 +492,21 @@ function ChatPage({ chatWidth, onChatWidth, chatPlacement, onChatPlacement }: { 
   );
 }
 
-/** Settings › inbox: how the deck orders its cards, and how long "later" hides one. */
-function InboxPage({ inbox }: { inbox: InboxSettingsApi }) {
+/** Settings › inbox: how the deck orders its cards. */
+function InboxPage() {
   return (
     <>
       <Section title="Order" hint="one score per card, one list; the card in front of you never moves until you act on it">
-        <Fact label="Blocked" value={`+${BLOCKED_POINTS} — an approval, a question, a failed turn: an agent is stopped`} />
-        <Fact label="Warm" value={`+${WARM_POINTS} — the agent spoke under four minutes ago, so its prompt is still cached and a reply now costs a tenth of one typed later`} />
-        <Fact label="Reply to you" value={`+${YOURS_POINTS} — the turn answers a message you sent, not a scheduled task's prompt`} />
+        <Fact label="In it" value="every chat you have not archived, except one whose agent is mid-turn: a chat is not done until it is archived" />
+        <Fact label="Blocked" value={`+${BLOCKED_POINTS} — an approval or a question: an agent is stopped until you answer`} />
+        <Fact label="New" value={`+${NEW_POINTS} — the agent said something since you last looked`} />
+        <Fact label="Focus" value={`up to +${FOCUS_POINTS} — the chat's share of what you have been doing lately: your messages, answers, decisions and reads, each fading by half every ${FOCUS_HALF_LIFE_H} hours. Learned from you: the task you are on rises, one you have moved on from fades`} />
         <Fact label="Age" value="a tenth of a point per hour: off for most cards, so old ones drift down; on for blocked cards, so the agent that has waited longest comes first" />
-        <Fact label="A reply" value={`keeps the card, so the answer streams in where you are and a follow-up goes out warm; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`} />
+        <Fact label="Next" value={`${keyFor("inbox.next")} reads the card and moves on; the chat stays for your next visit, in its place by score`} />
+        <Fact label="Archive" value={`${keyFor("inbox.archive")} is done: the chat leaves the Inbox (undo brings it back)`} />
+        <Fact label="A reply" value={`keeps the card, so the answer streams in where you are; ${keyFor("inbox.next")} moves on, and the answer then brings the card back by score`} />
       </Section>
-      <LadderSection inbox={inbox} />
     </>
-  );
-}
-
-function LadderSection({ inbox }: { inbox: InboxSettingsApi }) {
-  return (
-    <Section title="Later" hint="how long ← hides a card: the first deferral, then each further one in the same day multiplied by the growth, never past a day">
-      <Knob label="First" value={inbox.ladder.firstMinutes} range={LADDER_RANGE.firstMinutes} aria="minutes the first deferral lasts" onApply={(n) => inbox.onLadder({ firstMinutes: n })} hint={`minutes (${LADDER_RANGE.firstMinutes.min}–${LADDER_RANGE.firstMinutes.max}); the one you feel — does the card come back inside this pass or after the next coffee`} />
-      <Knob label="Growth" value={inbox.ladder.growth} range={LADDER_RANGE.growth} aria="growth per further deferral" onApply={(n) => inbox.onLadder({ growth: n })} hint={`× per further deferral of the same card (${LADDER_RANGE.growth.min}–${LADDER_RANGE.growth.max}); 1 keeps every deferral the same length`} />
-      <Fact label="Ladder" value={ladderSteps(inbox.ladder).map(formatGap).join(" · ")} />
-      <Fact label="Resets" value="each day; a card that moves on (new reply, new approval) comes back at once; approvals never defer" />
-    </Section>
   );
 }
 
@@ -592,20 +574,6 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
 }
 
 /** A numeric setting on a Fact row: typed, applied on blur when it reads as a number inside its range (the mod clamps too), with a hint beside it. */
-function Knob({ label, value, range, aria, hint, onApply }: { label: string; value: number; range: Range; aria: string; hint: string; onApply: (n: number) => void }) {
-  const [draft, setDraft] = useState(String(value));
-  return (
-    <Fact
-      label={label}
-      value={
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Field size="sm" mono value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => within(draft, range) && onApply(Number(draft))} style={{ width: 64 }} aria-label={aria} />
-          <Meta wrap>{hint}</Meta>
-        </span>
-      }
-    />
-  );
-}
 
 function Choice<T extends string>({ options, value, onPick, labels = {} }: { options: T[]; value: T; onPick: (v: T) => void; labels?: Partial<Record<T, string>> }) {
   return (

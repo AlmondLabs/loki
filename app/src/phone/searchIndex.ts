@@ -110,7 +110,7 @@ const itemHit = (i: AttentionItem): Hit => ({
   key: `inbox:${i.agentId}/${i.id}`,
   group: "inbox",
   title: i.title || "Untitled conversation",
-  preview: [i.agentName ?? "agent", WAITS[i.status], i.snooze ? "later" : null].filter(Boolean).join(" · "),
+  preview: [i.agentName ?? "agent", WAITS[i.status]].filter(Boolean).join(" · "),
   route: { kind: "conversation", agentId: i.agentId, conversationId: i.id, prefill: null },
   lead: { agent: { id: i.agentId, name: i.agentName ?? "agent" } },
   dim: false,
@@ -129,8 +129,8 @@ export function buildIndex(src: SearchSources): SearchIndex {
     const description = src.describe?.(a.id) ?? null;
     out.push({ hit: agentHit(a, description), fields: [a.name, description ?? ""], recency: 0 });
   }
-  // The loaded actionable items, the Later ones included: what the Inbox holds, not every conversation.
-  for (const i of catchUpQueue(src.items, true)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agentName ?? ""], recency: time(i.lastMessageAt) });
+  // What needs you, from the loaded items; every chat is findable by its title among the chats above.
+  for (const i of catchUpQueue(src.items)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agentName ?? ""], recency: time(i.lastMessageAt) });
   for (const d of DESTINATIONS) out.push({ hit: pageHit(d), fields: [d.label, ...d.keywords], recency: 0 });
   return buildSearchIndex(out);
 }

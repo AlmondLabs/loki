@@ -152,6 +152,16 @@ export function toTranscript(messages: Array<Record<string, unknown>>): Transcri
 /** Letta's scheduler speaks first in a cron turn, always with this opening: not a person's message. */
 export const isScheduledPrompt = (text: string): boolean => /^\s*Scheduled task\b/.test(text);
 
+/**
+ * Whether a turn's input is something a person typed: text left once harness markup is stripped, and not a
+ * scheduled task's prompt. A turn with nothing typed (markup alone, the agent carrying on) is not a person.
+ */
+export function personTyped(input: unknown): boolean {
+  if (!Array.isArray(input)) return false;
+  const text = stripHarnessMarkup(input.map((m) => messageText((m as { content?: unknown } | null)?.content)).join("\n")).trim();
+  return text !== "" && !isScheduledPrompt(text);
+}
+
 /** Heuristic: does this assistant message end by asking the user something? */
 export function looksLikeQuestion(text: string | null): boolean {
   if (!text) return false;

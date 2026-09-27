@@ -11,24 +11,25 @@ const of = (id: string, agentId: string, agentName: string) => attentionItem(id,
 describe("inbox agent pills", () => {
   test("one pill per waiting agent, busiest first, then by name", () => {
     const items = [of("a", "ag-2", "Scout"), of("b", "ag-1", "Atlas"), of("c", "ag-2", "Scout"), of("d", "ag-3", "Bard")];
-    expect(agentPills(items, false).map((p) => [p.name, p.count])).toEqual([
+    expect(agentPills(items).map((p) => [p.name, p.count])).toEqual([
       ["Scout", 2],
       ["Atlas", 1],
       ["Bard", 1],
     ]);
   });
-  test("nothing waiting, no pill: a quiet conversation is not counted", () => {
-    expect(agentPills([attentionItem("a", { agentId: "ag-1", status: "idle", unread: false })], false)).toEqual([]);
+  test("a chat whose agent is mid-turn is not in the Inbox, so it earns no pill; a read one is", () => {
+    expect(agentPills([attentionItem("a", { agentId: "ag-1", status: "running" })])).toEqual([]);
+    expect(agentPills([attentionItem("a", { agentId: "ag-1", status: "idle", unread: false })]).map((p) => p.count)).toEqual([1]);
   });
   test("hidden with one agent; with two, All leads and says how many wait in all", () => {
-    const html = (items: ReturnType<typeof of>[], agent: string | null = null) => renderToStaticMarkup(createElement(AgentPills, { items, showSnoozed: false, agent, onAgent: () => {} }));
+    const html = (items: ReturnType<typeof of>[], agent: string | null = null) => renderToStaticMarkup(createElement(AgentPills, { items, agent, onAgent: () => {} }));
     expect(html([of("a", "ag-1", "Atlas"), of("b", "ag-1", "Atlas")])).toBe("");
     const two = html([of("a", "ag-1", "Atlas"), of("b", "ag-2", "Scout")]);
     expect(two).toMatch(/All <span[^>]*>2<\/span>/);
     expect(two).toContain('aria-pressed="true"');
   });
   test("a pill that is on stays at 0 once its cards are cleared, so All is one click away", () => {
-    const out = renderToStaticMarkup(createElement(AgentPills, { items: [of("a", "ag-1", "Atlas"), attentionItem("b", { agentId: "ag-2", agentName: "Scout", status: "idle", unread: false })], showSnoozed: false, agent: "ag-2", onAgent: () => {} }));
+    const out = renderToStaticMarkup(createElement(AgentPills, { items: [of("a", "ag-1", "Atlas"), attentionItem("b", { agentId: "ag-2", agentName: "Scout", status: "running" })], agent: "ag-2", onAgent: () => {} }));
     expect(out).toMatch(/Scout <span[^>]*>0<\/span>/);
   });
 });

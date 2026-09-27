@@ -286,14 +286,14 @@ describe("drafts through the shared composer", () => {
     w.clear();
     expect(d.keys()).toEqual([]);
   });
-  test("deciding the card (Later, Mark as done) leaves its draft for when it comes back", () => {
+  test("deciding the card (Archive, Next) leaves its draft for when it comes back", () => {
     const d = createDrafts();
     const a = card("c1");
     const k = draftKey(a.agentId, a.id);
     d.set(k, { text: "half a thought", images: [] });
-    let s = commitCard(EMPTY_DECK, a, "later");
+    let s = commitCard(EMPTY_DECK, a, "archive");
     expect(d.get(k).text).toBe("half a thought");
-    s = undoCard(s, a, "later");
+    s = undoCard(s, a, "archive");
     s = commitCard(s, a, "seen");
     expect(s.pass.seen).toBe(1);
     expect(d.get(k).text).toBe("half a thought");

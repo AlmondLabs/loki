@@ -50,9 +50,9 @@ describe("analytics: the report", () => {
     ev(1, "view_opened", { view: "inbox", from: "desk" }, "mac", "s2"),
     ev(1, "desk_switched", { desk: "a" }, "mac", "s2", 12),
     ev(0, "desk_switched", { desk: "b" }, "mac", "s1", 20),
-    ev(0, "inbox_pass_completed", { decided: 4, next: 2, later: 1, approve: 1, deny: 0, replies: 1 }, "mac", "s1", 30),
-    ev(1, "inbox_pass_completed", { decided: 2, next: 1, later: 1, approve: 0, deny: 0, replies: 0 }, "mac", "s2"),
-    ev(2, "inbox_pass_completed", { decided: 9, next: 9, later: 0, approve: 0, deny: 0, replies: 0 }, "mac", "s3"),
+    ev(0, "inbox_pass_completed", { decided: 4, next: 2, archive: 1, approve: 1, deny: 0, replies: 1 }, "mac", "s1", 30),
+    ev(1, "inbox_pass_completed", { decided: 2, next: 1, archive: 1, approve: 0, deny: 0, replies: 0 }, "mac", "s2"),
+    ev(2, "inbox_pass_completed", { decided: 9, next: 9, archive: 0, approve: 0, deny: 0, replies: 0 }, "mac", "s3"),
     ev(0, "message_sent", { origin: "desk", images: 1, queued: false }, "mac", "s1"),
     ev(0, "message_sent", { origin: "desk", images: 0, queued: true }, "mac", "s1"),
     ev(1, "message_sent", { origin: "inbox", images: 0, queued: false }, "mac", "s2"),
@@ -62,7 +62,7 @@ describe("analytics: the report", () => {
     ev(2, "turn_started", { desk: "b" }, "mod", "m2"),
     ev(0, "model_switched", { model: "openai/gpt-5", effort: "high" }, "mac", "s1"),
     ev(1, "conversation_marked_seen", {}, "phone", "p1", 4),
-    ev(1, "card_deferred", { skips: 1 }, "phone", "p1", 6),
+    ev(1, "conversation_kept_unread", {}, "phone", "p1", 6),
     ev(1, "conversation_marked_seen", {}, "mac", "s2"),
     ev(40, "view_opened", { view: "agents", from: "desk" }, "mac", "old"), // outside a 30-day window
   ];
@@ -91,11 +91,10 @@ describe("analytics: the report", () => {
     expect(by("turn_started")?.values).toEqual([["a", 2], ["b", 1]]);
     expect(by("message_sent")?.values).toEqual([["desk", 2], ["inbox", 1]]);
     expect(by("model_switched")?.values).toEqual([["openai/gpt-5", 1]]);
-    expect(by("card_deferred")?.values).toEqual([["1", 1]]);
   });
 
   test("the inbox: passes, their decisions, the median per pass", () => {
-    expect(r.inbox).toEqual({ passes: 3, decided: 15, perPass: 4, next: 12, later: 2, approve: 1, deny: 0, replies: 1 });
+    expect(r.inbox).toEqual({ passes: 3, decided: 15, perPass: 4, next: 12, archive: 2, approve: 1, deny: 0, replies: 1 });
   });
 
   test("hours and weekdays add up to the events; neverFired lists every known event that did not", () => {
@@ -108,7 +107,8 @@ describe("analytics: the report", () => {
 
   test("the text report names its parts and the empty period says so", () => {
     const text = formatAnalyticsReport(r);
-    for (const s of ["sessions 6 (mac 3 · phone 1 · mod 2)", "event", "message_sent", "breakdowns", "view_opened · view", "inbox passes 3 · 15 cards · median 4 a pass", "never fired"]) expect(text).toContain(s);
+    for (const s of ["sessions 6 (mac 3 · phone 1 · mod 2)", "event", "message_sent", "breakdowns", "view_opened · view", "inbox passes 3 · 15 cards · median 4 a pass", "archive 13%", "never fired"]) expect(text).toContain(s);
+    expect(formatAnalyticsReport(r)).not.toContain("later");
     expect(formatAnalyticsReport(analyticsReport([], { now: NOW, days: 7 }))).toBe("analytics · last 7 days · 0 events on 0 active days");
   });
   test("the desktop on Windows and Linux (plan 014 U2): its own devices, columns in the report only when they have events", () => {
@@ -193,15 +193,13 @@ describe("analytics: through the bridge", () => {
 
   test("the inbox frames the mod already handles become events", () => {
     const recorded: string[] = [];
-    const seen = { mark() {}, unmark() {}, view() {}, setSnooze() {}, clearSnooze() {}, all: () => ({}), viewedAll: () => ({}), snoozes: () => ({}), ladder: () => ({ firstMinutes: 30, growth: 2 }), setLadder() {} };
+    const seen = { mark() {}, unmark() {}, view() {}, all: () => ({}), viewedAll: () => ({}), focusAll: () => ({}) };
     const bridge = createBridge({ store: new DeskStore(), widgets, gestures: new GestureLog(), broadcast: () => {}, seen: seen as never, capture: (_c, event, properties) => recorded.push(properties ? `${event} ${JSON.stringify(properties)}` : event) });
     const c = client("c1", "dev-1");
     bridge.onMessage(c, { type: "seen_mark", agentId: "a", conversationId: "x" });
-    bridge.onMessage(c, { type: "snooze_set", agentId: "a", conversationId: "x", skips: 2, until: "2026-09-22T13:00:00Z", stamp: "s", at: "2026-09-22T12:00:00Z" });
     bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" });
-    bridge.onMessage(c, { type: "snooze_clear", agentId: "a", conversationId: "x" });
     bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" }); // a look is not a decision: no event
-    expect(recorded).toEqual(["conversation_marked_seen", 'card_deferred {"skips":2}', "conversation_kept_unread", "deferral_cleared"]);
+    expect(recorded).toEqual(["conversation_marked_seen", "conversation_kept_unread"]);
   });
 });
 
@@ -229,5 +227,24 @@ describe("analytics: the phone's screen names", () => {
       expect(name).toMatch(/^[a-z]+$/);
       expect(name).not.toMatch(/secret|persona/);
     }
+  });
+});
+
+describe("analytics: engagement, the inbox ranking's metric", () => {
+  test("counts your actions and, of the Inbox cards decided, the engaged share, how often it was the top card, and the median rank", () => {
+    const now = Date.parse("2026-09-27T12:00:00Z");
+    const e = (event: string, properties: Record<string, unknown> = {}, minutesAgo = 10) => makeEvent(event, "u", { $device_type: "mac", $lib: "loki", $session_id: "s", ...properties }, new Date(now - minutesAgo * 60_000));
+    const log = [
+      e("message_sent", { origin: "inbox" }),
+      e("question_answered"),
+      e("inbox_card_decided", { action: "reply", rank: 1, reason: "focus" }),
+      e("inbox_card_decided", { action: "answer", rank: 3, reason: "blocked" }),
+      e("inbox_card_decided", { action: "next", rank: 1, reason: "other" }),
+      e("inbox_card_decided", { action: "archive", rank: 2, reason: "other" }),
+    ];
+    const g = analyticsReport(log, { now, days: 7 }).engagement;
+    expect(g).toMatchObject({ actions: 2, cards: 4, engaged: 2, top: 1, medianRank: 2 });
+    expect(Object.fromEntries(g.byReason)).toEqual({ other: { cards: 2, engaged: 0 }, focus: { cards: 1, engaged: 1 }, blocked: { cards: 1, engaged: 1 } });
+    expect(formatAnalyticsReport(analyticsReport(log, { now, days: 7 }))).toContain("engaged 50% · of those, the top card 50% · median rank 2");
   });
 });
