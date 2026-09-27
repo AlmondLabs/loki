@@ -69,6 +69,14 @@ export function useSheetMotion(veilRef: RefObject<HTMLDivElement | null>, cardRe
     if (!on || !veil || !card || !parent) return;
     const opened = performance.now();
     let gone = false; // a drag already played the exit
+    // The click a drag would otherwise let through, swallowed once; dropped with the sheet if it goes first.
+    let swallowing: ((c: Event) => void) | null = null;
+    let unswallow: ReturnType<typeof setTimeout> | undefined;
+    const stopSwallowing = () => {
+      clearTimeout(unswallow);
+      if (swallowing) window.removeEventListener("click", swallowing, { capture: true });
+      swallowing = null;
+    };
 
     // Whether the whole sheet can take a vertical drag: yes while it fits, else only its grip and head.
     const fit = () => card.toggleAttribute("data-fits", card.scrollHeight <= card.clientHeight + 1);
@@ -118,9 +126,10 @@ export function useSheetMotion(veilRef: RefObject<HTMLDivElement | null>, cardRe
       drag = null;
       if (!d.on) return;
       // The tap this drag started on is not a tap.
-      const swallow = (c: Event) => (c.stopPropagation(), c.preventDefault());
-      window.addEventListener("click", swallow, { capture: true, once: true });
-      setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
+      stopSwallowing();
+      swallowing = (c: Event) => (c.stopPropagation(), c.preventDefault(), stopSwallowing());
+      window.addEventListener("click", swallowing, { capture: true });
+      unswallow = setTimeout(stopSwallowing, 0);
       parent.removeAttribute("data-sheet-drag");
       const first = d.samples[0];
       const last = d.samples[d.samples.length - 1];
@@ -148,6 +157,7 @@ export function useSheetMotion(veilRef: RefObject<HTMLDivElement | null>, cardRe
     card.addEventListener("pointerup", up);
     card.addEventListener("pointercancel", up);
     return () => {
+      stopSwallowing();
       ro?.disconnect();
       card.removeEventListener("pointerdown", down);
       card.removeEventListener("pointermove", move);

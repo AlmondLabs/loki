@@ -31,6 +31,12 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
     const main = shell?.querySelector<HTMLElement>(":scope > .loki-phone-main");
     if (!on || !shell || !main || !standalone()) return;
     let g: { id: number; x: number; y: number; on: boolean; samples: { x: number; t: number }[] } | null = null;
+    // A gesture's follow-ups (the fallback settle, the transition reset), cleared with the effect.
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+    const later = (f: () => void, ms: number) => {
+      const t = setTimeout(() => (timers.delete(t), f()), ms);
+      timers.add(t);
+    };
     const settle = () => {
       shell.removeAttribute("data-edge-drag");
       main.style.transform = "";
@@ -77,7 +83,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
         });
         backRef.current();
         // If Back never lands (nothing to go back to), the page must not stay across.
-        setTimeout(() => {
+        later(() => {
           if (shell.hasAttribute("data-edge-drag")) {
             main.style.transition = "";
             settle();
@@ -88,7 +94,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
       const s = spring("snappy", dx > 1 ? -v / dx : 0);
       main.style.transition = `transform ${s.ms}ms ${s.easing}`;
       settle();
-      setTimeout(() => (main.style.transition = ""), s.ms);
+      later(() => (main.style.transition = ""), s.ms);
     };
     shell.addEventListener("pointerdown", down);
     shell.addEventListener("pointermove", move);
@@ -99,6 +105,8 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
       shell.removeEventListener("pointermove", move);
       shell.removeEventListener("pointerup", up);
       shell.removeEventListener("pointercancel", up);
+      timers.forEach(clearTimeout);
+      main.style.transition = "";
       settle();
     };
   }, [on, shellRef]);
