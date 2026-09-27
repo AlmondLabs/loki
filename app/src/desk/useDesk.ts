@@ -408,7 +408,15 @@ export function useDesk() {
     phone,
     servedBuild,
     /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
-    models: { recent: recentModels, used: (handle: string) => send({ type: "models_recent_add", handle }) },
+    models: {
+      recent: recentModels,
+      used: (handle: string) => void (recentModels[0] !== handle && send({ type: "models_recent_add", handle })),
+      /** A message went into a chat: its model moves to the front of the recent list (least recently used). */
+      sentIn: (conversationId: string, agentId: string) => {
+        const model = modelOf(scopeFor(conversationId, agentId));
+        if (model && recentModels[0] !== model) send({ type: "models_recent_add", handle: model });
+      },
+    },
     board,
     tasksVersion,
     recall,

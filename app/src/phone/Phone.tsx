@@ -168,6 +168,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
     capture,
+    // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
+    sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
   });
   const { route, from, arrival } = useRouteState();
   // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).

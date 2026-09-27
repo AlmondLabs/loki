@@ -83,6 +83,8 @@ export function Shell() {
     loadLocalHistory: attention.loadHistory,
     listConversations: attention.listInbox,
     capture,
+    // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
+    sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
   });
   const { message: boardNotice, notice } = useNotice();
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.

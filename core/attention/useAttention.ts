@@ -45,6 +45,8 @@ export interface UseAttentionOptions {
   subscribeLimit?: number;
   /** Analytics (core/analytics.ts): an event this model carried out for the user. */
   capture?: (event: string, properties?: Record<string, unknown>) => void;
+  /** A message went into this conversation (the model picker's recent list moves its model to the front). */
+  sent?: (rt: Runtime) => void;
 }
 
 /** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
@@ -348,6 +350,7 @@ export function useAttention(opts: UseAttentionOptions) {
     }
     const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
     optsRef.current.capture?.("message_sent", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
+    optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, context });
