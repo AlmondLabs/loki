@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
@@ -303,12 +304,13 @@ export function ChangeFolder({ onClose, agentId, agentName, conversationKey, tit
       setMoving(false);
     } else onClose();
   };
-  return (
+  const sheet = (
     <Sheet
       label="change folder"
       onClose={onClose}
       width={560}
-      top="72px"
+      top="18vh"
+      scroll
       escape={false}
       cardProps={{
         onKeyDown: (e) => {
@@ -357,6 +359,9 @@ export function ChangeFolder({ onClose, agentId, agentName, conversationKey, tit
       </div>
     </Sheet>
   );
+  // Opened from the sidebar's row menu, it would be laid out (and clipped) inside that column: on the body the veil
+  // covers the whole window, as Rename's does. The veil scrolls, so the folder list can hang past the card.
+  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
 /** The agent row: one radio chip per agent, the chosen one pressed (active). */
@@ -427,7 +432,7 @@ export function FolderPicker({
       <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
         <span>
           Folder
-          {source && <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current desk" : `recent for ${agentName ?? "this agent"}`}</span>}
+          {source && <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>}
         </span>
         <FolderVerdict status={status} />
       </div>
