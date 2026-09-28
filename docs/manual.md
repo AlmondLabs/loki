@@ -138,8 +138,8 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing and a ⋯ menu for the conversation (find, model, permission
-  mode, and on the Canvas tab arrange, fit and the chat toggle; the chat's own actions are the sidebar row's), then two tabs. **Messages** is the
+  with its name, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
+  chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line before what came since you last looked (it stays put while the chat is open, as
   Slack's does, and moves on the next open), a copy button on hover, and a line each time the agent

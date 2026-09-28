@@ -134,7 +134,7 @@ export function DeskPane(props: DeskPaneProps) {
             )}
           </span>
         }
-        actions={<DeskActions tab={tab} />}
+        actions={tab === "desk" ? <DeskActions /> : undefined}
         tabs={TABS}
         tab={tab}
         onTab={onTab}
@@ -221,22 +221,16 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
 }
 
 /**
- * The header's menu: what works on the conversation on screen, each through its keymap action so the key and
- * the menu agree. What works on the chat as a whole (read, rename, folder, pin, archive) is the sidebar row's menu.
+ * The header's menu, on the Canvas tab only: the sheet's own actions, each through its keymap action so the key
+ * and the menu agree. Model and mode are under the message box, find is ⌘F, and what works on the chat as a
+ * whole (read, rename, folder, pin, archive) is the sidebar row's menu.
  */
-function DeskActions({ tab }: { tab: DeskTab }) {
+function DeskActions() {
   const [menuOpen, setMenuOpen] = useState(false);
   const items: MenuItem[] = [
-    { id: "chat.find", label: "Find in conversation…", keys: keyFor("chat.find") },
-    { id: "chat.model", label: "Change model…", keys: keyFor("chat.model") },
-    { id: "chat.mode", label: "Change permission mode…", keys: keyFor("chat.mode") },
-    ...(tab === "desk"
-      ? [
-          { id: "desk.arrange", label: "Arrange widgets", keys: keyFor("desk.arrange") },
-          { id: "view.fit", label: "Fit all widgets", keys: keyFor("view.fit") },
-          { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
-        ]
-      : []),
+    { id: "desk.arrange", label: "Arrange widgets", keys: keyFor("desk.arrange") },
+    { id: "view.fit", label: "Fit all widgets", keys: keyFor("view.fit") },
+    { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
   ];
   return (
     <span className="loki-desk-pane-menu-anchor">
