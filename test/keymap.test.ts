@@ -225,7 +225,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       for (const k of b.keys) expect(formatKeys(k, "macos")).toBe(macBefore(k));
     }
     expect(SEGMENTS.map((s) => s.key)).toEqual(["⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6"]);
-    expect(wasFor(KEYMAP.find((b) => b.id === "search.open")!, "macos")).toBe("was the desks tree: chats are in the sidebar now (⌘⇧D shows or hides it)");
+    expect(wasFor({ ...KEYMAP.find((b) => b.id === "search.open")!, was: "moved ({column.toggle} shows the sidebar)" }, "macos")).toBe("moved (⌘⇧D shows the sidebar)");
     expect(menuSpec(KEYMAP, "macos")).toEqual(menuSpec());
   });
   test("covers AE5: Ctrl+K opens search on Windows, from the message box too, and the keys sheet lists it as Ctrl K", () => {
@@ -324,8 +324,8 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
     expect(() => keyFor("global.inbox", "windows")).toThrow(); // no key there
   });
   test("a was line names the key it points to on each system", () => {
-    const search = KEYMAP.find((b) => b.id === "search.open")!;
-    expect(wasFor(search, "windows")).toBe("was the desks tree: chats are in the sidebar now (Ctrl Shift D shows or hides it)");
+    const search = { ...KEYMAP.find((b) => b.id === "search.open")!, was: "moved ({column.toggle} shows the sidebar)" };
+    expect(wasFor(search, "windows")).toBe("moved (Ctrl Shift D shows the sidebar)");
     expect(wasFor(KEYMAP.find((b) => b.id === "desk.new")!, "windows")).toBeUndefined();
   });
   test("⌘ held means ⌘ alone on the Mac (Ctrl+D deletes forward in a Mac text box) and Ctrl alone elsewhere", () => {

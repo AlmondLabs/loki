@@ -201,7 +201,7 @@ function EmptyDesk({ show, agentName, scope }: { show: boolean; agentName: strin
   if (!show) return null;
   return (
     <div data-empty-desk style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", zIndex: 5 }}>
-      <Empty title="Nothing on this desk yet.">
+      <Empty title="Nothing on this canvas yet.">
         <p>{agentName ? `Ask ${agentName} to put something here.` : "Ask your agent to put something here."}</p>
         <div className="loki-label" style={{ marginTop: 14 }}>Widgets are files · ~/.letta/loki/widgets/{scope}/</div>
       </Empty>
