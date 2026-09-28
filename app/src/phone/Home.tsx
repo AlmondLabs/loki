@@ -16,6 +16,7 @@ import { navigate, type Route } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
 import { Scroll } from "./ui";
 import { RenameSheet } from "./RenameSheet";
+import { chosenFolder, folderName, foldersOf, shownFolders } from "./newChatFolders";
 import { canRename } from "../shell/sidebarModel";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
@@ -496,10 +497,6 @@ function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQue
   );
 }
 
-/** The agent's most recent folder on the Mac, once the list has arrived; null before, and when it has none. */
-function folderFor(recent: Record<string, string[]> | null, agentId: string | null): string | null {
-  return agentId && recent ? recent[agentId]?.[0] ?? null : null;
-}
 
 /** `folders_get`, once: the folders each agent worked in, most recent first; null until the Mac answers. */
 function useRecentFolders(recentFolders: () => Promise<Record<string, string[]>>) {
@@ -525,7 +522,10 @@ function useNewDesk(agents: Array<{ id: string; name: string | null }>, defaultA
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-  const folder = folderFor(recent, agentId);
+  // The folder: the one you picked if this agent has worked there, else the agent's most recent.
+  const [picked, setPicked] = useState<string | null>(null);
+  const folders = foldersOf(recent, agentId);
+  const folder = chosenFolder(folders, picked);
   const canStart = !!agentId && !!folder && !busy;
   const start = async () => {
     if (!canStart || !agentId || !folder) return;
@@ -540,15 +540,15 @@ function useNewDesk(agents: Array<{ id: string; name: string | null }>, defaultA
       setBusy(false);
     }
   };
-  return { agentId, setAgentId, name, setName, recent, agentName, folder, busy, error, canStart, start };
+  return { agentId, setAgentId, name, setName, recent, agentName, folders, folder, setFolder: setPicked, busy, error, canStart, start };
 }
 
 /**
- * The plus: pick an agent, name it if you like, start. The folder is the agent's most recent one on
- * the Mac; when it has none, the sheet says so and start stays off — choosing a folder is the Mac's job.
+ * The plus: pick an agent, name it if you like, pick one of the folders it has worked in on the Mac (the most
+ * recent to begin with), start. An agent with no folder yet says so and start stays off: a first folder is the Mac's job.
  */
 function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: { agents: Array<{ id: string; name: string | null }>; defaultAgentId: string | null; recentFolders: () => Promise<Record<string, string[]>>; onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>; onClose: () => void }) {
-  const { agentId, setAgentId, name, setName, recent, agentName, folder, busy, error, canStart, start } = useNewDesk(agents, defaultAgentId, recentFolders, onCreate, onClose);
+  const { agentId, setAgentId, name, setName, recent, agentName, folders, folder, setFolder, busy, error, canStart, start } = useNewDesk(agents, defaultAgentId, recentFolders, onCreate, onClose);
   return (
     <Sheet label="New chat" onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-copy">
@@ -557,6 +557,7 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
       </div>
       <AgentPicker agents={agents} agentId={agentId} onPick={setAgentId} />
       <Field size="touch" name="conversation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" aria-label="Chat name" autoComplete="off" data-1p-ignore data-form-type="other" enterKeyHint="go" onKeyDown={(e) => e.key === "Enter" && void start()} />
+      <FolderPicker folders={folders} folder={folder} onPick={setFolder} />
       <FolderLine recent={recent} folder={folder} agentName={agentName} />
       {error && (
         <p role="alert" className="loki-phone-error">
@@ -586,6 +587,31 @@ function AgentPicker({ agents, agentId, onPick }: { agents: Array<{ id: string; 
         </Chip>
       ))}
       {agents.length === 0 && <span className="loki-phone-meta">No agents yet. Is Letta Code running on the Mac?</span>}
+    </div>
+  );
+}
+
+/**
+ * The agent's folders as chips, one lit, when it has more than one: named by their last part (the line under them
+ * gives the whole path of the lit one). The most recent FOLDER_CHOICES show; More lists the rest.
+ */
+function FolderPicker({ folders, folder, onPick }: { folders: string[]; folder: string | null; onPick: (folder: string) => void }) {
+  const [all, setAll] = useState(false);
+  if (folders.length < 2) return null;
+  const shown = shownFolders(folders, folder, all);
+  const home = /^\/Users\/[^/]+/;
+  return (
+    <div role="radiogroup" aria-label="Folder" className="loki-phone-chips loki-phone-chips--wrap">
+      {shown.map((f) => (
+        <Chip key={f} touch role="radio" active={f === folder} aria-checked={f === folder} aria-label={f.replace(home, "~")} onClick={() => onPick(f)}>
+          {folderName(f)}
+        </Chip>
+      ))}
+      {!all && folders.length > shown.length && (
+        <Chip touch onClick={() => setAll(true)}>
+          {`More (${folders.length - shown.length})`}
+        </Chip>
+      )}
     </div>
   );
 }

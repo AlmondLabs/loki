@@ -396,6 +396,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
     }
   };
   const titleRefreshes = new ScopeDebouncer();
+  /** When each desk's running turn began, for turn_finished's duration. */
+  const turnsBegun = new Map<string, number>();
 
   track("conversation_open", (event, ctx) => {
     const runtime = runtimeFromEvent(event as ConversationOpenEvent | undefined, ctx);
@@ -424,6 +426,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     const scope = convId ? desks.remember(convId, runtime.agentId) : SHARED_SCOPE;
     activeScope = scope;
     analytics.capture("mod", "turn_started", { desk: scope });
+    turnsBegun.set(scope, Date.now());
     // The return path: everything the user did on this desk (and the shared desk) rides along.
     const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
     log("event:turn_start", { desk: scope, attached: lines.length });
@@ -465,6 +468,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (runtime.agentId && isSubagent(runtime.agentId)) return;
     if (runtime.conversationId && recall.owns(runtime.conversationId)) return;
     const scope = runtime.conversationId ? desks.remember(runtime.conversationId, runtime.agentId) : activeScope;
+    // The turn's end, for how long you take to come back to it (the report's time to respond).
+    const begun = turnsBegun.get(scope);
+    turnsBegun.delete(scope);
+    analytics.capture("mod", "turn_finished", { desk: scope, duration_ms: begun === undefined ? null : Date.now() - begun });
     titleRefreshes.schedule(scope, () => {
       // Letta names conversations lazily; tell tabs when the title or status changes.
       const info = deskInfo(scope);

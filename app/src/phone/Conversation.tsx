@@ -12,6 +12,7 @@ import { dayLabel, threadNotice, unreadBoundary } from "./deck";
 import { useMessageActions } from "./MessageActions";
 import { SheetRow } from "./Home";
 import { RenameSheet } from "./RenameSheet";
+import { FolderSheet } from "./FolderSheet";
 import { useViewed } from "../shared/useViewed";
 import { doneAction } from "../shell/sidebarModel";
 import { Icon } from "./icons";
@@ -63,6 +64,7 @@ export function ConversationScreen({
   onPin,
   rename = null,
   archive = null,
+  folder = null,
   onBack,
   onLoad,
   onDecide,
@@ -100,6 +102,8 @@ export function ConversationScreen({
   rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
   /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the app-server cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
+  /** Change folder: the chat's folder and the agent's recent ones, and the move; null while the app-server cannot take it. */
+  folder?: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null> } | null;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;
   onDecide: (rt: Runtime, requestId: string, behavior: "allow" | "deny") => void;
@@ -117,6 +121,7 @@ export function ConversationScreen({
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [archiving, setArchiving] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   const toggleArchive = async () => {
@@ -189,6 +194,7 @@ export function ConversationScreen({
             {canUndo && <SheetRow icon="history" label="Mark as unread" onClick={() => (onNotDone!(item!), setActionsOpen(false))} />}
             {pinned !== null && onPin && <SheetRow icon="pin" label={pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!pinned), setActionsOpen(false))} />}
             {rename && <SheetRow icon="pencil" label="Rename" aside={rename.onRename ? null : "Not connected"} disabled={!rename.onRename} onClick={() => (setActionsOpen(false), setRenaming(true))} />}
+            {folder && <SheetRow icon="folder" label="Change folder" onClick={() => (setActionsOpen(false), setMoving(true))} />}
             {archive && <SheetRow icon="archive" label={archiving.busy ? (archive.archived ? "Restoring…" : "Archiving…") : archive.archived ? "Restore" : "Archive"} aside={archive.onArchive ? null : "Not connected"} disabled={!archive.onArchive || archiving.busy} onClick={() => void toggleArchive()} />}
             <SheetRow icon="person" label={`${thread.agentName ?? "Agent"}'s profile`} onClick={() => (setActionsOpen(false), navigate({ kind: "agent", agentId: thread.agentId }))} />
           </ul>
@@ -202,6 +208,7 @@ export function ConversationScreen({
           </Button>
         </Sheet>
       )}
+      {moving && folder && <FolderSheet load={folder.load} onMove={folder.onMove} onClose={() => setMoving(false)} />}
       {renaming && rename?.onRename && <RenameSheet name={rename.name} onRename={rename.onRename} onClose={() => setRenaming(false)} />}
     </>
   );

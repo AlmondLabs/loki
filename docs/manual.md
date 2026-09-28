@@ -127,20 +127,19 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   window in front, when a message arrives) marks it **viewed**, which drops the bold and keeps the ring, so bold +
   ring is new since you looked, the ring alone is viewed but not read, and neither is read. Read is what the
   Inbox's → does, a reply, an approval or an answer; by hand it is **Mark as read** (⌘⇧↵ on the open chat, or
-  the row's right-click menu, or the chat header's ⋯ menu), and **Mark as unread** in the same menus puts the
+  the row's right-click menu), and **Mark as unread** in the same menu puts the
   ring back (the bold stays off: you have seen it). None of these is done: a chat is done only when it is
   archived, and until then it stays in the Inbox. Viewed and read are kept by the mod, so the phone and the Mac
   agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
-  Hover a row for pin and archive, right-click it for the same with open, rename and restore. **Rename…** (also in
-  the chat header's ⋯ menu) opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
+  Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
   most 80 characters. The name is the Letta conversation's own, so Letta Desktop sees it too; an agent's main
   chat is named after the agent and cannot be renamed, and renaming needs the app-server. When a chat that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (mark as read or unread, rename, find, model,
-  permission mode, new chat, and on the Canvas tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
+  with its name, its agent and what the agent is doing (on the Canvas tab, a ⋯ menu to arrange, fit and toggle the
+  chat; the chat's own actions are the sidebar row's, model and mode are under the message box, find is ⌘F), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line before what came since you last looked (it stays put while the chat is open, as
   Slack's does, and moves on the next open), a copy button on hover, and a line each time the agent
@@ -269,12 +268,14 @@ Search button beside them:
 1. **Home**: the loki header (its menu holds the filter, **Refresh chats** and **Archived chats**), a row of
    shortcuts with their counts (Inbox, Learn, Agents, Archive), **Needs your attention** — the head of the
    Inbox queue — then **Chats**, pinned first. A long press on a chat (or its actions button) opens its actions sheet: pin,
-   **Rename** or archive. The round compose button at the bottom right starts a new chat.
+   **Rename** or archive. The round compose button at the bottom right starts a new chat: pick the agent, a name if
+   you like, and the folder, from the folders that agent has worked in on the Mac (its most recent to begin with,
+   the full path under the chips). An agent that has never worked in a folder starts its first chat on the Mac.
 2. **Inbox**: the same cards as Catch Up in the same order (highest score first, see "The order"), one at a
    time. The card is the conversation: read the thread, reply, attach an image, answer a question. Under it,
    **Open chat** and **Next**; swipe right for next (a left swipe does nothing). Next reads the chat and moves on;
    it comes back on your next visit. Open chat opens the conversation full screen, whose actions sheet has
-   **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
+   **Change folder** and **Archive** (done: the chat leaves the inbox; a main chat has none). An approval leaves only by its decision:
    the two buttons become **Deny** and **Approve**. Undo sits in the top bar for six seconds after Next. The top bar reads "n need you" (or "n chats" when nothing does). Once you have
    been past every chat it says "You've been through every chat", how many still need you, and **Go through
    again**.
@@ -434,6 +435,14 @@ folder is a checkout) and an optional name. Start creates the conversation
 through Letta's app-server, so it appears in Desktop too, and the canvas
 opens the empty chat on Messages with the message box focused.
 
+**Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
+the same folder field, starting on the chat's folder (recents, completion, Browse…); Move needs a folder that
+exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders
+that agent has worked in. Letta Code moves the conversation (its own `/chdir`, kept in
+`~/.letta/remote-settings.json`) and tells the agent on its next turn that the working directory changed, with
+the new folder's environment. loki's hidden note on each message carries the time and the chat, not the folder:
+the folder is Letta Code's to tell.
+
 ## Questions from the agent
 
 When an agent calls `AskUserQuestion`, the conversation (on either tab) and the inbox card show
@@ -560,10 +569,15 @@ finishing or blocking anywhere, the half-minute clock — and again whenever a c
 front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
 is the score, `core/attention/focus.ts` the focus.
 
-**What the ranking is tuned for: engagement.** Every Inbox decision is logged (`inbox_card_decided`: what you
-did, where the card stood, its score, focus and reason), and `bun run analytics` reports how often you engage
-with a card (reply, answer, approve, deny) rather than move past or archive it, how often that card was the one on
-top, and the median rank of the cards you engaged with. The weights above are the starting point.
+**What the ranking is tuned for: engagement.** Every card that comes to the top is logged (`inbox_card_shown`),
+and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
+chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
+how long the card was on top, counting only the time loki's window was visible and focused). `bun run analytics`
+reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
+archive it — a Next straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
+rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
+shown at, how many Nexts and Archives you took back, and how long a finished turn waits for you. The weights
+above are the starting point.
 
 **A reply keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
 into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
@@ -604,14 +618,17 @@ or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per devi
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
 handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
 `message_sent`, `inbox_pass_completed` (one per inbox visit: how many next, archive, approve, deny and replies),
-`inbox_card_decided` (action next, archive, approve, deny, reply or answer); `core/analytics.ts` lists them all
-with their properties. The file rotates
+`inbox_card_shown`, `inbox_card_decided` (action next, archive, approve, deny, reply, answer or open),
+`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod), `approval_requested` (reported by
+every window that saw it and written once), `chat_archived` and `chat_restored` (where from); `core/analytics.ts`
+lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the harness's environment turns it off.
 
 `bun run analytics` (or `bun run analytics -- --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
 property (views by name, turns by chat, sends by origin, models picked), the inbox visits and their decision
-split, the hours and weekdays loki is used, and the events that never fired in the period.
+split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
+period.
 
 ## Environment variables
 

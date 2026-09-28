@@ -40,6 +40,7 @@ import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel } from "../chat/ModelPicker";
 import type { ModelSelection } from "../../../core/models.ts";
+import { pageActivity } from "../shared/pageActivity";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -85,6 +86,7 @@ export function Shell() {
     capture,
     // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
+    activity: pageActivity,
   });
   const { message: boardNotice, notice } = useNotice();
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
@@ -380,7 +382,6 @@ export function Shell() {
               modelPickerTick={modelPickerTick}
               onPickMode={pickMode}
               modeMenuTick={modeMenuTick}
-              notice={notice}
             />
           </div>
 

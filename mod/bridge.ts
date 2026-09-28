@@ -243,10 +243,15 @@ const isPoint = (v: unknown): boolean =>
  * and a model picked there, for the shared quick picks.
  * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
  */
+/** How many `once` keys the bridge remembers. */
+const ONCE_MAX = 500;
+
 export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
+  /** `once` keys of the capture frames already written, oldest first (see the capture case). */
+  const reportedOnce = new Set<string>();
 
   /** The seen and viewed markers and the focus weights, as one frame; sent on request and broadcast on every change. */
   const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll?.() ?? {}, appServer: appServerAvailable?.() ?? false });
@@ -280,7 +285,16 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
             client.send({ type: "error", message: "malformed capture" });
             return;
           }
-          track(msg.event, msg.properties && typeof msg.properties === "object" && !Array.isArray(msg.properties) ? (msg.properties as Record<string, unknown>) : undefined);
+          const props = msg.properties && typeof msg.properties === "object" && !Array.isArray(msg.properties) ? { ...(msg.properties as Record<string, unknown>) } : undefined;
+          // An event every window and phone reports (a permission request each of them saw) carries a `once` key:
+          // the first report is kept, the rest dropped. The key itself is not written.
+          if (props && typeof props.once === "string") {
+            if (reportedOnce.has(props.once)) return;
+            reportedOnce.add(props.once);
+            if (reportedOnce.size > ONCE_MAX) reportedOnce.delete(reportedOnce.values().next().value!);
+            delete props.once;
+          }
+          track(msg.event, props);
           return;
         }
         case "gesture": {

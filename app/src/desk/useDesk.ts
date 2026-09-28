@@ -62,6 +62,9 @@ const scopeOfId = (id: string): Scope => id.slice(0, Math.max(0, id.indexOf("/")
 const recallSnapshot = (m: Record<string, unknown> | null): RecallSnapshot | null =>
   m && m.type === "recall" ? ({ cards: m.cards, rejected: m.rejected, worker: m.worker, leads: m.leads ?? [], dismissedLeads: m.dismissedLeads ?? [], lessons: m.lessons ?? [] } as RecallSnapshot) : null;
 
+/** Captures kept while the socket is closed; the oldest go first. */
+const CAPTURES_HELD = 50;
+
 export function useDesk() {
   const {
     scope,
@@ -271,9 +274,19 @@ export function useDesk() {
   useEffect(() => {
     sendRef.current = send;
   });
+  // An event captured while the socket is between connections (a chat switch reopens it) waits for it, rather
+  // than being lost: desk_switched always fell in that gap.
+  const heldCaptures = useRef<object[]>([]);
   const capture = useCallback((event: string, properties?: Record<string, unknown>) => {
-    sendRef.current({ type: "capture", event, ...(properties ? { properties } : {}) });
+    const frame = { type: "capture", event, ...(properties ? { properties } : {}) };
+    if (!sendRef.current(frame)) heldCaptures.current = [...heldCaptures.current, frame].slice(-CAPTURES_HELD);
   }, []);
+  useEffect(() => {
+    if (connection !== "open") return;
+    const held = heldCaptures.current;
+    heldCaptures.current = [];
+    for (const frame of held) sendRef.current(frame);
+  }, [connection]);
 
   const attention = {
     available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab

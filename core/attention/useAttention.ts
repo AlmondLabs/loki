@@ -4,14 +4,16 @@ import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, beginCommand, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, beginCommand, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
+import { createActiveClock, type Activity } from "./activeClock.ts";
 import { focusShares, type FocusAction, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
+import { scopeFor } from "../desk-core.ts";
 
 /**
  * Catch Up, client-side: the list of open conversations and who spoke last in each come from the
@@ -20,7 +22,21 @@ import type { MakeTransport } from "./transport.ts";
  * most recent ones, and the seen markers are the mod's too.
  */
 /** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
-export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer";
+export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open";
+/** How a card was acted on: a key or a click on the Mac, a swipe or a tap on the phone. */
+export type CardVia = "key" | "click" | "swipe" | "tap";
+/** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
+export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
+
+/** How long a folder change waits for Letta Code's answer. */
+const FOLDER_MOVE_MS = 8000;
+
+/** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
+const deskOf = (agentId: string, conversationId: string) => scopeFor(conversationId, agentId);
+const minutesSince = (iso: string | null, now: number): number | null => {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 60_000));
+};
 
 export interface UseAttentionOptions {
   /** The mod says whether an app-server was discovered. */
@@ -47,6 +63,8 @@ export interface UseAttentionOptions {
   capture?: (event: string, properties?: Record<string, unknown>) => void;
   /** A message went into this conversation (the model picker's recent list moves its model to the front). */
   sent?: (rt: Runtime) => void;
+  /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
+  activity?: Activity;
 }
 
 /** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
@@ -78,6 +96,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<AppServerSocket | null>(null);
   const liveRef = useRef(new Map<string, Live>());
+  /** Folder changes waiting on Letta Code's answer, by conversation key (changeFolder). */
+  const folderMoves = useRef(new Map<string, { from: string | undefined; to: string; done: (err: string | null) => void }>());
   const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Conversations the list knows about; an event from an unknown one means the list is stale (a new desk, an empty conversation that just got its first turn). */
   const knownRef = useRef(new Set<string>());
@@ -140,7 +160,21 @@ export function useAttention(opts: UseAttentionOptions) {
         liveRef.current.set(key, l);
       }
       const wasInTurn = l.inTurn;
+      const asked = { approval: l.pending?.requestId ?? null, question: l.pendingAsk?.requestId ?? null };
+      const errorBefore = l.error;
       const { changed, userSpoke } = applyEvent(l, ev);
+      // A new permission request or question (approval_requested). Every window and phone sees the same request; the
+      // mod keeps the first report of each (`once`).
+      const request = l.pending && l.pending.requestId !== asked.approval ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" } : l.pendingAsk && l.pendingAsk.requestId !== asked.question ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" } : null;
+      // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
+      const move = folderMoves.current.get(key);
+      const answer = move ? folderMoveAnswer(ev, l.cwd, move) : null;
+      if (move && answer === "moved") move.done(null);
+      else if (move && answer && answer !== "moved") {
+        move.done(answer.error);
+        l.error = errorBefore; // the refusal is the folder dialog's to show; the chat did not fail
+      }
+      if (request) optsRef.current.capture?.("approval_requested", { desk: deskOf(agent, conv), agent, tool: request.tool, kind: request.kind, once: `request:${request.id}` });
       if (userSpoke) opts.markSeen(agent, conv);
       if (changed) bump();
       // The turn just ended and something was typed during it: it goes out now, one per turn end.
@@ -232,18 +266,41 @@ export function useAttention(opts: UseAttentionOptions) {
   );
 
   /**
-   * An Inbox decision, for tuning the ranking against what you actually do (inbox_card_decided): what you did,
-   * where the card stood in the ready queue, and what it scored and why. Read from the live items at that moment.
+   * The Inbox's analytics, for tuning the ranking against what you actually do. Each card event carries where the
+   * card stood in the Inbox (rank among `of`), what it scored and why, whether it was new and how long its chat had
+   * been quiet, read from the live items at that moment. A card shown (inbox_card_shown) starts its dwell clock; the
+   * decision (inbox_card_decided) says how long it was on top before you acted, counting only the time loki was
+   * visible and focused (activeClock.ts).
    */
   const itemsRef = useRef(items);
   useEffect(() => {
     itemsRef.current = items;
   });
-  const decided = useCallback((item: AttentionItem, action: CardAction) => {
+  const shownAt = useRef(new Map<string, number>());
+  const [clock] = useState(() => createActiveClock());
+  const activity = opts.activity;
+  useEffect(() => activity?.((on) => clock.set(on)), [activity, clock]);
+  const cardProps = (item: AttentionItem) => {
     const queue = inboxQueue(itemsRef.current);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
-    const now = queue[at] ?? item;
-    optsRef.current.capture?.("inbox_card_decided", { action, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(now.score * 10) / 10, focus: Math.round(now.focus * 100) / 100, reason: now.reason, status: now.status });
+    const it = queue[at] ?? item;
+    return { desk: deskOf(item.agentId, item.id), agent: item.agentId, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
+  };
+  const shown = useCallback((item: AttentionItem) => {
+    shownAt.current.set(idOf(item), clock.now());
+    optsRef.current.capture?.("inbox_card_shown", cardProps(item));
+  }, [clock]);
+  const decided = useCallback((item: AttentionItem, action: CardAction, via?: CardVia) => {
+    const since = shownAt.current.get(idOf(item));
+    optsRef.current.capture?.("inbox_card_decided", { action, ...(via ? { via } : {}), ...cardProps(item), dwell_ms: since === undefined ? null : Math.round(clock.now() - since) });
+  }, [clock]);
+  /** A Next or an Archive taken back: the ranking's miss, or a slip. */
+  const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
+    optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agentId, item.id), agent: item.agentId });
+  }, []);
+  /** An agent pill chosen in the Inbox (null: All). */
+  const filtered = useCallback((agent: string | null) => {
+    optsRef.current.capture?.("inbox_filtered", { agent });
   }, []);
 
   // The app-server only lists what is still in the agent's context, so a compacted
@@ -294,13 +351,13 @@ export function useAttention(opts: UseAttentionOptions) {
    * approval. `rows` is undefined until the transcript has been asked for.
    */
   const conversation = useCallback(
-    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null } => {
+    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null; cwd: string | null } => {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
       const base = histories[key];
       // The history's rows and the live ones keep their identity from update to update; only what changed is new.
       const tail: TranscriptRow[] = l ? liveRows(l) : [];
-      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null };
+      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null };
     },
     [histories, live],
   );
@@ -311,7 +368,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (l && was) l.pending = null; // optimistic: the card clears at once
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "decide");
-    optsRef.current.capture?.("approval_decided", { behavior });
+    optsRef.current.capture?.("approval_decided", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, behavior, wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null });
     bump();
     void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
       if (ok || !l || !was) return;
@@ -331,7 +388,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (summary.trim()) l.tail.push({ role: "user", text: summary, at: new Date().toISOString() });
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "answer");
-    optsRef.current.capture?.("question_answered");
+    optsRef.current.capture?.("question_answered", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, wait_ms: Math.max(0, Date.now() - Date.parse(was.at)) || null });
     bump();
     void socketRef.current?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
       if (ok) return;
@@ -341,15 +398,15 @@ export function useAttention(opts: UseAttentionOptions) {
   }, [bump]);
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
-  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { folder?: string | null; desk?: string | null; origin?: SendOrigin } = {}) => {
+  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     let l = liveRef.current.get(key);
     if (!l) {
       l = emptyLive();
       liveRef.current.set(key, l);
     }
-    const context = environmentReminder({ folder: env.folder, desk: env.desk }); // what Desktop attaches: local time, folder
-    optsRef.current.capture?.("message_sent", { origin: env.origin ?? null, images: images.length, queued: l.inTurn });
+    const context = environmentReminder({ desk: env.desk }); // what Desktop attaches: local time; and the chat
+    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
@@ -524,6 +581,43 @@ export function useAttention(opts: UseAttentionOptions) {
     }
   }, []);
   /** Set a conversation's permission mode (runtime_start with `mode`); resolves to an error message or null. */
+  /**
+   * Move a conversation to another folder; resolves to an error or null once Letta Code has answered (a device
+   * status with the new folder, or a loop error), or after FOLDER_MOVE_MS with no answer. Letta Code keeps the
+   * folder (its cwdMap) and tells the agent on its next turn that the working directory changed.
+   */
+  const changeFolder = useCallback(async (rt: Runtime, cwd: string): Promise<string | null> => {
+    const sock = socketRef.current;
+    if (!sock) return "not connected to the app-server";
+    const to = cwd.trim().replace(/(.)\/+$/, "$1");
+    if (!to) return "no folder";
+    if (!sock.isSubscribed(rt)) {
+      try {
+        await sock.runtimeStart(rt); // its device status and errors come to subscribers
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+    }
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    const from = liveRef.current.get(key)?.cwd;
+    folderMoves.current.get(key)?.done("replaced by a newer change");
+    return new Promise<string | null>((resolve) => {
+      const timer = setTimeout(() => move.done("Letta Code did not answer; the folder may not have changed"), FOLDER_MOVE_MS);
+      const move = {
+        from,
+        to,
+        done: (err: string | null) => {
+          clearTimeout(timer);
+          if (folderMoves.current.get(key) === move) folderMoves.current.delete(key);
+          if (!err) optsRef.current.capture?.("folder_changed", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id });
+          resolve(err);
+        },
+      };
+      folderMoves.current.set(key, move);
+      sock.changeFolder(rt, to).catch((err) => move.done(err instanceof Error ? err.message : String(err)));
+    });
+  }, []);
+
   const setMode = useCallback(async (rt: Runtime, mode: string): Promise<string | null> => {
     const sock = socketRef.current;
     if (!sock) return "not connected to the app-server";
@@ -542,12 +636,13 @@ export function useAttention(opts: UseAttentionOptions) {
    * Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived.
    * Archiving is how a chat leaves the Inbox, so it goes from the list at once; a restore reads the list again.
    */
-  const archiveConversation = useCallback(async (conversationId: string, archived: boolean): Promise<string | null> => {
+  const archiveConversation = useCallback(async (conversationId: string, archived: boolean, origin?: ArchiveOrigin): Promise<string | null> => {
     const sock = socketRef.current;
     if (!sock) return "not connected to the app-server";
     if (conversationId === "default") return "a main chat cannot be archived";
     try {
       await sock.updateConversation(conversationId, { archived });
+      if (origin) optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", { desk: scopeFor(conversationId), origin });
       if (archived) setConversations((c) => c.filter((x) => x.id !== conversationId));
       else reloadRef.current?.();
       return null;
@@ -636,9 +731,9 @@ export function useAttention(opts: UseAttentionOptions) {
   const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agentId, item.id), []);
   const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agentId, item.id), []);
   /** Done with a chat: it is archived and leaves the Inbox; resolves to an error or null. */
-  const archive = useCallback((item: AttentionItem) => archiveConversation(item.id, true), [archiveConversation]);
+  const archive = useCallback((item: AttentionItem) => archiveConversation(item.id, true, "inbox"), [archiveConversation]);
   /** Undo of an archive: the chat comes back. */
-  const unarchive = useCallback((item: AttentionItem) => archiveConversation(item.id, false), [archiveConversation]);
+  const unarchive = useCallback((item: AttentionItem) => archiveConversation(item.id, false, "inbox_undo"), [archiveConversation]);
 
   // One object while its parts hold (the compiler memoises it): the shell and the phone re-render on a change, not on every render.
   return {
@@ -663,6 +758,7 @@ export function useAttention(opts: UseAttentionOptions) {
     updateModel,
     stop,
     setMode,
+    changeFolder,
     archiveConversation,
     renameConversation,
     createDesk,
@@ -684,5 +780,8 @@ export function useAttention(opts: UseAttentionOptions) {
     unarchive,
     /** Log an Inbox decision (the deck calls it; the same actions elsewhere are not Inbox decisions). */
     decided,
+    shown,
+    undone,
+    filtered,
   };
 }

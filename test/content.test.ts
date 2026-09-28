@@ -34,12 +34,13 @@ describe("AskUserQuestion", () => {
 });
 
 describe("environment reminder", () => {
-  test("carries the local time (and folder when known) in Desktop's shape, ahead of the text", () => {
-    const note = environmentReminder({ now: new Date(2026, 8, 6, 2, 35), folder: "/Users/x/proj", locale: "en-GB" });
+  test("carries the local time and the chat in Desktop's shape, ahead of the text; the folder is Letta Code's to send", () => {
+    const note = environmentReminder({ now: new Date(2026, 8, 6, 2, 35), desk: "Supplier ledger", locale: "en-GB" });
     expect(note.startsWith("<system-reminder>")).toBe(true);
-    expect(note).toContain("via the loki canvas");
+    expect(note).toContain("via loki, on their Mac or a paired phone");
     expect(note).toMatch(/User's device local time: Sunday,? 6 September 2026(,| at) 02:35/);
-    expect(note).toContain("Current remote working directory: /Users/x/proj");
+    expect(note).toContain('the chat ("Supplier ledger")');
+    expect(note).not.toContain("working directory");
     const content = buildUserContent("hi", [], note);
     expect(Array.isArray(content) && content.length).toBe(2);
     expect((content as Array<{ type: string; text?: string }>)[1].text).toBe("hi");

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canPin, canRename, cleanDeskName, deskRowState, doneAction, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
+import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canMove, canPin, canRename, cleanDeskName, deskRowState, doneAction, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
 import type { DeskSummary } from "../app/src/desk/useDesk";
 import type { AttentionItem } from "../core/attention/model.ts";
 
@@ -142,6 +142,17 @@ describe("pin and archive rules (scenario 4)", () => {
     expect(canPin(desk("x", { agentId: null }))).toBe(false);
     expect(canPin(desk("jira"))).toBe(true);
     expect(canPin(desk("default-a1", { conversationId: "default" }))).toBe(true);
+  });
+});
+
+describe("change folder rules", () => {
+  test("any desk with an agent and a conversation can move, the main chat and archived ones too; not a deleted desk or the shared sheet", () => {
+    expect(canMove(desk("jira"))).toBe(true);
+    expect(canMove(desk("default-a1", { conversationId: "default" }))).toBe(true);
+    expect(canMove(desk("gone", { status: "archived" }))).toBe(true);
+    expect(canMove(desk("dead", { status: "deleted" }))).toBe(false);
+    expect(canMove(desk("shared", { conversationId: null }))).toBe(false);
+    expect(canMove(desk("x", { agentId: null }))).toBe(false);
   });
 });
 

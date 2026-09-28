@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
@@ -94,24 +95,25 @@ function folderOptions(recent: Record<string, string[]>, matches: string[], agen
   return list.slice(0, 14);
 }
 
-function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
-  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
+/**
+ * A folder field's state, shared by New chat and Change folder: the field follows context until you edit it (the
+ * chat you are on for its own agent, else the agent's latest folder), is checked and completed as you type, lists
+ * recent folders, and Browse opens the system's chooser. Each dialog keeps its own busy state beside `picking`.
+ */
+export function useFolderField({ folders, agentId, currentAgentId, currentConversationKey }: { folders: FolderApi; agentId: string | null; currentAgentId: string | null; currentConversationKey: string | null }) {
   const [folder, setFolder] = useState("");
-  const [folderSource, setFolderSource] = useState<FolderSuggestion["source"] | null>(null);
-  const [folderTouched, setFolderTouched] = useState(false);
-  const [name, setName] = useState(initialName);
+  const [source, setSource] = useState<FolderSuggestion["source"] | null>(null);
+  const [touched, setTouched] = useState(false);
   const [recent, setRecent] = useState<Record<string, string[]>>({});
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
-  const [foldersReady, setFoldersReady] = useState(false);
+  const [ready, setReady] = useState(false);
   const [matches, setMatches] = useState<string[]>([]);
   const [status, setStatus] = useState<FolderStatus>(null);
-  const [busy, setBusy] = useState<false | "creating" | "picking">(false);
-  const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [listOpen, setListOpen] = useState(false);
-  const folderRef = useRef<HTMLInputElement>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Open: every agent's recent folders, and the caret in the first field still to fill.
+  // Open: every agent's recent folders, and the folder of the chat this opened from.
   useEffect(() => {
     let gone = false;
     void folders
@@ -123,22 +125,20 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
       })
       .catch(() => {}) // no recent folders to offer; Browse still works
       .finally(() => {
-        if (!gone) setFoldersReady(true);
+        if (!gone) setReady(true);
       });
-    const t = setTimeout(() => (initialName ? folderRef : nameRef).current?.focus(), 0);
     return () => {
       gone = true;
-      clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The folder follows context until you edit it: the current desk first, then this agent's latest.
+  // The folder follows context until you edit it: the current chat first, then this agent's latest.
   useEffect(() => {
-    if (folderTouched) return;
+    if (touched) return;
     const suggestion = suggestedFolder(recent, currentFolder, agentId, currentAgentId);
     setFolder(suggestion?.path ?? "");
-    setFolderSource(suggestion?.source ?? null);
+    setSource(suggestion?.source ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, recent, currentFolder]);
 
@@ -152,47 +152,67 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
     }
     const t = setTimeout(() => {
       void folders.check(f).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
-      if (folderTouched) void folders.complete(f).then(setMatches);
+      if (touched) void folders.complete(f).then(setMatches);
     }, 160);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folder]);
 
-  const options = useMemo(() => folderOptions(recent, matches, agentId, folderTouched), [recent, matches, agentId, folderTouched]);
+  const options = useMemo(() => folderOptions(recent, matches, agentId, touched), [recent, matches, agentId, touched]);
+  /** A folder chosen from the list (or the chooser) is yours: it stops following the agent and the list closes. */
+  const choose = (path: string) => {
+    setFolder(path);
+    setSource(null);
+    setTouched(true);
+    setListOpen(false);
+  };
+  const type = (value: string) => {
+    setFolder(value);
+    setSource(null);
+    setTouched(true);
+    setListOpen(true);
+  };
+  const browser = browseWith(inTauri, platform);
+  const browse = async () => {
+    setPicking(true);
+    // The native picker validates this path itself. Passing it immediately avoids a race where a
+    // quick Browse click beat the debounced status check and macOS opened an unrelated old folder.
+    const pick = browser === "dialog" ? dialogPick : folders.pick;
+    const picked = await pick(folder.trim() || undefined);
+    setPicking(false);
+    if (picked) choose(picked);
+  };
+  return { folder, source, touched, currentFolder, ready, status, options, listOpen, setListOpen, inputRef, picking, choose, type, browse, browser };
+}
+
+function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
+  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
+  const [name, setName] = useState(initialName);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const field = useFolderField({ folders, agentId, currentAgentId, currentConversationKey });
+  const { folder, status, listOpen, setListOpen } = field;
+  const busy: false | "creating" | "picking" = creating ? "creating" : field.picking ? "picking" : false;
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // Open: the caret in the first field still to fill.
+  useEffect(() => {
+    const t = setTimeout(() => (initialName ? field.inputRef : nameRef).current?.focus(), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canStart = !!agentId && !!folder.trim() && status?.ok === true && !busy;
   const start = async () => {
     if (!canStart || !agentId) return;
-    setBusy("creating");
+    setCreating(true);
     setError(null);
     try {
       await onCreate(agentId, folder.trim(), name.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      setBusy(false);
+      setCreating(false);
     }
-  };
-  const browser = browseWith(inTauri, platform);
-  const browse = async () => {
-    setBusy("picking");
-    // The native picker validates this path itself. Passing it immediately avoids a race where a
-    // quick Browse click beat the debounced status check and macOS opened an unrelated old folder.
-    const pick = browser === "dialog" ? dialogPick : folders.pick;
-    const picked = await pick(folder.trim() || undefined);
-    setBusy(false);
-    if (picked) {
-      setFolder(picked);
-      setFolderSource(null);
-      setFolderTouched(true);
-      setListOpen(false);
-    }
-  };
-  /** A folder chosen from the list (or Finder) is yours: it stops following the agent and the list closes. */
-  const chooseFolder = (path: string) => {
-    setFolder(path);
-    setFolderSource(null);
-    setFolderTouched(true);
-    setListOpen(false);
   };
 
   const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
@@ -227,25 +247,20 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
         <AgentChips agents={agents} agentId={agentId} onPick={setAgentId} />
 
         <FolderPicker
-          inputRef={folderRef}
+          inputRef={field.inputRef}
           folder={folder}
-          onType={(value) => {
-            setFolder(value);
-            setFolderSource(null);
-            setFolderTouched(true);
-            setListOpen(true);
-          }}
-          onChoose={chooseFolder}
+          onType={field.type}
+          onChoose={field.choose}
           status={status}
-          options={options}
+          options={field.options}
           listOpen={listOpen}
           setListOpen={setListOpen}
           busy={busy}
-          onBrowse={() => void browse()}
+          onBrowse={() => void field.browse()}
           agentName={agentName}
-          source={folderSource}
-          canBrowse={foldersReady || folderTouched}
-          browser={browser}
+          source={field.source}
+          canBrowse={field.ready || field.touched}
+          browser={field.browser}
         />
 
         <div>
@@ -259,6 +274,94 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
       <NewDeskFooter canStart={canStart} busy={busy} onClose={onClose} onStart={() => void start()} />
     </Sheet>
   );
+}
+
+/**
+ * "Change folder": move a chat to another folder. The field starts on the chat's folder, with the same list,
+ * completion and Browse as New chat; Move is off until it names another folder that exists. Letta Code tells the
+ * agent on its next turn that the working directory changed.
+ */
+export function ChangeFolder({ onClose, agentId, agentName, conversationKey, title, folders, onMove }: { onClose: () => void; agentId: string; agentName: string | null; conversationKey: string; title: string | null; folders: FolderApi; onMove: (folder: string) => Promise<string | null> }) {
+  const field = useFolderField({ folders, agentId, currentAgentId: agentId, currentConversationKey: conversationKey });
+  const { folder, status, listOpen, setListOpen, currentFolder } = field;
+  const [moving, setMoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busy: false | "creating" | "picking" = moving ? "creating" : field.picking ? "picking" : false;
+  useEffect(() => {
+    const t = setTimeout(() => field.inputRef.current?.select(), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const target = folder.trim();
+  const canMove = !!target && target !== currentFolder && status?.ok === true && !busy;
+  const move = async () => {
+    if (!canMove) return;
+    setMoving(true);
+    setError(null);
+    const err = await onMove(target);
+    if (err) {
+      setError(err);
+      setMoving(false);
+    } else onClose();
+  };
+  const sheet = (
+    <Sheet
+      label="change folder"
+      onClose={onClose}
+      width={560}
+      top="18vh"
+      scroll
+      escape={false}
+      cardProps={{
+        onKeyDown: (e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            if (listOpen) setListOpen(false);
+            else onClose();
+          } else if (e.key === "Enter" && !listOpen) {
+            e.preventDefault();
+            void move();
+          }
+        },
+      }}
+    >
+      <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
+        <div className="loki-label">Change folder</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>{title ? `Move ${title}` : "Move this chat"}{agentName ? ` · ${agentName}` : ""}</div>
+      </div>
+      <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
+        <FolderPicker
+          inputRef={field.inputRef}
+          folder={folder}
+          onType={field.type}
+          onChoose={field.choose}
+          status={status}
+          options={field.options}
+          listOpen={listOpen}
+          setListOpen={setListOpen}
+          busy={busy}
+          onBrowse={() => void field.browse()}
+          agentName={agentName}
+          source={field.source}
+          canBrowse={field.ready || field.touched}
+          browser={field.browser}
+        />
+        <div className="loki-meta loki-meta--wrap">{currentFolder ? `Now in ${currentFolder}. ` : ""}The agent is told the folder changed on its next turn.</div>
+        {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
+        <span className="loki-label">Enter move · esc close</span>
+        <span style={{ flex: 1 }} />
+        <Button size="sm" onClick={onClose}>cancel</Button>
+        <Button size="sm" tone="positive" onClick={() => void move()} disabled={!canMove}>
+          {moving ? "moving…" : "move"}
+        </Button>
+      </div>
+    </Sheet>
+  );
+  // Opened from the sidebar's row menu, it would be laid out (and clipped) inside that column: on the body the veil
+  // covers the whole window, as Rename's does. The veil scrolls, so the folder list can hang past the card.
+  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
 /** The agent row: one radio chip per agent, the chosen one pressed (active). */
@@ -329,7 +432,7 @@ export function FolderPicker({
       <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
         <span>
           Folder
-          {source && <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current desk" : `recent for ${agentName ?? "this agent"}`}</span>}
+          {source && <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>}
         </span>
         <FolderVerdict status={status} />
       </div>

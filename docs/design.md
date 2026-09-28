@@ -143,10 +143,12 @@ window title is still set, for the Window menu, Mission Control and screen reade
 is up. There is no top bar of search or history. Each pane draws its own header instead, Slack's: a 48px name
 line (a `#` and the chat's name, or the agent's face and name) with a quiet aside and the actions on the
 right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
-button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), pin,
-archive and a "More chat actions" menu: Mark as read (⌘⇧↵) or Mark as unread first, Rename… (Letta's
-conversation summary, so the main chat has none), then the rest with their keys; the sheet's own actions (⌘⇧A
-arrange, ⌘0 fit, ⌘⇧0 1:1) join that menu on the Canvas tab. Two earlier forms were dropped on 2026-09-06: a
+button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), and on the
+Canvas tab a "More chat actions" menu of the sheet's own actions with their keys (arrange, fit, the chat toggle).
+What works on the chat as a whole (read, rename, folder, pin, archive) lives on the sidebar row alone, and model
+and mode under the message box. Dropped on 2026-09-28 as copies: the header's pin and archive buttons, and from its
+menu Mark as read, Rename…, Change folder…, New chat…, Find (⌘F), Change model and Change permission mode (their
+keys stay; ⌘⇧↵ still marks the open chat read). Two earlier forms were dropped on 2026-09-06: a
 drafting title block (DESK · DRAWN BY · STATUS · SCALE) and then a custom 40px bar with a header line.
 
 **Windows and Linux (preview, plan 014).** There the window is undecorated and the strip is Slack's for those
@@ -208,7 +210,7 @@ Internals keep the name desk.
   (un-bolds it), the ring stays until you act or Mark as read, and only archiving takes the chat out of the Inbox;
   bold and ring is new, the ring alone is "viewed, not read", neither is read. The phone reads the same marks
   through the mod. Hover shows pin and archive; a right click opens the row menu (open, Mark as read or unread,
-  Rename…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a red "Needs you"
+  Rename…, Change folder…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a red "Needs you"
   pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
   replaced the desks tree drawer (2026-09-23, approved by the user); the tree lives on only as the Board's
   assign-to-chat picker.

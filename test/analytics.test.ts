@@ -247,4 +247,64 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
     expect(Object.fromEntries(g.byReason)).toEqual({ other: { cards: 2, engaged: 0 }, focus: { cards: 1, engaged: 1 }, blocked: { cards: 1, engaged: 1 } });
     expect(formatAnalyticsReport(analyticsReport(log, { now, days: 7 }))).toContain("engaged 50% · of those, the top card 50% · median rank 2");
   });
+
+  test("opens count as engaged; distinct chats, the engaged share by rank shown, undos, and the waits", () => {
+    const now = Date.parse("2026-09-27T12:00:00Z");
+    // Oldest first, as the log is written.
+    const e = (minutesAgo: number, event: string, properties: Record<string, unknown> = {}, device: DeviceType = "mac") => makeEvent(event, "u", { $device_type: device, $lib: "loki", $session_id: "s", ...properties }, new Date(now - minutesAgo * 60_000));
+    const log = [
+      e(60, "turn_finished", { desk: "a", duration_ms: 5000 }, "mod"),
+      e(58, "turn_finished", { desk: "b", duration_ms: 9000 }, "mod"),
+      e(50, "inbox_card_shown", { desk: "a", rank: 1 }),
+      e(49, "inbox_card_decided", { action: "reply", desk: "a", rank: 1, reason: "new" }), // a answered 11 min after its turn
+      e(48, "inbox_card_decided", { action: "reply", desk: "a", rank: 1, reason: "focus" }), // the same chat again: one chat
+      e(47, "inbox_card_shown", { desk: "b", rank: 2 }),
+      e(46, "inbox_card_decided", { action: "open", desk: "b", rank: 2, reason: "new" }), // b opened 12 min after its turn
+      e(45, "inbox_card_shown", { desk: "c", rank: 5 }),
+      e(44, "inbox_card_decided", { action: "next", desk: "c", rank: 5, reason: "other" }),
+      e(43, "inbox_card_undone", { action: "next", desk: "c" }),
+      e(30, "approval_decided", { desk: "d", behavior: "allow", wait_ms: 4 * 60_000 }),
+      e(20, "chat_archived", { desk: "c", origin: "sidebar" }),
+    ];
+    const r = analyticsReport(log, { now, days: 7 });
+    const g = r.engagement;
+    expect(g).toMatchObject({ cards: 4, engaged: 3, chats: 2, shown: 3, undone: 1, respondMinutes: 11.5, decideMinutes: 4 });
+    expect(Object.fromEntries(g.byRank)).toEqual({ "1": { shown: 1, engaged: 1 }, "2": { shown: 1, engaged: 1 }, "3": { shown: 0, engaged: 0 }, "4+": { shown: 1, engaged: 0 } });
+    expect(r.breakdowns.find((b) => b.event === "chat_archived")?.values).toEqual([["sidebar", 1]]);
+    const text = formatAnalyticsReport(r);
+    for (const line of ["engaged with 2 distinct chats · undone 1", "shown 3 · engaged by rank shown 1 100% of 1 · 2 100% of 1", "4+ 0% of 1", "time to respond after a turn ends 12 min · an approval or question waits 4 min (medians)"]) expect(text).toContain(line);
+  });
+
+  test("a next straight after acting on the same card is moving on, not a skip; a next on another card, or in another session, still counts", () => {
+    const now = Date.parse("2026-09-27T12:00:00Z");
+    const e = (minutesAgo: number, properties: Record<string, unknown>, session = "s") => makeEvent("inbox_card_decided", "u", { $device_type: "mac", $lib: "loki", $session_id: session, ...properties }, new Date(now - minutesAgo * 60_000));
+    const log = [
+      e(50, { action: "reply", desk: "a", rank: 1, reason: "new" }),
+      e(49, { action: "next", desk: "a", rank: 1, reason: "focus" }), // replied, then → : moved on
+      e(48, { action: "next", desk: "b", rank: 1, reason: "other" }), // a real skip
+      e(47, { action: "next", desk: "b", rank: 1, reason: "other" }), // b again after a skip: still a skip
+      e(46, { action: "open", desk: "c", rank: 1, reason: "new" }),
+      e(45, { action: "next", desk: "c", rank: 1, reason: "new" }, "other"), // another window's next on c: a skip
+    ];
+    const g = analyticsReport(log, { now, days: 7 }).engagement;
+    expect(g).toMatchObject({ cards: 5, engaged: 2, movedOn: 1 });
+    expect(Object.fromEntries(g.byReason)).toEqual({ new: { cards: 3, engaged: 2 }, other: { cards: 2, engaged: 0 } });
+    expect(formatAnalyticsReport(analyticsReport(log, { now, days: 7 }))).toContain("moved on after acting 1 (not counted)");
+  });
+
+  test("a request every window reports is written once; the once key is not", () => {
+    const recorded: Array<[string, Record<string, unknown> | undefined]> = [];
+    const noWidgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close() {} };
+    const bridge = createBridge({ store: new DeskStore(), widgets: noWidgets, gestures: new GestureLog(), broadcast: () => {}, capture: (_c, event, properties) => recorded.push([event, properties]) });
+    const mac: Client = { scope: "c1", send: () => {} };
+    const phone: Client = { scope: "c1", deviceId: "dev-1", send: () => {} };
+    const frame = { type: "capture", event: "approval_requested", properties: { desk: "a", tool: "Bash", kind: "approval", once: "request:r1" } };
+    bridge.onMessage(mac, frame);
+    bridge.onMessage(phone, frame);
+    bridge.onMessage(mac, { ...frame, properties: { ...frame.properties, once: "request:r2" } });
+    expect(recorded).toEqual([
+      ["approval_requested", { desk: "a", tool: "Bash", kind: "approval" }],
+      ["approval_requested", { desk: "a", tool: "Bash", kind: "approval" }],
+    ]);
+  });
 });

@@ -27,11 +27,12 @@ import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } fr
 import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edgeSwipe";
 import { useModelList } from "../shell/useModelList";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/ModelPicker";
 import { Banner, Button } from "../components";
+import { pageActivity } from "../shared/pageActivity";
 import "./phone.css";
 
 /**
@@ -170,6 +171,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     capture,
     // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
+    activity: pageActivity,
   });
   const { route, from, arrival } = useRouteState();
   // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).
@@ -267,7 +269,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
           if (!d.conversationId) return "this chat has no conversation";
-          const err = await catchUp.archiveConversation(d.conversationId, archived);
+          const err = await catchUp.archiveConversation(d.conversationId, archived, "phone_list");
           if (!err) desk.desks.request();
           return err;
         }
@@ -366,11 +368,24 @@ function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, on
               // Any chat but a main one can go, desk or not: an Inbox chat need not be on the mod's desk list.
               onArchive: onArchive
                 ? async (archived) => {
-                    const err = await catchUp.archiveConversation(thread.conversationId, archived);
+                    const err = await catchUp.archiveConversation(thread.conversationId, archived, "phone_chat");
                     if (!err) desk.desks.request();
                     return err;
                   }
                 : null,
+            }
+          : null
+      }
+      folder={
+        attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
+          ? {
+              // The live folder (Letta Code's device status) first, else what the Mac's records say; the agent's recent folders to choose from.
+              load: async () => {
+                const r = await attention.folders.recent();
+                const current = catchUp.conversation(thread.agentId, thread.conversationId).cwd ?? r.byConversation[conversationDirName(thread.conversationId, thread.agentId)] ?? null;
+                return { current, choices: r.byAgent[thread.agentId] ?? [] };
+              },
+              onMove: (folder) => catchUp.changeFolder({ agent_id: thread.agentId, conversation_id: thread.conversationId }, folder),
             }
           : null
       }
@@ -445,22 +460,23 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
         deck={deck}
         backLabel={inboxBack}
         onClose={closeInbox}
-        onOpen={openItem}
+        onOpen={(item) => (catchUp.decided(item, "open", "tap"), openItem(item))}
         onConnection={() => navigate({ kind: "connection" })}
         card={{
-          onSend: (item, text, images) => (catchUp.decided(item, "reply"), catchUp.reply(item, text, images)),
-          onAnswer: (item, requestId, answers) => (catchUp.decided(item, "answer"), catchUp.answer(item.runtime, requestId, answers)),
+          onSend: (item, text, images) => (catchUp.decided(item, "reply", "tap"), catchUp.reply(item, text, images)),
+          onAnswer: (item, requestId, answers) => (catchUp.decided(item, "answer", "tap"), catchUp.answer(item.runtime, requestId, answers)),
           onCancelQueued: (item, text) => catchUp.cancelQueued(item.runtime, text),
           onStop: (item) => catchUp.stop(item.runtime),
           model: cardModel,
         }}
-        onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny"), catchUp.approve(item, requestId, behavior))}
-        onSeen={(item) => (catchUp.decided(item, "next"), catchUp.seen(item))}
+        onApprove={(item, requestId, behavior) => (catchUp.decided(item, behavior === "allow" ? "approve" : "deny", "tap"), catchUp.approve(item, requestId, behavior))}
+        onSeen={(item, how) => (catchUp.decided(item, "next", how), catchUp.seen(item))}
+        onShown={catchUp.shown}
         onArchive={(item) => {
-          catchUp.decided(item, "archive");
+          catchUp.decided(item, "archive", "tap");
           void catchUp.archive(item).then((err) => err && setCardNote(`Archive: ${err}`));
         }}
-        onUndo={(item, via) => (via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item))}
+        onUndo={(item, via) => (catchUp.undone(item, via === "seen" ? "next" : "archive"), via === "seen" ? catchUp.unread(item) : void catchUp.unarchive(item))}
       />
       {tab === "agents" && <Agents agents={catchUp.agents} loaded={catchUp.agentsLoaded} link={link} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} />}
       {tab === "more" && <More me={me} link={link} agents={catchUp.agents.length} running={homeCounts({ items: catchUp.items, due, agents: catchUp.agents, desks: desk.desks.list }).running} due={due} archived={archiveList(desk.desks.list, null, "").length} servedBuild={desk.servedBuild} banner={banner} />}

@@ -188,6 +188,16 @@ export class AppServerSocket {
   }
 
   /**
+   * change_device_state with a cwd: move the conversation to another folder. Letta Code answers with no reply of its
+   * own: an update_device_status carrying the new current_working_directory when it moved, a loop error when the
+   * folder is not one, and it tells the agent on its next turn that the working directory changed.
+   */
+  async changeFolder(rt: Runtime, cwd: string): Promise<void> {
+    await this.connect();
+    this.transport!.send(JSON.stringify({ type: "change_device_state", runtime: { agent_id: rt.agent_id, conversation_id: rt.conversation_id }, payload: { cwd } }));
+  }
+
+  /**
    * abort_message: stop the conversation's turn where it is (an approval it waits on is interrupted too), so the
    * person can take over. Resolves to whether anything was running; the harness then reports the turn's end
    * (loop status, turn_finished) as for any turn.

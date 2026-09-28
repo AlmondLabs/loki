@@ -44,6 +44,9 @@ export function cleanDeskName(raw: string): string | null {
   return name || null;
 }
 /** A live desk with an agent and a conversation can be pinned. */
+/** A desk with an agent and a conversation, not deleted, can move to another folder (Letta Code keeps it per chat). */
+export const canMove = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status !== "deleted";
+
 export const canPin = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status === "live";
 
 /**

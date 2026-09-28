@@ -39,17 +39,24 @@ export const EVENT_NAME_MAX = 48;
 /** Every event captured, with the properties it carries. The report lists the ones that never fired in the period. */
 export const EVENTS: Record<string, string> = {
   view_opened: "a view came on screen { view, from } — the Mac's segments, the phone's tabs and pages",
-  desk_switched: "the desk on screen changed { desk }",
+  desk_switched: "the chat on screen changed { desk }",
   chat_opened: "the desk chat opened",
   chat_closed: "the desk chat closed",
-  message_sent: "a message went out { origin: desk | inbox | lesson, images, queued }",
-  approval_decided: "a tool permission decided { behavior }",
-  question_answered: "an agent's question answered",
+  message_sent: "a message went out { desk, agent, origin: desk | inbox | lesson, images, queued }",
+  approval_requested: "an agent asked for a tool permission or asked a question { desk, agent, tool, kind: approval | question }",
+  approval_decided: "a tool permission decided { desk, agent, behavior, wait_ms }",
+  question_answered: "an agent's question answered { desk, agent, wait_ms }",
   command_run: "a harness slash command run { command }",
   model_switched: "a conversation's model switched { model, effort }",
   mode_set: "a conversation's permission mode set { mode }",
-  inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies }",
-  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer, rank, of, score, focus, reason, status }",
+  folder_changed: "a conversation moved to another folder { desk, agent }",
+  inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
+  inbox_card_shown: "a card came to the top of the inbox { desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
+  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
+  inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, desk, agent }",
+  inbox_filtered: "an agent pill chosen in the inbox { agent } (null: All)",
+  chat_archived: "a chat archived { desk, origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
+  chat_restored: "a chat restored from the archive { desk, origin: inbox_undo | sidebar | chat_header | phone_list | phone_chat }",
   conversation_marked_seen: "a conversation marked seen",
   conversation_kept_unread: "a conversation kept unread",
   desk_pinned: "a desk pinned or unpinned { pinned }",
@@ -57,6 +64,8 @@ export const EVENTS: Record<string, string> = {
   desk_arranged: "a desk tidied",
   widget_trashed: "a widget deleted",
   turn_started: "an agent turn began, typed anywhere (the terminal included) { desk }",
+  turn_finished: "an agent turn ended, begun anywhere { desk, duration_ms }",
+  turn_stopped: "a turn stopped from loki's Stop button { aborted }",
   tool_used: "the agent called a desk tool { tool }",
 };
 
@@ -72,7 +81,12 @@ export const BREAKDOWN: Record<string, string> = {
   tool_used: "tool",
   widget_gestured: "kind",
   approval_decided: "behavior",
+  approval_requested: "kind",
   inbox_card_decided: "action",
+  inbox_card_undone: "action",
+  inbox_filtered: "agent",
+  chat_archived: "origin",
+  chat_restored: "origin",
 };
 
 export function isDeviceType(value: unknown): value is DeviceType {
@@ -131,7 +145,28 @@ export interface AnalyticsReport {
    * than cleared or put off, with where they stood in the queue (rank 1 is the card on top): a ranking that
    * reads you well puts what you engage with first.
    */
-  engagement: { actions: number; perActiveDay: number | null; cards: number; engaged: number; top: number; medianRank: number | null; byReason: Array<[string, { cards: number; engaged: number }]> };
+  engagement: {
+    actions: number;
+    perActiveDay: number | null;
+    cards: number;
+    engaged: number;
+    top: number;
+    medianRank: number | null;
+    byReason: Array<[string, { cards: number; engaged: number }]>;
+    /** Distinct chats among the engaged cards (repeat replies to one chat count once); null before cards carried `desk`. */
+    chats: number | null;
+    /** Cards shown at the top, and by the rank each stood at when shown (1, 2, 3, 4+), how many of those showings you engaged with (once each). */
+    shown: number;
+    byRank: Array<[string, { shown: number; engaged: number }]>;
+    /** Nexts and Archives taken back. */
+    undone: number;
+    /** Nexts straight after you acted on the same card (a reply leaves the card in place and → moves on): not skips, left out of the cards above. */
+    movedOn: number;
+    /** Minutes from an agent's turn ending to your next reply, answer, decision or open in that chat (median). */
+    respondMinutes: number | null;
+    /** Minutes an approval or question waited for you (median). */
+    decideMinutes: number | null;
+  };
   /** Events by local hour of day (24) and weekday (7, Sunday first). */
   hours: number[];
   weekdays: number[];
@@ -139,6 +174,10 @@ export interface AnalyticsReport {
 }
 
 const DAY_MS = 86_400_000;
+/** What counts as engaging with an Inbox card: acting on it or opening it, rather than moving past or archiving it. */
+export const ENGAGED_ACTIONS: ReadonlySet<string> = new Set(["reply", "answer", "approve", "deny", "open"]);
+const RANK_BUCKETS = ["1", "2", "3", "4+"];
+const rankBucket = (rank: number): string => (rank >= 4 ? "4+" : String(Math.max(1, Math.round(rank))));
 const tally = (m: Map<string, number>, key: string, n = 1) => m.set(key, (m.get(key) ?? 0) + n);
 const ranked = (m: Map<string, number>, limit = Infinity): Array<[string, number]> => [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit);
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -165,9 +204,19 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const weekdays = new Array<number>(7).fill(0);
   const inbox = { passes: 0, decided: 0, perPass: null as number | null, next: 0, archive: 0, approve: 0, deny: 0, replies: 0 };
   const perPass: number[] = [];
-  const engagement = { actions: 0, perActiveDay: null as number | null, cards: 0, engaged: 0, top: 0, medianRank: null as number | null, byReason: [] as Array<[string, { cards: number; engaged: number }]> };
+  const engagement: AnalyticsReport["engagement"] = { actions: 0, perActiveDay: null, cards: 0, engaged: 0, top: 0, medianRank: null, byReason: [], chats: null, shown: 0, byRank: [], undone: 0, movedOn: 0, respondMinutes: null, decideMinutes: null };
   const engagedRanks: number[] = [];
   const byReason = new Map<string, { cards: number; engaged: number }>();
+  const engagedChats = new Set<string>();
+  const byRank = new Map<string, { shown: number; engaged: number }>(RANK_BUCKETS.map((b) => [b, { shown: 0, engaged: 0 }]));
+  /** Each chat's latest showing at the top: its rank bucket, and whether it has been engaged with yet. */
+  const showing = new Map<string, { bucket: string; engaged: boolean }>();
+  /** Each session's last card decision: the chat, and whether you acted on it. */
+  const lastCard = new Map<string, { desk: string | null; engaged: boolean }>();
+  /** Chats whose agent finished a turn and has not heard from you since: desk → when. */
+  const waiting = new Map<string, number>();
+  const respond: number[] = [];
+  const decide: number[] = [];
 
   for (const e of events) {
     const p = e.properties;
@@ -191,14 +240,44 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     hours[when.getHours()]++;
     weekdays[when.getDay()]++;
     if (e.event === "message_sent" || e.event === "question_answered" || e.event === "approval_decided") engagement.actions++;
+    const desk = typeof p.desk === "string" ? p.desk : null;
+    if (e.event === "turn_finished" && desk) waiting.set(desk, t);
+    const answered = e.event === "message_sent" || e.event === "question_answered" || e.event === "approval_decided" || (e.event === "inbox_card_decided" && ENGAGED_ACTIONS.has(String(p.action)));
+    if (answered && desk && waiting.has(desk)) {
+      respond.push((t - waiting.get(desk)!) / 60_000);
+      waiting.delete(desk);
+    }
+    if ((e.event === "approval_decided" || e.event === "question_answered") && typeof p.wait_ms === "number") decide.push(p.wait_ms / 60_000);
+    if (e.event === "inbox_card_shown") {
+      engagement.shown++;
+      if (typeof p.rank === "number") {
+        const bucket = rankBucket(p.rank);
+        byRank.get(bucket)!.shown++;
+        if (desk) showing.set(desk, { bucket, engaged: false });
+      }
+    }
+    if (e.event === "inbox_card_undone") engagement.undone++;
     if (e.event === "inbox_card_decided") {
-      const engaged = p.action === "reply" || p.action === "answer" || p.action === "approve" || p.action === "deny";
+      const engaged = ENGAGED_ACTIONS.has(String(p.action));
+      const session = typeof p.$session_id === "string" ? p.$session_id : "";
+      const last = lastCard.get(session);
+      lastCard.set(session, { desk, engaged });
+      if (p.action === "next" && desk && last?.engaged && last.desk === desk) {
+        engagement.movedOn++;
+        continue;
+      }
       engagement.cards++;
       const r = byReason.get(String(p.reason ?? "unknown")) ?? { cards: 0, engaged: 0 };
       r.cards++;
       if (engaged) {
         engagement.engaged++;
         r.engaged++;
+        if (desk) engagedChats.add(desk);
+        const shownAs = desk ? showing.get(desk) : undefined;
+        if (shownAs && !shownAs.engaged) {
+          shownAs.engaged = true;
+          byRank.get(shownAs.bucket)!.engaged++;
+        }
         if (typeof p.rank === "number") {
           engagedRanks.push(p.rank);
           if (p.rank === 1) engagement.top++;
@@ -221,6 +300,10 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   engagement.medianRank = median(engagedRanks);
   engagement.perActiveDay = activeDays.size ? Math.round((engagement.actions / activeDays.size) * 10) / 10 : null;
   engagement.byReason = [...byReason.entries()].sort((a, b) => b[1].cards - a[1].cards);
+  engagement.chats = engagedChats.size || null;
+  engagement.byRank = engagement.shown ? [...byRank.entries()] : [];
+  engagement.respondMinutes = median(respond);
+  engagement.decideMinutes = median(decide);
   for (const row of rows.values()) row.sessions = eventSessions.get(row.event)?.size ?? 0;
   const byDevice: Record<DeviceType, number> = { mac: 0, windows: 0, linux: 0, phone: 0, mod: 0 };
   for (const s of sessionSpan.values()) byDevice[s.device]++;
@@ -278,7 +361,11 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
   if (g.cards) {
     out.push(`  inbox cards ${g.cards} · engaged ${pct(g.engaged, g.cards)} · of those, the top card ${pct(g.top, g.engaged)} · median rank ${g.medianRank ?? "–"}`);
     out.push(`  by reason ${g.byReason.map(([reason, v]) => `${reason} ${v.engaged}/${v.cards}`).join(" · ")}`);
+    if (g.chats !== null) out.push(`  engaged with ${g.chats} distinct chat${g.chats === 1 ? "" : "s"} · undone ${g.undone}${g.movedOn ? ` · moved on after acting ${g.movedOn} (not counted)` : ""}`);
   }
+  if (g.shown) out.push(`  shown ${g.shown} · engaged by rank shown ${g.byRank.map(([rank, v]) => `${rank} ${pct(v.engaged, v.shown)} of ${v.shown}`).join(" · ")}`);
+  const mins = (m: number | null) => (m === null ? "–" : m < 1 ? "<1 min" : m < 90 ? `${Math.round(m)} min` : `${Math.round(m / 6) / 10} h`);
+  if (g.respondMinutes !== null || g.decideMinutes !== null) out.push(`  time to respond after a turn ends ${mins(g.respondMinutes)} · an approval or question waits ${mins(g.decideMinutes)} (medians)`);
   out.push("", "when", `  hour  ${bars(r.hours, (h) => (h % 6 === 0 ? String(h).padStart(2, "0") : ""))}`, `  day   ${bars(r.weekdays, (d) => WEEKDAY[d])}`);
   out.push("", `never fired: ${r.neverFired.length ? r.neverFired.join(", ") : "nothing — every event fired at least once"}`);
   return out.join("\n");
