@@ -2,6 +2,143 @@
 
 Every stable, newest first. The version is the day it shipped (UTC); nightlies are not listed.
 
+## 2026.9.28
+
+- **analytics: a Next straight after acting on the same card is moving on, not a skip (the report leaves it out, history included); a card's dwell counts only while loki's window is visible and focused** (39d4674)
+- **Change folder opens over the whole window: the dialog is put on the body, as Rename's is, so the sidebar no longer clips it; its folder list can hang past the card; 'current desk' reads 'current chat'** (84cb45a)
+- **chat header: the ⋯ menu only on the Canvas tab, with arrange, fit and the chat toggle; find, model and mode leave it (⌘F and the message box have them)** (d7b63f8)
+- **chat actions live on the sidebar row: the header drops pin, archive, read, rename, folder and New chat; its ⋯ keeps the conversation's own (find, model, mode, the Canvas tab's); the row menu gains Change folder…** (04c565c)
+- **chats can change folder: Change folder… on the desktop header's menu and in the phone's chat actions; the hidden note on each message drops the folder** (3cd92b0)
+  - Letta Code's change_device_state with a cwd moves the conversation (its /chdir); useAttention.changeFolder waits for its answer: a device status with the new folder, or a loop error
+  - the desktop dialog shares New chat's folder field (useFolderField, pulled out of NewDesk): recents, completion, Browse
+  - the phone sheet offers chips of the folders the agent has worked in, the chat's own lit
+  - the mod's folder records follow Letta's cwdMap (~/.letta/remote-settings.json), so a moved chat counts in its new folder
+  - environmentReminder keeps the time and the chat; the folder is Letta Code's to send (at a session's start and when it changes), and the note no longer says 'a browser tab'
+  - analytics: folder_changed
+- **phone: New chat picks its folder — chips of the folders the agent has worked in on the Mac, the most recent lit, More for the rest** (c3a3e9c)
+- **analytics: the Inbox's cards shown, opened and undone, with the chat, how and how long; turn ends and approval requests for time to respond; where chats are archived; desk_switched no longer lost on a chat switch** (18e9df1)
+  - inbox_card_decided carries desk, agent, via (key, click, swipe, tap), new, idle_min and dwell_ms; Open chat is an action and counts as engaged
+  - new: inbox_card_shown, inbox_card_undone, inbox_filtered, chat_archived / chat_restored (origin), approval_requested (written once per request via a once key), turn_finished (mod, duration)
+  - message_sent, approval_decided and question_answered carry desk and agent; the last two how long they waited
+  - inbox_pass_completed adds shown and duration_ms
+  - captures made while the desk socket reconnects wait for it instead of being dropped
+  - the report adds distinct chats, the engaged share by rank shown, undos, time to respond and time to decide
+- **model picker: More models scrolls on the desktop — the body's rows take their content's height, so the clipped card no longer shrinks into the capped popover** (799fa7e)
+- **model picker: recent models are least recently used — a message into a chat moves its model to the front, as picking one does** (a5a491f)
+- **inbox: an approval is logged once, not again as next; only a turn you typed counts as a message for focus** (163458c)
+  The desktop deck's onSeen now carries what moved the card, and only a plain Next is logged as next.
+  The mod's turn_start check moves to personTyped (core/harness.ts): harness markup stripped, empty turns
+  and scheduled prompts are not you.
+- **phone inbox: Open chat replaces Archive under the card; archiving moves to the chat's actions sheet, for any chat but a main one** (35d146f)
+- **inbox: archive sits beside open chat on the desktop; on the phone a left swipe no longer archives — only its button does** (c3290e8)
+- **inbox: one Next (⌘]) and Archive (⌘E); snooze and Later are gone; Mark as done becomes Mark as read** (fc2a82e)
+  A chat is done only when archived, so moving on is one action: Next reads the chat and moves on, and the chat
+  stays for your next visit. Archive (E, the phone's left swipe) is done, with undo; a main chat and an
+  approval refuse it. The snooze ladder, its setting, the snoozed toggle and the phone's Later section are removed,
+  in the app and the mod (attention.json keeps seen, viewed and focus). "Mark as done" in the chat menus is now
+  "Mark as read".
+- **inbox: every chat you have not archived, except one mid-turn; a "new" term in the score; the pass counter goes** (844e104)
+  A chat is not done until it is archived, so the Inbox holds every live chat and the score separates what has
+  something for you (blocked 100, new 10) from what rests (focus, age). Badges and "need you" still count only
+  what needs you. The header reads "N need you · M chats"; the progress bar and "left in this pass" go.
+- **inbox: rank by focus, learned from what you do — each chat's share of your recent engagement, fading by half every 12 hours; warm and reply-to-you retire, a failed turn is no longer blocked** (5276f3b)
+  Your messages (any surface, the terminal too, never a scheduled prompt), answers, decisions and reads add to a
+  chat's weight in the mod (state/attention.json focus), so the Mac and the phone rank alike; the score is
+  blocked 100 + 15 x focus share -/+ 0.1/h. Every Inbox decision is logged (inbox_card_decided: action, rank,
+  score, focus, reason) and bun run analytics reports engagement, the metric the weights will be tuned for.
+- **tests expect Chats in the sidebar and rename dialog; sheet and edge-swipe gestures clear their pending timers and click guard on unmount (React Doctor on #19)** (0ad477c)
+- **words: desks are now chats, and a chat's widget surface is its Canvas tab** (2af9cef)
+  The Mac's Desk menu is now Go (Arrange Widgets and Undo Widget Move moved to View), and /desks is now
+  /chats. Search still finds "desk"; the loki skill tells agents the old word means the same. Internals
+  (code, wire frames, keymap ids, files on disk, analytics events) keep the old name.
+- **phone: a compose button on Home starts a new desk, Slack's, over the list above the tab bar; the load notice goes once a slow start renders** (0ae07df)
+- **phone rename and inbox agent pills — rename a desk from its actions sheet on the phone; the desktop Inbox filters the pass by agent** (44c2ebf)
+- **composer: Stop while the agent works — the empty box's send becomes a stop button that ends the turn so you can take over** (87cb970)
+  Through the app-server's abort_message (an approval the turn waits on is
+  interrupted too). "Stopping" until the harness reports the turn's end; a
+  refused stop brings the button back. Typing brings send back (it queues).
+  On the desk, the desktop Inbox card, the phone's conversation and its cards.
+- **messages: each message's time sits beside its copy button, under it; the name and the gutter carry none** (427c4fc)
+- **messages: copy under every message, yours and the agent's; on the phone a long press opens Copy and Select text** (3c2c7ea)
+  The desktop's hover toolbar goes: each message carries its copy button under
+  it, faint until the row is hovered. The phone had no copy at all; now the
+  button is always under each message, and a long press opens a sheet with Copy
+  and Select text (the message on its own, where selection works). A finger
+  that moves, a scroll or an Inbox card swipe, is not a hold.
+- **model picker: quick picks are the models you used lately, then featured ones, only ones you can reach** (11b6a7b)
+  The short list led with the harness's featured models, the same for everyone.
+  Now: loki's own picks, newest first (the mod keeps them in
+  ~/.letta/loki/state/recent-models.json, shared by the Mac's windows and the
+  phone), then Letta Code's recentModels (read, never written), then featured
+  models up to five; list_models' available_handles drops what the account
+  cannot reach from the quick picks (More models keeps everything); the current
+  model stays in view.
+- **phone learn: its lists, each a page — Review, Leads, Lessons under way, Deleted; leads start from the phone** (b334e02)
+  Learn opens on a list, as the desktop's column does; the deck and the leads
+  never share a screen. A lead offers Start the lesson (the conversation opens,
+  the brief goes out), Not this and Where it came up; a lesson with no brief
+  offers to send it; Deleted brings back cards and leads. The mod lets a phone
+  start, set aside and restore leads.
+
+  Fix: the app never resolved the mod's recall_lesson reply, so Start the
+  lesson waited a minute and said it failed, on the desktop too. The replies
+  are one exported set now, checked against what mod/bridge.ts sends.
+- **motion: waiting has a shape, Learn cards turn and fly, the desktop moves quietly** (b7c06f3)
+  Phone: placeholder rows and cards shimmer while a list is read; the caught-up
+  check springs in; the Mac-unreachable banner slides down and back up; the
+  message box rides with the keyboard. Learn: a card turns over to its answer,
+  is thrown right for Got it and left for Again, and the next rises in.
+
+  Desktop: popovers grow from their pill on a click; a clicked desk switch
+  fades in; badges spring in as their count rises; the camera glides on the
+  smooth spring and stops for a wheel, pinch or drag; a rewritten widget glows
+  once. The chip row, switch knob and catch-up bar move by transform; the chat
+  width changes at once. Nothing a key starts animates.
+- **chat: tool calls as Claude's apps show them — one quiet line per run, a sheet of steps, each step's command and output** (63ffa06)
+  1. A run of consecutive tool calls is one line in the thread: "Ran 3 commands", "Ran a command, used 9 tools (1 failed)", "Running" breathing while the last one waits on its result.
+  2. On the phone the line opens a bottom sheet: the steps on a thin timeline, each its icon, a verb and what it was done to; a step opens its command (or input) and output in the same sheet, with Back. On the desktop the steps unfold in place.
+  3. Tool rows keep a step (core/attention/transcript.ts ToolStep): the input a reader recognises in full, the output, whether it failed, the call id; both capped at 4,000 characters. From the live stream (the input fills in as its arguments stream; the result lands on its row), Letta's history (tool_return_message by id) and the local log (toolResult lines by toolCallId). The recall worker's rows stay text only.
+  4. A terminal icon for commands.
+- **phone: bottom sheets open once — focus lands without scrolling the shell under a rising sheet** (5e6ff23)
+  A sheet focuses its first row as it mounts, while it is still below the screen; the browser scrolled the
+  phone shell (overflow: hidden is still scrollable by focus) to bring that row into view, then the shell
+  scrolled back as the sheet rose, so the page jumped and the sheet seemed to open twice. Focus now moves with
+  preventScroll, and the shell is overflow: clip, which nothing can scroll.
+- **phone home: folds saved outside the state update, under a versioned key** (968965d)
+- **phone home: desks group as the desktop sidebar's — Pinned, then one folding section per agent** (53cac48)
+  1. Home's desks come from shell/sidebarModel.ts, as the desktop sidebar's do: Pinned, then one section per agent by its latest activity, the main chat first, so the two cannot drift. "Needs your attention" stays on top, and a conversation there is not repeated below.
+  2. Each agent's section has its face and name and counts what waits on you; folds are kept on the device; a filter opens every fold.
+  3. The agent chips leave the Home menu: the sections are the agent view now. The filter stays.
+  4. Under an agent a row does not repeat the agent's name, and the main chat is called Main chat; under Pinned the pin is not shown twice.
+- **phone inbox: no stamps on a decided approval — it flies off like any card; the refusal shake stays** (1a18b71)
+- **phone: swipe-back animates once — only the app's own Backs slide; the edge swipe is the home-screen app's alone** (1386f3d)
+  Safari's swipe-back slides the page with its own picture, then the pop arrived and loki slid it again. A pop now
+  slides only when the app asked for it (the back chevron, its edge swipe); the browser's Back lands still. In a
+  Safari tab loki's edge swipe stands down, since the browser owns that edge.
+- **chat: the new-message count clears on the scroll back to the bottom, not in the follow effect** (7e975e6)
+- **phone motion: agents at work — streaming words fade in, arriving rows rise, lists glide, Undo springs, decisions are stamped** (bbfda36)
+  1. A streaming reply's words fade in as they arrive (a rehype plugin wraps words while the turn streams; code stays whole).
+  2. "thinking" is three rising dots, as a typing bubble's (shared chat.css).
+  3. Rows that come in while a thread is open rise into place; history and rows revealed above do not. Scrolled up, the chip springs up and counts what is new.
+  4. Home's rows glide when the arrangement changes (kit/useFlip.ts, FLIP on the compositor): keyed by conversation, so a desk moving into Needs your attention travels there; a row leaving fades while the rows below slide up. Not while a filter is typed.
+  5. Undo springs into the top bar and shrinks away (kit/leave.ts); an approval decided flies off stamped with a check or a cross; a swipe it refuses shakes the card.
+- **phone motion: Apple-style springs — sheets that follow a finger, pages that push and pop, the Inbox card zooming into its conversation** (18434d6)
+  1. Three springs (smooth, snappy, bouncy) in kit/spring.ts, written into tokens.css as linear() curves by scripts/springs.ts; a finger's speed carries into the spring it lets go of.
+  2. Pressed controls give to 97%; the send button and the inbox badge pop on the bouncy spring.
+  3. Bottom sheets rise, follow a finger down, rubber-band up, and leave however they close; the screen behind recedes onto black.
+  4. Pages push and pop through View Transitions; the Inbox card zooms into its conversation and back; a swipe from the left edge goes back. Tab switches and keyboard actions stay instant.
+  5. The Inbox card flies off and springs home at the finger's speed, can be caught mid-spring, and its label pops at the commit distance.
+  6. The progress bar fills by scale, not width.
+- **phone: Select model opens as a full-screen bottom sheet from the Inbox card too — drawn at the phone's root, out of the card's transform, and its drags never swipe the card** (52c2578)
+- **phone inbox: the card's box has the model pill; no "waiting for your reply" line on a plain wait** (3c99869)
+- **releases: two release PRs tracking main — the Mac's and Windows and Linux's, sharing the day's tag** (09ee21b)
+  Every merge to main refreshes release/next (the Mac stable) and release/preview
+  ("release: Windows and Linux <date>"), both built from main. Whichever merges first
+  creates v<date> (Windows and Linux's not marked latest, so the Mac's update check and
+  cask stay on a release with a .dmg); the other joins it. Separate queues, so a waiting
+  Mac stable is never dropped; a lost create race joins the release instead of failing.
+  Windows and Linux find their update in the newest release that has their file.
+
 ## 2026.9.25
 
 - **title menu: separators are <hr>, not role=separator divs** (8e950f9)
