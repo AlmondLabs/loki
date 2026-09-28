@@ -32,6 +32,7 @@ import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/ModelPicker";
 import { Banner, Button } from "../components";
+import { pageActivity } from "../shared/pageActivity";
 import "./phone.css";
 
 /**
@@ -170,6 +171,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     capture,
     // The model picker's recent models are least recently used: a message into a chat moves its model to the front.
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
+    activity: pageActivity,
   });
   const { route, from, arrival } = useRouteState();
   // Analytics: the tab or page on screen, an event on change (a conversation page is "conversation", not which one).

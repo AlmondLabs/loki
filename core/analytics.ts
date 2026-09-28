@@ -52,7 +52,7 @@ export const EVENTS: Record<string, string> = {
   folder_changed: "a conversation moved to another folder { desk, agent }",
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
   inbox_card_shown: "a card came to the top of the inbox { desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
-  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, rank, of, score, focus, reason, status, new, idle_min, dwell_ms }",
+  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
   inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, desk, agent }",
   inbox_filtered: "an agent pill chosen in the inbox { agent } (null: All)",
   chat_archived: "a chat archived { desk, origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
@@ -160,6 +160,8 @@ export interface AnalyticsReport {
     byRank: Array<[string, { shown: number; engaged: number }]>;
     /** Nexts and Archives taken back. */
     undone: number;
+    /** Nexts straight after you acted on the same card (a reply leaves the card in place and → moves on): not skips, left out of the cards above. */
+    movedOn: number;
     /** Minutes from an agent's turn ending to your next reply, answer, decision or open in that chat (median). */
     respondMinutes: number | null;
     /** Minutes an approval or question waited for you (median). */
@@ -202,13 +204,15 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const weekdays = new Array<number>(7).fill(0);
   const inbox = { passes: 0, decided: 0, perPass: null as number | null, next: 0, archive: 0, approve: 0, deny: 0, replies: 0 };
   const perPass: number[] = [];
-  const engagement: AnalyticsReport["engagement"] = { actions: 0, perActiveDay: null, cards: 0, engaged: 0, top: 0, medianRank: null, byReason: [], chats: null, shown: 0, byRank: [], undone: 0, respondMinutes: null, decideMinutes: null };
+  const engagement: AnalyticsReport["engagement"] = { actions: 0, perActiveDay: null, cards: 0, engaged: 0, top: 0, medianRank: null, byReason: [], chats: null, shown: 0, byRank: [], undone: 0, movedOn: 0, respondMinutes: null, decideMinutes: null };
   const engagedRanks: number[] = [];
   const byReason = new Map<string, { cards: number; engaged: number }>();
   const engagedChats = new Set<string>();
   const byRank = new Map<string, { shown: number; engaged: number }>(RANK_BUCKETS.map((b) => [b, { shown: 0, engaged: 0 }]));
   /** Each chat's latest showing at the top: its rank bucket, and whether it has been engaged with yet. */
   const showing = new Map<string, { bucket: string; engaged: boolean }>();
+  /** Each session's last card decision: the chat, and whether you acted on it. */
+  const lastCard = new Map<string, { desk: string | null; engaged: boolean }>();
   /** Chats whose agent finished a turn and has not heard from you since: desk → when. */
   const waiting = new Map<string, number>();
   const respond: number[] = [];
@@ -255,6 +259,13 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     if (e.event === "inbox_card_undone") engagement.undone++;
     if (e.event === "inbox_card_decided") {
       const engaged = ENGAGED_ACTIONS.has(String(p.action));
+      const session = typeof p.$session_id === "string" ? p.$session_id : "";
+      const last = lastCard.get(session);
+      lastCard.set(session, { desk, engaged });
+      if (p.action === "next" && desk && last?.engaged && last.desk === desk) {
+        engagement.movedOn++;
+        continue;
+      }
       engagement.cards++;
       const r = byReason.get(String(p.reason ?? "unknown")) ?? { cards: 0, engaged: 0 };
       r.cards++;
@@ -350,7 +361,7 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
   if (g.cards) {
     out.push(`  inbox cards ${g.cards} · engaged ${pct(g.engaged, g.cards)} · of those, the top card ${pct(g.top, g.engaged)} · median rank ${g.medianRank ?? "–"}`);
     out.push(`  by reason ${g.byReason.map(([reason, v]) => `${reason} ${v.engaged}/${v.cards}`).join(" · ")}`);
-    if (g.chats !== null) out.push(`  engaged with ${g.chats} distinct chat${g.chats === 1 ? "" : "s"} · undone ${g.undone}`);
+    if (g.chats !== null) out.push(`  engaged with ${g.chats} distinct chat${g.chats === 1 ? "" : "s"} · undone ${g.undone}${g.movedOn ? ` · moved on after acting ${g.movedOn} (not counted)` : ""}`);
   }
   if (g.shown) out.push(`  shown ${g.shown} · engaged by rank shown ${g.byRank.map(([rank, v]) => `${rank} ${pct(v.engaged, v.shown)} of ${v.shown}`).join(" · ")}`);
   const mins = (m: number | null) => (m === null ? "–" : m < 1 ? "<1 min" : m < 90 ? `${Math.round(m)} min` : `${Math.round(m / 6) / 10} h`);

@@ -572,8 +572,9 @@ is the score, `core/attention/focus.ts` the focus.
 **What the ranking is tuned for: engagement.** Every card that comes to the top is logged (`inbox_card_shown`),
 and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
 chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
-how long the card was on top). `bun run analytics` reports how often you engage with a card (reply, answer,
-approve, deny or open it) rather than move past or archive it, how often that card was the one on top, the median
+how long the card was on top, counting only the time loki's window was visible and focused). `bun run analytics`
+reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
+archive it — a Next straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
 rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
 shown at, how many Nexts and Archives you took back, and how long a finished turn waits for you. The weights
 above are the starting point.

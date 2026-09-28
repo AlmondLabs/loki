@@ -9,6 +9,7 @@ import { buildQuestionAnswer, environmentReminder } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
+import { createActiveClock, type Activity } from "./activeClock.ts";
 import { focusShares, type FocusAction, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
@@ -62,6 +63,8 @@ export interface UseAttentionOptions {
   capture?: (event: string, properties?: Record<string, unknown>) => void;
   /** A message went into this conversation (the model picker's recent list moves its model to the front). */
   sent?: (rt: Runtime) => void;
+  /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
+  activity?: Activity;
 }
 
 /** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
@@ -266,13 +269,17 @@ export function useAttention(opts: UseAttentionOptions) {
    * The Inbox's analytics, for tuning the ranking against what you actually do. Each card event carries where the
    * card stood in the Inbox (rank among `of`), what it scored and why, whether it was new and how long its chat had
    * been quiet, read from the live items at that moment. A card shown (inbox_card_shown) starts its dwell clock; the
-   * decision (inbox_card_decided) says how long it was on top before you acted.
+   * decision (inbox_card_decided) says how long it was on top before you acted, counting only the time loki was
+   * visible and focused (activeClock.ts).
    */
   const itemsRef = useRef(items);
   useEffect(() => {
     itemsRef.current = items;
   });
   const shownAt = useRef(new Map<string, number>());
+  const [clock] = useState(() => createActiveClock());
+  const activity = opts.activity;
+  useEffect(() => activity?.((on) => clock.set(on)), [activity, clock]);
   const cardProps = (item: AttentionItem) => {
     const queue = inboxQueue(itemsRef.current);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
@@ -280,13 +287,13 @@ export function useAttention(opts: UseAttentionOptions) {
     return { desk: deskOf(item.agentId, item.id), agent: item.agentId, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
   };
   const shown = useCallback((item: AttentionItem) => {
-    shownAt.current.set(idOf(item), Date.now());
+    shownAt.current.set(idOf(item), clock.now());
     optsRef.current.capture?.("inbox_card_shown", cardProps(item));
-  }, []);
+  }, [clock]);
   const decided = useCallback((item: AttentionItem, action: CardAction, via?: CardVia) => {
     const since = shownAt.current.get(idOf(item));
-    optsRef.current.capture?.("inbox_card_decided", { action, ...(via ? { via } : {}), ...cardProps(item), dwell_ms: since === undefined ? null : Date.now() - since });
-  }, []);
+    optsRef.current.capture?.("inbox_card_decided", { action, ...(via ? { via } : {}), ...cardProps(item), dwell_ms: since === undefined ? null : Math.round(clock.now() - since) });
+  }, [clock]);
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
     optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agentId, item.id), agent: item.agentId });

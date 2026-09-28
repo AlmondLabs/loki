@@ -275,6 +275,23 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
     for (const line of ["engaged with 2 distinct chats · undone 1", "shown 3 · engaged by rank shown 1 100% of 1 · 2 100% of 1", "4+ 0% of 1", "time to respond after a turn ends 12 min · an approval or question waits 4 min (medians)"]) expect(text).toContain(line);
   });
 
+  test("a next straight after acting on the same card is moving on, not a skip; a next on another card, or in another session, still counts", () => {
+    const now = Date.parse("2026-09-27T12:00:00Z");
+    const e = (minutesAgo: number, properties: Record<string, unknown>, session = "s") => makeEvent("inbox_card_decided", "u", { $device_type: "mac", $lib: "loki", $session_id: session, ...properties }, new Date(now - minutesAgo * 60_000));
+    const log = [
+      e(50, { action: "reply", desk: "a", rank: 1, reason: "new" }),
+      e(49, { action: "next", desk: "a", rank: 1, reason: "focus" }), // replied, then → : moved on
+      e(48, { action: "next", desk: "b", rank: 1, reason: "other" }), // a real skip
+      e(47, { action: "next", desk: "b", rank: 1, reason: "other" }), // b again after a skip: still a skip
+      e(46, { action: "open", desk: "c", rank: 1, reason: "new" }),
+      e(45, { action: "next", desk: "c", rank: 1, reason: "new" }, "other"), // another window's next on c: a skip
+    ];
+    const g = analyticsReport(log, { now, days: 7 }).engagement;
+    expect(g).toMatchObject({ cards: 5, engaged: 2, movedOn: 1 });
+    expect(Object.fromEntries(g.byReason)).toEqual({ new: { cards: 3, engaged: 2 }, other: { cards: 2, engaged: 0 } });
+    expect(formatAnalyticsReport(analyticsReport(log, { now, days: 7 }))).toContain("moved on after acting 1 (not counted)");
+  });
+
   test("a request every window reports is written once; the once key is not", () => {
     const recorded: Array<[string, Record<string, unknown> | undefined]> = [];
     const noWidgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close() {} };
