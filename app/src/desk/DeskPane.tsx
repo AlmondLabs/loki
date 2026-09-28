@@ -16,10 +16,7 @@ import type { useDesk } from "./useDesk";
 import { useDeskChat } from "./useDeskChat";
 import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
 import { widgetMarks } from "./widgetRows";
-import { NO_RENAME_REASON, RenameDesk, renameDesk } from "./RenameDesk";
-import { ChangeFolder } from "./NewDesk";
-import { conversationDirName } from "../../../core/desk-core.ts";
-import { canRename, doneAction } from "../shell/sidebarModel";
+import { doneAction } from "../shell/sidebarModel";
 import { useViewed } from "../shared/useViewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
@@ -53,7 +50,6 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   frameRequest: FrameRequest | null;
   /** A widget row chosen in the thread: open the Desk tab framed on that widget (useDeskPane's frame). */
   onFrameWidget?: (widgetId: string) => void;
-  notice: (m: string) => void;
 }
 
 /** A host counter routed to the view that showed when it was bumped (desk/pane.ts), as React state derived during render. */
@@ -73,7 +69,7 @@ function useRouted(value: number, visible: PaneView | null): TickRoute {
  * question or approval.
  */
 export function DeskPane(props: DeskPaneProps) {
-  const { desk, catchUp, active, tab, onTab, chatOpen, models, notice } = props;
+  const { desk, catchUp, active, tab, onTab, chatOpen, models } = props;
   const { scope, title, agentName, agentId, conversationId, attention } = desk;
   const visible = paneView(active, tab);
   const onMessages = visible === "messages";
@@ -113,7 +109,6 @@ export function DeskPane(props: DeskPaneProps) {
     : undefined;
   const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
 
-  const summary = desk.desks.list.find((d) => d.scope === scope) ?? null;
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
   const threadFocus = useRef<HTMLElement | null>(null);
@@ -139,7 +134,7 @@ export function DeskPane(props: DeskPaneProps) {
             )}
           </span>
         }
-        actions={<DeskActions desk={desk} catchUp={catchUp} item={item} summary={summary} tab={tab} notice={notice} />}
+        actions={<DeskActions tab={tab} />}
         tabs={TABS}
         tab={tab}
         onTab={onTab}
@@ -204,18 +199,13 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
   }, [visible, root, last]);
 }
 
-/** A line of the header's menu: a keymap action (run through runAction, its key shown), or the rename dialog. */
-type MenuItem = { id: string; label: string; keys?: string; disabled?: boolean; title?: string };
-const RENAME = "desk.rename";
+/** A line of the header's menu: a keymap action, run through runAction, its key shown. */
+type MenuItem = { id: string; label: string; keys?: string };
 const DONE = "desk.done";
-const UNDONE = "desk.undone";
-const MOVE = "desk.folder";
 
-/** Read by hand, the Inbox's own paths: Mark as read clears what is new (seen_mark), Mark as unread puts it back (seen_unmark). A chat is done only when archived. */
-function markDone(catchUp: ReturnType<typeof useAttention>, item: AttentionItem | null, done: boolean) {
-  if (!item || doneAction(item) !== (done ? "done" : "undone")) return;
-  if (done) catchUp.seen(item);
-  else catchUp.unread(item);
+/** Read by hand, the Inbox's own path: Mark as read clears what is new (seen_mark). A chat is done only when archived. */
+function markDone(catchUp: ReturnType<typeof useAttention>, item: AttentionItem | null) {
+  if (item && doneAction(item) === "done") catchUp.seen(item);
 }
 
 /** ⌘⇧↵ (desk.done) marks the open desk done while the Desk section shows. Registered once per showing; the item is read through a ref. */
@@ -226,37 +216,17 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
   });
   useEffect(() => {
     if (!active) return;
-    return registerActions({ [DONE]: () => markDone(ref.current.catchUp, ref.current.item, true) });
+    return registerActions({ [DONE]: () => markDone(ref.current.catchUp, ref.current.item) });
   }, [active]);
 }
 
 /**
- * The header's actions: pin / unpin and archive / restore (what the sidebar offers on a row), then a menu:
- * Mark as done or not done first (the Inbox's clear and undo), rename, then the rest of what the desk does today, each through
- * its keymap action so the key and the menu agree.
+ * The header's menu: what works on the conversation on screen, each through its keymap action so the key and
+ * the menu agree. What works on the chat as a whole (read, rename, folder, pin, archive) is the sidebar row's menu.
  */
-function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: ReturnType<typeof useDesk>; catchUp: ReturnType<typeof useAttention>; item: AttentionItem | null; summary: ReturnType<typeof useDesk>["desks"]["list"][number] | null; tab: DeskTab; notice: (m: string) => void }) {
+function DeskActions({ tab }: { tab: DeskTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [moving, setMoving] = useState(false);
-  const { agentId, conversationId } = desk;
-  const connected = catchUp.status === "open";
-  const canPin = !!summary && !!agentId && !!conversationId && summary.status === "live";
-  const canArchive = !!summary && desk.attention.available && !!conversationId && conversationId !== "default" && summary.status !== "deleted";
-  const archived = summary?.status === "archived";
-  const archive = () => {
-    if (!conversationId) return;
-    void catchUp.archiveConversation(conversationId, !archived, "chat_header").then((err) => {
-      if (err) return notice(`archive: ${err}`);
-      notice(`${desk.title ?? desk.scope} ${archived ? "restored" : "archived"}`);
-      desk.desks.request();
-    });
-  };
-  const done = doneAction(item);
   const items: MenuItem[] = [
-    ...(done === "done" ? [{ id: DONE, label: "Mark as read", keys: keyFor("desk.done") }] : done === "undone" ? [{ id: UNDONE, label: "Mark as unread" }] : []),
-    ...(summary && canRename(summary) ? [{ id: RENAME, label: "Rename…", disabled: !connected, title: connected ? undefined : NO_RENAME_REASON }] : []),
-    ...(agentId && conversationId && summary?.status !== "deleted" ? [{ id: MOVE, label: "Change folder…", disabled: !connected, title: connected ? undefined : "Needs Letta Code's app-server" }] : []),
     { id: "chat.find", label: "Find in conversation…", keys: keyFor("chat.find") },
     { id: "chat.model", label: "Change model…", keys: keyFor("chat.model") },
     { id: "chat.mode", label: "Change permission mode…", keys: keyFor("chat.mode") },
@@ -267,55 +237,23 @@ function DeskActions({ desk, catchUp, item, summary, tab, notice }: { desk: Retu
           { id: "chat.toggle", label: "Show / hide chat", keys: keyFor("chat.toggle") },
         ]
       : []),
-    { id: "desk.new", label: "New chat…", keys: keyFor("desk.new") },
   ];
   return (
-    <>
-      {canPin && (
-        <IconButton size={28} label={summary!.pinned ? "Unpin chat" : "Pin chat"} aria-pressed={!!summary!.pinned} onClick={() => desk.desks.pin(agentId!, conversationId!, !summary!.pinned)}>
-          <Icon name="pin" size={16} />
-        </IconButton>
-      )}
-      {canArchive && (
-        <IconButton size={28} label={archived ? "Restore chat" : "Archive chat"} onClick={archive}>
-          <Icon name="archive" size={16} />
-        </IconButton>
-      )}
-      <span className="loki-desk-pane-menu-anchor">
-        <IconButton size={28} label="More chat actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
-          <Icon name="more" size={16} />
-        </IconButton>
-        {menuOpen && (
-          <DeskMenu
-            items={items}
-            onPick={(id) => {
-              setMenuOpen(false);
-              if (id === RENAME) setRenaming(true);
-              else if (id === MOVE) setMoving(true);
-              else if (id === DONE || id === UNDONE) markDone(catchUp, item, id === DONE);
-              else runAction(id);
-            }}
-            onClose={() => setMenuOpen(false)}
-          />
-        )}
-      </span>
-      {moving && agentId && conversationId && (
-        <ChangeFolder
-          onClose={() => setMoving(false)}
-          agentId={agentId}
-          agentName={desk.agentName ?? null}
-          conversationKey={conversationDirName(conversationId, agentId)}
-          title={desk.title ?? summary?.title ?? null}
-          folders={desk.attention.folders}
-          onMove={async (folder) => {
-            const err = await catchUp.changeFolder({ agent_id: agentId, conversation_id: conversationId }, folder);
-            if (!err) notice(`${desk.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
-            return err;
+    <span className="loki-desk-pane-menu-anchor">
+      <IconButton size={28} label="More chat actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+        <Icon name="more" size={16} />
+      </IconButton>
+      {menuOpen && (
+        <DeskMenu
+          items={items}
+          onPick={(id) => {
+            setMenuOpen(false);
+            runAction(id);
           }}
+          onClose={() => setMenuOpen(false)}
         />
       )}
-      {renaming && summary && <RenameDesk name={desk.title ?? summary.title ?? ""} onClose={() => setRenaming(false)} onRename={(name) => renameDesk(desk, catchUp, notice)(summary, name)} />}
-    </>
+    </span>
   );
 }
 
@@ -369,7 +307,7 @@ function DeskMenu({ items, onPick, onClose }: { items: MenuItem[]; onPick: (id: 
       }}
     >
       {items.map((it) => (
-        <Row key={it.id} dense role="menuitem" disabled={it.disabled} title={it.title} onClick={() => onPick(it.id)} className="loki-desk-pane-menu-item">
+        <Row key={it.id} dense role="menuitem" onClick={() => onPick(it.id)} className="loki-desk-pane-menu-item">
           <span>{it.label}</span>
           {it.keys && <Kbd>{it.keys}</Kbd>}
         </Row>

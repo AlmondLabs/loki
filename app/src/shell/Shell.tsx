@@ -380,7 +380,6 @@ export function Shell() {
               modelPickerTick={modelPickerTick}
               onPickMode={pickMode}
               modeMenuTick={modeMenuTick}
-              notice={notice}
             />
           </div>
 

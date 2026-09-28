@@ -6,9 +6,11 @@ import type { DeskSummary } from "../desk/useDesk";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { ColumnHeader } from "./ListColumn";
-import { canArchive, canPin, canRename, doneAction, loadSidebar, offscreenWaits, saveSidebar, sidebarModel, toggleFold, type SidebarPref, type SidebarRow } from "./sidebarModel";
+import { canArchive, canMove, canPin, canRename, doneAction, loadSidebar, offscreenWaits, saveSidebar, sidebarModel, toggleFold, type SidebarPref, type SidebarRow } from "./sidebarModel";
 import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/RenameDesk";
+import { ChangeFolder, type FolderApi } from "../desk/NewDesk";
+import { conversationDirName } from "../../../core/desk-core.ts";
 import "./deskSidebar.css";
 
 /** The row's data-launch, so the pills can find a waiting row in the list. */
@@ -21,6 +23,7 @@ function isFolded(pref: SidebarPref, filtering: boolean, id: string): boolean {
 }
 
 const NO_ARCHIVE_REASON = "Archiving needs the app-server, which is not connected";
+const NO_MOVE_REASON = "Changing folder needs the app-server, which is not connected";
 
 /** localStorage, or nothing (a blocked store only costs the folds and the scroll). */
 const store = (): Pick<Storage, "getItem" | "setItem"> | null => {
@@ -45,6 +48,10 @@ export interface DeskSidebarProps {
   onArchive: (desk: DeskSummary, archived: boolean) => void;
   /** Save a new name; resolves to the app-server's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
+  /** Move a chat to another folder; resolves to Letta Code's refusal or null. Left out with folders, the menu has no Change folder…. */
+  onMove?: (desk: DeskSummary, folder: string) => Promise<string | null>;
+  /** The Mac's folders, for the Change folder dialog's field. */
+  folders?: FolderApi;
   /** Done by hand, the Inbox's clear (true) and its undo (false); left out, the menu has neither. */
   onDone?: (item: AttentionItem, done: boolean) => void;
   /** An agent's face (desk/env avatarUrl); a prop so the list renders without a window. */
@@ -57,7 +64,7 @@ export interface DeskSidebarProps {
  * desk; hover buttons and the row's context menu pin and archive. When a desk that needs you is scrolled
  * out of sight, a pill at that edge says so and brings it into view. Folds and scroll outlive restarts.
  */
-export function DeskSidebar({ desks, agents, items, current, connected, onOpen, onNew, onPin, onArchive, onRename, onDone, avatar }: DeskSidebarProps) {
+export function DeskSidebar({ desks, agents, items, current, connected, onOpen, onNew, onPin, onArchive, onRename, onMove, folders, onDone, avatar }: DeskSidebarProps) {
   const [query, setQuery] = useState("");
   const [pref, setPref] = useState<SidebarPref>(() => {
     const s = store();
@@ -65,6 +72,7 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
   });
   const [menu, setMenu] = useState<{ desk: DeskSummary; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<DeskSummary | null>(null);
+  const [moving, setMoving] = useState<DeskSummary | null>(null);
   const [pills, setPills] = useState<{ up: string | null; down: string | null }>({ up: null, down: null });
   const scrollRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
@@ -312,8 +320,19 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           </button>
         )}
       </div>
-      {menu && <RowMenu {...menu} item={items.find((i) => i.agentId === menu.desk.agentId && i.id === menu.desk.conversationId) ?? null} connected={connected} onClose={() => setMenu(null)} onOpen={onOpen} onPin={onPin} onArchive={onArchive} onRename={setRenaming} onDone={onDone} />}
+      {menu && <RowMenu {...menu} item={items.find((i) => i.agentId === menu.desk.agentId && i.id === menu.desk.conversationId) ?? null} connected={connected} onClose={() => setMenu(null)} onOpen={onOpen} onPin={onPin} onArchive={onArchive} onRename={setRenaming} onMove={onMove && folders ? setMoving : undefined} onDone={onDone} />}
       {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
+      {moving && onMove && folders && moving.agentId && moving.conversationId && (
+        <ChangeFolder
+          onClose={() => setMoving(null)}
+          agentId={moving.agentId}
+          agentName={moving.agentName}
+          conversationKey={conversationDirName(moving.conversationId, moving.agentId)}
+          title={moving.title}
+          folders={folders}
+          onMove={(folder) => onMove(moving, folder)}
+        />
+      )}
     </>
   );
 }
@@ -326,8 +345,8 @@ function FinishedRing({ note }: { note: string }) {
   return <span aria-hidden className="loki-sidebar-ring" title={note} />;
 }
 
-/** A row's context menu at the pointer: open, mark done or not done, rename, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
-function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArchive, onRename, onDone }: { desk: DeskSummary; item: AttentionItem | null; x: number; y: number; connected: boolean; onClose: () => void; onRename: (d: DeskSummary) => void } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
+/** A row's context menu at the pointer: open, mark done or not done, rename, change folder, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
+function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArchive, onRename, onMove, onDone }: { desk: DeskSummary; item: AttentionItem | null; x: number; y: number; connected: boolean; onClose: () => void; onRename: (d: DeskSummary) => void; onMove?: (d: DeskSummary) => void } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -357,7 +376,7 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
   };
   // Kept inside the window: a menu opened near the right or bottom edge moves in.
   const left = Math.min(x, (typeof window === "undefined" ? x : window.innerWidth) - 228);
-  const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 204);
+  const top = Math.min(y, (typeof window === "undefined" ? y : window.innerHeight) - 236);
   return (
     <div
       ref={ref}
@@ -387,6 +406,11 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
       {canRename(d) && (
         <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_RENAME_REASON} onClick={pick(() => onRename(d))}>
           Rename…
+        </Row>
+      )}
+      {onMove && canMove(d) && (
+        <Row dense role="menuitem" disabled={!connected} title={connected ? undefined : NO_MOVE_REASON} onClick={pick(() => onMove(d))}>
+          Change folder…
         </Row>
       )}
       {canPin(d) && (
@@ -422,6 +446,13 @@ export function DeskSidebarView({ desk, catchUp, notice, onOpen, onNew }: { desk
         if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
       }}
       onRename={renameDesk(desk, catchUp, notice)}
+      folders={desk.attention.folders}
+      onMove={async (d, folder) => {
+        if (!d.agentId || !d.conversationId) return "no conversation";
+        const err = await catchUp.changeFolder({ agent_id: d.agentId, conversation_id: d.conversationId }, folder);
+        if (!err) notice(`${d.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
+        return err;
+      }}
       onDone={(item, done) => (done ? catchUp.seen(item) : catchUp.unread(item))}
       onArchive={(d, archived) => {
         if (!d.conversationId) return;

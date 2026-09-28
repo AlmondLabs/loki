@@ -127,20 +127,19 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   window in front, when a message arrives) marks it **viewed**, which drops the bold and keeps the ring, so bold +
   ring is new since you looked, the ring alone is viewed but not read, and neither is read. Read is what the
   Inbox's → does, a reply, an approval or an answer; by hand it is **Mark as read** (⌘⇧↵ on the open chat, or
-  the row's right-click menu, or the chat header's ⋯ menu), and **Mark as unread** in the same menus puts the
+  the row's right-click menu), and **Mark as unread** in the same menu puts the
   ring back (the bold stays off: you have seen it). None of these is done: a chat is done only when it is
   archived, and until then it stays in the Inbox. Viewed and read are kept by the mod, so the phone and the Mac
   agree on both. "Find a
   chat…" at the top filters by chat or agent name (↓ into the list, ↑↓ between chats, ↵ opens the first match).
-  Hover a row for pin and archive, right-click it for the same with open, rename and restore. **Rename…** (also in
-  the chat header's ⋯ menu) opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
+  Hover a row for pin and archive, right-click it for the same with open, rename, change folder and restore. **Rename…** opens a small dialog with the name selected: ↵ saves, esc cancels, and a name is at
   most 80 characters. The name is the Letta conversation's own, so Letta Desktop sees it too; an agent's main
   chat is named after the agent and cannot be renamed, and renaming needs the app-server. When a chat that waits on
   you is scrolled out of sight, a red "Needs you" pill at the top or bottom edge scrolls to it. The sidebar keeps
   its scroll and folds across restarts.
   Opening a chat — from the sidebar, ⌘K, the Inbox, Agents or Learn — shows it like a Slack channel: a header
-  with its name, its agent and what the agent is doing, pin, archive and a ⋯ menu (mark as read or unread, rename, find, model,
-  permission mode, new chat, and on the Canvas tab arrange, fit and the chat toggle), then two tabs. **Messages** is the
+  with its name, its agent and what the agent is doing and a ⋯ menu for the conversation (find, model, permission
+  mode, and on the Canvas tab arrange, fit and the chat toggle; the chat's own actions are the sidebar row's), then two tabs. **Messages** is the
   conversation, the message box focused: each message with the author's face, name and time, a pill for each
   day, a red **New** line before what came since you last looked (it stays put while the chat is open, as
   Slack's does, and moves on the next open), a copy button on hover, and a line each time the agent
@@ -436,7 +435,7 @@ folder is a checkout) and an optional name. Start creates the conversation
 through Letta's app-server, so it appears in Desktop too, and the canvas
 opens the empty chat on Messages with the message box focused.
 
-**Change folder.** A chat can move to another folder later: **Change folder…** in the chat header's ⋯ menu opens
+**Change folder.** A chat can move to another folder later: **Change folder…** in the chat's right-click menu in the sidebar opens
 the same folder field, starting on the chat's folder (recents, completion, Browse…); Move needs a folder that
 exists and differs. On the phone it is **Change folder** in the chat's actions sheet, with chips of the folders
 that agent has worked in. Letta Code moves the conversation (its own `/chdir`, kept in
