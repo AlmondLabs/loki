@@ -5,7 +5,7 @@ import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
 import { applyEvent, beginCommand, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
-import { buildQuestionAnswer, environmentReminder } from "./content.ts";
+import { buildQuestionAnswer, environmentNote, type EnvNoteTold } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
@@ -80,6 +80,13 @@ async function createNamedAgent(sock: AppServerSocket, opts: { personality: Pers
 /** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
 export type SendOrigin = "desk" | "inbox" | "lesson";
 
+/** The environment note a message to this chat carries as it goes out (none when nothing changed), remembered. */
+function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | null | undefined): string | undefined {
+  const note = environmentNote(told.get(key), { desk });
+  told.set(key, note.told);
+  return note.text ?? undefined;
+}
+
 export function useAttention(opts: UseAttentionOptions) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
@@ -96,6 +103,8 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<AppServerSocket | null>(null);
   const liveRef = useRef(new Map<string, Live>());
+  /** What each chat's agent was last told of the time and the chat: the note goes again only when that changed. */
+  const envNotes = useRef(new Map<string, EnvNoteTold>());
   /** Folder changes waiting on Letta Code's answer, by conversation key (changeFolder). */
   const folderMoves = useRef(new Map<string, { from: string | undefined; to: string; done: (err: string | null) => void }>());
   const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -185,7 +194,7 @@ export function useAttention(opts: UseAttentionOptions) {
           if (next.text.trim()) l.ownSends.push(next.text);
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
           bump();
-          void sock.sendUserMessage(rt, next.text, next.images, next.context).catch((err) => console.warn("loki: queued send", err));
+          void sock.sendUserMessage(rt, next.text, next.images, noteFor(envNotes.current, key, next.desk)).catch((err) => console.warn("loki: queued send", err));
         }
       }
       if (changed && !knownRef.current.has(key) && !reloadTimer && Date.now() - lastReload.current > 10_000) {
@@ -405,12 +414,11 @@ export function useAttention(opts: UseAttentionOptions) {
       l = emptyLive();
       liveRef.current.set(key, l);
     }
-    const context = environmentReminder({ desk: env.desk }); // what Desktop attaches: local time; and the chat
     optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
-      l.queued.push({ text, images, context });
+      l.queued.push({ text, images, desk: env.desk });
       l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, queued: true, at: new Date().toISOString() });
       bump();
       return;
@@ -419,7 +427,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (text.trim()) l.ownSends.push(text);
     l.lastRole = "user";
     bump();
-    void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, text, images, context)).catch((err) => console.warn("loki: send", err));
+    void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, text, images, noteFor(envNotes.current, key, env.desk))).catch((err) => console.warn("loki: send", err));
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
   }, [subscribe, bump]);
   /** Take back a message typed mid-turn before it went out. */

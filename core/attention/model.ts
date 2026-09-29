@@ -68,7 +68,8 @@ export interface LiveRow {
 export interface QueuedSend {
   text: string;
   images: ImageAttachment[];
-  context?: string;
+  /** The chat's name when it was typed; its environment note is decided when it goes out. */
+  desk?: string | null;
 }
 
 export interface Live {
