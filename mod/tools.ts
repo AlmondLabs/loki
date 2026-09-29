@@ -165,7 +165,7 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
           "initiative mid-task. `create` files a task (title, description, labels, priority 0–4; the source conversation, " +
           "desk and folder are stamped automatically) and returns its id: tell the user the id. `list` shows tasks assigned " +
           "to this conversation (or every open task with all:true). `comment` adds progress; `close` finishes one with a " +
-          "reason. Tasks assigned to this conversation are also attached to the user's next message inside <loki-tasks>.",
+          "reason. When the tasks assigned to this conversation change, the new list is attached to the user's next message inside <loki-tasks>.",
         parameters: {
           type: "object",
           properties: {

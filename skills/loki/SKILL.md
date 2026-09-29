@@ -133,6 +133,7 @@ loki_task { action: "close", id, reason }  done
   becomes a label.
 - Always tell the user the id you filed.
 - When the user assigns tasks to your conversation from the board, they arrive
-  inside `<loki-tasks>` on their next message. Pick one up when the message is
+  inside `<loki-tasks>` on their next message, and again only when that list
+  changes (the latest block is the current list; `loki_task list` reads it any time). Pick one up when the message is
   about it or when asked to work the board; otherwise acknowledge in a line and
   carry on. Close it through `loki_task` when done.

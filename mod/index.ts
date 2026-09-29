@@ -18,7 +18,7 @@ import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
-import { TaskBoard, formatTasksContext } from "./tasks.ts";
+import { TaskBoard, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -398,6 +398,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
   const titleRefreshes = new ScopeDebouncer();
   /** When each desk's running turn began, for turn_finished's duration. */
   const turnsBegun = new Map<string, number>();
+  /** What each conversation was last told about its board tasks: the block rides along only when it changes. */
+  const tasksNotice = new TasksNotice();
 
   track("conversation_open", (event, ctx) => {
     const runtime = runtimeFromEvent(event as ConversationOpenEvent | undefined, ctx);
@@ -436,16 +438,25 @@ export default function activate(letta: LettaMod): (() => void) | void {
       if (personTyped(ev?.input)) seen.engage(runtime.agentId, convId, "message");
       broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), focus: seen.focusAll(), appServer: appServerUrl !== null });
     }
-    // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation.
+    // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation
+    // (only when those changed since the agent was last told).
     const blocks: string[] = [];
     if (lines.length) blocks.push(formatDeskContext(scope, lines, paths.widgets));
-    const tasksBlock = convId ? formatTasksContext(tasks.cached(), { conversation: convId }) : null;
+    const tasksBlock = convId ? tasksNotice.pending(convId, tasks.cached()) : null;
     if (tasksBlock) blocks.push(tasksBlock);
     if (blocks.length && ev && Array.isArray(ev.input)) {
-      ev.input = attachDeskContext(ev.input, blocks.join("\n\n"));
+      const next = attachDeskContext(ev.input, blocks.join("\n\n"));
+      // No message of the user's to ride on (approvals only): the tasks wait for the next one.
+      if (next !== ev.input && convId && tasksBlock) tasksNotice.sent(convId, tasksBlock);
+      ev.input = next;
       return { input: ev.input };
     }
     return undefined;
+  });
+
+  track("compact_end", (event, ctx) => {
+    const convId = runtimeFromEvent(event as TurnEndEvent | undefined, ctx).conversationId;
+    if (convId) tasksNotice.forget(convId);
   });
 
   // Diagnostics: see whether Letta reaches the mod-tool dispatch at all.

@@ -596,7 +596,8 @@ recently done columns; any other view is one list. A remembered agent view whose
 left says so ("<agent> isn't here any more — pick an agent") and lists the agents to pick again. Select tasks
 (X or space, ⇧X or ⇧-click for a range) and press ⏎ to
 **assign** them to a chat: the agent becomes the assignee and the tasks ride
-along inside `<loki-tasks>` on your next message in that conversation; nothing is
+along inside `<loki-tasks>` on your next message in that conversation, and again only
+when that chat's list changes (hidden in the chat, shown as a quiet "board tasks" row); nothing is
 sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent
 starts now. New chat is a target too. ⌫ marks done, ⇧⌫ toggles blocked, ⌘R
 refreshes, / filters. Agents close tasks through the tool.

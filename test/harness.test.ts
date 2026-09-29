@@ -22,6 +22,12 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
     expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
     expect(stripHarnessMarkup('<loki-desk desk="d">\n- x\n</loki-desk>').trim()).toBe("");
   });
+  test("board tasks become one quiet event, hidden from the user's words", () => {
+    const text = "morning\n\n<loki-tasks>\nTasks assigned to this conversation on the user's board (2):\n- lk-a1  P1  rotate SSO creds — filed by the user\n    the audit starts on the 6th\n- lk-b2  P2  update the runbook — filed by friday\nPick one up when the user's message is about it.\n</loki-tasks>";
+    expect(extractHarnessEvents(text)).toEqual([{ text: "board tasks", summary: "2 assigned to this chat", detail: "lk-a1  P1  rotate SSO creds — filed by the user\nlk-b2  P2  update the runbook — filed by friday" }]);
+    expect(stripHarnessMarkup(text).trim()).toBe("morning");
+    expect(extractHarnessEvents("<loki-tasks>\nNo tasks are assigned to this conversation on the user's board any more.\n</loki-tasks>")[0]).toMatchObject({ summary: "none assigned any more", detail: null });
+  });
   test("a skill body becomes a 'skill loaded' event named after the skill", () => {
     const text = 'summarise this\n<skill_content name="unslop">\n# Unslop\n\nEdit text to remove AI patterns.\n</skill_content>';
     expect(extractHarnessEvents(text)).toEqual([{ text: "skill loaded", summary: "unslop", detail: "# Unslop\n\nEdit text to remove AI patterns." }]);
