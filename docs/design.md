@@ -171,7 +171,7 @@ toolbar that holds only what loki does to a message (copy as markdown). A messag
 added Revenue chart · 14:49", the widget's title in the link blue while it is still on the canvas; choosing one
 opens the Canvas tab framed on that widget. Tool and event lines sit in the message column under the text they
 follow. **The message box** (2026-09-24, after Claude's, one for the phone and the desktop) is one rounded field
-on the well, the text on top and a row inside it: a round "+" (attach images), the **model pill** (the model's
+on the well, the text on top and a row inside it: a round "+" (attach images and files: files upload to the Mac at once, mod/uploads.ts, and go as Letta attachment tags), the **model pill** (the model's
 name in the ink, its effort after it in the muted colour, only when the model offers levels), then the mic
 (only where dictation works) and a round send, Slack's green once there is something to send and a muted
 circle while the box is empty; every control in the row is one height (28 here, 36 on the phone with a 44

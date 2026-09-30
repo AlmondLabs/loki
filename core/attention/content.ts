@@ -6,6 +6,38 @@ export interface ImageAttachment {
   url: string;
 }
 
+/**
+ * A file attached to a message that is not an image: already uploaded to the Mac (mod/uploads.ts), so the
+ * message carries only where it is, in Letta's attachment tag, and the agent reads it with its own tools.
+ */
+export interface FileAttachment {
+  id: string;
+  kind: "file";
+  path: string;
+  name: string;
+  size: number;
+  mime: string;
+}
+
+/** What the message box holds: images (sent inside the message) and files (sent as their path). */
+export type Attachment = ImageAttachment | FileAttachment;
+
+export const isFileAttachment = (a: Attachment): a is FileAttachment => (a as FileAttachment).kind === "file";
+
+const xmlAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** A file as Letta's channels hand one to an agent: `<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`. */
+export function attachmentTag(f: { path: string; name: string; size: number; mime: string }): string {
+  return `<attachment kind="file" local_path="${xmlAttr(f.path)}" name="${xmlAttr(f.name)}" mime_type="${xmlAttr(f.mime)}" size_bytes="${f.size}" />`;
+}
+
+/** The text a message goes out with: what was typed, then one tag per file. */
+export function withAttachments(text: string, files: Array<{ path: string; name: string; size: number; mime: string }>): string {
+  if (!files.length) return text;
+  const tags = files.map(attachmentTag).join("\n");
+  return text.trim() ? `${text}\n\n${tags}` : tags;
+}
+
 export type UserContent = string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { ModelEntry } from "../chat/ModelPicker";
@@ -43,7 +43,7 @@ interface CatchUpProps {
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
-  onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
+  onReply: (item: AttentionItem, text: string, images?: Attachment[]) => void;
   /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;

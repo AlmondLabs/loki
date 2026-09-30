@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import "./chat.css";
 import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { Button, Chip, Title } from "../components";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
@@ -39,7 +39,7 @@ export interface ConversationView {
 
 /** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
 export interface ConversationActions {
-  onSend: (text: string, images?: ImageAttachment[]) => void;
+  onSend: (text: string, images?: Attachment[]) => void;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
   onApprove?: (behavior: "allow" | "deny") => void;
   /** Slash commands the box offers (see core/attention/commands.ts) and their runner. */

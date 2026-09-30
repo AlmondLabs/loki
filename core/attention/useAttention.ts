@@ -4,8 +4,8 @@ import { toTranscript } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, beginCommand, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
-import { buildQuestionAnswer, environmentNote, type EnvNoteTold } from "./content.ts";
+import { applyEvent, beginCommand, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, ownSendKey, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
@@ -79,6 +79,23 @@ async function createNamedAgent(sock: AppServerSocket, opts: { personality: Pers
 
 /** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
 export type SendOrigin = "desk" | "inbox" | "lesson";
+
+/**
+ * A message as it goes out: images ride inside it, files as their attachment tags after the text; `key` is how
+ * its echo is recognised (ownSendKey), empty when there is nothing to recognise.
+ */
+function outgoing(text: string, attachments: Attachment[]): { text: string; images: ImageAttachment[]; key: string } {
+  const files = attachments.filter(isFileAttachment);
+  const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a));
+  return { text: withAttachments(text, files), images, key: ownSendKey(text, files) };
+}
+
+/** A message's row as it shows at once: the text, its images, and chips for its files. */
+function sentRow(text: string, attachments: Attachment[]): { role: "user"; text: string; images?: string[]; files?: Array<{ path: string; name: string; size: number; mime: string }>; at: string } {
+  const files = attachments.filter(isFileAttachment).map(({ path, name, size, mime }) => ({ path, name, size, mime }));
+  const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a)).map((i) => i.url);
+  return { role: "user", text, ...(images.length ? { images } : {}), ...(files.length ? { files } : {}), at: new Date().toISOString() };
+}
 
 /** The environment note a message to this chat carries as it goes out (none when nothing changed), remembered. */
 function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | null | undefined): string | undefined {
@@ -191,10 +208,11 @@ export function useAttention(opts: UseAttentionOptions) {
         const next = takeQueued(l);
         if (next && ev.runtime) {
           const rt = ev.runtime;
-          if (next.text.trim()) l.ownSends.push(next.text);
+          const out = outgoing(next.text, next.images);
+          if (out.key) l.ownSends.push(out.key);
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
           bump();
-          void sock.sendUserMessage(rt, next.text, next.images, noteFor(envNotes.current, key, next.desk)).catch((err) => console.warn("loki: queued send", err));
+          void sock.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, next.desk)).catch((err) => console.warn("loki: queued send", err));
         }
       }
       if (changed && !knownRef.current.has(key) && !reloadTimer && Date.now() - lastReload.current > 10_000) {
@@ -407,27 +425,29 @@ export function useAttention(opts: UseAttentionOptions) {
   }, [bump]);
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
-  const send = useCallback((rt: Runtime, text: string, images: ImageAttachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
+  const send = useCallback((rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     let l = liveRef.current.get(key);
     if (!l) {
       l = emptyLive();
       liveRef.current.set(key, l);
     }
-    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length, queued: l.inTurn });
+    const fileCount = images.filter(isFileAttachment).length;
+    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, desk: env.desk });
-      l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, queued: true, at: new Date().toISOString() });
+      l.tail.push({ ...sentRow(text, images), queued: true });
       bump();
       return;
     }
-    l.tail.push({ role: "user", text, images: images.length ? images.map((i) => i.url) : undefined, at: new Date().toISOString() });
-    if (text.trim()) l.ownSends.push(text);
+    l.tail.push(sentRow(text, images));
+    const out = outgoing(text, images);
+    if (out.key) l.ownSends.push(out.key);
     l.lastRole = "user";
     bump();
-    void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, text, images, noteFor(envNotes.current, key, env.desk))).catch((err) => console.warn("loki: send", err));
+    void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk))).catch((err) => console.warn("loki: send", err));
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
   }, [subscribe, bump]);
   /** Take back a message typed mid-turn before it went out. */
@@ -435,7 +455,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
     if (l && dropQueued(l, text)) bump();
   }, [bump]);
-  const reply = useCallback((item: AttentionItem, text: string, images: ImageAttachment[] = []) => send(item.runtime, text, images, { desk: item.title, origin: "inbox" }), [send]);
+  const reply = useCallback((item: AttentionItem, text: string, images: Attachment[] = []) => send(item.runtime, text, images, { desk: item.title, origin: "inbox" }), [send]);
 
   /**
    * A slash command for the harness (/reload, /compact …): execute_command, the path Desktop uses. The

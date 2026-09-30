@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -110,7 +110,7 @@ export function ConversationScreen({
   /** Stop this conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
-  onSend: (rt: Runtime, text: string, images: ImageAttachment[], desk: string | null) => void;
+  onSend: (rt: Runtime, text: string, images: Attachment[], desk: string | null) => void;
   /** Done: the Inbox's clear (seen_mark). */
   onSeen: (rt: Runtime) => void;
   /** Not done: the Inbox's undo (seen_unmark); left out, the sheet does not offer it. */

@@ -8,6 +8,7 @@ import type { DeviceStore, DeviceVia } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
 import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
+import { uploadRoute } from "./uploads.ts";
 import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
 import type { Tailscale, TailscaleStatus } from "./tailscale.ts";
 import { log } from "./log.ts";
@@ -20,6 +21,7 @@ import { log } from "./log.ts";
  *   GET  /me                           {deviceId, name} or 401: is this browser paired?
  *   POST /unpair                       clears the cookie and forgets the device
  *   GET  /agents/<id>/profile.png      device auth (cookie or bearer), never ?t=
+ *   POST/DELETE /uploads               a file attached to a message (mod/uploads.ts), device auth, same-site only
  *   /ws, /appserver                    the same bridge as loopback, device auth only
  *   everything else                    the built canvas as a single-page app (mod/static.ts)
  * The desktop token is refused here even when presented as a bearer.
@@ -61,6 +63,8 @@ export interface LanOptions {
   /** The loopback capability token: refused on this listener. */
   desktopToken?: string;
   profile?: (agentId: string) => string | null;
+  /** Where attached files go (mod/uploads.ts); no upload route without it. */
+  uploads?: string;
   /** Override the canvas directory; default resolveAppDist() (LOKI_APP_DIST, installed layout, app/dist). */
   appDist?: string | null;
   health?: () => object;
@@ -337,6 +341,7 @@ export class LanListener {
         }
       }
       if (profileRoute(req, res, url, this.authorize, this.opts.profile, 401)) return;
+      if (this.opts.uploads && uploadRoute(req, res, url, { authorize: this.authorize, dir: this.opts.uploads, denied: 401, guard: (r) => crossOrigin(r, this.allowedHosts()) })) return;
       // The canvas build can land after the mod started (the app installs it on launch; a developer runs
       // build:app later): look again while it is missing, so phones stop seeing the 503 without a /reload.
       if (this.dist === null && this.opts.appDist === undefined) {
@@ -388,6 +393,11 @@ export class LanListener {
 export function crossSite(req: IncomingMessage, allowedHosts: string[] = []): { status: number; error: string } | null {
   const type = String(req.headers["content-type"] ?? "").toLowerCase();
   if (!type.startsWith("application/json")) return { status: 415, error: "send application/json" };
+  return crossOrigin(req, allowedHosts);
+}
+
+/** A request from a page on another site (its Origin names another host): refused, since the cookie would ride along. */
+export function crossOrigin(req: IncomingMessage, allowedHosts: string[] = []): { status: number; error: string } | null {
   const origin = req.headers.origin;
   if (typeof origin === "string" && origin !== "null") {
     let host: string;

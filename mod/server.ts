@@ -5,9 +5,10 @@ import { log } from "./log.ts";
 import { appServerHeaders } from "./app-server.ts";
 import type { Scope } from "../core/desk-core.ts";
 import { scopeFor } from "../core/desk-core.ts";
+import { uploadRoute } from "./uploads.ts";
 
 /**
- * Transport only. HTTP exists for /health and the WebSocket upgrade; the
+ * Transport only. HTTP exists for /health, /uploads (files attached to messages) and the WebSocket upgrade; the
  * canvas itself is the loki app (or, in development, a Vite tab proxying /loki/* here).
  */
 
@@ -29,7 +30,7 @@ export const tokenAuth =
   (token: string | undefined): Authorize =>
   (_req, url) => ({ ok: !!token && url.searchParams.get("t") === token });
 
-export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize }): Promise<LokiServer> {
+export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize; uploads?: string }): Promise<LokiServer> {
   const authorize = opts.authorize ?? tokenAuth(opts.token);
   const server = createServer((req, res) => {
     try {
@@ -40,6 +41,7 @@ export async function startServer(opts: { port: number; health?: () => object; t
         return;
       }
       if (profileRoute(req, res, url, authorize, opts.profile, 403)) return;
+      if (opts.uploads && uploadRoute(req, res, url, { authorize, dir: opts.uploads, denied: 403 })) return;
       res.writeHead(404, { "content-type": "text/plain" }).end("loki: not found");
     } catch {
       res.writeHead(400).end();

@@ -1,7 +1,7 @@
-import { extractHarnessEvents, isScheduledPrompt, looksLikeQuestion, messageText, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../harness.ts";
-import type { ToolStep } from "./transcript.ts";
+import { extractHarnessEvents, isScheduledPrompt, looksLikeQuestion, messageFiles, messageText, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../harness.ts";
+import type { FileRef, ToolStep } from "./transcript.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
-import type { ImageAttachment } from "./content.ts";
+import type { Attachment } from "./content.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
 /**
@@ -64,10 +64,16 @@ export interface LiveRow {
   tool?: ToolStep;
 }
 
+/** How a sent message is known again in its echo: its text, or for files alone, their paths. */
+export function ownSendKey(text: string, files: Array<Pick<FileRef, "path">> = []): string {
+  return text.trim() || files.map((f) => f.path).join("\n");
+}
+
 /** A message typed mid-turn, waiting for the conversation to go idle. */
 export interface QueuedSend {
   text: string;
-  images: ImageAttachment[];
+  /** Images and uploaded files; they are split when it goes out. */
+  images: Attachment[];
   /** The chat's name when it was typed; its environment note is decided when it goes out. */
   desk?: string | null;
 }
@@ -370,12 +376,13 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         const events = extractHarnessEvents(raw);
         for (const ev of events) l.tail.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, at: now });
         const text = stripHarnessMarkup(raw).trim();
-        if (!text) return { changed: events.length > 0, userSpoke: false };
+        const files = messageFiles(raw);
+        if (!text && !files.length) return { changed: events.length > 0, userSpoke: false };
         l.lastAsk = isScheduledPrompt(text) ? "schedule" : "person";
         settle(l, now);
-        const own = l.ownSends.indexOf(text);
+        const own = l.ownSends.indexOf(ownSendKey(text, files));
         if (own >= 0) l.ownSends.splice(own, 1); // shown when it was sent
-        else l.tail.push({ role: "user", text, at: now });
+        else l.tail.push({ role: "user", text, at: now, ...(files.length ? { files } : {}) });
         l.lastRole = "user";
         l.lastAssistantText = null;
         return { changed: true, userSpoke: true };

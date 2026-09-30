@@ -5,7 +5,7 @@
  * the mod for the chat mirror, the browser for the Catch Up thread.
  */
 
-import type { ToolStep } from "./attention/transcript.ts";
+import type { FileRef, ToolStep } from "./attention/transcript.ts";
 
 export function stripHarnessMarkup(text: string): string {
   return text
@@ -13,6 +13,8 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
     .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the board's tasks assigned to this conversation, from the mod
+    .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads, Letta's channels): a chip, not words
+    .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
     .replace(/<channel-notification[^>]*>[\s\S]*?<\/channel-notification>/g, "")
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
@@ -101,6 +103,19 @@ export function messageText(content: unknown): string {
     .join("");
 }
 
+/** The files a message carried: its attachment tags that name a local path. */
+export function messageFiles(text: string): FileRef[] {
+  const out: FileRef[] = [];
+  for (const m of text.matchAll(/<attachment\b([^>]*?)\/?>/g)) {
+    const attrs = new Map([...m[1].matchAll(/([a-z_]+)="([^"]*)"/g)].map((a) => [a[1], decodeEntities(a[2])]));
+    const path = attrs.get("local_path");
+    if (!path) continue;
+    const size = Number(attrs.get("size_bytes"));
+    out.push({ path, name: attrs.get("name") || path.split("/").pop() || path, ...(Number.isFinite(size) ? { size } : {}), ...(attrs.get("mime_type") ? { mime: attrs.get("mime_type") } : {}) });
+  }
+  return out;
+}
+
 export interface TranscriptMessage {
   /** event: harness machinery (background task results, compaction), shown as a quiet row. */
   role: "user" | "assistant" | "tool" | "event";
@@ -110,6 +125,8 @@ export interface TranscriptMessage {
   detail?: string | null;
   /** On a tool row: the call and, once it came back, its result (attention/transcript.ts ToolStep). */
   tool?: ToolStep;
+  /** On a user row: the files it carried. */
+  files?: FileRef[];
 }
 
 /**
@@ -126,7 +143,8 @@ export function toTranscript(messages: Array<Record<string, unknown>>): Transcri
         const raw = messageText(m.content);
         for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, at });
         const text = stripHarnessMarkup(raw).trim();
-        if (text) out.push({ role: "user", text, at });
+        const files = messageFiles(raw);
+        if (text || files.length) out.push({ role: "user", text, at, ...(files.length ? { files } : {}) });
         break;
       }
       case "assistant_message": {

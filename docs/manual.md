@@ -451,12 +451,23 @@ a question card instead of a permission block: each question with its options
 sends everything back in one go. A typed reply in the message box while a
 single question is open is treated as the answer.
 
-## Images
+## Images and files
 
-Paste an image into any message box (⌘V from a screenshot, or drop a file on
-it). It shows as a thumbnail above the box, with × to remove; send attaches it
-to the message as a base64 image part. Large images are shrunk to 1600px on
-the long edge before sending.
+Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the phone.
+
+- **Images** (PNG, JPEG, GIF, WebP, HEIC) show as a thumbnail above the box, with × to remove; send puts them
+  inside the message as base64 image parts, so the agent sees them at once. Large images are shrunk to 1600px on
+  the long edge before sending.
+- **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
+  `~/.letta/loki/uploads/<yyyy-mm-dd>/` under its own name (a number is added when the name is taken). A chip shows
+  its name and the upload's progress; send waits until it is there. × before sending deletes it again. The message
+  carries only where it is, in the attachment tag Letta's own Slack and Telegram channels use
+  (`<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`); the agent reads it with its own tools.
+  The chat hides the tag and shows the file as a chip on your message; in the desktop app a click shows it in its
+  folder. 25 MB per file.
+- Text, code, CSV, JSON and Markdown the agent reads directly; a PDF, Word or Excel file needs a command-line tool on
+  the Mac (`pdftotext` from `brew install poppler`, or Python), which the agent runs itself.
+- Uploads stay until you delete them; archiving or deleting a chat leaves them.
 
 ## Dictation
 

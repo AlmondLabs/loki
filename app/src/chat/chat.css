@@ -112,6 +112,17 @@
 .loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
 .loki-field.loki-composer-text { min-height: 0; padding: 4px 6px; border: none; background: transparent; line-height: 20px; }
 .loki-composer-images { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 4px 0; }
+/* A file on a message (ChatInput's chips before sending, Transcript's on the sent bubble): icon, name, size. */
+.loki-file-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; min-height: 32px; padding: 4px 8px 4px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font: inherit; font-size: 13.5px; line-height: 1.3; text-align: left; }
+button.loki-file-chip { cursor: pointer; }
+button.loki-file-chip:hover { border-color: var(--loki-muted); }
+.loki-file-chip[data-failed] { border-color: var(--loki-negative); }
+.loki-file-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.loki-file-chip-size { flex: none; color: var(--loki-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.loki-file-chip-remove { flex: none; width: 20px; height: 20px; margin-left: 2px; padding: 0; border: 0; border-radius: var(--loki-radius-pill); background: transparent; color: var(--loki-muted); font-size: 15px; line-height: 20px; cursor: pointer; }
+.loki-file-chip-remove:hover { background: var(--loki-border); color: var(--loki-fg); }
+.loki-file-error { display: block; padding: 4px 6px 0; }
+.loki-bubble-files { display: flex; gap: 6px; flex-wrap: wrap; }
 .loki-composer-bar { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .loki-composer-end { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
 .loki-btn.loki-composer-round { position: relative; flex: none; border-radius: var(--loki-radius-pill); }

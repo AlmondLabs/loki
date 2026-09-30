@@ -17,6 +17,14 @@ export interface ToolStep {
   failed?: boolean;
 }
 
+/** A file a message carried (its attachment tag), shown as a chip on the bubble. */
+export interface FileRef {
+  path: string;
+  name: string;
+  size?: number;
+  mime?: string;
+}
+
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";
   text: string;
@@ -24,6 +32,8 @@ export interface TranscriptRow {
   tool?: ToolStep;
   summary?: string | null;
   detail?: string | null;
+  /** Files a user message carried (Letta attachment tags), from the live send and from history alike. */
+  files?: FileRef[];
   /** Data URLs of images sent with a user message (live rows only; history shows a marker). */
   images?: string[];
   /** A user message typed mid-turn that has not gone out yet. */
@@ -37,9 +47,10 @@ export interface TranscriptRow {
 }
 
 /** A harness history message as a row: its time kept when it has one, left off when it has none. */
-export function fromHistory(m: { role: TranscriptRow["role"]; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }): TranscriptRow {
+export function fromHistory(m: { role: TranscriptRow["role"]; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep; files?: FileRef[] }): TranscriptRow {
   const row: TranscriptRow = { role: m.role, text: m.text };
   if (m.tool) row.tool = m.tool;
+  if (m.files?.length) row.files = m.files;
   if (m.summary !== undefined) row.summary = m.summary;
   if (m.detail !== undefined) row.detail = m.detail;
   if (m.at) row.at = m.at;

@@ -4,8 +4,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
-import { extractHarnessEvents, isScheduledPrompt, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../core/harness.ts";
-import type { ToolStep } from "../core/attention/transcript.ts";
+import { extractHarnessEvents, isScheduledPrompt, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../core/harness.ts";
+import type { FileRef, ToolStep } from "../core/attention/transcript.ts";
 import type { AskedBy } from "../core/attention/priority.ts";
 import type { Runtime } from "./app-server.ts";
 import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
@@ -210,6 +210,8 @@ export interface LocalTranscriptMessage {
   at?: string;
   /** On a tool row, for the thread's steps: the call's input and, from its toolResult line, what came back. */
   tool?: ToolStep;
+  /** On a user row: the files it carried (attachment tags). */
+  files?: FileRef[];
 }
 
 /**
@@ -302,7 +304,8 @@ function transcriptRows(line: string, steps = false): LocalTranscriptMessage[] {
     for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...at });
   }
   const text = (role === "user" ? stripHarnessMarkup(raw) : raw).trim();
-  if (text) out.push({ role, text, ...at });
+  const files = role === "user" ? messageFiles(raw) : [];
+  if (text || files.length) out.push({ role, text, ...at, ...(files.length ? { files } : {}) });
   if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t.label, ...at, ...(steps ? { tool: t.step } : {}) });
   return out;
 }

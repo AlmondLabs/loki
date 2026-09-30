@@ -339,6 +339,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       port: modPort,
       token,
       profile: (agentId) => profilePath(agentId),
+      uploads: paths.uploads,
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
     }).then((s) => {
       ws = attachWs(s.server, token, bridge);
@@ -374,6 +375,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     handlers: bridge,
     desktopToken: token,
     profile: (agentId) => profilePath(agentId),
+    uploads: paths.uploads,
     health: () => ({ phones: lan?.clientCount() ?? 0 }),
     onChange: (what, status) => {
       if (what === "status") {

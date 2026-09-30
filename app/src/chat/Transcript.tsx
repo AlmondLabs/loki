@@ -2,7 +2,9 @@ import { Fragment, createContext, memo, useContext, useEffect, useRef, useState,
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
+import { inTauri } from "../desk/env";
+import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
@@ -469,6 +471,28 @@ function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean
   );
 }
 
+/** A file the message carried: its name and size; in the desktop app a click shows it in its folder. */
+function FileChip({ file }: { file: FileRef }) {
+  const body = (
+    <>
+      <Icon name="file" size={16} />
+      <span className="loki-file-chip-name">{file.name}</span>
+      {file.size !== undefined && <span className="loki-file-chip-size">{fileSize(file.size)}</span>}
+    </>
+  );
+  if (!inTauri) return <span className="loki-file-chip" title={file.path}>{body}</span>;
+  return (
+    <button
+      type="button"
+      className="loki-file-chip"
+      title={`Show ${file.path} in its folder`}
+      onClick={() => void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) => revealItemInDir(file.path)).catch((err) => console.warn("loki: reveal file", err))}
+    >
+      {body}
+    </button>
+  );
+}
+
 function UserBody({ row: m }: { row: TranscriptRow }) {
   return (
     <>
@@ -476,6 +500,13 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 8 : 0 }}>
           {m.images.map((src, k) => (
             <img key={k} src={src} alt="" style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
+          ))}
+        </div>
+      )}
+      {m.files && m.files.length > 0 && (
+        <div className="loki-bubble-files" style={{ marginBottom: m.text ? 8 : 0 }}>
+          {m.files.map((f) => (
+            <FileChip key={f.path} file={f} />
           ))}
         </div>
       )}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf } from "../../../core/attention/queue.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -302,7 +302,7 @@ function currentOffset(el: Element): number {
 
 /** What the card's conversation can do: reply (text, images), answer the open question, take back a queued message. */
 export interface CardActions {
-  onSend: (item: AttentionItem, text: string, images: ImageAttachment[]) => void;
+  onSend: (item: AttentionItem, text: string, images: Attachment[]) => void;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onCancelQueued: (item: AttentionItem, text: string) => void;
   /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */

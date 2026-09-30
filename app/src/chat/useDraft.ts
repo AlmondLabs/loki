@@ -1,10 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { PendingQuestion } from "../../../core/attention/model.ts";
 import { parseSlash, type SlashCommand } from "../../../core/attention/commands.ts";
 
 /** What is in the box: the text and the images pasted, dropped or picked in. */
-export type DraftValue = { text: string; images: ImageAttachment[] };
+export type DraftValue = { text: string; images: Attachment[] };
 
 /**
  * A draft the host keeps (the phone's per-conversation store, shared by an Inbox card and the desk page),
@@ -19,7 +19,7 @@ export interface ControlledDraft {
 type SubmitContext = {
   question: PendingQuestion | null;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
-  onSend: (text: string, images?: ImageAttachment[]) => void;
+  onSend: (text: string, images?: Attachment[]) => void;
   commands?: SlashCommand[];
   onCommand?: (id: string, args: string) => void;
   onSent?: () => void;
@@ -62,7 +62,7 @@ export function draftWriter(latest: { current: DraftValue }, onChange: (next: Dr
   };
   return {
     setText: (text: string) => put({ text }),
-    setImages: (images: ImageAttachment[]) => put({ images }),
+    setImages: (images: Attachment[]) => put({ images }),
     clear: () => put({ text: "", images: [] }),
   };
 }
@@ -86,7 +86,7 @@ export function useDraft({
   controlled?: ControlledDraft;
 }) {
   const [ownDraft, setOwnDraft] = useState("");
-  const [ownImages, setOwnImages] = useState<ImageAttachment[]>([]);
+  const [ownImages, setOwnImages] = useState<Attachment[]>([]);
   // The latest host draft, for writes that land after the render that made them (see draftWriter).
   const latest = useRef<DraftValue>(controlled?.value ?? { text: "", images: [] });
   useLayoutEffect(() => {
@@ -98,7 +98,7 @@ export function useDraft({
   const images = controlled ? controlled.value.images : ownImages;
   // The host's writer is made when a write happens, not during render: it reads the ref.
   const setDraft = (text: string) => (onChange ? draftWriter(latest, onChange).setText(text) : setOwnDraft(text));
-  const setImages = (next: ImageAttachment[]) => (onChange ? draftWriter(latest, onChange).setImages(next) : setOwnImages(next));
+  const setImages = (next: Attachment[]) => (onChange ? draftWriter(latest, onChange).setImages(next) : setOwnImages(next));
   const submit = () => {
     submitDraft({ text: draft, images }, { question, onAnswer, onSend, commands, onCommand, onSent }, () => {
       if (onChange) draftWriter(latest, onChange).clear();

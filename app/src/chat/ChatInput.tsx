@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { dictateTitle, useDictation } from "./useDictation";
-import { imageBlobs, imageFromBlob } from "./attachments";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import { discardUpload, droppedFiles, fileSize, imageFromBlob, isInlineImage, uploadFile } from "./attachments";
+import { isFileAttachment, type Attachment, type ImageAttachment } from "../../../core/attention/content.ts";
 import { Dot, IconButton, TextArea } from "../components";
 import { Icon } from "../shared/icons";
 import { cmdHeld } from "../shell/keymap";
@@ -27,9 +27,12 @@ export const ChatInput = forwardRef<
     onEscape?: () => void;
     onFocus?: () => void;
     onBlur?: () => void;
-    /** Images attached to the draft; the host sends them with the text. Without onImages there is no "+". */
-    images?: ImageAttachment[];
-    onImages?: (images: ImageAttachment[]) => void;
+    /**
+     * Images and files attached to the draft; the host sends them with the text. Images ride inside the message;
+     * any other file is uploaded to the Mac as soon as it is added and goes as its path. Without onImages there is no "+".
+     */
+    images?: Attachment[];
+    onImages?: (images: Attachment[]) => void;
     placeholder?: string;
     disabled?: boolean;
     /** The phone's sizes: 36 in the row (each with a 44 target), 15px text. */
@@ -50,11 +53,40 @@ export const ChatInput = forwardRef<
     "aria-expanded"?: boolean;
   }
 >(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, touch = false, tools, canSend, sendLabel, sendTitle, onStop, stopping = false, ...aria }, ref) {
-  const addBlobs = async (blobs: Blob[]) => {
-    if (!onImages || !blobs.length) return;
-    const added = await Promise.all(blobs.map((b) => imageFromBlob(b).catch(() => null)));
-    onImages([...images, ...added.filter((a): a is ImageAttachment => !!a)]);
+  // The latest list, for uploads that finish after the draft moved on.
+  const imagesRef = useRef(images);
+  useLayoutEffect(() => {
+    imagesRef.current = images;
+  }, [images]);
+  const uploadCount = useRef(0);
+  /** Files still on their way to the Mac, with how far along; a failed one stays with its reason until removed. */
+  const [uploads, setUploads] = useState<Array<{ id: string; name: string; share: number; error?: string }>>([]);
+  const upload = (file: File) => {
+    const id = `up-${++uploadCount.current}`;
+    setUploads((u) => [...u, { id, name: file.name || "file", share: 0 }]);
+    uploadFile(file, (share) => setUploads((u) => u.map((x) => (x.id === id ? { ...x, share } : x))))
+      .then((done) => {
+        setUploads((u) => u.filter((x) => x.id !== id));
+        onImages?.([...imagesRef.current, done]);
+      })
+      .catch((err: unknown) => setUploads((u) => u.map((x) => (x.id === id ? { ...x, error: err instanceof Error ? err.message : String(err) } : x))));
   };
+  const addFiles = async (picked: { images: Blob[]; files: File[] }) => {
+    if (!onImages) return;
+    for (const f of picked.files) upload(f);
+    if (!picked.images.length) return;
+    const added = await Promise.all(picked.images.map((b) => imageFromBlob(b).catch(() => null)));
+    // An image this browser cannot draw (HEIC outside Safari) still goes, as a file.
+    picked.images.forEach((b, i) => {
+      if (!added[i] && b instanceof File) upload(b);
+    });
+    onImages([...imagesRef.current, ...added.filter((a): a is ImageAttachment => !!a)]);
+  };
+  const remove = (a: Attachment) => {
+    onImages?.(imagesRef.current.filter((i) => i.id !== a.id));
+    if (isFileAttachment(a)) discardUpload(a.path);
+  };
+  const uploading = uploads.some((u) => !u.error);
   const inner = useRef<HTMLTextAreaElement | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
   const setRef = (el: HTMLTextAreaElement | null) => {
@@ -97,6 +129,7 @@ export const ChatInput = forwardRef<
   };
   /** Enter or the send button: a dictation still running ends here, and what it still emits is dropped. */
   const send = () => {
+    if (uploading) return; // the file would be left behind: send waits for it (the button says so)
     if (dictation.listening || dictation.pending) {
       discarding.current = true; // whatever the recogniser still emits belongs to the sent message
       base.current = "";
@@ -136,22 +169,50 @@ export const ChatInput = forwardRef<
   const listening = dictation.listening;
   return (
     <div className="loki-composer-box" data-listening={listening || undefined}>
-      {images.length > 0 && (
+      {(images.length > 0 || uploads.length > 0) && (
         <div data-attachments className="loki-composer-images">
-          {images.map((img) => (
-            <span key={img.id} style={{ position: "relative", display: "inline-block" }}>
-              <img src={img.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
-              <button
-                type="button"
-                onClick={() => onImages?.(images.filter((i) => i.id !== img.id))}
-                aria-label="Remove image"
-                style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-fg)", fontSize: 10.5, lineHeight: "16px", cursor: "pointer", padding: 0 }}
-              >
-                ×
-              </button>
+          {images.map((a) =>
+            isFileAttachment(a) ? (
+              <span key={a.id} className="loki-file-chip" title={a.path}>
+                <Icon name="file" size={16} />
+                <span className="loki-file-chip-name">{a.name}</span>
+                <span className="loki-file-chip-size">{fileSize(a.size)}</span>
+                <button type="button" className="loki-file-chip-remove" onClick={() => remove(a)} aria-label={`Remove ${a.name}`}>
+                  ×
+                </button>
+              </span>
+            ) : (
+              <span key={a.id} style={{ position: "relative", display: "inline-block" }}>
+                <img src={a.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
+                <button
+                  type="button"
+                  onClick={() => remove(a)}
+                  aria-label="Remove image"
+                  style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-fg)", fontSize: 10.5, lineHeight: "16px", cursor: "pointer", padding: 0 }}
+                >
+                  ×
+                </button>
+              </span>
+            ),
+          )}
+          {uploads.map((u) => (
+            <span key={u.id} className="loki-file-chip" data-failed={u.error ? true : undefined} title={u.error}>
+              <Icon name="file" size={16} />
+              <span className="loki-file-chip-name">{u.name}</span>
+              <span className="loki-file-chip-size">{u.error ? "failed" : `${Math.round(u.share * 100)}%`}</span>
+              {u.error && (
+                <button type="button" className="loki-file-chip-remove" onClick={() => setUploads((x) => x.filter((y) => y.id !== u.id))} aria-label={`Remove ${u.name}`}>
+                  ×
+                </button>
+              )}
             </span>
           ))}
         </div>
+      )}
+      {uploads.find((u) => u.error) && (
+        <span role="status" className="loki-meta loki-meta--negative loki-file-error">
+          {uploads.find((u) => u.error)!.name}: {uploads.find((u) => u.error)!.error}
+        </span>
       )}
       <TextArea
         ref={setRef}
@@ -177,20 +238,20 @@ export const ChatInput = forwardRef<
         onFocus={onFocus}
         onBlur={onBlur}
         onPaste={(e) => {
-          const blobs = imageBlobs(e.clipboardData);
-          if (blobs.length) {
-            e.preventDefault(); // the image, not its file name
-            void addBlobs(blobs);
+          const picked = droppedFiles(e.clipboardData);
+          if (onImages && (picked.images.length || picked.files.length)) {
+            e.preventDefault(); // the file, not its name
+            void addFiles(picked);
           }
         }}
         onDragOver={(e) => {
-          if (onImages && imageBlobs(e.dataTransfer).length) e.preventDefault();
+          if (onImages && Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
         }}
         onDrop={(e) => {
-          const blobs = imageBlobs(e.dataTransfer);
-          if (blobs.length) {
+          const picked = droppedFiles(e.dataTransfer);
+          if (onImages && (picked.images.length || picked.files.length)) {
             e.preventDefault();
-            void addBlobs(blobs);
+            void addFiles(picked);
           }
         }}
         {...aria}
@@ -214,8 +275,8 @@ export const ChatInput = forwardRef<
         attach={onImages ? { onClick: () => picker.current?.click() } : null}
         tools={tools}
         dictation={dictation.supported ? { listening, pending: dictation.pending, title: listening ? "stop dictating" : dictateTitle(), onToggle: startDictation } : null}
-        canSend={canSend}
-        sendLabel={sendLabel}
+        canSend={canSend && !uploading}
+        sendLabel={uploading ? "Uploading…" : sendLabel}
         sendTitle={sendTitle}
         onSend={send}
         stop={onStop && !canSend ? { onStop, stopping } : null}
@@ -225,13 +286,12 @@ export const ChatInput = forwardRef<
         <input
           ref={picker}
           type="file"
-          accept="image/*"
           multiple
           hidden
           onChange={(e) => {
-            const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/"));
-            e.target.value = ""; // the same photo can be picked again
-            void addBlobs(files);
+            const all = Array.from(e.target.files ?? []);
+            e.target.value = ""; // the same file can be picked again
+            void addFiles({ images: all.filter(isInlineImage), files: all.filter((f) => !isInlineImage(f)) });
           }}
         />
       )}
@@ -279,7 +339,7 @@ export function ComposerBar({
   return (
     <div className="loki-composer-bar">
       {attach && (
-        <IconButton size={size} hairline label="Attach images" onClick={attach.onClick} disabled={disabled} className="loki-composer-round loki-composer-attach">
+        <IconButton size={size} hairline label="Attach files" onClick={attach.onClick} disabled={disabled} className="loki-composer-round loki-composer-attach">
           <Icon name="plus" size={glyph} />
         </IconButton>
       )}
