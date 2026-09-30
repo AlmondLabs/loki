@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>so.loki.listen</string>
+  <key>CFBundleName</key>
+  <string>loki listen</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>loki listen transcribes your side of a call on this Mac.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>loki listen transcribes the other side of a call (Meet in Chrome, Slack huddles) on this Mac.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>loki listen turns the call into text on this Mac.</string>
+</dict>
+</plist>

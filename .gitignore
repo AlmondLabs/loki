@@ -13,3 +13,6 @@ src-tauri/resources/
 .continue/
 .qwen/
 package-lock.json
+
+# the call recorder's SwiftPM build
+native/listen/.build/
