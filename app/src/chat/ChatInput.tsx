@@ -87,6 +87,7 @@ export const ChatInput = forwardRef<
     if (isFileAttachment(a)) discardUpload(a.path);
   };
   const uploading = uploads.some((u) => !u.error);
+  const failedUpload = uploads.find((u) => u.error);
   const inner = useRef<HTMLTextAreaElement | null>(null);
   const picker = useRef<HTMLInputElement | null>(null);
   const setRef = (el: HTMLTextAreaElement | null) => {
@@ -209,9 +210,9 @@ export const ChatInput = forwardRef<
           ))}
         </div>
       )}
-      {uploads.find((u) => u.error) && (
+      {failedUpload && (
         <span role="status" className="loki-meta loki-meta--negative loki-file-error">
-          {uploads.find((u) => u.error)!.name}: {uploads.find((u) => u.error)!.error}
+          {failedUpload.name}: {failedUpload.error}
         </span>
       )}
       <TextArea
