@@ -93,8 +93,10 @@ shadow. The chip row, the switch's knob and the catch-up bar move by transform; 
 Tool calls read the way Claude's apps show them (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a run
 of consecutive calls is one quiet line in the thread ("Ran 3 commands", "Ran a command, used 9 tools (1 failed)",
 "Running" breathing while the last one waits). On the phone it opens a bottom sheet of the steps on a thin timeline,
-each a verb and what it was done to, and a step opens its command and output in the same sheet; on the desktop the
-steps unfold in place. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
+each a verb and what it was done to, and a step opens its description, command and output in the same sheet; on the
+desktop the steps unfold in place. When the agent said what a command is for (Bash's `description`), that is the
+step's line ("Ran · Find hard-coded names in tests"), and a run of one such command reads "Ran Find hard-coded names
+in tests". Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
 from the live stream, Letta's history and the local log alike.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`

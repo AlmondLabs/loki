@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TOOL_TEXT_MAX, toTranscript, toolInput, toolOutput } from "../core/harness.ts";
+import { TOOL_TEXT_MAX, toTranscript, toolInput, toolOutput, toolStep } from "../core/harness.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
 import { stepTarget, stepVerb, stepsSummary, toolRuns } from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
@@ -23,6 +23,25 @@ describe("the line for a run of tools", () => {
     expect(stepVerb("mcp_thing")).toBe("Used mcp_thing");
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
+  });
+
+  test("a described command reads by its description; the command stays the step's input", () => {
+    const step = toolStep("Bash", { command: "cd backend && grep -n x tests/*.py", description: "Find hard-coded names in tests" });
+    expect(step).toMatchObject({ input: "cd backend && grep -n x tests/*.py", description: "Find hard-coded names in tests" });
+    const row: TranscriptRow = { role: "tool", text: "Bash · cd backend && grep -n x tests/*.py", tool: step };
+    expect(stepTarget(row)).toBe("Find hard-coded names in tests");
+    expect(stepsSummary([row])).toBe("Ran Find hard-coded names in tests");
+    expect(stepsSummary([{ ...row, tool: { ...step, failed: true } }])).toBe("Ran Find hard-coded names in tests (failed)");
+    expect(stepsSummary([row, row])).toBe("Ran 2 commands");
+    expect(stepsSummary([row], true)).toBe("Running");
+  });
+
+  test("no description, or only a description so far: no second copy of it", () => {
+    expect(toolStep("Bash", { command: "ls" }).description).toBeUndefined();
+    const early = toolStep("Bash", { description: "List files" }); // the command has not streamed in yet
+    expect(early.input).toBe("List files");
+    expect(early.description).toBeUndefined();
+    expect(toolStep("Bash", { command: "ls", description: "  two\nlines " }).description).toBe("two");
   });
 
   test("consecutive tool rows are one run; a message or a break ends it", () => {

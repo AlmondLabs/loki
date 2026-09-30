@@ -5,7 +5,9 @@ import type { IconName } from "./icons";
  * A run of tool calls read as one quiet line in the thread, the way Claude's apps show them: "Ran 3 commands",
  * "Ran a command, used 9 tools (1 failed)", or "Running" while the last one has not come back. Opened, each
  * step is a verb and what it was done to ("Ran · ls -la", "Read · app/src/…"), and opened again, its input and
- * output. Pure, shared by the phone's sheet and the desktop's inline list (chat/ToolSteps.tsx).
+ * output. When the agent said what a call is for (Bash's description), that is the step's line instead
+ * ("Ran · Find hard-coded names in tests"), and a lone command's run reads by it. Pure, shared by the phone's
+ * sheet and the desktop's inline list (chat/ToolSteps.tsx).
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */
@@ -59,8 +61,9 @@ export function stepIcon(name: string): IconName {
 /** A tool row's name: its step's, or (rows from before steps were kept) the label's head. */
 export const stepName = (row: TranscriptRow): string => row.tool?.name ?? row.text.split(" · ")[0].trim();
 
-/** The step's second line: what it was done to (the label's tail), or nothing to add. */
+/** The step's second line: what the agent said it is for, else what it was done to (the label's tail), or nothing. */
 export function stepTarget(row: TranscriptRow): string | null {
+  if (row.tool?.description) return row.tool.description;
   const i = row.text.indexOf(" · ");
   return i >= 0 ? row.text.slice(i + 3).trim() || null : null;
 }
@@ -71,6 +74,9 @@ export function stepTarget(row: TranscriptRow): string | null {
  */
 export function stepsSummary(rows: TranscriptRow[], running = false): string {
   if (running) return "Running";
+  // One command the agent described reads by it, the way Claude's apps show it.
+  const only = rows.length === 1 ? rows[0] : null;
+  if (only?.tool?.description && SHELL.has(stepName(only))) return `Ran ${only.tool.description}${only.tool.failed ? " (failed)" : ""}`;
   const commands = rows.filter((r) => SHELL.has(stepName(r))).length;
   const tools = rows.length - commands;
   const failed = rows.filter((r) => r.tool?.failed).length;

@@ -66,6 +66,7 @@
 .loki-steps-detail { display: grid; gap: 8px; margin: 4px 0 8px 24px; }
 .loki-steps-heading { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--loki-muted); }
 .loki-steps-code { margin: 0; padding: 8px 10px; max-height: 240px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font-family: var(--loki-mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-steps-desc { margin: 0; padding: 8px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); line-height: 1.45; overflow-wrap: anywhere; }
 .loki-steps-code[data-failed] { border-color: var(--loki-negative); }
 .loki-steps-none { margin: 0; color: var(--loki-muted); }
 .loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }

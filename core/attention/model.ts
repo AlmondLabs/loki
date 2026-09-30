@@ -445,7 +445,7 @@ function updateToolInput(l: Live, id: string, name: string, args: unknown): bool
   const row = l.tail[at];
   const step = toolStep(name, args, id);
   const text = toolLabel(name, args);
-  if (step.input === row.tool?.input && text === row.text) return false;
+  if (step.input === row.tool?.input && step.description === row.tool?.description && text === row.text) return false;
   l.tail[at] = { ...row, text, tool: { ...row.tool, ...step } };
   return true;
 }

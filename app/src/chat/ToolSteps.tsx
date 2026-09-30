@@ -52,9 +52,15 @@ function StepText({ row }: { row: TranscriptRow }) {
 function StepDetail({ row }: { row: TranscriptRow }) {
   const t = row.tool;
   const shell = stepIcon(stepName(row)) === "terminal";
-  if (!t?.input && !t?.output) return <p className="loki-steps-none">No input or output was recorded for this step.</p>;
+  if (!t?.input && !t?.output && !t?.description) return <p className="loki-steps-none">No input or output was recorded for this step.</p>;
   return (
     <div className="loki-steps-detail">
+      {t.description && (
+        <section>
+          <h3 className="loki-steps-heading">Description</h3>
+          <p className="loki-steps-desc">{t.description}</p>
+        </section>
+      )}
       {t.input && (
         <section>
           <h3 className="loki-steps-heading">{shell ? "Command" : "Input"}</h3>

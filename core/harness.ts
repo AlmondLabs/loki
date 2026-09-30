@@ -217,12 +217,17 @@ export function toolOutput(raw: unknown): string | undefined {
   return text ? cap(text) : undefined;
 }
 
-/** A call as a step: its name, its id, and its input when it has one. */
+/** The longest description a step keeps: it is one line of the thread, not an essay. */
+const DESCRIPTION_MAX = 200;
+
+/** A call as a step: its name, its id, its input when it has one, and what it is for when the agent said. */
 export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
   const step: ToolStep = { name };
   if (id) step.id = id;
   const given = toolInput(name, input);
   if (given !== undefined) step.input = given;
+  const said = argsOf(input)?.description;
+  if (typeof said === "string" && said.trim() && said.trim() !== given) step.description = said.trim().split("\n")[0].slice(0, DESCRIPTION_MAX);
   return step;
 }
 

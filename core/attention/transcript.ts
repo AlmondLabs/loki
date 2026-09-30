@@ -11,6 +11,8 @@ export interface ToolStep {
   name: string;
   id?: string;
   input?: string;
+  /** What the agent said the call is for (Bash's `description`), shown as the step's line when it gave one. */
+  description?: string;
   output?: string;
   failed?: boolean;
 }
