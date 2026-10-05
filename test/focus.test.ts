@@ -2,8 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FOCUS_CUSHION, FOCUS_OPEN_GAP_MS, addFocus, decayed, focusShares, pruneFocus, type FocusEntry } from "../core/attention/focus.ts";
+import { FOCUS_CUSHION, FOCUS_OPEN_GAP_MS, SKIP_FACTOR, addFocus, decayed, focusShares, pruneFocus, type FocusEntry } from "../core/attention/focus.ts";
 import { SeenStore } from "../mod/seen.ts";
+import { skipsFocus } from "../core/attention/useAttention.ts";
 
 /** Focus (core/attention/focus.ts): each chat's share of what you have been doing lately, fading by half every 12 hours. */
 
@@ -62,6 +63,40 @@ describe("focus weights", () => {
   test("prune drops chats faded to nothing", () => {
     const kept = pruneFocus({ old: run([[0, "message"]]), fresh: run([[24 * 14, "message"]]) }, T0 + 24 * 14 * H);
     expect(Object.keys(kept)).toEqual(["fresh"]);
+  });
+});
+
+describe("a skip", () => {
+  test("Next on a focus card halves its chat's weight, from where it had faded to; nothing to halve, nothing written", () => {
+    const t0 = Date.parse("2026-09-29T06:00:00Z");
+    const worked: FocusEntry = { w: 3, t: new Date(t0).toISOString() };
+    const later = t0 + 12 * 3_600_000; // one half-life: 1.5 left
+    const skipped = addFocus(worked, "skip", later)!;
+    expect(skipped.w).toBeCloseTo(1.5 * SKIP_FACTOR);
+    expect(skipped.t).toBe(new Date(later).toISOString());
+    expect(addFocus(undefined, "skip", later)).toBeNull();
+  });
+  test("on 29 September's chat (focus 0.34, nothing new), two skips take it from the top", () => {
+    // One chat with most of the weight, another you were also in: shares as in the morning's Inbox.
+    const now = Date.parse("2026-09-29T08:37:00Z");
+    let top: FocusEntry = { w: 2.2, t: new Date(now).toISOString() };
+    const other: FocusEntry = { w: 1.0, t: new Date(now).toISOString() };
+    const share = () => focusShares({ top, other }, now).top;
+    expect(share()).toBeCloseTo(2.2 / (3.2 + FOCUS_CUSHION));
+    top = addFocus(top, "skip", now)!;
+    top = addFocus(top, "skip", now)!;
+    expect(share()).toBeLessThan(focusShares({ top, other }, now).other);
+  });
+});
+
+describe("which Next is a skip", () => {
+  test("only a Next on a focus card, and not straight after acting on it", () => {
+    expect(skipsFocus(null, "a", "next", "focus")).toBe(true);
+    expect(skipsFocus({ id: "b", action: "reply" }, "a", "next", "focus")).toBe(true);
+    expect(skipsFocus({ id: "a", action: "next" }, "a", "next", "focus")).toBe(true); // came round again and skipped again
+    expect(skipsFocus({ id: "a", action: "reply" }, "a", "next", "focus")).toBe(false); // moving on after replying
+    expect(skipsFocus(null, "a", "next", "new")).toBe(false);
+    expect(skipsFocus(null, "a", "archive", "focus")).toBe(false);
   });
 });
 

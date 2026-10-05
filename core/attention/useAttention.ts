@@ -23,6 +23,15 @@ import { scopeFor } from "../desk-core.ts";
  */
 /** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
 export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open";
+
+/**
+ * Whether a decision halves the chat's focus: a Next on a card that was on top for its focus, unless it comes
+ * straight after acting on that same card (moving on: your reply is what gave it the focus).
+ */
+export function skipsFocus(prev: { id: string; action: CardAction } | null, id: string, action: CardAction, reason: string): boolean {
+  if (action !== "next" || reason !== "focus") return false;
+  return !(prev?.id === id && prev.action !== "next");
+}
 /** How a card was acted on: a key or a click on the Mac, a swipe or a tap on the phone. */
 export type CardVia = "key" | "click" | "swipe" | "tap";
 /** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
@@ -317,9 +326,16 @@ export function useAttention(opts: UseAttentionOptions) {
     shownAt.current.set(idOf(item), clock.now());
     optsRef.current.capture?.("inbox_card_shown", cardProps(item));
   }, [clock]);
+  /** The last decision, so a Next straight after acting on the same card reads as moving on (analytics.ts does the same). */
+  const lastDecision = useRef<{ id: string; action: CardAction } | null>(null);
   const decided = useCallback((item: AttentionItem, action: CardAction, via?: CardVia) => {
     const since = shownAt.current.get(idOf(item));
-    optsRef.current.capture?.("inbox_card_decided", { action, ...(via ? { via } : {}), ...cardProps(item), dwell_ms: since === undefined ? null : Math.round(clock.now() - since) });
+    const props = cardProps(item);
+    optsRef.current.capture?.("inbox_card_decided", { action, ...(via ? { via } : {}), ...props, dwell_ms: since === undefined ? null : Math.round(clock.now() - since) });
+    // Next on a card that was on top for its focus: not what you are on now, so its focus halves (focus.ts SKIP_FACTOR).
+    // Not after you just acted on it: that is moving on, and your reply is what gave it the focus.
+    if (skipsFocus(lastDecision.current, idOf(item), action, props.reason)) optsRef.current.engage?.(item.agentId, item.id, "skip");
+    lastDecision.current = { id: idOf(item), action };
   }, [clock]);
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {

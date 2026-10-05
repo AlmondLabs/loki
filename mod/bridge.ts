@@ -33,7 +33,7 @@ import { isLanVia } from "./lan.ts";
  *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, focus, appServer }
  *      (a mark that moves nothing is not broadcast)
  *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
- *    focus_add { agentId, conversationId, action: "answer" | "decide" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
+ *    focus_add { agentId, conversationId, action: "answer" | "decide" | "skip" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
  *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
                                             (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
@@ -342,7 +342,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           return;
         case "focus_add":
           // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
-          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide")) {
+          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide" || msg.action === "skip")) {
             if (seen?.engage?.(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId, msg.action)) broadcast(seenFrame());
           }
           return;

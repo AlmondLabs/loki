@@ -570,7 +570,9 @@ something new.
 opening and reading the chat ¼ (at most once every half hour) — and that halves every 12 hours. A chat's
 focus is its weight over everyone's weight plus 2. Work a task hard and its chat rises; start another task and
 the old one gives up its share as soon as you engage elsewhere, then fades in a day or two, with nothing to
-park. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
+park. **Next** on a card that is there for its focus (it says `in focus`) halves that chat's weight: you have said
+it is not what you are on now, so it gives way after a skip or two. A Next straight after replying on the same
+card is moving on, not a skip, and leaves it alone. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
 scheduled prompts never add focus, so a busy cron cannot talk its way up. The Mac's loki process keeps the
 weights (`focus` in `state/attention.json`), so the Mac and the phone rank alike.
 
