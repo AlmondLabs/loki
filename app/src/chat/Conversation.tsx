@@ -22,6 +22,7 @@ import { useModelAndMode } from "./useModelAndMode";
 import { useSlashPalette } from "./useSlashPalette";
 import { useTranscriptScroll } from "./useTranscriptScroll";
 import { StepsTouch } from "./ToolSteps";
+import { readTurnError, retryMessage } from "./turnError";
 
 export type ChatStatus = "idle" | "thinking" | "streaming";
 
@@ -209,7 +210,7 @@ export function Conversation({
       )}
       {/* On the phone a run of tools opens as a bottom sheet; on the desktop it unfolds in place (ToolSteps.tsx). */}
       <StepsTouch.Provider value={touch}>
-        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
+        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} onRetry={(text) => actions.onSend(text)} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
       </StepsTouch.Provider>
 
       {composer && (
@@ -313,12 +314,34 @@ export interface ThreadHandle {
   reveal: (query: string) => void;
 }
 
+/** A failed turn: one readable sentence, the harness's own words behind a disclosure, and a way to try again. */
+function ThreadError({ error, rows, onRetry }: { error: string; rows: TranscriptRow[]; onRetry?: (text: string) => void }) {
+  const e = readTurnError(error);
+  const retry = onRetry ? retryMessage(rows) : null;
+  return (
+    <div className="loki-thread-error" role="alert">
+      <span>{e.text}</span>
+      {retry && (
+        <Button size="sm" onClick={() => onRetry?.(retry.text)}>
+          {retry.label}
+        </Button>
+      )}
+      {e.raw && (
+        <details className="loki-thread-error-raw">
+          <summary>details</summary>
+          <pre>{e.raw}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 /**
  * What scrolls: a note while the thread loads or when it is empty, the rows, then the thinking marker or
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, layout, style }, ref) {
+export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; onRetry?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
@@ -350,7 +373,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
             </span>
           </div>
         )}
-        {error && <div className="loki-thread-error">{error}</div>}
+        {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} />}
       </div>
       {unpinned && (
         <Chip float onClick={jumpToLatest} aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"} className="loki-latest-chip" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>

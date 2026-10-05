@@ -171,7 +171,10 @@ button.loki-file-chip:hover { border-color: var(--loki-muted); }
 .loki-approval-kicker { color: var(--loki-accent); margin-bottom: 8px; }
 .loki-question-kicker { color: var(--loki-accent); font-size: 12px; font-weight: 700; }
 .loki-question-text { font-family: var(--loki-font); font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
-.loki-thread-error { color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+.loki-thread-error { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+.loki-thread-error-raw { flex-basis: 100%; color: var(--loki-muted); }
+.loki-thread-error-raw summary { cursor: pointer; width: max-content; }
+.loki-thread-error-raw pre { margin: 4px 0 0; padding: 8px 10px; max-height: 160px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); font-family: var(--loki-mono); font-size: 12px; white-space: pre-wrap; }
 
 /* The avatar-led message layout (Transcript's Message and Divider), on the desktop: Slack's anatomy — the face
    and bold name at a run's start, the body under the name, the whole row tinted on hover. These classes render
