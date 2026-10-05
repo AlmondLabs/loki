@@ -198,8 +198,9 @@ tauri.on("exit", (code) => {
 // The phone's copy: rebuilt on every change. Its going away only means the phone stops following; the session goes on.
 console.error("loki dev: rebuilding the phone's app (app/dist) as the code changes");
 // Not emptied first: the phone keeps being served the last build while the next one is written. Old hashed files pile
-// up until a plain `bun run build:app` clears them.
-const phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "warn", "--config", "app/vite.config.ts"]);
+// up until a plain `bun run build:app` clears them. Errors only: its chunk-size and dynamic-import warnings would
+// repeat on every save (a plain `bun run build:app` still shows them).
+const phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
 phoneBuild.on("exit", (code) => {
   if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
 });
