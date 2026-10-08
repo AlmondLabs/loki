@@ -12,7 +12,11 @@ import type { IconName } from "./icons";
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */
-const SHELL = new Set(["Bash", "BashOutput", "Shell", "run_command", "execute_command"]);
+const SHELL = new Set(["Bash", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
+/** Tools that change files: Claude-style edits and Codex-style patches (the agent's memory files too). */
+const EDITS = new Set(["Edit", "MultiEdit", "NotebookEdit", "Write", "ApplyPatch", "apply_patch", "memory_apply_patch", "memory"]);
+/** Tools that hand work to another agent. */
+const AGENTS = new Set(["Task", "Agent", "SendAgentMessage"]);
 
 /** What a step did, as the list's first line. */
 export function stepVerb(name: string): string {
@@ -25,21 +29,32 @@ export function stepVerb(name: string): string {
     case "Edit":
     case "MultiEdit":
     case "NotebookEdit":
+    case "ApplyPatch":
+    case "apply_patch":
       return "Edited";
+    case "memory_apply_patch":
+    case "memory":
+      return "Updated memory";
     case "Write":
       return "Wrote";
     case "Grep":
     case "Glob":
       return "Searched";
     case "WebSearch":
+    case "web_search":
       return "Searched the web";
     case "WebFetch":
       return "Fetched";
     case "Task":
     case "Agent":
       return "Asked an agent";
+    case "SendAgentMessage":
+      return "Messaged an agent";
     case "TodoWrite":
+    case "UpdatePlan":
       return "Updated the plan";
+    case "write_stdin":
+      return "Typed into a command";
     case "Skill":
       return "Used a skill";
     case "AskUserQuestion":
@@ -55,10 +70,11 @@ export function stepIcon(name: string): IconName {
   if (name === "Skill") return "skill";
   if (SHELL.has(name)) return "terminal";
   if (name === "Read" || name === "Write") return "file";
-  if (name === "Edit" || name === "MultiEdit" || name === "NotebookEdit") return "compose";
-  if (name === "Grep" || name === "Glob" || name === "WebSearch") return "search";
+  if (EDITS.has(name)) return "compose";
+  if (name === "Grep" || name === "Glob" || name === "WebSearch" || name === "web_search") return "search";
   if (name === "WebFetch") return "link";
-  if (name === "Task" || name === "Agent") return "agents";
+  if (AGENTS.has(name)) return "agents";
+  if (name === "write_stdin") return "terminal";
   if (name === "Skill") return "skill";
   return "widget";
 }
@@ -76,11 +92,11 @@ export function stepKind(row: TranscriptRow): StepKind {
   if (row.role === "event") return isBackgroundTask(row) ? "background" : "skill";
   const name = stepName(row);
   if (SHELL.has(name)) return "command";
-  if (name === "Task" || name === "Agent") return "agent";
+  if (AGENTS.has(name)) return "agent";
   if (name === "Read") return "read";
-  if (name === "Edit" || name === "MultiEdit" || name === "NotebookEdit" || name === "Write") return "edit";
+  if (EDITS.has(name)) return "edit";
   if (name === "Grep" || name === "Glob") return "search";
-  if (name === "WebSearch" || name === "WebFetch") return "web";
+  if (name === "WebSearch" || name === "WebFetch" || name === "web_search") return "web";
   if (name === "TodoWrite" || name === "UpdatePlan") return "plan";
   return "tool";
 }

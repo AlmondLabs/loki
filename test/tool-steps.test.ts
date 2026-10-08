@@ -119,3 +119,22 @@ describe("a stretch of work", () => {
     expect(rows.map(isNamedStep)).toEqual([true, false, false, false, false, true, true, true, false]);
   });
 });
+
+describe("Letta's Codex-style tools", () => {
+  test("exec_command is a command, its `cmd` the command shown; patches are edits; web_search searches", async () => {
+    const { toolStep, toolLabel } = await import("../core/harness.ts");
+    const args = { cmd: "git fetch origin prod && git log --oneline -5 origin/prod", description: "Fetch prod and inspect new commits" };
+    const step = toolStep("exec_command", args);
+    expect(step.input).toBe(args.cmd);
+    expect(step.description).toBe(args.description);
+    expect(toolLabel("exec_command", args)).toBe(`exec_command · ${args.cmd}`);
+    const row: TranscriptRow = { role: "tool", text: toolLabel("exec_command", args), tool: step };
+    expect(isNamedStep(row)).toBe(true);
+    expect(workSummary([row])).toBe("Ran Fetch prod and inspect new commits");
+    expect(stepVerb("exec_command")).toBe("Ran");
+    expect(stepVerb("ApplyPatch")).toBe("Edited");
+    expect(stepVerb("memory_apply_patch")).toBe("Updated memory");
+    expect(stepVerb("web_search")).toBe("Searched the web");
+    expect(isNamedStep({ role: "tool", text: "ApplyPatch", tool: { name: "ApplyPatch" } })).toBe(false);
+  });
+});
