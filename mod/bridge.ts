@@ -2,7 +2,7 @@ import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { isEventName } from "../core/analytics.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { ReasoningEffort } from "../core/models.ts";
-import type { InboxRow } from "./desks.ts";
+import { HISTORY_MAX, HISTORY_PAGE, type InboxRow } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
 import { SHARED_SCOPE, mergeData } from "../core/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
@@ -34,7 +34,7 @@ import { isLanVia } from "./lan.ts";
  *      (a mark that moves nothing is not broadcast)
  *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
  *    focus_add { agentId, conversationId, action: "answer" | "decide" | "skip" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
- *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
+ *    history_get { requestId, agentId, conversationId, limit? }   reply: history { requestId, agentId, conversationId, messages, more, widgetLog }
                                             (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
  *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
@@ -140,7 +140,8 @@ export interface BridgeDeps {
   appServerAvailable?: () => boolean;
   appServerUrl?: () => string | null;
   /** A conversation's transcript from the local backend log (survives compaction), for Catch Up threads. */
-  transcript?: (agentId: string | null, conversationId: string) => import("./desks.ts").LocalTranscriptMessage[];
+  /** The last `limit` rows of a chat's log, and whether there are older ones. */
+  transcript?: (agentId: string | null, conversationId: string, limit: number) => { rows: import("./desks.ts").LocalTranscriptMessage[]; more: boolean };
   /** That conversation's desk's widget change log (mod/widget-log.ts), served with its history. */
   widgetLog?: (agentId: string | null, conversationId: string) => import("../core/desk-core.ts").WidgetLogEntry[];
   /** Working folders for "new desk" (see mod/folders.ts). */
@@ -637,7 +638,10 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "history_get": {
           if (typeof msg.conversationId !== "string") return;
           const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [], widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
+          // `limit` grows as the reader scrolls past the oldest row they have (HISTORY_PAGE at a time).
+          const limit = Math.min(HISTORY_MAX, Math.max(HISTORY_PAGE, Math.floor(Number(msg.limit)) || HISTORY_PAGE));
+          const page = transcript?.(agentId, msg.conversationId, limit) ?? { rows: [], more: false };
+          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: page.rows, more: page.more, widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
           return;
         }
         case "lan_get":

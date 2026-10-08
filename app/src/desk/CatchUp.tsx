@@ -38,7 +38,7 @@ interface CatchUpProps {
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
   /** The live conversation model behind a card; `rows` is undefined until loaded. */
-  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null };
+  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; older?: (() => void) | null };
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
@@ -203,6 +203,7 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
           mode: thread?.mode ?? modeFor?.(agentId, id) ?? null,
           approval: current.pendingApproval ?? null,
           question: current.pendingQuestion ?? null,
+          older: thread?.older ?? null,
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),

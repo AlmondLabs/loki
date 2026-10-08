@@ -37,6 +37,7 @@ export interface ThreadView {
   pending: PendingApproval | null;
   question: PendingQuestion | null;
   error: string | null;
+  older?: (() => void) | null;
 }
 
 /**
@@ -167,7 +168,7 @@ export function ConversationScreen({
             touch
             dim={false}
             gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
+            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question, older: view.older ?? null }}
             models={models}
             actions={{
               onLoadModels,

@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Transcript } from "../app/src/chat/Transcript.tsx";
 import { CHUNK, WINDOW, anchorTop, findStart, keepStart, openStart, revealStart, threadId } from "../app/src/chat/transcriptWindow.ts";
 import { clockLabel, dayLabel, formattersBuilt } from "../app/src/shared/thread.ts";
+import { olderRowsAbove } from "../app/src/chat/useTranscriptScroll.ts";
 import { applyEvent, emptyLive, finishCommand, beginCommand, liveRows } from "../core/attention/model.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
@@ -184,5 +185,19 @@ describe("the clock and day formatters", () => {
     expect(first.week).toBe(new Date("2026-09-20T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long" }));
     expect(first.month).toBe(new Date("2026-08-03T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }));
     expect(first.year).toBe(new Date("2025-01-02T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }));
+  });
+});
+
+describe("older history loaded above", () => {
+  const row = (text: string, at?: string): TranscriptRow => ({ role: "user", text, ...(at ? { at } : {}) });
+  test("the old first row is found again, by as many rows as arrived above it", () => {
+    const first = row("11 first", "2026-10-01T07:00:00Z");
+    expect(olderRowsAbove([row("a"), row("b"), first, row("c")], first)).toBe(2);
+  });
+  test("not there, or still first: nothing arrived above (another thread opens on its newest rows)", () => {
+    const first = row("11 first", "2026-10-01T07:00:00Z");
+    expect(olderRowsAbove([first, row("c")], first)).toBe(0);
+    expect(olderRowsAbove([row("x"), row("11 first", "2026-10-02T07:00:00Z")], first)).toBe(0);
+    expect(olderRowsAbove([row("x")], null)).toBe(0);
   });
 });

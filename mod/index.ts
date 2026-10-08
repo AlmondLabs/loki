@@ -13,7 +13,7 @@ import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript, type InboxRow } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage, type InboxRow } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
@@ -297,7 +297,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     seen,
     appServerAvailable: () => appServerUrl !== null,
     appServerUrl: () => appServerUrl,
-    transcript: (agentId, conversationId) => readLocalTranscript(conversationId, agentId, 400),
+    transcript: (agentId, conversationId, limit) => readLocalTranscriptPage(conversationId, agentId, limit),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),

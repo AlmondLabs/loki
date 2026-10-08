@@ -270,7 +270,7 @@ describe("bridge history", () => {
   test("history_get answers with the local transcript and echoes the request id", () => {
     const bridge = createBridge({
       store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
-      transcript: (agentId, conversationId) => (agentId === "a1" && conversationId === "c9" ? [{ role: "user", text: "hi" }, { role: "tool", text: "Bash · ls" }] : []),
+      transcript: (agentId, conversationId) => ({ rows: agentId === "a1" && conversationId === "c9" ? [{ role: "user", text: "hi" }, { role: "tool", text: "Bash · ls" }] : [], more: false }),
     });
     const c = client("c1");
     bridge.onConnect(c);
@@ -280,6 +280,17 @@ describe("bridge history", () => {
     expect((reply.messages as unknown[]).length).toBe(2);
     bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "unknown" });
     expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ requestId: "h2", messages: [] });
+  });
+  test("history_get pages: the limit asked for (one page at least, a cap at most), and whether older rows remain", () => {
+    const asked: number[] = [];
+    const bridge = createBridge({
+      store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {},
+      transcript: (_a, _c, limit) => (asked.push(limit), { rows: [], more: limit < 1200 }),
+    });
+    const c = client("c1");
+    for (const limit of [undefined, 800, 1200, 5, 1e9]) bridge.onMessage(c, { type: "history_get", requestId: "h", agentId: "a1", conversationId: "c1", limit });
+    expect(asked).toEqual([400, 800, 1200, 400, 20_000]);
+    expect(c.sent.filter((m) => m.type === "history").map((m) => m.more)).toEqual([true, true, false, true, false]);
   });
   test("history carries the desk's widget change log; a desk with none gets an empty list", () => {
     const log = new WidgetLog(null);
@@ -298,12 +309,12 @@ describe("bridge history", () => {
   test("a phone's history_get still answers, with the widget log as one more field it may ignore", () => {
     const bridge = createBridge({
       store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {},
-      transcript: () => [{ role: "user", text: "hi" }],
+      transcript: () => ({ rows: [{ role: "user", text: "hi" }], more: false }),
       widgetLog: () => [],
     });
     const phone = { ...client("shared"), deviceId: "d1" };
     bridge.onMessage(phone, { type: "history_get", requestId: "p1", agentId: "a1", conversationId: "c1" });
-    expect(phone.sent).toEqual([{ type: "history", requestId: "p1", agentId: "a1", conversationId: "c1", messages: [{ role: "user", text: "hi" }], widgetLog: [] }]);
+    expect(phone.sent).toEqual([{ type: "history", requestId: "p1", agentId: "a1", conversationId: "c1", messages: [{ role: "user", text: "hi" }], more: false, widgetLog: [] }]);
   });
 });
 

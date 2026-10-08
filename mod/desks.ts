@@ -226,11 +226,26 @@ export interface LocalTranscriptMessage {
 export function readLocalTranscript(
   conversationId: string,
   agentId?: string | null,
-  limit = 400,
+  limit = HISTORY_PAGE,
   backendDir = join(homedir(), ".letta", "lc-local-backend"),
 ): LocalTranscriptMessage[] {
+  return readLocalTranscriptPage(conversationId, agentId, limit, backendDir).rows;
+}
+
+/** How many rows a chat opens with; scrolling past the oldest asks for this many more (history_get's `limit`). */
+export const HISTORY_PAGE = 400;
+/** The most a page may ask for: about a month of a busy chat, and a few MB over the phone's link. */
+export const HISTORY_MAX = 20_000;
+
+/** The last `limit` rows, and whether the log holds older ones. */
+export function readLocalTranscriptPage(
+  conversationId: string,
+  agentId?: string | null,
+  limit = HISTORY_PAGE,
+  backendDir = join(homedir(), ".letta", "lc-local-backend"),
+): { rows: LocalTranscriptMessage[]; more: boolean } {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
-  if (!existsSync(path)) return [];
+  if (!existsSync(path)) return { rows: [], more: false };
   const out: LocalTranscriptMessage[] = [];
   const calls = new Map<string, LocalTranscriptMessage>();
   for (const line of readFileSync(path, "utf8").split("\n")) {
@@ -245,7 +260,7 @@ export function readLocalTranscript(
       if (r.tool?.id) calls.set(r.tool.id, r);
     }
   }
-  return out.length > limit ? out.slice(out.length - limit) : out;
+  return out.length > limit ? { rows: out.slice(out.length - limit), more: true } : { rows: out, more: false };
 }
 
 /**

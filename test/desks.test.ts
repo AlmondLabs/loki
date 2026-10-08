@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeskRegistry, digestLocalConversation, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript } from "../mod/desks.ts";
+import { DeskRegistry, digestLocalConversation, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript, readLocalTranscriptPage } from "../mod/desks.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 
 describe("desk registry", () => {
@@ -89,6 +89,10 @@ describe("local transcript", () => {
         { role: "user", text: "plain string" },
       ]);
       expect(readLocalTranscript("local-conv-9", null, 2, backend).map((m) => m.text)).toEqual(["done.", "plain string"]);
+      // A page says whether the log holds older rows than it returned: the chat asks for the next page when it does.
+      expect(readLocalTranscriptPage("local-conv-9", null, 2, backend).more).toBe(true);
+      expect(readLocalTranscriptPage("local-conv-9", null, 400, backend).more).toBe(false);
+      expect(readLocalTranscriptPage("nowhere", null, 400, backend)).toEqual({ rows: [], more: false });
       expect(readLocalTranscript("missing", null, 400, backend)).toEqual([]);
     } finally {
       rmSync(backend, { recursive: true, force: true });

@@ -36,6 +36,8 @@ export interface ConversationView {
   mode?: string | null;
   approval?: PendingApproval | null;
   question?: PendingQuestion | null;
+  /** Load the page of history older than `rows` (the reader reached the top); null or absent when there is none. */
+  older?: (() => void) | null;
 }
 
 /** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
@@ -210,7 +212,7 @@ export function Conversation({
       )}
       {/* On the phone a run of tools opens as a bottom sheet; on the desktop it unfolds in place (ToolSteps.tsx). */}
       <StepsTouch.Provider value={touch}>
-        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} onRetry={(text) => actions.onSend(text)} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
+        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} onRetry={(text) => actions.onSend(text)} older={view.older ?? null} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
       </StepsTouch.Provider>
 
       {composer && (
@@ -341,12 +343,12 @@ function ThreadError({ error, rows, onRetry }: { error: string; rows: Transcript
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; onRetry?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, layout, style }, ref) {
+export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; onRetry?: (text: string) => void; older?: (() => void) | null; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, older = null, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
   // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
-  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets);
+  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets, older);
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.

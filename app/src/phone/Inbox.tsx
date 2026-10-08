@@ -76,6 +76,7 @@ export interface CardView {
   pending?: PendingApproval | null;
   question?: PendingQuestion | null;
   error?: string | null;
+  older?: (() => void) | null;
 }
 
 /**
@@ -624,7 +625,7 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
       <Conversation
         touch
         dim={false}
-        view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null }}
+        view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null, older: view.older ?? null }}
         models={model?.models ?? null}
         actions={{
           onLoadModels: model?.onLoad,
@@ -652,7 +653,7 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
 
 /** The card flying off: its thread as it was, nothing to type into. */
 function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView }) {
-  return <Thread rows={view.rows} status={view.status} agentName={item.agentName} dim={false} />;
+  return <Thread rows={view.rows} status={view.status} agentName={item.agentName} dim={false} older={view.older ?? null} />;
 }
 
 /**

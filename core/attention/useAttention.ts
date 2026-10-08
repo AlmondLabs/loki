@@ -63,7 +63,7 @@ export interface UseAttentionOptions {
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
-  loadLocalHistory?: (agentId: string, conversationId: string) => Promise<Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }>>;
+  loadLocalHistory?: (agentId: string, conversationId: string, limit?: number) => Promise<{ rows: Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }>; more: boolean }>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
@@ -113,6 +113,9 @@ function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | nul
   return note.text ?? undefined;
 }
 
+/** How many rows of a chat's log a page is (the mod's HISTORY_PAGE): the first load, and each older page after it. */
+export const HISTORY_PAGE = 400;
+
 export function useAttention(opts: UseAttentionOptions) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);
@@ -126,6 +129,10 @@ export function useAttention(opts: UseAttentionOptions) {
   const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[] } | null>(null);
   /** Loaded transcripts by key; live rows (Live.tail) are appended on top when read. */
   const [histories, setHistories] = useState<Record<string, TranscriptRow[]>>({});
+  /** Chats whose log holds rows older than the ones loaded; the reader reaching the top asks for the next page. */
+  const [older, setOlder] = useState<Record<string, true>>({});
+  /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page). */
+  const historyLimits = useRef(new Map<string, number>());
   const loading = useRef(new Set<string>());
   const socketRef = useRef<AppServerSocket | null>(null);
   const liveRef = useRef(new Map<string, Live>());
@@ -353,7 +360,9 @@ export function useAttention(opts: UseAttentionOptions) {
     if (loading.current.has(key)) return;
     loading.current.add(key);
     const read = async () => {
-      let rows: TranscriptRow[] = ((await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id)) ?? []).map(fromHistory);
+      const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
+      let rows: TranscriptRow[] = (page?.rows ?? []).map(fromHistory);
+      setOlder((o) => (!!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
       if (!rows.length && socketRef.current) rows = toTranscript(await socketRef.current.listMessages(rt, 60)).map(fromHistory);
       const l = liveRef.current.get(key);
       const tail = l?.tail ?? [];
@@ -366,6 +375,13 @@ export function useAttention(opts: UseAttentionOptions) {
     loading.current.delete(key);
   }, []);
   const loadHistory = useCallback((item: AttentionItem) => loadThread(item.runtime), [loadThread]);
+  /** The next page of a chat's history, older than what is loaded: asked for when the reader reaches the top. */
+  const loadOlder = useCallback((rt: Runtime) => {
+    const key = keyOf(rt.agent_id, rt.conversation_id);
+    if (loading.current.has(key)) return;
+    historyLimits.current.set(key, (historyLimits.current.get(key) ?? HISTORY_PAGE) + HISTORY_PAGE);
+    void loadThread(rt);
+  }, [loadThread]);
 
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
   const createDesk = useCallback(async (agentId: string, cwd: string, name?: string): Promise<Runtime> => {
@@ -394,15 +410,15 @@ export function useAttention(opts: UseAttentionOptions) {
    * approval. `rows` is undefined until the transcript has been asked for.
    */
   const conversation = useCallback(
-    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null; cwd: string | null } => {
+    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null; cwd: string | null; older: (() => void) | null } => {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
       const base = histories[key];
       // The history's rows and the live ones keep their identity from update to update; only what changed is new.
       const tail: TranscriptRow[] = l ? liveRows(l) : [];
-      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null };
+      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null, older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null };
     },
-    [histories, live],
+    [histories, live, older, loadOlder],
   );
 
   const decide = useCallback((rt: Runtime, requestId: string, behavior: "allow" | "deny") => {
