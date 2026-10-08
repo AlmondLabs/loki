@@ -30,6 +30,8 @@ export function useTranscriptScroll(scrollRef: RefObject<HTMLDivElement | null>,
   // Stored as it is drawn (React's "adjust state while rendering"), so reveals count from here and a New line
   // that goes away does not fold the window under the reader.
   if (win.id !== id || win.start !== start) setWin({ id, start, first: messages[0] ?? null });
+  // Rows loaded above are not new: the count of what came in since you scrolled away moves with them.
+  if (shift > 0 && leftAt !== null) setLeftAt(leftAt + shift);
   // One ask for older history per page: the thread's length when asked; a new length means the page came.
   const askedOlder = useRef<number | null>(null);
   // Where the reader was when a reveal was asked for: put back once the rows above are in.
