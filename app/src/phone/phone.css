@@ -1179,7 +1179,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-steps-timeline .loki-steps-target { font-size: var(--phone-text-body); color: var(--loki-muted); }
 .loki-phone .loki-steps-failed { font-size: var(--phone-text-meta); }
 .loki-phone .loki-steps-failure { min-height: 32px; font-size: var(--phone-text-meta); }
-.loki-phone .loki-steps-timeline .loki-steps-between { min-height: 40px; display: flex; align-items: center; padding: 0 var(--phone-space-3) 0 calc(var(--phone-space-3) + 36px); font-size: var(--phone-text-meta); color: var(--loki-muted); }
+.loki-phone .loki-steps-timeline .loki-steps-between { min-height: 44px; width: 100%; display: flex; align-items: center; gap: var(--phone-space-2); padding: 0 var(--phone-space-3) 0 calc(var(--phone-space-3) + 30px); border: none; background: none; font: inherit; font-size: var(--phone-text-meta); color: var(--loki-muted); text-align: left; }
 .loki-phone .loki-steps-detail { margin: 0; gap: var(--phone-space-4); padding-bottom: var(--phone-space-2); }
 .loki-phone .loki-steps-heading { margin: 0 0 var(--phone-space-2); font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
 .loki-phone .loki-steps-code { max-height: none; padding: var(--phone-space-3) var(--phone-space-4); border-radius: var(--phone-radius-md); font-size: var(--phone-text-meta); }

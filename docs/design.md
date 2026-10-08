@@ -98,7 +98,8 @@ times; "Working" breathing while the last step waits). When a step failed, its n
 compactions stay rows of their own. Opened (inline on the desktop, a bottom sheet on the phone), the named steps —
 background tasks, commands, agents, anything that failed — are one line each, led by what the agent said they were
 for, and the housekeeping between them (reads, edits, searches, skills) is one muted line ("Read 3 files · searched
-twice"); past 8 lines, chips filter it: All, Failed, Steps, Files and search. A step opens its description, command
+twice"), which opens to list each of those tools; past 8 lines, chips filter it: All, Failed, Steps, Files and search
+(which lists every tool). A step opens its description, command
 and output under it, one at a time (on the phone, in the same sheet with a way back); a background task opens its
 result. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
 from the live stream, Letta's history and the local log alike.

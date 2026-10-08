@@ -9,7 +9,7 @@ import { lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, step
  * "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed ›", "Working" while it runs. When a step
  * failed, its name sits under the closed line in red, and a click opens the stretch at it. Opened, the named steps
  * (background tasks, commands, agents, anything that failed) are one line each, the housekeeping between them
- * (reads, searches, edits, skills) one muted line, and chips filter a long stretch. A step opens its command and
+ * (reads, searches, edits, skills) one muted line that opens to list each tool, and chips filter a long stretch. A step opens its command and
  * output under it, one at a time, inline on the desktop; on the phone the same list is a bottom sheet and a step
  * opens in it, with a way back. The wording is shared/toolSteps.ts.
  */
@@ -131,37 +131,62 @@ function Filters({ plan, rows, value, onChange }: { plan: PlanItem[]; rows: Tran
   );
 }
 
+/** A step's line in the open list: its icon (a cross when it failed) and its two lines. */
+function StepLine({ row, size }: { row: TranscriptRow; size: number }) {
+  return (
+    <>
+      <Icon name={stepFailed(row) ? "close" : stepIcon(stepName(row))} size={size} className="loki-steps-icon" />
+      <StepText row={row} />
+    </>
+  );
+}
+
 /** The desktop's: the stretch in place under its line; a step opens its command and output under it, one at a time. */
 function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: number | null; onOpen: (at: number | null) => void }) {
   const plan = workPlan(rows);
   const [filter, setFilter] = useState<Filter>(openAt !== null && stepFailed(rows[openAt]) && plan.length > FILTER_FROM ? "failed" : "all");
+  // Housekeeping lines opened to list their tools, by their first row; "Files and search" lists them all.
+  const [listed, setListed] = useState<ReadonlySet<number>>(new Set());
+  const step = (at: number) => (
+    <li key={at}>
+      <button type="button" className="loki-steps-step" aria-expanded={openAt === at} onClick={() => onOpen(openAt === at ? null : at)}>
+        <StepLine row={rows[at]} size={16} />
+      </button>
+      {openAt === at && <StepDetail row={rows[at]} />}
+    </li>
+  );
   return (
     <div className="loki-steps-open">
       <Filters plan={plan} rows={rows} value={filter} onChange={setFilter} />
       <ol className="loki-steps-list">
-        {filtered(plan, rows, filter).map((p) =>
-          p.kind === "between" ? (
-            <li key={`b${p.at[0]}`} className="loki-steps-between">
-              {p.text}
-            </li>
-          ) : (
-            <li key={p.at}>
-              <button type="button" className="loki-steps-step" aria-expanded={openAt === p.at} onClick={() => onOpen(openAt === p.at ? null : p.at)}>
-                <Icon name={stepFailed(rows[p.at]) ? "close" : stepIcon(stepName(rows[p.at]))} size={16} className="loki-steps-icon" />
-                <StepText row={rows[p.at]} />
+        {filtered(plan, rows, filter).map((p) => {
+          if (p.kind === "step") return step(p.at);
+          const open = filter === "housekeeping" || listed.has(p.at[0]);
+          return (
+            <li key={`b${p.at[0]}`}>
+              <button type="button" className="loki-steps-between" aria-expanded={open} onClick={() => setListed((l) => toggled(l, p.at[0]))}>
+                <Icon name={open ? "chevron-down" : "chevron-right"} size={12} className="loki-steps-chev" />
+                {p.text}
               </button>
-              {openAt === p.at && <StepDetail row={rows[p.at]} />}
+              {open && <ol className="loki-steps-list loki-steps-nested">{p.at.map(step)}</ol>}
             </li>
-          ),
-        )}
+          );
+        })}
       </ol>
     </div>
   );
 }
 
+const toggled = (set: ReadonlySet<number>, k: number): ReadonlySet<number> => {
+  const next = new Set(set);
+  if (!next.delete(k)) next.add(k);
+  return next;
+};
+
 /** The phone's: a bottom sheet of the stretch on a timeline; a step opens in the same sheet, Back returns to the list. */
 function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; title: string; start: number | null; onClose: () => void }) {
   const [at, setAt] = useState<number | null>(start);
+  const [listed, setListed] = useState<ReadonlySet<number>>(new Set());
   const step = at === null ? null : rows[at];
   const plan = workPlan(rows);
   return (
@@ -186,20 +211,26 @@ function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; ti
         <StepDetail row={step} />
       ) : (
         <ol className="loki-steps-timeline">
-          {plan.map((p) =>
-            p.kind === "between" ? (
-              <li key={`b${p.at[0]}`} className="loki-steps-between">
-                {p.text}
-              </li>
-            ) : (
-              <li key={p.at}>
-                <button type="button" className="loki-steps-step" onClick={() => setAt(p.at)}>
-                  <Icon name={stepFailed(rows[p.at]) ? "close" : stepIcon(stepName(rows[p.at]))} size={20} className="loki-steps-icon" />
-                  <StepText row={rows[p.at]} />
+          {plan.flatMap((p) => {
+            const step = (k: number) => (
+              <li key={k}>
+                <button type="button" className="loki-steps-step" onClick={() => setAt(k)}>
+                  <StepLine row={rows[k]} size={20} />
                 </button>
               </li>
-            ),
-          )}
+            );
+            if (p.kind === "step") return [step(p.at)];
+            const open = listed.has(p.at[0]);
+            return [
+              <li key={`b${p.at[0]}`}>
+                <button type="button" className="loki-steps-between" aria-expanded={open} onClick={() => setListed((l) => toggled(l, p.at[0]))}>
+                  <Icon name={open ? "chevron-down" : "chevron-right"} size={14} className="loki-steps-chev" />
+                  {p.text}
+                </button>
+              </li>,
+              ...(open ? p.at.map(step) : []),
+            ];
+          })}
         </ol>
       )}
     </Sheet>
