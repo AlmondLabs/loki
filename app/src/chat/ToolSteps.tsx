@@ -2,14 +2,14 @@ import { createContext, memo, useContext, useState } from "react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Sheet } from "../components";
 import { Icon } from "../shared/icons";
-import { lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workPlan, workSummary, type PlanItem } from "../shared/toolSteps";
+import { isNamedStep, lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workSummary } from "../shared/toolSteps";
 
 /**
  * A stretch of the agent's work in the thread (tool calls, background tasks, skills it loaded), as one quiet line:
  * "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed ›", "Working" while it runs. When a step
- * failed, its name sits under the closed line in red, and a click opens the stretch at it. Opened, the named steps
- * (background tasks, commands, agents, anything that failed) are one line each, the housekeeping between them
- * (reads, searches, edits, skills) one muted line that opens to list each tool, and chips filter a long stretch. A step opens its command and
+ * failed, its name sits under the closed line in red, and a click opens the stretch at it. Opened, every step is a
+ * line, in order, in one flat list: the named ones (background tasks, commands, agents, anything that failed) in
+ * full, the housekeeping (reads, searches, edits, skills) quieter; chips filter a long stretch. A step opens its command and
  * output under it, one at a time, inline on the desktop; on the phone the same list is a bottom sheet and a step
  * opens in it, with a way back. The wording is shared/toolSteps.ts.
  */
@@ -100,26 +100,23 @@ function StepDetail({ row }: { row: TranscriptRow }) {
   );
 }
 
-/** Which lines of a stretch to show. */
+/** Which steps of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";
-const CHIPS: ReadonlyArray<[Filter, string]> = [["all", "All"], ["failed", "Failed"], ["steps", "Steps"], ["housekeeping", "Files and search"]];
-/** Past this many lines a stretch offers the filter chips. */
+/** Past this many steps a stretch offers the filter chips. */
 const FILTER_FROM = 8;
+const CHIPS: ReadonlyArray<[Filter, string]> = [["all", "All"], ["failed", "Failed"], ["steps", "Steps"], ["housekeeping", "Files and search"]];
+const KEEP: Record<Filter, (row: TranscriptRow) => boolean> = { all: () => true, failed: stepFailed, steps: isNamedStep, housekeeping: (r) => !isNamedStep(r) };
 
-function filtered(plan: PlanItem[], rows: TranscriptRow[], f: Filter): PlanItem[] {
-  if (f === "failed") return plan.filter((p) => p.kind === "step" && stepFailed(rows[p.at]));
-  if (f === "steps") return plan.filter((p) => p.kind === "step");
-  if (f === "housekeeping") return plan.filter((p) => p.kind === "between");
-  return plan;
-}
+/** The steps a filter keeps, by their index in the stretch. */
+const shownSteps = (rows: TranscriptRow[], f: Filter): number[] => rows.flatMap((r, k) => (KEEP[f](r) ? [k] : []));
 
-/** The chips over a long stretch: all of it, what failed, the named steps, the housekeeping. */
-function Filters({ plan, rows, value, onChange }: { plan: PlanItem[]; rows: TranscriptRow[]; value: Filter; onChange: (f: Filter) => void }) {
-  if (plan.length <= FILTER_FROM) return null;
+/** The chips over a long stretch: all of it, what failed, the named steps, the housekeeping; each with its count. */
+function Filters({ rows, value, onChange }: { rows: TranscriptRow[]; value: Filter; onChange: (f: Filter) => void }) {
+  if (rows.length <= FILTER_FROM) return null;
   return (
     <div className="loki-steps-filters" role="group" aria-label="Show">
       {CHIPS.map(([f, label]) => {
-        const n = f === "all" ? rows.length : f === "failed" ? rows.filter(stepFailed).length : f === "steps" ? plan.filter((p) => p.kind === "step").length : plan.filter((p) => p.kind === "between").reduce((sum, p) => sum + (p.kind === "between" ? p.at.length : 0), 0);
+        const n = rows.filter(KEEP[f]).length;
         if (f === "failed" && !n) return null;
         return (
           <button key={f} type="button" className="loki-steps-chip" aria-pressed={value === f} onClick={() => onChange(f)}>
@@ -131,7 +128,7 @@ function Filters({ plan, rows, value, onChange }: { plan: PlanItem[]; rows: Tran
   );
 }
 
-/** A step's line in the open list: its icon (a cross when it failed) and its two lines. */
+/** A step's line in the open list: its icon (a cross when it failed) and its two lines; housekeeping reads quieter. */
 function StepLine({ row, size }: { row: TranscriptRow; size: number }) {
   return (
     <>
@@ -141,54 +138,30 @@ function StepLine({ row, size }: { row: TranscriptRow; size: number }) {
   );
 }
 
-/** The desktop's: the stretch in place under its line; a step opens its command and output under it, one at a time. */
+/** The desktop's: the stretch in place under its line, one flat list; a step opens its detail under it, one at a time. */
 function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: number | null; onOpen: (at: number | null) => void }) {
-  const plan = workPlan(rows);
-  const [filter, setFilter] = useState<Filter>(openAt !== null && stepFailed(rows[openAt]) && plan.length > FILTER_FROM ? "failed" : "all");
-  // Housekeeping lines opened to list their tools, by their first row; "Files and search" lists them all.
-  const [listed, setListed] = useState<ReadonlySet<number>>(new Set());
-  const step = (at: number) => (
-    <li key={at}>
-      <button type="button" className="loki-steps-step" aria-expanded={openAt === at} onClick={() => onOpen(openAt === at ? null : at)}>
-        <StepLine row={rows[at]} size={16} />
-      </button>
-      {openAt === at && <StepDetail row={rows[at]} />}
-    </li>
-  );
+  const [filter, setFilter] = useState<Filter>(openAt !== null && stepFailed(rows[openAt]) && rows.length > FILTER_FROM ? "failed" : "all");
   return (
     <div className="loki-steps-open">
-      <Filters plan={plan} rows={rows} value={filter} onChange={setFilter} />
+      <Filters rows={rows} value={filter} onChange={setFilter} />
       <ol className="loki-steps-list">
-        {filtered(plan, rows, filter).map((p) => {
-          if (p.kind === "step") return step(p.at);
-          const open = filter === "housekeeping" || listed.has(p.at[0]);
-          return (
-            <li key={`b${p.at[0]}`}>
-              <button type="button" className="loki-steps-between" aria-expanded={open} onClick={() => setListed((l) => toggled(l, p.at[0]))}>
-                <Icon name={open ? "chevron-down" : "chevron-right"} size={12} className="loki-steps-chev" />
-                {p.text}
-              </button>
-              {open && <ol className="loki-steps-list loki-steps-nested">{p.at.map(step)}</ol>}
-            </li>
-          );
-        })}
+        {shownSteps(rows, filter).map((at) => (
+          <li key={at}>
+            <button type="button" className="loki-steps-step" data-minor={!isNamedStep(rows[at]) || undefined} aria-expanded={openAt === at} onClick={() => onOpen(openAt === at ? null : at)}>
+              <StepLine row={rows[at]} size={16} />
+            </button>
+            {openAt === at && <StepDetail row={rows[at]} />}
+          </li>
+        ))}
       </ol>
     </div>
   );
 }
 
-const toggled = (set: ReadonlySet<number>, k: number): ReadonlySet<number> => {
-  const next = new Set(set);
-  if (!next.delete(k)) next.add(k);
-  return next;
-};
-
 /** The phone's: a bottom sheet of the stretch on a timeline; a step opens in the same sheet, Back returns to the list. */
 function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; title: string; start: number | null; onClose: () => void }) {
   const [at, setAt] = useState<number | null>(start);
-  const [listed, setListed] = useState<ReadonlySet<number>>(new Set());
   const step = at === null ? null : rows[at];
-  const plan = workPlan(rows);
   return (
     <Sheet label={step ? stepName(step) : title} onClose={onClose} placement="bottom" className="loki-phone-sheet loki-steps-sheet">
       <div className="loki-steps-head">
@@ -211,26 +184,13 @@ function StepsSheet({ rows, title, start, onClose }: { rows: TranscriptRow[]; ti
         <StepDetail row={step} />
       ) : (
         <ol className="loki-steps-timeline">
-          {plan.flatMap((p) => {
-            const step = (k: number) => (
-              <li key={k}>
-                <button type="button" className="loki-steps-step" onClick={() => setAt(k)}>
-                  <StepLine row={rows[k]} size={20} />
-                </button>
-              </li>
-            );
-            if (p.kind === "step") return [step(p.at)];
-            const open = listed.has(p.at[0]);
-            return [
-              <li key={`b${p.at[0]}`}>
-                <button type="button" className="loki-steps-between" aria-expanded={open} onClick={() => setListed((l) => toggled(l, p.at[0]))}>
-                  <Icon name={open ? "chevron-down" : "chevron-right"} size={14} className="loki-steps-chev" />
-                  {p.text}
-                </button>
-              </li>,
-              ...(open ? p.at.map(step) : []),
-            ];
-          })}
+          {rows.map((row, k) => (
+            <li key={k}>
+              <button type="button" className="loki-steps-step" data-minor={!isNamedStep(row) || undefined} onClick={() => setAt(k)}>
+                <StepLine row={row} size={20} />
+              </button>
+            </li>
+          ))}
         </ol>
       )}
     </Sheet>

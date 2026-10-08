@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { TOOL_TEXT_MAX, toTranscript, toolInput, toolOutput, toolStep } from "../core/harness.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
-import { housekeeping, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workPlan, workSummary } from "../app/src/shared/toolSteps.ts";
+import { isNamedStep, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workSummary } from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const bash = (failed = false): TranscriptRow => ({ role: "tool", text: "Bash · ls", tool: { name: "Bash", ...(failed ? { failed: true } : {}) } });
@@ -115,15 +115,7 @@ describe("a stretch of work", () => {
     expect(stepVerb("Background task")).toBe("Ran in background");
   });
 
-  test("opened: named steps one per line, the housekeeping between them one muted line each", () => {
-    expect(workPlan(rows)).toEqual([
-      { kind: "step", at: 0 },
-      { kind: "between", text: "Read 2 files · searched once · loaded skill fmt-data-analyst", at: [1, 2, 3, 4] },
-      { kind: "step", at: 5 },
-      { kind: "step", at: 6 },
-      { kind: "step", at: 7 },
-      { kind: "between", text: "Read 1 file", at: [8] },
-    ]);
-    expect(housekeeping([tool("Edit", 0), tool("Grep", 0), tool("Grep", 0), tool("mcp_x", 0)])).toBe("Edited 1 file · searched twice · used a tool");
+  test("opened: every step in one flat list; background tasks, commands and failures in full, the rest quieter", () => {
+    expect(rows.map(isNamedStep)).toEqual([true, false, false, false, false, true, true, true, false]);
   });
 });

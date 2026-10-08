@@ -118,47 +118,9 @@ export function toolRuns(rows: TranscriptRow[], from = 0, breaks?: (i: number) =
   return runs;
 }
 
-/** Steps with a name of their own, listed one per line; everything else is housekeeping, counted between them. */
+/** Steps with a name of their own, shown in full; everything else is housekeeping, listed quieter. */
 const NAMED: ReadonlySet<StepKind> = new Set(["background", "command", "agent"]);
 export const isNamedStep = (row: TranscriptRow): boolean => NAMED.has(stepKind(row)) || stepFailed(row);
-
-/** One line of an opened stretch: a named step (its index in the stretch), or a muted count of the housekeeping between steps. */
-export type PlanItem = { kind: "step"; at: number } | { kind: "between"; text: string; at: number[] };
-
-/** "read 3 files · searched twice · loaded skill fmt-data-analyst": the housekeeping in a stretch between two named steps. */
-export function housekeeping(rows: TranscriptRow[]): string {
-  const n = (k: StepKind) => rows.filter((r) => stepKind(r) === k).length;
-  const times = (c: number) => (c === 1 ? "once" : c === 2 ? "twice" : `${c} times`);
-  const parts: string[] = [];
-  if (n("read")) parts.push(`read ${n("read")} ${n("read") === 1 ? "file" : "files"}`);
-  if (n("edit")) parts.push(`edited ${n("edit")} ${n("edit") === 1 ? "file" : "files"}`);
-  if (n("search")) parts.push(`searched ${times(n("search"))}`);
-  if (n("web")) parts.push(`looked on the web ${times(n("web"))}`);
-  if (n("plan")) parts.push("updated the plan");
-  const skills = rows.filter((r) => stepKind(r) === "skill").map((r) => stepTarget(r) ?? "a skill");
-  if (skills.length) parts.push(`loaded ${skills.length === 1 ? "skill" : "skills"} ${skills.join(", ")}`);
-  if (n("tool")) parts.push(n("tool") === 1 ? "used a tool" : `used ${n("tool")} tools`);
-  const line = parts.join(" · ");
-  return line.charAt(0).toUpperCase() + line.slice(1);
-}
-
-/** An opened stretch, in order: named steps one per line, the housekeeping between them as one muted line each. */
-export function workPlan(rows: TranscriptRow[]): PlanItem[] {
-  const out: PlanItem[] = [];
-  let between: number[] = [];
-  const flush = () => {
-    if (between.length) out.push({ kind: "between", text: housekeeping(between.map((k) => rows[k])), at: between });
-    between = [];
-  };
-  rows.forEach((r, k) => {
-    if (isNamedStep(r)) {
-      flush();
-      out.push({ kind: "step", at: k });
-    } else between.push(k);
-  });
-  flush();
-  return out;
-}
 
 /** "14 min", "1 h 5 min"; null under a minute, or when the rows carry no times. */
 export function workDuration(rows: TranscriptRow[]): string | null {
