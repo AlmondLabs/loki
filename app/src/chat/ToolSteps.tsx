@@ -102,6 +102,7 @@ function StepDetail({ row }: { row: TranscriptRow }) {
 
 /** Which lines of a stretch to show. */
 type Filter = "all" | "failed" | "steps" | "housekeeping";
+const CHIPS: ReadonlyArray<[Filter, string]> = [["all", "All"], ["failed", "Failed"], ["steps", "Steps"], ["housekeeping", "Files and search"]];
 /** Past this many lines a stretch offers the filter chips. */
 const FILTER_FROM = 8;
 
@@ -115,10 +116,9 @@ function filtered(plan: PlanItem[], rows: TranscriptRow[], f: Filter): PlanItem[
 /** The chips over a long stretch: all of it, what failed, the named steps, the housekeeping. */
 function Filters({ plan, rows, value, onChange }: { plan: PlanItem[]; rows: TranscriptRow[]; value: Filter; onChange: (f: Filter) => void }) {
   if (plan.length <= FILTER_FROM) return null;
-  const chips: Array<[Filter, string]> = [["all", "All"], ["failed", "Failed"], ["steps", "Steps"], ["housekeeping", "Files and search"]];
   return (
     <div className="loki-steps-filters" role="group" aria-label="Show">
-      {chips.map(([f, label]) => {
+      {CHIPS.map(([f, label]) => {
         const n = f === "all" ? rows.length : f === "failed" ? rows.filter(stepFailed).length : f === "steps" ? plan.filter((p) => p.kind === "step").length : plan.filter((p) => p.kind === "between").reduce((sum, p) => sum + (p.kind === "between" ? p.at.length : 0), 0);
         if (f === "failed" && !n) return null;
         return (
