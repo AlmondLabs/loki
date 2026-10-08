@@ -90,13 +90,17 @@ count goes up; the camera glides to a widget on the smooth spring, and a wheel, 
 (`desk/cameraGlide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
 shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
 
-Tool calls read the way Claude's apps show them (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a run
-of consecutive calls is one quiet line in the thread ("Ran 3 commands", "Ran a command, used 9 tools (1 failed)",
-"Running" breathing while the last one waits). On the phone it opens a bottom sheet of the steps on a thin timeline,
-each a verb and what it was done to, and a step opens its description, command and output in the same sheet; on the
-desktop the steps unfold in place. When the agent said what a command is for (Bash's `description`), that is the
-step's line ("Ran · Find hard-coded names in tests"), and a run of one such command reads "Ran Find hard-coded names
-in tests". Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
+The agent's work reads the way Claude's apps show it (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a
+stretch between two messages (tool calls, background-task notices, skills it loaded) is one quiet line in the thread,
+"Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed" ("Ran 3 commands" when the rows carry no
+times; "Working" breathing while the last step waits). When a step failed, its name sits under the closed line in red
+("✕ Deploy approved Dealshield image and ECS routing failed"), and a click opens the stretch at it. Canvas activity and
+compactions stay rows of their own. Opened (inline on the desktop, a bottom sheet on the phone), the named steps —
+background tasks, commands, agents, anything that failed — are one line each, led by what the agent said they were
+for, and the housekeeping between them (reads, edits, searches, skills) is one muted line ("Read 3 files · searched
+twice"); past 8 lines, chips filter it: All, Failed, Steps, Files and search. A step opens its description, command
+and output under it, one at a time (on the phone, in the same sheet with a way back); a background task opens its
+result. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
 from the live stream, Letta's history and the local log alike.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { TOOL_TEXT_MAX, toTranscript, toolInput, toolOutput, toolStep } from "../core/harness.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
-import { stepTarget, stepVerb, stepsSummary, toolRuns } from "../app/src/shared/toolSteps.ts";
+import { housekeeping, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workPlan, workSummary } from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const bash = (failed = false): TranscriptRow => ({ role: "tool", text: "Bash · ls", tool: { name: "Bash", ...(failed ? { failed: true } : {}) } });
@@ -9,12 +9,12 @@ const read = (failed = false): TranscriptRow => ({ role: "tool", text: "Read · 
 
 describe("the line for a run of tools", () => {
   test("commands first, then the other tools, then what failed", () => {
-    expect(stepsSummary([bash()])).toBe("Ran a command");
-    expect(stepsSummary([bash(), bash(), bash()])).toBe("Ran 3 commands");
-    expect(stepsSummary([read(), read()])).toBe("Used 2 tools");
-    expect(stepsSummary([read()])).toBe("Used a tool");
-    expect(stepsSummary([bash(), read(true), ...Array.from({ length: 8 }, () => read())])).toBe("Ran a command, used 9 tools (1 failed)");
-    expect(stepsSummary([bash(), read()], true)).toBe("Running");
+    expect(workSummary([bash()])).toBe("Ran a command");
+    expect(workSummary([bash(), bash(), bash()])).toBe("Ran 3 commands");
+    expect(workSummary([read(), read()])).toBe("Used 2 tools");
+    expect(workSummary([read()])).toBe("Used a tool");
+    expect(workSummary([bash(), read(true), ...Array.from({ length: 8 }, () => read())])).toBe("Ran a command, used 9 tools · 1 failed");
+    expect(workSummary([bash(), read()], true)).toBe("Working");
   });
 
   test("a step reads as a verb and what it was done to; old rows without a step still read by their label", () => {
@@ -30,10 +30,10 @@ describe("the line for a run of tools", () => {
     expect(step).toMatchObject({ input: "cd backend && grep -n x tests/*.py", description: "Find hard-coded names in tests" });
     const row: TranscriptRow = { role: "tool", text: "Bash · cd backend && grep -n x tests/*.py", tool: step };
     expect(stepTarget(row)).toBe("Find hard-coded names in tests");
-    expect(stepsSummary([row])).toBe("Ran Find hard-coded names in tests");
-    expect(stepsSummary([{ ...row, tool: { ...step, failed: true } }])).toBe("Ran Find hard-coded names in tests (failed)");
-    expect(stepsSummary([row, row])).toBe("Ran 2 commands");
-    expect(stepsSummary([row], true)).toBe("Running");
+    expect(workSummary([row])).toBe("Ran Find hard-coded names in tests");
+    expect(workSummary([{ ...row, tool: { ...step, failed: true } }])).toBe("Ran Find hard-coded names in tests · failed");
+    expect(workSummary([row, row])).toBe("Ran 2 commands");
+    expect(workSummary([row], true)).toBe("Working");
   });
 
   test("no description, or only a description so far: no second copy of it", () => {
@@ -89,5 +89,41 @@ describe("tool inputs and outputs are kept", () => {
     expect(l.tail[0]).toMatchObject({ text: "Bash · ls", tool: { input: "ls" } });
     applyEvent(l, delta({ message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "success" }), "2026-09-26T09:00:02Z");
     expect(l.tail[0].tool).toEqual({ name: "Bash", id: "c1", input: "ls", output: "a.ts" });
+  });
+});
+
+describe("a stretch of work", () => {
+  const at = (m: number) => new Date(Date.UTC(2026, 8, 30, 16, m)).toISOString();
+  const bg = (name: string, m: number, failed = false): TranscriptRow => ({ role: "event", text: `background task exec_${m} ${failed ? "failed" : "completed"}`, summary: `Exec command "${name}" ${failed ? "failed" : "completed"}`, detail: failed ? "tasks failed ELB health checks" : "ok", at: at(m) });
+  const tool = (name: string, m: number): TranscriptRow => ({ role: "tool", text: `${name} · x`, tool: { name }, at: at(m) });
+  const skill: TranscriptRow = { role: "event", text: "skill loaded", summary: "fmt-data-analyst", detail: "# skill", at: at(1) };
+  const rows = [bg("Revalidate approved dev deployment targets", 0), tool("Read", 1), skill, tool("Grep", 2), tool("Read", 2), bg("Create scoped Dealshield task security group", 5), tool("Bash", 6), bg("Deploy approved Dealshield image and ECS routing", 14, true), tool("Read", 14)];
+
+  test("background tasks and skills are part of it; canvas activity and compactions are not", () => {
+    expect(rows.every(isWorkRow)).toBe(true);
+    expect(isWorkRow({ role: "event", text: "canvas activity" })).toBe(false);
+    expect(isWorkRow({ role: "event", text: "context compacted" })).toBe(false);
+    expect([...toolRuns([{ role: "user", text: "go" }, ...rows, { role: "assistant", text: "done" }])]).toEqual([[1, 10]]);
+  });
+
+  test("one line: how long, what ran, what failed; the failure is found without opening it", () => {
+    expect(workSummary(rows)).toBe("Worked 14 min · 3 background tasks, a command, 5 tools · 1 failed");
+    expect(workSummary(rows, true)).toBe("Working · 14 min");
+    expect(stepFailed(rows[7])).toBe(true);
+    expect(lastFailure(rows)).toBe(7);
+    expect(stepTarget(rows[7])).toBe("Deploy approved Dealshield image and ECS routing");
+    expect(stepVerb("Background task")).toBe("Ran in background");
+  });
+
+  test("opened: named steps one per line, the housekeeping between them one muted line each", () => {
+    expect(workPlan(rows)).toEqual([
+      { kind: "step", at: 0 },
+      { kind: "between", text: "Read 2 files · searched once · loaded skill fmt-data-analyst", at: [1, 2, 3, 4] },
+      { kind: "step", at: 5 },
+      { kind: "step", at: 6 },
+      { kind: "step", at: 7 },
+      { kind: "between", text: "Read 1 file", at: [8] },
+    ]);
+    expect(housekeeping([tool("Edit", 0), tool("Grep", 0), tool("Grep", 0), tool("mcp_x", 0)])).toBe("Edited 1 file · searched twice · used a tool");
   });
 });

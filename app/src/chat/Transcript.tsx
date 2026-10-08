@@ -11,7 +11,7 @@ import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcriptWindow";
 import { ToolSteps } from "./ToolSteps";
-import { toolRuns } from "../shared/toolSteps";
+import { isWorkRow, toolRuns } from "../shared/toolSteps";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -43,17 +43,19 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
     });
   }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
-  // Consecutive tool calls read as one line (chat/ToolSteps.tsx); a widget row, a day or the New line ends a run.
+  // A stretch of work (tool calls, background tasks, skills loaded) reads as one line (chat/ToolSteps.tsx); a widget
+  // row, a day or the New line ends it.
   const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
   const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
   const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
   const message = (m: TranscriptRow, i: number) => {
     const last = i === rows.length - 1;
-    if (m.role === "tool") {
+    if (isWorkRow(m)) {
       const end = tools.get(i);
       if (end === undefined) return null; // inside a run, drawn with its first row
       const run = rows.slice(i, end);
-      const running = busy && end === rows.length && !run[run.length - 1].tool?.output;
+      const tail = run[run.length - 1];
+      const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output;
       return (
         <Fragment key={i}>
           {dividerAt === i && <Divider day={timed ? null : dividerDay} />}

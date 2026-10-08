@@ -56,7 +56,16 @@
 @keyframes loki-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 .loki-steps-line[data-running] .loki-steps-label { animation: loki-breathe 1.6s ease-in-out infinite; }
 .loki-steps-list { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; }
-.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; cursor: pointer; list-style: none; }
+.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 4px 6px; margin-left: -6px; border: none; border-radius: var(--loki-radius-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; list-style: none; }
+.loki-steps-step:hover { background: var(--loki-hover); }
+.loki-steps-failure { display: flex; align-items: center; gap: 6px; max-width: 100%; margin: 0 0 2px; padding: 1px 0; border: none; background: none; color: var(--loki-negative); font: inherit; text-align: left; cursor: pointer; }
+.loki-steps-failure span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-steps-open { margin: 4px 0 8px; padding: 6px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); max-width: 720px; }
+.loki-steps-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--loki-border); }
+.loki-steps-chip { padding: 2px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: none; color: var(--loki-muted); font: inherit; cursor: pointer; }
+.loki-steps-chip[aria-pressed="true"] { border-color: var(--loki-accent); color: var(--loki-fg); }
+.loki-steps-chip-n { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.loki-steps-between { padding: 2px 0 2px 24px; color: var(--loki-muted); }
 .loki-steps-step::-webkit-details-marker { display: none; }
 .loki-steps-icon { flex: none; margin-top: 1px; }
 .loki-steps-text { display: grid; min-width: 0; }
