@@ -4,6 +4,7 @@ import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../.
 import { readSession } from "./session";
 import { inTauri, modWsBase } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
+import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
 import { withHistoryLog } from "./widgetRows";
 
@@ -68,6 +69,8 @@ export function useDesk() {
     modes,
     setModes,
     appServer,
+    chatsOnDaemon,
+    chatListeners,
     seenMap,
     viewedMap,
     focusMap,
@@ -262,7 +265,22 @@ export function useDesk() {
   }, [connection]);
 
   const attention = {
-    available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab
+    // The shell holds its own link; the mod's discovery flag only matters in a browser tab. loki's daemon serves chats
+    // on this socket, wherever the page runs.
+    available: appServer || inTauri || chatsOnDaemon,
+    backend: (chatsOnDaemon ? "daemon" : "letta") as "daemon" | "letta",
+    /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts); Letta's app-server otherwise. */
+    makeClient: chatsOnDaemon
+      ? () =>
+          new FrameChatClient({
+            request,
+            onChatEvent: (fn) => {
+              chatListeners.current.add(fn);
+              return () => chatListeners.current.delete(fn);
+            },
+            agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
+          })
+      : undefined,
     capture,
     tunnelUrl,
     seen: seenMap,

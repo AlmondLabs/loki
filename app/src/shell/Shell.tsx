@@ -73,6 +73,8 @@ export function Shell() {
   const capture = useCallback((event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }), [captureRaw]);
   const catchUp = useAttention({
     enabled: attention.available,
+    backend: attention.backend,
+    makeClient: attention.makeClient,
     tunnelUrl: attention.tunnelUrl,
     makeTransport,
     seen: attention.seen,

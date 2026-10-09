@@ -114,10 +114,11 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
  * in: "moved" when a device status shows the new folder (or, the folder before being known, any other), the
  * error's words when Letta Code refused it with a loop error, null when the event says nothing about it.
  */
-export function folderMoveAnswer(ev: ServerEvent, cwd: string | undefined, move: { from: string | undefined; to: string }): "moved" | { error: string } | null {
-  if (ev.type === "update_device_status") return cwd && (cwd === move.to || (move.from !== undefined && cwd !== move.from)) ? "moved" : null;
-  const d = ev.type === "stream_delta" ? (ev.delta as { message_type?: string; message?: string } | undefined) : undefined;
-  if (d?.message_type === "loop_error" || d?.message_type === "error_message") return { error: String(d.message ?? "the folder did not change") };
+export function folderMoveAnswer(events: ChatEvent[], cwd: string | undefined, move: { from: string | undefined; to: string }): "moved" | { error: string } | null {
+  for (const e of events) {
+    if (e.kind === "device") return cwd && (cwd === move.to || (move.from !== undefined && cwd !== move.from)) ? "moved" : null;
+    if (e.kind === "error") return { error: e.message || "the folder did not change" };
+  }
   return null;
 }
 const TEXT_LIMIT = 700;

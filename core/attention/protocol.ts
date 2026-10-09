@@ -1,4 +1,5 @@
 import { buildUserContent, type ImageAttachment } from "./content.ts";
+import { lettaChatEvents, type ChatEvent } from "./model.ts";
 import type { MakeTransport, Transport } from "./transport.ts";
 import { modelEntriesFromWire, reasoningEffortFromSettings, type AppliedModel, type ModelEntry, type ModelSelection } from "../models.ts";
 /**
@@ -89,6 +90,28 @@ export class AppServerSocket {
   on(fn: Listener): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  /** Every event as loki's chat events (core/attention/chat-client.ts), with the chat it happened in. */
+  onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void {
+    return this.on((ev) => {
+      const conversation_id = ev.runtime?.conversation_id ?? (typeof ev.conversation_id === "string" ? ev.conversation_id : null);
+      const agent_id = ev.runtime?.agent_id ?? (typeof ev.agent_id === "string" ? ev.agent_id : null);
+      if (!conversation_id || !agent_id) return;
+      const events = lettaChatEvents(ev, new Date().toISOString());
+      if (events.length) fn({ agent_id, conversation_id }, events);
+    });
+  }
+
+  /** Letta Code's version, its protocol, and the commands it and its mods advertise. */
+  async serverInfo(): Promise<{ version: string | null; protocol: number | null; commands?: string[]; modCommands?: Array<{ id: string; description?: string; args?: string }> }> {
+    const info = await this.request("app_server_info");
+    return {
+      version: typeof info.letta_code_version === "string" ? info.letta_code_version : null,
+      protocol: typeof info.protocol_version === "number" ? info.protocol_version : null,
+      ...(Array.isArray(info.supported_commands) ? { commands: (info.supported_commands as unknown[]).filter((x): x is string => typeof x === "string") } : {}),
+      ...(Array.isArray(info.mod_commands) ? { modCommands: info.mod_commands as Array<{ id: string; description?: string; args?: string }> } : {}),
+    };
   }
 
   connect(): Promise<void> {

@@ -1,10 +1,11 @@
 import type { FileRef, ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { historySteps } from "../harness.ts";
-import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
+import { AppServerSocket, type Runtime } from "./protocol.ts";
+import type { ChatClient } from "./chat-client.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyChatEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import { foldSteps, ownSendKey, type HistoryRow } from "./thread.ts";
@@ -79,10 +80,14 @@ export interface UseAttentionOptions {
   sent?: (rt: Runtime) => void;
   /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
   activity?: Activity;
+  /** Which backend serves chats; a change reconnects. */
+  backend?: "letta" | "daemon";
+  /** The chat client for loki's daemon (core/attention/chat-client.ts); left out, Letta's app-server. */
+  makeClient?: () => ChatClient;
 }
 
 /** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
-async function createNamedAgent(sock: AppServerSocket, opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string; name: string }> {
+async function createNamedAgent(sock: ChatClient, opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string; name: string }> {
   const created = await sock.createAgent({ personality: opts.personality, model: opts.model });
   const body: Record<string, unknown> = {};
   if (opts.name.trim() && opts.name.trim() !== created.name) body.name = opts.name.trim();
@@ -137,7 +142,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page). */
   const historyLimits = useRef(new Map<string, number>());
   const loading = useRef(new Set<string>());
-  const socketRef = useRef<AppServerSocket | null>(null);
+  const socketRef = useRef<ChatClient | null>(null);
   const liveRef = useRef(new Map<string, Live>());
   /** A conversation's live state, made on first use: its thread holds the chat's rows, loaded and live. */
   const liveOf = useCallback((key: string): Live => {
@@ -189,7 +194,8 @@ export function useAttention(opts: UseAttentionOptions) {
       setStatus("off");
       return;
     }
-    const sock = new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
+    // loki's daemon serves chats through the mod's own frames; Letta through its app-server (plan 017, U5).
+    const sock: ChatClient = optsRef.current.makeClient?.() ?? new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
     sock.onStatus = (s) => {
       setStatus(s);
       if (s === "closed") linkDropped.current = true;
@@ -203,22 +209,26 @@ export function useAttention(opts: UseAttentionOptions) {
     };
     socketRef.current = sock;
     let reloadTimer: ReturnType<typeof setTimeout> | null = null; // a list refresh waiting on this socket
-    const off = sock.on((ev: ServerEvent) => {
-      const conv = ev.runtime?.conversation_id ?? (typeof ev.conversation_id === "string" ? ev.conversation_id : null);
-      const agent = ev.runtime?.agent_id ?? (typeof ev.agent_id === "string" ? ev.agent_id : null);
-      if (!conv || !agent) return;
+    const off = sock.onChat((rt, events) => {
+      const { conversation_id: conv, agent_id: agent } = rt;
       const key = keyOf(agent, conv);
       const l = liveOf(key);
       const wasInTurn = l.inTurn;
       const asked = { approval: l.pending?.requestId ?? null, question: l.pendingAsk?.requestId ?? null };
       const errorBefore = l.error;
-      const { changed, userSpoke } = applyEvent(l, ev);
+      let changed = false;
+      let userSpoke = false;
+      for (const e of events) {
+        const r = applyChatEvent(l, e);
+        changed ||= r.changed;
+        userSpoke ||= r.userSpoke;
+      }
       // A new permission request or question (approval_requested). Every window and phone sees the same request; the
       // mod keeps the first report of each (`once`).
       const request = l.pending && l.pending.requestId !== asked.approval ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" } : l.pendingAsk && l.pendingAsk.requestId !== asked.question ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" } : null;
       // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
       const move = folderMoves.current.get(key);
-      const answer = move ? folderMoveAnswer(ev, l.cwd, move) : null;
+      const answer = move ? folderMoveAnswer(events, l.cwd, move) : null;
       if (move && answer === "moved") move.done(null);
       else if (move && answer && answer !== "moved") {
         move.done(answer.error);
@@ -230,8 +240,7 @@ export function useAttention(opts: UseAttentionOptions) {
       // The turn just ended and something was typed during it: it goes out now, one per turn end.
       if (wasInTurn && !l.inTurn) {
         const next = takeQueued(l);
-        if (next && ev.runtime) {
-          const rt = ev.runtime;
+        if (next) {
           const out = outgoing(next.text, next.images);
           l.thread.expectEcho(out.key);
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
@@ -252,12 +261,8 @@ export function useAttention(opts: UseAttentionOptions) {
     const subscribeLimit = opts.subscribeLimit ?? 30;
     // Promise-style error handling here: the React Compiler cannot take a loop or a ?? inside a try block.
     const loadOnce = async () => {
-      void sock.request("app_server_info").then((info) => {
-        if (!cancelled) {
-          const ids = Array.isArray(info.supported_commands) ? (info.supported_commands as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
-          const mods = Array.isArray(info.mod_commands) ? (info.mod_commands as Array<{ id: string; description?: string; args?: string }>) : undefined;
-          setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null, advertised: fromAdvertised(ids, mods) });
-        }
+      void sock.serverInfo().then((info) => {
+        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: fromAdvertised(info.commands, info.modCommands) });
       }).catch(() => {});
       const agents = await sock.listAgents();
       const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
@@ -294,7 +299,7 @@ export function useAttention(opts: UseAttentionOptions) {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.enabled, opts.tunnelUrl]);
+  }, [opts.enabled, opts.tunnelUrl, opts.backend]);
 
   // The pending tick, if any, has nothing to render into after unmount.
   useEffect(

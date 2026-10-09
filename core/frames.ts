@@ -112,7 +112,8 @@ export interface ChatState {
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
 export interface Pushes {
-  config: { appServer: boolean };
+  /** `chats: "daemon"`: loki's daemon serves chats through the mod's own frames (plan 017, U5), not an app-server. */
+  config: { appServer: boolean; chats?: "daemon" };
   desk: { scope: Scope; title: string | null; status: DeskStatus; agentName: string | null; agentId: string | null; model: string | null; reasoningEffort: ReasoningEffort | null; mode: string | null; state: DeskState; widgets: WidgetManifestEntry[] };
   desk_title: { scope: Scope; title: string | null; status: DeskStatus; agentName: string | null; model: string | null; reasoningEffort: ReasoningEffort | null; mode?: string | null };
   state: { scope: Scope; state: DeskState };

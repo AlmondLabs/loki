@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { AppServerSocket } from "../core/attention/protocol.ts";
-import { applyEvent, emptyLive, folderMoveAnswer } from "../core/attention/model.ts";
+import { applyEvent, emptyLive, folderMoveAnswer as answerOf, lettaChatEvents } from "../core/attention/model.ts";
+import type { ServerEvent } from "../core/attention/protocol.ts";
+
+/** The answer a Letta event gives, read through loki's chat events. */
+const folderMoveAnswer = (ev: ServerEvent, cwd: string | undefined, move: { from: string | undefined; to: string }) => answerOf(lettaChatEvents(ev, "2026-10-10T00:00:00.000Z"), cwd, move);
 import { environmentReminder } from "../core/attention/content.ts";
 import type { Transport } from "../core/attention/transport.ts";
 

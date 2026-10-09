@@ -9,7 +9,7 @@ import type { CameraTarget, Connection } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
-import type { InputOf, PushFrame, SendName } from "../../../core/frames.ts";
+import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
 
 const NO_YANK_MS = 2000;
 
@@ -52,6 +52,9 @@ export function useDeskSocket() {
   const [modes, setModes] = useState<Record<Scope, string>>({});
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   const [appServer, setAppServer] = useState(false);
+  /** loki's daemon serves chats on this socket (config `chats: "daemon"`), and who listens for their events. */
+  const [chatsOnDaemon, setChatsOnDaemon] = useState(false);
+  const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
@@ -169,6 +172,10 @@ export function useDeskSocket() {
             break;
           case "config":
             setAppServer(msg.appServer === true);
+            setChatsOnDaemon(msg.chats === "daemon");
+            break;
+          case "chat_event":
+            for (const listener of chatListeners.current) listener(msg);
             break;
           case "tasks_changed":
             setTasksVersion((v) => v + 1);
@@ -301,6 +308,8 @@ export function useDeskSocket() {
     modes,
     setModes,
     appServer,
+    chatsOnDaemon,
+    chatListeners,
     seenMap,
     viewedMap,
     focusMap,
