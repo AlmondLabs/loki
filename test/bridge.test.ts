@@ -514,7 +514,7 @@ describe("recall frames", () => {
       expect((graded.card as { schedule: { reps: number } }).schedule.reps).toBe(1);
       expect(broadcasts.at(-1)).toEqual({ type: "recall_changed" });
       bridge.onMessage(c, { type: "recall_grade", requestId: "r3", id: "k1", grade: 9 });
-      expect(c.sent.pop()!.type).toBe("recall_error");
+      expect(c.sent.pop()).toEqual({ type: "error", requestId: "r3", message: "a grade is 1 (again) to 4 (easy)" });
       bridge.onMessage(c, { type: "recall_edit", requestId: "r4", id: "k1", back: "A1 better" });
       expect((c.sent.pop()!.card as { card: { back: string; updatedBy: string } }).card).toMatchObject({ back: "A1 better", updatedBy: "you" });
       bridge.onMessage(c, { type: "recall_reject", requestId: "r5", id: "k1" });
@@ -550,7 +550,7 @@ describe("recall frames", () => {
       // no store wired: a clear error
       const bare = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
       bare.onMessage(c, { type: "recall_list", requestId: "x" });
-      expect(c.sent.pop()).toMatchObject({ type: "recall_error" });
+      expect(c.sent.pop()).toMatchObject({ type: "error", message: "recall is not available in this mod" });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

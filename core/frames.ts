@@ -104,8 +104,8 @@ export interface Pushes {
   desks: { desks: DeskSummary[] };
   seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry>; appServer: boolean };
   models_recent: { recent: string[] };
-  recall_changed: Record<string, never>;
-  tasks_changed: Record<string, never>;
+  recall_changed: Record<never, never>;
+  tasks_changed: Record<never, never>;
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expiresAt: string };

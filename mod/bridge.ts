@@ -1,7 +1,4 @@
-import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import type { Scope } from "../core/desk-core.ts";
-import { HISTORY_MAX, HISTORY_PAGE } from "./desks.ts";
-import { toAnkiTsv } from "../core/recall/model.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
@@ -11,6 +8,10 @@ import { PHONE_FRAMES, frameEntry, isAgentId, isLanVia, type FrameName } from ".
 import { deskFrame, desksFrames } from "./frames/desks.ts";
 import { seenFrames } from "./frames/seen.ts";
 import { captureFrames } from "./frames/capture.ts";
+import { historyFrames } from "./frames/history.ts";
+import { foldersFrames } from "./frames/folders.ts";
+import { recallFrames } from "./frames/recall.ts";
+import { boardFrames } from "./frames/board.ts";
 import { errorMessage, fail, type FrameContext, type FrameHandlers, type Outcome } from "./frames/context.ts";
 import type { DeskInfo, DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome } from "../core/frame-types.ts";
 
@@ -187,11 +188,11 @@ export interface BridgeDeps {
 }
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
-  const { broadcast, appServerAvailable, appServerUrl, transcript, folders } = deps;
+  const { broadcast, appServerAvailable, appServerUrl } = deps;
 
   /** Which handler answers each frame: one per name, or the table and the modules disagree. */
   const handlers = new Map<FrameName, (payload: never, ctx: FrameContext) => unknown>();
-  for (const m of [desksFrames(deps), seenFrames(deps), captureFrames(), ...(deps.modules ?? [])]) {
+  for (const m of [desksFrames(deps), seenFrames(deps), captureFrames(), historyFrames(deps), foldersFrames(deps), recallFrames(deps), boardFrames(deps), ...(deps.modules ?? [])]) {
     for (const [name, h] of Object.entries(m) as Array<[FrameName, (payload: never, ctx: FrameContext) => unknown]>) {
       if (handlers.has(name)) throw new Error(`two handlers for ${name}`);
       handlers.set(name, h);
@@ -241,167 +242,6 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         return settle(() => handle(payload as never, ctx), () => {}, (err) => client.send({ type: "error", message: errorMessage(err) }));
       }
       switch (msg.type) {
-        case "folders_get": {
-          const r = folders?.recent() ?? { byAgent: {}, byConversation: {} };
-          client.send({ type: "folders", requestId: msg.requestId, byAgent: r.byAgent, byConversation: r.byConversation });
-          return;
-        }
-        case "folder_complete": {
-          client.send({ type: "folder_matches", requestId: msg.requestId, matches: typeof msg.prefix === "string" ? folders?.complete(msg.prefix) ?? [] : [] });
-          return;
-        }
-        case "folder_check": {
-          const r = typeof msg.path === "string" && folders ? folders.check(msg.path) : { ok: false, path: String(msg.path ?? ""), branch: null, reason: "no path" };
-          client.send({ type: "folder_status", requestId: msg.requestId, ...r });
-          return;
-        }
-        case "folder_pick": {
-          const requestId = msg.requestId;
-          void (folders?.pick(typeof msg.defaultPath === "string" ? msg.defaultPath : undefined) ?? Promise.resolve(null)).then((path) => client.send({ type: "folder_picked", requestId, path }));
-          return;
-        }
-        case "recall_list":
-        case "recall_grade":
-        case "recall_edit":
-        case "recall_reject":
-        case "recall_restore":
-        case "recall_forget":
-        case "recall_settings":
-        case "recall_run":
-        case "recall_lead_dismiss":
-        case "recall_lead_restore":
-        case "recall_lead_start":
-        case "recall_export": {
-          const requestId = msg.requestId;
-          const recall = deps.recall;
-          const fail = (message: string) => client.send({ type: "recall_error", requestId, message });
-          if (!recall) return fail("recall is not available in this mod");
-          const { store } = recall;
-          const snapshot = () => ({ type: "recall", requestId, cards: store.cards(), rejected: store.rejected(), worker: store.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })) });
-          const id = typeof msg.id === "string" ? msg.id : "";
-          const changed = (card: unknown) => {
-            client.send({ type: "recall_card", requestId, card });
-            deps.broadcast({ type: "recall_changed" });
-          };
-          try {
-            switch (msg.type) {
-              case "recall_list":
-                return client.send(snapshot());
-              case "recall_grade": {
-                const grade = msg.grade;
-                if (grade !== 1 && grade !== 2 && grade !== 3 && grade !== 4) return fail("a grade is 1 (again) to 4 (easy)");
-                if (!store.grade(id, grade)) return fail("no such card");
-                return changed(store.card(id));
-              }
-              case "recall_edit": {
-                const card = store.edit(id, { front: typeof msg.front === "string" ? msg.front : undefined, back: typeof msg.back === "string" ? msg.back : undefined, tags: Array.isArray(msg.tags) ? (msg.tags as unknown[]).filter((t): t is string => typeof t === "string") : undefined }, "you");
-                if (!card) return fail("no such card");
-                return changed(store.card(id));
-              }
-              case "recall_reject":
-                if (!store.reject(id)) return fail("no such card");
-                return changed(null);
-              case "recall_restore": {
-                const card = store.restore(id);
-                if (!card) return fail("nothing to restore");
-                return changed(store.card(id));
-              }
-              case "recall_forget":
-                store.forget(id);
-                return changed(null);
-              case "recall_settings": {
-                const update: Record<string, unknown> = {};
-                if (typeof msg.enabled === "boolean") update.enabled = msg.enabled;
-                if (msg.model === null || typeof msg.model === "string") update.model = msg.model || null;
-                if (typeof msg.dailyCap === "number" && msg.dailyCap >= 0) update.dailyCap = Math.round(msg.dailyCap);
-                if (typeof msg.tickMinutes === "number" && Number.isFinite(msg.tickMinutes)) update.tickMinutes = clampTickMinutes(msg.tickMinutes);
-                const before = store.worker().tickMinutes ?? DEFAULT_TICK_MINUTES;
-                store.saveWorker(update);
-                if (typeof update.tickMinutes === "number" && update.tickMinutes !== before) deps.recall?.reschedule?.(update.tickMinutes);
-                deps.broadcast({ type: "recall_changed" });
-                return client.send(snapshot());
-              }
-              case "recall_lead_dismiss":
-                if (!store.dismissLead(id)) return fail("no such lead");
-                deps.broadcast({ type: "recall_changed" });
-                return client.send(snapshot());
-              case "recall_lead_restore":
-                if (!store.restoreLead(id)) return fail("nothing to restore");
-                deps.broadcast({ type: "recall_changed" });
-                return client.send(snapshot());
-              case "recall_lead_start":
-                if (!recall.startLesson) return fail("lessons are not available in this mod");
-                void recall
-                  .startLesson(id)
-                  .then((lesson) => {
-                    client.send({ type: "recall_lesson", requestId, ...lesson }); // the tab opens the desk; the tree reads the new conversation from disk on its next list
-                    deps.broadcast({ type: "recall_changed" });
-                  })
-                  .catch((err) => fail(err instanceof Error ? err.message : String(err)));
-                return;
-              case "recall_run":
-                void recall
-                  .run()
-                  .then((r) => {
-                    client.send({ type: "recall_ran", requestId, note: r.note });
-                    deps.broadcast({ type: "recall_changed" });
-                  })
-                  .catch((err) => fail(err instanceof Error ? err.message : String(err)));
-                return;
-              default:
-                return client.send({ type: "recall_export", requestId, tsv: toAnkiTsv(store.cards()) });
-            }
-          } catch (err) {
-            return fail(err instanceof Error ? err.message : String(err));
-          }
-        }
-        case "tasks_list":
-        case "task_create":
-        case "task_assign":
-        case "task_close":
-        case "task_status": {
-          const requestId = msg.requestId;
-          const board = deps.tasks;
-          const fail = (err: unknown) => client.send({ type: "task_error", requestId, message: err instanceof Error ? err.message : String(err) });
-          if (!board) return fail(new Error("the board is not available in this mod"));
-          const ids = Array.isArray(msg.ids) ? (msg.ids as unknown[]).filter((x): x is string => typeof x === "string") : typeof msg.id === "string" ? [msg.id] : [];
-          const done = (tasks: unknown) => {
-            client.send({ type: "tasks_updated", requestId, tasks });
-            deps.broadcast({ type: "tasks_changed" });
-          };
-          if (msg.type === "tasks_list") {
-            void board.list({ all: msg.all === true }).then((tasks) => client.send({ type: "tasks", requestId, tasks })).catch(fail);
-          } else if (msg.type === "task_create") {
-            const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-            const conversation = typeof msg.conversationId === "string" ? msg.conversationId : null;
-            void board
-              .create({
-                title: String(msg.title ?? ""),
-                description: typeof msg.description === "string" ? msg.description : undefined,
-                labels: Array.isArray(msg.labels) ? (msg.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
-                priority: typeof msg.priority === "number" ? msg.priority : undefined,
-                stamp: { by: "you", agent: typeof msg.agentName === "string" ? msg.agentName : null, agentId, conversation, desk: typeof msg.desk === "string" ? msg.desk : null, folder: deps.folderFor?.(agentId, conversation) ?? null },
-              })
-              .then((task) => {
-                client.send({ type: "task_created", requestId, task });
-                deps.broadcast({ type: "tasks_changed" });
-              })
-              .catch(fail);
-          } else if (msg.type === "task_assign") {
-            if (typeof msg.conversationId !== "string" || typeof msg.desk !== "string") return fail(new Error("assign needs a conversation and a chat"));
-            void board
-              .assign(ids, { agent: typeof msg.agentName === "string" ? msg.agentName : null, agentId: typeof msg.agentId === "string" ? msg.agentId : null, conversation: msg.conversationId, desk: msg.desk }, msg.start === true ? "in_progress" : "open")
-              .then(done)
-              .catch(fail);
-          } else if (msg.type === "task_close") {
-            void board.close(ids, typeof msg.reason === "string" ? msg.reason : undefined).then(done).catch(fail);
-          } else {
-            const status = msg.status;
-            if (status !== "open" && status !== "in_progress" && status !== "blocked" && status !== "deferred") return fail(new Error(`unknown status ${String(status)}`));
-            void board.setStatus(ids, status).then(done).catch(fail);
-          }
-          return;
-        }
         case "skills_global": {
           const ag = deps.agents;
           client.send({ type: "skills_global", requestId: msg.requestId, skills: ag?.globalSkills?.() ?? [] });
@@ -464,19 +304,6 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
               .then((diff) => client.send({ type: "memory_diff", requestId, agentId, sha: msg.sha, diff }))
               .catch(fail);
           }
-          return;
-        }
-        case "inbox_list": {
-          client.send({ type: "inbox", requestId: msg.requestId, conversations: deps.listInbox?.() ?? [] });
-          return;
-        }
-        case "history_get": {
-          if (typeof msg.conversationId !== "string") return;
-          const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-          // `limit` grows as the reader scrolls past the oldest row they have (HISTORY_PAGE at a time).
-          const limit = Math.min(HISTORY_MAX, Math.max(HISTORY_PAGE, Math.floor(Number(msg.limit)) || HISTORY_PAGE));
-          const page = transcript?.(agentId, msg.conversationId, limit) ?? { rows: [], more: false };
-          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: page.rows, more: page.more, widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
           return;
         }
         case "lan_get":
