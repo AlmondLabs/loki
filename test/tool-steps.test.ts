@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { TOOL_TEXT_MAX, toTranscript, toolInput, toolOutput, toolStep } from "../core/harness.ts";
 import { applyEvent, emptyLive } from "../core/attention/model.ts";
-import { isNamedStep, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workSummary } from "../app/src/shared/toolSteps.ts";
+import { withoutSkillCalls, isNamedStep, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workSummary } from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const bash = (failed = false): TranscriptRow => ({ role: "tool", text: "Bash · ls", tool: { name: "Bash", ...(failed ? { failed: true } : {}) } });
@@ -136,5 +136,16 @@ describe("Letta's Codex-style tools", () => {
     expect(stepVerb("memory_apply_patch")).toBe("Updated memory");
     expect(stepVerb("web_search")).toBe("Searched the web");
     expect(isNamedStep({ role: "tool", text: "ApplyPatch", tool: { name: "ApplyPatch" } })).toBe(false);
+  });
+});
+
+describe("skills", () => {
+  test("the Skill call is dropped when the skill's body follows: one line per skill", async () => {
+    const { toolStep, toolLabel } = await import("../core/harness.ts");
+    const call = (name: string): TranscriptRow => ({ role: "tool", text: toolLabel("Skill", { skill: name }), tool: toolStep("Skill", { skill: name }) });
+    const body = (name: string): TranscriptRow => ({ role: "event", text: "skill loaded", summary: name, detail: "# body" });
+    expect(stepTarget(call("loki"))).toBe("loki");
+    const rows = [call("loki"), body("loki"), call("show-me"), body("show-me"), call("never-came")];
+    expect(withoutSkillCalls(rows).map((r) => `${r.role}:${stepTarget(r)}`)).toEqual(["event:loki", "event:show-me", "tool:never-came"]);
   });
 });

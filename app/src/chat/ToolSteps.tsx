@@ -2,7 +2,7 @@ import { createContext, memo, useContext, useState } from "react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Sheet } from "../components";
 import { Icon } from "../shared/icons";
-import { isNamedStep, lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workSummary } from "../shared/toolSteps";
+import { isNamedStep, withoutSkillCalls, lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workSummary } from "../shared/toolSteps";
 
 /**
  * A stretch of the agent's work in the thread (tool calls, background tasks, skills it loaded), as one quiet line:
@@ -18,7 +18,8 @@ import { isNamedStep, lastFailure, stepFailed, stepIcon, stepKind, stepName, ste
 export const StepsTouch = createContext(false);
 
 export const ToolSteps = memo(
-  function ToolSteps({ rows, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived?: true }) {
+  function ToolSteps({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived?: true }) {
+    const rows = withoutSkillCalls(all);
     const touch = useContext(StepsTouch);
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<number | null>(null);

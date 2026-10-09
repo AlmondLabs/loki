@@ -220,7 +220,7 @@ export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
   // `cmd` is the shell command in Letta's Codex-style toolset (exec_command); `command` in Claude-style Bash.
-  const pick = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "prompt", "description"].find((k) => typeof args[k] === "string" && (args[k] as string).trim());
+  const pick = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"].find((k) => typeof args[k] === "string" && (args[k] as string).trim());
   if (pick && name !== "AskUserQuestion") return cap((args[pick] as string).trim());
   const json = JSON.stringify(args, null, 2);
   return json === "{}" ? undefined : cap(json);
@@ -276,7 +276,7 @@ export function toolLabel(name: string, input: unknown): string {
     const q = (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question;
     if (typeof q === "string" && q.trim()) return `${name} · ${q.trim().length > 80 ? q.trim().slice(0, 77) + "…" : q.trim()}`;
   }
-  const pick = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "description", "prompt"].find((k) => typeof args![k] === "string" && (args![k] as string).trim());
+  const pick = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "description", "prompt"].find((k) => typeof args![k] === "string" && (args![k] as string).trim());
   if (!pick) return name;
   const raw = (args[pick] as string).trim().split("\n")[0];
   const short = raw.length > 80 ? raw.slice(0, 77) + "…" : raw;

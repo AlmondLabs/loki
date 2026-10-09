@@ -174,3 +174,12 @@ export function lastFailure(rows: TranscriptRow[]): number | null {
   for (let k = rows.length - 1; k >= 0; k--) if (stepFailed(rows[k])) return k;
   return null;
 }
+
+/**
+ * A stretch as it is listed: the agent's Skill call is dropped when the skill's own body follows in the same stretch
+ * (one "Loaded skill · loki" line, not two). A call whose skill never loaded stays, so a failure still shows.
+ */
+export function withoutSkillCalls(rows: TranscriptRow[]): TranscriptRow[] {
+  const loaded = new Set(rows.filter((r) => r.role === "event" && r.text === "skill loaded").map((r) => r.summary ?? ""));
+  return rows.filter((r) => !(r.role === "tool" && stepName(r) === "Skill" && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));
+}
