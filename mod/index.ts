@@ -198,6 +198,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
       // A deleted agent leaves its memory repo behind: its record must still exist too. Hidden conversations stay
       // out, except the recall worker's: those are desks you can open to read what it asked and what the agent said.
       if ((c.hidden && !recall.owns(c.conversationId)) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
+      // Helper agents have memory folders too: without this, the eviction above was undone on every listing.
+      if (isSubagent(c.agentId)) continue;
       scopes.add(desks.remember(c.conversationId, c.agentId));
     }
     return sortDesks(
