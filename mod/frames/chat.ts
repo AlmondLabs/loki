@@ -10,7 +10,9 @@ import { errorMessage, fail, reply, type FrameHandlers, type Outcome } from "./c
 export interface ChatBackend {
   /** Tell every socket what happened in a chat; the backend calls it as events arrive. */
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void;
-  open(agentId: string, conversationId: string): Promise<ChatState>;
+  open(agentId: string, conversationId: string, mode: string | null): Promise<ChatState>;
+  approve(p: PayloadOf<"chat_approve">): Promise<boolean>;
+  answer(p: PayloadOf<"chat_answer">): Promise<boolean>;
   create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }>;
   send(p: PayloadOf<"chat_send">): Promise<boolean>;
   abort(agentId: string, conversationId: string): Promise<void>;
@@ -42,7 +44,9 @@ async function served<R>(backend: ChatBackend | undefined, work: (b: ChatBackend
 export function chatFrames(deps: ChatDeps): FrameHandlers {
   const b = deps.chat;
   return {
-    chat_open: ({ agentId, conversationId }) => served(b, (x) => x.open(agentId, conversationId)),
+    chat_open: ({ agentId, conversationId, mode }) => served(b, (x) => x.open(agentId, conversationId, mode)),
+    chat_approve: (p) => served(b, async (x) => ({ accepted: await x.approve(p) })),
+    chat_answer: (p) => served(b, async (x) => ({ accepted: await x.answer(p) })),
     chat_create: ({ agentId, cwd, title }) => served(b, (x) => x.create(agentId, cwd, title)),
     chat_send: (p) => served(b, async (x) => ({ accepted: await x.send(p) })),
     chat_abort: ({ agentId, conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),

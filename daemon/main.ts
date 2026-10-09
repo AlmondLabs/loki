@@ -17,6 +17,8 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
+import { Approvals, kindOf } from "./approvals.ts";
+import { askExtension } from "./ask.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -60,7 +62,11 @@ process.env.LOKI_BACKEND_DIR = backend;
 // Every provider pi-ai knows; until the keychain (U8), a provider's key comes from its environment variable.
 const models = builtinModels();
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
-const chat = new DaemonChats({ stores, mods, models, backendDir: backend, context, report });
+// The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).
+const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mods.annotations(name)) });
+mods.registry.install(approvals.extension());
+mods.registry.install(askExtension(approvals));
+const chat = new DaemonChats({ stores, mods, approvals, models, backendDir: backend, context, report });
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 chats.follow(stores);
 await Promise.all(

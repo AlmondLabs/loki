@@ -7,6 +7,7 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import { DaemonChats, modelRef } from "../daemon/chat-backend.ts";
+import { Approvals } from "../daemon/approvals.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
@@ -22,7 +23,8 @@ async function setup() {
   const mods = new ModRegistry(() => {});
   await mods.load({ name: "rider", apiVersion: 1, activate: (api) => void api.message.transform((m) => (typeof m.content === "string" ? `${m.content}\n<loki-desk/>` : m.content)) });
   const stores = new StoreManager(join(dir, "stores"), { models, registry: mods.registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx));
-  const chats = new DaemonChats({ stores, mods, models, backendDir: join(dir, "backend"), context: ctx });
+  const approvals = new Approvals();
+  const chats = new DaemonChats({ stores, mods, approvals, models, backendDir: join(dir, "backend"), context: ctx });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
   const sent: string[] = [];
@@ -53,7 +55,7 @@ describe("the daemon's chats", () => {
       expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada" }]);
       expect(await (await s.stores.get(agent.id)).chat("default", ctx)).toBeDefined();
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
-      expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", mode: null, cwd: "/work" });
+      expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", mode: "unrestricted", cwd: "/work" });
       s.faux.setResponses([s.reply("Hello back")]);
       expect(await s.chats.send({ agentId: agent.id, conversationId, text: "hello", images: [], sendId: "s1", context: null })).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));

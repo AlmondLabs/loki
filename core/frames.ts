@@ -202,7 +202,20 @@ export const FRAMES = {
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
 
   // Chats on loki's daemon (plan 017, U5); under Letta the app-server serves these and the mod answers `error`
-  chat_open: request("chat_state", "follow a chat: its state now, then its chat_event pushes", chatRef, PHONE),
+  chat_open: request("chat_state", "follow a chat: its state now, then its chat_event pushes; `mode` sets its permission mode", (m) => {
+    const c = chatRef(m);
+    return typeof c === "string" ? c : { ...c, mode: strOr(m.mode, null) };
+  }, PHONE),
+  chat_approve: request("chat_accepted", "the person's decision on a tool call the chat asked about", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.requestId) && typeof m.allow === "boolean" ? { ...c, requestId: m.requestId, allow: m.allow, message: strOr(m.message, null) } : "requestId and allow required";
+  }, PHONE),
+  chat_answer: request("chat_accepted", "the person's answers to a question card (the tool input with `answers` filled in)", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.requestId) && m.input && typeof m.input === "object" ? { ...c, requestId: m.requestId, input: m.input as Raw } : "requestId and input required";
+  }, PHONE),
   chat_create: request("chat_created", "a new chat for an agent, in a folder", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agentId required", PHONE),
   chat_send: request("chat_accepted", "a message from the person; queued when the chat is busy, sent once per sendId", (m) => {

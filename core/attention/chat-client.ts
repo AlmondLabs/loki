@@ -113,9 +113,9 @@ export class FrameChatClient implements ChatClient {
   }
 
   /** Open a chat: its live events follow, and its state now arrives as events too. */
-  async runtimeStart(rt: Runtime): Promise<ServerEvent> {
+  async runtimeStart(rt: Runtime, opts: { mode?: string } = {}): Promise<ServerEvent> {
     this.remember(rt);
-    const state = await this.call("chat_open", { agentId: rt.agent_id, conversationId: rt.conversation_id });
+    const state = await this.call("chat_open", { agentId: rt.agent_id, conversationId: rt.conversation_id, mode: opts.mode ?? null });
     this.opened.add(`${rt.agent_id}\u0000${rt.conversation_id}`);
     this.emit(rt, [{ kind: "loop", state: state.loop }, { kind: "device", ...(state.mode ? { mode: state.mode } : {}), ...(state.cwd ? { cwd: state.cwd } : {}) }]);
     return { type: "chat_state" };
@@ -196,13 +196,14 @@ export class FrameChatClient implements ChatClient {
     return [];
   }
 
-  // What later units bring to the daemon (plan 017): approvals and questions (U7), providers (U8), memory and
+  // What later units bring to the daemon (plan 017): providers (U8), memory and
   // reflection (U9), skills and commands (U10).
-  async respondApproval(): Promise<boolean> {
-    throw NOT_YET("answering an approval");
+  async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
+    return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, allow: behavior === "allow", message: null })).accepted;
   }
-  async answerQuestion(): Promise<boolean> {
-    throw NOT_YET("answering a question");
+
+  async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
+    return (await this.call("chat_answer", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, input: updatedInput })).accepted;
   }
   async listConnectProviders(): Promise<ConnectProvider[]> {
     return [];

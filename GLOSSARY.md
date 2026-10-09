@@ -49,3 +49,20 @@ PHONE_FRAMES (now derived from it).
 
 **Frame handler**: the mod module for one feature (Learn, the board, agents, folders, the phone listener, …) that
 answers that feature's frames; a request handler returns its reply or an error, and the router sends it.
+
+**Chat event** (`core/attention/model.ts`, `ChatEvent`): what happens in a chat while it runs, in loki's own words:
+an approval or question, the chat's mode and folder, running or idle, a step, an error, a slash command, the reply
+settling, the turn ending. loki's daemon pushes them (`chat_event`); Letta's app-server events are read into them.
+
+**Permission mode**: which tool calls ask you first, per chat. On loki's daemon (`daemon/approvals.ts`):
+
+| Mode | Asks before |
+|---|---|
+| strict | every tool, reads included |
+| standard | edits and commands; reads run freely |
+| acceptEdits | commands; edits and reads run freely |
+| unrestricted | nothing (the default) |
+
+Reads are `read`, `grep`, `find`, `ls`, `desk_state`, `loki_camera`, `web_search` and a mod's tools marked
+read-only; edits are `write` and `edit`; anything else is a command. An edit inside loki's widget folder never asks,
+and a question card (`AskUserQuestion`) is never a permission.

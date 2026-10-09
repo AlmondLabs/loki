@@ -13,7 +13,7 @@ import {
   type HookRegistration,
   type Registry,
 } from "@earendil-works/pi-durable";
-import { AgentDoc, ChatDoc } from "../kernel/index.ts";
+import { AgentInfoDoc, ChatDoc } from "../kernel/index.ts";
 import { MOD_API_VERSION, type BeforeToolResult, type ChatRef, type LokiMod, type ModApi, type ModEvents, type ModTool, type OutgoingMessage, type SectionInput, type ToolCall } from "./api.ts";
 
 /**
@@ -40,7 +40,7 @@ const NO_SIGNAL = new AbortController().signal;
 
 /** loki's ids for a pi-durable conversation, from the documents its store keeps (daemon/kernel). */
 async function chatRef(read: DocumentReader, conversationId: ConversationId, context: Context): Promise<ChatRef> {
-  const [chat, agent] = await Promise.all([read.snapshot(ChatDoc, conversationId, context), read.snapshot(AgentDoc, context)]);
+  const [chat, agent] = await Promise.all([read.snapshot(ChatDoc, conversationId, context), read.snapshot(AgentInfoDoc, context)]);
   return { chatId: chat?.id || `conversation-${conversationId}`, agentId: agent?.id ?? "", agentName: agent?.name ?? "" };
 }
 
@@ -124,6 +124,15 @@ export class ModRegistry {
     const extension = this.registry.snapshot().extension(name);
     this.retire(name);
     if (extension) this.registry.uninstall(extension);
+  }
+
+  /** What a mod says a tool of its does (daemon/approvals.ts), when one of the loaded mods has it. */
+  annotations(toolName: string): ModTool["annotations"] | undefined {
+    for (const { pieces } of this.loaded.values()) {
+      const tool = pieces.tools.find((t) => t.name === toolName);
+      if (tool) return tool.annotations;
+    }
+    return undefined;
   }
 
   /** The names of the loaded mods, in load order. */

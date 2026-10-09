@@ -35,6 +35,8 @@ export type ChatInfo = {
   /** Kept out of lists, as Letta's one-off side threads and Learn's own chats are. */
   hidden: boolean;
   createdAt: string;
+  /** Which tool calls ask the person first (daemon/approvals.ts); absent, unrestricted, as on Letta. */
+  mode?: string;
 };
 
 export const ChatDoc = defineDoc<ChatInfo>({
@@ -47,7 +49,7 @@ export const ChatDoc = defineDoc<ChatInfo>({
 });
 
 /** Which agent a store belongs to, so a tool or section can name it without asking the daemon. */
-export const AgentDoc = defineDoc<{ id: string; name: string }>({
+export const AgentInfoDoc = defineDoc<{ id: string; name: string }>({
   kind: "loki.agent",
   version: 1,
   scope: "session",
@@ -76,10 +78,10 @@ export class AgentStore {
 
   /** Record which agent this store is, once, or when its name changes. */
   async setAgent(agent: { id: string; name: string }, context: Context): Promise<void> {
-    const known = await this.harness.snapshot(AgentDoc, context);
+    const known = await this.harness.snapshot(AgentInfoDoc, context);
     if (known?.id === agent.id && known.name === agent.name) return;
     await this.harness.commit(async (tx) => {
-      const doc = await tx.doc(AgentDoc);
+      const doc = await tx.doc(AgentInfoDoc);
       doc.id = agent.id;
       doc.name = agent.name;
     }, context);
@@ -103,7 +105,7 @@ export class AgentStore {
   }
 
   /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
-  async updateChat(id: string, change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden">>, context: Context): Promise<boolean> {
+  async updateChat(id: string, change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden" | "mode">>, context: Context): Promise<boolean> {
     const chat = await this.chat(id, context);
     if (!chat) return false;
     await chat.commit(async (tx) => {
@@ -111,6 +113,7 @@ export class AgentStore {
       if (change.title !== undefined) info.title = change.title;
       if (change.archived !== undefined) info.archived = change.archived;
       if (change.hidden !== undefined) info.hidden = change.hidden;
+      if (change.mode !== undefined) info.mode = change.mode;
     }, context);
     return true;
   }

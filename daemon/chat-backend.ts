@@ -11,6 +11,7 @@ import type { ModelEntry, ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
+import { isPermissionMode, type Approvals } from "./approvals.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import type { ModRegistry } from "./mods/registry.ts";
@@ -25,6 +26,7 @@ import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
 
 type Deps = {
   stores: StoreManager;
+  approvals: Approvals;
   mods: ModRegistry;
   models: Models;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
@@ -60,6 +62,7 @@ export class DaemonChats implements ChatBackend {
 
   attach(push: (agentId: string, conversationId: string, events: ChatEvent[]) => void): void {
     this.push = push;
+    this.deps.approvals.attach(push);
   }
 
   private async chat(agentId: string, conversationId: string): Promise<{ store: AgentStore; chat: Conversation }> {
@@ -69,12 +72,28 @@ export class DaemonChats implements ChatBackend {
     return { store, chat };
   }
 
-  async open(agentId: string, conversationId: string): Promise<ChatState> {
+  async open(agentId: string, conversationId: string, mode: string | null = null): Promise<ChatState> {
     const { store, chat } = await this.chat(agentId, conversationId);
+    if (mode !== null) {
+      if (!isPermissionMode(mode)) throw new Error(`not a permission mode: ${mode}`);
+      await store.updateChat(conversationId, { mode }, this.deps.context);
+    }
     const key = `${agentId}\u0000${conversationId}`;
     if (!this.watching.has(key)) this.watching.set(key, this.follow(store, chat, agentId, conversationId));
     await this.watching.get(key);
-    return this.state(store, chat, agentId, conversationId);
+    const state = await this.state(store, chat, agentId, conversationId);
+    // What the chat is waiting on reaches a client that opens it late, after the state it opens with.
+    const waiting = this.deps.approvals.waitingIn(agentId, conversationId);
+    if (waiting.length) queueMicrotask(() => this.push(agentId, conversationId, waiting));
+    return state;
+  }
+
+  async approve(p: PayloadOf<"chat_approve">): Promise<boolean> {
+    return this.deps.approvals.decide(p.requestId, p.allow, p.message ?? undefined);
+  }
+
+  async answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
+    return this.deps.approvals.answer(p.requestId, p.input);
   }
 
   /** Push every event of a chat from now on. */
@@ -89,7 +108,9 @@ export class DaemonChats implements ChatBackend {
 
   private async state(store: AgentStore, chat: Conversation, agentId: string, conversationId: string): Promise<ChatState> {
     const [view, settings] = await Promise.all([store.harness.snapshot(LiveDoc, chat.id, this.deps.context), store.agentSettings(chat.id, this.deps.context)]);
-    return { agentId, conversationId, loop: view?.run ? "running" : "idle", mode: null, cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null };
+    const info = await store.chatInfo(chat.id, this.deps.context);
+    const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
+    return { agentId, conversationId, loop: waiting ? "approval" : view?.run ? "running" : "idle", mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted", cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null };
   }
 
   async create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }> {
