@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PERSONALITIES, type Personality } from "../../../core/attention/protocol.ts";
-import { Button, Field, Row, Title } from "../components";
+import { Button, Field, Row } from "../components";
 import { formatKeys } from "../shell/keymap";
 
 /** The form for a new agent: name, description, one of Letta's personality presets, a model. */
@@ -25,8 +25,7 @@ export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }
   };
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }} onKeyDown={(e) => e.key === "Enter" && void submit()}>
-      <div style={{ maxWidth: 560, display: "grid", gap: 12 }}>
-        <Title>a new agent</Title>
+      <div style={{ maxWidth: 640, display: "grid", gap: 14 }}>
         <Labelled label="Name"><Field autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" /></Labelled>
         <Labelled label="Description"><Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" /></Labelled>
         <Labelled label="Personality">
@@ -40,26 +39,31 @@ export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }
           </div>
         </Labelled>
         <Labelled label="Model">
-          <Field mono list="loki-new-agent-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models?.length ? "the harness default, or pick one" : "the harness default"} autoComplete="off" data-form-type="other" />
+          <Field list="loki-new-agent-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models?.length ? "the harness default, or pick one" : "the harness default"} autoComplete="off" data-form-type="other" />
           <datalist id="loki-new-agent-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
         </Labelled>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
-          <span style={{ flex: 1 }} />
-          {canCancel && <Button onClick={onCancel}>cancel</Button>}
-          <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>{busy ? "creating…" : "create"}</Button>
-        </div>
+        <Labelled label="">
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
+            <span style={{ flex: 1 }} />
+            {canCancel && <Button onClick={onCancel}>Cancel</Button>}
+            <Button tone="positive" onClick={() => void submit()} disabled={busy || !name.trim()} kbd={formatKeys("enter")}>{busy ? "Creating…" : "Create agent"}</Button>
+          </div>
+        </Labelled>
       </div>
     </div>
   );
 }
 
-/** A labelled line in the new-agent form: the label in the head's voice, the control beside it. */
+/**
+ * A labelled line in the new-agent form: one label column wide enough for the longest label, so every control starts
+ * at the same edge; the label sits level with the control's first line (a list's label at its top, not its middle).
+ */
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px" }}>
-      <span className="loki-label" style={{ width: 44 }}>{label}</span>
-      {children}
+    <div style={{ display: "grid", gridTemplateColumns: "96px minmax(0, 1fr)", alignItems: "start", columnGap: 16, padding: "0 8px" }}>
+      <span className="loki-label" style={{ paddingTop: 9, lineHeight: "18px" }}>{label}</span>
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }

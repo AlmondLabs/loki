@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { previewLine } from "../shared/preview";
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../board/model";
@@ -333,7 +334,7 @@ function FilterPill({ label, onClear }: { label: string; onClear: () => void }) 
 }
 
 /** The first words of the agent's last reply, on one line. */
-const snippet = (text: string | null | undefined) => (text ? text.replace(/\s+/g, " ").trim().slice(0, 160) : null);
+const snippet = (text: string | null | undefined) => previewLine(text);
 
 /** A waiting conversation: the agent's face, the desk's name (else the item's), agent · what it waits on, the time, a dot when unread. */
 function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {

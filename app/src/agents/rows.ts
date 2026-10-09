@@ -1,4 +1,5 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
+import { previewLine } from "../shared/preview";
 import { agentRows, liveDesksLabel, type AgentRowModel } from "../phone/model";
 
 /** One row of the Agents column, a Slack DM: the phone's agent row (live desks, running, waiting) and a one-line preview. */
@@ -15,7 +16,7 @@ export function agentDmRows(agents: Array<{ id: string; name: string }>, desks: 
     const newest = items
       .filter((i) => i.agentId === r.id && !i.archived && i.lastAssistantText?.trim())
       .reduce<AttentionItem | null>((best, i) => (!best || (i.lastMessageAt ?? "") > (best.lastMessageAt ?? "") ? i : best), null);
-    const said = newest?.lastAssistantText?.trim().split("\n")[0].trim();
+    const said = previewLine(newest?.lastAssistantText);
     return { ...r, preview: said || liveDesksLabel(r.live) };
   });
 }
