@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { isAgentId, memoryLog } from "./agents.ts";
+import { memoryLog } from "./agents.ts";
+import { isAgentId } from "../core/frames.ts";
 import type { MemoryCommit, ReflectionConversation, ReflectionState } from "../core/frame-types.ts";
 
 /**

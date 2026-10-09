@@ -13,6 +13,7 @@ import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "
 import type { Tailscale } from "./tailscale.ts";
 import { log } from "./log.ts";
 import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
+import { isLanVia } from "../core/frames.ts";
 
 /**
  * The second listener, for phones on the same Wi‑Fi. Off by default; the setting in
@@ -27,8 +28,6 @@ import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/fram
  *   everything else                    the built canvas as a single-page app (mod/static.ts)
  * The desktop token is refused here even when presented as a bearer.
  */
-
-export const isLanVia = (v: unknown): v is LanVia => v === "tailscale" || v === "lan";
 
 export type LanChange = "status" | "devices";
 

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { backendName } from "../core/desk-core.ts";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
+import { isAgentId } from "../core/frames.ts";
 
 /**
  * What Letta keeps per agent on this machine, read for the Agents page:
@@ -15,15 +16,6 @@ import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/
  */
 
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(homedir(), ".letta", "lc-local-backend");
-
-/**
- * Agent ids reach the mod from the socket and from the LAN page, then become path segments under the
- * backend's memfs. Only the shape Letta itself produces is allowed: letters, digits, `.`, `_`, `-`, not
- * starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
- */
-export function isAgentId(id: unknown): id is string {
-  return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
-}
 
 /**
  * Letta spawns helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,

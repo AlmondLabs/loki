@@ -1,6 +1,6 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { isEventName } from "../core/analytics.ts";
-import type { Gesture, Scope } from "../core/desk-core.ts";
+import type { Scope } from "../core/desk-core.ts";
 import { HISTORY_MAX, HISTORY_PAGE } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
 import { SHARED_SCOPE, mergeData, scopeOfId } from "../core/desk-core.ts";
@@ -9,8 +9,7 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { describeGesture } from "./gestures.ts";
 import type { Client, WsHandlers } from "./server.ts";
-import { isAgentId } from "./agents.ts";
-import { isLanVia } from "./lan.ts";
+import { isAgentId, isGesture, isLanVia } from "../core/frames.ts";
 import type { DeskInfo, DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome } from "../core/frame-types.ts";
 
 /**
@@ -183,28 +182,7 @@ export interface BridgeDeps {
   capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
 }
 
-function isGesture(v: unknown): v is Gesture {
-  if (typeof v !== "object" || v === null) return false;
-  const g = v as Record<string, unknown>;
-  if (typeof g.id !== "string" || !g.id) return false;
-  switch (g.kind) {
-    case "move":
-      return isPoint(g.position);
-    case "resize":
-      return typeof g.size === "object" && g.size !== null && isNum((g.size as Record<string, unknown>).w) && isNum((g.size as Record<string, unknown>).h);
-    case "focus":
-    case "close":
-    case "open":
-      return true;
-    case "set":
-      return typeof g.path === "string" && g.path.length > 0;
-    default:
-      return false;
-  }
-}
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-const isPoint = (v: unknown): boolean =>
-  typeof v === "object" && v !== null && isNum((v as Record<string, unknown>).x) && isNum((v as Record<string, unknown>).y);
 
 /**
  * The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`.

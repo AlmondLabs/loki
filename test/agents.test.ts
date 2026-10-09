@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backendName } from "../core/desk-core.ts";
-import { isAgentId, isSubagent, memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
+import { isSubagent, memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
+import { isAgentId } from "../core/frames.ts";
 
 const AGENT = "agent-local-test-1234";
 let dir: string;
