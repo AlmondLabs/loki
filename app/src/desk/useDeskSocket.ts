@@ -5,9 +5,10 @@ import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
-import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
+import type { CameraTarget, Connection } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
+import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
 
 const NO_YANK_MS = 2000;
 

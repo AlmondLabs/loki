@@ -1,10 +1,11 @@
 import { useState } from "react";
-import type { MemorySkillInfo } from "../../../mod/skill-sources.ts";
+
 import { Button, Chip, Field, Row, TextArea, sentence } from "../components";
 import { Head, ListPane, Pane, Prose } from "./bits";
 import type { AgentDetails } from "./types";
 import type { AgentStore } from "./useAgentDetails";
 import type { ReadingState } from "./useReading";
+import type { MemorySkillInfo } from "../../../core/frame-types.ts";
 
 /** The skills page's add form: write one here, or install from a source. */
 export type Adding = null | "write" | "install";

@@ -1,8 +1,9 @@
-import type { MemoryCommit } from "../../../mod/agents.ts";
+
 import { Row } from "../components";
 import { ago } from "../board/model";
 import { Head, ListPane, Pane } from "./bits";
 import type { ReadingState } from "./useReading";
+import type { MemoryCommit } from "../../../core/frame-types.ts";
 
 /** The changes page: the memory's git log on the left, newest first; the picked commit's diff on the right. */
 export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: MemoryCommit[]; shownSha: string | null; onPickSha: (sha: string) => void; reading: ReadingState }) {

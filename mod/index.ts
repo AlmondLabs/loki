@@ -13,7 +13,7 @@ import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage, type InboxRow } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
@@ -26,13 +26,14 @@ import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
-import type { DeskInfo, DeskSummary } from "./bridge.ts";
+
 import { sortDesks } from "./bridge.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
 import { shouldServe } from "./gate.ts";
 import { wsSource } from "./ws.ts";
-import { createBridge, scopeOfId } from "./bridge.ts";
+import { createBridge } from "./bridge.ts";
+import { scopeOfId } from "../core/desk-core.ts";
 import { DeviceStore } from "./devices.ts";
 import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
@@ -41,6 +42,7 @@ import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics } from "./analytics.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
+import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
 
 /**
  * loki — a memory palace your agent builds.

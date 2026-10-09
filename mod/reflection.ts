@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { isAgentId, memoryLog, type MemoryCommit } from "./agents.ts";
+import { isAgentId, memoryLog } from "./agents.ts";
+import type { MemoryCommit, ReflectionConversation, ReflectionState } from "../core/frame-types.ts";
 
 /**
  * Letta's sleep-time reflection, read from the outside. After a turn, Letta may launch a Reflection Subagent over a
@@ -12,23 +13,6 @@ import { isAgentId, memoryLog, type MemoryCommit } from "./agents.ts";
  */
 /** Letta's transcript root: its own env override, else ~/.letta/transcripts (Letta Code src/agent/transcript-paths.ts). */
 export const transcriptRoot = (): string => process.env.LETTA_TRANSCRIPT_ROOT?.trim() || join(homedir(), ".letta", "transcripts");
-
-export interface ReflectionConversation {
-  conversationId: string;
-  title: string | null;
-  /** Steps since the last pass that succeeded: what the step-count trigger compares against. */
-  stepsSince: number;
-  totalSteps: number;
-  lastStartedAt: string | null;
-  lastSucceededAt: string | null;
-}
-
-export interface ReflectionState {
-  /** Most steps since a pass first: the conversations nearest the next one. */
-  conversations: ReflectionConversation[];
-  /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
-  lastCommit: MemoryCommit | null;
-}
 
 const isoOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const count = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);

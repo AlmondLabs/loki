@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { dispatchMessage, type Task } from "../board/model";
-import type { DeskSummary } from "../desk/useDesk";
+import { dispatchMessage } from "../board/model";
+
 import type { Segment } from "./keymap";
 import type { CatchUp, Desk } from "./types";
+import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 /** A desk the board can hand tasks to: the picker's row, or the desk just created for them. */
 export type AssignTarget = Pick<DeskSummary, "scope" | "agentId" | "conversationId" | "title"> & { agentName: string | null };

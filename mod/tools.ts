@@ -4,7 +4,7 @@ import type { LettaMod } from "./letta-types.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
-import { scopeOfId } from "./bridge.ts";
+import { scopeOfId } from "../core/desk-core.ts";
 import { log, withTimeout } from "./log.ts";
 import type { TaskBoard } from "./tasks.ts";
 

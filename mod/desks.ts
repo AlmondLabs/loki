@@ -7,9 +7,9 @@ import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts
 import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
 import { foldSteps, type Step } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import type { AskedBy } from "../core/attention/priority.ts";
 import type { Runtime } from "./app-server.ts";
 import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
+import type { LocalDigest } from "../core/frame-types.ts";
 
 /**
  * Desk registry: which agent + conversation a desk (scope) belongs to. The
@@ -201,7 +201,6 @@ export function lookupLocalAgentId(conversationId: string, backendDir = join(hom
   }
 }
 
-
 /**
  * The conversation's full text transcript from the local backend log
  * (`messages.jsonl`). Unlike the app-server's message list, this survives
@@ -287,23 +286,7 @@ function logSteps(line: string): Step[] {
   return out;
 }
 
-/** What the inbox decides on without the app-server: who spoke last, and the assistant's last words. */
-export interface LocalDigest {
-  lastRole: "user" | "assistant" | null;
-  lastAssistantText: string | null;
-  /** Who sent the last message into the conversation: the inbox's score tells a reply to you from a cron's report by it. */
-  lastAsk: AskedBy | null;
-}
-
 /** One open conversation as the inbox lists it: the record from disk plus its digest. */
-export interface InboxRow extends LocalDigest {
-  id: string;
-  agentId: string;
-  agentName: string | null;
-  title: string | null;
-  lastMessageAt: string | null;
-  archived: false;
-}
 
 const DIGEST_TAIL_BYTES = 256 * 1024;
 const DIGEST_TEXT_LIMIT = 700;

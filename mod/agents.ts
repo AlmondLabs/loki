@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "n
 import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { backendName } from "../core/desk-core.ts";
+import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
 
 /**
  * What Letta keeps per agent on this machine, read for the Agents page:
@@ -14,41 +15,6 @@ import { backendName } from "../core/desk-core.ts";
  */
 
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(homedir(), ".letta", "lc-local-backend");
-
-export interface LocalAgent {
-  id: string;
-  name: string;
-  description: string | null;
-  model: string | null;
-  /** Provider, effort, thinking, context window… as Letta stores them. */
-  modelSettings: Record<string, unknown>;
-  tags: string[];
-  favourite: boolean;
-  /** The first line of the system prompt, for orientation; the prompt is Letta Code's, not editable here. */
-  systemHead: string | null;
-}
-
-export interface MemoryFile {
-  path: string;
-  bytes: number;
-  modifiedAt: string;
-}
-
-export interface MemorySkill {
-  name: string;
-  path: string;
-  /** From the SKILL.md frontmatter, or its first heading. */
-  description: string | null;
-}
-
-export interface MemoryCommit {
-  sha: string;
-  message: string;
-  at: string;
-  files: string[];
-  /** The committer: the agent's name, or "Reflection Subagent" for a sleep-time pass (mod/reflection.ts). */
-  author: string;
-}
 
 /**
  * Agent ids reach the mod from the socket and from the LAN page, then become path segments under the

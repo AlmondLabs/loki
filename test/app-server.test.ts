@@ -55,8 +55,6 @@ describe("app-server client", () => {
     }
   });
 
-
-
   test("discovery parsers: lsof -Fn output and the gateway command line", () => {
     expect(parseLsofPorts("p56965\nn127.0.0.1:41414\nn127.0.0.1:49985\nn*:41414\n")).toEqual([41414, 49985]);
     expect(parseGatewayUrls("/Applications/Letta.app/Contents/MacOS/Letta letta.js channel-gateway --app-server-url ws://127.0.0.1:49985/ws --channels  --restore-enabled-channels\nnode vite\n")).toEqual(["ws://127.0.0.1:49985/ws"]);

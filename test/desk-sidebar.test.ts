@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canMove, canPin, canRename, cleanDeskName, deskRowState, doneAction, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
-import type { DeskSummary } from "../app/src/desk/useDesk";
+
 import type { AttentionItem } from "../core/attention/model.ts";
+import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
  * The desk sidebar's model (app/src/shell/sidebarModel.ts, plan 013 U4): Pinned, then one section per agent

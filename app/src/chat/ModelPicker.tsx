@@ -74,7 +74,6 @@ export function shortModel(handle: string | null | undefined): string {
   return i > 0 ? handle.slice(i + 1) : handle;
 }
 
-
 export function effortLabel(effort: ReasoningEffort): string {
   if (effort === "none") return "no reasoning";
   if (effort === "xhigh") return "x-high";

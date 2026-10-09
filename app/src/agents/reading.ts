@@ -1,7 +1,8 @@
-import type { MemoryCommit } from "../../../mod/agents.ts";
-import type { MemorySkillInfo } from "../../../mod/skill-sources.ts";
+
+
 import type { AgentPage } from "./pages";
 import type { AgentDetails } from "./types";
+import type { MemoryCommit, MemorySkillInfo } from "../../../core/frame-types.ts";
 
 /** What the reading pane shows: the memory file, the commit, or the skill's SKILL.md — by page. */
 export type Reading = { kind: "file"; path: string } | { kind: "commit"; sha: string } | null;

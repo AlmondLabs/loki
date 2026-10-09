@@ -75,7 +75,6 @@ export function environmentReminder(opts: { now?: Date; desk?: string | null; lo
   return lines.join("\n");
 }
 
-
 /** A chat's note is sent again once this long has passed since its last one. */
 export const ENV_NOTE_EVERY_MS = 30 * 60_000;
 

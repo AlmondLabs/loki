@@ -1,5 +1,5 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary } from "../desk/useDesk";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /**
  * The desk sidebar's model (plan 013 U4), pure so its rules are tested without a window: Pinned, then one

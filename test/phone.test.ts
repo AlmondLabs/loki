@@ -4,8 +4,9 @@ import { THEME_PREFERENCES } from "../app/src/theme.tsx";
 import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, HOME_ATTENTION_MAX, archiveList, homeCounts, homeSections, linkState, shortcutLine, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
 import { deskMark } from "../app/src/shell/DeskTree.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
-import type { DeskSummary } from "../app/src/desk/useDesk.ts";
+
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
+import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
  * The phone's pure bits (app/src/phone/model.ts): the pairing URL both ways, the device label,

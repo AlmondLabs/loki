@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Button, Field, IconButton, ListIcon, ListRow, ListSection, Row } from "../components";
 import { Icon } from "../shared/icons";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { ColumnHeader } from "./ListColumn";
@@ -12,6 +12,7 @@ import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/RenameDesk";
 import { ChangeFolder, type FolderApi } from "../desk/NewDesk";
 import { conversationDirName } from "../../../core/desk-core.ts";
 import "./deskSidebar.css";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** The row's data-launch, so the pills can find a waiting row in the list. */
 const launchOf = (scope: string) => `desk:${scope}`;

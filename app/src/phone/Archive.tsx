@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { Button, Field } from "../components";
 import { DeskActions, DeskRow, type ArchiveDesk, type RenameDeskName } from "./Home";
 import { archiveList } from "./model";
 import { SkeletonRows } from "./rows";
 import { BackButton, Scroll, TopBar } from "./ui";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /**
  * The archived desks, one page reached from Home's rail and from More: every desk no longer live that

@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { createBridge, scopeOfId, sortDesks, type DeskSummary, PHONE_FRAMES } from "../mod/bridge.ts";
+import { createBridge, sortDesks, PHONE_FRAMES } from "../mod/bridge.ts";
+import { scopeOfId } from "../core/desk-core.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import { scopeFor, type WidgetManifestEntry } from "../core/desk-core.ts";
 import { WidgetLog } from "../mod/widget-log.ts";
 import type { Client } from "../mod/server.ts";
-import type { LanStatus, LanVia } from "../mod/lan.ts";
-import type { TailscaleStatus } from "../mod/tailscale.ts";
+import type { DeskSummary, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
 
 function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
   const runtime = new Map<string, string>();
@@ -110,7 +110,6 @@ describe("bridge", () => {
     bridge.onMessage(c, { type: "widget_status", id: "c1/sleep", error: null });
     expect(widgets.runtime.size).toBe(0);
   });
-
 
   test("desk frames carry the conversation title and status", async () => {
     const bridge = createBridge({

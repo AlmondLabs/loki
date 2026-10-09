@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
 import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, WRITER_SETTINGS, ensureWriterDir, formatTranscript, lessonCard, overlappingCards, packSlices, scoreStretch } from "../mod/recall-worker.ts";
-import type { InboxRow } from "../mod/desks.ts";
+
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { review } from "../core/recall/fsrs.ts";
+import type { InboxRow } from "../core/frame-types.ts";
 
 // Whole file runs in ~120 ms alone, yet "rejected cards are quoted…" crossed bun's 5 s default twice on a
 // loaded machine (a Vite build and a browser beside the suite) — the flaky test the launch review could not

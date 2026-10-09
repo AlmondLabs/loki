@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import type { MemoryCommit, MemorySkill } from "../../../mod/agents.ts";
-import type { MemorySkillInfo } from "../../../mod/skill-sources.ts";
+
 import type { AgentDetails, AgentEdit, AgentsApi, AgentsWrite } from "./types";
+import type { MemoryCommit, MemorySkill, MemorySkillInfo } from "../../../core/frame-types.ts";
 
 /**
  * The selected agent's record and memory log, loaded once per agent and kept by id, and the writes

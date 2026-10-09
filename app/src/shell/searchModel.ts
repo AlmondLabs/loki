@@ -1,13 +1,14 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { scopeFor } from "../../../core/desk-core.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { buildSearchIndex, groupHits, rankHits, type HitGroup, type Indexed, type SearchIndex as CoreIndex } from "../shared/search";
 import { createRecents } from "../shared/recents";
 import type { IconName } from "../shared/icons";
 import { PAGES, pageTitle, type SettingsPage } from "../settings/pages";
 import type { Segment } from "./keymap";
 import { osWords } from "./osWords";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /**
  * The desktop's ⌘K search, pure (test/desktop-search.test.ts; plan 013 U9): the desktop's adapter over

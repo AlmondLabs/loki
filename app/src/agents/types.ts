@@ -1,8 +1,7 @@
-import type { LocalAgent, MemoryCommit, MemoryFile } from "../../../mod/agents.ts";
-import type { GlobalSkill } from "../../../mod/skills.ts";
-import type { MemorySkillInfo, RefreshOutcome } from "../../../mod/skill-sources.ts";
+
+
 import type { Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime } from "../../../core/attention/protocol.ts";
-import type { ReflectionState } from "../../../mod/reflection.ts";
+import type { GlobalSkill, LocalAgent, MemoryCommit, MemoryFile, MemorySkillInfo, ReflectionState, RefreshOutcome } from "../../../core/frame-types.ts";
 
 export interface AgentDetails {
   agent: LocalAgent;

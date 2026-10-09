@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { DeviceSummary, DeviceVia } from "../core/frame-types.ts";
 
 /**
  * Paired phones. Each holds a 32-byte token (in an HttpOnly cookie, see mod/lan.ts);
@@ -8,22 +9,10 @@ import { dirname } from "node:path";
  * never yields a usable credential.
  *   [{ id, name, tokenHash, createdAt, lastSeenAt, lastVia? }]
  */
-export interface DeviceRecord {
-  id: string;
-  name: string;
+export interface DeviceRecord extends DeviceSummary {
   /** sha256 hex of the device token. */
   tokenHash: string;
-  createdAt: string;
-  lastSeenAt: string;
-  /** Which route the phone's last request came in by (mod/lan.ts requestVia); absent for a phone not seen since this field existed. */
-  lastVia?: DeviceVia;
 }
-
-/** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */
-export type DeviceVia = "tailscale" | "lan";
-
-/** What the canvas sees: never the hash. */
-export type DeviceSummary = Omit<DeviceRecord, "tokenHash">;
 
 const SEEN_WRITE_INTERVAL_MS = 60_000;
 

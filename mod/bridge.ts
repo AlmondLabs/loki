@@ -1,10 +1,9 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { isEventName } from "../core/analytics.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
-import type { ReasoningEffort } from "../core/models.ts";
-import { HISTORY_MAX, HISTORY_PAGE, type InboxRow } from "./desks.ts";
+import { HISTORY_MAX, HISTORY_PAGE } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
-import { SHARED_SCOPE, mergeData } from "../core/desk-core.ts";
+import { SHARED_SCOPE, mergeData, scopeOfId } from "../core/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
@@ -12,6 +11,7 @@ import { describeGesture } from "./gestures.ts";
 import type { Client, WsHandlers } from "./server.ts";
 import { isAgentId } from "./agents.ts";
 import { isLanVia } from "./lan.ts";
+import type { DeskInfo, DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome } from "../core/frame-types.ts";
 
 /**
  * WS protocol v2 (socket-free so it is testable):
@@ -84,32 +84,6 @@ import { isLanVia } from "./lan.ts";
  *    (lan_status is broadcast on enable/disable/bind error/via change/serve change/a tailnet change; devices on pair/forget/seen)
  */
 
-/** live: conversation exists. archived: Letta archived it. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
-export type DeskStatus = "live" | "archived" | "deleted" | "none";
-
-export interface DeskInfo {
-  title: string | null;
-  status: DeskStatus;
-  /** Which agent owns the conversation behind this desk. */
-  agentName: string | null;
-  agentId: string | null;
-  /** The model this conversation runs on: its own override, else the agent's. */
-  model: string | null;
-  reasoningEffort: ReasoningEffort | null;
-  /** The permission mode Letta persisted for this conversation (default: unrestricted). */
-  mode?: string | null;
-}
-
-export interface DeskSummary extends DeskInfo {
-  scope: Scope;
-  conversationId: string | null;
-  /** Pinned in Letta's pinned-conversations.json (shared with Desktop). */
-  pinned?: boolean;
-  widgets: number;
-  active: boolean;
-  lastActive: string | null;
-}
-
 const STATUS_RANK: Record<DeskStatus, number> = { live: 0, none: 0, archived: 1, deleted: 2 };
 
 /** shared first, then live desks (pinned, then the active one, then by recency), then archived, then deleted. */
@@ -147,29 +121,29 @@ export interface BridgeDeps {
   widgetLog?: (agentId: string | null, conversationId: string) => import("../core/desk-core.ts").WidgetLogEntry[];
   /** Working folders for "new desk" (see mod/folders.ts). */
   folders?: {
-    recent: () => import("./folders.ts").RecentFolders;
+    recent: () => RecentFolders;
     complete: (prefix: string) => string[];
-    check: (path: string) => import("./folders.ts").FolderCheck;
+    check: (path: string) => FolderCheck;
     pick: (defaultPath?: string) => Promise<string | null>;
   };
   /** The Agents page: the local record and the memory filesystem (mod/agents.ts), read-only. */
   agents?: {
-    get: (agentId: string) => import("./agents.ts").LocalAgent | null;
-    tree: (agentId: string) => import("./agents.ts").MemoryFile[];
-    skills: (agentId: string) => import("./agents.ts").MemorySkill[];
+    get: (agentId: string) => LocalAgent | null;
+    tree: (agentId: string) => MemoryFile[];
+    skills: (agentId: string) => MemorySkill[];
     hasProfile: (agentId: string) => boolean;
     read: (agentId: string, path: string) => string | null;
-    log: (agentId: string, opts: { path?: string; limit?: number }) => Promise<import("./agents.ts").MemoryCommit[]>;
+    log: (agentId: string, opts: { path?: string; limit?: number }) => Promise<MemoryCommit[]>;
     diff: (agentId: string, sha: string) => Promise<string>;
     /** Letta's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
-    reflection?: (agentId: string) => Promise<import("./reflection.ts").ReflectionState>;
+    reflection?: (agentId: string) => Promise<ReflectionState>;
     /** Skills outside memory (mod/skills.ts). */
-    globalSkills?: () => import("./skills.ts").GlobalSkill[];
+    globalSkills?: () => GlobalSkill[];
     install?: (agentId: string, source: string, force: boolean) => Promise<string>;
     /** Memory skills with origin (self/other), edited, and source (mod/skill-sources.ts); agent_get prefers this over `skills`. */
-    skillsInfo?: (agentId: string) => Promise<import("./skill-sources.ts").MemorySkillInfo[]>;
+    skillsInfo?: (agentId: string) => Promise<MemorySkillInfo[]>;
     /** Fetch an other skill's upstream and replace, stage for reconciliation, or report current. */
-    refreshSkill?: (agentId: string, name: string, spec?: string) => Promise<import("./skill-sources.ts").RefreshOutcome>;
+    refreshSkill?: (agentId: string, name: string, spec?: string) => Promise<RefreshOutcome>;
   };
   /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
@@ -190,28 +164,23 @@ export interface BridgeDeps {
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
   /** The phone listener (mod/lan.ts) and its paired devices, for Settings › phone. */
   lan?: {
-    status: () => import("./lan.ts").LanStatus;
+    status: () => LanStatus;
     /** status() after asking Tailscale again (what lan_get answers with). */
-    refresh: () => Promise<import("./lan.ts").LanStatus>;
-    setEnabled: (enabled: boolean) => Promise<import("./lan.ts").LanStatus>;
+    refresh: () => Promise<LanStatus>;
+    setEnabled: (enabled: boolean) => Promise<LanStatus>;
     /** Which route the QR encodes; persisted. */
-    setVia: (via: import("./lan.ts").LanVia) => import("./lan.ts").LanStatus;
+    setVia: (via: LanVia) => LanStatus;
     /** `tailscale serve` on or off for the listener. */
-    setServe: (enabled: boolean) => Promise<import("./lan.ts").LanStatus>;
+    setServe: (enabled: boolean) => Promise<LanStatus>;
     /** Mint a pairing code and the URL the QR carries. */
     pairBegin: () => { code: string; url: string; expiresAt: string };
-    devices: () => import("./devices.ts").DeviceSummary[];
+    devices: () => DeviceSummary[];
     /** Forget a device and close its sockets. */
     forget: (id: string) => boolean;
   };
   broadcast(msg: object, scope?: Scope): void;
   /** Analytics (mod/analytics.ts): an event this client caused, or a `capture` frame it sent about one the mod cannot see. */
   capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
-}
-
-export function scopeOfId(id: string): Scope {
-  const i = id.indexOf("/");
-  return i > 0 ? id.slice(0, i) : SHARED_SCOPE;
 }
 
 function isGesture(v: unknown): v is Gesture {
@@ -662,7 +631,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "device_forget": {
           const lan = deps.lan;
           if (!lan) return client.send({ type: "error", message: "the phone listener is not available in this mod" });
-          const reply = (status: import("./lan.ts").LanStatus) => client.send({ type: "lan_status", ...status });
+          const reply = (status: LanStatus) => client.send({ type: "lan_status", ...status });
           if (msg.type === "lan_get") {
             // Settings just opened: ask Tailscale again (cached inside its ttl) before answering.
             void lan.refresh().then(reply);

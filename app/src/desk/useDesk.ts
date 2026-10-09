@@ -1,24 +1,21 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor } from "../../../core/desk-core.ts";
+import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
 import { readSession } from "./session";
 import { inTauri, modWsBase } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { deskView } from "./view";
 import { withHistoryLog } from "./widgetRows";
-import type { Task } from "../board/model";
+
 import type { AgentDetails } from "../agents/Agents";
-import type { GlobalSkill } from "../../../mod/skills.ts";
-import type { RefreshOutcome } from "../../../mod/skill-sources.ts";
-import type { MemoryCommit } from "../../../mod/agents.ts";
-import type { ReflectionState } from "../../../mod/reflection.ts";
-import type { InboxRow as InboxConversation } from "../../../mod/desks.ts";
+
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { FocusAction } from "../../../core/attention/focus.ts";
 import type { TranscriptRow } from "../chat/Transcript";
-import type { LanVia } from "../phone/model";
+
 import type { ReasoningEffort } from "../../../core/models.ts";
+import type { DeskStatus, GlobalSkill, InboxRow as InboxConversation, LanVia, MemoryCommit, ReflectionState, RefreshOutcome, Task } from "../../../core/frame-types.ts";
 
 export type Connection = "connecting" | "open" | "closed";
 
@@ -29,29 +26,8 @@ export interface CameraTarget {
   nonce: number;
 }
 
-export type DeskStatus = "live" | "archived" | "deleted" | "none";
-
-export interface DeskSummary {
-  scope: Scope;
-  title: string | null;
-  status: DeskStatus;
-  agentName: string | null;
-  agentId: string | null;
-  conversationId: string | null;
-  /** The model the conversation runs on (its override, else the agent's). */
-  model: string | null;
-  reasoningEffort: ReasoningEffort | null;
-  /** The permission mode Letta persisted for the conversation. */
-  mode?: string | null;
-  pinned?: boolean;
-  widgets: number;
-  active: boolean;
-  lastActive: string | null;
-}
-
 export type { VisibleWidget } from "./view";
 
-const scopeOfId = (id: string): Scope => id.slice(0, Math.max(0, id.indexOf("/"))) || SHARED_SCOPE;
 
 /**
  * The tab's view of the desk: manifest + geometry per scope, synced from the

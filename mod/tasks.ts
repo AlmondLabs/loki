@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { homedir } from "node:os";
 import { log } from "./log.ts";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
+import type { Task } from "../core/frame-types.ts";
 
 /**
  * The board: tasks for later, kept by beads (`bd`, embedded Dolt) in ONE shared
@@ -22,21 +23,6 @@ export interface TaskStamp {
   conversation?: string | null;
   desk?: string | null;
   folder?: string | null;
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: number;
-  labels: string[];
-  assignee: string | null;
-  createdAt: string;
-  updatedAt: string;
-  closedAt: string | null;
-  /** Free-form; loki uses by/agent/agentId/conversation/desk/folder and assignedTo/assignedDesk/assignedAgent. */
-  metadata: Record<string, string>;
 }
 
 export interface CreateTask {

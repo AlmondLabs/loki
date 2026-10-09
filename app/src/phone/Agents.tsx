@@ -3,12 +3,13 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails, AgentsApi } from "../agents/Agents";
 import { ago } from "../board/model";
 import { avatarUrl } from "../desk/env";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { AGENT_FILTERS, agentLine, agentRows, agentsShown, type AgentFilter, type AgentRowModel, type LinkState } from "./model";
 import { navigate } from "./router";
 import { Avatar, PhoneRow, SkeletonRows } from "./rows";
 import { Button, Chip } from "../components";
 import { Scroll, TopBar } from "./ui";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** What the phone reads about agents: the mod's `agent_get`, `memory_read`, `memory_log`, `memory_diff`. */
 export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;

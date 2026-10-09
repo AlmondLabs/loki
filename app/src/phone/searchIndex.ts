@@ -1,9 +1,10 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { buildSearchIndex, groupHits, rankHits, type HitGroup, type Indexed, type SearchIndex as CoreIndex } from "../shared/search";
 import type { IconName } from "./icons";
 import { formatRoute, parseRoute, type Route } from "./router";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /**
  * The phone's Search, pure (test/phone-search.test.ts): it looks only at what the phone already holds,

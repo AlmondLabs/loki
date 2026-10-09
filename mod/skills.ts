@@ -2,6 +2,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync } from "
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
+import type { GlobalSkill } from "../core/frame-types.ts";
 
 /**
  * Skills outside an agent's memory: the global folder Letta reads for every agent
@@ -9,16 +10,6 @@ import { envVar, execProgram, firstExisting, onPath, type Look } from "./program
  * into an agent from a source the CLI understands (`letta install <source> --agent <id>`), which
  * has no app-server request. Per-agent skills themselves are files in the memory repo (agents.ts).
  */
-
-export interface GlobalSkill {
-  name: string;
-  /** Where the folder really is (the link target), or the folder itself. */
-  path: string;
-  isLink: boolean;
-  description: string | null;
-  /** Where it came from, when known (mod/skill-sources.ts describeGlobal): the checkout a link points into, or the repo the `skills` CLI recorded. */
-  source?: string | null;
-}
 
 export const globalSkillsDir = (): string => process.env.LETTA_HOME ? join(process.env.LETTA_HOME, "skills") : join(homedir(), ".letta", "skills");
 
