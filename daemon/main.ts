@@ -1,7 +1,7 @@
 /**
  * The loki daemon (plan 017): the one long-running process the shell starts and supervises in place of
- * `letta server`. For now it holds the lock and hosts loki's mod (canvas, board, Learn, the phone listener) with the
- * host object the mod was written against; the versioned mod API (U4) and the chats themselves (U5, U6) follow.
+ * `letta server`. It holds the lock and loads the mods: loki's own (canvas, board, Learn, the phone listener) and
+ * any in the `mods` folder beside its state, on loki's mod API (daemon/mods). The chats themselves follow (U5, U6).
  *
  *   node daemon.mjs --loki-daemon --dir <loki folder> --mod <mod entry> [--token-file <file>]
  *
@@ -9,10 +9,13 @@
  * Exit code 3: another daemon holds this folder's lock; the shell then leaves that one serving.
  */
 import { mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { acquire, type Lock } from "./lock.ts";
+import { loadModFolder, watchFiles } from "./mods/files.ts";
+import { fromLettaMod } from "./mods/letta-facade.ts";
+import { ModRegistry } from "./mods/registry.ts";
 
 export const EXIT_HELD = 3;
 
@@ -37,43 +40,34 @@ if (!("release" in taken)) {
 }
 const lock: Lock = taken;
 
-type Handler = (...a: unknown[]) => unknown;
+const report = (message: string) => console.error(`loki-daemon: ${message}`);
+const mods = new ModRegistry(report);
 
-/**
- * The host the mod was written against (mod/letta-types.ts): tools, commands, events, diagnostics and an abort
- * signal. Nothing fires the events yet; tools are kept for the agent loop to offer (U4 replaces this object).
- */
-const controller = new AbortController();
-const tools = new Map<string, unknown>();
-const events = new Map<string, Handler[]>();
-const host = {
-  capabilities: { commands: false, tools: true, events: { turns: true, lifecycle: false } },
-  tools: { register: (t: { name: string }) => (tools.set(t.name, t), () => tools.delete(t.name)) },
-  commands: { register: () => () => {} },
-  events: {
-    on: (name: string, handler: Handler) => {
-      events.set(name, [...(events.get(name) ?? []), handler]);
-      return () => events.set(name, (events.get(name) ?? []).filter((h) => h !== handler));
-    },
-  },
-  diagnostics: { report: (d: { severity: string; message: string }) => console.error(`loki-daemon: ${d.severity}: ${d.message}`) },
-  signal: controller.signal,
-};
-
-// The mod serves only inside a host that is not a terminal session (mod/gate.ts); the daemon always is.
+// loki's own mod, written for Letta's API, through the facade (daemon/mods/letta-facade.ts). It serves only inside a
+// host that is not a terminal session (mod/gate.ts); the daemon always is one.
 process.env.LOKI_MOD_SERVE ??= "1";
-const mod = (await import(pathToFileURL(args.mod).href)) as { default: (h: unknown) => unknown };
-const dispose = (await mod.default(host)) as (() => void) | undefined;
-console.error(`loki-daemon: pid ${process.pid} serving ${args.dir}`);
+const core = (await import(pathToFileURL(args.mod).href)) as { default: (host: unknown) => unknown };
+const loadCore = () => mods.load(fromLettaMod("loki", core.default));
+await loadCore();
+// A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
+const stopWatchingCore = args.mod.endsWith("boot.ts")
+  ? watchFiles(dirname(args.mod), (f) => f.endsWith(".ts") && !f.includes(".loki-build"), async (file) => {
+      const result = await loadCore();
+      report(`mod loki reloaded after ${file} changed: ${"loaded" in result ? "ok" : result.refused}`);
+    })
+  : () => {};
+const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
+console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
 
 let stopping = false;
 function stop(signal: string) {
   if (stopping) return;
   stopping = true;
   console.error(`loki-daemon: ${signal}, stopping`);
-  controller.abort();
   try {
-    dispose?.();
+    stopWatchingCore();
+    stopWatchingMods();
+    for (const name of mods.names()) mods.unload(name);
   } finally {
     lock.release();
     process.exit(0);

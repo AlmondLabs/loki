@@ -38,6 +38,14 @@ export const ChatDoc = defineDoc<ChatInfo>({
   initial: () => ({ id: "", title: null, archived: false, createdAt: "" }),
 });
 
+/** Which agent a store belongs to, so a tool or section can name it without asking the daemon. */
+export const AgentDoc = defineDoc<{ id: string; name: string }>({
+  kind: "loki.agent",
+  version: 1,
+  scope: "session",
+  initial: () => ({ id: "", name: "" }),
+});
+
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
 
 /** One agent's chats on one pi-durable Harness. */
@@ -56,6 +64,17 @@ export class AgentStore {
     const storage =
       "storage" in where ? where.storage : await (await import("@earendil-works/pi-durable/storage/sqlite/node")).openNodeSqliteStorage(where.file);
     return new AgentStore(await Harness.open(storage, options, context));
+  }
+
+  /** Record which agent this store is, once, or when its name changes. */
+  async setAgent(agent: { id: string; name: string }, context: Context): Promise<void> {
+    const known = await this.harness.snapshot(AgentDoc, context);
+    if (known?.id === agent.id && known.name === agent.name) return;
+    await this.harness.commit(async (tx) => {
+      const doc = await tx.doc(AgentDoc);
+      doc.id = agent.id;
+      doc.name = agent.name;
+    }, context);
   }
 
   /** The pi-durable conversation of a loki chat id, if the store has it. */
