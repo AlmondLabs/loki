@@ -5,38 +5,21 @@
  * docs/plans/2026-09-07-007-feat-loki-mobile-plan.md, "Bridge frames").
  */
 
-import type { LanStatus } from "../../../mod/lan.ts";
-import type { DeviceSummary } from "../../../mod/devices.ts";
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../../../core/pairing-code.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { archivedDesks, liveDesks } from "../shell/DeskTree";
 import { sidebarModel, type SidebarSection } from "../shell/sidebarModel";
 import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
+import type { DeskSummary, DeviceSummary, LanStatus, LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
 
 /** The mod's own types: what `lan_status` and `devices` carry (mod/lan.ts, mod/devices.ts). */
-export type { LanStatus };
 export type PairedDevice = DeviceSummary;
 
-/** Which way the QR sends the phone: over the tailnet, or over this Wi‑Fi (Bonjour name, else the address). */
-export type LanVia = "tailscale" | "lan";
-
 /** What `mod/tailscale.ts` found (addendum 3): the CLI, its state, the MagicDNS name, the 100.x address, an https front. */
-export interface TailscaleStatus {
-  installed: boolean;
-  running: boolean;
-  /** The 100.x address, when running. */
-  ip: string | null;
-  /** The MagicDNS name without its trailing dot, e.g. my-macbook-pro.tail1234.ts.net. */
-  name: string | null;
-  /** `https://<name>` while `tailscale serve` fronts the listener; null when it does not. */
-  serveUrl: string | null;
-  /** The CLI's own words when `tailscale serve` failed; null when all is well. */
-  error: string | null;
-}
 
 /**
  * `lan_status` as the canvas reads it: the mod's LanStatus plus the route fields from addendum 3.

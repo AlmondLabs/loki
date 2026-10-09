@@ -6,12 +6,13 @@ import { join } from "node:path";
 import { WebSocket as WsClient } from "ws";
 import { DeviceStore } from "../mod/devices.ts";
 import { PairingCodes } from "../mod/pairing.ts";
-import { LanListener, type LanStatus, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
+import { LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
 import type { IncomingMessage } from "node:http";
 import type { networkInterfaces } from "node:os";
 import { SERVE_41415, STATUS_RUNNING } from "./fixtures/tailscale.ts";
+import type { LanStatus } from "../core/frame-types.ts";
 
 // These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
 // of them has crossed bun's 5 s default. Twenty seconds still catches a hang.

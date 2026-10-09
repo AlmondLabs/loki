@@ -151,7 +151,6 @@ function CatchUpDeck(props: DeckProps) {
     [],
   );
 
-
   // One column capped at the pane (minmax(0, 1fr)): an auto column grew to the card's 1100px and clipped it in a 1100-wide window.
   return (
     <div

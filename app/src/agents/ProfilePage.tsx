@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { AgentFace } from "../desk/AgentChip";
 import { Button, Field, Row } from "../components";
-import type { Task } from "../board/model";
+
 import { ago } from "../board/model";
 import { Head } from "./bits";
 import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit } from "./types";
+import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 /** The profile page: who the agent is (editable), where it is working (desks, tasks), and the way out. */
 export function ProfilePage({

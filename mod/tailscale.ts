@@ -1,5 +1,6 @@
 import { log } from "./log.ts";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
+import type { TailscaleStatus } from "../core/frame-types.ts";
 
 /**
  * Tailscale, detected and read, never installed (plan Addendum 3). The phone listener asks this for
@@ -9,20 +10,6 @@ import { envVar, execProgram, firstExisting, onPath, type Look } from "./program
  * throws: a missing binary, a stopped daemon or a CLI error all land in the returned status. Funnel
  * (public exposure) is never touched.
  */
-export interface TailscaleStatus {
-  /** A CLI binary was found. False → say how to install it. */
-  installed: boolean;
-  /** BackendState === "Running": the Mac is on the tailnet right now. */
-  running: boolean;
-  /** The 100.x address, or null. */
-  ip: string | null;
-  /** The MagicDNS name, lower-cased, no trailing dot: `my-macbook-pro.tail1234.ts.net`. */
-  name: string | null;
-  /** `https://<name>` when `tailscale serve` proxies 443 to the listener; else null. */
-  serveUrl: string | null;
-  /** The CLI's complaint (trimmed, ≤ 400 chars), or null when all is well. */
-  error: string | null;
-}
 
 export type TailscaleExec = (bin: string, args: string[], timeoutMs?: number) => Promise<string>;
 

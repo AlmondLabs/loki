@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, posix, resolve, win32 } from "node:path";
+import type { FolderCheck, RecentFolders } from "../core/frame-types.ts";
 
 /**
  * Working folders for "new desk": where recent conversations ran (per agent),
@@ -32,13 +33,6 @@ function head(path: string, bytes = 4096): string {
   } finally {
     closeSync(fd);
   }
-}
-
-export interface RecentFolders {
-  /** agentId → folders, most recently used first. */
-  byAgent: Record<string, string[]>;
-  /** conversationDirName → folder, for the desk you are on. */
-  byConversation: Record<string, string>;
 }
 
 /**
@@ -129,13 +123,6 @@ export function completeFolder(prefix: string, home = homedir(), limit = 12, sys
   } catch {
     return [];
   }
-}
-
-export interface FolderCheck {
-  ok: boolean;
-  path: string;
-  branch: string | null;
-  reason?: string;
 }
 
 /** Does the folder exist, and which git branch is checked out there (if any)? */

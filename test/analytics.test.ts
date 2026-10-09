@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EVENTS, analyticsReport, formatAnalyticsReport, isDeviceType, isEventName, makeEvent, parseEvents, type AnalyticsEvent, type DeviceType } from "../core/analytics.ts";
 import { createAnalytics } from "../mod/analytics.ts";
-import { PHONE_FRAMES, createBridge } from "../mod/bridge.ts";
+import { bridgeOf } from "./fixtures/frames.ts";
+import { PHONE_FRAMES } from "../core/frames.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { Client } from "../mod/server.ts";
@@ -175,7 +176,7 @@ describe("analytics: through the bridge", () => {
 
   test("a capture frame is recorded for its client, phones included; a malformed one is refused", () => {
     const recorded: Array<[string | undefined, string, Record<string, unknown> | undefined]> = [];
-    const bridge = createBridge({ store: new DeskStore(), widgets, gestures: new GestureLog(), broadcast: () => {}, capture: (c, event, properties) => recorded.push([c.deviceId, event, properties]) });
+    const bridge = bridgeOf({ store: new DeskStore(), widgets, gestures: new GestureLog(), broadcast: () => {}, capture: (c, event, properties) => recorded.push([c.deviceId, event, properties]) });
     const mac = client("c1");
     const phone = client("c1", "dev-1");
     bridge.onMessage(mac, { type: "capture", event: "view_opened", properties: { view: "inbox", from: "desk", $screen: "desk" } });
@@ -194,7 +195,7 @@ describe("analytics: through the bridge", () => {
   test("the inbox frames the mod already handles become events", () => {
     const recorded: string[] = [];
     const seen = { mark() {}, unmark() {}, view() {}, all: () => ({}), viewedAll: () => ({}), focusAll: () => ({}) };
-    const bridge = createBridge({ store: new DeskStore(), widgets, gestures: new GestureLog(), broadcast: () => {}, seen: seen as never, capture: (_c, event, properties) => recorded.push(properties ? `${event} ${JSON.stringify(properties)}` : event) });
+    const bridge = bridgeOf({ store: new DeskStore(), widgets, gestures: new GestureLog(), broadcast: () => {}, seen: seen as never, capture: (_c, event, properties) => recorded.push(properties ? `${event} ${JSON.stringify(properties)}` : event) });
     const c = client("c1", "dev-1");
     bridge.onMessage(c, { type: "seen_mark", agentId: "a", conversationId: "x" });
     bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" });
@@ -295,7 +296,7 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
   test("a request every window reports is written once; the once key is not", () => {
     const recorded: Array<[string, Record<string, unknown> | undefined]> = [];
     const noWidgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close() {} };
-    const bridge = createBridge({ store: new DeskStore(), widgets: noWidgets, gestures: new GestureLog(), broadcast: () => {}, capture: (_c, event, properties) => recorded.push([event, properties]) });
+    const bridge = bridgeOf({ store: new DeskStore(), widgets: noWidgets, gestures: new GestureLog(), broadcast: () => {}, capture: (_c, event, properties) => recorded.push([event, properties]) });
     const mac: Client = { scope: "c1", send: () => {} };
     const phone: Client = { scope: "c1", deviceId: "dev-1", send: () => {} };
     const frame = { type: "capture", event: "approval_requested", properties: { desk: "a", tool: "Bash", kind: "approval", once: "request:r1" } };

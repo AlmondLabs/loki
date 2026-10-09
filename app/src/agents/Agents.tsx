@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Personality } from "../../../core/attention/protocol.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { AgentFace } from "../desk/AgentChip";
 import { registerActions } from "../shell/keymap";
 import { Button, EmptyPane, PaneHeader, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { COLUMN_DEFAULT } from "../shell/column";
-import type { Task } from "../board/model";
+
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_LABEL, type AgentPage } from "./pages";
 import { readingFor, shownShaOf, shownSkillOf } from "./reading";
 import { agentsSelection, shownAgent, useAgentsSelection, type AgentsSelection } from "./selection";
@@ -21,6 +21,7 @@ import { ChangesPage } from "./ChangesPage";
 import { ReflectionPage } from "./ReflectionPage";
 import { SkillsPage, type Adding } from "./SkillsPage";
 import type { AgentEdit, AgentsApi, AgentsWrite, ReflectionControls } from "./types";
+import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 export type { AgentDetails, AgentsApi, AgentsWrite } from "./types";
 export { Diff } from "./ChangesPage";

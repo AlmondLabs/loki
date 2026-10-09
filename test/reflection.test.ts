@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { isReflectionCommit, readReflectionConversations, reflectionState } from "../mod/reflection.ts";
-import type { MemoryCommit } from "../mod/agents.ts";
+import type { MemoryCommit } from "../core/frame-types.ts";
 
 const AGENT = "agent-local-11111111-2222-3333-4444-555555555555";
 let root: string;

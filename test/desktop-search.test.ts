@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { buildIndex, flatHits, PLACES_KEY, recentPlaceHits, search, topHit, type SearchSources } from "../app/src/shell/searchModel.ts";
 import { createRecents } from "../app/src/shared/recents.ts";
-import type { DeskSummary } from "../app/src/desk/useDesk";
+
 import type { AttentionItem } from "../core/attention/model.ts";
+import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
  * The desktop's ⌘K search (app/src/shell/searchModel.ts, plan 013 U9): desks by title and agent, agents,

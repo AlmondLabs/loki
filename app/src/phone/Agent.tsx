@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { MemoryCommit } from "../../../mod/agents.ts";
+
 import { Diff, type AgentDetails } from "../agents/Agents";
 import { ago } from "../board/model";
 import { avatarUrl } from "../desk/env";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { useAgentDetails, type PhoneAgentsApi } from "./Agents";
 import { DeskRow } from "./Home";
 import { Icon } from "./icons";
@@ -15,6 +15,7 @@ import { navigate } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
 import { Button } from "../components";
 import { BackButton, Scroll, TopBar } from "./ui";
+import type { DeskSummary, MemoryCommit } from "../../../core/frame-types.ts";
 
 /**
  * The last ten memory commits and the diff of the one opened. Diffs are fetched once per sha and kept;

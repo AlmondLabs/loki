@@ -3,7 +3,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addRecentModel, mergeRecent, readRecentModels, RECENT_MODELS_MAX } from "../mod/models.ts";
-import { createBridge, PHONE_FRAMES } from "../mod/bridge.ts";
+import { bridgeOf } from "./fixtures/frames.ts";
+import { PHONE_FRAMES } from "../core/frames.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
@@ -55,7 +56,7 @@ describe("recent models over the bridge", () => {
   test("every connection gets the list; a pick, from the Mac or a phone, is kept and broadcast to all", () => {
     let recent = ["anthropic/opus"];
     const broadcasts: Array<Record<string, unknown>> = [];
-    const bridge = createBridge({
+    const bridge = bridgeOf({
       store: new DeskStore(),
       widgets,
       gestures: new GestureLog(),

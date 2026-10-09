@@ -5,7 +5,7 @@ import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../board/model";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { BADGE } from "../desk/CatchUp";
 import { agentChips, deskMark } from "../shell/DeskTree";
 import type { SidebarSection } from "../shell/sidebarModel";
@@ -19,6 +19,7 @@ import { Scroll } from "./ui";
 import { RenameSheet } from "./RenameSheet";
 import { chosenFolder, folderName, foldersOf, shownFolders } from "./newChatFolders";
 import { canRename } from "../shell/sidebarModel";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
@@ -497,7 +498,6 @@ function HomeMenu({ query, onQuery, onRefresh, onClose }: { query: string; onQue
     </Sheet>
   );
 }
-
 
 /** `folders_get`, once: the folders each agent worked in, most recent first; null until the Mac answers. */
 function useRecentFolders(recentFolders: () => Promise<Record<string, string[]>>) {

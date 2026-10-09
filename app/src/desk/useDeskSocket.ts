@@ -5,9 +5,11 @@ import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
-import type { CameraTarget, Connection, DeskStatus, DeskSummary } from "./useDesk";
+import type { CameraTarget, Connection } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
+import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
+import type { InputOf, PushFrame, SendName } from "../../../core/frames.ts";
 
 const NO_YANK_MS = 2000;
 
@@ -23,13 +25,6 @@ export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
   const on = serve ?? !!s.tailscale?.serveUrl;
   return { ...s, tailscale: { installed: true, running: true, ip: "100.101.102.103", name, serveUrl: on ? `https://${name}` : null, error: null } };
 }
-
-/**
- * The mod's replies to a request (they carry its requestId): each resolves the waiting `request()` and does
- * nothing else. A reply missing here is never resolved, and its request times out as if the mod were silent
- * (test/desk-socket.test.ts checks this list against the replies mod/bridge.ts sends).
- */
-export const REPLY_FRAMES: ReadonlySet<string> = new Set(["agent", "memory_file", "memory_commits", "memory_diff", "reflection_state", "agent_error", "tasks", "task_created", "tasks_updated", "task_error", "history", "folders", "folder_matches", "folder_status", "folder_picked", "skills_global", "skill_installed", "skill_refreshed", "inbox", "recall", "recall_card", "recall_ran", "recall_export", "recall_lesson", "recall_error"]);
 
 /**
  * The WebSocket to the mod and everything its frames feed: which desk this tab shows, the manifests
@@ -118,16 +113,16 @@ export function useDeskSocket() {
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
       };
       ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data as string) as Record<string, unknown> & { type: string };
-        // A reply to a request (a request/reply exchange, by requestId): it goes to whoever asked, nowhere else.
-        if (REPLY_FRAMES.has(String(msg.type))) {
-          const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
-          if (w) {
-            waiters.current.delete(msg.requestId as string);
-            w(msg);
-          }
+        const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
+        // A request's answer (its reply, or `error`), by requestId: it goes to whoever asked, nowhere else.
+        if (typeof raw.requestId === "string") {
+          const w = waiters.current.get(raw.requestId);
+          waiters.current.delete(raw.requestId);
+          w?.(raw); // none: its request already timed out, and the answer has no one left to tell
           return;
         }
+        // Everything else is a push (core/frames.ts Pushes).
+        const msg = raw as PushFrame;
         switch (msg.type) {
           case "desk": {
             const s = msg.scope as Scope;
@@ -182,7 +177,7 @@ export function useDeskSocket() {
             setRecallVersion((v) => v + 1);
             break;
           case "lan_status": {
-            const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame(msg), via: "tailscale" }) : lanStatusFromFrame(msg);
+            const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame({ ...msg }), via: "tailscale" }) : lanStatusFromFrame({ ...msg });
             setLanStatus(st);
             if (!st.enabled) setPairCode(null); // a code is only redeemable while the listener is up
             break;
@@ -255,20 +250,23 @@ export function useDeskSocket() {
     };
   }, [scope, switchDesk]);
 
-  const send = (msg: object): boolean => {
+  /** Any frame as it is: `request()`'s, which carry a requestId. False while the socket is not open. */
+  const sendRaw = useCallback((msg: object): boolean => {
     const ws = wsRef.current;
     if (ws?.readyState !== WebSocket.OPEN) return false;
     ws.send(JSON.stringify(msg));
     return true;
-  };
+  }, []);
+  /** A send (core/frames.ts), typed by its name. False while the socket is not open. */
+  const send = useCallback(<N extends SendName>(frame: { type: N } & InputOf<N>): boolean => sendRaw(frame), [sendRaw]);
 
   const reportWidgetError = useCallback((id: string, error: string | null) => {
     send({ type: "widget_status", id, error });
-  }, []);
+  }, [send]);
 
   const measure = useCallback((id: string, size: Size) => {
     if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size); // flushed when the desk frame arrives
-  }, []);
+  }, [send]);
 
   /** Keep another desk's widgets and state at hand (a thread shows them inline); asked for at once the first time. */
   const watchDesk = (s: Scope) => {
@@ -282,6 +280,7 @@ export function useDeskSocket() {
     switchDesk,
     watchDesk,
     send,
+    sendRaw,
     desks,
     setDesks,
     widgets,

@@ -8,6 +8,12 @@
 export type Scope = string;
 export const SHARED_SCOPE: Scope = "shared";
 
+/** The desk a widget belongs to: the scope before its id's "/", or the shared desk for an id without one. */
+export function scopeOfId(id: string): Scope {
+  const i = id.indexOf("/");
+  return i > 0 ? id.slice(0, i) : SHARED_SCOPE;
+}
+
 export interface Position {
   x: number;
   y: number;

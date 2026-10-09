@@ -12,7 +12,7 @@ import type { Recall as RecallModel } from "./useRecall";
 import { avatarUrl } from "../desk/env";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { DeskTree } from "./DeskTree";
 import { Preferences } from "../settings/Settings";
 import { Welcome } from "./Welcome";
@@ -23,6 +23,7 @@ import type { Scratch } from "./useScratch";
 import type { AssignTarget, useBoard } from "./useBoard";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /**
  * The views the rail switches between, each a thin wrapper that wires the window's models to one

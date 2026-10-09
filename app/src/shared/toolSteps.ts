@@ -116,7 +116,6 @@ export function stepTarget(row: TranscriptRow): string | null {
   return i >= 0 ? row.text.slice(i + 3).trim() || null : null;
 }
 
-
 /**
  * Where each stretch of work starts, from row `from`, and where it ends (exclusive): consecutive tool calls,
  * background-task notices and skill loads are one stretch; a message, another event (canvas activity, a

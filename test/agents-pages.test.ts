@@ -27,7 +27,7 @@ describe("agent reading pane", () => {
   const skills = [
     { name: "notes", path: "skills/notes/SKILL.md", origin: "self" as const },
     { name: "stocks", path: "skills/stocks/SKILL.md", origin: "other" as const },
-  ] as unknown as import("../mod/skill-sources.ts").MemorySkillInfo[]; // the pure helpers only read name, path and origin
+  ] as unknown as import("../core/frame-types.ts").MemorySkillInfo[]; // the pure helpers only read name, path and origin
   const d = { skills } as unknown as Parameters<typeof shownSkillOf>[0];
   const log = [{ sha: "abc12345" }, { sha: "def67890" }] as Parameters<typeof shownShaOf>[1];
 

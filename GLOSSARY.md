@@ -32,5 +32,20 @@ other rows by role and text from the end) lend it their arrival times and go. Of
 only if it is still pending (queued, a running slash command, the streaming reply) or arrived after the page's newest
 row, so nothing that streamed during the load is lost and nothing Letta never echoes lingers.
 
-**Open call**: a tool call with no result yet and no text after it. An approval request for the same tool attaches
-to it instead of adding a row.
+**Open call**: a tool call with no result yet and no text after it, among the live rows or at the end of the last
+history page. An approval request for the same tool attaches to it instead of adding a row.
+
+**Frame**: one message on the mod's own socket (`/ws`), as opposed to Letta's app-server protocol. Three kinds:
+
+1. **Request**: the app asks and waits; it carries a `requestId` and is answered by exactly one reply frame or one
+   `error` frame.
+2. **Send**: the app tells the mod something and does not wait; any effect comes back as a push (a mark → `seen`).
+3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `recall_changed`).
+
+**Frame table** (`core/frames.ts`, `FRAMES`): every frame declared once — its kind, its reply, whether a paired
+phone may send it, and the parser that turns the raw object into a typed payload. The mod's router, the app's
+`request()`, the phone allow-list and the protocol's documentation all read it. _Avoid_: REPLY_FRAMES,
+PHONE_FRAMES (now derived from it).
+
+**Frame handler**: the mod module for one feature (Learn, the board, agents, folders, the phone listener, …) that
+answers that feature's frames; a request handler returns its reply or an error, and the router sends it.

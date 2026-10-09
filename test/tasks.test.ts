@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { INIT_ARGS, TaskBoard, bdBinary, assignArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority, type Task } from "../mod/tasks.ts";
+import { INIT_ARGS, TaskBoard, bdBinary, assignArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority } from "../mod/tasks.ts";
+import type { Task } from "../core/frame-types.ts";
 
 const raw = (over: Record<string, unknown> = {}) => ({
   id: "lk-a1",

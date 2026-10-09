@@ -4,14 +4,16 @@ import { hostname, networkInterfaces } from "node:os";
 import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
-import type { DeviceStore, DeviceVia } from "./devices.ts";
+import type { DeviceStore } from "./devices.ts";
 import type { PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";
 import { attachWs, closeServer, listenWithRetry, profileRoute, type Authorize, type WsBridge, type WsHandlers } from "./server.ts";
 import { uploadRoute } from "./uploads.ts";
 import { buildIdOf, createStaticApp, resolveAppDist, type StaticHandler } from "./static.ts";
-import type { Tailscale, TailscaleStatus } from "./tailscale.ts";
+import type { Tailscale } from "./tailscale.ts";
 import { log } from "./log.ts";
+import type { DeviceVia, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
+import { isLanVia } from "../core/frames.ts";
 
 /**
  * The second listener, for phones on the same Wi‑Fi. Off by default; the setting in
@@ -26,28 +28,6 @@ import { log } from "./log.ts";
  *   everything else                    the built canvas as a single-page app (mod/static.ts)
  * The desktop token is refused here even when presented as a bearer.
  */
-export interface LanStatus {
-  /** The persisted setting. `error` says whether the listener is up when this is true. */
-  enabled: boolean;
-  /** First non-internal IPv4 (en0 preferred), or null when the machine is off the network. */
-  address: string | null;
-  /** Every Wi‑Fi/Ethernet address; the tailnet's 100.x address is in `tailscale.ip`, not here. */
-  addresses: string[];
-  /** The Mac's Bonjour name with `.local`: what the QR and the bookmark carry, because it survives a new address on a new network. */
-  host: string | null;
-  port: number;
-  /** A built canvas was found to serve. */
-  appServed: boolean;
-  /** A bind error (EADDRINUSE …) or a missing network; null when all is well. */
-  error: string | null;
-  /** Which route the QR encodes: the tailnet (Addendum 3) or the Wi‑Fi. Persisted when the user chose; else tailscale iff it runs. */
-  via: LanVia;
-  /** The tailnet's view of the Mac (mod/tailscale.ts); null when the listener was built without Tailscale. */
-  tailscale: TailscaleStatus | null;
-}
-
-export type LanVia = "tailscale" | "lan";
-export const isLanVia = (v: unknown): v is LanVia => v === "tailscale" || v === "lan";
 
 export type LanChange = "status" | "devices";
 

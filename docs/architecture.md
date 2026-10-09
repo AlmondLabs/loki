@@ -87,7 +87,7 @@ on, a third on the local network, guarded by a per-device cookie:
 | port | server | speaks |
 | --- | --- | --- |
 | 41600 | the app-server (Letta Code) | the agent list, runtime subscriptions, streaming, approvals (the inbox's conversation list is the mod's, from disk) |
-| 41414 | loki's mod, loopback | canvas state, gestures, each chat's widget change log, the board, agents, pins, folders, done / viewed / snooze marks, Learn, agent faces, and the app-server tunnel |
+| 41414 | loki's mod, loopback | canvas state, gestures, each chat's widget change log, the board, agents, pins, folders, done and viewed marks and focus weights, Learn, agent faces, and the app-server tunnel |
 | 41415 | loki's mod, LAN (off by default) | the canvas build as a single-page app, `/pair` `/me` `/unpair`, and the same `/ws`, `/appserver` and face routes for paired phones |
 
 When Tailscale runs on the Mac the same 41415 listener is reached by the tailnet name instead of the Wi‑Fi
@@ -122,31 +122,32 @@ The canvas speaks two protocols, and knowing which one owns a thing tells you wh
    `app/src/shell/transport.ts`): the agent list, conversations, streaming turns, approvals, models and
    permission modes. A chat's name is Letta's conversation `summary`, so renaming a chat is a
    `conversation_update` over this socket, not a mod frame; archiving and restoring are the same call.
-2. **loki's own protocol** (the mod's `/ws`; documented frame by frame at the top of `mod/bridge.ts`). The UI
-   calls a desk a chat and its widget surface the Canvas tab; the code and the wire keep the name desk.
-   `desk`, `state`, `widgets` and `desk_title` sync a chat; `gesture`, `measure`, `arrange` and `trash` come
-   back; `widget_change` goes to every socket when a widget is added, changed or removed, and `history_get`
-   returns a chat's widget log beside its messages. The Inbox's marks live here too: `seen_mark` /
-   `seen_unmark` are done and not done, `viewed_mark` is a look (opening a chat un-bolds it, but its Inbox
-   card and the sidebar's ring stay until you act or mark it done), and `snooze_*` is Later; each change
-   broadcasts `seen { seen, viewed, snooze, … }`, so the desktop and a phone read the same marks from the mod's
-   `attention.json`. Board (`task_*`), Learn (`recall_*`), agents (`agent_get`, `memory_*`,
-   `reflection_state`, `skill_*`), folders, pins and the phone listener (`lan_*`, `pair_begin`, `devices_list`,
-   `device_forget`) complete it.
+2. **loki's own protocol** (the mod's `/ws`): every frame is declared once in the frame table, `core/frames.ts`
+   (GLOSSARY.md: Frame, Frame table). A request (`history_get`, `recall_grade`, `task_assign` …) carries a
+   `requestId` and is answered by its reply or by one `error`; a send (`gesture`, `seen_mark`, `lan_set` …) is
+   answered by the pushes it causes; pushes (`desk`, `state`, `widgets`, `seen`, `recall_changed` …) arrive
+   unasked. The table says which frames a paired phone may send, and parses each frame before its handler sees
+   it. The UI calls a desk a chat and its widget surface the Canvas tab; the code and the wire keep the name
+   desk. The Inbox's marks live here too: `seen_mark` / `seen_unmark` are done and not done, `viewed_mark` is a
+   look (opening a chat un-bolds it, but its Inbox card and the sidebar's ring stay until you act or mark it
+   done), and `focus_add` reports an engagement the mod cannot see; each change pushes `seen { seen, viewed,
+   focus, … }`, so the desktop and a phone read the same marks from the mod's `attention.json`.
 
 ## Where the code lives
 
 1. `core/` — pure TypeScript both halves import (no I/O, no framework): `desk-core.ts` (the shared
    vocabulary), `harness.ts` (recognising harness machinery in transcripts, and Letta's messages as thread
    steps), `compat.ts` (the Letta Code version range), `attention/` (the Inbox: the app-server client, the
-   attention model, queue, snooze and ladder, `useAttention`; `thread.ts` is ThreadModel, the one place a
+   attention model, queue and focus ranking, `useAttention`; `thread.ts` is ThreadModel, the one place a
    chat's rows are built, from the mod's local log, the app-server's history and its live stream alike),
-   `recall/` (Learn's cards and scheduling).
+   `recall/` (Learn's cards and scheduling), and `frames.ts` (the frame table: loki's own protocol, declared once)
+   with `frame-types.ts` (the shapes its frames carry).
 2. `mod/` — the code inside `letta server`. `index.ts` wires it; `gate.ts` lets only the harness that hosts an
-   app-server serve the app; `server.ts` holds the ports and `bridge.ts` the protocol; `desk-store.ts`,
+   app-server serve the app; `server.ts` holds the ports and `bridge.ts` routes each frame to its handler under `frames/` (one module per
+   feature: desks, seen marks, history, folders, Learn, the board, agents, the phone listener, analytics); `desk-store.ts`,
    `persist.ts` and `widgets-fs.ts` keep each chat's canvas and watch widget files; `widget-log.ts` keeps each chat's
    widget change log; `desks.ts` maps chats to conversations and reads the Inbox's conversations from disk;
-   `seen.ts` keeps the done, viewed and snooze marks; `gestures.ts` turns what you did into the `turn_start`
+   `seen.ts` keeps the done and viewed marks and the focus weights; `gestures.ts` turns what you did into the `turn_start`
    note; `tasks.ts`, `pins.ts`, `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back
    the board, pins, folders, the Agents pages and Learn; `lan.ts`, `pairing.ts`, `devices.ts`, `tailscale.ts`
    and `static.ts` are the phone listener.

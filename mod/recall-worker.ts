@@ -10,11 +10,12 @@ import { scopeFor, type WidgetChange } from "../core/desk-core.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
 import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
-import { readLocalTranscriptSince, type InboxRow } from "./desks.ts";
+import { readLocalTranscriptSince } from "./desks.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
 import { RecallStore, newCardId } from "./recall.ts";
 import { paths } from "./paths.ts";
+import type { InboxRow } from "../core/frame-types.ts";
 
 /**
  * The recall worker: the only writer of cards. On a timer it looks for conversations that have gone

@@ -13,7 +13,7 @@ import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage, type InboxRow } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
@@ -26,13 +26,16 @@ import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
-import type { DeskInfo, DeskSummary } from "./bridge.ts";
-import { sortDesks } from "./bridge.ts";
+
+import { sortDesks } from "./frames/desks.ts";
+import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
 import { shouldServe } from "./gate.ts";
 import { wsSource } from "./ws.ts";
-import { createBridge, scopeOfId } from "./bridge.ts";
+import { createBridge } from "./bridge.ts";
+import { seenFrame } from "./frames/seen.ts";
+import { scopeOfId } from "../core/desk-core.ts";
 import { DeviceStore } from "./devices.ts";
 import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
@@ -41,6 +44,7 @@ import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
 import { appVersion, createAnalytics } from "./analytics.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
+import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
 
 /**
  * loki — a memory palace your agent builds.
@@ -279,12 +283,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
   };
   scheduleRecall(recallStore.worker().tickMinutes ?? DEFAULT_TICK_MINUTES);
 
-  const bridge = createBridge({
+  const moduleDeps: ModuleDeps = {
     store,
     widgets,
     gestures,
-    broadcast,
-    capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
     listDesks,
     listInbox,
     recall: {
@@ -298,7 +300,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
     deleteWidgetFile,
     seen,
     appServerAvailable: () => appServerUrl !== null,
-    appServerUrl: () => appServerUrl,
     transcript: (agentId, conversationId, limit) => readLocalTranscriptPage(conversationId, agentId, limit),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
@@ -334,6 +335,13 @@ export default function activate(letta: LettaMod): (() => void) | void {
       globalSkills: () => listGlobalSkills().map((g) => ({ ...g, source: skillSources.describeGlobal(g) })),
       install: (id, source, force) => installSkill(source, id, { force }),
     },
+  };
+  const bridge = createBridge({
+    modules: frameModules(moduleDeps),
+    welcome: welcomeFrames(moduleDeps),
+    broadcast,
+    capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
+    appServerUrl: () => appServerUrl,
   });
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;
@@ -440,7 +448,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       seen.mark(runtime.agentId, convId); // you just spoke in this conversation
       // Your message is engagement, typed anywhere; a scheduled task's prompt, or a turn with nothing typed, is not you.
       if (personTyped(ev?.input)) seen.engage(runtime.agentId, convId, "message");
-      broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), focus: seen.focusAll(), appServer: appServerUrl !== null });
+      broadcast(seenFrame({ seen, appServerAvailable: () => appServerUrl !== null }));
     }
     // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation
     // (only when those changed since the agent was last told).

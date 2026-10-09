@@ -11,9 +11,13 @@ import { foldSteps, ownSendKey, type HistoryRow } from "./thread.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./activeClock.ts";
-import { focusShares, type FocusAction, type FocusEntry } from "./focus.ts";
+import { focusShares, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
 import type { MakeTransport } from "./transport.ts";
+import type { PayloadOf } from "../frames.ts";
+
+/** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
+export type EngageAction = PayloadOf<"focus_add">["action"];
 import { scopeFor } from "../desk-core.ts";
 
 /**
@@ -60,7 +64,7 @@ export interface UseAttentionOptions {
   /** Each chat's focus weight (the mod's, core/attention/focus.ts): what the inbox ranks by after blocked agents. */
   focus?: Record<string, FocusEntry>;
   /** Tell the mod about an engagement the app-server carries and the mod cannot see (a decision, an answer). */
-  engage?: (agentId: string, conversationId: string, action: FocusAction) => void;
+  engage?: (agentId: string, conversationId: string, action: EngageAction) => void;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */

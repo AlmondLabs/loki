@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Button, Field, Sheet } from "../components";
 import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebarModel";
 import type { CatchUp, Desk } from "../shell/types";
-import type { DeskSummary } from "./useDesk";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 export interface RenameDeskProps {
   /** The desk's name now; the field starts on it, selected. */

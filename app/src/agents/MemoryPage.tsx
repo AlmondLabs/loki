@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import type { MemoryFile } from "../../../mod/agents.ts";
+
 import { Button, Row } from "../components";
 import { ago } from "../board/model";
 import { Head, ListPane, Pane, Prose } from "./bits";
 import type { AgentDetails } from "./types";
 import type { ReadingState } from "./useReading";
+import type { MemoryFile } from "../../../core/frame-types.ts";
 
 /**
  * The memory page: the files as a tree on the left (skills and the face left out), the picked one read

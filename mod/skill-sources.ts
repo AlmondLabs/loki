@@ -2,9 +2,10 @@ import { execFile } from "node:child_process";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { memoryLog, memoryRoot, readLocalAgent, type MemoryCommit, type MemorySkill } from "./agents.ts";
+import { memoryLog, memoryRoot, readLocalAgent } from "./agents.ts";
 import { globalSkillsDir } from "./skills.ts";
 import { log } from "./log.ts";
+import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillOrigin, SkillSource } from "../core/frame-types.ts";
 
 /**
  * Where an agent's skills came from, and how to refresh the ones that came from elsewhere.
@@ -24,31 +25,6 @@ import { log } from "./log.ts";
  * the agent a message asking it to reconcile: keep what it learned, take what upstream improved. That
  * last step is the agent's, on purpose: the copy is its memory.
  */
-
-export type SkillOrigin = "self" | "other";
-
-export type SkillSource =
-  /** A git checkout on this Mac; refresh pulls it. `rel` is the skill folder inside it. */
-  | { kind: "checkout"; repo: string; rel: string; label: string }
-  /** A plain folder on this Mac (no git); refresh copies from it. */
-  | { kind: "folder"; path: string; label: string }
-  /** A GitHub repository; refresh clones it shallowly. `path` is the skill folder inside it. */
-  | { kind: "github"; url: string; path: string; ref: string | null; label: string };
-
-export interface SkillProvenance {
-  origin: SkillOrigin;
-  /** Commits after the last install/refresh: the agent changed its copy. */
-  edited: boolean;
-  /** Where refresh would fetch from; null for a self skill or an other skill nobody told us the source of. */
-  source: SkillSource | null;
-}
-
-export type MemorySkillInfo = MemorySkill & SkillProvenance;
-
-export type RefreshOutcome =
-  | { outcome: "current"; label: string }
-  | { outcome: "replaced"; label: string; changed: string[]; sha: string | null }
-  | { outcome: "reconcile"; label: string; changed: string[]; upstreamPath: string; prompt: string };
 
 export interface SkillSourcesOptions {
   /** The local backend (mod/agents.ts backendDir()). */

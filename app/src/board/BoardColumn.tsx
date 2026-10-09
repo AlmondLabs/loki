@@ -3,9 +3,10 @@ import { IconButton, ListIcon, ListRow, ListSection } from "../components";
 import { Icon, type IconName } from "../shared/icons";
 import { ColumnHeader } from "../shell/ListColumn";
 import { AgentFace } from "../desk/AgentChip";
-import { boardViews, resolveBoardView, type BoardView, type Task } from "./model";
+import { boardViews, resolveBoardView, type BoardView } from "./model";
 import { useBoardView } from "./useBoardView";
 import { keyFor } from "../shell/keymap";
+import type { Task } from "../../../core/frame-types.ts";
 
 const VIEW_ICON: Record<string, IconName> = { all: "menu", open: "inbox", in_progress: "clock", blocked: "info", done: "check" };
 

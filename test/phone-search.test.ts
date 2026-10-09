@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { AttentionItem } from "../core/attention/model.ts";
-import type { DeskSummary } from "../app/src/desk/useDesk";
+
 import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
 import { DESTINATIONS, GROUP_MAX, MAX_QUERY, buildIndex, cleanQuery, isPlace, recentPlaceHits, search, tierOf, type SearchSources } from "../app/src/phone/searchIndex.ts";
+import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
  * The phone's local Search (app/src/phone/searchIndex.ts): what it matches (declared fields only — desk

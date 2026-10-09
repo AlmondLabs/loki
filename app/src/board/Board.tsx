@@ -1,10 +1,11 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { Button, Chip, Field, ListIcon, ListRow, ListSection } from "../components";
-import { PRIORITY_LABEL, ago, boardViews, columnOf, filterTasks, missingAgentLine, resolveBoardView, stepCursor, viewColumns, type BoardView, type Column, type ColumnId, type Dir, type Task } from "./model";
+import { PRIORITY_LABEL, ago, boardViews, columnOf, filterTasks, missingAgentLine, resolveBoardView, stepCursor, viewColumns, type BoardView, type Column, type ColumnId, type Dir } from "./model";
 import { useBoardView } from "./useBoardView";
 import { keyFor, registerActions, typingIn } from "../shell/keymap";
+import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 /**
  * The board: four columns of tasks for later, or one of them, or one agent's tasks as a single list — the

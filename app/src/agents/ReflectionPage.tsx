@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime } from "../../../core/attention/protocol.ts";
-import type { ReflectionConversation, ReflectionState } from "../../../mod/reflection.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { Button, Chip, Field, Meta, Row } from "../components";
 import { ago } from "../board/model";
 import { Head, ListPane, Pane } from "./bits";
 import type { AgentsApi, ReflectionControls } from "./types";
+import type { DeskSummary, ReflectionConversation, ReflectionState } from "../../../core/frame-types.ts";
 
 /**
  * The reflection page: Letta's sleep-time pass over what happened, for one agent. After a turn, Letta may launch a

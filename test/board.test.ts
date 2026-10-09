@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { boardViews, columnsOf, dispatchMessage, filterTasks, missingAgentLine, parseBoardView, resolveBoardView, stepCursor, viewColumns, type Task } from "../app/src/board/model.ts";
+import { boardViews, columnsOf, dispatchMessage, filterTasks, missingAgentLine, parseBoardView, resolveBoardView, stepCursor, viewColumns } from "../app/src/board/model.ts";
+import type { Task } from "../core/frame-types.ts";
 
 const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 2, labels: [], assignee: null, createdAt: "2026-09-06T10:00:00Z", updatedAt: "2026-09-06T10:00:00Z", closedAt: null, metadata: {}, ...over });
 const NOW = new Date("2026-09-06T12:00:00Z").getTime();

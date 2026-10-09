@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Button, Chip, Dot, Row as PickRow, Switch } from "../components";
 import { notYetOn, platform, type Platform } from "../desk/env";
-import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type LanVia, type PairCode, type PairedDevice, type PhoneLanStatus, type TailscaleStatus } from "../phone/model";
+import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
+import type { LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
 
 /** What useDesk exposes as `phone`: the LAN listener's status, the paired phones, the last code, and the actions. */
 export interface PhoneApi {
@@ -217,7 +218,6 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
     </div>
   );
 }
-
 
 /** A labelled row in the style of Settings' facts (the label column matches). */
 function Row({ label, children }: { label: string; children: React.ReactNode }) {

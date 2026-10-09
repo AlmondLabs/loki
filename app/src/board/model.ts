@@ -1,6 +1,4 @@
-import type { Task } from "../../../mod/tasks.ts";
-
-export type { Task };
+import type { Task } from "../../../core/frame-types.ts";
 
 export type ColumnId = "open" | "in_progress" | "blocked" | "done";
 

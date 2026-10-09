@@ -2,11 +2,12 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Chip, Dot, Field, Sheet } from "../components";
 import type { Scope } from "../../../core/desk-core.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary } from "../desk/useDesk";
+
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { deskMark } from "./sidebarModel";
 import { formatKeys } from "./keymap";
+import type { DeskSummary } from "../../../core/frame-types.ts";
 
 export const TREE_WIDTH = 560;
 

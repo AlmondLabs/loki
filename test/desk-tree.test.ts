@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { sectionDesks, statusLine, treeKey } from "../app/src/shell/DeskTree.tsx";
-import type { DeskSummary } from "../app/src/desk/useDesk";
+
 import type { AttentionItem } from "../core/attention/model.ts";
+import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
  * The desk tree's order (app/src/shell/DeskTree.tsx), now only the Board's assign-to-desk picker (the

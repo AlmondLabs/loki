@@ -1,0 +1,50 @@
+import type { WidgetManifestEntry } from "../../core/desk-core.ts";
+import { createBridge, type BridgeDeps } from "../../mod/bridge.ts";
+import { frameModules, welcomeFrames, type ModuleDeps } from "../../mod/frames/index.ts";
+import { DeskStore } from "../../mod/desk-store.ts";
+import { GestureLog } from "../../mod/gestures.ts";
+import type { Client } from "../../mod/server.ts";
+import type { WidgetsWatcher } from "../../mod/widgets-fs.ts";
+
+/** A client that records what the mod sent it; a `deviceId` makes it a paired phone. */
+export function client(scope: string, deviceId?: string): Client & { sent: Array<Record<string, unknown>> } {
+  const sent: Array<Record<string, unknown>> = [];
+  return { scope, sent, ...(deviceId ? { deviceId } : {}), send: (m) => sent.push(m as Record<string, unknown>) };
+}
+
+/** A widget watcher over fixed entries, with runtime errors kept in memory. */
+export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
+  const runtime = new Map<string, string>();
+  return {
+    runtime,
+    entries: (scope) => entries.filter((e) => !scope || e.scope === scope).map((e) => (runtime.has(e.id) ? { ...e, error: runtime.get(e.id) } : e)),
+    get: (id) => entries.find((e) => e.id === id),
+    setRuntimeError(id, msg) {
+      const prev = runtime.get(id) ?? null;
+      if (prev === msg) return false;
+      if (msg) runtime.set(id, msg);
+      else runtime.delete(id);
+      return true;
+    },
+    rescan: async () => {},
+    close() {},
+  };
+}
+
+type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; capture?: BridgeDeps["capture"]; appServerUrl?: BridgeDeps["appServerUrl"]; modules?: BridgeDeps["modules"] };
+
+/** The bridge the mod builds, over in-memory desks unless given others: every module from these deps, or only `modules`. */
+export function bridgeOf(deps: BridgeOf = {}) {
+  const full: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), ...deps };
+  return createBridge({ modules: deps.modules ?? frameModules(full), welcome: welcomeFrames(full), broadcast: deps.broadcast ?? (() => {}), capture: deps.capture, appServerUrl: deps.appServerUrl });
+}
+
+/** A bridge as bridgeOf builds it, and every broadcast it made. */
+export function bridgeWith(deps: BridgeOf = {}) {
+  const broadcasts: Array<{ frame: Record<string, unknown>; scope?: string }> = [];
+  const bridge = bridgeOf({ ...deps, broadcast: (frame, scope) => broadcasts.push({ frame: frame as Record<string, unknown>, scope }) });
+  return { bridge, broadcasts };
+}
+
+/** Let a handler's promise settle. */
+export const settled = () => new Promise((r) => setTimeout(r, 0));
