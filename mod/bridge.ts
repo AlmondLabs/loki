@@ -69,14 +69,20 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         broadcast: (f, scope) => deps.broadcast(f, scope),
         track: (event, properties) => deps.capture?.(client, event, properties),
       };
-      const payload = entry.parse(msg);
+      // Parsing runs inside settle too: a frame that trips its parser is answered like any other failure.
+      const run = () => {
+        const payload = entry.parse(msg);
+        if (typeof payload === "string") {
+          if (entry.kind === "request") return fail(payload);
+          throw new Error(payload);
+        }
+        return handle(payload as never, ctx);
+      };
       if (entry.kind === "request") {
         const answer = (out: Outcome<object>) => client.send(out.ok ? { ...out.reply, type: entry.reply, requestId } : { type: "error", requestId, message: out.message });
-        if (typeof payload === "string") return answer(fail(payload));
-        return settle(() => handle(payload as never, ctx), (out) => answer(out as Outcome<object>), (err) => answer(fail(errorMessage(err))));
+        return settle(run, (out) => answer(out as Outcome<object>), (err) => answer(fail(errorMessage(err))));
       }
-      if (typeof payload === "string") return client.send({ type: "error", message: payload });
-      settle(() => handle(payload as never, ctx), () => {}, (err) => client.send({ type: "error", message: errorMessage(err) }));
+      settle(run, () => {}, (err) => client.send({ type: "error", message: errorMessage(err) }));
     },
   };
 }

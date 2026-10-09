@@ -115,10 +115,10 @@ export function useDeskSocket() {
       ws.onmessage = (ev) => {
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
         // A request's answer (its reply, or `error`), by requestId: it goes to whoever asked, nowhere else.
-        const w = typeof raw.requestId === "string" ? waiters.current.get(raw.requestId) : undefined;
-        if (w) {
-          waiters.current.delete(raw.requestId as string);
-          w(raw);
+        if (typeof raw.requestId === "string") {
+          const w = waiters.current.get(raw.requestId);
+          waiters.current.delete(raw.requestId);
+          w?.(raw); // none: its request already timed out, and the answer has no one left to tell
           return;
         }
         // Everything else is a push (core/frames.ts Pushes).

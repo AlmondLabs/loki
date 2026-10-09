@@ -156,3 +156,22 @@ describe("every frame in the table, through the real router", () => {
     }
   });
 });
+
+describe("how the app reads a request's answer", () => {
+  test("a reply is ok, an error frame carries the mod's message at once, and silence is a timeout", async () => {
+    const { requestResult } = await import("../core/frames.ts");
+    expect(requestResult({ type: "folder_matches", requestId: "r1", matches: ["/a"] })).toEqual({ ok: true, reply: { type: "folder_matches", requestId: "r1", matches: ["/a"] } as never });
+    expect(requestResult({ type: "error", requestId: "r1", message: "task_create is not available on the phone" })).toEqual({ ok: false, error: "task_create is not available on the phone", timedOut: false });
+    expect(requestResult({ type: "error", requestId: "r1" })).toEqual({ ok: false, error: "the mod refused", timedOut: false });
+    expect(requestResult(null)).toEqual({ ok: false, error: "no answer from the mod", timedOut: true });
+  });
+});
+
+describe("a parser that throws", () => {
+  test("is answered like any failure: the request still gets error with its requestId", () => {
+    const bridge = bridgeOf({ tasks: { list: async () => [] } as never });
+    const c = client("d1");
+    bridge.onMessage(c, { type: "task_status", requestId: "r1", ids: ["t"], status: { toString: 1 } });
+    expect(c.sent.at(-1)).toMatchObject({ type: "error", requestId: "r1" });
+  });
+});

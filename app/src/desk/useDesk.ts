@@ -15,7 +15,7 @@ import type { EngageAction } from "../../../core/attention/useAttention.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
-import type { InputOf, Replies, ReplyOf, RequestName, RequestResult } from "../../../core/frames.ts";
+import { requestResult, type InputOf, type Replies, type ReplyOf, type RequestName, type RequestResult } from "../../../core/frames.ts";
 import type { DeskStatus, GlobalSkill, InboxRow as InboxConversation, LanVia, MemoryCommit, ReflectionState, RefreshOutcome, Task } from "../../../core/frame-types.ts";
 
 export type Connection = "connecting" | "open" | "closed";
@@ -111,12 +111,9 @@ export function useDesk() {
   };
 
   /**
-   * Ask the mod something and wait for the reply frame carrying the same requestId (null on timeout).
-   * A request made before the socket is open (a view mounting at startup) is sent as soon as it is.
-   */
-  /**
    * A request to the mod (core/frames.ts): its reply, typed by the table, or why not. The mod answers a request it
-   * cannot serve with `error` at once; only silence waits out `timeoutMs`. Never throws.
+   * cannot serve with `error` at once; only silence waits out `timeoutMs`. Never throws. A request made before the
+   * socket is open (a view mounting at startup) is sent as soon as it is.
    */
   const request = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number): Promise<RequestResult<ReplyOf<N>>> =>
     new Promise((resolve) => {
@@ -126,9 +123,7 @@ export function useDesk() {
         window.clearTimeout(timer);
         if (retry !== null) window.clearInterval(retry);
         waiters.current.delete(requestId);
-        if (!m) resolve({ ok: false, error: "no answer from the mod", timedOut: true });
-        else if (m.type === "error") resolve({ ok: false, error: String(m.message ?? "the mod refused"), timedOut: false });
-        else resolve({ ok: true, reply: m as unknown as ReplyOf<N> });
+        resolve(requestResult<ReplyOf<N>>(m));
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
       waiters.current.set(requestId, done);

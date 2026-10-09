@@ -282,13 +282,17 @@ type Optional<T> = { [K in keyof T as undefined extends T[K] ? K : null extends 
 export type RequestResult<R> = { ok: true; reply: R } | { ok: false; error: string; timedOut: boolean };
 /** The reply a request is answered with. */
 export type ReplyOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? Replies[R] : never;
-export type ReplyNameOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? R : never;
 /** A push as it arrives: its name beside its payload. */
 export type PushFrame = { [K in PushName]: { type: K } & Pushes[K] }[PushName];
 
 export const frameEntry = (type: unknown): Table[FrameName] | undefined => (typeof type === "string" && Object.hasOwn(FRAMES, type) ? FRAMES[type as FrameName] : undefined);
-export const isRequest = (n: FrameName): n is RequestName => FRAMES[n].kind === "request";
-export const isSend = (n: FrameName): n is SendName => FRAMES[n].kind === "send";
+
+/** How the app reads a request's answer: the frame that carried its requestId, or null when none came in time. */
+export function requestResult<R>(answer: Record<string, unknown> | null): RequestResult<R> {
+  if (!answer) return { ok: false, error: "no answer from the mod", timedOut: true };
+  if (answer.type === "error") return { ok: false, error: typeof answer.message === "string" ? answer.message : "the mod refused", timedOut: false };
+  return { ok: true, reply: answer as unknown as R };
+}
 
 /**
  * The frames a paired phone may send over its /ws (mod/lan.ts), marked `phone` above; everything else answers `error`.
