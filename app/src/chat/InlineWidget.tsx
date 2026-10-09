@@ -13,9 +13,11 @@ import { Icon } from "../shared/icons";
  * On the phone a custom (module) widget cannot load yet, so the card says where it runs; kit widgets draw there,
  * but read only: the phone may not change a desk.
  */
+/** Errors are the canvas copy's to report: two copies reporting would clear each other's. Also the read-only gesture. */
+const quiet = () => {};
+
 export function InlineWidget({ entry, overlay, gesture, onOpen }: { entry: WidgetManifestEntry; overlay?: Record<string, unknown>; gesture?: (g: Gesture) => void; onOpen?: () => void }) {
-  const quiet = () => {}; // the canvas copy reports errors; two copies reporting would clear each other's
-  const send = gesture ?? (() => {});
+  const send = gesture ?? quiet;
   let body: ReactNode;
   if (entry.kind === "module" && !gesture) body = <p className="loki-inline-widget-note">This widget runs on the Mac: open the chat there to use it.</p>;
   else if (entry.kind === "module") body = <ModuleWidget entry={entry} overlay={overlay} gesture={send} onError={quiet} />;
