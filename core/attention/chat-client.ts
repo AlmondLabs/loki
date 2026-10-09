@@ -198,8 +198,6 @@ export class FrameChatClient implements ChatClient {
     return [];
   }
 
-  // What later units bring to the daemon (plan 017): memory and
-  // reflection (U9), skills and commands (U10).
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
     return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, allow: behavior === "allow", message: null })).accepted;
   }
@@ -232,24 +230,29 @@ export class FrameChatClient implements ChatClient {
     return (await this.call("chat_provider_disconnect", { providerId })).providers;
   }
   async getReflectionSettings(): Promise<ReflectionSettings | null> {
-    return null;
+    return this.call("chat_reflection_get", {});
   }
-  async setReflectionSettings(_rt: Runtime, _s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<ReflectionSettings | null> {
-    throw NOT_YET("reflection settings");
+  async setReflectionSettings(_rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<ReflectionSettings | null> {
+    return this.call("chat_reflection_set", { trigger: s.trigger, stepCount: s.stepCount, merge: s.merge, mergeInstructions: s.mergeInstructions ?? "" });
   }
-  async writeMemoryFile(): Promise<void> {
-    throw NOT_YET("editing memory");
+  async writeMemoryFile(agentId: string, path: string, content: string, commitMessage?: string): Promise<void> {
+    await this.call("chat_memory_write", { agentId, path, content, message: commitMessage });
   }
-  async deleteMemoryFile(): Promise<void> {
-    throw NOT_YET("editing memory");
+  async deleteMemoryFile(agentId: string, path: string, commitMessage?: string): Promise<void> {
+    await this.call("chat_memory_write", { agentId, path, content: null, message: commitMessage });
   }
+  // Skills and the other commands come to the daemon with plan 017's U10.
   async skillEnable(): Promise<{ name: string; linkPath: string }> {
     throw NOT_YET("enabling a skill");
   }
   async skillDisable(): Promise<void> {
     throw NOT_YET("disabling a skill");
   }
-  async executeCommand(): Promise<{ success: boolean; output: string }> {
-    return { success: false, output: "commands are not on loki's daemon yet" };
+  async executeCommand(rt: Runtime, commandId: string): Promise<{ success: boolean; output: string }> {
+    if (commandId === "reflect") {
+      const r = await this.call("chat_reflect", { agentId: rt.agent_id, conversationId: rt.conversation_id });
+      return { success: r.accepted, output: "reflecting on this chat; its memory changes show on the agent's page" };
+    }
+    return { success: false, output: `/${commandId} is not on loki's daemon yet` };
   }
 }

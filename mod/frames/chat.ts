@@ -28,6 +28,10 @@ export interface ChatBackend {
   connectProvider(providerId: string, apiKey: string): Promise<void>;
   disconnectProvider(providerId: string): Promise<void>;
   signIn(providerId: string): Promise<Replies["chat_signin"]>;
+  reflection(): Promise<Replies["chat_reflection"]>;
+  setReflection(s: PayloadOf<"chat_reflection_set">): Promise<Replies["chat_reflection"]>;
+  reflect(agentId: string, conversationId: string): Promise<boolean>;
+  writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
 }
 
 export type ChatDeps = { chat?: ChatBackend };
@@ -62,6 +66,10 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_agent_create: (p) => served(b, (x) => x.createAgent(p)),
     chat_agent_update: (p) => served(b, async (x) => (await x.updateAgent(p), DONE)),
     chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
+    chat_reflection_get: () => served(b, (x) => x.reflection()),
+    chat_reflection_set: (p) => served(b, (x) => x.setReflection(p)),
+    chat_reflect: ({ agentId, conversationId }) => served(b, async (x) => ({ accepted: await x.reflect(agentId, conversationId) })),
+    chat_memory_write: (p) => served(b, async (x) => (await x.writeMemory(p), DONE)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
     chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
     chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),

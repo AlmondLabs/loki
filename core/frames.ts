@@ -101,6 +101,7 @@ export interface Replies {
   chat_done: Record<never, never>;
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };
+  chat_reflection: { trigger: "off" | "step-count" | "compaction-event"; stepCount: number; merge: "auto" | "explicit"; mergeInstructions: string };
 }
 export type ReplyName = keyof Replies;
 
@@ -250,6 +251,15 @@ export const FRAMES = {
   chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
+  chat_reflection_get: request("chat_reflection", "when reflection passes run", nothing),
+  chat_reflection_set: request("chat_reflection", "change when reflection passes run", (m) => {
+    const trigger = m.trigger === "off" || m.trigger === "step-count" || m.trigger === "compaction-event" ? (m.trigger as "off" | "step-count" | "compaction-event") : null;
+    if (!trigger) return "trigger must be off, step-count or compaction-event";
+    return { trigger, stepCount: isNum(m.stepCount) && m.stepCount > 0 ? Math.floor(m.stepCount) : 25, merge: m.merge === "explicit" ? ("explicit" as const) : ("auto" as const), mergeInstructions: strOr(m.mergeInstructions, "") };
+  }),
+  chat_reflect: request("chat_accepted", "reflect on a chat now (/reflect)", chatRef, PHONE),
+  chat_memory_write: request("chat_done", "write a memory file (null content removes it), committed as yours", (m) =>
+    isAgentId(m.agentId) && str(m.path) && m.path ? { agentId: m.agentId, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) } : "agentId and path required"),
   chat_providers: request("chat_providers", "the model providers, connected or not", nothing),
   chat_provider_connect: request("chat_providers", "keep a provider's API key, once the provider accepts it", (m) =>
     str(m.providerId) && m.providerId && str(m.apiKey) ? { providerId: m.providerId, apiKey: m.apiKey } : "providerId and apiKey required"),

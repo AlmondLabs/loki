@@ -21,6 +21,8 @@ import { Approvals, kindOf } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { Providers } from "./providers.ts";
+import { memoryExtension } from "./memory.ts";
+import { Reflection } from "./reflection.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -61,6 +63,8 @@ const mods = new ModRegistry(report);
 // readers find them through LOKI_BACKEND_DIR; each agent's chats in its own store (daemon/kernel/stores.ts).
 const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
+// Reflection's counters, where the mod's reader looks for them (mod/reflection.ts).
+process.env.LETTA_TRANSCRIPT_ROOT = join(args.dir, "reflection");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
 const credentials = await keychain().then(
@@ -73,9 +77,11 @@ const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mo
 const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mods.annotations(name)) });
 mods.registry.install(approvals.extension());
 mods.registry.install(askExtension(approvals));
+mods.registry.install(memoryExtension(backend));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report);
-const chat = new DaemonChats({ stores, mods, approvals, providers, models, backendDir: backend, context, report });
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
+const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
+const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report });
 chats.follow(stores);
 await Promise.all(
   listAgents(backend).map(async (id) => {

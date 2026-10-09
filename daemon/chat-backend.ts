@@ -13,6 +13,8 @@ import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
 import type { Providers } from "./providers.ts";
+import type { Reflection } from "./reflection.ts";
+import { editMemoryFile } from "./memory.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import type { ModRegistry } from "./mods/registry.ts";
@@ -29,6 +31,8 @@ type Deps = {
   stores: StoreManager;
   approvals: Approvals;
   providers: Providers;
+  /** Reflection passes (daemon/reflection.ts); absent in tests that do not reflect. */
+  reflection?: Reflection;
   mods: ModRegistry;
   models: Models;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
@@ -200,6 +204,27 @@ export class DaemonChats implements ChatBackend {
 
   signIn(providerId: string) {
     return this.deps.providers.signIn(providerId);
+  }
+
+  async reflection() {
+    if (!this.deps.reflection) throw new Error("reflection is not running");
+    return this.deps.reflection.settings();
+  }
+
+  async setReflection(s: PayloadOf<"chat_reflection_set">) {
+    if (!this.deps.reflection) throw new Error("reflection is not running");
+    return this.deps.reflection.setSettings(s);
+  }
+
+  async reflect(agentId: string, conversationId: string): Promise<boolean> {
+    if (!this.deps.reflection) throw new Error("reflection is not running");
+    // The pass runs on its own; the chat shows its commits on the Agents page when it is done.
+    void this.deps.reflection.run(agentId, conversationId).catch(() => {});
+    return true;
+  }
+
+  async writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void> {
+    await editMemoryFile(this.deps.backendDir, p.agentId, p.path, p.content, p.message);
   }
 
   async deleteAgent(agentId: string): Promise<void> {

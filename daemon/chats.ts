@@ -63,6 +63,7 @@ const DIGEST_TEXT_LIMIT = 700;
 
 export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
+  private readonly listeners = new Set<(agentId: string, chatId: string, kind: "answer" | "compaction") => void>();
   private readonly unsubscribe = new Map<string, () => void>();
   private readonly context: Context;
   private readonly agentName: (agentId: string) => string | null;
@@ -103,6 +104,19 @@ export class ChatProjection implements ChatSource {
     for (const publication of pending) this.apply(agentId, publication);
   }
 
+  /** Told each time a chat's agent answers, or its context is compacted, as it is committed (daemon/reflection.ts). */
+  onEntry(listener: (agentId: string, chatId: string, kind: "answer" | "compaction") => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** How many entries a chat has, and how many of the agent's answers came at or after position `from`. */
+  answers(conversationId: string, agentId: string, from: number): { entries: number; since: number } {
+    const chat = this.find(conversationId, agentId);
+    if (!chat) return { entries: 0, since: 0 };
+    return { entries: chat.entries.length, since: chat.entries.slice(Math.max(0, from)).filter((e) => e.role === "assistant").length };
+  }
+
   private key(agentId: string, chatId: string): string {
     return `${agentId}\u0000${chatId}`;
   }
@@ -132,8 +146,11 @@ export class ChatProjection implements ChatSource {
     for (const entry of entries) {
       const chat = this.byConversation(agentId, entry.conversationId);
       if (!chat || entry.id <= chat.lastId) continue;
-      chat.entries.push(keep(entry));
+      const kept = keep(entry);
+      chat.entries.push(kept);
       chat.lastId = entry.id;
+      const kind = entry.kind === "pi.compaction" ? "compaction" : kept.role === "assistant" ? "answer" : null;
+      if (kind) for (const listener of this.listeners) listener(agentId, chat.chatId, kind);
     }
   }
 

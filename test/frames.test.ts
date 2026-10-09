@@ -17,7 +17,7 @@ const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 describe("the frame table", () => {
   test("a paired phone may send exactly the frames it could before the table, and the daemon's chat frames it used through the tunnel", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
-      ["chat_open", "chat_approve", "chat_answer", "chat_create", "chat_send", "chat_abort", "chat_update", "chat_folder", "chat_model", "chat_models", "chat_agents", "capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add", "desk_get"].sort(),
+      ["chat_open", "chat_approve", "chat_answer", "chat_reflect", "chat_create", "chat_send", "chat_abort", "chat_update", "chat_folder", "chat_model", "chat_models", "chat_agents", "capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add", "desk_get"].sort(),
     );
   });
 
