@@ -1,4 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { frameModules, type ModuleDeps } from "../mod/frames/index.ts";
+import type { FrameHandlers } from "../mod/frames/context.ts";
+import { SeenStore } from "../mod/seen.ts";
+import { RecallStore } from "../mod/recall.ts";
+import { DeskStore } from "../mod/desk-store.ts";
+import { GestureLog } from "../mod/gestures.ts";
+import { bridgeOf, client, fakeWidgets, settled } from "./fixtures/frames.ts";
 import { FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type InputOf, type ReplyOf, type RequestName, type SendName } from "../core/frames.ts";
 
 const names = Object.keys(FRAMES) as FrameName[];
@@ -67,5 +77,82 @@ describe("the app's side is typed by the table", () => {
     send({ type: "focus_add", conversationId: "c", action: "open" });
     send({ type: "seen_mark", conversationId: "c" });
     expect(more).toBeUndefined();
+  });
+});
+
+/** The requests and sends no module answers: what the table promises and nothing serves (the b334e02 class). */
+function unhandled(modules: FrameHandlers[]): FrameName[] {
+  const served = new Set(modules.flatMap((m) => Object.keys(m)));
+  return parsed.filter((n) => !served.has(n));
+}
+
+describe("every frame in the table, through the real router", () => {
+  const dir = mkdtempSync(join(tmpdir(), "loki-frames-"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const lanStatus = { enabled: false, address: null, addresses: [], host: null, port: 41415, appServed: false, error: null, via: "lan" as const, tailscale: null };
+  const deps: ModuleDeps = {
+    store: new DeskStore(),
+    widgets: fakeWidgets([]),
+    gestures: new GestureLog(),
+    seen: new SeenStore(join(dir, "attention.json"), { debounceMs: 0 }),
+    listDesks: () => [],
+    listInbox: () => [],
+    deleteWidgetFile: () => "gone",
+    setPin: () => true,
+    recentModels: { read: () => [], add: (h) => [h] },
+    transcript: () => ({ rows: [], more: false }),
+    widgetLog: () => [],
+    folders: { recent: () => ({ byAgent: {}, byConversation: {} }), complete: () => [], check: (path) => ({ ok: true, path, branch: null }), pick: async () => null },
+    recall: { store: new RecallStore(join(dir, "recall")), run: async () => ({ note: "ran" }), startLesson: async () => ({ agentId: "agent-1", conversationId: "conv-1" }) },
+    tasks: { list: async () => [], create: async () => ({}), assign: async () => [], close: async () => [], setStatus: async () => [] } as never,
+    agents: { get: () => ({ id: "agent-1" }) as never, tree: () => [], skills: () => [], hasProfile: () => false, read: () => null, log: async () => [], diff: async () => "", reflection: async () => ({ conversations: [], lastCommit: null }), globalSkills: () => [], install: async () => "ok", refreshSkill: async () => ({ outcome: "current", label: "x" }) },
+    lan: { status: () => lanStatus, refresh: async () => lanStatus, setEnabled: async () => lanStatus, setVia: () => lanStatus, setServe: async () => lanStatus, pairBegin: () => ({ code: "K9HF6D", url: "http://mac.local:41415/?code=K9HF6D", expiresAt: "" }), devices: () => [], forget: () => true },
+  };
+  /** The smallest frame each entry accepts. */
+  const sample: Partial<Record<FrameName, Record<string, unknown>>> = {
+    gesture: { gesture: { id: "d1/w", kind: "focus" } }, measure: { id: "d1/w", size: { w: 1, h: 1 } }, trash: { id: "d1/w" }, widget_status: { id: "d1/w", error: null }, desk_get: { scope: "d1" },
+    pin_set: { agentId: "agent-1", conversationId: "conv-1", pinned: true }, models_recent_add: { handle: "m" }, seen_mark: { conversationId: "conv-1" }, seen_unmark: { conversationId: "conv-1" },
+    viewed_mark: { conversationId: "conv-1" }, focus_add: { conversationId: "conv-1", action: "answer" }, capture: { event: "frames_walked" }, history_get: { conversationId: "conv-1" },
+    recall_grade: { id: "k", grade: 3 }, recall_edit: { id: "k" }, recall_reject: { id: "k" }, recall_restore: { id: "k" }, recall_forget: { id: "k" }, recall_lead_dismiss: { id: "l" }, recall_lead_restore: { id: "l" }, recall_lead_start: { id: "l" },
+    task_assign: { ids: ["t"], conversationId: "conv-1", desk: "conv-1" }, task_status: { ids: ["t"], status: "open" }, agent_get: { agentId: "agent-1" }, memory_read: { agentId: "agent-1", path: "a.md" }, memory_log: { agentId: "agent-1" },
+    memory_diff: { agentId: "agent-1", sha: "abc" }, reflection_state: { agentId: "agent-1" }, skill_install: { agentId: "agent-1", source: "x" }, skill_refresh: { agentId: "agent-1", name: "x" }, lan_via_set: { via: "lan" },
+  };
+
+  test("every request and send is answered by exactly one module, and a missing one is caught", () => {
+    const modules = frameModules(deps);
+    expect(unhandled(modules)).toEqual([]);
+    expect(() => bridgeOf({ ...deps, modules })).not.toThrow(); // the router refuses two handlers for one frame
+    const withoutFolders = modules.filter((m) => !("folder_pick" in m));
+    expect(unhandled(withoutFolders)).toEqual(["folders_get", "folder_complete", "folder_check", "folder_pick"]);
+  });
+
+  test("every request is answered with its requestId: its reply under the table's name, or error", async () => {
+    const bridge = bridgeOf(deps);
+    for (const n of parsed.filter((x) => FRAMES[x].kind === "request")) {
+      const c = client("d1");
+      bridge.onMessage(c, { type: n, requestId: `r-${n}`, ...sample[n] });
+      await settled();
+      const answer = c.sent.at(-1);
+      expect([n, answer?.requestId, [(FRAMES[n] as { reply: string }).reply, "error"].includes(String(answer?.type))]).toEqual([n, `r-${n}`, true]);
+    }
+  });
+
+  test("a send's smallest frame goes through without an error", async () => {
+    const bridge = bridgeOf(deps);
+    for (const n of parsed.filter((x) => FRAMES[x].kind === "send")) {
+      const c = client("d1");
+      bridge.onMessage(c, { type: n, ...sample[n] });
+      await settled();
+      expect([n, c.sent.some((f) => f.type === "error")]).toEqual([n, false]);
+    }
+  });
+
+  test("a paired phone is refused every frame the table does not mark for it", () => {
+    const bridge = bridgeOf(deps);
+    for (const n of parsed.filter((x) => !PHONE_FRAMES.has(x))) {
+      const phone = client("d1", "dev-1");
+      bridge.onMessage(phone, { type: n, requestId: "p", ...sample[n] });
+      expect([n, phone.sent.at(-1)]).toEqual([n, { type: "error", requestId: "p", message: `${n} is not available on the phone` }]);
+    }
   });
 });
