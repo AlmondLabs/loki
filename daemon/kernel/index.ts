@@ -1,5 +1,6 @@
 import type { Context, JsonValue } from "@earendil-works/chord";
 import {
+  AgentDoc as PiAgentDoc,
   defineDoc,
   Harness,
   type Conversation,
@@ -27,7 +28,14 @@ export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({
 });
 
 /** What loki keeps about one chat, committed with the chat it describes. */
-export type ChatInfo = { id: string; title: string | null; archived: boolean; createdAt: string };
+export type ChatInfo = {
+  id: string;
+  title: string | null;
+  archived: boolean;
+  /** Kept out of lists, as Letta's one-off side threads and Learn's own chats are. */
+  hidden: boolean;
+  createdAt: string;
+};
 
 export const ChatDoc = defineDoc<ChatInfo>({
   kind: "loki.chat",
@@ -35,7 +43,7 @@ export const ChatDoc = defineDoc<ChatInfo>({
   scope: "conversation",
   history: "latest",
   fork: "initial",
-  initial: () => ({ id: "", title: null, archived: false, createdAt: "" }),
+  initial: () => ({ id: "", title: null, archived: false, hidden: false, createdAt: "" }),
 });
 
 /** Which agent a store belongs to, so a tool or section can name it without asking the daemon. */
@@ -84,6 +92,29 @@ export class AgentStore {
     return conversationId === undefined ? undefined : this.harness.conversation(conversationId as ConversationId, context);
   }
 
+  /** What loki keeps about one conversation, if it is a chat of loki's. */
+  chatInfo(conversationId: ConversationId, context: Context): Promise<Readonly<ChatInfo> | undefined> {
+    return this.harness.snapshot(ChatDoc, conversationId, context);
+  }
+
+  /** What a conversation runs with (model, thinking level, folder), as pi-durable stores it. */
+  agentSettings(conversationId: ConversationId, context: Context): Promise<Readonly<object> | undefined> {
+    return this.harness.snapshot(PiAgentDoc, conversationId, context);
+  }
+
+  /** Change what loki keeps about a chat: its title, or whether it is archived or hidden. */
+  async updateChat(id: string, change: Partial<Pick<ChatInfo, "title" | "archived" | "hidden">>, context: Context): Promise<boolean> {
+    const chat = await this.chat(id, context);
+    if (!chat) return false;
+    await chat.commit(async (tx) => {
+      const info = await tx.doc(ChatDoc, chat.id);
+      if (change.title !== undefined) info.title = change.title;
+      if (change.archived !== undefined) info.archived = change.archived;
+      if (change.hidden !== undefined) info.hidden = change.hidden;
+    }, context);
+    return true;
+  }
+
   /** Every chat this store holds, as loki knows it. */
   async chats(context: Context): Promise<ChatInfo[]> {
     const index = await this.harness.snapshot(ChatIndex, context);
@@ -97,7 +128,7 @@ export class AgentStore {
    */
   async createChat(
     id: string,
-    options: { title?: string | null; agent?: Parameters<Harness["createConversation"]>[0]["agent"]; createdAt?: string },
+    options: { title?: string | null; hidden?: boolean; agent?: Parameters<Harness["createConversation"]>[0]["agent"]; createdAt?: string },
     context: Context,
   ): Promise<Conversation> {
     if (await this.chat(id, context)) throw new Error(`chat ${id} already exists`);
@@ -110,6 +141,7 @@ export class AgentStore {
           const info = await tx.doc(ChatDoc, conversationId);
           info.id = id;
           info.title = options.title ?? null;
+          info.hidden = options.hidden ?? false;
           info.createdAt = options.createdAt ?? new Date().toISOString();
         },
       },

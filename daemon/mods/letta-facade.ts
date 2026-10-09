@@ -55,13 +55,13 @@ export function lettaFacade(api: ModApi) {
   };
 }
 
-/** A mod written for Letta's API, as a loki mod named `name`. */
-export function fromLettaMod(name: string, activate: (host: ReturnType<typeof lettaFacade>) => unknown): LokiMod {
+/** A mod written for Letta's API, as a loki mod named `name`; `extras` join the host (the daemon's `chats`). */
+export function fromLettaMod(name: string, activate: (host: ReturnType<typeof lettaFacade>) => unknown, extras: Record<string, unknown> = {}): LokiMod {
   return {
     name,
     apiVersion: 1,
     activate: async (api) => {
-      const dispose = await activate(lettaFacade(api));
+      const dispose = await activate({ ...lettaFacade(api), ...extras });
       return typeof dispose === "function" ? (dispose as () => void) : undefined;
     },
   };

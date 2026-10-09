@@ -12,6 +12,12 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { createModels } from "@earendil-works/pi-ai/models";
+import { readLocalAgent } from "../mod/agents.ts";
+import { ChatProjection } from "./chats.ts";
+import { StoreManager } from "./kernel/stores.ts";
+import { listAgents } from "./store/agents.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { fromLettaMod } from "./mods/letta-facade.ts";
@@ -41,13 +47,28 @@ if (!("release" in taken)) {
 const lock: Lock = taken;
 
 const report = (message: string) => console.error(`loki-daemon: ${message}`);
+const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
+
+// The daemon's agents, in the layout Letta's backend used (daemon/store/agents.ts), so the mod's agent and memory
+// readers find them through LOKI_BACKEND_DIR; each agent's chats in its own store (daemon/kernel/stores.ts).
+const backend = join(args.dir, "backend");
+process.env.LOKI_BACKEND_DIR = backend;
+const stores = new StoreManager(join(args.dir, "stores"), { models: createModels(), registry: mods.registry }, context, report);
+const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
+chats.follow(stores);
+await Promise.all(
+  listAgents(backend).map(async (id) => {
+    const store = await stores.get(id);
+    await store.setAgent({ id, name: readLocalAgent(id, backend)?.name ?? id }, context);
+  }),
+);
 
 // loki's own mod, written for Letta's API, through the facade (daemon/mods/letta-facade.ts). It serves only inside a
 // host that is not a terminal session (mod/gate.ts); the daemon always is one.
 process.env.LOKI_MOD_SERVE ??= "1";
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (host: unknown) => unknown };
-const loadCore = () => mods.load(fromLettaMod("loki", core.default));
+const loadCore = () => mods.load(fromLettaMod("loki", core.default, { chats }));
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
 const stopWatchingCore = args.mod.endsWith("boot.ts")
@@ -69,8 +90,10 @@ function stop(signal: string) {
     stopWatchingMods();
     for (const name of mods.names()) mods.unload(name);
   } finally {
-    lock.release();
-    process.exit(0);
+    void stores.closeAll().finally(() => {
+      lock.release();
+      process.exit(0);
+    });
   }
 }
 process.on("SIGTERM", () => stop("SIGTERM"));

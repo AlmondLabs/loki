@@ -12,8 +12,9 @@ import { watchWidgets } from "./widgets-fs.ts";
 import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
-import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage } from "./desks.ts";
+import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
+import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
+import { lettaChats, type ChatSource } from "./chat-source.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
@@ -142,12 +143,14 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // --- app-server ---------------------------------------------------------
   // Conversations live in the browser (app/src/attention), which reaches Letta's
   // app-server through this mod's tunnel. The mod only has to find the server.
-  const desks = new DeskRegistry(join(paths.state, "desks.json"));
+  // Where chats are read from: the daemon's stores when the host brings them, Letta's disk otherwise (mod/chat-source.ts).
+  const chats: ChatSource = (letta as { chats?: ChatSource }).chats ?? lettaChats;
+  const desks = new DeskRegistry(join(paths.state, "desks.json"), undefined, (id) => chats.agentOf(id));
   let appServerUrl: string | null = null;
   const seen = new SeenStore(join(paths.state, "attention.json"));
   // The board (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
   const tasks = new TaskBoard();
-  const folderFor = (agentId: string | null, conversationId: string | null): string | null => (conversationId ? recentFolders().byConversation[conversationDirName(conversationId, agentId)] ?? null : null);
+  const folderFor = (agentId: string | null, conversationId: string | null): string | null => (conversationId ? chats.folders().byConversation[conversationDirName(conversationId, agentId)] ?? null : null);
   const refreshTasks = () => {
     if (!tasks.ready()) return;
     void tasks.list().catch((err) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
@@ -185,7 +188,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     const agent = readLocalAgent(rt.agent_id);
     const agentModel = agent?.model ?? null;
     const agentEffort = reasoningEffortFromSettings(agent?.modelSettings);
-    const info = lookupLocalConversation(rt.conversation_id, rt.agent_id);
+    const info = chats.info(rt.conversation_id, rt.agent_id);
     const mode = permissionModeOf(rt.agent_id, rt.conversation_id);
     if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, reasoningEffort: agentEffort, mode, lastActive: null };
     return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, reasoningEffort: info.model ? info.reasoningEffort : info.reasoningEffort ?? agentEffort, mode, lastActive: info.lastMessageAt };
@@ -198,7 +201,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     const pins = readPins();
     // Every conversation of the user's own agents, seen by loki or not (subagents' one-off chats stay out).
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));
-    for (const c of listLocalConversations()) {
+    for (const c of chats.list()) {
       // A deleted agent leaves its memory repo behind: its record must still exist too. Hidden conversations stay
       // out, except the recall worker's: those are desks you can open to read what it asked and what the agent said.
       if ((c.hidden && !recall.owns(c.conversationId)) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
@@ -236,14 +239,14 @@ export default function activate(letta: LettaMod): (() => void) | void {
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));
     const names = new Map<string, string | null>();
     const out: InboxRow[] = [];
-    for (const c of listLocalConversations()) {
+    for (const c of chats.list()) {
       if (c.hidden || c.archived) continue;
       if (!(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
       if (isSubagent(c.agentId)) continue;
       if (!names.has(c.agentId)) names.set(c.agentId, lookupLocalAgentName(c.agentId));
-      const info = lookupLocalConversation(c.conversationId, c.agentId);
+      const info = chats.info(c.conversationId, c.agentId);
       if (isLearnTitle(info?.title)) continue; // a lesson is precisely the thing that can wait: a desk, never an inbox card
-      out.push({ id: c.conversationId, agentId: c.agentId, agentName: names.get(c.agentId) ?? null, title: info?.title ?? null, lastMessageAt: c.lastMessageAt, archived: false, ...digestLocalConversation(c.conversationId, c.agentId) });
+      out.push({ id: c.conversationId, agentId: c.agentId, agentName: names.get(c.agentId) ?? null, title: info?.title ?? null, lastMessageAt: c.lastMessageAt, archived: false, ...chats.digest(c.conversationId, c.agentId) });
     }
     return out.sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
   };
@@ -271,7 +274,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // Cards written in the background from conversations that have gone quiet, asked of the agent through the
   // harness in a hidden conversation of its own; the person meets them only in the Recall section (mod/recall-worker.ts).
   const recallStore = new RecallStore();
-  const recall = new RecallWorker({ store: recallStore, listInbox, ask: askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
+  const recall = new RecallWorker({ store: recallStore, listInbox, readSince: (c, a, from) => chats.since(c, a, from), ask: askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
   const recallTick = () => void recall.tick().then((r) => log("recall:tick", r)).catch((err) => log("recall:tick-error", err instanceof Error ? err.message : String(err)));
   const recallFirst = setTimeout(recallTick, 90_000); // once the harness and the app-server link have settled
   // The sweep timer: every `tickMinutes` (Settings › learn; ten by default), reset when the setting changes.
@@ -294,15 +297,15 @@ export default function activate(letta: LettaMod): (() => void) | void {
       run: () => recall.tick(),
       reschedule: scheduleRecall,
       startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets, expect: (id, change) => widgetLog.expect(id, change, "loki") }),
-      lessonEmpty: (l) => lookupLocalConversation(l.conversationId, l.agentId)?.lastMessageAt == null,
+      lessonEmpty: (l) => chats.info(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
     deskInfo,
     deleteWidgetFile,
     seen,
     appServerAvailable: () => appServerUrl !== null,
-    transcript: (agentId, conversationId, limit) => readLocalTranscriptPage(conversationId, agentId, limit),
+    transcript: (agentId, conversationId, limit) => chats.page(conversationId, agentId, limit),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
-    folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
+    folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     tasks: tasks.ready() ? tasks : undefined,
@@ -331,7 +334,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       read: (id, path) => readMemoryFile(id, path),
       log: (id, opts) => memoryLog(id, opts),
       diff: (id, sha) => memoryDiff(id, sha),
-      reflection: (id) => reflectionState(id, (c) => lookupLocalConversation(c, id)?.title ?? null),
+      reflection: (id) => reflectionState(id, (c) => chats.info(c, id)?.title ?? null),
       globalSkills: () => listGlobalSkills().map((g) => ({ ...g, source: skillSources.describeGlobal(g) })),
       install: (id, source, force) => installSkill(source, id, { force }),
     },

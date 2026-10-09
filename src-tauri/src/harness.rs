@@ -97,8 +97,11 @@ pub const EXIT_HELD: i32 = 3;
 /// and the token file make the command line recognisably loki's, for a leftover from a crash (appserver.rs).
 pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
     let mut cmd = Command::new(d.node);
+    // Node calls its own SQLite (pi-durable's store) and type stripping experimental and says so on every start; the
+    // daemon's log keeps every other warning.
+    cmd.arg("--disable-warning=ExperimentalWarning");
     if d.entry.extension().is_some_and(|e| e == "ts") {
-        cmd.args(["--experimental-strip-types", "--no-warnings"]);
+        cmd.arg("--experimental-strip-types");
     }
     cmd.arg(d.entry).args(["--loki-daemon", "--dir"]).arg(d.dir).arg("--mod").arg(d.mod_entry).arg("--token-file").arg(launch.token_file);
     bootstrap::quiet(&mut cmd);
@@ -327,9 +330,9 @@ mod tests {
         };
         assert_eq!(
             args("/src/loki/daemon/main.ts", "/src/loki/mod/boot.ts"),
-            ["--experimental-strip-types", "--no-warnings", "/src/loki/daemon/main.ts", "--loki-daemon", "--dir", "/home/x/.loki", "--mod", "/src/loki/mod/boot.ts", "--token-file", "/home/x/.loki/token"]
+            ["--disable-warning=ExperimentalWarning", "--experimental-strip-types", "/src/loki/daemon/main.ts", "--loki-daemon", "--dir", "/home/x/.loki", "--mod", "/src/loki/mod/boot.ts", "--token-file", "/home/x/.loki/token"]
         );
-        assert_eq!(args("/data/daemon/daemon.mjs", "/data/mod/loki-mod.mjs")[0], "/data/daemon/daemon.mjs", "a bundle needs no flags");
+        assert_eq!(args("/data/daemon/daemon.mjs", "/data/mod/loki-mod.mjs")[..2], ["--disable-warning=ExperimentalWarning", "/data/daemon/daemon.mjs"], "a bundle needs no type stripping");
     }
 
     #[test]

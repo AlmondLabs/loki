@@ -1,12 +1,12 @@
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
 import { foldSteps, type Step } from "../core/attention/thread.ts";
 import { messageSteps } from "../core/attention/pi-steps.ts";
+import { backendDir as defaultBackendDir } from "./agents.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { Runtime } from "./app-server.ts";
 import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
@@ -21,10 +21,13 @@ export class DeskRegistry {
   private byScope = new Map<Scope, Runtime>();
   private readonly path: string;
   private readonly backendDir: string;
+  private readonly agentOf: (conversationId: string) => string | null;
 
-  constructor(path: string, backendDir = join(homedir(), ".letta", "lc-local-backend")) {
+  /** `agentOf` names the agent of a conversation it has not seen (mod/chat-source.ts); Letta's disk by default. */
+  constructor(path: string, backendDir = defaultBackendDir(), agentOf: (conversationId: string) => string | null = (id) => lookupLocalAgentId(id, backendDir)) {
     this.path = path;
     this.backendDir = backendDir;
+    this.agentOf = agentOf;
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Runtime>;
       let rewritten = false;
@@ -48,7 +51,7 @@ export class DeskRegistry {
 
   /** Record a conversation; returns its scope. */
   remember(conversationId: string, agentId: string | null | undefined): Scope {
-    const agent_id = agentId ?? this.byScope.get(scopeFor(conversationId))?.agent_id ?? lookupLocalAgentId(conversationId);
+    const agent_id = agentId ?? this.byScope.get(scopeFor(conversationId))?.agent_id ?? this.agentOf(conversationId);
     const scope = scopeFor(conversationId, agent_id);
     const prev = this.byScope.get(scope);
     if (!agent_id) return scope;
@@ -119,7 +122,7 @@ export interface LocalConversationInfo {
 }
 
 /** The agent's display name from the local backend, if present. */
-export function lookupLocalAgentName(agentId: string, backendDir = join(homedir(), ".letta", "lc-local-backend")): string | null {
+export function lookupLocalAgentName(agentId: string, backendDir = defaultBackendDir()): string | null {
   try {
     const a = JSON.parse(readFileSync(join(backendDir, "agents", `${backendName(agentId)}.json`), "utf8")) as { name?: string };
     return typeof a.name === "string" && a.name.trim() ? a.name.trim() : null;
@@ -129,7 +132,7 @@ export function lookupLocalAgentName(agentId: string, backendDir = join(homedir(
 }
 
 /** Title and recency for a conversation from the local backend, if present. */
-export function lookupLocalConversation(conversationId: string, agentId?: string | null, backendDir = join(homedir(), ".letta", "lc-local-backend")): LocalConversationInfo | null {
+export function lookupLocalConversation(conversationId: string, agentId?: string | null, backendDir = defaultBackendDir()): LocalConversationInfo | null {
   try {
     const dir = join(backendDir, "conversations", conversationDirName(conversationId, agentId));
     const p = join(dir, "conversation.json");
@@ -168,7 +171,7 @@ export interface LocalConversationRow {
  * Every conversation the local backend has, so the desks list is complete: a conversation that
  * never ran a turn while loki was up, and has no widgets, still deserves a row in the tree.
  */
-export function listLocalConversations(backendDir = join(homedir(), ".letta", "lc-local-backend")): LocalConversationRow[] {
+export function listLocalConversations(backendDir = defaultBackendDir()): LocalConversationRow[] {
   const root = join(backendDir, "conversations");
   if (!existsSync(root)) return [];
   const out: LocalConversationRow[] = [];
@@ -185,11 +188,11 @@ export function listLocalConversations(backendDir = join(homedir(), ".letta", "l
 }
 
 /** Agents with a memory filesystem are the user's own; the rest are one-off subagents the app-server hides. */
-export function agentHasMemory(agentId: string, backendDir = join(homedir(), ".letta", "lc-local-backend")): boolean {
+export function agentHasMemory(agentId: string, backendDir = defaultBackendDir()): boolean {
   return existsSync(join(backendDir, "memfs", agentId));
 }
 
-export function lookupLocalAgentId(conversationId: string, backendDir = join(homedir(), ".letta", "lc-local-backend")): string | null {
+export function lookupLocalAgentId(conversationId: string, backendDir = defaultBackendDir()): string | null {
   if (conversationId === "default") return null; // ambiguous without the agent
   try {
     const dir = join(backendDir, "conversations", conversationDirName(conversationId));
@@ -215,7 +218,7 @@ export function readLocalTranscript(
   conversationId: string,
   agentId?: string | null,
   limit = HISTORY_PAGE,
-  backendDir = join(homedir(), ".letta", "lc-local-backend"),
+  backendDir = defaultBackendDir(),
 ): TranscriptRow[] {
   return readLocalTranscriptPage(conversationId, agentId, limit, backendDir).rows;
 }
@@ -230,7 +233,7 @@ export function readLocalTranscriptPage(
   conversationId: string,
   agentId?: string | null,
   limit = HISTORY_PAGE,
-  backendDir = join(homedir(), ".letta", "lc-local-backend"),
+  backendDir = defaultBackendDir(),
 ): { rows: TranscriptRow[]; more: boolean } {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   if (!existsSync(path)) return { rows: [], more: false };
@@ -246,7 +249,7 @@ export function readLocalTranscriptSince(
   conversationId: string,
   agentId: string | null | undefined,
   fromLine: number,
-  backendDir = join(homedir(), ".letta", "lc-local-backend"),
+  backendDir = defaultBackendDir(),
 ): { rows: TranscriptRow[]; lines: number } {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   if (!existsSync(path)) return { rows: [], lines: 0 };
@@ -288,7 +291,7 @@ const DIGEST_TEXT_LIMIT = 700;
  * speaking), and the assistant's last text is kept for the card. Only the end of the file is read,
  * so a long main chat costs the same as a short one.
  */
-export function digestLocalConversation(conversationId: string, agentId?: string | null, backendDir = join(homedir(), ".letta", "lc-local-backend")): LocalDigest {
+export function digestLocalConversation(conversationId: string, agentId?: string | null, backendDir = defaultBackendDir()): LocalDigest {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   const none: LocalDigest = { lastRole: null, lastAssistantText: null, lastAsk: null };
   let tail: string;
