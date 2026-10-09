@@ -274,6 +274,11 @@ export type RequestName = { [K in FrameName]: Table[K] extends { kind: "request"
 export type SendName = { [K in FrameName]: Table[K] extends { kind: "send" } ? K : never }[FrameName];
 /** What a request or send carries once parsed. */
 export type PayloadOf<N extends RequestName | SendName> = Exclude<ReturnType<Table[N]["parse"]>, string>;
+/** What the app sends for a frame: the parsed payload, with every field that may be null or absent left optional. */
+export type InputOf<N extends RequestName | SendName> = Optional<PayloadOf<N>>;
+type Optional<T> = { [K in keyof T as undefined extends T[K] ? K : null extends T[K] ? K : never]?: T[K] } & { [K in keyof T as undefined extends T[K] ? never : null extends T[K] ? never : K]: T[K] };
+/** How a request ends for the app: its reply, or the mod's message (or its silence, `timedOut`). */
+export type RequestResult<R> = { ok: true; reply: R } | { ok: false; error: string; timedOut: boolean };
 /** The reply a request is answered with. */
 export type ReplyOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? Replies[R] : never;
 export type ReplyNameOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? R : never;
@@ -284,5 +289,12 @@ export const frameEntry = (type: unknown): Table[FrameName] | undefined => (type
 export const isRequest = (n: FrameName): n is RequestName => FRAMES[n].kind === "request";
 export const isSend = (n: FrameName): n is SendName => FRAMES[n].kind === "send";
 
-/** The frames a paired phone may send; everything else answers `error`. */
+/**
+ * The frames a paired phone may send over its /ws (mod/lan.ts), marked `phone` above; everything else answers `error`.
+ * Reads and the user's own markers: desks, transcripts, seen and focus, pins, recent folders, and the
+ * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
+ * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
+ * and a model picked there, for the shared quick picks.
+ * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
+ */
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set((Object.keys(FRAMES) as FrameName[]).filter((n) => FRAMES[n].kind !== "push" && (FRAMES[n] as { phone: boolean }).phone));

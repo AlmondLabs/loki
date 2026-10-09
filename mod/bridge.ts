@@ -9,7 +9,8 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { describeGesture } from "./gestures.ts";
 import type { Client, WsHandlers } from "./server.ts";
-import { isAgentId, isGesture, isLanVia } from "../core/frames.ts";
+import { PHONE_FRAMES, frameEntry, isAgentId, isGesture, isLanVia, type FrameName } from "../core/frames.ts";
+import { errorMessage, fail, type FrameContext, type FrameHandlers, type Outcome } from "./frames/context.ts";
 import type { DeskInfo, DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome } from "../core/frame-types.ts";
 
 /**
@@ -98,6 +99,8 @@ export function sortDesks(desks: DeskSummary[]): DeskSummary[] {
 }
 
 export interface BridgeDeps {
+  /** The frame handlers (mod/frames/*): each answers its feature's frames from the table (core/frames.ts). */
+  modules?: FrameHandlers[];
   store: DeskStore;
   widgets: WidgetsWatcher;
   gestures: GestureLog;
@@ -184,23 +187,33 @@ export interface BridgeDeps {
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
-/**
- * The frames a paired phone may send over its /ws (mod/lan.ts); everything else answers `error`.
- * Reads and the user's own markers: desks, transcripts, seen and focus, pins, recent folders, and the
- * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
- * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
- * and a model picked there, for the shared quick picks.
- * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
- */
 /** How many `once` keys the bridge remembers. */
 const ONCE_MAX = 500;
-
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add", "desk_get"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
   /** `once` keys of the capture frames already written, oldest first (see the capture case). */
   const reportedOnce = new Set<string>();
+
+  /** Which handler answers each frame: one per name, or the table and the modules disagree. */
+  const handlers = new Map<FrameName, (payload: never, ctx: FrameContext) => unknown>();
+  for (const m of deps.modules ?? []) {
+    for (const [name, h] of Object.entries(m) as Array<[FrameName, (payload: never, ctx: FrameContext) => unknown]>) {
+      if (handlers.has(name)) throw new Error(`two handlers for ${name}`);
+      handlers.set(name, h);
+    }
+  }
+
+  /** Run a handler, sync or async, and hand its outcome or its failure on; nothing it does escapes unanswered. */
+  const settle = (run: () => unknown, ok: (value: unknown) => void, bad: (err: unknown) => void) => {
+    try {
+      const r = run();
+      if (r && typeof (r as Promise<unknown>).then === "function") (r as Promise<unknown>).then(ok, bad);
+      else ok(r);
+    } catch (err) {
+      bad(err);
+    }
+  };
 
   /** The seen and viewed markers and the focus weights, as one frame; sent on request and broadcast on every change. */
   const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll?.() ?? {}, appServer: appServerAvailable?.() ?? false });
@@ -223,10 +236,24 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       // A paired phone shares this bridge with the desktop but not its authority: it reads desks and
       // transcripts and keeps its seen markers, nothing else (no gestures, board, pins, folders,
       // skills, agents, and never the pairing and device frames that mint or evict phones).
-      if (client.deviceId && !PHONE_FRAMES.has(String(msg.type))) {
-        return client.send({ type: "error", requestId: msg.requestId, message: `${String(msg.type)} is not available on the phone` });
+      const requestId = typeof msg.requestId === "string" ? msg.requestId : undefined;
+      if (client.deviceId && !PHONE_FRAMES.has(msg.type as FrameName)) {
+        return client.send({ type: "error", requestId, message: `${String(msg.type)} is not available on the phone` });
       }
       const track = (event: string, properties?: Record<string, unknown>) => deps.capture?.(client, event, properties);
+      const entry = frameEntry(msg.type);
+      const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
+      if (entry && entry.kind !== "push" && handle) {
+        const ctx: FrameContext = { client, push: (f) => client.send(f), broadcast: (f, scope) => broadcast(f, scope), track };
+        const payload = entry.parse(msg);
+        if (entry.kind === "request") {
+          const answer = (out: Outcome<object>) => client.send(out.ok ? { ...out.reply, type: entry.reply, requestId } : { type: "error", requestId, message: out.message });
+          if (typeof payload === "string") return answer(fail(payload));
+          return settle(() => handle(payload as never, ctx), (out) => answer(out as Outcome<object>), (err) => answer(fail(errorMessage(err))));
+        }
+        if (typeof payload === "string") return client.send({ type: "error", message: payload });
+        return settle(() => handle(payload as never, ctx), () => {}, (err) => client.send({ type: "error", message: errorMessage(err) }));
+      }
       switch (msg.type) {
         case "capture": {
           // The app's own events (views, desk switches, sends…): a snake_case name and an optional properties object.

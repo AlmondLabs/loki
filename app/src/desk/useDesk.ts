@@ -15,6 +15,7 @@ import type { FocusAction } from "../../../core/attention/focus.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
+import type { InputOf, Replies, ReplyOf, RequestName, RequestResult } from "../../../core/frames.ts";
 import type { DeskStatus, GlobalSkill, InboxRow as InboxConversation, LanVia, MemoryCommit, ReflectionState, RefreshOutcome, Task } from "../../../core/frame-types.ts";
 
 export type Connection = "connecting" | "open" | "closed";
@@ -34,9 +35,9 @@ export type { VisibleWidget } from "./view";
  * mod over WebSocket. Gestures apply optimistically with the same pure
  * reducer the mod uses, then go up the wire.
  */
-/** A `recall` reply frame as the snapshot the view holds, or null for anything else. */
-const recallSnapshot = (m: Record<string, unknown> | null): RecallSnapshot | null =>
-  m && m.type === "recall" ? ({ cards: m.cards, rejected: m.rejected, worker: m.worker, leads: m.leads ?? [], dismissedLeads: m.dismissedLeads ?? [], lessons: m.lessons ?? [] } as RecallSnapshot) : null;
+/** A `recall` reply as the snapshot the view holds, or null when the mod refused or did not answer. */
+const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null =>
+  r.ok ? { cards: r.reply.cards, rejected: r.reply.rejected, worker: r.reply.worker, leads: r.reply.leads ?? [], dismissedLeads: r.reply.dismissedLeads ?? [], lessons: r.reply.lessons ?? [] } : null;
 
 /** Captures kept while the socket is closed; the oldest go first. */
 const CAPTURES_HELD = 50;
@@ -112,7 +113,11 @@ export function useDesk() {
    * Ask the mod something and wait for the reply frame carrying the same requestId (null on timeout).
    * A request made before the socket is open (a view mounting at startup) is sent as soon as it is.
    */
-  const request = (type: string, payload: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown> | null> =>
+  /**
+   * A request to the mod (core/frames.ts): its reply, typed by the table, or why not. The mod answers a request it
+   * cannot serve with `error` at once; only silence waits out `timeoutMs`. Never throws.
+   */
+  const request = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number): Promise<RequestResult<ReplyOf<N>>> =>
     new Promise((resolve) => {
       const requestId = `${type}-${Math.random().toString(36).slice(2, 10)}`;
       let retry: number | null = null;
@@ -120,7 +125,9 @@ export function useDesk() {
         window.clearTimeout(timer);
         if (retry !== null) window.clearInterval(retry);
         waiters.current.delete(requestId);
-        resolve(m);
+        if (!m) resolve({ ok: false, error: "no answer from the mod", timedOut: true });
+        else if (m.type === "error" || (typeof m.type === "string" && m.type.endsWith("_error"))) resolve({ ok: false, error: String(m.message ?? "the mod refused"), timedOut: false });
+        else resolve({ ok: true, reply: m as unknown as ReplyOf<N> });
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
       waiters.current.set(requestId, done);
@@ -186,12 +193,11 @@ export function useDesk() {
   const token = readSession().token;
   const tunnelUrl = `${modWsBase()}/appserver?t=${token}`;
   /** The board, through the mod. Every call resolves to tasks or an error message; never throws. */
-  const boardCall = (type: string, payload: Record<string, unknown>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
-    request(type, payload, 25_000).then((m) => {
-      if (!m) return { ok: false, message: "no answer from the mod" };
-      if (m.type === "task_error") return { ok: false, message: String(m.message ?? "the board refused") };
-      const tasks = (m.tasks as Task[] | undefined) ?? (m.task ? [m.task as Task] : []);
-      return { ok: true, tasks };
+  const boardCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_status">(type: N, payload: InputOf<N>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
+    request(type, payload, 25_000).then((r) => {
+      if (!r.ok) return { ok: false, message: r.error };
+      const reply = r.reply as Replies["tasks"] | Replies["task_created"];
+      return { ok: true, tasks: "tasks" in reply ? reply.tasks : [reply.task] };
     });
   const board = {
     list: (all = true) => boardCall("tasks_list", { all }),
@@ -202,12 +208,8 @@ export function useDesk() {
   };
 
   /** Recall, through the mod (mod/recall.ts): the cards, a review, a delete and its undo, the worker's knobs. */
-  const recallCall = (type: string, payload: Record<string, unknown>): Promise<{ ok: true; card: CardWithSchedule | null } | { ok: false; message: string }> =>
-    request(type, payload, 15_000).then((m) => {
-      if (!m) return { ok: false, message: "no answer from the mod" };
-      if (m.type === "recall_error") return { ok: false, message: String(m.message ?? "recall refused") };
-      return { ok: true, card: (m.card as CardWithSchedule | null) ?? null };
-    });
+  const recallCall = <N extends "recall_grade" | "recall_edit" | "recall_reject" | "recall_restore" | "recall_forget">(type: N, payload: InputOf<N>): Promise<{ ok: true; card: CardWithSchedule | null } | { ok: false; message: string }> =>
+    request(type, payload, 15_000).then((r) => (r.ok ? { ok: true, card: (r.reply as Replies["recall_card"]).card ?? null } : { ok: false, message: r.error }));
   const recall = {
     list: () => request("recall_list", {}, 15_000).then(recallSnapshot),
     grade: (id: string, grade: Grade) => recallCall("recall_grade", { id, grade }),
@@ -217,33 +219,31 @@ export function useDesk() {
     forget: (id: string) => recallCall("recall_forget", { id }),
     settings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number; tickMinutes?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
     /** Run the worker now; resolves to its one-line note (or the error). */
-    run: () => request("recall_run", {}, 240_000).then((m) => (m && m.type === "recall_ran" ? String(m.note) : m && m.type === "recall_error" ? String(m.message) : "no answer from the mod")),
+    run: () => request("recall_run", {}, 240_000).then((r) => (r.ok ? r.reply.note : r.error)),
     /** Anki's plain-text import format, or null. */
-    export: () => request("recall_export", {}, 15_000).then((m) => (m && m.type === "recall_export" ? String(m.tsv) : null)),
+    export: () => request("recall_export", {}, 15_000).then((r) => (r.ok ? r.reply.tsv : null)),
     /** Learning leads: dismiss ("not this") and its undo answer with the snapshot; start makes the [Learn] conversation and names it. */
     leadDismiss: (id: string) => request("recall_lead_dismiss", { id }, 15_000).then(recallSnapshot),
     leadRestore: (id: string) => request("recall_lead_restore", { id }, 15_000).then(recallSnapshot),
     leadStart: (id: string): Promise<{ ok: true; agentId: string; conversationId: string } | { ok: false; message: string }> =>
-      request("recall_lead_start", { id }, 60_000).then((m) =>
-        m && m.type === "recall_lesson" ? { ok: true, agentId: String(m.agentId), conversationId: String(m.conversationId) } : { ok: false, message: m && m.type === "recall_error" ? String(m.message) : "the lesson did not start" },
-      ),
+      request("recall_lead_start", { id }, 60_000).then((r) => (r.ok ? { ok: true, agentId: r.reply.agentId, conversationId: r.reply.conversationId } : { ok: false, message: r.timedOut ? "the lesson did not start" : r.error })),
   };
 
   /** The Agents page, through the mod: the local record and the memory filesystem (read-only). */
   const agents = {
     get: (agentId: string) =>
-      request("agent_get", { agentId }, 10_000).then((m) => (m && m.type === "agent" ? ({ agent: m.agent, files: m.files, skills: m.skills, hasProfile: m.hasProfile === true, lastCommit: m.lastCommit ?? null } as AgentDetails) : null)),
-    read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((m) => (m && m.type === "memory_file" ? ((m.content as string | null) ?? null) : null)),
-    log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((m) => (m && m.type === "memory_commits" ? ((m.commits as MemoryCommit[]) ?? []) : [])),
-    diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((m) => (m && m.type === "memory_diff" ? ((m.diff as string) ?? null) : null)),
-    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((m) => (m && m.type === "reflection_state" ? ({ conversations: m.conversations ?? [], lastCommit: m.lastCommit ?? null } as ReflectionState) : null)),
-    globalSkills: () => request("skills_global", {}, 10_000).then((m) => (m && m.type === "skills_global" ? ((m.skills as GlobalSkill[]) ?? []) : [])),
+      request("agent_get", { agentId }, 10_000).then((r) => (r.ok ? ({ agent: r.reply.agent, files: r.reply.files, skills: r.reply.skills, hasProfile: r.reply.hasProfile, lastCommit: r.reply.lastCommit } as AgentDetails) : null)),
+    read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
+    log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
+    diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
+    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { conversations: r.reply.conversations, lastCommit: r.reply.lastCommit } : null)),
+    globalSkills: () => request("skills_global", {}, 10_000).then((r): GlobalSkill[] => (r.ok ? r.reply.skills : [])),
     /** `letta install <source> --agent <id>` through the mod; resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>
-      request("skill_install", { agentId, source, force }, 130_000).then((m) => (m && m.type === "skill_installed" ? null : m && m.type === "agent_error" ? String(m.message ?? "install failed") : "install timed out")),
+      request("skill_install", { agentId, source, force }, 130_000).then((r) => (r.ok ? null : r.timedOut ? "install timed out" : r.error)),
     /** Refresh an installed skill from its upstream (mod/skill-sources.ts); the outcome, or `{ error }`. */
     refreshSkill: (agentId: string, name: string, source?: string) =>
-      request("skill_refresh", { agentId, name, source }, 130_000).then((m): RefreshOutcome | { error: string } => (m && m.type === "skill_refreshed" ? (m as unknown as RefreshOutcome) : { error: m && m.type === "agent_error" ? String(m.message ?? "refresh failed") : "refresh timed out" })),
+      request("skill_refresh", { agentId, name, source }, 130_000).then((r): RefreshOutcome | { error: string } => (r.ok ? r.reply : { error: r.timedOut ? "refresh timed out" : r.error })),
   };
 
   // Analytics (core/analytics.ts): best effort, dropped while the socket is down. Stable, so hosts can hang effects on it.
@@ -279,22 +279,23 @@ export function useDesk() {
     viewed: viewedMap,
     markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
     /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
-    listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((m) => ((m?.conversations as InboxConversation[] | undefined) ?? [])),
+    listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : [])),
     /**
      * The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame).
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
      */
     loadHistory: (agentId: string, conversationId: string, limit?: number): Promise<{ rows: TranscriptRow[]; more: boolean }> =>
-      request("history_get", { agentId, conversationId, ...(limit ? { limit } : {}) }, 8000).then((m) => {
-        if (m && Array.isArray(m.widgetLog)) setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), m.widgetLog));
-        return { rows: (m?.messages as TranscriptRow[] | undefined) ?? [], more: m?.more === true };
+      request("history_get", { agentId, conversationId, ...(limit ? { limit } : {}) }, 8000).then((r) => {
+        if (!r.ok) return { rows: [], more: false };
+        setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widgetLog));
+        return { rows: r.reply.messages, more: r.reply.more };
       }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
-      recent: () => request("folders_get", {}, 4000).then((m) => ({ byAgent: ((m?.byAgent as Record<string, string[]>) ?? {}), byConversation: ((m?.byConversation as Record<string, string>) ?? {}) })),
-      complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((m) => ((m?.matches as string[] | undefined) ?? [])),
-      check: (path: string) => request("folder_check", { path }, 3000).then((m) => (m ? { ok: m.ok === true, path: String(m.path ?? path), branch: (m.branch as string | null) ?? null, reason: (m.reason as string | undefined) } : { ok: false, path, branch: null, reason: "no answer from the mod" })),
-      pick: (defaultPath?: string) => request("folder_pick", { defaultPath }, 180_000).then((m) => ((m?.path as string | null | undefined) ?? null)),
+      recent: () => request("folders_get", {}, 4000).then((r) => (r.ok ? { byAgent: r.reply.byAgent, byConversation: r.reply.byConversation } : { byAgent: {}, byConversation: {} })),
+      complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
+      check: (path: string) => request("folder_check", { path }, 3000).then((r) => (r.ok ? { ok: r.reply.ok, path: r.reply.path, branch: r.reply.branch, reason: r.reply.reason } : { ok: false, path, branch: null, reason: r.error })),
+      pick: (defaultPath?: string) => request("folder_pick", { defaultPath }, 180_000).then((r) => (r.ok ? r.reply.path : null)),
     },
   };
 

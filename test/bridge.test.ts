@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { createBridge, sortDesks, PHONE_FRAMES } from "../mod/bridge.ts";
+import { createBridge, sortDesks } from "../mod/bridge.ts";
+import { PHONE_FRAMES } from "../core/frames.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
@@ -212,7 +213,7 @@ describe("bridge: viewed", () => {
       expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
       // Learn's leads work from the phone (a lesson started there opens its conversation); the writer's settings do not.
-      for (const type of ["recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"]) expect(PHONE_FRAMES.has(type)).toBe(true);
+      for (const type of ["recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"] as const) expect(PHONE_FRAMES.has(type)).toBe(true);
       expect(PHONE_FRAMES.has("recall_settings")).toBe(false);
       seen.flush();
     } finally {

@@ -26,13 +26,6 @@ export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
 }
 
 /**
- * The mod's replies to a request (they carry its requestId): each resolves the waiting `request()` and does
- * nothing else. A reply missing here is never resolved, and its request times out as if the mod were silent
- * (test/desk-socket.test.ts checks this list against the replies mod/bridge.ts sends).
- */
-export const REPLY_FRAMES: ReadonlySet<string> = new Set(["agent", "memory_file", "memory_commits", "memory_diff", "reflection_state", "agent_error", "tasks", "task_created", "tasks_updated", "task_error", "history", "folders", "folder_matches", "folder_status", "folder_picked", "skills_global", "skill_installed", "skill_refreshed", "inbox", "recall", "recall_card", "recall_ran", "recall_export", "recall_lesson", "recall_error"]);
-
-/**
  * The WebSocket to the mod and everything its frames feed: which desk this tab shows, the manifests
  * and geometry per scope, the desk list, titles and agents, the seen and focus maps, the LAN listener's
  * status. Reconnects with backoff, and re-opens on the new desk when `switchDesk` changes the scope.
@@ -120,13 +113,11 @@ export function useDeskSocket() {
       };
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data as string) as Record<string, unknown> & { type: string };
-        // A reply to a request (a request/reply exchange, by requestId): it goes to whoever asked, nowhere else.
-        if (REPLY_FRAMES.has(String(msg.type))) {
-          const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
-          if (w) {
-            waiters.current.delete(msg.requestId as string);
-            w(msg);
-          }
+        // A request's answer (its reply, or `error`), by requestId: it goes to whoever asked, nowhere else.
+        const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
+        if (w) {
+          waiters.current.delete(msg.requestId as string);
+          w(msg);
           return;
         }
         switch (msg.type) {

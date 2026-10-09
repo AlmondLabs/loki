@@ -1,7 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-import { REPLY_FRAMES, keepSame, withScope } from "../app/src/desk/useDeskSocket.ts";
+import { keepSame, withScope } from "../app/src/desk/useDeskSocket.ts";
 
 /**
  * The mod repeats itself: every mark broadcasts the whole seen frame, and the desk list and titles come again
@@ -47,16 +45,5 @@ describe("desk socket: an identical frame keeps its references", () => {
     expect(withScope(titles, "c1", "Revenue review")).toBe(titles);
     expect(withScope(titles, "c1", "Revenue")).toEqual({ c1: "Revenue", c2: "Budget" });
     expect(withScope(titles, "c3", "New")).toEqual({ c1: "Revenue review", c2: "Budget", c3: "New" });
-  });
-});
-
-describe("desk socket: replies", () => {
-  test("every reply the mod sends to a request resolves it (a missing one times out: Start the lesson waited a minute and failed)", () => {
-    const bridge = readFileSync(join(import.meta.dir, "../mod/bridge.ts"), "utf8");
-    const replies = new Set([...bridge.matchAll(/type: "([a-z_]+)", requestId\b/g)].map((m) => m[1]));
-    replies.delete("error"); // a refusal: logged, and the request times out on purpose
-    expect(replies.size).toBeGreaterThan(10);
-    expect([...replies].filter((t) => !REPLY_FRAMES.has(t))).toEqual([]);
-    expect(REPLY_FRAMES.has("recall_lesson")).toBe(true);
   });
 });
