@@ -25,6 +25,7 @@ import { memoryExtension } from "./memory.ts";
 import { fileToolsExtension } from "./tools.ts";
 import { skillsExtension } from "./skills.ts";
 import { subagentExtension } from "./subagents.ts";
+import { webSearchExtension } from "./web-search.ts";
 import { BackgroundTasks, backgroundExtension } from "./background.ts";
 import { Schedules, scheduleExtension } from "./schedule.ts";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
@@ -90,6 +91,7 @@ mods.registry.install(fileToolsExtension());
 mods.registry.install(memoryExtension(backend));
 mods.registry.install(skillsExtension(backend));
 mods.registry.install(subagentExtension());
+mods.registry.install(webSearchExtension());
 // Background tasks and scheduled prompts deliver into their chat through `chat`, made below (daemon/background.ts,
 // daemon/schedule.ts).
 const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);

@@ -827,7 +827,7 @@ flowchart TB
 ## Open Questions
 
 1. **Deferred to U2:** whether each Harness runs on the main thread or in a worker thread. This is decided by the measured event-loop delay against the 50 ms threshold in U2.
-2. **Deferred to U12:** which web search backend to use. The options are a provider's built-in search where pi-ai exposes it, or a search API with its own key. Choose by what pi-ai supports for the models in use.
+2. **Resolved in U12:** web search reads DuckDuckGo's HTML results with no key, as Letta Code's web_search did; pi-ai has no search of its own.
 3. **Deferred to U2:** `cacheRetention` `short` or `long`, chosen by measured cost and speed.
 
 ---
