@@ -28,6 +28,9 @@ const KINDS: Record<string, ToolKind> = {
   loki_camera: "read",
   web_search: "read",
   view_image: "read",
+  TaskOutput: "read",
+  Monitor: "read",
+  schedule_list: "read",
   Skill: "read",
   // A helper's own tool calls pass the gate; starting one does not ask on its own.
   Agent: "read",

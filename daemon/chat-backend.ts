@@ -138,6 +138,12 @@ export class DaemonChats implements ChatBackend {
     return true;
   }
 
+  /** A message from loki itself (a finished background task, a scheduled prompt): it waits its turn like yours. */
+  async deliver(agentId: string, conversationId: string, text: string): Promise<void> {
+    const { chat } = await this.chat(agentId, conversationId);
+    await chat.submit({ type: "input", content: text }, this.deps.context);
+  }
+
   async abort(agentId: string, conversationId: string): Promise<void> {
     await (await this.chat(agentId, conversationId)).chat.abort(this.deps.context);
   }

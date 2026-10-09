@@ -25,6 +25,8 @@ import { memoryExtension } from "./memory.ts";
 import { fileToolsExtension } from "./tools.ts";
 import { skillsExtension } from "./skills.ts";
 import { subagentExtension } from "./subagents.ts";
+import { BackgroundTasks, backgroundExtension } from "./background.ts";
+import { Schedules, scheduleExtension } from "./schedule.ts";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { Reflection } from "./reflection.ts";
 import { readLocalAgent } from "../mod/agents.ts";
@@ -88,6 +90,13 @@ mods.registry.install(fileToolsExtension());
 mods.registry.install(memoryExtension(backend));
 mods.registry.install(skillsExtension(backend));
 mods.registry.install(subagentExtension());
+// Background tasks and scheduled prompts deliver into their chat through `chat`, made below (daemon/background.ts,
+// daemon/schedule.ts).
+const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);
+const background = new BackgroundTasks((agentId, chatId, text) => void deliver(agentId, chatId, text).catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)));
+mods.registry.install(backgroundExtension(background));
+const schedules = new Schedules(join(args.dir, "state", "crons.json"), deliver, report);
+mods.registry.install(scheduleExtension(schedules));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report);
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
@@ -114,6 +123,7 @@ const stopWatchingCore = args.mod.endsWith("boot.ts")
     })
   : () => {};
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
+schedules.start();
 console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
 
 let stopping = false;
@@ -124,6 +134,8 @@ function stop(signal: string) {
   try {
     stopWatchingCore();
     stopWatchingMods();
+    schedules.stop();
+    background.stopAll();
     for (const name of mods.names()) mods.unload(name);
   } finally {
     void stores.closeAll().finally(() => {
