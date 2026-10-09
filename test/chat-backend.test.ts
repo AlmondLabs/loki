@@ -1,0 +1,132 @@
+import { describe, expect, test } from "bun:test";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { createModels } from "@earendil-works/pi-ai/models";
+import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
+import { MemoryStorage } from "@earendil-works/pi-durable";
+import { DaemonChats, modelRef } from "../daemon/chat-backend.ts";
+import { AgentStore } from "../daemon/kernel/index.ts";
+import { StoreManager } from "../daemon/kernel/stores.ts";
+import { ModRegistry } from "../daemon/mods/registry.ts";
+import type { ChatEvent } from "../core/attention/model.ts";
+
+const ctx = BACKGROUND_CONTEXT;
+
+async function setup() {
+  const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
+  const faux = fauxProvider();
+  const models = createModels();
+  models.setProvider(faux.provider);
+  const mods = new ModRegistry(() => {});
+  await mods.load({ name: "rider", apiVersion: 1, activate: (api) => void api.message.transform((m) => (typeof m.content === "string" ? `${m.content}\n<loki-desk/>` : m.content)) });
+  const stores = new StoreManager(join(dir, "stores"), { models, registry: mods.registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx));
+  const chats = new DaemonChats({ stores, mods, models, backendDir: join(dir, "backend"), context: ctx });
+  const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
+  chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
+  const sent: string[] = [];
+  const reply = (text: string) => (context: { messages: unknown[] }) => {
+    sent.push(JSON.stringify(context.messages));
+    return fauxAssistantMessage(text);
+  };
+  const handle = `${faux.provider.id}/${faux.getModel().id}`;
+  const cleanup = async () => {
+    await stores.closeAll();
+    rmSync(dir, { recursive: true, force: true });
+  };
+  return { dir, faux, chats, pushed, sent, reply, handle, stores, cleanup };
+}
+
+const until = async (check: () => boolean, ms = 2000) => {
+  const end = Date.now() + ms;
+  while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+};
+
+const kinds = (pushed: Array<{ events: ChatEvent[] }>) => pushed.flatMap((p) => p.events.map((e) => (e.kind === "step" ? `step:${e.step.kind}` : e.kind)));
+
+describe("the daemon's chats", () => {
+  test("a new agent comes with its main chat; a new chat opens idle, and a message streams back to every client", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada" }]);
+      expect(await (await s.stores.get(agent.id)).chat("default", ctx)).toBeDefined();
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", mode: null, cwd: "/work" });
+      s.faux.setResponses([s.reply("Hello back")]);
+      expect(await s.chats.send({ agentId: agent.id, conversationId, text: "hello", images: [], sendId: "s1", context: null })).toBe(true);
+      await until(() => kinds(s.pushed).includes("turn_end"));
+      expect(kinds(s.pushed)).toEqual(expect.arrayContaining(["loop", "step:user", "step:assistant", "settle", "turn_end"]));
+      // The rider every mod adds reached the model.
+      expect(s.sent[0]).toContain("hello\\n<loki-desk/>");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a message sent while the chat runs waits its turn, and one sent again with its sendId goes once", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      await s.chats.open(agent.id, conversationId);
+      s.faux.setResponses([s.reply("one"), s.reply("two")]);
+      const send = (text: string, sendId: string) => s.chats.send({ agentId: agent.id, conversationId, text, images: [], sendId, context: null });
+      await send("first", "a");
+      await send("second", "b");
+      await send("second", "b");
+      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 2);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(s.sent).toHaveLength(2);
+      expect(s.sent[1]).toContain("second");
+      expect(s.sent[1].match(/second/g)).toHaveLength(1);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("moving a chat's folder pushes the new folder; its model and title change; deleting an agent removes it all", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/a", null);
+      expect((await s.chats.folder(agent.id, conversationId, "/b")).cwd).toBe("/b");
+      expect(s.pushed.at(-1)).toEqual({ conversationId, events: [{ kind: "device", cwd: "/b" }] });
+      await s.chats.model({ agentId: agent.id, conversationId, handle: s.handle, reasoningEffort: "high" });
+      const store = await s.stores.get(agent.id);
+      const chat = (await store.chat(conversationId, ctx))!;
+      expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ model: modelRef(s.handle), thinkingLevel: "high", cwd: "/b" });
+      await s.chats.update({ agentId: agent.id, conversationId, title: "Renamed", archived: true, hidden: undefined });
+      expect((await store.chats(ctx)).find((c) => c.id === conversationId)).toMatchObject({ title: "Renamed", archived: true });
+      await s.chats.updateAgent({ agentId: agent.id, name: "Ada Lovelace", description: undefined, model: undefined });
+      expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace" }]);
+      await s.chats.deleteAgent(agent.id);
+      expect(await s.chats.agents()).toEqual([]);
+      expect(existsSync(join(s.dir, "backend", "memfs", agent.id))).toBe(false);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("the models on offer carry their provider in the handle", async () => {
+    const s = await setup();
+    try {
+      expect((await s.chats.models()).map((m) => m.handle)).toContain(s.handle);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a chat that does not exist is refused, and a handle without a provider is not a model", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: null });
+      await expect(s.chats.open(agent.id, "nope")).rejects.toThrow("no chat nope");
+      expect(modelRef("gpt")).toBeUndefined();
+      expect(modelRef("openrouter/~anthropic/claude-haiku-latest")).toEqual({ provider: "openrouter", modelId: "~anthropic/claude-haiku-latest" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+});

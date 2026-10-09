@@ -15,6 +15,7 @@ import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
 import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
 import { lettaChats, type ChatSource } from "./chat-source.ts";
+import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
@@ -145,6 +146,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // app-server through this mod's tunnel. The mod only has to find the server.
   // Where chats are read from: the daemon's stores when the host brings them, Letta's disk otherwise (mod/chat-source.ts).
   const chats: ChatSource = (letta as { chats?: ChatSource }).chats ?? lettaChats;
+  // The daemon also serves the chats themselves (sending, streaming, models, agents) through the mod's frames.
+  const chatBackend = (letta as { chat?: ChatBackend }).chat;
+  chatBackend?.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agentId, conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), undefined, (id) => chats.agentOf(id));
   let appServerUrl: string | null = null;
   const seen = new SeenStore(join(paths.state, "attention.json"));
@@ -310,6 +314,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     tasks: tasks.ready() ? tasks : undefined,
     folderFor,
+    chat: chatBackend,
     lan: {
       status: () => lan!.status(),
       refresh: () => lan!.refresh(),

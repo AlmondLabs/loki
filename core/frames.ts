@@ -1,6 +1,7 @@
 import { isEventName } from "./analytics.ts";
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
-import type { ReasoningEffort } from "./models.ts";
+import type { ModelEntry, ReasoningEffort } from "./models.ts";
+import type { ChatEvent } from "./attention/model.ts";
 import type { CardWithSchedule, RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
@@ -62,6 +63,8 @@ const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : s
 /** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId } : "conversationId required");
 const agent = (m: Raw) => (isAgentId(m.agentId) ? { agentId: m.agentId } : "agentId required");
+/** A chat on loki's daemon: its agent and its id, both required. */
+const chatRef = (m: Raw) => (isAgentId(m.agentId) && str(m.conversationId) && m.conversationId ? { agentId: m.agentId, conversationId: m.conversationId } : "agentId and conversationId required");
 const nothing = (): Record<never, never> => ({});
 
 /** The answer to a request, by reply name: the payload beside `type` and `requestId`. */
@@ -88,8 +91,24 @@ export interface Replies {
   memory_diff: { agentId: string; sha: string; diff: string };
   inbox: { conversations: InboxRow[] };
   history: { agentId: string | null; conversationId: string; messages: TranscriptRow[]; more: boolean; widgetLog: WidgetLogEntry[] };
+  chat_state: ChatState;
+  chat_created: { agentId: string; conversationId: string };
+  chat_accepted: { accepted: boolean };
+  chat_models: { entries: ModelEntry[] };
+  chat_agents: { agents: Array<{ id: string; name: string }> };
+  chat_agent_created: { id: string; name: string };
+  chat_done: Record<never, never>;
 }
 export type ReplyName = keyof Replies;
+
+/** Where a chat stands when a client opens it (loki's daemon, plan 017 U5): running or not, its mode and folder. */
+export interface ChatState {
+  agentId: string;
+  conversationId: string;
+  loop: "running" | "idle" | "approval";
+  mode: string | null;
+  cwd: string | null;
+}
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
 export interface Pushes {
@@ -110,6 +129,8 @@ export interface Pushes {
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expiresAt: string };
   app_build: { build: string };
+  /** What happened in a chat a client has open, in order (core/attention/model.ts ChatEvent). */
+  chat_event: { agentId: string; conversationId: string; events: ChatEvent[] };
   /** A request that failed (with its requestId), or a send or frame the mod could not take (without). */
   error: { message: string; requestId?: string };
 }
@@ -178,6 +199,40 @@ export const FRAMES = {
   history_get: request("history", "a chat's last `limit` rows from its log, whether older ones remain, and its desk's widget log", (m) =>
     str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId, limit: isNum(m.limit) ? m.limit : null } : "conversationId required", PHONE),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
+
+  // Chats on loki's daemon (plan 017, U5); under Letta the app-server serves these and the mod answers `error`
+  chat_open: request("chat_state", "follow a chat: its state now, then its chat_event pushes", chatRef, PHONE),
+  chat_create: request("chat_created", "a new chat for an agent, in a folder", (m) =>
+    isAgentId(m.agentId) ? { agentId: m.agentId, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agentId required", PHONE),
+  chat_send: request("chat_accepted", "a message from the person; queued when the chat is busy, sent once per sendId", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    if (!str(m.text)) return "text required";
+    const images = Array.isArray(m.images) ? (m.images as Raw[]).filter((i) => str(i.mediaType) && str(i.data)).map((i) => ({ mediaType: i.mediaType as string, data: i.data as string })) : [];
+    return { ...c, text: m.text, images, sendId: strOr(m.sendId, null), context: strOr(m.context, null) };
+  }, PHONE),
+  chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE),
+  chat_update: request("chat_done", "rename, archive or hide a chat", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return { ...c, title: m.title === null || str(m.title) ? (m.title as string | null) : undefined, archived: typeof m.archived === "boolean" ? m.archived : undefined, hidden: typeof m.hidden === "boolean" ? m.hidden : undefined };
+  }, PHONE),
+  chat_folder: request("chat_state", "move a chat to another folder", (m) => {
+    const c = chatRef(m);
+    return typeof c === "string" ? c : str(m.cwd) && m.cwd ? { ...c, cwd: m.cwd } : "cwd required";
+  }, PHONE),
+  chat_model: request("chat_done", "the model and reasoning effort a chat runs with", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.handle) && m.handle ? { ...c, handle: m.handle, reasoningEffort: strOr(m.reasoningEffort, null) as ReasoningEffort | null } : "handle required";
+  }, PHONE),
+  chat_models: request("chat_models", "the models the connected providers offer", nothing, PHONE),
+  chat_agents: request("chat_agents", "the person's agents", nothing, PHONE),
+  chat_agent_create: request("chat_agent_created", "a new agent, with its main chat", (m) =>
+    str(m.name) && m.name.trim() ? { name: m.name.trim(), description: strOr(m.description, null), model: strOr(m.model, null) } : "name required"),
+  chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
+    isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
+  chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
 
   // Folders
   folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),
@@ -266,6 +321,7 @@ export const FRAMES = {
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
   app_build: push("the build a phone is served, so it can offer a reload"),
+  chat_event: push("what happened in a chat a client has open"),
   error: push("a failed request (with its requestId) or a frame the mod could not take"),
 } as const;
 

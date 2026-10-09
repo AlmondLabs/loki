@@ -13,7 +13,10 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { createModels } from "@earendil-works/pi-ai/models";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import { homedir } from "node:os";
+import { DaemonChats } from "./chat-backend.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -54,7 +57,10 @@ const mods = new ModRegistry(report);
 // readers find them through LOKI_BACKEND_DIR; each agent's chats in its own store (daemon/kernel/stores.ts).
 const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
-const stores = new StoreManager(join(args.dir, "stores"), { models: createModels(), registry: mods.registry }, context, report);
+// Every provider pi-ai knows; until the keychain (U8), a provider's key comes from its environment variable.
+const models = builtinModels();
+const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
+const chat = new DaemonChats({ stores, mods, models, backendDir: backend, context, report });
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 chats.follow(stores);
 await Promise.all(
@@ -68,7 +74,7 @@ await Promise.all(
 // host that is not a terminal session (mod/gate.ts); the daemon always is one.
 process.env.LOKI_MOD_SERVE ??= "1";
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (host: unknown) => unknown };
-const loadCore = () => mods.load(fromLettaMod("loki", core.default, { chats }));
+const loadCore = () => mods.load(fromLettaMod("loki", core.default, { chats, chat }));
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
 const stopWatchingCore = args.mod.endsWith("boot.ts")

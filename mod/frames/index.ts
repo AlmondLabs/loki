@@ -3,6 +3,7 @@ import type { PushFrame } from "../../core/frames.ts";
 import { agentsFrames, type AgentsDeps } from "./agents.ts";
 import { boardFrames, type BoardDeps } from "./board.ts";
 import { captureFrames } from "./capture.ts";
+import { chatFrames, type ChatDeps } from "./chat.ts";
 import type { FrameHandlers } from "./context.ts";
 import { deskFrame, desksFrames, type DesksDeps } from "./desks.ts";
 import { foldersFrames, type FoldersDeps } from "./folders.ts";
@@ -12,11 +13,11 @@ import { recallFrames, type RecallDeps } from "./recall.ts";
 import { seenFrames, type SeenDeps } from "./seen.ts";
 
 /** What every frame handler needs, together: each module takes only its own part. */
-export type ModuleDeps = DesksDeps & SeenDeps & HistoryDeps & FoldersDeps & RecallDeps & BoardDeps & AgentsDeps & LanDeps;
+export type ModuleDeps = DesksDeps & SeenDeps & HistoryDeps & FoldersDeps & RecallDeps & BoardDeps & AgentsDeps & LanDeps & ChatDeps;
 
 /** Every feature's frame handlers (GLOSSARY.md: Frame handler), one module per feature. */
 export function frameModules(deps: ModuleDeps): FrameHandlers[] {
-  return [desksFrames(deps), seenFrames(deps), captureFrames(), historyFrames(deps), foldersFrames(deps), recallFrames(deps), boardFrames(deps), agentsFrames(deps), lanFrames(deps)];
+  return [desksFrames(deps), seenFrames(deps), captureFrames(), historyFrames(deps), foldersFrames(deps), recallFrames(deps), boardFrames(deps), agentsFrames(deps), lanFrames(deps), chatFrames(deps)];
 }
 
 /** What a socket is told when it opens: whether an app-server was found, its desk and the shared desk, and the recent models. */
