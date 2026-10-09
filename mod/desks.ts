@@ -6,6 +6,7 @@ import type { Scope } from "../core/desk-core.ts";
 import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
 import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
 import { foldSteps, type Step } from "../core/attention/thread.ts";
+import { messageSteps } from "../core/attention/pi-steps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { Runtime } from "./app-server.ts";
 import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
@@ -271,19 +272,9 @@ function logSteps(line: string): Step[] {
   }
   const m = entry.message;
   if (entry.type !== "message" || !m) return [];
-  if (m.role === "toolResult") return typeof m.toolCallId === "string" ? [{ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true }] : [];
-  if (m.role !== "user" && m.role !== "assistant") return [];
   // Letta's local backend writes the time on every message line; older lines may lack it.
   const stamp = typeof entry.timestamp === "string" ? entry.timestamp : typeof m.metadata?.created_at === "string" ? m.metadata.created_at : null;
-  const at = stamp && Number.isFinite(Date.parse(stamp)) ? stamp : null;
-  const text = contentText(m.content);
-  if (m.role === "user") return [{ kind: "user", raw: text, at }];
-  const out: Step[] = [{ kind: "assistant", text, at }];
-  for (const part of Array.isArray(m.content) ? m.content : []) {
-    const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
-    if (p?.type === "toolCall" && p.name) out.push({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at });
-  }
-  return out;
+  return messageSteps(m, stamp && Number.isFinite(Date.parse(stamp)) ? stamp : null);
 }
 
 /** One open conversation as the inbox lists it: the record from disk plus its digest. */
