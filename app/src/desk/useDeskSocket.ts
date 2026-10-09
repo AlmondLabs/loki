@@ -9,6 +9,7 @@ import type { CameraTarget, Connection } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
+import type { InputOf, PushFrame, SendName } from "../../../core/frames.ts";
 
 const NO_YANK_MS = 2000;
 
@@ -112,14 +113,16 @@ export function useDeskSocket() {
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
       };
       ws.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data as string) as Record<string, unknown> & { type: string };
+        const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
         // A request's answer (its reply, or `error`), by requestId: it goes to whoever asked, nowhere else.
-        const w = typeof msg.requestId === "string" ? waiters.current.get(msg.requestId) : undefined;
+        const w = typeof raw.requestId === "string" ? waiters.current.get(raw.requestId) : undefined;
         if (w) {
-          waiters.current.delete(msg.requestId as string);
-          w(msg);
+          waiters.current.delete(raw.requestId as string);
+          w(raw);
           return;
         }
+        // Everything else is a push (core/frames.ts Pushes).
+        const msg = raw as PushFrame;
         switch (msg.type) {
           case "desk": {
             const s = msg.scope as Scope;
@@ -174,7 +177,7 @@ export function useDeskSocket() {
             setRecallVersion((v) => v + 1);
             break;
           case "lan_status": {
-            const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame(msg), via: "tailscale" }) : lanStatusFromFrame(msg);
+            const st = PHONE_DEMO ? phoneDemo({ ...lanStatusFromFrame({ ...msg }), via: "tailscale" }) : lanStatusFromFrame({ ...msg });
             setLanStatus(st);
             if (!st.enabled) setPairCode(null); // a code is only redeemable while the listener is up
             break;
@@ -247,20 +250,23 @@ export function useDeskSocket() {
     };
   }, [scope, switchDesk]);
 
-  const send = (msg: object): boolean => {
+  /** Any frame as it is: `request()`'s, which carry a requestId. False while the socket is not open. */
+  const sendRaw = useCallback((msg: object): boolean => {
     const ws = wsRef.current;
     if (ws?.readyState !== WebSocket.OPEN) return false;
     ws.send(JSON.stringify(msg));
     return true;
-  };
+  }, []);
+  /** A send (core/frames.ts), typed by its name. False while the socket is not open. */
+  const send = useCallback(<N extends SendName>(frame: { type: N } & InputOf<N>): boolean => sendRaw(frame), [sendRaw]);
 
   const reportWidgetError = useCallback((id: string, error: string | null) => {
     send({ type: "widget_status", id, error });
-  }, []);
+  }, [send]);
 
   const measure = useCallback((id: string, size: Size) => {
     if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size); // flushed when the desk frame arrives
-  }, []);
+  }, [send]);
 
   /** Keep another desk's widgets and state at hand (a thread shows them inline); asked for at once the first time. */
   const watchDesk = (s: Scope) => {
@@ -274,6 +280,7 @@ export function useDeskSocket() {
     switchDesk,
     watchDesk,
     send,
+    sendRaw,
     desks,
     setDesks,
     widgets,

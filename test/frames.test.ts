@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { FRAMES, PHONE_FRAMES, frameEntry, type FrameName } from "../core/frames.ts";
+import { FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type InputOf, type ReplyOf, type RequestName, type SendName } from "../core/frames.ts";
 
 const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
@@ -50,5 +50,22 @@ describe("the frame table", () => {
     expect(FRAMES.capture.parse({ event: "desk_switched", properties: [1] })).toEqual({ event: "desk_switched", properties: undefined });
     expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } });
     expect(FRAMES.folder_complete.parse({})).toEqual({ prefix: null });
+  });
+});
+
+describe("the app's side is typed by the table", () => {
+  // Compile-time checks: bun runs them as no-ops, `bun run typecheck` holds them.
+  const request = <N extends RequestName>(_type: N, _payload: InputOf<N>): ReplyOf<N> | null => null;
+  const send = <N extends SendName>(_frame: { type: N } & InputOf<N>): boolean => true;
+  test("a request without a required field, or a send of a wrong field, does not compile", () => {
+    // @ts-expect-error a grade is required
+    request("recall_grade", { id: "c1" });
+    request("recall_grade", { id: "c1", grade: 3 });
+    request("history_get", { conversationId: "c" }); // agentId and limit may be left out
+    const more: boolean | undefined = request("history_get", { conversationId: "c" })?.more;
+    // @ts-expect-error a focus engagement the mod does not take from the app
+    send({ type: "focus_add", conversationId: "c", action: "open" });
+    send({ type: "seen_mark", conversationId: "c" });
+    expect(more).toBeUndefined();
   });
 });

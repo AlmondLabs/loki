@@ -62,7 +62,7 @@ const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : s
 /** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId } : "conversationId required");
 const agent = (m: Raw) => (isAgentId(m.agentId) ? { agentId: m.agentId } : "agentId required");
-const nothing = (): Record<string, never> => ({});
+const nothing = (): Record<never, never> => ({});
 
 /** The answer to a request, by reply name: the payload beside `type` and `requestId`. */
 export interface Replies {

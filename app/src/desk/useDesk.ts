@@ -11,7 +11,7 @@ import type { AgentDetails } from "../agents/Agents";
 
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
-import type { FocusAction } from "../../../core/attention/focus.ts";
+import type { EngageAction } from "../../../core/attention/useAttention.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
@@ -47,6 +47,7 @@ export function useDesk() {
     scope,
     switchDesk,
     send,
+    sendRaw,
     desks,
     setDesks,
     widgets,
@@ -126,15 +127,15 @@ export function useDesk() {
         if (retry !== null) window.clearInterval(retry);
         waiters.current.delete(requestId);
         if (!m) resolve({ ok: false, error: "no answer from the mod", timedOut: true });
-        else if (m.type === "error" || (typeof m.type === "string" && m.type.endsWith("_error"))) resolve({ ok: false, error: String(m.message ?? "the mod refused"), timedOut: false });
+        else if (m.type === "error") resolve({ ok: false, error: String(m.message ?? "the mod refused"), timedOut: false });
         else resolve({ ok: true, reply: m as unknown as ReplyOf<N> });
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
       waiters.current.set(requestId, done);
       const frame = { type, requestId, ...payload };
-      if (!send(frame)) {
+      if (!sendRaw(frame)) {
         retry = window.setInterval(() => {
-          if (send(frame) && retry !== null) {
+          if (sendRaw(frame) && retry !== null) {
             window.clearInterval(retry);
             retry = null;
           }
@@ -253,9 +254,9 @@ export function useDesk() {
   });
   // An event captured while the socket is between connections (a chat switch reopens it) waits for it, rather
   // than being lost: desk_switched always fell in that gap.
-  const heldCaptures = useRef<object[]>([]);
+  const heldCaptures = useRef<Array<{ type: "capture"; event: string; properties?: Record<string, unknown> }>>([]);
   const capture = useCallback((event: string, properties?: Record<string, unknown>) => {
-    const frame = { type: "capture", event, ...(properties ? { properties } : {}) };
+    const frame = { type: "capture" as const, event, ...(properties ? { properties } : {}) };
     if (!sendRef.current(frame)) heldCaptures.current = [...heldCaptures.current, frame].slice(-CAPTURES_HELD);
   }, []);
   useEffect(() => {
@@ -272,7 +273,7 @@ export function useDesk() {
     seen: seenMap,
     /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
     focus: focusMap,
-    engage: (agentId: string, conversationId: string, action: FocusAction) => send({ type: "focus_add", agentId, conversationId, action }),
+    engage: (agentId: string, conversationId: string, action: EngageAction) => send({ type: "focus_add", agentId, conversationId, action }),
     markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
     unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */
