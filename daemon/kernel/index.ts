@@ -68,12 +68,8 @@ export class AgentStore {
   /** Every chat this store holds, as loki knows it. */
   async chats(context: Context): Promise<ChatInfo[]> {
     const index = await this.harness.snapshot(ChatIndex, context);
-    const out: ChatInfo[] = [];
-    for (const conversationId of Object.values(index?.chats ?? {})) {
-      const info = await this.harness.snapshot(ChatDoc, conversationId as ConversationId, context);
-      if (info) out.push(info);
-    }
-    return out;
+    const infos = await Promise.all(Object.values(index?.chats ?? {}).map((id) => this.harness.snapshot(ChatDoc, id as ConversationId, context)));
+    return infos.filter((info): info is ChatInfo => info !== undefined);
   }
 
   /**
@@ -110,6 +106,7 @@ export class AgentStore {
     return conversation.commit(async (tx) => {
       const bySource = new Map<string, EntryId>();
       const byLine = new Map<number, EntryId>();
+      // In order: each entry's id is minted as it is appended, and a compaction names one appended before it.
       for (const entry of entries) {
         const head = entry.headSourceId === undefined ? undefined : bySource.get(entry.headSourceId);
         if (entry.kind === "pi.compaction" && head === undefined) continue;
