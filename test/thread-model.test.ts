@@ -280,6 +280,33 @@ describe("a history page arriving", () => {
     expect(t.rows()!.map((r) => r.at)).toEqual(["2026-10-09T09:59:59Z", t1002]);
   });
 
+  test("a message you repeat while the page is stale stays: it pairs only with a row newer than the last page", () => {
+    const t = new ThreadModel();
+    const page = [{ role: "user" as const, text: "yes", at: "2026-10-09T10:00:00.000Z" }, { role: "assistant" as const, text: "done A", at: "2026-10-09T10:00:05.000Z" }];
+    t.load(page);
+    t.own({ role: "user", text: "yes", at: "2026-10-09T10:05:00.000Z" }, "yes");
+    t.load(page); // read before the log held the new "yes"
+    expect(t.rows()!.map((r) => [r.text, r.at])).toEqual([["yes", "2026-10-09T10:00:00.000Z"], ["done A", "2026-10-09T10:00:05.000Z"], ["yes", "2026-10-09T10:05:00.000Z"]]);
+    // once the log holds it, it pairs and goes
+    t.load([...page, { role: "user", text: "yes", at: "2026-10-09T10:05:01.000Z" }]);
+    expect(t.rows()!.map((r) => r.text)).toEqual(["yes", "done A", "yes"]);
+  });
+
+  test("a picture you sent pairs with the page's [image] row, whatever the sending device's clock says", () => {
+    const t = new ThreadModel();
+    t.own({ role: "user", text: "look", images: ["data:image/png;base64,x"], at: "2026-10-09T10:09:00.000Z" }, "look"); // a phone running ahead
+    t.load([{ role: "user", text: "look\n[image]", at: "2026-10-09T10:00:00.000Z" }]);
+    expect(t.rows()!.map((r) => r.text)).toEqual(["look\n[image]"]);
+  });
+
+  test("an approval that arrives after the page took its call belongs to that call", () => {
+    const t = new ThreadModel();
+    t.apply({ kind: "call", name: "Bash", args: { command: "ls" }, id: "c7", at: "2026-10-09T10:01:00.000Z" });
+    t.load([{ ...call7, at: "2026-10-09T10:01:00.000Z" }]);
+    t.apply({ kind: "approval", name: "Bash", args: { command: "ls" }, id: "approval-1", at: "2026-10-09T10:01:01.000Z" });
+    expect(tools(t.rows()).length).toBe(1);
+  });
+
   test("an empty page leaves the live rows alone; a result for a call the page took lands on the page's row", () => {
     const t = new ThreadModel();
     t.apply({ kind: "user", raw: "first message", at: t1001 });

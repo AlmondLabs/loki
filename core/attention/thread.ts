@@ -40,6 +40,9 @@ const RUNNING = "running…";
 /** The image markers a message's text carries for its pictures ("[image]" lines): not part of what was typed. */
 const withoutImageMarks = (text: string) => text.replace(/(^|\n)\[image\](?=\n|$)/g, "").trim();
 
+/** How a live row is known in a history page: role and text, a user message's picture lines left out (the page has them). */
+const pairKey = (r: TranscriptRow) => `${r.role}\u0000${r.role === "user" ? withoutImageMarks(r.text) : r.text}`;
+
 /** Still on its way: a message waiting for the turn to end, or a slash command waiting for its answer. */
 const pending = (r: TranscriptRow) => r.queued === true || (r.role === "event" && r.summary === RUNNING);
 
@@ -259,7 +262,7 @@ export class ThreadModel {
     rows.forEach((r, i) => {
       if (r.tool?.id) byId.set(r.tool.id, i);
       else {
-        const k = `${r.role}\u0000${r.text}`;
+        const k = pairKey(r);
         const list = byText.get(k);
         if (list) list.push(i);
         else byText.set(k, [i]);
@@ -268,6 +271,17 @@ export class ThreadModel {
     // A page with no times at all keeps only what is pending: nothing can be shown to be newer than it.
     const newest = rows.reduce((m, r) => (instant(r.at) > m ? instant(r.at) : m), -Infinity);
     const newer = (r: TranscriptRow) => Number.isFinite(newest) && instant(r.at) > newest;
+    // A row since the last page was not in that page: it pairs only with a page row newer than the last page (or
+    // untimed), never with an older message that says the same ("yes", "ok").
+    const lastPage = (this.history ?? []).reduce((m, r) => (instant(r.at) > m ? instant(r.at) : m), -Infinity);
+    const sinceLastPage = (k: string): number | undefined => {
+      const list = byText.get(k);
+      for (let n = (list?.length ?? 0) - 1; n >= 0; n--) {
+        const i = list![n];
+        if (!(instant(rows[i].at) <= lastPage)) return list!.splice(n, 1)[0];
+      }
+      return undefined;
+    };
     const lend = (i: number, at: string | undefined) => {
       if (!rows[i].at && at) rows[i] = { ...rows[i], at };
     };
@@ -279,14 +293,14 @@ export class ThreadModel {
         continue;
       }
       const id = r.tool?.id;
-      const i = id ? byId.get(id) : byText.get(`${r.role}\u0000${r.text}`)?.pop();
+      const i = id ? byId.get(id) : sinceLastPage(pairKey(r));
       if (i !== undefined) {
         if (id) byId.delete(id);
         lend(i, r.at);
       } else if (newer(r)) kept.unshift(r);
     }
     for (const r of [...(this.history ?? [])].reverse()) {
-      const i = byText.get(`${r.role}\u0000${r.text}`)?.pop();
+      const i = r.tool?.id ? byId.get(r.tool.id) : byText.get(pairKey(r))?.pop();
       if (i !== undefined) lend(i, r.at);
     }
     this.history = rows;
@@ -345,10 +359,13 @@ export class ThreadModel {
   /** The newest call of this tool with no result yet and nothing said after it: an approval request belongs to it. */
   private openCall(name: string): TranscriptRow | null {
     if (this.streamingText.trim()) return null;
-    for (let i = this.tail.length - 1; i >= 0; i--) {
-      const r = this.tail[i];
-      if (r.role === "user" || r.role === "assistant") return null;
-      if (r.role === "tool" && (r.tool?.name ?? r.text) === name && r.tool?.output === undefined && !r.tool?.failed) return r;
+    // The rows since the page, then the page's own end: a load may have taken the call before its approval came.
+    for (const rows of [this.tail, this.history ?? []]) {
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const r = rows[i];
+        if (r.role === "user" || r.role === "assistant") return null;
+        if (r.role === "tool" && (r.tool?.name ?? r.text) === name && r.tool?.output === undefined && !r.tool?.failed) return r;
+      }
     }
     return null;
   }
