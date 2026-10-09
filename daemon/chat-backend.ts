@@ -14,6 +14,7 @@ import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
+import type { ImportReport } from "./import/letta.ts";
 import type { Providers } from "./providers.ts";
 import type { Reflection } from "./reflection.ts";
 import { editMemoryFile } from "./memory.ts";
@@ -41,6 +42,8 @@ type Deps = {
   backendDir: string;
   context: Context;
   report?: (message: string) => void;
+  /** The one-time import from Letta (daemon/import/letta.ts); absent in tests that do not import. */
+  importLetta?: () => Promise<ImportReport>;
 };
 
 /** A model handle (`provider/model`) as pi-durable's model reference. */
@@ -168,6 +171,11 @@ export class DaemonChats implements ChatBackend {
     // A compaction that fails only means the next ask carries this one too.
     await chat.compact(undefined, this.deps.context).catch((e: unknown) => this.deps.report?.(`recall compaction failed: ${String(e)}`));
     return reply;
+  }
+
+  importLetta(): Promise<ImportReport> {
+    if (!this.deps.importLetta) throw new Error("this daemon does not import from Letta");
+    return this.deps.importLetta();
   }
 
   async abort(agentId: string, conversationId: string): Promise<void> {

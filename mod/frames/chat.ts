@@ -36,6 +36,7 @@ export interface ChatBackend {
   disableSkill(name: string): Promise<void>;
   /** One prompt in a hidden chat of loki's own (Learn's writer), its whole reply back (mod/recall-worker.ts). */
   ask(agentId: string, conversationId: string, prompt: string, model: string | null): Promise<string>;
+  importLetta(): Promise<Replies["chat_imported"]>;
 }
 
 export type ChatDeps = { chat?: ChatBackend };
@@ -71,6 +72,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_agent_update: (p) => served(b, async (x) => (await x.updateAgent(p), DONE)),
     chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
     chat_reflection_get: () => served(b, (x) => x.reflection()),
+    chat_import: () => served(b, (x) => x.importLetta()),
     chat_reflection_set: (p) => served(b, (x) => x.setReflection(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
     chat_skill_enable: ({ path }) => served(b, (x) => x.enableSkill(path)),

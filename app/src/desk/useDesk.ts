@@ -269,6 +269,8 @@ export function useDesk() {
     // on this socket, wherever the page runs.
     available: appServer || inTauri || chatsOnDaemon,
     backend: (chatsOnDaemon ? "daemon" : "letta") as "daemon" | "letta",
+    /** The one-time import from Letta, on the daemon only (daemon/import/letta.ts); it may take a minute. */
+    importLetta: chatsOnDaemon ? () => request("chat_import", {}, 600_000) : null,
     /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts); Letta's app-server otherwise. */
     makeClient: chatsOnDaemon
       ? () =>

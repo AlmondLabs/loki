@@ -12,6 +12,7 @@ mod harness;
 mod install;
 mod menu;
 mod native;
+mod root;
 mod scratch;
 mod widgets;
 
@@ -421,6 +422,15 @@ pub fn run() {
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
         .setup(move |app| {
             use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+            // On loki's daemon its root is ~/.loki, with a link at ~/.letta/loki: moved once, before anything below
+            // opens a file in it (src-tauri/src/root.rs). A failed move leaves the old root in use, and says so.
+            if pi_backend() {
+                match root::move_root(&home_dir()) {
+                    Ok(moved) => eprintln!("loki: root: {moved:?}"),
+                    Err(e) => eprintln!("loki: root not moved: {e}"),
+                }
+            }
 
             // The mod first, so a harness we launch below loads the copy that ships with this build.
             // Everything loki writes lives under ~/.letta/loki (loki_dir): the mod bundle, the phone canvas; the shim in ~/.letta/mods.

@@ -1,3 +1,4 @@
+import type { Replies, RequestResult } from "../../../core/frames.ts";
 import { useEffect, useState } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
@@ -71,6 +72,7 @@ export function Settings({
   lettaVersion,
   providers,
   onLoadProviders,
+  importLetta = null,
   onConnectProvider,
   onDisconnectProvider,
   onModelsChanged,
@@ -98,6 +100,8 @@ export function Settings({
   lettaVersion: string | null;
   providers: ConnectProvider[] | null;
   onLoadProviders: () => Promise<unknown>;
+  /** The one-time import from Letta, when chats are on loki's daemon. */
+  importLetta?: (() => Promise<RequestResult<Replies["chat_imported"]>>) | null;
   onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
   onDisconnectProvider: (providerId: string) => Promise<string | null>;
   onModelsChanged: () => void;
@@ -158,7 +162,7 @@ export function Settings({
         </div>
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
-          {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} />}
+          {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} importLetta={importLetta} />}
           {page === "inbox" && <InboxPage />}
           {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
           {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
@@ -188,7 +192,7 @@ function AppearancePage() {
 }
 
 /** Settings › letta: the harness, the mod, what loki needs on this machine, and what launch installed. */
-function LettaPage({ update, harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta, scratch }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; scratch: Scratch }) {
+function LettaPage({ update, harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta, scratch, importLetta }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; scratch: Scratch; importLetta: (() => Promise<RequestResult<Replies["chat_imported"]>>) | null }) {
   // Never print the token: a browser tab's tunnel URL carries it as a query.
   const shownUrl = harness.appServerUrl ? harness.appServerUrl.replace(/\?.*$/, "") : null;
   return (
@@ -196,6 +200,11 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
       <Section title="loki" hint="this app; the only update it ever offers on its own">
         <LokiVersionFact update={update} />
       </Section>
+      {importLetta && (
+        <Section title="Import" hint="your agents, their memory and chats, keys and schedules, from Letta into loki's daemon; Letta's own files are left as they are">
+          <ImportFact run={importLetta} />
+        </Section>
+      )}
       <Section title="Harness" hint="the Letta process loki talks to; the mod runs inside it">
         <Fact label="App-server" value={shownUrl ?? "—"} mono />
         <Fact label="Who runs it" value={describeRunner(harness.appServerUrl)} />
@@ -378,6 +387,36 @@ function LettaUpdateFact({ bootstrap, onCheck, onUpdate }: { bootstrap: Bootstra
         </span>
       }
     />
+  );
+}
+
+/** Run the import from Letta, then say what came over; again imports only what is missing. */
+function ImportFact({ run }: { run: () => Promise<RequestResult<Replies["chat_imported"]>> }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<RequestResult<Replies["chat_imported"]> | null>(null);
+  const go = async () => {
+    setBusy(true);
+    try {
+      setResult(await run());
+    } finally {
+      setBusy(false);
+    }
+  };
+  const done = result?.ok ? result.reply : null;
+  return (
+    <>
+      <Fact
+        label="From Letta"
+        value={
+          <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <Button size="sm" onClick={() => void go()} disabled={busy}>{busy ? "importing…" : done ? "import again" : "import"}</Button>
+            {result && !result.ok && <Note tone="warn">{result.error}</Note>}
+            {done && <Note>{`${done.agents.length} agents, ${done.chats} chats${done.kept ? ` (${done.kept} already here)` : ""}, ${done.credentials.length} keys, ${done.schedules} schedules`}</Note>}
+          </span>
+        }
+      />
+      {done?.notes.map((n) => <Fact key={n} label="" value={<Note>{n}</Note>} />)}
+    </>
   );
 }
 

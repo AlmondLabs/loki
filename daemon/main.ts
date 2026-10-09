@@ -26,6 +26,8 @@ import { fileToolsExtension } from "./tools.ts";
 import { skillsExtension } from "./skills.ts";
 import { subagentExtension } from "./subagents.ts";
 import { webSearchExtension } from "./web-search.ts";
+import { importFromLetta } from "./import/letta.ts";
+import { recallDir } from "../mod/recall.ts";
 import { BackgroundTasks, backgroundExtension } from "./background.ts";
 import { Schedules, scheduleExtension } from "./schedule.ts";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
@@ -72,6 +74,8 @@ const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
 // Reflection's counters, where the mod's reader looks for them (mod/reflection.ts).
 process.env.LETTA_TRANSCRIPT_ROOT = join(args.dir, "reflection");
+// Pinned chats are loki's own here; the import from Letta copies Letta's pins in (daemon/import/letta.ts).
+process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
 const credentials = await keychain().then(
@@ -94,15 +98,32 @@ mods.registry.install(subagentExtension());
 mods.registry.install(webSearchExtension());
 // Background tasks and scheduled prompts deliver into their chat through `chat`, made below (daemon/background.ts,
 // daemon/schedule.ts).
+const schedulesFile = join(args.dir, "state", "crons.json");
 const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);
 const background = new BackgroundTasks((agentId, chatId, text) => void deliver(agentId, chatId, text).catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)));
 mods.registry.install(backgroundExtension(background));
-const schedules = new Schedules(join(args.dir, "state", "crons.json"), deliver, report);
+const schedules = new Schedules(schedulesFile, deliver, report);
 mods.registry.install(scheduleExtension(schedules));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report);
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
-const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report });
+const importDone = join(args.dir, "state", "letta-import.json");
+const importLetta = () =>
+  importFromLetta({
+    paths: {
+      letta: join(homedir(), ".letta"),
+      backendDir: backend,
+      doneFile: importDone,
+      schedulesFile,
+      pinsFile: process.env.LOKI_PINS_FILE!,
+      recallWorkerFile: join(recallDir(), "worker.json"),
+    },
+    stores,
+    credentials: credentials ?? new KeychainCredentials(memorySecrets()),
+    knownProviders: new Set(models.getProviders().map((p) => p.id)),
+    context,
+  });
+const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report, importLetta });
 chats.follow(stores);
 await Promise.all(
   listAgents(backend).map(async (id) => {

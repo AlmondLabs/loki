@@ -104,6 +104,8 @@ export interface Replies {
   chat_command_done: { success: boolean; output: string };
   chat_skill_enabled: { name: string; linkPath: string };
   chat_reflection: { trigger: "off" | "step-count" | "compaction-event"; stepCount: number; merge: "auto" | "explicit"; mergeInstructions: string };
+  /** What the one-time import from Letta brought over (daemon/import/letta.ts). */
+  chat_imported: { agents: string[]; chats: number; kept: number; credentials: string[]; schedules: number; notes: string[] };
 }
 export type ReplyName = keyof Replies;
 
@@ -254,6 +256,7 @@ export const FRAMES = {
     isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
   chat_reflection_get: request("chat_reflection", "when reflection passes run", nothing),
+  chat_import: request("chat_imported", "import agents, chats, keys and schedules from Letta, once (again: only what is missing)", nothing),
   chat_reflection_set: request("chat_reflection", "change when reflection passes run", (m) => {
     const trigger = m.trigger === "off" || m.trigger === "step-count" || m.trigger === "compaction-event" ? (m.trigger as "off" | "step-count" | "compaction-event") : null;
     if (!trigger) return "trigger must be off, step-count or compaction-event";
