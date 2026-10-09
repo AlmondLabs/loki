@@ -1,7 +1,7 @@
 import { personTyped } from "../core/harness.ts";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import type { Scope } from "../core/desk-core.ts";
+import type { Scope, WidgetChange } from "../core/desk-core.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { ConversationOpenEvent, EventContext, LettaMod, TurnEndEvent, TurnStartEvent } from "./letta-types.ts";
 import { runtimeFromEvent, ScopeDebouncer } from "./lifecycle-events.ts";
@@ -18,7 +18,7 @@ import { lettaChats, type ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
-import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
+import { RecallWorker, askViaAppServer, askViaChats, startLessonViaAppServer, startLessonViaChats } from "./recall-worker.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
@@ -278,7 +278,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // Cards written in the background from conversations that have gone quiet, asked of the agent through the
   // harness in a hidden conversation of its own; the person meets them only in the Recall section (mod/recall-worker.ts).
   const recallStore = new RecallStore();
-  const recall = new RecallWorker({ store: recallStore, listInbox, readSince: (c, a, from) => chats.since(c, a, from), ask: askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
+  const recall = new RecallWorker({ store: recallStore, listInbox, readSince: (c, a, from) => chats.since(c, a, from), ask: chatBackend ? askViaChats(chatBackend) : askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
   const recallTick = () => void recall.tick().then((r) => log("recall:tick", r)).catch((err) => log("recall:tick-error", err instanceof Error ? err.message : String(err)));
   const recallFirst = setTimeout(recallTick, 90_000); // once the harness and the app-server link have settled
   // The sweep timer: every `tickMinutes` (Settings › learn; ten by default), reset when the setting changes.
@@ -289,6 +289,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
     log("recall:schedule", { minutes: clampTickMinutes(minutes) });
   };
   scheduleRecall(recallStore.worker().tickMinutes ?? DEFAULT_TICK_MINUTES);
+  // A lesson's chat is made by the daemon in process, or through Letta's app-server.
+  const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
   const moduleDeps: ModuleDeps = {
     store,
@@ -300,7 +302,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       store: recallStore,
       run: () => recall.tick(),
       reschedule: scheduleRecall,
-      startLesson: startLessonViaAppServer({ url: () => appServerUrl, store: recallStore, widgetsDir: paths.widgets, expect: (id, change) => widgetLog.expect(id, change, "loki") }),
+      startLesson: chatBackend ? startLessonViaChats(chatBackend, lessons) : startLessonViaAppServer({ ...lessons, url: () => appServerUrl }),
       lessonEmpty: (l) => chats.info(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
     deskInfo,

@@ -138,6 +138,37 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("Learn's ask runs in a hidden chat of its own, made once, and hands back the agent's whole reply", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      s.faux.setResponses([s.reply("first card"), s.reply("second card")]);
+      expect(await s.chats.ask(agent.id, `recall-${agent.id}`, "write a card", null)).toBe("first card");
+      expect(await s.chats.ask(agent.id, `recall-${agent.id}`, "another", null)).toBe("second card");
+      const store = await s.stores.get(agent.id);
+      expect((await store.chatInfo((await store.chat(`recall-${agent.id}`, ctx))!.id, ctx))?.hidden).toBe(true);
+      expect(s.sent[1]).toContain("write a card"); // the second ask follows the first in the same chat
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("an image sent with a message reaches the model as an image part", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      await s.chats.open(agent.id, conversationId);
+      s.faux.setResponses([s.reply("a cat")]);
+      await s.chats.send({ agentId: agent.id, conversationId, text: "what is this?", images: [{ data: "aGVsbG8=", mediaType: "image/png" }], sendId: "i1", context: null });
+      await until(() => kinds(s.pushed).includes("turn_end"));
+      expect(s.sent[0]).toContain('"type":"image"');
+      expect(s.sent[0]).toContain('"mimeType":"image/png"');
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("the models on offer carry their provider in the handle", async () => {
     const s = await setup();
     try {

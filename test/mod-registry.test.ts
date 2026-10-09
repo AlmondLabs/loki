@@ -186,6 +186,7 @@ describe("Letta facade", () => {
           return { widgets: [] };
         },
       });
+      letta.tools.register({ name: "loki_camera", description: "The camera", parameters: { type: "object", properties: {} }, run: () => ({ status: "error", content: "give widgetId or widgetIds" }) });
       letta.events.on("turn_start", (event) => {
         const ev = event as { conversationId: string; input: Array<{ role: string; content: unknown }> };
         const last = ev.input.at(-1)!;
@@ -197,10 +198,14 @@ describe("Letta facade", () => {
     const { store, faux, record, model } = await setup(mods);
     try {
       const chat = await store.createChat("local-conv-9", { agent: { model } }, ctx);
-      faux.setResponses([record(fauxAssistantMessage(fauxToolCall("desk_state", {}), { stopReason: "toolUse" })), record(fauxAssistantMessage("ok"))]);
+      faux.setResponses([record(fauxAssistantMessage([fauxToolCall("desk_state", {}), fauxToolCall("loki_camera", {})], { stopReason: "toolUse" })), record(fauxAssistantMessage("ok"))]);
       await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       expect(runs).toEqual([{ conversation: "local-conv-9", agent: { id: "agent-local-a", name: "Ada" } }]);
-      expect((await results(store, "local-conv-9"))[0]).toContain("widgets");
+      const [desk, camera] = await results(store, "local-conv-9");
+      expect(desk).toContain("widgets");
+      // Letta's error result reaches the model as a failed call, with its message.
+      expect(camera).toContain("give widgetId or widgetIds");
+      expect(camera).not.toContain('"status"');
     } finally {
       await store.close(ctx);
     }

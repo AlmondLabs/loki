@@ -8,6 +8,7 @@ import { formatTranscript } from "../mod/recall-worker.ts";
 import type { ChatProjection } from "./chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { isReflectionChat, MEMORY_TOOLS } from "./memory.ts";
+import { isWriterChat } from "../core/recall/model.ts";
 import { modelRef } from "./chat-backend.ts";
 
 /**
@@ -55,7 +56,7 @@ export class Reflection {
   constructor(deps: Deps) {
     this.deps = deps;
     deps.chats.onEntry((agentId, chatId, kind) => {
-      if (isReflectionChat(chatId)) return;
+      if (isReflectionChat(chatId) || isWriterChat(chatId)) return;
       if (kind === "compaction" && this.settings().trigger === "compaction-event") this.later(agentId, chatId, true);
       else if (kind === "answer") this.later(agentId, chatId, false);
     });

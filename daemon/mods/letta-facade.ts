@@ -22,7 +22,12 @@ export function lettaFacade(api: ModApi) {
           name: tool.name,
           description: tool.description,
           parameters: tool.parameters,
-          execute: (args, ctx) => tool.run({ args, ...ctxOf(ctx) }),
+          execute: async (args, ctx) => {
+            const out = await tool.run({ args, ...ctxOf(ctx) });
+            // Letta's failed result, as a failed tool call.
+            if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") throw new Error(String((out as { content?: unknown }).content ?? "the tool failed"));
+            return out;
+          },
         }),
     },
     commands: { register: () => () => {} },

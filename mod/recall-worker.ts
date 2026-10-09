@@ -8,7 +8,8 @@ import { applyEvent, emptyLive } from "../core/attention/model.ts";
 import { LEADS_PER_CONVERSATION, MAX_TRANSCRIPT_CHARS, buildPrompt, parseExtraction, similarFront, type Slice } from "../core/recall/extract.ts";
 import { scopeFor, type WidgetChange } from "../core/desk-core.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
-import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
+import { learnTitle, writerChatId, type Card, type Lead } from "../core/recall/model.ts";
+import type { ChatBackend } from "./frames/chat.ts";
 import { appServerHeaders } from "./app-server.ts";
 import { readLocalTranscriptSince } from "./desks.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
@@ -419,34 +420,59 @@ export function lessonCard(lead: Lead): { type: "info-card"; title: string; data
   };
 }
 
-/** opts.expect: told just before the lesson card is written, so the desk's widget log reads it as loki's (mod/widget-log.ts). */
-export function startLessonViaAppServer(opts: { url: () => string | null; store: RecallStore; widgetsDir?: string; expect?: (widgetId: string, change: WidgetChange) => void }): StartLesson {
+type LessonOpts = { store: RecallStore; widgetsDir?: string; expect?: (widgetId: string, change: WidgetChange) => void };
+/** Make a lesson's chat for an agent, titled `[Learn] · <lead>`, in the home folder. */
+type CreateLessonChat = (agentId: string, title: string) => Promise<{ agentId: string; conversationId: string }>;
+
+/**
+ * Start a lesson: its chat made by `create` in the home folder, the info card written on its desk, the lead recorded as
+ * a lesson. opts.expect: told just before the lesson card is written, so the desk's widget log reads it as loki's
+ * (mod/widget-log.ts).
+ */
+function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesson {
   return async (leadId) => {
     const lead = opts.store.lead(leadId);
     if (!lead) throw new Error("no such lead");
     if (!lead.source.agentId) throw new Error("the lead names no agent");
+    const rt = await create(lead.source.agentId, learnTitle(lead.title));
+    const scope = scopeFor(rt.conversationId, rt.agentId);
+    const dir = join(opts.widgetsDir ?? paths.widgets, scope);
+    try {
+      mkdirSync(dir, { recursive: true });
+      opts.expect?.(`${scope}/lesson`, existsSync(join(dir, "lesson.json")) ? "changed" : "added");
+      writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
+    } catch (err) {
+      log("recall:lesson-card-failed", { message: err instanceof Error ? err.message : String(err) }); // the desk starts bare; the lesson still starts
+    }
+    const lesson = opts.store.startLesson(leadId, rt);
+    log("recall:lesson-started", { lead: leadId, conversation: rt.conversationId });
+    return { agentId: lesson?.agentId ?? rt.agentId, conversationId: lesson?.conversationId ?? rt.conversationId };
+  };
+}
+
+export function startLessonViaAppServer(opts: LessonOpts & { url: () => string | null }): StartLesson {
+  return startLessonWith(async (agentId, title) => {
     const url = opts.url();
     if (!url) throw new Error("no app-server");
     const sock = new AppServerSocket(url, wsTransport);
     await sock.connect();
     try {
-      const rt = await sock.createConversation(lead.source.agentId, homedir(), learnTitle(lead.title));
-      const scope = scopeFor(rt.conversation_id, rt.agent_id);
-      const dir = join(opts.widgetsDir ?? paths.widgets, scope);
-      try {
-        mkdirSync(dir, { recursive: true });
-        opts.expect?.(`${scope}/lesson`, existsSync(join(dir, "lesson.json")) ? "changed" : "added");
-        writeFileSync(join(dir, "lesson.json"), JSON.stringify(lessonCard(lead), null, 2) + "\n");
-      } catch (err) {
-        log("recall:lesson-card-failed", { message: err instanceof Error ? err.message : String(err) }); // the desk starts bare; the lesson still starts
-      }
-      const lesson = opts.store.startLesson(leadId, { agentId: rt.agent_id, conversationId: rt.conversation_id });
-      log("recall:lesson-started", { lead: leadId, conversation: rt.conversation_id });
-      return { agentId: lesson?.agentId ?? rt.agent_id, conversationId: lesson?.conversationId ?? rt.conversation_id };
+      const rt = await sock.createConversation(agentId, homedir(), title);
+      return { agentId: rt.agent_id, conversationId: rt.conversation_id };
     } finally {
       sock.close();
     }
-  };
+  }, opts);
+}
+
+/** Learn on loki's daemon: the lesson's chat is made in process (mod/frames/chat.ts). */
+export function startLessonViaChats(chats: ChatBackend, opts: LessonOpts): StartLesson {
+  return startLessonWith((agentId, title) => chats.create(agentId, homedir(), title), opts);
+}
+
+/** Learn's ask on loki's daemon: in the agent's hidden writer chat, in process (DaemonChats.ask). */
+export function askViaChats(chats: ChatBackend): Ask {
+  return (agentId, prompt, model) => chats.ask(agentId, writerChatId(agentId), prompt, model);
 }
 
 /**
