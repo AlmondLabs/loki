@@ -105,6 +105,11 @@ export class ThreadModel {
     return out;
   }
 
+  /** The rows a fold made, as they are: no snapshot for a thread nobody draws. */
+  folded(): TranscriptRow[] {
+    return this.tail;
+  }
+
   /** The agent's whole last reply: the newest settled one, else what has streamed so far. */
   lastReply(): string {
     return [...this.tail].reverse().find((r) => r.role === "assistant")?.text ?? this.streamingText;
@@ -149,10 +154,13 @@ export class ThreadModel {
     return t !== "";
   }
 
-  /** A message you sent, shown at once; `echo` (its ownSendKey) is how its echo from the server is known and skipped. */
+  /**
+   * A message you sent, shown at once; `echo` (its ownSendKey, empty for a picture alone) is how its echo from the
+   * server is known and skipped.
+   */
   own(row: TranscriptRow, echo?: string): void {
     this.push(row);
-    if (echo) this.echoes.push(echo);
+    if (echo !== undefined) this.echoes.push(echo);
   }
 
   /** A message going out that was already on screen (a queued one): its echo is skipped. */
@@ -252,7 +260,9 @@ export class ThreadModel {
       if (r.tool?.id) byId.set(r.tool.id, i);
       else {
         const k = `${r.role}\u0000${r.text}`;
-        byText.set(k, [...(byText.get(k) ?? []), i]);
+        const list = byText.get(k);
+        if (list) list.push(i);
+        else byText.set(k, [i]);
       }
     });
     // A page with no times at all keeps only what is pending: nothing can be shown to be newer than it.
@@ -359,21 +369,15 @@ export class ThreadModel {
   /** A call's result: onto its row, among the rows since the page or, when the page took the call, in the page. */
   private result(id: string, output: unknown, failed: boolean): boolean {
     this.args.delete(id);
-    const onto = (rows: TranscriptRow[]): TranscriptRow[] | null => {
-      let i = rows.length - 1;
-      while (i >= 0 && rows[i].tool?.id !== id) i--;
-      if (i < 0) return null;
-      const next = rows.slice();
-      next[i] = { ...rows[i], tool: withResult(rows[i].tool as ToolStep, output, failed) };
-      return next;
+    // The row is replaced, not changed in place: a row that changed is a new object.
+    const onto = (rows: TranscriptRow[] | null): boolean => {
+      let i = (rows?.length ?? 0) - 1;
+      while (i >= 0 && rows![i].tool?.id !== id) i--;
+      if (i < 0) return false;
+      rows![i] = { ...rows![i], tool: withResult(rows![i].tool as ToolStep, output, failed) };
+      return true;
     };
-    const tail = onto(this.tail);
-    if (tail) this.tail = tail;
-    else {
-      const history = this.history && onto(this.history);
-      if (!history) return false;
-      this.history = history;
-    }
+    if (!onto(this.tail) && !onto(this.history)) return false;
     this.touch();
     return true;
   }
@@ -401,5 +405,5 @@ export function foldSteps(steps: Step[]): TranscriptRow[] {
   const t = new ThreadModel();
   for (const s of steps) t.apply(s);
   t.settle();
-  return t.rows() ?? [];
+  return t.folded();
 }

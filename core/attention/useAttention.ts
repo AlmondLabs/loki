@@ -229,7 +229,7 @@ export function useAttention(opts: UseAttentionOptions) {
         if (next && ev.runtime) {
           const rt = ev.runtime;
           const out = outgoing(next.text, next.images);
-          if (out.key) l.thread.expectEcho(out.key);
+          l.thread.expectEcho(out.key);
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
           bump();
           void sock.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, next.desk)).catch((err) => console.warn("loki: queued send", err));

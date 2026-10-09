@@ -222,6 +222,7 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
         if (step.kind === "assistant") {
           l.lastRole = "assistant";
           l.lastMessageAt = now;
+          return { changed: true, userSpoke: false }; // the agent spoke, even with nothing to show yet
         }
         if (spoke === null) return { changed, userSpoke: false };
         l.lastAsk = isScheduledPrompt(spoke) ? "schedule" : "person";

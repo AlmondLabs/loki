@@ -155,6 +155,16 @@ describe("the live thread", () => {
     t.own({ role: "user", text: "look", images: ["data:image/png;base64,x"] }, ownSendKey("look"));
     expect(t.apply({ kind: "user", raw: "look\n[image]", at: null }).spoke).toBe("look\n[image]");
     expect(t.rows()!.length).toBe(1);
+    // a picture sent alone is known again too: its echo is nothing but the [image] line
+    t.own({ role: "user", text: "", images: ["data:image/png;base64,y"] }, ownSendKey(""));
+    t.apply({ kind: "user", raw: "[image]", at: null });
+    expect(t.rows()!.map((r) => r.text)).toEqual(["look", ""]);
+  });
+
+  test("the agent starting to speak counts as a change even before any words arrive", () => {
+    const l = emptyLive();
+    expect(applyEvent(l, delta("assistant_message", { content: "" })).changed).toBe(true);
+    expect(l.lastRole).toBe("assistant");
   });
 
   test("the whole last reply, not the Inbox's digest of it", () => {
