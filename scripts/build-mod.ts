@@ -3,7 +3,7 @@
 // `bun run build:mod`; tauri runs it before dev and build.
 // node_modules are bundled in (ws), except esbuild, which the mod treats as optional.
 import { build } from "esbuild";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -40,11 +40,17 @@ await build({
   platform: "node",
   format: "esm",
   target: "node22",
-  external: ["esbuild"],
+  // The keychain binding is native code esbuild cannot bundle: it ships beside the daemon, below.
+  external: ["esbuild", "@napi-rs/keyring"],
   banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
   legalComments: "none",
   logLevel: "warning",
 });
+// The keychain binding and this system's prebuilt binary (@napi-rs/keyring-<platform>), where Node finds them from
+// daemon.mjs: <data>/daemon/node_modules. Each release runner builds its own system's.
+for (const pkg of readdirSync(here("../node_modules/@napi-rs")).filter((p) => p === "keyring" || p.startsWith("keyring-"))) {
+  cpSync(here(`../node_modules/@napi-rs/${pkg}`), `${out}/daemon/node_modules/@napi-rs/${pkg}`, { recursive: true, dereference: true });
+}
 cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
 
 // The canvas the LAN listener serves to phones (mod/static.ts); install.rs puts it at <data>/app beside the mod.

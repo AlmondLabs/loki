@@ -19,6 +19,8 @@ import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
 import { Approvals, kindOf } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
+import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
+import { Providers } from "./providers.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -59,14 +61,20 @@ const mods = new ModRegistry(report);
 // readers find them through LOKI_BACKEND_DIR; each agent's chats in its own store (daemon/kernel/stores.ts).
 const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
-// Every provider pi-ai knows; until the keychain (U8), a provider's key comes from its environment variable.
-const models = builtinModels();
+// Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
+// variable. A keychain that cannot be reached leaves the environment, and says so.
+const credentials = await keychain().then(
+  (backend) => new KeychainCredentials(backend),
+  (error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined),
+);
+const models = builtinModels(credentials ? { credentials } : {});
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
 // The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).
 const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mods.annotations(name)) });
 mods.registry.install(approvals.extension());
 mods.registry.install(askExtension(approvals));
-const chat = new DaemonChats({ stores, mods, approvals, models, backendDir: backend, context, report });
+const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report);
+const chat = new DaemonChats({ stores, mods, approvals, providers, models, backendDir: backend, context, report });
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 chats.follow(stores);
 await Promise.all(

@@ -1,35 +1,41 @@
 import { describe, expect, test } from "bun:test";
-import type { ConnectProvider } from "../core/attention/protocol.ts";
-import { canConnect, fieldValues, fieldsFor, needsTerminal, sortProviders, welcomeStep } from "../app/src/settings/provider-model";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
+import { Providers } from "../daemon/providers.ts";
 
-const p = (id: string, extra: Partial<ConnectProvider> = {}): ConnectProvider => ({ id, display_name: id[0].toUpperCase() + id.slice(1), provider_type: id, provider_name: id, requires_api_key: true, fields: [{ key: "apiKey", label: "API Key", secret: true, required: true }], connected: { is_connected: false }, ...extra });
+function setup() {
+  const secrets = memorySecrets();
+  const credentials = new KeychainCredentials(secrets);
+  // No environment: a provider is connected only by what is kept here.
+  const models = builtinModels({ credentials });
+  return { secrets, providers: new Providers(models, credentials) };
+}
 
-describe("provider helpers", () => {
-  test("fieldsFor: plain fields, or the chosen auth method's", () => {
-    expect(fieldsFor(p("openai"))).toEqual({ authMethodId: null, fields: [{ key: "apiKey", label: "API Key", secret: true, required: true }] });
-    const bedrock = p("amazon-bedrock", { fields: undefined, auth_methods: [{ id: "iam", label: "keys", fields: [{ key: "accessKey", label: "a", required: true }] }, { id: "profile", label: "profile", fields: [{ key: "profile", label: "p", required: true }] }] });
-    expect(fieldsFor(bedrock).authMethodId).toBe("iam");
-    expect(fieldsFor(bedrock, "profile").fields[0].key).toBe("profile");
+describe("providers on the daemon", () => {
+  test("Anthropic offers a key and no subscription sign-in; ChatGPT offers its sign-in", async () => {
+    const { providers } = setup();
+    const list = await providers.list();
+    const anthropic = list.find((p) => p.id === "anthropic")!;
+    expect(anthropic.auth_methods?.map((m) => m.id)).toEqual(["api_key"]);
+    expect(anthropic.auth_methods?.[0].fields).toEqual([{ key: "api_key", label: expect.any(String), secret: true, required: true }]);
+    expect(list.find((p) => p.id === "openai-codex")?.auth_methods?.map((m) => m.id)).toEqual(["oauth"]);
+    await expect(providers.signIn("anthropic")).rejects.toThrow("does not sign in to anthropic");
   });
-  test("canConnect and fieldValues respect required and trim", () => {
-    const fields = [{ key: "apiKey", label: "k", required: true }, { key: "baseUrl", label: "u", required: false }];
-    expect(canConnect(fields, { apiKey: "  " })).toBe(false);
-    expect(canConnect(fields, { apiKey: "x" })).toBe(true);
-    expect(fieldValues(fields, { apiKey: " x ", baseUrl: "", other: "y" })).toEqual({ apiKey: "x" });
+
+  test("a kept key connects its provider, in the keychain, and disconnecting forgets it", async () => {
+    const { providers, secrets } = setup();
+    const before = (await providers.list()).find((p) => p.id === "anthropic")!;
+    if (before.connected.is_connected) return; // an ANTHROPIC_API_KEY in this environment connects it already
+    await providers.connectKey("anthropic", "  sk-ant-test  ");
+    expect(JSON.parse(secrets.entries.get("provider:anthropic")!)).toEqual({ type: "api_key", key: "sk-ant-test" });
+    expect((await providers.list()).find((p) => p.id === "anthropic")?.connected).toMatchObject({ is_connected: true, auth_type: "api_key" });
+    await providers.disconnect("anthropic");
+    expect(secrets.entries.has("provider:anthropic")).toBe(false);
   });
-  test("needsTerminal for oauth entries", () => {
-    expect(needsTerminal(p("anthropic-oauth", { is_oauth: true, fields: undefined, auth_methods: [] }))).toBe(true);
-    expect(needsTerminal(p("openai"))).toBe(false);
-  });
-  test("sortProviders: connected, shortlist, rest; filter by name", () => {
-    const list = [p("zai"), p("openai"), p("anthropic"), p("groq", { connected: { is_connected: true } })];
-    expect(sortProviders(list).map((x) => x.id)).toEqual(["groq", "anthropic", "openai", "zai"]);
-    expect(sortProviders(list, "ANTH").map((x) => x.id)).toEqual(["anthropic"]);
-  });
-  test("welcomeStep", () => {
-    expect(welcomeStep({ agents: 2, providers: null })).toBeNull();
-    expect(welcomeStep({ agents: 0, providers: null })).toBe("agent");
-    expect(welcomeStep({ agents: 0, providers: [p("openai")] })).toBe("provider");
-    expect(welcomeStep({ agents: 0, providers: [p("openai", { connected: { is_connected: true } })] })).toBe("agent");
+
+  test("an empty key, or one for a provider that takes none, is refused", async () => {
+    const { providers } = setup();
+    await expect(providers.connectKey("anthropic", "   ")).rejects.toThrow("empty");
+    await expect(providers.connectKey("no-such-provider", "k")).rejects.toThrow("does not take an API key");
   });
 });

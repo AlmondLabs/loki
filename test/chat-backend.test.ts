@@ -8,6 +8,8 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import { DaemonChats, modelRef } from "../daemon/chat-backend.ts";
 import { Approvals } from "../daemon/approvals.ts";
+import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
+import { Providers } from "../daemon/providers.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
@@ -24,7 +26,8 @@ async function setup() {
   await mods.load({ name: "rider", apiVersion: 1, activate: (api) => void api.message.transform((m) => (typeof m.content === "string" ? `${m.content}\n<loki-desk/>` : m.content)) });
   const stores = new StoreManager(join(dir, "stores"), { models, registry: mods.registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx));
   const approvals = new Approvals();
-  const chats = new DaemonChats({ stores, mods, approvals, models, backendDir: join(dir, "backend"), context: ctx });
+  const providers = new Providers(models, new KeychainCredentials(memorySecrets()));
+  const chats = new DaemonChats({ stores, mods, approvals, providers, models, backendDir: join(dir, "backend"), context: ctx });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
   const sent: string[] = [];

@@ -24,6 +24,10 @@ export interface ChatBackend {
   createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }>;
   updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void>;
   deleteAgent(agentId: string): Promise<void>;
+  providers(): Promise<Replies["chat_providers"]["providers"]>;
+  connectProvider(providerId: string, apiKey: string): Promise<void>;
+  disconnectProvider(providerId: string): Promise<void>;
+  signIn(providerId: string): Promise<Replies["chat_signin"]>;
 }
 
 export type ChatDeps = { chat?: ChatBackend };
@@ -58,5 +62,9 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_agent_create: (p) => served(b, (x) => x.createAgent(p)),
     chat_agent_update: (p) => served(b, async (x) => (await x.updateAgent(p), DONE)),
     chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
+    chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
+    chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
+    chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),
+    chat_provider_signin: ({ providerId }) => served(b, (x) => x.signIn(providerId)),
   };
 }

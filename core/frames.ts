@@ -2,6 +2,7 @@ import { isEventName } from "./analytics.ts";
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
 import type { ModelEntry, ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
+import type { ConnectProvider } from "./attention/protocol.ts";
 import type { CardWithSchedule, RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
@@ -98,6 +99,8 @@ export interface Replies {
   chat_agents: { agents: Array<{ id: string; name: string }> };
   chat_agent_created: { id: string; name: string };
   chat_done: Record<never, never>;
+  chat_providers: { providers: ConnectProvider[] };
+  chat_signin: { url: string; instructions: string | null };
 }
 export type ReplyName = keyof Replies;
 
@@ -247,6 +250,12 @@ export const FRAMES = {
   chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
+  chat_providers: request("chat_providers", "the model providers, connected or not", nothing),
+  chat_provider_connect: request("chat_providers", "keep a provider's API key, once the provider accepts it", (m) =>
+    str(m.providerId) && m.providerId && str(m.apiKey) ? { providerId: m.providerId, apiKey: m.apiKey } : "providerId and apiKey required"),
+  chat_provider_disconnect: request("chat_providers", "forget a provider's credential", (m) => (str(m.providerId) && m.providerId ? { providerId: m.providerId } : "providerId required")),
+  chat_provider_signin: request("chat_signin", "start signing in to a provider: the page to open; the credential is kept when the browser comes back", (m) =>
+    str(m.providerId) && m.providerId ? { providerId: m.providerId } : "providerId required"),
 
   // Folders
   folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),

@@ -12,6 +12,7 @@ import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
+import type { Providers } from "./providers.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import type { ModRegistry } from "./mods/registry.ts";
@@ -27,6 +28,7 @@ import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
 type Deps = {
   stores: StoreManager;
   approvals: Approvals;
+  providers: Providers;
   mods: ModRegistry;
   models: Models;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
@@ -182,6 +184,22 @@ export class DaemonChats implements ChatBackend {
     if (p.model !== undefined) record.model = p.model;
     writeRecord(this.deps.backendDir, p.agentId, record);
     if (p.name !== undefined) await (await this.deps.stores.get(p.agentId)).setAgent({ id: p.agentId, name: p.name }, this.deps.context);
+  }
+
+  providers() {
+    return this.deps.providers.list();
+  }
+
+  connectProvider(providerId: string, apiKey: string): Promise<void> {
+    return this.deps.providers.connectKey(providerId, apiKey);
+  }
+
+  disconnectProvider(providerId: string): Promise<void> {
+    return this.deps.providers.disconnect(providerId);
+  }
+
+  signIn(providerId: string) {
+    return this.deps.providers.signIn(providerId);
   }
 
   async deleteAgent(agentId: string): Promise<void> {

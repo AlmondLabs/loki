@@ -210,12 +210,20 @@ fn install_mod(resources: &Path, data_dir: &Path, home: &Path) -> Result<(State,
     Ok((state, shim, mod_path))
 }
 
-/// loki's daemon (plan 017): <resources>/daemon/daemon.mjs → <data>/daemon/daemon.mjs, for LOKI_BACKEND=pi. A build
-/// without it installs nothing.
+/// loki's daemon (plan 017): <resources>/daemon → <data>/daemon, for LOKI_BACKEND=pi: daemon.mjs and the keychain's
+/// native binding beside it (node_modules). A build without it installs nothing.
 fn install_daemon(resources: &Path, data_dir: &Path) -> Result<State, String> {
-    let Ok(bundle) = std::fs::read(resources.join("daemon").join("daemon.mjs")) else { return Ok(State::Skipped) };
-    let dst = data_dir.join("daemon").join("daemon.mjs");
-    write_if_changed(&dst, &bundle).map_err(|e| format!("could not write {}: {e}", dst.display()))
+    let src = resources.join("daemon");
+    if !src.join("daemon.mjs").is_file() { return Ok(State::Skipped) }
+    let dst = data_dir.join("daemon");
+    let mut files = Vec::new();
+    walk(&src, Path::new(""), &mut files).map_err(|e| format!("bundled daemon unreadable: {e}"))?;
+    let mut state = State::Current;
+    for rel in &files {
+        let bytes = std::fs::read(src.join(rel)).map_err(|e| e.to_string())?;
+        if write_if_changed(&dst.join(rel), &bytes).map_err(|e| format!("could not write {}: {e}", rel.display()))? != State::Current { state = State::Updated; }
+    }
+    Ok(state)
 }
 
 fn install_skill(resources: &Path, home: &Path) -> Result<(State, PathBuf), String> {
@@ -420,10 +428,12 @@ mod tests {
         let (_root, resources, data, home) = fixture();
         run(&resources, &data, &home);
         assert!(!data.join("daemon").exists(), "a build without the daemon installs none");
-        std::fs::create_dir_all(resources.join("daemon")).unwrap();
+        std::fs::create_dir_all(resources.join("daemon").join("node_modules").join("@napi-rs").join("keyring")).unwrap();
         std::fs::write(resources.join("daemon").join("daemon.mjs"), b"// daemon\n").unwrap();
+        std::fs::write(resources.join("daemon").join("node_modules").join("@napi-rs").join("keyring").join("index.js"), b"// keyring\n").unwrap();
         let r = run(&resources, &data, &home);
         assert_eq!(std::fs::read(data.join("daemon").join("daemon.mjs")).unwrap(), b"// daemon\n");
+        assert_eq!(std::fs::read(data.join("daemon").join("node_modules").join("@napi-rs").join("keyring").join("index.js")).unwrap(), b"// keyring\n", "the native binding beside it");
         assert!(r.error.is_none(), "{:?}", r.error);
     }
 

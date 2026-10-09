@@ -279,6 +279,11 @@ export function useDesk() {
               return () => chatListeners.current.delete(fn);
             },
             agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
+            // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
+            openUrl: (url) => {
+              if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err) => console.warn("loki: open sign-in", err));
+              else window.open(url, "_blank", "noopener,noreferrer");
+            },
           })
       : undefined,
     capture,

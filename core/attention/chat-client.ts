@@ -65,9 +65,11 @@ export class FrameChatClient implements ChatClient {
   private readonly listeners = new Set<(rt: Runtime, events: ChatEvent[]) => void>();
   private readonly opened = new Set<string>();
   private readonly agents = new Map<string, string>();
+  private readonly openUrl: (url: string) => void;
 
-  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; agentOf?: (conversationId: string) => string | null }) {
+  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; agentOf?: (conversationId: string) => string | null; openUrl?: (url: string) => void }) {
     this.request = opts.request;
+    this.openUrl = opts.openUrl ?? (() => {});
     this.agentOf = opts.agentOf ?? (() => null);
     this.unsubscribe = opts.onChatEvent(({ agentId, conversationId, events }) => this.emit({ agent_id: agentId, conversation_id: conversationId }, events));
     queueMicrotask(() => this.onStatus?.("open"));
@@ -196,7 +198,7 @@ export class FrameChatClient implements ChatClient {
     return [];
   }
 
-  // What later units bring to the daemon (plan 017): providers (U8), memory and
+  // What later units bring to the daemon (plan 017): memory and
   // reflection (U9), skills and commands (U10).
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
     return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, allow: behavior === "allow", message: null })).accepted;
@@ -206,13 +208,28 @@ export class FrameChatClient implements ChatClient {
     return (await this.call("chat_answer", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, input: updatedInput })).accepted;
   }
   async listConnectProviders(): Promise<ConnectProvider[]> {
-    return [];
+    return (await this.call("chat_providers", {})).providers;
   }
-  async connectProvider(): Promise<ConnectProvider[]> {
-    throw NOT_YET("connecting a provider");
+
+  /**
+   * An API key goes to the daemon, which keeps it once the provider accepts it. Signing in opens the provider's page
+   * in the browser and waits (up to five minutes) for the daemon to report the provider connected.
+   */
+  async connectProvider(providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<ConnectProvider[]> {
+    if (authMethodId !== "oauth") return (await this.call("chat_provider_connect", { providerId, apiKey: fields.api_key ?? "" }, 30_000)).providers;
+    const page = await this.call("chat_provider_signin", { providerId }, 30_000);
+    this.openUrl(page.url);
+    const until = Date.now() + 5 * 60_000;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const list = await this.listConnectProviders();
+      if (list.find((p) => p.id === providerId)?.connected.is_connected) return list;
+    }
+    throw new Error(page.instructions ? `sign-in did not finish: ${page.instructions}` : "sign-in did not finish");
   }
-  async disconnectProvider(): Promise<ConnectProvider[]> {
-    throw NOT_YET("disconnecting a provider");
+
+  async disconnectProvider(providerId: string): Promise<ConnectProvider[]> {
+    return (await this.call("chat_provider_disconnect", { providerId })).providers;
   }
   async getReflectionSettings(): Promise<ReflectionSettings | null> {
     return null;
