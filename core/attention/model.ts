@@ -1,5 +1,5 @@
 import { isScheduledPrompt, looksLikeQuestion, protocolStep, stripHarnessMarkup } from "../harness.ts";
-import { ThreadModel } from "./thread.ts";
+import { ThreadModel, type Step } from "./thread.ts";
 import type { Runtime, ServerEvent } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
@@ -158,96 +158,152 @@ export function cancelQueued(l: Live, text: string): boolean {
   return true;
 }
 
-/** Fold one live event into a conversation's live state. Returns true if anything changed. */
-export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
+/**
+ * What happens in a chat while it runs, in loki's own words (plan 017, U5): the daemon pushes these, and Letta's
+ * app-server events are read into them (lettaChatEvents), so one function folds either into a chat's live state.
+ */
+export type ChatEvent =
+  /** The agent asks to run a tool. */
+  | { kind: "approval"; requestId: string; toolName: string; input: unknown }
+  /** The agent asks you questions (a question card), answered with the input filled in. */
+  | { kind: "question"; requestId: string; input: unknown }
+  /** The chat's permission mode or folder, as the backend has them now. */
+  | { kind: "device"; mode?: string; cwd?: string }
+  /** Whether the chat is running, idle, or waiting on an approval; `detail` is the backend's own word for it. */
+  | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string }
+  /** A piece of the thread: a message, a streamed piece of the reply, a call, an approval, a result. */
+  | { kind: "step"; step: Step }
+  /** The turn failed. */
+  | { kind: "error"; message: string }
+  /** A slash command started or answered. */
+  | { kind: "command"; phase: "start" | "end"; input: string; output?: string; success?: boolean }
+  /** The reply in progress is complete. */
+  | { kind: "settle" }
+  /** The turn ended. */
+  | { kind: "turn_end" };
+
+/** One Letta app-server event as chat events (until the cutover, plan 017 U15). */
+export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
   switch (ev.type) {
     case "control_request": {
       const req = ev.request as { subtype?: string; tool_name?: string; input?: unknown } | undefined;
-      if (req?.subtype !== "can_use_tool") return { changed: false, userSpoke: false };
-      if (req.tool_name === "AskUserQuestion") {
-        // Not a permission: the agent wants answers. Rendered as a question card, answered with the input filled in.
-        const questions = askQuestions(req.input);
-        l.pendingAsk = { requestId: String(ev.request_id), input: req.input, questions, at: now };
-        l.pending = null;
-      } else {
-        l.pending = { requestId: String(ev.request_id), toolName: req.tool_name ?? "tool", input: req.input, at: now };
-        l.pendingAsk = null;
-      }
-      l.lastMessageAt = now;
-      return { changed: true, userSpoke: false };
+      if (req?.subtype !== "can_use_tool") return [];
+      const requestId = String(ev.request_id);
+      return req.tool_name === "AskUserQuestion" ? [{ kind: "question", requestId, input: req.input }] : [{ kind: "approval", requestId, toolName: req.tool_name ?? "tool", input: req.input }];
     }
     case "update_device_status": {
       const status = ev.device_status as { current_permission_mode?: string; current_working_directory?: string } | undefined;
-      const m = status?.current_permission_mode;
-      const cwd = status?.current_working_directory;
+      return [{ kind: "device", ...(status?.current_permission_mode ? { mode: status.current_permission_mode } : {}), ...(status?.current_working_directory ? { cwd: status.current_working_directory } : {}) }];
+    }
+    case "update_loop_status": {
+      const status = (ev.loop_status as { status?: string } | undefined)?.status;
+      if (!status) return [];
+      const state = status === "WAITING_ON_INPUT" ? "idle" : status === "WAITING_ON_APPROVAL" ? "approval" : "running";
+      return [{ kind: "loop", state, detail: status }];
+    }
+    case "stream_delta": {
+      const d = ev.delta as Record<string, unknown> | undefined;
+      const mt = d?.message_type;
+      const step = protocolStep(d, now, true);
+      if (step) return [{ kind: "step", step }];
+      if (mt === "error_message" || mt === "loop_error") return [{ kind: "error", message: String((d as { message?: string })?.message ?? "the turn failed") }];
+      if (mt === "slash_command_start" || mt === "slash_command_end") {
+        const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
+        const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;
+        return [mt === "slash_command_start" ? { kind: "command", phase: "start", input } : { kind: "command", phase: "end", input, success: c.success !== false, output: typeof c.output === "string" ? c.output : "" }];
+      }
+      if (mt === "stop_reason") return [{ kind: "settle" }];
+      return [];
+    }
+    case "turn_finished":
+      return [{ kind: "turn_end" }];
+    default:
+      return [];
+  }
+}
+
+/** Fold one Letta app-server event into a conversation's live state. */
+export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
+  let changed = false;
+  let userSpoke = false;
+  for (const e of lettaChatEvents(ev, now)) {
+    const r = applyChatEvent(l, e, now);
+    changed ||= r.changed;
+    userSpoke ||= r.userSpoke;
+  }
+  return { changed, userSpoke };
+}
+
+/** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
+export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
+  switch (e.kind) {
+    case "approval":
+      l.pending = { requestId: e.requestId, toolName: e.toolName, input: e.input, at: now };
+      l.pendingAsk = null;
+      l.lastMessageAt = now;
+      return { changed: true, userSpoke: false };
+    case "question":
+      l.pendingAsk = { requestId: e.requestId, input: e.input, questions: askQuestions(e.input), at: now };
+      l.pending = null;
+      l.lastMessageAt = now;
+      return { changed: true, userSpoke: false };
+    case "device": {
       let changed = false;
-      if (m && m !== l.mode) {
-        l.mode = m;
+      if (e.mode && e.mode !== l.mode) {
+        l.mode = e.mode;
         changed = true;
       }
-      if (cwd && cwd !== l.cwd) {
-        l.cwd = cwd;
+      if (e.cwd && e.cwd !== l.cwd) {
+        l.cwd = e.cwd;
         changed = true;
       }
       return { changed, userSpoke: false };
     }
-    case "update_loop_status": {
-      const status = (ev.loop_status as { status?: string } | undefined)?.status;
-      // The harness repeats a status (WAITING_ON_INPUT on every idle conversation, every few seconds): a repeat
-      // that moves nothing is no change, so nothing re-renders on it.
+    case "loop": {
+      // A backend repeats a status (Letta says WAITING_ON_INPUT for every idle conversation every few seconds): a
+      // repeat that moves nothing is no change, so nothing re-renders on it.
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
-      l.loop = status;
-      if (status && status !== "WAITING_ON_INPUT" && status !== "WAITING_ON_APPROVAL") l.inTurn = true;
-      if (status === "WAITING_ON_INPUT") {
+      l.loop = e.detail ?? e.state;
+      if (e.state === "running") l.inTurn = true;
+      if (e.state === "idle") {
         l.thread.settle(now);
         if (l.inTurn) {
           l.turns += 1;
           l.inTurn = false;
         }
       }
-      if (status && status !== "WAITING_ON_APPROVAL") {
+      if (e.state !== "approval") {
         l.pending = null;
         l.pendingAsk = null;
       }
-      if (status && status !== "WAITING_ON_INPUT" && status !== "WAITING_ON_APPROVAL") l.error = null;
+      if (e.state === "running") l.error = null;
       const after = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
       return { changed: after.some((v, i) => v !== before[i]), userSpoke: false };
     }
-    case "stream_delta": {
-      const d = ev.delta as Record<string, unknown> | undefined;
-      const mt = d?.message_type;
-      const step = protocolStep(d, now, true);
-      if (step) {
-        const { changed, spoke } = l.thread.apply(step);
-        if (step.kind === "assistant") {
-          l.lastRole = "assistant";
-          l.lastMessageAt = now;
-          return { changed: true, userSpoke: false }; // the agent spoke, even with nothing to show yet
-        }
-        if (spoke === null) return { changed, userSpoke: false };
-        l.lastAsk = isScheduledPrompt(spoke) ? "schedule" : "person";
-        l.lastRole = "user";
-        l.lastAssistantText = null;
-        return { changed: true, userSpoke: true };
+    case "step": {
+      const { changed, spoke } = l.thread.apply(e.step);
+      if (e.step.kind === "assistant") {
+        l.lastRole = "assistant";
+        l.lastMessageAt = now;
+        return { changed: true, userSpoke: false }; // the agent spoke, even with nothing to show yet
       }
-      if (mt === "error_message" || mt === "loop_error") {
-        l.error = String((d as { message?: string })?.message ?? "the turn failed");
-        return { changed: true, userSpoke: false };
-      }
-      if (mt === "slash_command_start" || mt === "slash_command_end") {
-        const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
-        const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;
-        if (mt === "slash_command_start") l.thread.beginCommand(input, now);
-        else l.thread.finishCommand(input, c.success !== false, typeof c.output === "string" ? c.output : "", now);
-        return { changed: true, userSpoke: false };
-      }
-      if (mt === "stop_reason") {
-        l.thread.settle(now);
-        return { changed: true, userSpoke: false };
-      }
-      return { changed: false, userSpoke: false };
+      if (spoke === null) return { changed, userSpoke: false };
+      l.lastAsk = isScheduledPrompt(spoke) ? "schedule" : "person";
+      l.lastRole = "user";
+      l.lastAssistantText = null;
+      return { changed: true, userSpoke: true };
     }
-    case "turn_finished":
+    case "error":
+      l.error = e.message;
+      return { changed: true, userSpoke: false };
+    case "command":
+      if (e.phase === "start") l.thread.beginCommand(e.input, now);
+      else l.thread.finishCommand(e.input, e.success !== false, e.output ?? "", now);
+      return { changed: true, userSpoke: false };
+    case "settle":
+      l.thread.settle(now);
+      return { changed: true, userSpoke: false };
+    case "turn_end":
       l.thread.settle(now);
       if (l.inTurn) {
         l.turns += 1;
@@ -257,8 +313,6 @@ export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOStrin
       l.pending = null;
       l.pendingAsk = null;
       return { changed: true, userSpoke: false };
-    default:
-      return { changed: false, userSpoke: false };
   }
 }
 
