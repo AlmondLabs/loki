@@ -298,6 +298,19 @@ pub fn is_own_launch(words: &[String], own_url: &str, token_file: &std::path::Pa
     words.iter().any(|w| w == "server") && after("--listen").map(String::as_str) == Some(own_url) && after("--ws-token-file").is_some_and(|f| same_path(f, &token_file.to_string_lossy()))
 }
 
+/// Whether a command line is loki's daemon for this token file (harness::daemon_command): `--loki-daemon` with
+/// `--token-file <token_file>`.
+pub fn is_own_daemon(words: &[String], token_file: &std::path::Path) -> bool {
+    let after = |flag: &str| words.iter().position(|w| w == flag).and_then(|i| words.get(i + 1));
+    words.iter().any(|w| w == "--loki-daemon") && after("--token-file").is_some_and(|f| same_path(f, &token_file.to_string_lossy()))
+}
+
+/// loki's daemon left from an earlier run: its loki is gone (a running loki's daemon is that loki's, and is never
+/// stopped). The daemon's own lock keeps a second one from serving; this lets a new loki replace an orphan.
+pub fn daemon_leftover(snap: &Snapshot, token_file: &std::path::Path) -> Option<Leftover> {
+    snap.procs.iter().find(|p| is_own_daemon(&command_words(&p.cmd), token_file) && !has_live_loki_parent(snap, p)).map(|p| Leftover { pid: p.pid, started: p.started })
+}
+
 /// Windows paths match whatever their slashes and case; other systems compare them as written.
 fn same_path(a: &str, b: &str) -> bool {
     if cfg!(windows) {
@@ -433,7 +446,7 @@ pub mod os {
         let procs = sys
             .processes()
             .iter()
-            .map(|(pid, p)| Proc { pid: pid.as_u32(), name: p.name().to_string_lossy().into_owned(), cmd: p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect(), started: p.start_time(), parent: None })
+            .map(|(pid, p)| Proc { pid: pid.as_u32(), name: p.name().to_string_lossy().into_owned(), cmd: p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect(), started: p.start_time(), parent: p.parent().map(|pp| pp.as_u32()) })
             .collect();
         let mut listening: Vec<(u32, u16)> = match listeners::get_all() {
             Ok(all) => all.into_iter().filter(|l| l.protocol == listeners::Protocol::TCP && l.state == listeners::SocketState::Listen).map(|l| (l.process.pid, l.socket.port())).collect(),
@@ -476,6 +489,21 @@ pub mod os {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_daemon_whose_loki_is_gone_is_a_leftover_and_one_whose_loki_runs_is_not() {
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let tf = std::path::PathBuf::from("/home/x/.loki/token");
+        let daemon = |pid, parent| Proc { pid, name: "node".into(), cmd: s(&["node", "/data/daemon/daemon.mjs", "--loki-daemon", "--dir", "/home/x/.loki", "--mod", "/data/mod/loki-mod.mjs", "--token-file", "/home/x/.loki/token"]), started: 99, parent };
+        let shell = Proc { pid: 5, name: "loki".into(), cmd: vec![], started: 1, parent: Some(1) };
+        let orphan = Snapshot { procs: vec![daemon(40, Some(1))], listening: vec![] };
+        assert_eq!(daemon_leftover(&orphan, &tf), Some(Leftover { pid: 40, started: 99 }));
+        let owned = Snapshot { procs: vec![daemon(40, Some(5)), shell], listening: vec![] };
+        assert_eq!(daemon_leftover(&owned, &tf), None, "a running loki's daemon");
+        assert_eq!(daemon_leftover(&orphan, std::path::Path::new("/elsewhere/token")), None, "another folder's daemon");
+        let not_daemon = Snapshot { procs: vec![Proc { pid: 41, name: "node".into(), cmd: s(&["node", "x.mjs", "--token-file", "/home/x/.loki/token"]), started: 1, parent: None }], listening: vec![] };
+        assert_eq!(daemon_leftover(&not_daemon, &tf), None, "no --loki-daemon marker");
+    }
 
     #[test]
     fn reads_app_server_addresses_off_the_process_list() {

@@ -210,6 +210,14 @@ fn install_mod(resources: &Path, data_dir: &Path, home: &Path) -> Result<(State,
     Ok((state, shim, mod_path))
 }
 
+/// loki's daemon (plan 017): <resources>/daemon/daemon.mjs → <data>/daemon/daemon.mjs, for LOKI_BACKEND=pi. A build
+/// without it installs nothing.
+fn install_daemon(resources: &Path, data_dir: &Path) -> Result<State, String> {
+    let Ok(bundle) = std::fs::read(resources.join("daemon").join("daemon.mjs")) else { return Ok(State::Skipped) };
+    let dst = data_dir.join("daemon").join("daemon.mjs");
+    write_if_changed(&dst, &bundle).map_err(|e| format!("could not write {}: {e}", dst.display()))
+}
+
 fn install_skill(resources: &Path, home: &Path) -> Result<(State, PathBuf), String> {
     let src = resources.join("skills").join("loki");
     let dst = skill_dir(home);
@@ -322,6 +330,9 @@ pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
             report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {e}"), None => e });
         }
     }
+    if let Err(e) = install_daemon(resources, data_dir) {
+        report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {e}"), None => e });
+    }
     match install_skill(resources, home) {
         Ok((state, dir)) => {
             report.skill = state;
@@ -402,6 +413,18 @@ mod tests {
         assert_eq!(r.r#mod, State::Updated);
         assert_eq!(r.skill, State::Updated);
         assert!(r.changed());
+    }
+
+    #[test]
+    fn the_daemon_bundle_is_installed_beside_the_mod_when_the_build_has_one() {
+        let (_root, resources, data, home) = fixture();
+        run(&resources, &data, &home);
+        assert!(!data.join("daemon").exists(), "a build without the daemon installs none");
+        std::fs::create_dir_all(resources.join("daemon")).unwrap();
+        std::fs::write(resources.join("daemon").join("daemon.mjs"), b"// daemon\n").unwrap();
+        let r = run(&resources, &data, &home);
+        assert_eq!(std::fs::read(data.join("daemon").join("daemon.mjs")).unwrap(), b"// daemon\n");
+        assert!(r.error.is_none(), "{:?}", r.error);
     }
 
     #[test]

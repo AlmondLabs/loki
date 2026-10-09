@@ -25,7 +25,11 @@ pub const LISTEN_PORT: u16 = 41600;
 
 /// The child, once started. Managed from launch so a harness can start later (after an install).
 #[derive(Default)]
-pub struct Harness(pub Mutex<Option<Running>>);
+pub struct Harness {
+    slot: Mutex<Option<Running>>,
+    /// Set by `stop`: the supervisor (supervise_daemon in lib.rs) does not restart a child loki stopped itself.
+    stopped: std::sync::atomic::AtomicBool,
+}
 
 /// The harness loki started: the child, and on Windows the Job Object that owns its process tree.
 pub struct Running {
@@ -74,22 +78,76 @@ pub fn server_command(os: Os, rt: &Runtime, launch: &Launch) -> Command {
     cmd
 }
 
+/// Where loki's daemon is and what it hosts (plan 017): started in place of `letta server` when LOKI_BACKEND=pi.
+pub struct Daemon<'a> {
+    pub node: &'a Path,
+    /// daemon.mjs as installed, or a checkout's daemon/main.ts.
+    pub entry: &'a Path,
+    /// The mod the daemon hosts: the installed loki-mod.mjs, or a checkout's mod/boot.ts.
+    pub mod_entry: &'a Path,
+    /// The folder the daemon locks and keeps its state in.
+    pub dir: &'a Path,
+}
+
+/// The daemon's exit code when another daemon already holds its folder (daemon/main.ts EXIT_HELD): that one keeps
+/// serving, so this one is not restarted.
+pub const EXIT_HELD: i32 = 3;
+
+/// `node <entry> --loki-daemon …`: TypeScript sources run with Node's type stripping, the bundle as it is. The marker
+/// and the token file make the command line recognisably loki's, for a leftover from a crash (appserver.rs).
+pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
+    let mut cmd = Command::new(d.node);
+    if d.entry.extension().is_some_and(|e| e == "ts") {
+        cmd.args(["--experimental-strip-types", "--no-warnings"]);
+    }
+    cmd.arg(d.entry).args(["--loki-daemon", "--dir"]).arg(d.dir).arg("--mod").arg(d.mod_entry).arg("--token-file").arg(launch.token_file);
+    bootstrap::quiet(&mut cmd);
+    cmd
+}
+
+/// How long to wait before restarting a daemon that died, given how many times it died in the last minute: one
+/// second, doubling, never more than thirty — a daemon that crashes at start does not spin.
+pub fn restart_delay(recent_exits: usize) -> std::time::Duration {
+    std::time::Duration::from_secs(1u64.checked_shl(recent_exits.min(5) as u32).unwrap_or(32).min(30))
+}
+
 impl Harness {
     /// Start `letta server` with `rt`; replaces a child started earlier.
     pub fn start(&self, rt: &Runtime, launch: &Launch) -> Result<(), String> {
-        std::fs::create_dir_all(launch.log_dir).map_err(|e| e.to_string())?;
-        let log = std::fs::File::create(launch.log_dir.join("harness.log")).map_err(|e| e.to_string())?;
         // A scratch folder that cannot be made is not worth refusing the harness for: Letta falls back to its
         // temp folder, and Settings › letta shows the error next to the path.
         if let Err(e) = crate::scratch::prepare(launch.scratch) { eprintln!("loki: scratch folder: {e}"); }
         // Resolved now, from what is on disk now: never a path remembered from an earlier start.
-        let mut cmd = server_command(Os::HOST, rt, launch);
+        self.spawn(server_command(Os::HOST, rt, launch), launch.log_dir, "harness.log", false)
+    }
+
+    /// Start loki's daemon; replaces a child started earlier.
+    pub fn start_daemon(&self, d: &Daemon, launch: &Launch) -> Result<(), String> {
+        // Appended, so a restarted daemon's log follows the one that died rather than replacing it.
+        self.spawn(daemon_command(d, launch), launch.log_dir, "daemon.log", true)
+    }
+
+    /// Whether the child has exited, and how: None while it runs or when there is none.
+    pub fn exited(&self) -> Option<std::process::ExitStatus> {
+        self.slot.lock().ok()?.as_mut()?.child.try_wait().ok()?
+    }
+
+    /// Whether loki itself stopped the child (quit, or a replacement started).
+    pub fn was_stopped(&self) -> bool {
+        self.stopped.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn spawn(&self, mut cmd: Command, log_dir: &Path, log_name: &str, append: bool) -> Result<(), String> {
+        std::fs::create_dir_all(log_dir).map_err(|e| e.to_string())?;
+        let path = log_dir.join(log_name);
+        let log = if append { std::fs::OpenOptions::new().create(true).append(true).open(&path) } else { std::fs::File::create(&path) }.map_err(|e| e.to_string())?;
+        let name = cmd_name(&cmd);
         cmd.stdin(Stdio::null()).stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?)).stderr(Stdio::from(log));
         #[cfg(target_os = "linux")]
         let child = death::spawn(cmd);
         #[cfg(not(target_os = "linux"))]
         let child = cmd.spawn();
-        let child = child.map_err(|e| format!("could not start letta server: {e}"))?;
+        let child = child.map_err(|e| format!("could not start {name}: {e}"))?;
         #[cfg(windows)]
         let running = {
             let job = job::Job::kill_on_close().and_then(|j| j.assign(&child).map(|_| j));
@@ -98,18 +156,29 @@ impl Harness {
         };
         #[cfg(not(windows))]
         let running = Running { child };
-        self.stop();
-        if let Ok(mut g) = self.0.lock() { *g = Some(running); }
+        self.kill_child();
+        self.stopped.store(false, std::sync::atomic::Ordering::SeqCst);
+        if let Ok(mut g) = self.slot.lock() { *g = Some(running); }
         Ok(())
     }
 
     /// Kill the harness and wait for it; on Windows closing the job then takes the rest of its tree.
     pub fn stop(&self) {
-        if let Some(Running { mut child, .. }) = self.0.lock().ok().and_then(|mut g| g.take()) {
+        self.stopped.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.kill_child();
+    }
+
+    fn kill_child(&self) {
+        if let Some(Running { mut child, .. }) = self.slot.lock().ok().and_then(|mut g| g.take()) {
             let _ = child.kill();
             let _ = child.wait();
         }
     }
+}
+
+/// The program a command runs, for an error message.
+fn cmd_name(cmd: &Command) -> String {
+    Path::new(cmd.get_program()).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// Whatever ends the app — window closed, quit, or a signal unwinding main — the harness goes with it.
@@ -245,6 +314,37 @@ mod tests {
         assert!(child.try_wait().unwrap().is_none(), "alive after the starting thread exited");
         let _ = child.kill();
         assert!(!child.wait().unwrap().success());
+    }
+
+    #[test]
+    fn the_daemon_runs_its_sources_with_type_stripping_and_its_bundle_as_it_is() {
+        let (node, dir, token) = (PathBuf::from("/usr/local/bin/node"), PathBuf::from("/home/x/.loki"), PathBuf::from("/home/x/.loki/token"));
+        let args = |entry: &str, mod_entry: &str| {
+            let (entry, mod_entry) = (PathBuf::from(entry), PathBuf::from(mod_entry));
+            let cmd = daemon_command(&Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &dir }, &launch(&token));
+            assert_eq!(cmd.get_program(), node.as_os_str());
+            cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            args("/src/loki/daemon/main.ts", "/src/loki/mod/boot.ts"),
+            ["--experimental-strip-types", "--no-warnings", "/src/loki/daemon/main.ts", "--loki-daemon", "--dir", "/home/x/.loki", "--mod", "/src/loki/mod/boot.ts", "--token-file", "/home/x/.loki/token"]
+        );
+        assert_eq!(args("/data/daemon/daemon.mjs", "/data/mod/loki-mod.mjs")[0], "/data/daemon/daemon.mjs", "a bundle needs no flags");
+    }
+
+    #[test]
+    fn a_daemon_that_keeps_dying_is_restarted_ever_more_slowly_up_to_thirty_seconds() {
+        let secs: Vec<u64> = (0..8).map(|n| restart_delay(n).as_secs()).collect();
+        assert_eq!(secs, [1, 2, 4, 8, 16, 30, 30, 30]);
+    }
+
+    #[test]
+    fn a_stopped_harness_is_marked_so_its_supervisor_leaves_it_down() {
+        let h = Harness::default();
+        assert!(!h.was_stopped());
+        assert!(h.exited().is_none(), "no child yet");
+        h.stop();
+        assert!(h.was_stopped());
     }
 
     #[test]

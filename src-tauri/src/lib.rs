@@ -207,6 +207,80 @@ fn start_harness(app: &tauri::AppHandle, rt: &bootstrap::Runtime) -> Result<(), 
     h.start(rt, &harness::Launch { token_file: &data.join("token"), log_dir: &data.join("logs"), scratch: &scratch::effective_dir(&data, &home) })
 }
 
+/// Whether loki runs its own Pi daemon instead of Letta (plan 017): LOKI_BACKEND=pi, until the cutover makes it the only way.
+fn pi_backend() -> bool {
+    std::env::var("LOKI_BACKEND").is_ok_and(|v| v == "pi")
+}
+
+/// Start loki's daemon and keep it running: a daemon left by a crashed loki is stopped first, and one that dies is
+/// restarted (supervise_daemon). A development build runs the checkout's sources; a release build the installed bundle.
+fn start_daemon(app: &tauri::AppHandle, home: &Path, data: &Path) -> Result<(), String> {
+    let node = bootstrap::find_node(home).ok_or_else(|| "no Node.js found for loki's daemon".to_string())?;
+    let (entry, mod_entry) = match dev_checkout() {
+        Some(checkout) => (checkout.join("daemon").join("main.ts"), checkout.join("mod").join("boot.ts")),
+        None => (data.join("daemon").join("daemon.mjs"), data.join("mod").join("loki-mod.mjs")),
+    };
+    let token_file = data.join("token");
+    if let Some(left) = appserver::daemon_leftover(&appserver::os::snapshot(), &token_file) {
+        eprintln!("loki: daemon: one left from an earlier run (pid {}) — stopping it", left.pid);
+        appserver::os::kill(left.pid, Some(left.started));
+    }
+    let launch = move |app: &tauri::AppHandle| -> Result<(), String> {
+        let Some(h) = app.try_state::<harness::Harness>() else { return Err("no harness slot".into()) };
+        let daemon = harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &loki_dir() };
+        h.start_daemon(&daemon, &harness::Launch { token_file: &token_file, log_dir: &loki_dir().join("logs"), scratch: &loki_dir() })
+    };
+    launch(app)?;
+    supervise_daemon(app.clone(), launch);
+    Ok(())
+}
+
+/// Watch the daemon once a second. One that exits on its own is started again after harness::restart_delay; one loki
+/// stopped, or one that found another daemon already serving (harness::EXIT_HELD), is left down.
+fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) -> Result<(), String> + Send + 'static) {
+    std::thread::Builder::new()
+        .name("loki-daemon-supervisor".into())
+        .spawn(move || {
+            let mut exits: Vec<std::time::Instant> = vec![];
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let Some(h) = app.try_state::<harness::Harness>() else { return };
+                if h.was_stopped() { return; }
+                let Some(status) = h.exited() else { continue };
+                if status.code() == Some(harness::EXIT_HELD) {
+                    eprintln!("loki: daemon: another daemon is already serving — using that one");
+                    return;
+                }
+                exits.retain(|t| t.elapsed() < std::time::Duration::from_secs(60));
+                let delay = harness::restart_delay(exits.len());
+                exits.push(std::time::Instant::now());
+                eprintln!("loki: daemon exited ({status}) — restarting in {} s", delay.as_secs());
+                std::thread::sleep(delay);
+                if h.was_stopped() { return; }
+                if let Err(e) = launch(&app) { eprintln!("loki: daemon restart failed: {e}"); }
+            }
+        })
+        .expect("the daemon supervisor thread");
+}
+
+/// SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the harness ourselves. Windows has no such
+/// signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there (a GUI build has no console, and
+/// its quit paths all go through the exit events).
+fn stop_on_signals(handle: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+            let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
+            tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
+        }
+        #[cfg(not(unix))]
+        let Ok(()) = tokio::signal::ctrl_c().await else { return };
+        if let Some(h) = handle.try_state::<harness::Harness>() { h.stop(); }
+        handle.exit(0);
+    });
+}
+
 /// Every line an install or update produced, on disk: Welcome and Settings show the last few, this keeps them all
 /// (one section per attempt, appended). Best effort — a log that cannot be written never stops an install.
 fn install_log_line(line: &str) {
@@ -371,7 +445,12 @@ pub fn run() {
             let token = read_token();
             let (home_for_boot, token_file) = (home.clone(), data.join("token"));
             // (url, bearer, launching our own?, letta runtime if found)
+            // LOKI_BACKEND=pi (plan 017): loki's own daemon runs the agents; no Letta is looked for or started.
+            let pi = pi_backend();
             let (url, bearer, own, runtime) = tauri::async_runtime::block_on(async {
+                if pi {
+                    return (harness::LISTEN_URL.to_string(), None, false, None);
+                }
                 if let Some(u) = explicit {
                     return (u, None, false, None);
                 }
@@ -415,22 +494,15 @@ pub fn run() {
                         start_install(app.handle().clone());
                     }
                 }
-                // SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the harness ourselves.
-                // Windows has no such signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there
-                // (a GUI build has no console, and its quit paths all go through the exit events below).
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    #[cfg(unix)]
-                    {
-                        use tokio::signal::unix::{signal, SignalKind};
-                        let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
-                        tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
-                    }
-                    #[cfg(not(unix))]
-                    let Ok(()) = tokio::signal::ctrl_c().await else { return };
-                    if let Some(h) = handle.try_state::<harness::Harness>() { h.stop(); }
-                    handle.exit(0);
-                });
+                stop_on_signals(app.handle().clone());
+            }
+            if pi {
+                app.manage(harness::Harness::default());
+                if let Err(e) = start_daemon(app.handle(), &home, &data) {
+                    eprintln!("loki: {e}");
+                    if let Ok(mut s) = app.state::<bootstrap::BootstrapState>().0.lock() { s.error = Some(e); }
+                }
+                stop_on_signals(app.handle().clone());
             }
 
             let link = appserver::Link::new(url, bearer);

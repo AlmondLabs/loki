@@ -14,6 +14,12 @@ describe("the release bundle's build", () => {
     expect(src).toMatch(/banner:\s*\{\s*js:\s*'import \{ createRequire as \w+ \} from "node:module"; const require = \w+\(import\.meta\.url\);'/);
   });
 
+  test("the daemon is bundled beside the mod, for Node, with the same `require` banner (plan 017)", () => {
+    expect(src).toContain('entryPoints: [here("../daemon/main.ts")]');
+    expect(src).toContain("outfile: `${out}/daemon/daemon.mjs`");
+    expect(src.match(/banner:\s*\{\s*js:\s*'import \{ createRequire as \w+ \} from "node:module"; const require = \w+\(import\.meta\.url\);'/g)).toHaveLength(2);
+  });
+
   test("the mod takes Bun's own ws at runtime rather than the inlined copy", () => {
     const ws = readFileSync(new URL("../mod/ws.ts", import.meta.url), "utf8");
     expect(ws).toContain("process.versions.bun");

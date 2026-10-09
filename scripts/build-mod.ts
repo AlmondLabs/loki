@@ -30,6 +30,21 @@ await build({
   legalComments: "none",
   logLevel: "warning",
 });
+// loki's daemon (plan 017), which the shell starts in place of `letta server` when LOKI_BACKEND=pi: the same
+// banner, and pi-durable's SQLite backend is Node's own `node:sqlite`, which stays a builtin.
+await build({
+  entryPoints: [here("../daemon/main.ts")],
+  define: { "process.env.LOKI_VERSION": JSON.stringify(version) },
+  outfile: `${out}/daemon/daemon.mjs`,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  external: ["esbuild"],
+  banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
+  legalComments: "none",
+  logLevel: "warning",
+});
 cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
 
 // The canvas the LAN listener serves to phones (mod/static.ts); install.rs puts it at <data>/app beside the mod.
