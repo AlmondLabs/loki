@@ -1,4 +1,4 @@
-import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -23,11 +23,14 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, widgets, onFrameWidget, onShowDesk, inline, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
-  // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
+  // Widget rows, by the row they sit before (rows.length: after the last); only where the host passes them, only in the window.
   const marks = new Map<number, WidgetMark[]>();
-  if (people) for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  // Each widget is drawn live once, under its latest row; its earlier rows stay one line each.
+  const latest = new Map<string, string>();
+  for (const w of widgets ?? []) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
   const shown = first ? rows.slice(first) : rows;
   // Day pills only in the message layout, and only where the messages carry times; then the pills name the day and the New line does not.
   const timed = !!people && shown.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
@@ -46,7 +49,12 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
   // A stretch of work (tool calls, background tasks, skills loaded) reads as one line (chat/ToolSteps.tsx); a widget
   // row, a day or the New line ends it.
   const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
-  const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
+  const widgetRow = (w: WidgetMark) => (
+    <Fragment key={`w-${w.id}`}>
+      <WidgetRow mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />
+      {inline && !w.gone && latest.get(w.widgetId) === w.id && inline(w.widgetId)}
+    </Fragment>
+  );
   const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
   const message = (m: TranscriptRow, i: number) => {
     const last = i === rows.length - 1;
@@ -168,6 +176,8 @@ export interface MessageLayout {
   onFrameWidget?: (widgetId: string) => void;
   /** Choosing the "N earlier widget changes" summary row: open the Desk tab. */
   onShowDesk?: () => void;
+  /** The live widget, drawn under its latest row (chat/useInlineWidgets.tsx); null while it is not known. */
+  inline?: (widgetId: string) => ReactNode;
 }
 
 /** A widget change in the thread: "friday added Revenue chart" (or "You removed …", "loki added …"), placed before row `before`. */

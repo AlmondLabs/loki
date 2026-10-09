@@ -7,6 +7,8 @@ import type { TranscriptRow } from "../chat/Transcript";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
+import { useInlineWidgets, type InlineWidgetSource } from "../chat/useInlineWidgets";
+import { scopeFor } from "../../../core/desk-core.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
@@ -66,6 +68,8 @@ interface CatchUpProps {
   onShown?: (item: AttentionItem) => void;
   /** An agent pill chosen, null for All (analytics). */
   onFilter?: (agent: string | null) => void;
+  /** The desks' widgets, so a card draws the ones its chat made, live, in the thread (chat/useInlineWidgets.tsx). */
+  widgetSource?: InlineWidgetSource;
 }
 
 export type PassSummaryHandler = (pass: { decided: number; next: number; archive: number; approve: number; deny: number; replies: number; shown: number; duration_ms: number }) => void;
@@ -177,6 +181,9 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agentId, id } = current;
   const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor } = deck;
+  // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
+  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread?.rows, current.agentName ?? null);
+  const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
   return (
     <div
       style={{
@@ -217,6 +224,7 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
           onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
         }}
         models={deck.models ?? null}
+        layout={layout}
         agentName={current.agentName}
         header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} />}
         footer={<CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />}

@@ -230,6 +230,14 @@ button.loki-file-chip:hover { border-color: var(--loki-muted); }
 :is(.loki-msg, .loki-widget-row) ~ :is(.loki-steps, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
 .loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
 .loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
+/* A widget drawn live in the thread, under its latest row (chat/InlineWidget.tsx): a card as wide as the thread allows. */
+.loki-inline-widget { margin: 4px 0 10px 44px; max-width: 760px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-lg); background: var(--loki-panel); overflow: hidden; }
+.loki-inline-widget-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--loki-border); color: var(--loki-muted); font-size: 12px; }
+.loki-inline-widget-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--loki-fg); }
+.loki-inline-widget-open { margin-left: auto; padding: 2px 8px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: none; color: var(--loki-muted); font: inherit; cursor: pointer; }
+.loki-inline-widget-open:hover { color: var(--loki-fg); border-color: var(--loki-muted); }
+.loki-inline-widget-body { padding: 12px; overflow-x: auto; }
+.loki-inline-widget-note { margin: 0; color: var(--loki-muted); font-size: 13.5px; }
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
 .loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title { text-decoration: underline; }
 .loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-muted); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }

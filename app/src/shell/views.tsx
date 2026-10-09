@@ -66,6 +66,7 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       }}
       conversation={catchUp.conversation}
       loadHistory={(item) => void catchUp.loadHistory(item)}
+      widgetSource={desk}
       modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}
       reasoningEffortFor={(agentId, conversationId) => desk.reasoningEffortOf(scopeFor(conversationId, agentId))}
       models={models}

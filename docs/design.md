@@ -173,7 +173,13 @@ opening each calendar day, a red **New** line before the first message you have 
 toolbar that holds only what loki does to a message (copy as markdown). A message with no known time shows none.
 **Widget rows** sit among the messages by time, one quiet line with a tile icon in the face's column: "friday
 added Revenue chart · 14:49", the widget's title in the link blue while it is still on the canvas; choosing one
-opens the Canvas tab framed on that widget. Tool and event lines sit in the message column under the text they
+opens the Canvas tab framed on that widget. Under a widget's latest row the widget itself is drawn, live
+(`chat/InlineWidget.tsx`, `chat/useInlineWidgets.tsx`, 2026-10-09): the same kit component or module the canvas
+draws, in a card as wide as the thread allows, with "Show on canvas"; using it there is using it on the canvas (a
+`set` gesture on the widget's own desk, recorded for that desk's agent). Earlier rows for the same widget stay one
+line each, so a widget edited ten times is drawn once. Every chat surface draws them: the desk's chat, the Inbox
+card (which asks the mod for that chat's widgets, `desk_get`) and the phone, where kit widgets draw read only and a
+custom module says to open the chat on the Mac (the phone cannot load modules yet). Tool and event lines sit in the message column under the text they
 follow. **The message box** (2026-09-24, after Claude's, one for the phone and the desktop) is one rounded field
 on the well, the text on top and a row inside it: a round "+" (attach images and files: files upload to the Mac at once, mod/uploads.ts, and go as Letta attachment tags), the **model pill** (the model's
 name in the ink, its effort after it in the muted colour, only when the model offers levels), then the mic

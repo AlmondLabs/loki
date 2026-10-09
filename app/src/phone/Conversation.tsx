@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useInlineWidgets } from "../chat/useInlineWidgets";
+import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
 import type { Attachment } from "../../../core/attention/content.ts";
@@ -145,7 +147,8 @@ export function ConversationScreen({
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
-  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt) }), [people, dividerAt, item?.lastMessageAt]);
+  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), view.rows, thread.agentName ?? null, { readOnly: true });
+  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline }), [people, dividerAt, item?.lastMessageAt, widgets, inline]);
   const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =

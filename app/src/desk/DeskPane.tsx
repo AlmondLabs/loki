@@ -15,7 +15,7 @@ import { Surface } from "./Surface";
 import type { useDesk } from "./useDesk";
 import { useDeskChat } from "./useDeskChat";
 import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
-import { widgetMarks } from "./widgetRows";
+import { useInlineWidgets } from "../chat/useInlineWidgets";
 import { doneAction } from "../shell/sidebarModel";
 import { useViewed } from "../shared/useViewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
@@ -98,7 +98,6 @@ export function DeskPane(props: DeskPaneProps) {
   useDoneKey(active, item, catchUp);
   // The desk's widget changes among the messages, by time (R15). The compiler caches the handlers below on the
   // desk and onTab, but not this (view comes from a plain function), so a hook keeps it stable while you type.
-  const widgets = useWidgetMarks(view.rows, desk.widgetLog, agentName);
   const { onFrameWidget } = props;
   const frameWidget = onFrameWidget
     ? (widgetId: string) => {
@@ -107,7 +106,9 @@ export function DeskPane(props: DeskPaneProps) {
         onFrameWidget(widgetId);
       }
     : undefined;
-  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
+  // The rows are drawn live under their latest change (chat/useInlineWidgets.tsx); "Show on canvas" frames them there.
+  const { widgets, inline } = useInlineWidgets(desk, desk.scope, view.rows, agentName, { onOpen: frameWidget });
+  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);
@@ -249,11 +250,6 @@ function DeskActions() {
       )}
     </span>
   );
-}
-
-/** widgetMarks for the thread, recomputed only when the rows, the log or the agent's name change: the transcript is memoised on it. */
-function useWidgetMarks(rows: Parameters<typeof widgetMarks>[0], log: Parameters<typeof widgetMarks>[1], agentName: string | null) {
-  return useMemo(() => widgetMarks(rows, log, agentName), [rows, log, agentName]);
 }
 
 /** The overflow menu: ↑↓ / Enter / Esc, or click; a click outside closes it. */

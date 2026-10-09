@@ -57,7 +57,7 @@ describe("bridge", () => {
     expect(s.sent.map((m) => m.type)).toEqual(["config", "desk"]);
   });
 
-  test("gesture updates the widget's desk and logs under the client's desk with before-value", () => {
+  test("gesture updates the widget's desk and logs under the widget's desk with before-value", () => {
     const store = new DeskStore();
     const gestures = new GestureLog();
     const bridge = createBridge({ store, widgets: fakeWidgets([sleep, welcome]), gestures, broadcast: () => {} });
@@ -67,9 +67,31 @@ describe("bridge", () => {
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "focus", id: "shared/welcome" } });
     expect(store.get("c1").overlay["c1/sleep"]).toEqual({ value: 7 });
     expect(store.get("shared").layout["shared/welcome"].position).toEqual({ x: 3, y: 4 });
-    expect(gestures.peek("c1")).toEqual(['set value = 7 (was 6) on "Sleep" (c1/sleep)', 'moved "loki" (shared/welcome) to (3, 4)']);
+    // Each under its own desk: the shared one's moves reach every chat's next turn (turn_start drains both).
+    expect(gestures.peek("c1")).toEqual(['set value = 7 (was 6) on "Sleep" (c1/sleep)']);
+    expect(gestures.peek("shared")).toEqual(['moved "loki" (shared/welcome) to (3, 4)']);
     bridge.onMessage(c, { type: "gesture", gesture: { kind: "move", id: "c1/sleep" } });
     expect(c.sent.at(-1)).toEqual({ type: "error", message: "malformed gesture" });
+  });
+
+  test("a widget used inline in another chat's thread: its desk records it, and that tab gets the desk's state back", () => {
+    const store = new DeskStore();
+    const gestures = new GestureLog();
+    const bridge = createBridge({ store, widgets: fakeWidgets([sleep]), gestures, broadcast: () => {} });
+    const inbox = client("other-desk");
+    bridge.onMessage(inbox, { type: "gesture", gesture: { kind: "set", id: "c1/sleep", path: "value", value: 8 } });
+    expect(gestures.peek("c1")).toEqual(['set value = 8 (was 6) on "Sleep" (c1/sleep)']);
+    expect(gestures.peek("other-desk")).toEqual([]);
+    expect(inbox.sent.at(-1)).toMatchObject({ type: "state", scope: "c1", state: { overlay: { "c1/sleep": { value: 8 } } } });
+  });
+
+  test("desk_get answers with another desk's frame, for widgets shown inline; the phone may ask too", () => {
+    const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {} });
+    const c = client("shared");
+    bridge.onMessage(c, { type: "desk_get", scope: "c1" });
+    expect(c.sent.at(-1)).toMatchObject({ type: "desk", scope: "c1", widgets: [expect.objectContaining({ id: "c1/sleep" })] });
+    expect(PHONE_FRAMES.has("desk_get")).toBe(true);
+    expect(PHONE_FRAMES.has("gesture")).toBe(false);
   });
 
   test("widget_status broadcasts the manifest and logs errors once", () => {

@@ -103,6 +103,7 @@ export function useDesk() {
     recentModels,
     widgetLogs,
     setWidgetLogs,
+    watchDesk,
     waiters,
     lastInteractionRef,
     pendingRef,
@@ -444,5 +445,10 @@ export function useDesk() {
     cameraTarget,
     /** This desk's widget change log, oldest first (desk/widgetRows.ts); undefined before any arrived. */
     widgetLog: widgetLogs[scope],
+    /** Any desk's widget change log (a thread elsewhere: the Inbox, the phone). */
+    widgetLogOf: (s: Scope) => widgetLogs[s],
+    /** Any desk's widgets and the user's edits to them, once watched (watchDesk); undefined until they arrive. */
+    widgetsOf: (s: Scope) => (widgets[s] ? { entries: widgets[s], overlay: desks[s]?.overlay ?? {} } : undefined),
+    watchDesk,
   };
 }

@@ -1503,3 +1503,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) { animat
     --phone-dur-sheet: 0ms;
   }
 }
+.loki-phone .loki-inline-widget { margin: var(--phone-space-1) 0 var(--phone-space-3) 44px; max-width: calc(100% - 44px); border-radius: var(--phone-radius-md); }
+.loki-phone .loki-inline-widget-head { font-size: var(--phone-text-meta); }
+.loki-phone .loki-inline-widget-note { font-size: var(--phone-text-body); }
