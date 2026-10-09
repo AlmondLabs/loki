@@ -39,13 +39,13 @@ describe("the frame router", () => {
   });
 
   test("a send that is malformed, or whose handler fails, answers an error push without a requestId", () => {
-    const desks: FrameHandlers = { trash: () => { throw new Error("could not delete d1/w"); } };
-    const { bridge } = bridgeWith({ modules: [desks] });
+    const lan: FrameHandlers = { lan_via_set: () => { throw new Error("the listener is closing"); } };
+    const { bridge } = bridgeWith({ modules: [lan] });
     const c = client("d1");
-    bridge.onMessage(c, { type: "trash" });
-    expect(c.sent.at(-1)).toEqual({ type: "error", message: "malformed trash" });
-    bridge.onMessage(c, { type: "trash", id: "d1/w" });
-    expect(c.sent.at(-1)).toEqual({ type: "error", message: "could not delete d1/w" });
+    bridge.onMessage(c, { type: "lan_via_set", via: "bluetooth" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", message: 'via must be "tailscale" or "lan"' });
+    bridge.onMessage(c, { type: "lan_via_set", via: "lan" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", message: "the listener is closing" });
   });
 
   test("a frame two modules answer is refused when the bridge is built", () => {

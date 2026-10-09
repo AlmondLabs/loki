@@ -163,7 +163,8 @@ export const FRAMES = {
   focus_add: send("an engagement the mod cannot see (it went to the app-server)", (m) => {
     const c = mark(m);
     if (typeof c === "string") return c;
-    return m.action === "answer" || m.action === "decide" || m.action === "skip" ? { ...c, action: m.action } : "action must be answer, decide or skip";
+    const action = m.action;
+    return action === "answer" || action === "decide" || action === "skip" ? { ...c, action: action as "answer" | "decide" | "skip" } : "action must be answer, decide or skip";
   }, { phone: PHONE, causes: ["seen"] }),
 
   // Analytics
@@ -187,7 +188,7 @@ export const FRAMES = {
   // Learn
   recall_list: request("recall", "the whole Learn section", nothing, PHONE),
   recall_grade: request("recall_card", "grade a card, 1 (again) to 4 (easy)", (m) =>
-    m.grade === 1 || m.grade === 2 || m.grade === 3 || m.grade === 4 ? { id: strOr(m.id, ""), grade: m.grade } : "a grade is 1 (again) to 4 (easy)", PHONE),
+    m.grade === 1 || m.grade === 2 || m.grade === 3 || m.grade === 4 ? { id: strOr(m.id, ""), grade: m.grade as 1 | 2 | 3 | 4 } : "a grade is 1 (again) to 4 (easy)", PHONE),
   recall_edit: request("recall_card", "edit a card's front, back or tags", (m) =>
     ({ id: strOr(m.id, ""), front: strOr(m.front, undefined), back: strOr(m.back, undefined), tags: Array.isArray(m.tags) ? strings(m.tags) : undefined }), PHONE),
   recall_reject: request("recall_card", "set a card aside (card: null)", (m) => ({ id: strOr(m.id, "") }), PHONE),
@@ -223,7 +224,7 @@ export const FRAMES = {
       : "assign needs a conversation and a chat"),
   task_close: request("tasks_updated", "close tasks, with a reason", (m) => ({ ids: taskIds(m), reason: strOr(m.reason, undefined) })),
   task_status: request("tasks_updated", "move tasks to open, in progress, blocked or deferred", (m) =>
-    m.status === "open" || m.status === "in_progress" || m.status === "blocked" || m.status === "deferred" ? { ids: taskIds(m), status: m.status } : `unknown status ${String(m.status)}`),
+    m.status === "open" || m.status === "in_progress" || m.status === "blocked" || m.status === "deferred" ? { ids: taskIds(m), status: m.status as "open" | "in_progress" | "blocked" | "deferred" } : `unknown status ${String(m.status)}`),
 
   // Agents, memory and skills
   agent_get: request("agent", "an agent's local record, memory tree, skills, face and last memory commit", agent, PHONE),

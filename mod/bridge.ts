@@ -1,15 +1,16 @@
 import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
-import { isEventName } from "../core/analytics.ts";
 import type { Scope } from "../core/desk-core.ts";
 import { HISTORY_MAX, HISTORY_PAGE } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
-import { SHARED_SCOPE, mergeData, scopeOfId } from "../core/desk-core.ts";
+import { SHARED_SCOPE } from "../core/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
-import { describeGesture } from "./gestures.ts";
 import type { Client, WsHandlers } from "./server.ts";
-import { PHONE_FRAMES, frameEntry, isAgentId, isGesture, isLanVia, type FrameName } from "../core/frames.ts";
+import { PHONE_FRAMES, frameEntry, isAgentId, isLanVia, type FrameName } from "../core/frames.ts";
+import { deskFrame, desksFrames } from "./frames/desks.ts";
+import { seenFrames } from "./frames/seen.ts";
+import { captureFrames } from "./frames/capture.ts";
 import { errorMessage, fail, type FrameContext, type FrameHandlers, type Outcome } from "./frames/context.ts";
 import type { DeskInfo, DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome } from "../core/frame-types.ts";
 
@@ -185,19 +186,12 @@ export interface BridgeDeps {
   capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
 }
 
-const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-
-/** How many `once` keys the bridge remembers. */
-const ONCE_MAX = 500;
-
 export function createBridge(deps: BridgeDeps): WsHandlers {
-  const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
-  /** `once` keys of the capture frames already written, oldest first (see the capture case). */
-  const reportedOnce = new Set<string>();
+  const { broadcast, appServerAvailable, appServerUrl, transcript, folders } = deps;
 
   /** Which handler answers each frame: one per name, or the table and the modules disagree. */
   const handlers = new Map<FrameName, (payload: never, ctx: FrameContext) => unknown>();
-  for (const m of deps.modules ?? []) {
+  for (const m of [desksFrames(deps), seenFrames(deps), captureFrames(), ...(deps.modules ?? [])]) {
     for (const [name, h] of Object.entries(m) as Array<[FrameName, (payload: never, ctx: FrameContext) => unknown]>) {
       if (handlers.has(name)) throw new Error(`two handlers for ${name}`);
       handlers.set(name, h);
@@ -215,20 +209,12 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
     }
   };
 
-  /** The seen and viewed markers and the focus weights, as one frame; sent on request and broadcast on every change. */
-  const seenFrame = () => ({ type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll?.() ?? {}, appServer: appServerAvailable?.() ?? false });
-
-  const deskFrame = (scope: Scope) => {
-    const info = deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
-    return { type: "desk", scope, title: info.title, status: info.status, agentName: info.agentName, agentId: info.agentId, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null, state: store.get(scope), widgets: widgets.entries(scope) };
-  };
-
   return {
     appServerUrl: () => appServerUrl?.() ?? null,
     onConnect(client: Client) {
       client.send({ type: "config", appServer: appServerAvailable?.() ?? false });
-      client.send(deskFrame(client.scope));
-      if (client.scope !== SHARED_SCOPE) client.send(deskFrame(SHARED_SCOPE));
+      client.send(deskFrame(deps, client.scope));
+      if (client.scope !== SHARED_SCOPE) client.send(deskFrame(deps, SHARED_SCOPE));
       if (deps.recentModels) client.send({ type: "models_recent", recent: deps.recentModels.read() });
     },
 
@@ -255,140 +241,6 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         return settle(() => handle(payload as never, ctx), () => {}, (err) => client.send({ type: "error", message: errorMessage(err) }));
       }
       switch (msg.type) {
-        case "capture": {
-          // The app's own events (views, desk switches, sends…): a snake_case name and an optional properties object.
-          if (!isEventName(msg.event)) {
-            client.send({ type: "error", message: "malformed capture" });
-            return;
-          }
-          const props = msg.properties && typeof msg.properties === "object" && !Array.isArray(msg.properties) ? { ...(msg.properties as Record<string, unknown>) } : undefined;
-          // An event every window and phone reports (a permission request each of them saw) carries a `once` key:
-          // the first report is kept, the rest dropped. The key itself is not written.
-          if (props && typeof props.once === "string") {
-            if (reportedOnce.has(props.once)) return;
-            reportedOnce.add(props.once);
-            if (reportedOnce.size > ONCE_MAX) reportedOnce.delete(reportedOnce.values().next().value!);
-            delete props.once;
-          }
-          track(msg.event, props);
-          return;
-        }
-        case "gesture": {
-          const g = msg.gesture;
-          if (!isGesture(g)) {
-            client.send({ type: "error", message: "malformed gesture" });
-            return;
-          }
-          const wScope = scopeOfId(g.id);
-          const entry = widgets.get(g.id);
-          const before = entry ? mergeData(entry.data, store.get(wScope).overlay[g.id]) : undefined;
-          store.gesture(wScope, g); // store subscribers broadcast the new state (to tabs on that desk)
-          // A widget used inline in another chat's thread: that tab is on another desk, so it gets the state too.
-          if (client.scope !== wScope) client.send({ type: "state", scope: wScope, state: store.get(wScope) });
-          track("widget_gestured", { kind: g.kind });
-          const d = describeGesture(g, entry, before);
-          // The widget's own desk hears about it: that is the agent whose widget it is, whichever tab was used.
-          if (d) gestures.record(wScope, d.line, d.key);
-          return;
-        }
-        case "desk_get": {
-          // Another desk's widgets and state, for a thread showing them inline (the Inbox, the phone); no switch.
-          if (typeof msg.scope === "string" && msg.scope) client.send(deskFrame(msg.scope as Scope));
-          return;
-        }
-        case "measure": {
-          const size = msg.size as { w?: unknown; h?: unknown } | undefined;
-          if (typeof msg.id !== "string" || !size || !isNum(size.w) || !isNum(size.h)) return;
-          store.measure(scopeOfId(msg.id), msg.id, { w: size.w, h: size.h });
-          return;
-        }
-        case "arrange": {
-          const before = store.get(client.scope);
-          const after = store.arrange(client.scope);
-          if (after !== before) {
-            const ids = Object.entries(after.layout).filter(([, l]) => !l.hidden).map(([id]) => id);
-            gestures.record(client.scope, `tidied the canvas (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
-            track("desk_arranged");
-            broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, client.scope === SHARED_SCOPE ? undefined : client.scope);
-          }
-          return;
-        }
-        case "seen_list": {
-          client.send(seenFrame());
-          return;
-        }
-        case "seen_mark":
-          if (typeof msg.conversationId === "string") {
-            const moved = seen?.mark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            track("conversation_marked_seen");
-            if (moved) broadcast(seenFrame());
-          }
-          return;
-        case "focus_add":
-          // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
-          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide" || msg.action === "skip")) {
-            if (seen?.engage?.(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId, msg.action)) broadcast(seenFrame());
-          }
-          return;
-        case "viewed_mark":
-          // Not tracked: a look happens on every open, it is not a decision.
-          if (typeof msg.conversationId === "string") {
-            const agent = typeof msg.agentId === "string" ? msg.agentId : null;
-            const looked = seen?.view(agent, msg.conversationId);
-            const engaged = seen?.engage?.(agent, msg.conversationId, "open"); // opening and reading is engagement too
-            if (looked || engaged) broadcast(seenFrame());
-          }
-          return;
-        case "seen_unmark":
-          if (typeof msg.conversationId === "string") {
-            const moved = seen?.unmark(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId);
-            track("conversation_kept_unread");
-            if (moved) broadcast(seenFrame());
-          }
-          return;
-        case "trash": {
-          if (typeof msg.id !== "string" || !deleteWidgetFile) return;
-          const entry = widgets.get(msg.id);
-          const removed = deleteWidgetFile(msg.id);
-          if (!removed) {
-            client.send({ type: "error", message: `could not delete ${msg.id}` });
-            return;
-          }
-          store.forget(scopeOfId(msg.id), msg.id);
-          const name = entry ? `"${entry.title}" (${entry.id})` : `"${msg.id}"`;
-          gestures.record(client.scope, `trashed ${name} — its file was deleted`, `trash:${msg.id}`);
-          track("widget_trashed");
-          return;
-        }
-        case "widget_status": {
-          if (typeof msg.id !== "string") return;
-          const error = typeof msg.error === "string" && msg.error.trim() ? msg.error.trim() : null;
-          if (!widgets.setRuntimeError(msg.id, error)) return;
-          const scope = scopeOfId(msg.id);
-          broadcast({ type: "widgets", scope, widgets: widgets.entries(scope) }, scope === SHARED_SCOPE ? undefined : scope);
-          if (error) {
-            const entry = widgets.get(msg.id);
-            const name = entry ? `"${entry.title}" (${entry.id})` : `"${msg.id}"`;
-            gestures.record(client.scope, `widget ${name} failed to render: ${error}`, `error:${msg.id}`);
-          }
-          return;
-        }
-        case "list_desks": {
-          client.send({ type: "desks", desks: listDesks?.() ?? [] });
-          return;
-        }
-        case "pin_set": {
-          if (typeof msg.agentId !== "string" || typeof msg.conversationId !== "string" || !deps.setPin) return;
-          deps.setPin(msg.agentId, msg.conversationId, msg.pinned === true);
-          track("desk_pinned", { pinned: msg.pinned === true });
-          deps.broadcast({ type: "desks", desks: listDesks?.() ?? [] }); // every tab's tree follows
-          return;
-        }
-        case "models_recent_add": {
-          if (typeof msg.handle !== "string" || !msg.handle || !deps.recentModels) return;
-          deps.broadcast({ type: "models_recent", recent: deps.recentModels.add(msg.handle) }); // the Mac's windows and the phones pick from the same list
-          return;
-        }
         case "folders_get": {
           const r = folders?.recent() ?? { byAgent: {}, byConversation: {} };
           client.send({ type: "folders", requestId: msg.requestId, byAgent: r.byAgent, byConversation: r.byConversation });
