@@ -215,7 +215,7 @@ fn pi_backend() -> bool {
 /// Start loki's daemon and keep it running: a daemon left by a crashed loki is stopped first, and one that dies is
 /// restarted (supervise_daemon). A development build runs the checkout's sources; a release build the installed bundle.
 fn start_daemon(app: &tauri::AppHandle, home: &Path, data: &Path) -> Result<(), String> {
-    let node = bootstrap::find_node(home).ok_or_else(|| "no Node.js found for loki's daemon".to_string())?;
+    let node = bootstrap::find_node_program(home).ok_or_else(|| "no Node.js 22.19 or newer found for loki's daemon".to_string())?;
     let (entry, mod_entry) = match dev_checkout() {
         Some(checkout) => (checkout.join("daemon").join("main.ts"), checkout.join("mod").join("boot.ts")),
         None => (data.join("daemon").join("daemon.mjs"), data.join("mod").join("loki-mod.mjs")),

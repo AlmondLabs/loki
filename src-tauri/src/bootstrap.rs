@@ -196,6 +196,13 @@ pub fn find_node(home: &Path) -> Option<PathBuf> {
     find_node_for(&Host::this(home)).ok()
 }
 
+/// The `node` program itself of a Node that satisfies letta-code (loki's daemon runs on it, plan 017).
+pub fn find_node_program(home: &Path) -> Option<PathBuf> {
+    let host = Host::this(home);
+    let dir = find_node_for(&host).ok()?;
+    host.program_in(&dir, "node")
+}
+
 /// The folder of the first Node 22.19+ (LOKI_NODE_BIN, then `bin_dirs_for`); else the newest older one seen, if any.
 pub fn find_node_for(h: &Host) -> Result<PathBuf, Option<(Version, PathBuf)>> {
     let mut candidates: Vec<PathBuf> = h.dir("LOKI_NODE_BIN").into_iter().collect();
