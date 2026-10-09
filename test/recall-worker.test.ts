@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
 import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, WRITER_SETTINGS, ensureWriterDir, formatTranscript, lessonCard, overlappingCards, packSlices, scoreStretch } from "../mod/recall-worker.ts";
-import type { InboxRow, LocalTranscriptMessage } from "../mod/desks.ts";
+import type { InboxRow } from "../mod/desks.ts";
+import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { review } from "../core/recall/fsrs.ts";
 
 // Whole file runs in ~120 ms alone, yet "rejected cards are quoted…" crossed bun's 5 s default twice on a
@@ -14,7 +15,7 @@ setDefaultTimeout(20_000);
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const row = (id: string, over: Partial<InboxRow> = {}): InboxRow => ({ id, agentId: "a1", agentName: "ira", title: `desk ${id}`, lastMessageAt: new Date(T0 - QUIET_MS - 1000).toISOString(), archived: false, lastRole: "assistant", lastAssistantText: null, lastAsk: null, ...over });
-const chatter = (n: number): LocalTranscriptMessage[] => [{ role: "user", text: "what does KMS key rotation do in AWS? ".repeat(n) }, { role: "assistant", text: "It re-keys the CMK yearly while keeping old material to decrypt. ".repeat(n) }];
+const chatter = (n: number): TranscriptRow[] => [{ role: "user", text: "what does KMS key rotation do in AWS? ".repeat(n) }, { role: "assistant", text: "It re-keys the CMK yearly while keeping old material to decrypt. ".repeat(n) }];
 
 let dir: string;
 let store: RecallStore;
@@ -25,7 +26,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-const logs = (per: Record<string, LocalTranscriptMessage[]>) => (conversationId: string, _a: string | null, from: number) => {
+const logs = (per: Record<string, TranscriptRow[]>) => (conversationId: string, _a: string | null, from: number) => {
   const rows = per[conversationId] ?? [];
   return { rows: rows.slice(from), lines: rows.length };
 };
@@ -172,8 +173,8 @@ describe("recall worker", () => {
   });
 
   test("slices are packed by score within the budget, the rest wait; cards are quoted only when their words overlap", () => {
-    const quiet = [{ role: "assistant", text: "a long monologue ".repeat(40) }] as LocalTranscriptMessage[];
-    const lively = [{ role: "user", text: "what is a CMK? why does it rotate? " .repeat(10) }, { role: "assistant", text: "explained ".repeat(20) }] as LocalTranscriptMessage[];
+    const quiet = [{ role: "assistant", text: "a long monologue ".repeat(40) }] as TranscriptRow[];
+    const lively = [{ role: "user", text: "what is a CMK? why does it rotate? " .repeat(10) }, { role: "assistant", text: "explained ".repeat(20) }] as TranscriptRow[];
     expect(scoreStretch(lively)).toBeGreaterThan(scoreStretch(quiet));
     expect(scoreStretch([])).toBe(0);
     const picked = packSlices([{ text: "a".repeat(300), score: 1 }, { text: "b".repeat(700), score: 3 }, { text: "c".repeat(500), score: 2 }], 1000);

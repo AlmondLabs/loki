@@ -6,6 +6,7 @@
  */
 
 import type { FileRef, ToolStep } from "./attention/transcript.ts";
+import type { Step } from "./attention/thread.ts";
 
 export function stripHarnessMarkup(text: string): string {
   return text
@@ -116,64 +117,56 @@ export function messageFiles(text: string): FileRef[] {
   return out;
 }
 
-export interface TranscriptMessage {
-  /** event: harness machinery (background task results, compaction), shown as a quiet row. */
-  role: "user" | "assistant" | "tool" | "event";
-  text: string;
-  at: string | null;
-  summary?: string | null;
-  detail?: string | null;
-  /** On a tool row: the call and, once it came back, its result (attention/transcript.ts ToolStep). */
-  tool?: ToolStep;
-  /** On a user row: the files it carried. */
-  files?: FileRef[];
+/**
+ * A message's text as a thread shows it, the same from every source: its text parts a line each, and an "[image]"
+ * line where it carried a picture (the local log's own rendering; the bubble shows the picture when it has it).
+ */
+export function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  const lines: string[] = [];
+  for (const p of content) {
+    if (typeof p !== "object" || p === null) continue;
+    const type = (p as { type?: string }).type;
+    if (type === "text" && typeof (p as { text?: unknown }).text === "string") lines.push((p as { text: string }).text);
+    else if (type === "image") lines.push("[image]");
+  }
+  return lines.join("\n");
 }
 
 /**
- * Letta protocol messages (from conversation_messages_list or stream deltas),
- * oldest first, → a readable thread. Tool calls become markers; harness
- * machinery becomes events; reasoning and tool returns are dropped.
+ * Letta protocol messages from conversation_messages_list, oldest first, as thread steps (core/attention/thread.ts).
+ * Reasoning is dropped; the rest is the thread's to fold.
  */
-export function toTranscript(messages: Array<Record<string, unknown>>): TranscriptMessage[] {
-  const out: TranscriptMessage[] = [];
+export function historySteps(messages: Array<Record<string, unknown>>): Step[] {
+  const out: Step[] = [];
   for (const m of messages) {
     const at = typeof m.date === "string" ? m.date : null;
-    switch (m.message_type) {
-      case "user_message": {
-        const raw = messageText(m.content);
-        for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, at });
-        const text = stripHarnessMarkup(raw).trim();
-        const files = messageFiles(raw);
-        if (text || files.length) out.push({ role: "user", text, at, ...(files.length ? { files } : {}) });
-        break;
-      }
-      case "assistant_message": {
-        const text = messageText(m.content).trim();
-        if (text) out.push({ role: "assistant", text, at });
-        break;
-      }
-      case "tool_call_message":
-      case "approval_request_message": {
-        const tc = m.tool_call as { name?: string; arguments?: unknown; tool_call_id?: string } | undefined;
-        if (!tc?.name) break;
-        const id = tc.tool_call_id;
-        // The same call can come as a tool call and again as its approval request: one row.
-        if (id && out.some((r) => r.tool?.id === id)) break;
-        out.push({ role: "tool", text: toolLabel(tc.name, tc.arguments), at, tool: toolStep(tc.name, tc.arguments, id) });
-        break;
-      }
-      case "tool_return_message": {
-        const id = typeof m.tool_call_id === "string" ? m.tool_call_id : null;
-        let row: TranscriptMessage | undefined;
-        for (let k = out.length - 1; k >= 0 && id && !row; k--) if (out[k].tool?.id === id) row = out[k];
-        if (row?.tool) row.tool = withResult(row.tool, m.tool_return, m.status === "error");
-        break;
-      }
-      default:
-        break;
-    }
+    const step = protocolStep(m, at);
+    if (step) out.push(step);
   }
   return out;
+}
+
+/** One Letta protocol message, from history or a stream delta, as a thread step; null for anything a thread does not show. */
+export function protocolStep(m: Record<string, unknown> | undefined, at: string | null, chunk = false): Step | null {
+  switch (m?.message_type) {
+    case "user_message":
+      return { kind: "user", raw: contentText(m.content), at };
+    case "assistant_message":
+      // A streamed piece is part of a word as often as a whole line: the pieces join as they came.
+      return { kind: "assistant", text: chunk ? messageText(m.content) : contentText(m.content), at, ...(chunk ? { chunk } : {}) };
+    case "tool_call_message":
+    case "approval_request_message": {
+      const tc = m.tool_call as { name?: string; arguments?: unknown; tool_call_id?: string } | undefined;
+      if (!tc?.name) return null;
+      return { kind: m.message_type === "tool_call_message" ? "call" : "approval", name: tc.name, args: tc.arguments, id: tc.tool_call_id ?? null, at };
+    }
+    case "tool_return_message":
+      return typeof m.tool_call_id === "string" ? { kind: "result", id: m.tool_call_id, output: m.tool_return, failed: m.status === "error" } : null;
+    default:
+      return null;
+  }
 }
 
 /** Letta's scheduler speaks first in a cron turn, always with this opening: not a person's message. */
@@ -213,15 +206,24 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
 };
 
 /**
+ * The part of a tool's input a reader recognises, trimmed: the shell command (`cmd` in Letta's Codex-style toolset,
+ * `command` in Claude-style Bash), the path, the pattern, … in this order; the step's input and its label both use it.
+ */
+const ARG_KEYS = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
+const argOf = (args: Record<string, unknown>): string | undefined => {
+  const key = ARG_KEYS.find((k) => typeof args[k] === "string" && (args[k] as string).trim());
+  return key ? (args[key] as string).trim() : undefined;
+};
+
+/**
  * What a step shows as the tool's input: the part a reader recognises in full (the shell command, the path, the
  * pattern), else the whole input as JSON; nothing when it has none, or it has not finished arriving.
  */
 export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
-  // `cmd` is the shell command in Letta's Codex-style toolset (exec_command); `command` in Claude-style Bash.
-  const pick = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"].find((k) => typeof args[k] === "string" && (args[k] as string).trim());
-  if (pick && name !== "AskUserQuestion") return cap((args[pick] as string).trim());
+  const pick = name === "AskUserQuestion" ? undefined : argOf(args);
+  if (pick) return cap(pick);
   const json = JSON.stringify(args, null, 2);
   return json === "{}" ? undefined : cap(json);
 }
@@ -261,24 +263,10 @@ export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolS
  * a reader recognises (the shell command, the file path, the pattern).
  */
 export function toolLabel(name: string, input: unknown): string {
-  let args: Record<string, unknown> | null = null;
-  if (input && typeof input === "object") args = input as Record<string, unknown>;
-  else if (typeof input === "string") {
-    try {
-      const parsed = JSON.parse(input) as unknown;
-      if (parsed && typeof parsed === "object") args = parsed as Record<string, unknown>;
-    } catch {
-      // partial or non-JSON arguments: name only
-    }
-  }
+  const args = argsOf(input);
   if (!args) return name;
-  if (name === "AskUserQuestion") {
-    const q = (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question;
-    if (typeof q === "string" && q.trim()) return `${name} · ${q.trim().length > 80 ? q.trim().slice(0, 77) + "…" : q.trim()}`;
-  }
-  const pick = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "description", "prompt"].find((k) => typeof args![k] === "string" && (args![k] as string).trim());
-  if (!pick) return name;
-  const raw = (args[pick] as string).trim().split("\n")[0];
-  const short = raw.length > 80 ? raw.slice(0, 77) + "…" : raw;
-  return `${name} · ${short}`;
+  const question = name === "AskUserQuestion" ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
+  const target = question || argOf(args)?.split("\n")[0];
+  if (!target) return name;
+  return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;
 }

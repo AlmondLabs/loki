@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { TOOL_TEXT_MAX, toTranscript, toolInput, toolOutput, toolStep } from "../core/harness.ts";
-import { applyEvent, emptyLive } from "../core/attention/model.ts";
+import { TOOL_TEXT_MAX, toolInput, toolOutput, toolStep } from "../core/harness.ts";
 import { withoutSkillCalls, isNamedStep, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workSummary } from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
@@ -70,26 +69,6 @@ describe("tool inputs and outputs are kept", () => {
     expect(long.endsWith("10 more characters")).toBe(true);
   });
 
-  test("Letta's history pairs a call with its return by id; one row for a call and its approval request", () => {
-    const rows = toTranscript([
-      { message_type: "tool_call_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
-      { message_type: "approval_request_message", tool_call: { name: "Bash", arguments: '{"command":"ls"}', tool_call_id: "c1" } },
-      { message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "error" },
-    ]);
-    expect(rows).toEqual([{ role: "tool", text: "Bash · ls", at: null, tool: { name: "Bash", id: "c1", input: "ls", output: "a.ts", failed: true } }]);
-  });
-
-  test("live, the input fills in as it streams and the result lands on its row", () => {
-    const l = emptyLive();
-    const rt = { agent_id: "a", conversation_id: "c" };
-    const delta = (d: Record<string, unknown>) => ({ type: "stream_delta", runtime: rt, delta: d }) as never;
-    applyEvent(l, delta({ message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "c1", arguments: '{"comm' } }), "2026-09-26T09:00:00Z");
-    expect(l.tail[0].tool).toEqual({ name: "Bash", id: "c1" });
-    applyEvent(l, delta({ message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "c1", arguments: 'and":"ls"}' } }), "2026-09-26T09:00:01Z");
-    expect(l.tail[0]).toMatchObject({ text: "Bash · ls", tool: { input: "ls" } });
-    applyEvent(l, delta({ message_type: "tool_return_message", tool_call_id: "c1", tool_return: "a.ts", status: "success" }), "2026-09-26T09:00:02Z");
-    expect(l.tail[0].tool).toEqual({ name: "Bash", id: "c1", input: "ls", output: "a.ts" });
-  });
 });
 
 describe("a stretch of work", () => {

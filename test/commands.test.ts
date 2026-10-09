@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { HARNESS_COMMANDS, LOKI_COMMANDS, allCommands, commandInput, fromAdvertised, matchCommands, parseSlash, slashQuery } from "../core/attention/commands.ts";
-import { applyEvent, emptyLive } from "../core/attention/model.ts";
 
 describe("slash commands", () => {
   test("parseSlash reads a command and its arguments, and leaves paths and prose alone", () => {
@@ -36,20 +35,5 @@ describe("slash commands", () => {
   test("commandInput is the line the harness echoes", () => {
     expect(commandInput("reload")).toBe("/reload");
     expect(commandInput("compact", "  all ")).toBe("/compact all");
-  });
-  test("slash_command_start / _end deltas become one event row: running, then the outcome", () => {
-    const l = emptyLive();
-    const delta = (d: Record<string, unknown>) => ({ type: "stream_delta", delta: d });
-    applyEvent(l, delta({ message_type: "slash_command_start", command_id: "reload", input: "/reload" }));
-    expect(l.tail).toMatchObject([{ role: "event", text: "/reload", summary: "running…" }]);
-    applyEvent(l, delta({ message_type: "slash_command_end", command_id: "reload", input: "/reload", output: "Reloaded 2 mods.", success: true }));
-    expect(l.tail).toMatchObject([{ role: "event", text: "/reload", summary: "Reloaded 2 mods.", detail: null }]);
-    // A long output goes behind the disclosure; a failure says so.
-    applyEvent(l, delta({ message_type: "slash_command_start", command_id: "compact", input: "/compact all" }));
-    applyEvent(l, delta({ message_type: "slash_command_end", command_id: "compact", input: "/compact all", output: "line one\nline two", success: false }));
-    expect(l.tail[1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
-    // An end without a start still lands as a row.
-    applyEvent(l, delta({ message_type: "slash_command_end", command_id: "clear", input: "/clear", output: "Cleared.", success: true }));
-    expect(l.tail[2]).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
   });
 });

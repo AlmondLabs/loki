@@ -142,7 +142,7 @@ export interface BridgeDeps {
   appServerUrl?: () => string | null;
   /** A conversation's transcript from the local backend log (survives compaction), for Catch Up threads. */
   /** The last `limit` rows of a chat's log, and whether there are older ones. */
-  transcript?: (agentId: string | null, conversationId: string, limit: number) => { rows: import("./desks.ts").LocalTranscriptMessage[]; more: boolean };
+  transcript?: (agentId: string | null, conversationId: string, limit: number) => { rows: import("../core/attention/transcript.ts").TranscriptRow[]; more: boolean };
   /** That conversation's desk's widget change log (mod/widget-log.ts), served with its history. */
   widgetLog?: (agentId: string | null, conversationId: string) => import("../core/desk-core.ts").WidgetLogEntry[];
   /** Working folders for "new desk" (see mod/folders.ts). */

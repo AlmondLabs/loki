@@ -137,9 +137,11 @@ The canvas speaks two protocols, and knowing which one owns a thing tells you wh
 ## Where the code lives
 
 1. `core/` — pure TypeScript both halves import (no I/O, no framework): `desk-core.ts` (the shared
-   vocabulary), `harness.ts` (recognising harness machinery in transcripts), `compat.ts` (the Letta Code
-   version range), `attention/` (the Inbox: the app-server client, the attention model, queue, snooze and
-   ladder, `useAttention`), `recall/` (Learn's cards and scheduling).
+   vocabulary), `harness.ts` (recognising harness machinery in transcripts, and Letta's messages as thread
+   steps), `compat.ts` (the Letta Code version range), `attention/` (the Inbox: the app-server client, the
+   attention model, queue, snooze and ladder, `useAttention`; `thread.ts` is ThreadModel, the one place a
+   chat's rows are built, from the mod's local log, the app-server's history and its live stream alike),
+   `recall/` (Learn's cards and scheduling).
 2. `mod/` — the code inside `letta server`. `index.ts` wires it; `gate.ts` lets only the harness that hosts an
    app-server serve the app; `server.ts` holds the ports and `bridge.ts` the protocol; `desk-store.ts`,
    `persist.ts` and `widgets-fs.ts` keep each chat's canvas and watch widget files; `widget-log.ts` keeps each chat's

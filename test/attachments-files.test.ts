@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { attachmentTag, withAttachments } from "../core/attention/content.ts";
-import { messageFiles, stripHarnessMarkup, toTranscript } from "../core/harness.ts";
-import { applyEvent, emptyLive, ownSendKey } from "../core/attention/model.ts";
+import { historySteps, messageFiles, stripHarnessMarkup } from "../core/harness.ts";
+import { applyEvent, emptyLive } from "../core/attention/model.ts";
+import { foldSteps, ownSendKey } from "../core/attention/thread.ts";
 import { fileSize, isInlineImage } from "../app/src/chat/attachments.ts";
 
 const report = { path: "/Users/me/.letta/loki/uploads/2026-09-30/Q3 \"final\".pdf", name: 'Q3 "final".pdf', size: 482113, mime: "application/pdf" };
@@ -26,17 +27,17 @@ describe("files on a message: Letta's attachment tag", () => {
   });
 
   test("history keeps the file on the row, even a message that was only a file", () => {
-    const rows = toTranscript([{ message_type: "user_message", content: withAttachments("", [report]), date: "2026-09-30T10:00:00Z" }]);
+    const rows = foldSteps(historySteps([{ message_type: "user_message", content: withAttachments("", [report]), date: "2026-09-30T10:00:00Z" }]));
     expect(rows).toEqual([{ role: "user", text: "", at: "2026-09-30T10:00:00Z", files: [report] }]);
   });
 
   test("the echo of a message sent with a file is recognised, and not shown twice", () => {
     const l = emptyLive();
-    l.ownSends.push(ownSendKey("", [report]));
+    l.thread.expectEcho(ownSendKey("", [report]));
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: withAttachments("", [report]) } });
-    expect(l.tail).toEqual([]);
+    expect(l.thread.rows() ?? []).toEqual([]);
     applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: withAttachments("from the phone", [report]) } });
-    expect(l.tail).toMatchObject([{ role: "user", text: "from the phone", files: [report] }]);
+    expect(l.thread.rows()).toMatchObject([{ role: "user", text: "from the phone", files: [report] }]);
   });
 });
 

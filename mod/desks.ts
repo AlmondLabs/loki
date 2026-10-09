@@ -4,8 +4,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
-import { extractHarnessEvents, isScheduledPrompt, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../core/harness.ts";
-import type { FileRef, ToolStep } from "../core/attention/transcript.ts";
+import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
+import { foldSteps, type Step } from "../core/attention/thread.ts";
+import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { AskedBy } from "../core/attention/priority.ts";
 import type { Runtime } from "./app-server.ts";
 import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
@@ -201,19 +202,6 @@ export function lookupLocalAgentId(conversationId: string, backendDir = join(hom
 }
 
 
-export interface LocalTranscriptMessage {
-  role: "user" | "assistant" | "tool" | "event";
-  text: string;
-  summary?: string | null;
-  detail?: string | null;
-  /** When the log line was written (its ISO `timestamp`); absent on lines without one. */
-  at?: string;
-  /** On a tool row, for the thread's steps: the call's input and, from its toolResult line, what came back. */
-  tool?: ToolStep;
-  /** On a user row: the files it carried (attachment tags). */
-  files?: FileRef[];
-}
-
 /**
  * The conversation's full text transcript from the local backend log
  * (`messages.jsonl`). Unlike the app-server's message list, this survives
@@ -228,7 +216,7 @@ export function readLocalTranscript(
   agentId?: string | null,
   limit = HISTORY_PAGE,
   backendDir = join(homedir(), ".letta", "lc-local-backend"),
-): LocalTranscriptMessage[] {
+): TranscriptRow[] {
   return readLocalTranscriptPage(conversationId, agentId, limit, backendDir).rows;
 }
 
@@ -243,23 +231,10 @@ export function readLocalTranscriptPage(
   agentId?: string | null,
   limit = HISTORY_PAGE,
   backendDir = join(homedir(), ".letta", "lc-local-backend"),
-): { rows: LocalTranscriptMessage[]; more: boolean } {
+): { rows: TranscriptRow[]; more: boolean } {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   if (!existsSync(path)) return { rows: [], more: false };
-  const out: LocalTranscriptMessage[] = [];
-  const calls = new Map<string, LocalTranscriptMessage>();
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const result = toolResultOf(line);
-    const row = result ? calls.get(result.id) : undefined;
-    if (result) {
-      if (row?.tool) row.tool = withResult(row.tool, result.content, result.failed);
-      continue;
-    }
-    for (const r of transcriptRows(line, true)) {
-      out.push(r);
-      if (r.tool?.id) calls.set(r.tool.id, r);
-    }
-  }
+  const out = foldSteps(readFileSync(path, "utf8").split("\n").flatMap(logSteps));
   return out.length > limit ? { rows: out.slice(out.length - limit), more: true } : { rows: out, more: false };
 }
 
@@ -272,80 +247,42 @@ export function readLocalTranscriptSince(
   agentId: string | null | undefined,
   fromLine: number,
   backendDir = join(homedir(), ".letta", "lc-local-backend"),
-): { rows: LocalTranscriptMessage[]; lines: number } {
+): { rows: TranscriptRow[]; lines: number } {
   const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
   if (!existsSync(path)) return { rows: [], lines: 0 };
   const all = readFileSync(path, "utf8").split("\n");
   const lines = all[all.length - 1] === "" ? all.length - 1 : all.length; // the trailing newline is not a line
-  const rows: LocalTranscriptMessage[] = [];
-  for (const line of all.slice(Math.max(0, fromLine), lines)) rows.push(...transcriptRows(line));
+  // The recall worker reads words: tool rows keep their one-line label and leave their step behind.
+  const rows = foldSteps(all.slice(Math.max(0, fromLine), lines).flatMap(logSteps)).map(({ tool: _tool, ...row }) => row);
   return { rows, lines };
 }
 
-/** A toolResult line: which call it answers, what came back, and whether it failed; null for any other line. */
-function toolResultOf(line: string): { id: string; content: unknown; failed: boolean } | null {
-  if (!line.includes('"toolResult"')) return null; // most lines, without parsing them twice
-  try {
-    const e = JSON.parse(line) as { type?: string; message?: { role?: string; toolCallId?: unknown; content?: unknown; isError?: unknown } };
-    const m = e.message;
-    if (e.type !== "message" || m?.role !== "toolResult" || typeof m.toolCallId !== "string") return null;
-    return { id: m.toolCallId, content: m.content, failed: m.isError === true };
-  } catch {
-    return null;
-  }
-}
-
 /**
- * One log line → its transcript rows: user and assistant text, harness notices as events, tool calls as markers
- * (with their step when `steps`: the thread shows them; the recall worker reads text and does not need them).
+ * One line of the local log as thread steps (core/attention/thread.ts): a user or assistant message with its text,
+ * the assistant's tool calls after its words, and a toolResult line as the result of the call it names. Thinking,
+ * session and compaction lines, and anything that does not parse, are nothing.
  */
-function transcriptRows(line: string, steps = false): LocalTranscriptMessage[] {
+function logSteps(line: string): Step[] {
   if (!line.trim()) return [];
-  let entry: { type?: string; timestamp?: unknown; message?: { role?: string; content?: unknown; metadata?: { created_at?: unknown } } };
+  let entry: { type?: string; timestamp?: unknown; message?: { role?: string; content?: unknown; toolCallId?: unknown; isError?: unknown; metadata?: { created_at?: unknown } } };
   try {
     entry = JSON.parse(line) as typeof entry;
   } catch {
     return [];
   }
-  if (entry.type !== "message" || !entry.message) return [];
-  const role = entry.message.role;
-  if (role !== "user" && role !== "assistant") return [];
-  const out: LocalTranscriptMessage[] = [];
+  const m = entry.message;
+  if (entry.type !== "message" || !m) return [];
+  if (m.role === "toolResult") return typeof m.toolCallId === "string" ? [{ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true }] : [];
+  if (m.role !== "user" && m.role !== "assistant") return [];
   // Letta's local backend writes the time on every message line; older lines may lack it.
-  const stamp = typeof entry.timestamp === "string" ? entry.timestamp : typeof entry.message.metadata?.created_at === "string" ? entry.message.metadata.created_at : null;
-  const at = stamp && Number.isFinite(Date.parse(stamp)) ? { at: stamp } : {};
-  const raw = textParts(entry.message.content);
-  if (role === "user") {
-    for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, ...at });
-  }
-  const text = (role === "user" ? stripHarnessMarkup(raw) : raw).trim();
-  const files = role === "user" ? messageFiles(raw) : [];
-  if (text || files.length) out.push({ role, text, ...at, ...(files.length ? { files } : {}) });
-  if (role === "assistant") for (const t of toolCalls(entry.message.content)) out.push({ role: "tool", text: t.label, ...at, ...(steps ? { tool: t.step } : {}) });
-  return out;
-}
-
-function toolCalls(content: unknown): Array<{ label: string; step: ToolStep }> {
-  if (!Array.isArray(content)) return [];
-  const out: Array<{ label: string; step: ToolStep }> = [];
-  for (const part of content) {
-    if (typeof part === "object" && part !== null && (part as { type?: string }).type === "toolCall") {
-      const p = part as { name?: string; arguments?: unknown; id?: unknown };
-      if (p.name) out.push({ label: toolLabel(p.name, p.arguments), step: toolStep(p.name, p.arguments, typeof p.id === "string" ? p.id : null) });
-    }
-  }
-  return out;
-}
-
-function textParts(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  let out = "";
-  for (const part of content) {
-    if (typeof part !== "object" || part === null) continue;
-    const type = (part as { type?: string }).type;
-    if (type === "text" && typeof (part as { text?: unknown }).text === "string") out += (out ? "\n" : "") + (part as { text: string }).text;
-    else if (type === "image") out += (out ? "\n" : "") + "[image]";
+  const stamp = typeof entry.timestamp === "string" ? entry.timestamp : typeof m.metadata?.created_at === "string" ? m.metadata.created_at : null;
+  const at = stamp && Number.isFinite(Date.parse(stamp)) ? stamp : null;
+  const text = contentText(m.content);
+  if (m.role === "user") return [{ kind: "user", raw: text, at }];
+  const out: Step[] = [{ kind: "assistant", text, at }];
+  for (const part of Array.isArray(m.content) ? m.content : []) {
+    const p = part as { type?: string; name?: string; arguments?: unknown; id?: unknown } | null;
+    if (p?.type === "toolCall" && p.name) out.push({ kind: "call", name: p.name, args: p.arguments, id: typeof p.id === "string" ? p.id : null, at });
   }
   return out;
 }
@@ -413,10 +350,10 @@ export function digestLocalConversation(conversationId: string, agentId?: string
     if (entry.type !== "message" || !entry.message) continue;
     const role = entry.message.role;
     if (role === "user") {
-      const text = stripHarnessMarkup(textParts(entry.message.content)).trim();
+      const text = stripHarnessMarkup(contentText(entry.message.content)).trim();
       if (text) return { lastRole: lastRole ?? "user", lastAssistantText, lastAsk: isScheduledPrompt(text) ? "schedule" : "person" };
     } else if (role === "assistant" && !lastRole) {
-      const text = textParts(entry.message.content).trim();
+      const text = contentText(entry.message.content).trim();
       if (!text) continue;
       lastRole = "assistant";
       lastAssistantText = text.slice(-DIGEST_TEXT_LIMIT);

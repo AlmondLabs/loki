@@ -1,12 +1,13 @@
-import type { ToolStep } from "./transcript.ts";
+import type { FileRef, ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toTranscript } from "../harness.ts";
+import { historySteps } from "../harness.ts";
 import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, beginCommand, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, commandRunning, emptyLive, finishCommand, liveRows, ownSendKey, settleCommands, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import { applyEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
-import { carryTimes, fromHistory, type TranscriptRow } from "./transcript.ts";
+import type { TranscriptRow } from "./transcript.ts";
+import { foldSteps, ownSendKey, type HistoryRow } from "./thread.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./activeClock.ts";
@@ -63,7 +64,7 @@ export interface UseAttentionOptions {
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
-  loadLocalHistory?: (agentId: string, conversationId: string, limit?: number) => Promise<{ rows: Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep }>; more: boolean }>;
+  loadLocalHistory?: (agentId: string, conversationId: string, limit?: number) => Promise<{ rows: Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep; files?: FileRef[] }>; more: boolean }>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
@@ -127,8 +128,6 @@ export function useAttention(opts: UseAttentionOptions) {
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
   /** From the harness's app_server_info reply: which Letta Code this is. */
   const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[] } | null>(null);
-  /** Loaded transcripts by key; live rows (Live.tail) are appended on top when read. */
-  const [histories, setHistories] = useState<Record<string, TranscriptRow[]>>({});
   /** Chats whose log holds rows older than the ones loaded; the reader reaching the top asks for the next page. */
   const [older, setOlder] = useState<Record<string, true>>({});
   /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page). */
@@ -136,6 +135,15 @@ export function useAttention(opts: UseAttentionOptions) {
   const loading = useRef(new Set<string>());
   const socketRef = useRef<AppServerSocket | null>(null);
   const liveRef = useRef(new Map<string, Live>());
+  /** A conversation's live state, made on first use: its thread holds the chat's rows, loaded and live. */
+  const liveOf = useCallback((key: string): Live => {
+    let l = liveRef.current.get(key);
+    if (!l) {
+      l = emptyLive();
+      liveRef.current.set(key, l);
+    }
+    return l;
+  }, []);
   /** What each chat's agent was last told of the time and the chat: the note goes again only when that changed. */
   const envNotes = useRef(new Map<string, EnvNoteTold>());
   /** Folder changes waiting on Letta Code's answer, by conversation key (changeFolder). */
@@ -185,7 +193,7 @@ export function useAttention(opts: UseAttentionOptions) {
         // Back after a drop (a /reload restarts the mod, which is this link): finish what the old link left running.
         linkDropped.current = false;
         let changed = false;
-        for (const l of liveRef.current.values()) if (settleCommands(l)) changed = true;
+        for (const l of liveRef.current.values()) if (l.thread.settleCommands()) changed = true;
         if (changed) bump();
       }
     };
@@ -196,11 +204,7 @@ export function useAttention(opts: UseAttentionOptions) {
       const agent = ev.runtime?.agent_id ?? (typeof ev.agent_id === "string" ? ev.agent_id : null);
       if (!conv || !agent) return;
       const key = keyOf(agent, conv);
-      let l = liveRef.current.get(key);
-      if (!l) {
-        l = emptyLive();
-        liveRef.current.set(key, l);
-      }
+      const l = liveOf(key);
       const wasInTurn = l.inTurn;
       const asked = { approval: l.pending?.requestId ?? null, question: l.pendingAsk?.requestId ?? null };
       const errorBefore = l.error;
@@ -225,7 +229,7 @@ export function useAttention(opts: UseAttentionOptions) {
         if (next && ev.runtime) {
           const rt = ev.runtime;
           const out = outgoing(next.text, next.images);
-          if (out.key) l.ownSends.push(out.key);
+          if (out.key) l.thread.expectEcho(out.key);
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
           bump();
           void sock.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, next.desk)).catch((err) => console.warn("loki: queued send", err));
@@ -361,19 +365,16 @@ export function useAttention(opts: UseAttentionOptions) {
     loading.current.add(key);
     const read = async () => {
       const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
-      let rows: TranscriptRow[] = (page?.rows ?? []).map(fromHistory);
+      let rows: HistoryRow[] = page?.rows ?? [];
       setOlder((o) => (!!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
-      if (!rows.length && socketRef.current) rows = toTranscript(await socketRef.current.listMessages(rt, 60)).map(fromHistory);
-      const l = liveRef.current.get(key);
-      const tail = l?.tail ?? [];
-      if (l) l.tail = []; // the transcript now covers what streamed in before
-      // Live rows were stamped on arrival; history that has no times of its own keeps theirs (and the last load's).
-      setHistories((h) => ({ ...h, [key]: carryTimes(rows, [...(h[key] ?? []), ...tail]) }));
+      if (!rows.length && socketRef.current) rows = foldSteps(historySteps(await socketRef.current.listMessages(rt, 60)));
+      liveOf(key).thread.load(rows);
+      setLive(new Map(liveRef.current));
     };
     // A promise's catch, not try/finally (the React Compiler takes neither a finally nor a ?? inside a try): the key frees either way.
     await read().catch((err: unknown) => console.warn("loki: thread", err));
     loading.current.delete(key);
-  }, []);
+  }, [liveOf]);
   const loadHistory = useCallback((item: AttentionItem) => loadThread(item.runtime), [loadThread]);
   /** The next page of a chat's history, older than what is loaded: asked for when the reader reaches the top. */
   const loadOlder = useCallback((rt: Runtime) => {
@@ -413,12 +414,10 @@ export function useAttention(opts: UseAttentionOptions) {
     (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null; cwd: string | null; older: (() => void) | null } => {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
-      const base = histories[key];
-      // The history's rows and the live ones keep their identity from update to update; only what changed is new.
-      const tail: TranscriptRow[] = l ? liveRows(l) : [];
-      return { rows: base === undefined && !tail.length ? undefined : [...(base ?? []), ...tail], status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null, older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null };
+      // The thread's rows keep their identity from update to update; only what changed is new.
+      return { rows: l?.thread.rows(), status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null, older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null };
     },
-    [histories, live, older, loadOlder],
+    [live, older, loadOlder],
   );
 
   const decide = useCallback((rt: Runtime, requestId: string, behavior: "allow" | "deny") => {
@@ -444,7 +443,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (!l || !was) return;
     l.pendingAsk = null;
     const summary = Object.values(answers).map((a) => (Array.isArray(a) ? a.join(", ") : a)).join(" · ");
-    if (summary.trim()) l.tail.push({ role: "user", text: summary, at: new Date().toISOString() });
+    if (summary.trim()) l.thread.own({ role: "user", text: summary, at: new Date().toISOString() });
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "answer");
     optsRef.current.capture?.("question_answered", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, wait_ms: Math.max(0, Date.now() - Date.parse(was.at)) || null });
@@ -459,29 +458,24 @@ export function useAttention(opts: UseAttentionOptions) {
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
   const send = useCallback((rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
-    let l = liveRef.current.get(key);
-    if (!l) {
-      l = emptyLive();
-      liveRef.current.set(key, l);
-    }
+    const l = liveOf(key);
     const fileCount = images.filter(isFileAttachment).length;
     optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
       l.queued.push({ text, images, desk: env.desk });
-      l.tail.push({ ...sentRow(text, images), queued: true });
+      l.thread.queue(sentRow(text, images));
       bump();
       return;
     }
-    l.tail.push(sentRow(text, images));
     const out = outgoing(text, images);
-    if (out.key) l.ownSends.push(out.key);
+    l.thread.own(sentRow(text, images), out.key);
     l.lastRole = "user";
     bump();
     void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk))).catch((err) => console.warn("loki: send", err));
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
-  }, [subscribe, bump]);
+  }, [subscribe, bump, liveOf]);
   /** Take back a message typed mid-turn before it went out. */
   const cancelQueued = useCallback((rt: Runtime, text: string) => {
     const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
@@ -495,36 +489,32 @@ export function useAttention(opts: UseAttentionOptions) {
    * subscribed; the answer here fills the row in when those never arrived, or when the call failed.
    */
   const execute = useCallback(async (rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> => {
-    const key = keyOf(rt.agent_id, rt.conversation_id);
-    let l = liveRef.current.get(key);
-    if (!l) {
-      l = emptyLive();
-      liveRef.current.set(key, l);
-    }
+    const l = liveOf(keyOf(rt.agent_id, rt.conversation_id));
     const input = commandInput(commandId, args);
+    const now = () => new Date().toISOString();
     optsRef.current.capture?.("command_run", { command: commandId });
     const sock = socketRef.current;
     if (!sock) {
-      finishCommand(l, input, false, "not connected to the app-server");
+      l.thread.finishCommand(input, false, "not connected to the app-server", now());
       bump();
       return { success: false, output: "not connected to the app-server" };
     }
-    if (!sock.isSubscribed(rt)) beginCommand(l, input); // no deltas will come for this one; show the running row ourselves
+    if (!sock.isSubscribed(rt)) l.thread.beginCommand(input, now()); // no deltas will come for this one; show the running row ourselves
     bump();
     try {
       const res = await sock.executeCommand(rt, commandId, args);
-      if (commandRunning(l, input)) finishCommand(l, input, res.success, res.output);
+      if (l.thread.commandRunning(input)) l.thread.finishCommand(input, res.success, res.output, now());
       bump();
       return res;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // /reload restarts the mod, and the mod is this link: the answer is lost with it, which is the success case.
       const reloaded = commandId === "reload" && /link closed/i.test(message);
-      finishCommand(l, input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message);
+      l.thread.finishCommand(input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message, now());
       bump();
       return { success: reloaded, output: reloaded ? "reloaded" : message };
     }
-  }, [bump]);
+  }, [bump, liveOf]);
 
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
     const sock = socketRef.current;
