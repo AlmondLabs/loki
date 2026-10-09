@@ -94,3 +94,17 @@ export function desksFrames(deps: DesksDeps): FrameHandlers {
     },
   };
 }
+
+const STATUS_RANK: Record<DeskStatus, number> = { live: 0, none: 0, archived: 1, deleted: 2 };
+
+/** shared first, then live desks (pinned, then the active one, then by recency), then archived, then deleted. */
+export function sortDesks(desks: DeskSummary[]): DeskSummary[] {
+  return [...desks].sort((a, b) => {
+    if (a.scope === SHARED_SCOPE) return -1;
+    if (b.scope === SHARED_SCOPE) return 1;
+    if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) return STATUS_RANK[a.status] - STATUS_RANK[b.status];
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return (b.lastActive ?? "").localeCompare(a.lastActive ?? "") || (a.title ?? a.scope).localeCompare(b.title ?? b.scope);
+  });
+}

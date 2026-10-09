@@ -1,5 +1,6 @@
 import type { WidgetManifestEntry } from "../../core/desk-core.ts";
 import { createBridge, type BridgeDeps } from "../../mod/bridge.ts";
+import { frameModules, welcomeFrames, type ModuleDeps } from "../../mod/frames/index.ts";
 import { DeskStore } from "../../mod/desk-store.ts";
 import { GestureLog } from "../../mod/gestures.ts";
 import type { Client } from "../../mod/server.ts";
@@ -30,10 +31,18 @@ export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { 
   };
 }
 
-/** A bridge over in-memory desks with the given modules, and every broadcast it made. */
-export function bridgeWith(deps: Partial<BridgeDeps> = {}) {
+type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; capture?: BridgeDeps["capture"]; appServerUrl?: BridgeDeps["appServerUrl"]; modules?: BridgeDeps["modules"] };
+
+/** The bridge the mod builds, over in-memory desks unless given others: every module from these deps, or only `modules`. */
+export function bridgeOf(deps: BridgeOf = {}) {
+  const full: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), ...deps };
+  return createBridge({ modules: deps.modules ?? frameModules(full), welcome: welcomeFrames(full), broadcast: deps.broadcast ?? (() => {}), capture: deps.capture, appServerUrl: deps.appServerUrl });
+}
+
+/** A bridge as bridgeOf builds it, and every broadcast it made. */
+export function bridgeWith(deps: BridgeOf = {}) {
   const broadcasts: Array<{ frame: Record<string, unknown>; scope?: string }> = [];
-  const bridge = createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (frame, scope) => broadcasts.push({ frame: frame as Record<string, unknown>, scope }), ...deps });
+  const bridge = bridgeOf({ ...deps, broadcast: (frame, scope) => broadcasts.push({ frame: frame as Record<string, unknown>, scope }) });
   return { bridge, broadcasts };
 }
 

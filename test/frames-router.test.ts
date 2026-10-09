@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createBridge } from "../mod/bridge.ts";
 import { fail, reply, type FrameHandlers } from "../mod/frames/context.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
-import { bridgeWith, client, fakeWidgets, settled } from "./fixtures/frames.ts";
+import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 
 describe("the frame router", () => {
   test("a request's reply goes out under the table's name, with its requestId", () => {
@@ -50,6 +48,6 @@ describe("the frame router", () => {
   test("a frame two modules answer is refused when the bridge is built", () => {
     const a: FrameHandlers = { seen_list: () => {} };
     const b: FrameHandlers = { seen_list: () => {} };
-    expect(() => createBridge({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, modules: [a, b] })).toThrow("two handlers for seen_list");
+    expect(() => createBridge({ broadcast: () => {}, modules: [a, b] })).toThrow("two handlers for seen_list");
   });
 });

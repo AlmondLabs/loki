@@ -27,7 +27,8 @@ import { reflectionState } from "./reflection.ts";
 import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 
-import { sortDesks } from "./bridge.ts";
+import { sortDesks } from "./frames/desks.ts";
+import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
 import { shouldServe } from "./gate.ts";
@@ -282,12 +283,10 @@ export default function activate(letta: LettaMod): (() => void) | void {
   };
   scheduleRecall(recallStore.worker().tickMinutes ?? DEFAULT_TICK_MINUTES);
 
-  const bridge = createBridge({
+  const moduleDeps: ModuleDeps = {
     store,
     widgets,
     gestures,
-    broadcast,
-    capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
     listDesks,
     listInbox,
     recall: {
@@ -301,7 +300,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
     deleteWidgetFile,
     seen,
     appServerAvailable: () => appServerUrl !== null,
-    appServerUrl: () => appServerUrl,
     transcript: (agentId, conversationId, limit) => readLocalTranscriptPage(conversationId, agentId, limit),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
@@ -337,6 +335,13 @@ export default function activate(letta: LettaMod): (() => void) | void {
       globalSkills: () => listGlobalSkills().map((g) => ({ ...g, source: skillSources.describeGlobal(g) })),
       install: (id, source, force) => installSkill(source, id, { force }),
     },
+  };
+  const bridge = createBridge({
+    modules: frameModules(moduleDeps),
+    welcome: welcomeFrames(moduleDeps),
+    broadcast,
+    capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
+    appServerUrl: () => appServerUrl,
   });
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;
