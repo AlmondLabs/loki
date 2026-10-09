@@ -2,8 +2,9 @@ import type { Context } from "@earendil-works/chord";
 import type { Models } from "@earendil-works/pi-ai/models";
 import { LiveDoc, watchEvents, type Conversation } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { basename, join } from "node:path";
+import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import { backendName } from "../core/desk-core.ts";
 import type { ChatState, PayloadOf } from "../core/frames.ts";
@@ -216,11 +217,48 @@ export class DaemonChats implements ChatBackend {
     return this.deps.reflection.setSettings(s);
   }
 
-  async reflect(agentId: string, conversationId: string): Promise<boolean> {
-    if (!this.deps.reflection) throw new Error("reflection is not running");
-    // The pass runs on its own; the chat shows its commits on the Agents page when it is done.
-    void this.deps.reflection.run(agentId, conversationId).catch(() => {});
-    return true;
+  /** The slash commands the daemon runs: /compact [instructions], /clear, /remember [what], /reflect. */
+  async command(p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
+    const { chat } = await this.chat(p.agentId, p.conversationId);
+    switch (p.command) {
+      case "compact":
+        await chat.compact(p.args?.trim() || undefined, this.deps.context);
+        return { success: true, output: "summarising the conversation so far" };
+      case "clear":
+        await chat.reset(undefined, this.deps.context);
+        return { success: true, output: "the agent starts this chat afresh; what was said stays in the thread" };
+      case "remember": {
+        const what = p.args?.trim();
+        const text = what ? `Please remember this in your memory: ${what}` : "Look back over this conversation and save to your memory whatever is worth keeping.";
+        await chat.submit({ type: "input", content: text }, this.deps.context);
+        return { success: true, output: "asked the agent to remember" };
+      }
+      case "reflect":
+        if (!this.deps.reflection) return { success: false, output: "reflection is not running" };
+        // The pass runs on its own; its memory changes show on the agent's page when it is done.
+        void this.deps.reflection.run(p.agentId, p.conversationId).catch(() => {});
+        return { success: true, output: "reflecting on this chat; its memory changes show on the agent's page" };
+      default:
+        return { success: false, output: `/${p.command} is not a command loki's daemon runs` };
+    }
+  }
+
+  /** A skill made global the way Letta made it: a link to its folder in the global skills folder (mod/skills.ts). */
+  async enableSkill(path: string): Promise<{ name: string; linkPath: string }> {
+    if (!existsSync(join(path, "SKILL.md"))) throw new Error(`${path} has no SKILL.md`);
+    const dir = globalSkillsDir();
+    mkdirSync(dir, { recursive: true });
+    const name = basename(path);
+    const linkPath = join(dir, name);
+    if (existsSync(linkPath)) throw new Error(`a global skill named ${name} is already there`);
+    symlinkSync(path, linkPath, "dir");
+    return { name, linkPath };
+  }
+
+  async disableSkill(name: string): Promise<void> {
+    const linkPath = join(globalSkillsDir(), name);
+    if (!lstatSync(linkPath, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${name} is not a linked global skill`);
+    unlinkSync(linkPath);
   }
 
   async writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void> {

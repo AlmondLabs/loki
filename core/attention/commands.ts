@@ -57,8 +57,10 @@ export function fromAdvertised(ids: string[] | undefined, mods: Array<{ id: stri
 }
 
 /** Every command the box offers: loki's, the harness's, then whatever else the harness advertised. */
-export function allCommands(advertised: SlashCommand[] = []): SlashCommand[] {
-  return [...LOKI_COMMANDS, ...HARNESS_COMMANDS, ...advertised];
+/** loki's commands and the harness's; `only`, when the backend names exactly what it runs (loki's daemon), keeps those. */
+export function allCommands(advertised: SlashCommand[] = [], only?: string[]): SlashCommand[] {
+  const harness = only ? HARNESS_COMMANDS.filter((c) => only.includes(c.id)) : HARNESS_COMMANDS;
+  return [...LOKI_COMMANDS, ...harness, ...advertised];
 }
 
 const HEAD = /^\/([a-z][\w-]*)(?:\s+([\s\S]*))?$/;

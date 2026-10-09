@@ -27,6 +27,14 @@ const KINDS: Record<string, ToolKind> = {
   desk_state: "read",
   loki_camera: "read",
   web_search: "read",
+  view_image: "read",
+  Skill: "read",
+  // A helper's own tool calls pass the gate; starting one does not ask on its own.
+  Agent: "read",
+  // Memory is the agent's own: changing it is not a permission.
+  memory_read: "read",
+  memory_write: "read",
+  memory_edit: "read",
   write: "edit",
   edit: "edit",
 };

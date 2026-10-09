@@ -30,8 +30,10 @@ export interface ChatBackend {
   signIn(providerId: string): Promise<Replies["chat_signin"]>;
   reflection(): Promise<Replies["chat_reflection"]>;
   setReflection(s: PayloadOf<"chat_reflection_set">): Promise<Replies["chat_reflection"]>;
-  reflect(agentId: string, conversationId: string): Promise<boolean>;
+  command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
+  enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
+  disableSkill(name: string): Promise<void>;
 }
 
 export type ChatDeps = { chat?: ChatBackend };
@@ -68,7 +70,9 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
     chat_reflection_get: () => served(b, (x) => x.reflection()),
     chat_reflection_set: (p) => served(b, (x) => x.setReflection(p)),
-    chat_reflect: ({ agentId, conversationId }) => served(b, async (x) => ({ accepted: await x.reflect(agentId, conversationId) })),
+    chat_command: (p) => served(b, (x) => x.command(p)),
+    chat_skill_enable: ({ path }) => served(b, (x) => x.enableSkill(path)),
+    chat_skill_disable: ({ name }) => served(b, async (x) => (await x.disableSkill(name), DONE)),
     chat_memory_write: (p) => served(b, async (x) => (await x.writeMemory(p), DONE)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
     chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),

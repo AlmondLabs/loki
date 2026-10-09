@@ -63,6 +63,7 @@ settling, the turn ending. loki's daemon pushes them (`chat_event`); Letta's app
 | acceptEdits | commands; edits and reads run freely |
 | unrestricted | nothing (the default) |
 
-Reads are `read`, `grep`, `find`, `ls`, `desk_state`, `loki_camera`, `web_search` and a mod's tools marked
-read-only; edits are `write` and `edit`; anything else is a command. An edit inside loki's widget folder never asks,
+Reads are `read`, `grep`, `find`, `ls`, `view_image`, `desk_state`, `loki_camera`, `web_search`, `Skill` and a mod's
+tools marked read-only; the memory tools and `Agent` (a helper, whose own calls are asked about) count as reads too.
+Edits are `write` and `edit`; anything else is a command. An edit inside loki's widget folder never asks,
 and a question card (`AskUserQuestion`) is never a permission.

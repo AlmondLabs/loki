@@ -44,13 +44,12 @@ export type ChatClient = Pick<
   /** Every chat event, with the chat it happened in. */
   onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void;
   /** Which backend this is, for Settings. */
-  serverInfo(): Promise<{ version: string | null; protocol: number | null; commands?: string[]; modCommands?: Array<{ id: string; description?: string; args?: string }> }>;
+  /** `exclusive`: the backend runs exactly `commands`, and the palette offers no others of the harness's. */
+  serverInfo(): Promise<{ version: string | null; protocol: number | null; commands?: string[]; modCommands?: Array<{ id: string; description?: string; args?: string }>; exclusive?: boolean }>;
 };
 
 /** The mod socket's request, as the app's useDesk makes it. */
 export type FrameRequest = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number) => Promise<RequestResult<ReplyOf<N>>>;
-
-const NOT_YET = (what: string) => new Error(`${what} is not on loki's daemon yet`);
 
 /**
  * loki's daemon, through the mod's frames (core/frames.ts chat_*). A chat is named by its agent and id on the wire;
@@ -101,8 +100,9 @@ export class FrameChatClient implements ChatClient {
     return () => this.listeners.delete(fn);
   }
 
+  /** The daemon's commands: the palette offers these and loki's own (core/attention/commands.ts). */
   async serverInfo() {
-    return { version: "loki daemon", protocol: null };
+    return { version: "loki daemon", protocol: null, commands: ["compact", "clear", "remember", "reflect"], exclusive: true };
   }
 
   close(): void {
@@ -241,18 +241,19 @@ export class FrameChatClient implements ChatClient {
   async deleteMemoryFile(agentId: string, path: string, commitMessage?: string): Promise<void> {
     await this.call("chat_memory_write", { agentId, path, content: null, message: commitMessage });
   }
-  // Skills and the other commands come to the daemon with plan 017's U10.
-  async skillEnable(): Promise<{ name: string; linkPath: string }> {
-    throw NOT_YET("enabling a skill");
+  async skillEnable(skillPath: string): Promise<{ name: string; linkPath: string }> {
+    return this.call("chat_skill_enable", { path: skillPath });
   }
-  async skillDisable(): Promise<void> {
-    throw NOT_YET("disabling a skill");
+  async skillDisable(name: string): Promise<void> {
+    await this.call("chat_skill_disable", { name });
   }
-  async executeCommand(rt: Runtime, commandId: string): Promise<{ success: boolean; output: string }> {
-    if (commandId === "reflect") {
-      const r = await this.call("chat_reflect", { agentId: rt.agent_id, conversationId: rt.conversation_id });
-      return { success: r.accepted, output: "reflecting on this chat; its memory changes show on the agent's page" };
-    }
-    return { success: false, output: `/${commandId} is not on loki's daemon yet` };
+
+  /** A slash command, shown in the thread as it runs and when it answers, as Letta's were. */
+  async executeCommand(rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> {
+    const input = `/${commandId}${args ? ` ${args}` : ""}`;
+    this.emit(rt, [{ kind: "command", phase: "start", input }]);
+    const r = await this.call("chat_command", { agentId: rt.agent_id, conversationId: rt.conversation_id, command: commandId, args: args ?? null }, 180_000).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
+    this.emit(rt, [{ kind: "command", phase: "end", input, success: r.success, output: r.output }]);
+    return r;
   }
 }

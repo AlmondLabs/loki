@@ -22,6 +22,10 @@ import { askExtension } from "./ask.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { Providers } from "./providers.ts";
 import { memoryExtension } from "./memory.ts";
+import { fileToolsExtension } from "./tools.ts";
+import { skillsExtension } from "./skills.ts";
+import { subagentExtension } from "./subagents.ts";
+import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { Reflection } from "./reflection.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
@@ -77,7 +81,13 @@ const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mo
 const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mods.annotations(name)) });
 mods.registry.install(approvals.extension());
 mods.registry.install(askExtension(approvals));
+// The tools every chat has: pi-durable's own (read, write, edit, bash), loki's file tools, memory, skills and the
+// agent's project instructions, and helpers (subagents).
+mods.registry.install(CodingTools);
+mods.registry.install(fileToolsExtension());
 mods.registry.install(memoryExtension(backend));
+mods.registry.install(skillsExtension(backend));
+mods.registry.install(subagentExtension());
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report);
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });

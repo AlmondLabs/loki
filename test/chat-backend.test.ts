@@ -114,6 +114,30 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("slash commands: /remember asks the agent, /clear starts it afresh, /compact summarises, and others are refused", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      await s.chats.open(agent.id, conversationId);
+      const run = (command: string, args: string | null = null) => s.chats.command({ agentId: agent.id, conversationId, command, args });
+      s.faux.setResponses([s.reply("noted"), s.reply("fresh")]);
+      expect((await run("remember", "I like tea")).success).toBe(true);
+      await until(() => kinds(s.pushed).includes("turn_end"));
+      expect(s.sent[0]).toContain("Please remember this in your memory: I like tea");
+      // A chat this short has nothing old enough to summarise: /compact is accepted and leaves it as it is.
+      expect((await run("compact")).success).toBe(true);
+      expect((await run("clear")).success).toBe(true);
+      await s.chats.send({ agentId: agent.id, conversationId, text: "hello again", images: [], sendId: "x", context: null });
+      await until(() => s.sent.length === 2);
+      expect(s.sent[1]).toContain("hello again");
+      expect(s.sent[1]).not.toContain("I like tea");
+      expect(await run("doctor")).toEqual({ success: false, output: "/doctor is not a command loki's daemon runs" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("the models on offer carry their provider in the handle", async () => {
     const s = await setup();
     try {

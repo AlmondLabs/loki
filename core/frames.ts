@@ -101,6 +101,8 @@ export interface Replies {
   chat_done: Record<never, never>;
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };
+  chat_command_done: { success: boolean; output: string };
+  chat_skill_enabled: { name: string; linkPath: string };
   chat_reflection: { trigger: "off" | "step-count" | "compaction-event"; stepCount: number; merge: "auto" | "explicit"; mergeInstructions: string };
 }
 export type ReplyName = keyof Replies;
@@ -257,9 +259,15 @@ export const FRAMES = {
     if (!trigger) return "trigger must be off, step-count or compaction-event";
     return { trigger, stepCount: isNum(m.stepCount) && m.stepCount > 0 ? Math.floor(m.stepCount) : 25, merge: m.merge === "explicit" ? ("explicit" as const) : ("auto" as const), mergeInstructions: strOr(m.mergeInstructions, "") };
   }),
-  chat_reflect: request("chat_accepted", "reflect on a chat now (/reflect)", chatRef, PHONE),
+  chat_command: request("chat_command_done", "run a slash command in a chat: compact, clear, remember or reflect", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.command) && m.command ? { ...c, command: m.command, args: strOr(m.args, null) } : "command required";
+  }, PHONE),
   chat_memory_write: request("chat_done", "write a memory file (null content removes it), committed as yours", (m) =>
     isAgentId(m.agentId) && str(m.path) && m.path ? { agentId: m.agentId, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) } : "agentId and path required"),
+  chat_skill_enable: request("chat_skill_enabled", "make a skill folder global: a link to it in the global skills folder", (m) => (str(m.path) && m.path ? { path: m.path } : "path required")),
+  chat_skill_disable: request("chat_done", "take a global skill away: its link in the global skills folder", (m) => (str(m.name) && m.name && !m.name.includes("/") && !m.name.includes("..") ? { name: m.name } : "a skill name required")),
   chat_providers: request("chat_providers", "the model providers, connected or not", nothing),
   chat_provider_connect: request("chat_providers", "keep a provider's API key, once the provider accepts it", (m) =>
     str(m.providerId) && m.providerId && str(m.apiKey) ? { providerId: m.providerId, apiKey: m.apiKey } : "providerId and apiKey required"),

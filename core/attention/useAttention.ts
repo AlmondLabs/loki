@@ -136,7 +136,7 @@ export function useAttention(opts: UseAttentionOptions) {
   const [live, setLive] = useState<Map<string, Live>>(() => new Map());
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
   /** From the harness's app_server_info reply: which Letta Code this is. */
-  const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[] } | null>(null);
+  const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[]; only?: string[] } | null>(null);
   /** Chats whose log holds rows older than the ones loaded; the reader reaching the top asks for the next page. */
   const [older, setOlder] = useState<Record<string, true>>({});
   /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page). */
@@ -262,7 +262,7 @@ export function useAttention(opts: UseAttentionOptions) {
     // Promise-style error handling here: the React Compiler cannot take a loop or a ?? inside a try block.
     const loadOnce = async () => {
       void sock.serverInfo().then((info) => {
-        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: fromAdvertised(info.commands, info.modCommands) });
+        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: info.exclusive ? [] : fromAdvertised(info.commands, info.modCommands), ...(info.exclusive ? { only: info.commands } : {}) });
       }).catch(() => {});
       const agents = await sock.listAgents();
       const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
@@ -799,7 +799,7 @@ export function useAttention(opts: UseAttentionOptions) {
     status,
     server,
     /** Every slash command the box offers: loki's, the harness's, and whatever else this harness advertised. */
-    commands: useMemo(() => allCommands(server?.advertised), [server?.advertised]),
+    commands: useMemo(() => allCommands(server?.advertised, server?.only), [server?.advertised, server?.only]),
     execute,
     agents,
     agentsLoaded,
