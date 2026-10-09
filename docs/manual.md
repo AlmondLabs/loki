@@ -451,12 +451,23 @@ a question card instead of a permission block: each question with its options
 sends everything back in one go. A typed reply in the message box while a
 single question is open is treated as the answer.
 
-## Images
+## Images and files
 
-Paste an image into any message box (⌘V from a screenshot, or drop a file on
-it). It shows as a thumbnail above the box, with × to remove; send attaches it
-to the message as a base64 image part. Large images are shrunk to 1600px on
-the long edge before sending.
+Attach with "+", paste (⌘V), or drop onto any message box, on the Mac or the phone.
+
+- **Images** (PNG, JPEG, GIF, WebP, HEIC) show as a thumbnail above the box, with × to remove; send puts them
+  inside the message as base64 image parts, so the agent sees them at once. Large images are shrunk to 1600px on
+  the long edge before sending.
+- **Any other file** (a PDF, a spreadsheet, a log, an SVG) is uploaded to the Mac as soon as you add it, into
+  `~/.letta/loki/uploads/<yyyy-mm-dd>/` under its own name (a number is added when the name is taken). A chip shows
+  its name and the upload's progress; send waits until it is there. × before sending deletes it again. The message
+  carries only where it is, in the attachment tag Letta's own Slack and Telegram channels use
+  (`<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`); the agent reads it with its own tools.
+  The chat hides the tag and shows the file as a chip on your message; in the desktop app a click shows it in its
+  folder. 25 MB per file.
+- Text, code, CSV, JSON and Markdown the agent reads directly; a PDF, Word or Excel file needs a command-line tool on
+  the Mac (`pdftotext` from `brew install poppler`, or Python), which the agent runs itself.
+- Uploads stay until you delete them; archiving or deleting a chat leaves them.
 
 ## Dictation
 
@@ -559,7 +570,9 @@ something new.
 opening and reading the chat ¼ (at most once every half hour) — and that halves every 12 hours. A chat's
 focus is its weight over everyone's weight plus 2. Work a task hard and its chat rises; start another task and
 the old one gives up its share as soon as you engage elsewhere, then fades in a day or two, with nothing to
-park. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
+park. **Next** on a card that is there for its focus (it says `in focus`) halves that chat's weight: you have said
+it is not what you are on now, so it gives way after a skip or two. A Next straight after replying on the same
+card is moving on, not a skip, and leaves it alone. After a quiet week every share is near 0 and cards rank by age alone. The agent's own turns and
 scheduled prompts never add focus, so a busy cron cannot talk its way up. The Mac's loki process keeps the
 weights (`focus` in `state/attention.json`), so the Mac and the phone rank alike.
 
@@ -596,7 +609,8 @@ recently done columns; any other view is one list. A remembered agent view whose
 left says so ("<agent> isn't here any more — pick an agent") and lists the agents to pick again. Select tasks
 (X or space, ⇧X or ⇧-click for a range) and press ⏎ to
 **assign** them to a chat: the agent becomes the assignee and the tasks ride
-along inside `<loki-tasks>` on your next message in that conversation; nothing is
+along inside `<loki-tasks>` on your next message in that conversation, and again only
+when that chat's list changes (hidden in the chat, shown as a quiet "board tasks" row); nothing is
 sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent
 starts now. New chat is a target too. ⌫ marks done, ⇧⌫ toggles blocked, ⌘R
 refreshes, / filters. Agents close tasks through the tool.

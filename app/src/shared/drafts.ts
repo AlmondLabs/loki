@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 
 /**
  * A reply's draft — its text and images — keyed by agent and conversation, kept in memory for the page's
@@ -8,7 +8,7 @@ import type { ImageAttachment } from "../../../core/attention/content.ts";
  * The factory is pure enough for Bun (test/phone-session.test.ts); the hook wires it to React.
  */
 
-export type Draft = { text: string; images: ImageAttachment[] };
+export type Draft = { text: string; images: Attachment[] };
 export const EMPTY_DRAFT: Draft = Object.freeze({ text: "", images: [] }) as Draft;
 
 /** One conversation's key: the same one for its Inbox card and its desk page. */

@@ -2,7 +2,7 @@ import { clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { isEventName } from "../core/analytics.ts";
 import type { Gesture, Scope } from "../core/desk-core.ts";
 import type { ReasoningEffort } from "../core/models.ts";
-import type { InboxRow } from "./desks.ts";
+import { HISTORY_MAX, HISTORY_PAGE, type InboxRow } from "./desks.ts";
 import { toAnkiTsv } from "../core/recall/model.ts";
 import { SHARED_SCOPE, mergeData } from "../core/desk-core.ts";
 import type { DeskStore } from "./desk-store.ts";
@@ -33,8 +33,9 @@ import { isLanVia } from "./lan.ts";
  *    seen_list {} / seen_mark { agentId, conversationId } / seen_unmark { … }   reply/broadcast: seen { seen, viewed, focus, appServer }
  *      (a mark that moves nothing is not broadcast)
  *    viewed_mark { agentId, conversationId }   a look, not done (the sidebar's bold, the New line); broadcast: seen { … }
- *    focus_add { agentId, conversationId, action: "answer" | "decide" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
- *    history_get { requestId, agentId, conversationId }   reply: history { requestId, agentId, conversationId, messages, widgetLog }
+ *    focus_add { agentId, conversationId, action: "answer" | "decide" | "skip" }   an engagement the mod cannot see (it goes to the app-server); broadcast: seen { …, focus }
+ *    desk_get { scope }                     reply: desk { scope, …, state, widgets } (another desk's, for widgets shown inline in a thread)
+ *    history_get { requestId, agentId, conversationId, limit? }   reply: history { requestId, agentId, conversationId, messages, more, widgetLog }
                                             (widgetLog: that desk's widget change rows, oldest first, [] if none; core/desk-core.ts WidgetLogEntry)
  *    inbox_list { requestId }                reply: inbox { requestId, conversations } — every open conversation from disk, with who spoke last
  *    recall_list { requestId }               reply: recall { requestId, cards, rejected, worker } — the whole Recall section (mod/recall.ts)
@@ -140,7 +141,8 @@ export interface BridgeDeps {
   appServerAvailable?: () => boolean;
   appServerUrl?: () => string | null;
   /** A conversation's transcript from the local backend log (survives compaction), for Catch Up threads. */
-  transcript?: (agentId: string | null, conversationId: string) => import("./desks.ts").LocalTranscriptMessage[];
+  /** The last `limit` rows of a chat's log, and whether there are older ones. */
+  transcript?: (agentId: string | null, conversationId: string, limit: number) => { rows: import("../core/attention/transcript.ts").TranscriptRow[]; more: boolean };
   /** That conversation's desk's widget change log (mod/widget-log.ts), served with its history. */
   widgetLog?: (agentId: string | null, conversationId: string) => import("../core/desk-core.ts").WidgetLogEntry[];
   /** Working folders for "new desk" (see mod/folders.ts). */
@@ -246,7 +248,7 @@ const isPoint = (v: unknown): boolean =>
 /** How many `once` keys the bridge remembers. */
 const ONCE_MAX = 500;
 
-export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add"]);
+export const PHONE_FRAMES: ReadonlySet<string> = new Set(["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add", "desk_get"]);
 
 export function createBridge(deps: BridgeDeps): WsHandlers {
   const { store, widgets, gestures, broadcast, listDesks, deskInfo, deleteWidgetFile, seen, appServerAvailable, appServerUrl, transcript, folders } = deps;
@@ -306,10 +308,18 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           const wScope = scopeOfId(g.id);
           const entry = widgets.get(g.id);
           const before = entry ? mergeData(entry.data, store.get(wScope).overlay[g.id]) : undefined;
-          store.gesture(wScope, g); // store subscribers broadcast the new state
+          store.gesture(wScope, g); // store subscribers broadcast the new state (to tabs on that desk)
+          // A widget used inline in another chat's thread: that tab is on another desk, so it gets the state too.
+          if (client.scope !== wScope) client.send({ type: "state", scope: wScope, state: store.get(wScope) });
           track("widget_gestured", { kind: g.kind });
           const d = describeGesture(g, entry, before);
-          if (d) gestures.record(client.scope, d.line, d.key);
+          // The widget's own desk hears about it: that is the agent whose widget it is, whichever tab was used.
+          if (d) gestures.record(wScope, d.line, d.key);
+          return;
+        }
+        case "desk_get": {
+          // Another desk's widgets and state, for a thread showing them inline (the Inbox, the phone); no switch.
+          if (typeof msg.scope === "string" && msg.scope) client.send(deskFrame(msg.scope as Scope));
           return;
         }
         case "measure": {
@@ -342,7 +352,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
           return;
         case "focus_add":
           // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
-          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide")) {
+          if (typeof msg.conversationId === "string" && (msg.action === "answer" || msg.action === "decide" || msg.action === "skip")) {
             if (seen?.engage?.(typeof msg.agentId === "string" ? msg.agentId : null, msg.conversationId, msg.action)) broadcast(seenFrame());
           }
           return;
@@ -637,7 +647,10 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         case "history_get": {
           if (typeof msg.conversationId !== "string") return;
           const agentId = typeof msg.agentId === "string" ? msg.agentId : null;
-          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: transcript?.(agentId, msg.conversationId) ?? [], widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
+          // `limit` grows as the reader scrolls past the oldest row they have (HISTORY_PAGE at a time).
+          const limit = Math.min(HISTORY_MAX, Math.max(HISTORY_PAGE, Math.floor(Number(msg.limit)) || HISTORY_PAGE));
+          const page = transcript?.(agentId, msg.conversationId, limit) ?? { rows: [], more: false };
+          client.send({ type: "history", requestId: msg.requestId, agentId, conversationId: msg.conversationId, messages: page.rows, more: page.more, widgetLog: deps.widgetLog?.(agentId, msg.conversationId) ?? [] });
           return;
         }
         case "lan_get":

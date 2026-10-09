@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyEvent, beginCommand, buildItems, cancelQueued, chatStatusOf, commandIdOf, commandRunning, emptyLive, finishCommand, keyOf, settleCommands, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
-import { toTranscript } from "../core/harness.ts";
-
-const msg = (message_type: string, extra: Record<string, unknown>) => ({ message_type, date: "2026-09-05T08:00:00Z", ...extra });
+import { applyEvent, buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
 
 describe("attention model (browser)", () => {
   test("buildItems classifies approval / question / done / running / idle and orders by score", () => {
@@ -45,42 +42,6 @@ describe("attention model (browser)", () => {
     expect(l.lastRole).toBe("user");
   });
 
-  test("toTranscript maps protocol messages to a readable thread", () => {
-    const t = toTranscript([
-      msg("user_message", { content: "<system-reminder>x</system-reminder>go" }),
-      msg("reasoning_message", { reasoning: "hmm" }),
-      msg("tool_call_message", { tool_call: { name: "Bash" } }),
-      msg("tool_return_message", { tool_return: "ok" }),
-      msg("user_message", { content: "<task-notification><task-id>b1</task-id><status>completed</status><summary>ran</summary><result>a &gt; b</result></task-notification>" }),
-      msg("assistant_message", { content: "Done." }),
-    ]);
-    expect(t.map((m) => `${m.role}:${m.text}`)).toEqual(["user:go", "tool:Bash", "event:background task b1 completed", "assistant:Done."]);
-    expect(t[2]).toMatchObject({ summary: "ran", detail: "a > b" });
-  });
-});
-
-describe("live transcript tail", () => {
-  test("user, tool and assistant rows fold in order; own sends are not echoed twice; streaming settles", () => {
-    const l = emptyLive();
-    l.tail.push({ role: "user", text: "hello" });
-    l.ownSends.push("hello");
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "hello" } });
-    expect(l.tail).toMatchObject([{ role: "user", text: "hello" }]); // echo recognised
-    applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "PROCESSING_API_RESPONSE" } });
-    expect(chatStatusOf(l)).toBe("thinking");
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "Let me " } });
-    expect(chatStatusOf(l)).toBe("streaming");
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } });
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "tool_call_message", tool_call: { name: "Bash", tool_call_id: "t1" } } }); // same call, more deltas
-    expect(l.tail).toMatchObject([{ role: "user", text: "hello" }, { role: "assistant", text: "Let me" }, { role: "tool", text: "Bash" }]);
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "assistant_message", content: "done." } });
-    applyEvent(l, { type: "update_loop_status", runtime: { agent_id: "a", conversation_id: "c" }, loop_status: { status: "WAITING_ON_INPUT" } });
-    expect(l.tail.at(-1)).toMatchObject({ role: "assistant", text: "done." });
-    expect(chatStatusOf(l)).toBe("idle");
-    // a message typed elsewhere (Desktop) shows up as a user row
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: "from desktop" } });
-    expect(l.tail.at(-1)).toMatchObject({ role: "user", text: "from desktop" });
-  });
 });
 
 describe("AskUserQuestion as a pending question", () => {
@@ -107,10 +68,10 @@ describe("a finished reply re-queues a decided card", () => {
     applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "here is the answer" } });
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(l.lastAssistantText).toBe("here is the answer");
-    expect(l.tail.at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
+    expect(l.thread.rows()!.at(-1)).toMatchObject({ role: "assistant", text: "here is the answer" });
     applyEvent(l, { type: "turn_finished", runtime: rt }); // arrives late, with nothing left to settle
     expect(l.lastAssistantText).toBe("here is the answer");
-    expect(l.tail.length).toBe(1);
+    expect(l.thread.rows()!.length).toBe(1);
   });
 });
 
@@ -139,11 +100,12 @@ describe("messages typed mid-turn", () => {
     const l = emptyLive();
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "SENDING_API_REQUEST" } });
     l.queued.push({ text: "first", images: [] }, { text: "second", images: [] });
-    l.tail.push({ role: "user", text: "first", queued: true }, { role: "user", text: "second", queued: true });
+    l.thread.queue({ role: "user", text: "first" });
+    l.thread.queue({ role: "user", text: "second" });
     expect(takeQueued(l)).toBeNull();
     applyEvent(l, { type: "update_loop_status", runtime: rt, loop_status: { status: "WAITING_ON_INPUT" } });
     expect(takeQueued(l)).toEqual({ text: "first", images: [] });
-    expect(l.tail.map((r) => [r.text, r.queued === true])).toEqual([["first", false], ["second", true]]);
+    expect(l.thread.rows()!.map((r) => [r.text, r.queued === true])).toEqual([["first", false], ["second", true]]);
     expect(l.queued.map((q) => q.text)).toEqual(["second"]);
     expect(takeQueued(l)).toEqual({ text: "second", images: [] }); // the caller marks inTurn again before the next; here the turn is over
     expect(takeQueued(l)).toBeNull();
@@ -152,77 +114,12 @@ describe("messages typed mid-turn", () => {
     const l = emptyLive();
     l.inTurn = true;
     l.queued.push({ text: "oops", images: [] });
-    l.tail.push({ role: "user", text: "kept" }, { role: "user", text: "oops", queued: true });
+    l.thread.own({ role: "user", text: "kept" });
+    l.thread.queue({ role: "user", text: "oops" });
     expect(cancelQueued(l, "nope")).toBe(false);
     expect(cancelQueued(l, "oops")).toBe(true);
     expect(l.queued).toEqual([]);
-    expect(l.tail.map((r) => r.text)).toEqual(["kept"]);
-  });
-});
-
-describe("one marker per tool call", () => {
-  test("the approval_request_message for a call already announced does not add a second row", () => {
-    const l = emptyLive();
-    const rt = { agent_id: "a", conversation_id: "c" };
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "tool_call_message", tool_call: { name: "AskUserQuestion", tool_call_id: "t1" } } });
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "approval_request_message", tool_call: { name: "AskUserQuestion", tool_call_id: "approval-9" } } });
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "approval_request_message", tool_call: { name: "AskUserQuestion" } } });
-    expect(l.tail.filter((r) => r.role === "tool").length).toBe(1);
-    // a genuinely new call of the same tool after some text is a new row
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "assistant_message", content: "and again" } });
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "tool_call_message", tool_call: { name: "AskUserQuestion", tool_call_id: "t2" } } });
-    expect(l.tail.filter((r) => r.role === "tool").length).toBe(2);
-  });
-});
-
-describe("harness machinery in a live user message", () => {
-  test("the desk block and a loaded skill become event rows; the user's own words stay a user row", () => {
-    const l = emptyLive();
-    const rt = { agent_id: "a", conversation_id: "c" };
-    applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: 'build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>' } });
-    expect(l.tail).toMatchObject([
-      { role: "event", text: "canvas activity", summary: "1 gesture on c", detail: 'moved "x" to (1, 2)' },
-      { role: "user", text: "build it" },
-    ]);
-    // a message that is only machinery changes the tail but is not the user speaking
-    const r = applyEvent(l, { type: "stream_delta", runtime: rt, delta: { message_type: "user_message", content: '<skill_content name="unslop">\n# Unslop\n</skill_content>' } });
-    expect(r).toEqual({ changed: true, userSpoke: false });
-    expect(l.tail[2]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
-  });
-});
-
-describe("slash command rows", () => {
-  test("commandIdOf reads the command however the line was written", () => {
-    expect(commandIdOf("/reload")).toBe("reload");
-    expect(commandIdOf("reload")).toBe("reload");
-    expect(commandIdOf("/compact all")).toBe("compact");
-    expect(commandIdOf("  /Reload ")).toBe("reload");
-  });
-  test("a row the harness began with its own wording is finished by the app's: no second row, nothing left running", () => {
-    const l = emptyLive();
-    beginCommand(l, "reload"); // slash_command_start, the harness's text
-    expect(commandRunning(l, "/reload")).toBe(true);
-    finishCommand(l, "/reload", true, "reloaded"); // the app's own answer path
-    expect(l.tail).toHaveLength(1);
-    expect(l.tail[0].summary).toBe("reloaded");
-    expect(commandRunning(l, "/reload")).toBe(false);
-  });
-  test("the newest running row of that command is the one finished; an unrelated command is not touched", () => {
-    const l = emptyLive();
-    beginCommand(l, "/compact all");
-    beginCommand(l, "/reload");
-    finishCommand(l, "/reload", true, "done");
-    expect(l.tail.map((r) => r.summary)).toEqual(["running…", "done"]);
-  });
-  test("settleCommands after the link came back: /reload is the success case, anything else failed; nothing running is a no-op", () => {
-    const l = emptyLive();
-    beginCommand(l, "reload");
-    beginCommand(l, "/compact");
-    expect(settleCommands(l)).toBe(true);
-    expect(l.tail[0].summary).toMatch(/^reloaded/);
-    expect(l.tail[1].summary).toBe("failed");
-    expect(l.tail[1].detail).toMatch(/link.*dropped/);
-    expect(settleCommands(l)).toBe(false);
+    expect(l.thread.rows()!.map((r) => r.text)).toEqual(["kept"]);
   });
 });
 

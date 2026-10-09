@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useInlineWidgets } from "../chat/useInlineWidgets";
+import { scopeFor } from "../../../core/desk-core.ts";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import { catchUpQueue, idOf } from "../../../core/attention/queue.ts";
 import { formatInput } from "../../../core/attention/format.ts";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -76,6 +78,7 @@ export interface CardView {
   pending?: PendingApproval | null;
   question?: PendingQuestion | null;
   error?: string | null;
+  older?: (() => void) | null;
 }
 
 /**
@@ -302,7 +305,7 @@ function currentOffset(el: Element): number {
 
 /** What the card's conversation can do: reply (text, images), answer the open question, take back a queued message. */
 export interface CardActions {
-  onSend: (item: AttentionItem, text: string, images: ImageAttachment[]) => void;
+  onSend: (item: AttentionItem, text: string, images: Attachment[]) => void;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onCancelQueued: (item: AttentionItem, text: string) => void;
   /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
@@ -605,7 +608,9 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
   const agentName = item.agentName ?? "the agent";
   const people = useMemo(() => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }), [item.agentName, item.agentId]);
   const dividerAt = unreadBoundary(view.rows, item.unread, item.seenAt, item.viewedAt);
-  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt) }), [people, dividerAt, item.lastMessageAt]);
+  // The chat's widgets, drawn under the rows that made them; read only here (the phone may not change a desk).
+  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(item.id, item.agentId), view.rows, item.agentName ?? null, { readOnly: true });
+  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt), widgets, inline }), [people, dividerAt, item.lastMessageAt, widgets, inline]);
   const question = view.question ?? null;
   const approval = view.pending ?? item.pendingApproval;
   const said = cardNotice(item, view.status);
@@ -624,7 +629,7 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
       <Conversation
         touch
         dim={false}
-        view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null }}
+        view={{ rows: view.rows, status: view.status, error: item.status === "failed" ? (item.error ?? view.error ?? null) : (view.error ?? null), approval, question, model: model?.modelOf(item) ?? null, reasoningEffort: model?.effortOf(item) ?? null, older: view.older ?? null }}
         models={model?.models ?? null}
         actions={{
           onLoadModels: model?.onLoad,
@@ -652,7 +657,7 @@ export function CardConversation({ item, view, banner, card, onHold }: { item: A
 
 /** The card flying off: its thread as it was, nothing to type into. */
 function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView }) {
-  return <Thread rows={view.rows} status={view.status} agentName={item.agentName} dim={false} />;
+  return <Thread rows={view.rows} status={view.status} agentName={item.agentName} dim={false} older={view.older ?? null} />;
 }
 
 /**

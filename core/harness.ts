@@ -5,13 +5,17 @@
  * the mod for the chat mirror, the browser for the Catch Up thread.
  */
 
-import type { ToolStep } from "./attention/transcript.ts";
+import type { FileRef, ToolStep } from "./attention/transcript.ts";
+import type { Step } from "./attention/thread.ts";
 
 export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
+    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the board's tasks assigned to this conversation, from the mod
+    .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads, Letta's channels): a chip, not words
+    .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
     .replace(/<channel-notification[^>]*>[\s\S]*?<\/channel-notification>/g, "")
     .replace(/<task-notification>[\s\S]*?<\/task-notification>/g, "")
@@ -40,7 +44,7 @@ export interface HarnessEvent {
 
 /**
  * Pull the harness-injected events out of a user message: task notifications, compaction notes, the
- * desk-activity block the mod appends, and skill bodies the harness loads. Each becomes a quiet event
+ * desk-activity and board-tasks blocks the mod appends, and skill bodies the harness loads. Each becomes a quiet event
  * row instead of words in the user's bubble.
  */
 export function extractHarnessEvents(text: string): HarnessEvent[] {
@@ -51,6 +55,14 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     out.push({
       text: "canvas activity",
       summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
+      detail: lines.length ? lines.join("\n") : null,
+    });
+  }
+  for (const m of text.matchAll(/<loki-tasks>([\s\S]*?)<\/loki-tasks>/g)) {
+    const lines = m[1].split("\n").filter((l) => l.startsWith("- ")).map((l) => l.slice(2).trim());
+    out.push({
+      text: "board tasks",
+      summary: lines.length ? `${lines.length} assigned to this chat` : "none assigned any more",
       detail: lines.length ? lines.join("\n") : null,
     });
   }
@@ -92,61 +104,69 @@ export function messageText(content: unknown): string {
     .join("");
 }
 
-export interface TranscriptMessage {
-  /** event: harness machinery (background task results, compaction), shown as a quiet row. */
-  role: "user" | "assistant" | "tool" | "event";
-  text: string;
-  at: string | null;
-  summary?: string | null;
-  detail?: string | null;
-  /** On a tool row: the call and, once it came back, its result (attention/transcript.ts ToolStep). */
-  tool?: ToolStep;
+/** The files a message carried: its attachment tags that name a local path. */
+export function messageFiles(text: string): FileRef[] {
+  const out: FileRef[] = [];
+  for (const m of text.matchAll(/<attachment\b([^>]*?)\/?>/g)) {
+    const attrs = new Map([...m[1].matchAll(/([a-z_]+)="([^"]*)"/g)].map((a) => [a[1], decodeEntities(a[2])]));
+    const path = attrs.get("local_path");
+    if (!path) continue;
+    const size = Number(attrs.get("size_bytes"));
+    out.push({ path, name: attrs.get("name") || path.split("/").pop() || path, ...(Number.isFinite(size) ? { size } : {}), ...(attrs.get("mime_type") ? { mime: attrs.get("mime_type") } : {}) });
+  }
+  return out;
 }
 
 /**
- * Letta protocol messages (from conversation_messages_list or stream deltas),
- * oldest first, → a readable thread. Tool calls become markers; harness
- * machinery becomes events; reasoning and tool returns are dropped.
+ * A message's text as a thread shows it, the same from every source: its text parts a line each, and an "[image]"
+ * line where it carried a picture (the local log's own rendering; the bubble shows the picture when it has it).
  */
-export function toTranscript(messages: Array<Record<string, unknown>>): TranscriptMessage[] {
-  const out: TranscriptMessage[] = [];
+export function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  const lines: string[] = [];
+  for (const p of content) {
+    if (typeof p !== "object" || p === null) continue;
+    const type = (p as { type?: string }).type;
+    if (type === "text" && typeof (p as { text?: unknown }).text === "string") lines.push((p as { text: string }).text);
+    else if (type === "image") lines.push("[image]");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Letta protocol messages from conversation_messages_list, oldest first, as thread steps (core/attention/thread.ts).
+ * Reasoning is dropped; the rest is the thread's to fold.
+ */
+export function historySteps(messages: Array<Record<string, unknown>>): Step[] {
+  const out: Step[] = [];
   for (const m of messages) {
     const at = typeof m.date === "string" ? m.date : null;
-    switch (m.message_type) {
-      case "user_message": {
-        const raw = messageText(m.content);
-        for (const ev of extractHarnessEvents(raw)) out.push({ role: "event", text: ev.text, summary: ev.summary, detail: ev.detail, at });
-        const text = stripHarnessMarkup(raw).trim();
-        if (text) out.push({ role: "user", text, at });
-        break;
-      }
-      case "assistant_message": {
-        const text = messageText(m.content).trim();
-        if (text) out.push({ role: "assistant", text, at });
-        break;
-      }
-      case "tool_call_message":
-      case "approval_request_message": {
-        const tc = m.tool_call as { name?: string; arguments?: unknown; tool_call_id?: string } | undefined;
-        if (!tc?.name) break;
-        const id = tc.tool_call_id;
-        // The same call can come as a tool call and again as its approval request: one row.
-        if (id && out.some((r) => r.tool?.id === id)) break;
-        out.push({ role: "tool", text: toolLabel(tc.name, tc.arguments), at, tool: toolStep(tc.name, tc.arguments, id) });
-        break;
-      }
-      case "tool_return_message": {
-        const id = typeof m.tool_call_id === "string" ? m.tool_call_id : null;
-        let row: TranscriptMessage | undefined;
-        for (let k = out.length - 1; k >= 0 && id && !row; k--) if (out[k].tool?.id === id) row = out[k];
-        if (row?.tool) row.tool = withResult(row.tool, m.tool_return, m.status === "error");
-        break;
-      }
-      default:
-        break;
-    }
+    const step = protocolStep(m, at);
+    if (step) out.push(step);
   }
   return out;
+}
+
+/** One Letta protocol message, from history or a stream delta, as a thread step; null for anything a thread does not show. */
+export function protocolStep(m: Record<string, unknown> | undefined, at: string | null, chunk = false): Step | null {
+  switch (m?.message_type) {
+    case "user_message":
+      return { kind: "user", raw: contentText(m.content), at };
+    case "assistant_message":
+      // A streamed piece is part of a word as often as a whole line: the pieces join as they came.
+      return { kind: "assistant", text: chunk ? messageText(m.content) : contentText(m.content), at, ...(chunk ? { chunk } : {}) };
+    case "tool_call_message":
+    case "approval_request_message": {
+      const tc = m.tool_call as { name?: string; arguments?: unknown; tool_call_id?: string } | undefined;
+      if (!tc?.name) return null;
+      return { kind: m.message_type === "tool_call_message" ? "call" : "approval", name: tc.name, args: tc.arguments, id: tc.tool_call_id ?? null, at };
+    }
+    case "tool_return_message":
+      return typeof m.tool_call_id === "string" ? { kind: "result", id: m.tool_call_id, output: m.tool_return, failed: m.status === "error" } : null;
+    default:
+      return null;
+  }
 }
 
 /** Letta's scheduler speaks first in a cron turn, always with this opening: not a person's message. */
@@ -186,14 +206,24 @@ const argsOf = (input: unknown): Record<string, unknown> | null => {
 };
 
 /**
+ * The part of a tool's input a reader recognises, trimmed: the shell command (`cmd` in Letta's Codex-style toolset,
+ * `command` in Claude-style Bash), the path, the pattern, … in this order; the step's input and its label both use it.
+ */
+const ARG_KEYS = ["cmd", "command", "file_path", "path", "pattern", "query", "url", "skill", "prompt", "description"];
+const argOf = (args: Record<string, unknown>): string | undefined => {
+  const key = ARG_KEYS.find((k) => typeof args[k] === "string" && (args[k] as string).trim());
+  return key ? (args[key] as string).trim() : undefined;
+};
+
+/**
  * What a step shows as the tool's input: the part a reader recognises in full (the shell command, the path, the
  * pattern), else the whole input as JSON; nothing when it has none, or it has not finished arriving.
  */
 export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
-  const pick = ["command", "file_path", "path", "pattern", "query", "url", "prompt", "description"].find((k) => typeof args[k] === "string" && (args[k] as string).trim());
-  if (pick && name !== "AskUserQuestion") return cap((args[pick] as string).trim());
+  const pick = name === "AskUserQuestion" ? undefined : argOf(args);
+  if (pick) return cap(pick);
   const json = JSON.stringify(args, null, 2);
   return json === "{}" ? undefined : cap(json);
 }
@@ -208,12 +238,17 @@ export function toolOutput(raw: unknown): string | undefined {
   return text ? cap(text) : undefined;
 }
 
-/** A call as a step: its name, its id, and its input when it has one. */
+/** The longest description a step keeps: it is one line of the thread, not an essay. */
+const DESCRIPTION_MAX = 200;
+
+/** A call as a step: its name, its id, its input when it has one, and what it is for when the agent said. */
 export function toolStep(name: string, input: unknown, id?: string | null): ToolStep {
   const step: ToolStep = { name };
   if (id) step.id = id;
   const given = toolInput(name, input);
   if (given !== undefined) step.input = given;
+  const said = argsOf(input)?.description;
+  if (typeof said === "string" && said.trim() && said.trim() !== given) step.description = said.trim().split("\n")[0].slice(0, DESCRIPTION_MAX);
   return step;
 }
 
@@ -228,24 +263,10 @@ export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolS
  * a reader recognises (the shell command, the file path, the pattern).
  */
 export function toolLabel(name: string, input: unknown): string {
-  let args: Record<string, unknown> | null = null;
-  if (input && typeof input === "object") args = input as Record<string, unknown>;
-  else if (typeof input === "string") {
-    try {
-      const parsed = JSON.parse(input) as unknown;
-      if (parsed && typeof parsed === "object") args = parsed as Record<string, unknown>;
-    } catch {
-      // partial or non-JSON arguments: name only
-    }
-  }
+  const args = argsOf(input);
   if (!args) return name;
-  if (name === "AskUserQuestion") {
-    const q = (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question;
-    if (typeof q === "string" && q.trim()) return `${name} · ${q.trim().length > 80 ? q.trim().slice(0, 77) + "…" : q.trim()}`;
-  }
-  const pick = ["command", "file_path", "path", "pattern", "query", "url", "description", "prompt"].find((k) => typeof args![k] === "string" && (args![k] as string).trim());
-  if (!pick) return name;
-  const raw = (args[pick] as string).trim().split("\n")[0];
-  const short = raw.length > 80 ? raw.slice(0, 77) + "…" : raw;
-  return `${name} · ${short}`;
+  const question = name === "AskUserQuestion" ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
+  const target = question || argOf(args)?.split("\n")[0];
+  if (!target) return name;
+  return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;
 }

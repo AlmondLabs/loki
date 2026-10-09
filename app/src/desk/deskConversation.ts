@@ -32,6 +32,7 @@ export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: Retu
     mode: deskChat?.mode ?? desk.mode,
     approval: pendingApproval,
     question: pendingQuestion,
+    older: deskChat?.older ?? null,
   };
   const actions: ConversationActions = {
     onSend: (text, images) => deskRuntime && catchUp.send(deskRuntime, text, images, { desk: title, origin: "desk" }),

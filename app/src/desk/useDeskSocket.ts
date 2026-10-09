@@ -81,6 +81,8 @@ export function useDeskSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const lastInteractionRef = useRef(0);
   const pendingRef = useRef<Gesture[]>([]);
+  /** Other desks whose widgets a thread shows inline: asked for once, and again whenever one of their widgets changes. */
+  const watchedRef = useRef(new Set<Scope>());
   /** Latest measured size per widget that could not be sent yet (frames measure before the socket opens). */
   const pendingMeasures = useRef(new Map<string, Size>());
 
@@ -113,6 +115,7 @@ export function useDeskSocket() {
         retryMs = 500;
         setConnection("open");
         ws.send(JSON.stringify({ type: "seen_list" }));
+        for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
       };
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data as string) as Record<string, unknown> & { type: string };
@@ -203,6 +206,8 @@ export function useDeskSocket() {
             // Kept under its own desk, so another desk's thread has it when that desk next opens; the phone ignores it.
             const entry = parseWidgetEntry(msg.entry);
             if (entry) setWidgetLogs((s) => withEntry(s, entry));
+            // A desk shown inline elsewhere has a new or changed widget: its manifest comes again.
+            if (entry && watchedRef.current.has(entry.scope)) ws.send(JSON.stringify({ type: "desk_get", scope: entry.scope }));
             break;
           }
           case "seen":
@@ -265,9 +270,17 @@ export function useDeskSocket() {
     if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size); // flushed when the desk frame arrives
   }, []);
 
+  /** Keep another desk's widgets and state at hand (a thread shows them inline); asked for at once the first time. */
+  const watchDesk = (s: Scope) => {
+    if (watchedRef.current.has(s)) return;
+    watchedRef.current.add(s);
+    send({ type: "desk_get", scope: s });
+  };
+
   return {
     scope,
     switchDesk,
+    watchDesk,
     send,
     desks,
     setDesks,

@@ -6,7 +6,8 @@
 //! the desk only inside a harness that hosts an app-server (mod/gate.ts), so a terminal `letta` never takes
 //! the mod's port. It is told its own address in `LOKI_OWN_APP_SERVER_URL`, so the mod needs no lookup for it.
 //!
-//! On Windows the harness is `node …\letta-code\letta.js` rather than npm's `letta.cmd` (bootstrap::launch_of),
+//! The harness is `node …/letta-code/letta.js` (bootstrap::launch_of): elsewhere the shim would pick Bun when it is
+//! installed, whose fetch drops the model's streamed answers. On Windows that also replaces npm's `letta.cmd`,
 //! with no console window, inside a Job Object that kills the whole tree when loki's handle closes — quitting,
 //! or loki dying, never leaves a node holding the harness port. On Linux the harness is started with
 //! PR_SET_PDEATHSIG, so the kernel kills it when loki dies (`die_with_loki`). A harness left from an earlier run

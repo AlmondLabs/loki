@@ -206,7 +206,7 @@ also points Letta at your checkout — a shim at `~/.letta/mods/loki.ts` importi
 
 ```bash
 bun install
-bun start                                         # Vite on 127.0.0.1:5173 plus the Tauri window; Ctrl-C stops both
+bun start                                         # Vite on 127.0.0.1:5173, the Tauri window, and app/dist rebuilt for the phone as you edit; Ctrl-C stops all three
 bun run dev                                       # Vite alone, for a browser tab
 bun run desktop:dev                               # the Tauri window against a Vite already running
 bun test && bun run typecheck && bun run lint     # bun tests, tsc, eslint (typescript-eslint + React compiler rules)

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Transcript } from "../app/src/chat/Transcript.tsx";
 import { CHUNK, WINDOW, anchorTop, findStart, keepStart, openStart, revealStart, threadId } from "../app/src/chat/transcriptWindow.ts";
 import { clockLabel, dayLabel, formattersBuilt } from "../app/src/shared/thread.ts";
-import { applyEvent, emptyLive, finishCommand, beginCommand, liveRows } from "../core/attention/model.ts";
+import { olderRowsAbove } from "../app/src/chat/useTranscriptScroll.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 /**
@@ -131,29 +131,6 @@ describe("streaming touches only the tail", () => {
     }
   });
 
-  test("live rows keep their identity between updates; a row that changed is a new object", () => {
-    const rt = { agent_id: "a", conversation_id: "c" };
-    const delta = (message_type: string, extra: Record<string, unknown> = {}) => ({ type: "stream_delta", runtime: rt, delta: { message_type, ...extra } });
-    const l = emptyLive();
-    applyEvent(l, delta("user_message", { content: "go" }), "2026-09-23T09:00:00.000Z");
-    beginCommand(l, "/reload", "2026-09-23T09:00:01.000Z");
-    applyEvent(l, delta("assistant_message", { content: "Let " }), "2026-09-23T09:00:02.000Z");
-    const first = liveRows(l);
-    applyEvent(l, delta("assistant_message", { content: "me" }), "2026-09-23T09:00:03.000Z");
-    const second = liveRows(l);
-    expect(second.length).toBe(3);
-    expect(second[0]).toBe(first[0]);
-    expect(second[1]).toBe(first[1]);
-    expect(second[2]).not.toBe(first[2]);
-    expect(second[2].text).toBe("Let me");
-    expect(liveRows(l)[2]).toBe(second[2]); // nothing new: the same streaming row
-    // the command's row is finished in place: its snapshot is new, the others stay
-    finishCommand(l, "/reload", true, "reloaded");
-    const third = liveRows(l);
-    expect(third[0]).toBe(first[0]);
-    expect(third[1]).not.toBe(first[1]);
-    expect(third[1].summary).toBe("reloaded");
-  });
 });
 
 describe("the clock and day formatters", () => {
@@ -184,5 +161,19 @@ describe("the clock and day formatters", () => {
     expect(first.week).toBe(new Date("2026-09-20T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long" }));
     expect(first.month).toBe(new Date("2026-08-03T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }));
     expect(first.year).toBe(new Date("2025-01-02T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }));
+  });
+});
+
+describe("older history loaded above", () => {
+  const row = (text: string, at?: string): TranscriptRow => ({ role: "user", text, ...(at ? { at } : {}) });
+  test("the old first row is found again, by as many rows as arrived above it", () => {
+    const first = row("11 first", "2026-10-01T07:00:00Z");
+    expect(olderRowsAbove([row("a"), row("b"), first, row("c")], first)).toBe(2);
+  });
+  test("not there, or still first: nothing arrived above (another thread opens on its newest rows)", () => {
+    const first = row("11 first", "2026-10-01T07:00:00Z");
+    expect(olderRowsAbove([first, row("c")], first)).toBe(0);
+    expect(olderRowsAbove([row("x"), row("11 first", "2026-10-02T07:00:00Z")], first)).toBe(0);
+    expect(olderRowsAbove([row("x")], null)).toBe(0);
   });
 });

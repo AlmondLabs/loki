@@ -26,7 +26,7 @@ pub const NODE_MIN: (u32, u32, u32) = (22, 19, 0);
 #[derive(Clone, Debug)]
 pub struct Runtime {
     pub letta: PathBuf,
-    /// A directory holding `node` (and `npm`) to prepend to PATH: the `letta` shim is `#!/usr/bin/env node`.
+    /// A directory holding `node` (and `npm`): prepended to PATH, and the Node that runs letta.js (launch_of).
     pub node_bin_dir: Option<PathBuf>,
     /// Named outright by LOKI_LETTA_BIN (a checkout, say): not npm's, so not the update button's to move.
     pub explicit: bool,
@@ -268,6 +268,15 @@ pub fn launch_of(os: Os, rt: &Runtime) -> (PathBuf, Vec<std::ffi::OsString>) {
         };
         let node = rt.node_bin_dir.as_ref().map(|d| d.join("node.exe"));
         if let (Some(entry), Some(node)) = (entry.filter(|p| p.is_file()), node.filter(|p| p.is_file())) {
+            return (node, vec![entry.into_os_string()]);
+        }
+    } else {
+        // Off Windows the `letta` shim is a link to letta-code's letta.js, whose first line (since 0.34) runs it with
+        // Bun whenever Bun is installed. Bun's fetch drops a model's long streaming answer partway ("The socket
+        // connection was closed unexpectedly"), so the turn fails: loki runs the entry with the runtime's Node itself.
+        let node = rt.node_bin_dir.as_ref().map(|d| d.join("node")).filter(|p| p.is_file());
+        let entry = std::fs::canonicalize(&rt.letta).ok().filter(|p| p.extension().is_some_and(|e| e == "js") && p.is_file());
+        if let (Some(entry), Some(node)) = (entry, node) {
             return (node, vec![entry.into_os_string()]);
         }
     }
@@ -929,7 +938,26 @@ mod tests {
         let rt = find_letta_for(&h).unwrap();
         assert_eq!(rt.letta, home.join(".npm-global/bin/letta"));
         assert_eq!(rt.node_bin_dir, Some(home.join(".npm-global/bin")));
-        assert_eq!(launch_of(Os::Linux, &rt), (rt.letta.clone(), vec![]), "the shim runs as is off Windows");
+        assert_eq!(launch_of(Os::Linux, &rt), (rt.letta.clone(), vec![]), "a shim that is not a link to letta.js runs as is");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn off_windows_a_shim_linked_to_letta_js_runs_with_the_runtimes_node_not_bun() {
+        let home = fake_home();
+        let bin = home.join(".npm-global/bin");
+        let entry = home.join(".npm-global/lib/node_modules/@letta-ai/letta-code/letta.js");
+        touch(&entry);
+        std::fs::create_dir_all(&bin).unwrap();
+        std::os::unix::fs::symlink(&entry, bin.join("letta")).unwrap();
+        node_file(&bin.join("node"), "v22.19.0");
+        let rt = Runtime { letta: bin.join("letta"), node_bin_dir: Some(bin.clone()), explicit: false };
+        let (program, args) = launch_of(Os::Macos, &rt);
+        assert_eq!(program, bin.join("node"));
+        assert_eq!(args, vec![std::fs::canonicalize(&entry).unwrap().into_os_string()]);
+        let none = Runtime { node_bin_dir: None, ..rt.clone() };
+        assert_eq!(launch_of(Os::Macos, &none), (none.letta.clone(), vec![]), "no Node found: the shim as is");
         let _ = std::fs::remove_dir_all(&home);
     }
 

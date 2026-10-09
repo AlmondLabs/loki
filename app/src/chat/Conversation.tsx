@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import "./chat.css";
 import type { PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { Button, Chip, Title } from "../components";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
@@ -22,6 +22,7 @@ import { useModelAndMode } from "./useModelAndMode";
 import { useSlashPalette } from "./useSlashPalette";
 import { useTranscriptScroll } from "./useTranscriptScroll";
 import { StepsTouch } from "./ToolSteps";
+import { readTurnError, retryMessage } from "./turnError";
 
 export type ChatStatus = "idle" | "thinking" | "streaming";
 
@@ -35,11 +36,13 @@ export interface ConversationView {
   mode?: string | null;
   approval?: PendingApproval | null;
   question?: PendingQuestion | null;
+  /** Load the page of history older than `rows` (the reader reached the top); null or absent when there is none. */
+  older?: (() => void) | null;
 }
 
 /** What can be done to it. A missing handler hides its control: no picker without onPickModel, no approve without onApprove. */
 export interface ConversationActions {
-  onSend: (text: string, images?: ImageAttachment[]) => void;
+  onSend: (text: string, images?: Attachment[]) => void;
   onAnswer?: (answers: Record<string, string | string[]>) => void;
   onApprove?: (behavior: "allow" | "deny") => void;
   /** Slash commands the box offers (see core/attention/commands.ts) and their runner. */
@@ -209,7 +212,7 @@ export function Conversation({
       )}
       {/* On the phone a run of tools opens as a bottom sheet; on the desktop it unfolds in place (ToolSteps.tsx). */}
       <StepsTouch.Provider value={touch}>
-        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
+        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} onRetry={(text) => actions.onSend(text)} older={view.older ?? null} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
       </StepsTouch.Provider>
 
       {composer && (
@@ -313,17 +316,39 @@ export interface ThreadHandle {
   reveal: (query: string) => void;
 }
 
+/** A failed turn: one readable sentence, the harness's own words behind a disclosure, and a way to try again. */
+function ThreadError({ error, rows, onRetry }: { error: string; rows: TranscriptRow[]; onRetry?: (text: string) => void }) {
+  const e = readTurnError(error);
+  const retry = onRetry ? retryMessage(rows) : null;
+  return (
+    <div className="loki-thread-error" role="alert">
+      <span>{e.text}</span>
+      {retry && (
+        <Button size="sm" onClick={() => onRetry?.(retry.text)}>
+          {retry.label}
+        </Button>
+      )}
+      {e.raw && (
+        <details className="loki-thread-error-raw">
+          <summary>details</summary>
+          <pre>{e.raw}</pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
 /**
  * What scrolls: a note while the thread loads or when it is empty, the rows, then the thinking marker or
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, layout, style }, ref) {
+export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; onRetry?: (text: string) => void; older?: (() => void) | null; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, older = null, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
   // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
-  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets);
+  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets, older);
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
@@ -338,7 +363,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
       <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
         {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} from={start} arrivedFrom={arrivedFrom} busy={status !== "idle"} />}
+        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} inline={layout?.inline} from={start} arrivedFrom={arrivedFrom} busy={status !== "idle"} />}
         {status === "thinking" && !waiting && (
           <div className="loki-thinking" role="status">
             thinking
@@ -350,7 +375,7 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
             </span>
           </div>
         )}
-        {error && <div className="loki-thread-error">{error}</div>}
+        {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} />}
       </div>
       {unpinned && (
         <Chip float onClick={jumpToLatest} aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"} className="loki-latest-chip" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>

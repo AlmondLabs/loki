@@ -20,6 +20,8 @@ export const paths = {
   widgets: process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".letta", "loki", "widgets"),
   /** Machine-local runtime data. */
   data: join(homedir(), ".letta", "loki"),
+  /** Files attached to messages (mod/uploads.ts): <uploads>/<chat>/<name>, read by the agent from there. */
+  uploads: process.env.LOKI_UPLOADS_DIR ?? join(homedir(), ".letta", "loki", "uploads"),
   state: stateDir,
   /** The phone listener's setting ({ enabled }) and its paired devices (mod/lan.ts, mod/devices.ts). */
   lan: join(stateDir, "lan.json"),

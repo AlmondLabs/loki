@@ -56,7 +56,17 @@
 @keyframes loki-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 .loki-steps-line[data-running] .loki-steps-label { animation: loki-breathe 1.6s ease-in-out infinite; }
 .loki-steps-list { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; }
-.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; cursor: pointer; list-style: none; }
+.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 4px 6px; margin-left: -6px; border: none; border-radius: var(--loki-radius-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; list-style: none; }
+.loki-steps-step:hover { background: var(--loki-hover); }
+.loki-steps-failure { display: flex; align-items: center; gap: 6px; max-width: 100%; margin: 0 0 2px; padding: 1px 0; border: none; background: none; color: var(--loki-negative); font: inherit; text-align: left; cursor: pointer; }
+.loki-steps-failure span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loki-steps-open { margin: 4px 0 8px; padding: 6px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); max-width: 720px; }
+.loki-steps-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--loki-border); }
+.loki-steps-chip { padding: 2px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: none; color: var(--loki-muted); font: inherit; cursor: pointer; }
+.loki-steps-chip[aria-pressed="true"] { border-color: var(--loki-accent); color: var(--loki-fg); }
+.loki-steps-chip-n { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.loki-steps-step[data-minor] { padding-top: 2px; padding-bottom: 2px; }
+.loki-steps-step[data-minor] .loki-steps-verb { color: var(--loki-muted); }
 .loki-steps-step::-webkit-details-marker { display: none; }
 .loki-steps-icon { flex: none; margin-top: 1px; }
 .loki-steps-text { display: grid; min-width: 0; }
@@ -66,6 +76,7 @@
 .loki-steps-detail { display: grid; gap: 8px; margin: 4px 0 8px 24px; }
 .loki-steps-heading { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--loki-muted); }
 .loki-steps-code { margin: 0; padding: 8px 10px; max-height: 240px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font-family: var(--loki-mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.loki-steps-desc { margin: 0; padding: 8px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); line-height: 1.45; overflow-wrap: anywhere; }
 .loki-steps-code[data-failed] { border-color: var(--loki-negative); }
 .loki-steps-none { margin: 0; color: var(--loki-muted); }
 .loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }
@@ -111,6 +122,17 @@
 .loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
 .loki-field.loki-composer-text { min-height: 0; padding: 4px 6px; border: none; background: transparent; line-height: 20px; }
 .loki-composer-images { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 4px 0; }
+/* A file on a message (ChatInput's chips before sending, Transcript's on the sent bubble): icon, name, size. */
+.loki-file-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; min-height: 32px; padding: 4px 8px 4px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font: inherit; font-size: 13.5px; line-height: 1.3; text-align: left; }
+button.loki-file-chip { cursor: pointer; }
+button.loki-file-chip:hover { border-color: var(--loki-muted); }
+.loki-file-chip[data-failed] { border-color: var(--loki-negative); }
+.loki-file-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.loki-file-chip-size { flex: none; color: var(--loki-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.loki-file-chip-remove { flex: none; width: 20px; height: 20px; margin-left: 2px; padding: 0; border: 0; border-radius: var(--loki-radius-pill); background: transparent; color: var(--loki-muted); font-size: 15px; line-height: 20px; cursor: pointer; }
+.loki-file-chip-remove:hover { background: var(--loki-border); color: var(--loki-fg); }
+.loki-file-error { display: block; padding: 4px 6px 0; }
+.loki-bubble-files { display: flex; gap: 6px; flex-wrap: wrap; }
 .loki-composer-bar { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .loki-composer-end { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
 .loki-btn.loki-composer-round { position: relative; flex: none; border-radius: var(--loki-radius-pill); }
@@ -159,7 +181,10 @@
 .loki-approval-kicker { color: var(--loki-accent); margin-bottom: 8px; }
 .loki-question-kicker { color: var(--loki-accent); font-size: 12px; font-weight: 700; }
 .loki-question-text { font-family: var(--loki-font); font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
-.loki-thread-error { color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+.loki-thread-error { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+.loki-thread-error-raw { flex-basis: 100%; color: var(--loki-muted); }
+.loki-thread-error-raw summary { cursor: pointer; width: max-content; }
+.loki-thread-error-raw pre { margin: 4px 0 0; padding: 8px 10px; max-height: 160px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); font-family: var(--loki-mono); font-size: 12px; white-space: pre-wrap; }
 
 /* The avatar-led message layout (Transcript's Message and Divider), on the desktop: Slack's anatomy — the face
    and bold name at a run's start, the body under the name, the whole row tinted on hover. These classes render
@@ -205,6 +230,14 @@
 :is(.loki-msg, .loki-widget-row) ~ :is(.loki-steps, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
 .loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
 .loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
+/* A widget drawn live in the thread, under its latest row (chat/InlineWidget.tsx): a card as wide as the thread allows. */
+.loki-inline-widget { margin: 4px 0 10px 44px; max-width: 760px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-lg); background: var(--loki-panel); overflow: hidden; }
+.loki-inline-widget-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--loki-border); color: var(--loki-muted); font-size: 12px; }
+.loki-inline-widget-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--loki-fg); }
+.loki-inline-widget-open { margin-left: auto; padding: 2px 8px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: none; color: var(--loki-muted); font: inherit; cursor: pointer; }
+.loki-inline-widget-open:hover { color: var(--loki-fg); border-color: var(--loki-muted); }
+.loki-inline-widget-body { padding: 12px; overflow-x: auto; }
+.loki-inline-widget-note { margin: 0; color: var(--loki-muted); font-size: 13.5px; }
 .loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
 .loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title { text-decoration: underline; }
 .loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-muted); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }

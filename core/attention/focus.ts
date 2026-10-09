@@ -9,14 +9,18 @@
  *   share = w / (Σ w over every chat + FOCUS_CUSHION)
  *
  * The cushion is about two fresh replies: after a quiet week every share falls toward 0 instead of the one
- * chat with weight left taking the whole list. Only your actions count — never the agent's turns, never a
+ * chat with weight left taking the whole list. Next on a card shown for its focus halves that chat's weight
+ * (SKIP_FACTOR): you have said it is not what you are on now, so it gives way after a skip or two rather than
+ * keeping the top of the Inbox for hours while it fades. Only your actions count — never the agent's turns, never a
  * scheduled prompt — so a busy cron cannot talk its way to the top. The mod keeps the weights (mod/seen.ts),
  * so the Mac and the phone rank the same.
  */
-export type FocusAction = "message" | "answer" | "decide" | "open";
+export type FocusAction = "message" | "answer" | "decide" | "open" | "skip";
 
-/** What each action adds: a message or an answer is engagement; a decision is half; opening and reading, a quarter. */
-export const FOCUS_WEIGHT: Record<FocusAction, number> = { message: 1, answer: 1, decide: 0.5, open: 0.25 };
+/** What each action adds: a message or an answer is engagement; a decision is half; opening and reading, a quarter. A skip adds nothing: it scales (SKIP_FACTOR). */
+export const FOCUS_WEIGHT: Record<FocusAction, number> = { message: 1, answer: 1, decide: 0.5, open: 0.25, skip: 0 };
+/** Next on a card shown for its focus keeps this much of the chat's weight. */
+export const SKIP_FACTOR = 0.5;
 export const FOCUS_HALF_LIFE_H = 12;
 export const FOCUS_CUSHION = 2;
 /** Opening the same chat again inside this window adds nothing: flicking between chats is not more engagement. */
@@ -40,6 +44,7 @@ export function decayed(e: FocusEntry, now = Date.now()): number {
 /** The entry after one action at `now`; null when it adds nothing (a repeat open inside FOCUS_OPEN_GAP_MS). */
 export function addFocus(prev: FocusEntry | undefined, action: FocusAction, now = Date.now()): FocusEntry | null {
   if (action === "open" && prev && now - new Date(prev.t).getTime() < FOCUS_OPEN_GAP_MS) return null;
+  if (action === "skip") return prev ? { w: decayed(prev, now) * SKIP_FACTOR, t: new Date(now).toISOString() } : null;
   return { w: (prev ? decayed(prev, now) : 0) + FOCUS_WEIGHT[action], t: new Date(now).toISOString() };
 }
 

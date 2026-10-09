@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { askQuestions, buildQuestionAnswer, buildUserContent, environmentReminder } from "../core/attention/content.ts";
+import { askQuestions, buildQuestionAnswer, buildUserContent, environmentReminder, environmentNote, ENV_NOTE_EVERY_MS } from "../core/attention/content.ts";
 
 describe("user message content", () => {
   const img = { id: "i1", mediaType: "image/jpeg", data: "QUJD", url: "data:image/jpeg;base64,QUJD" };
@@ -46,3 +46,31 @@ describe("environment reminder", () => {
     expect((content as Array<{ type: string; text?: string }>)[1].text).toBe("hi");
   });
 });
+
+describe("environment note: only when the agent's picture would be wrong", () => {
+  const at = (h: number, m: number, d = 6) => new Date(2026, 8, d, h, m);
+  const zone = "Asia/Kolkata";
+  test("a chat's first message gets the full note; the next ones within 30 minutes get none", () => {
+    const first = environmentNote(undefined, { now: at(10, 0), desk: "Ledger", zone });
+    expect(first.text).toContain("via loki, on their Mac or a paired phone");
+    const soon = environmentNote(first.told, { now: at(10, 29), desk: "Ledger", zone });
+    expect(soon.text).toBeNull();
+    expect(soon.told.at).toBe(first.told.at); // the clock runs from the last note sent, not the last message
+  });
+  test("30 minutes on, it comes back short: the time only", () => {
+    const first = environmentNote(undefined, { now: at(10, 0), desk: "Ledger", zone, locale: "en-GB" });
+    const later = environmentNote(first.told, { now: at(10, 0 + ENV_NOTE_EVERY_MS / 60_000), desk: "Ledger", zone, locale: "en-GB" });
+    expect(later.text).toMatch(/User's device local time: .*10:30/);
+    expect(later.text).not.toContain("paired phone");
+    expect(later.text).not.toContain("Ledger");
+  });
+  test("a new day, another time zone or a renamed chat sends it early", () => {
+    const late = environmentNote(undefined, { now: at(23, 50), desk: "Ledger", zone });
+    expect(environmentNote(late.told, { now: at(0, 5, 7), desk: "Ledger", zone }).text).not.toBeNull();
+    expect(environmentNote(late.told, { now: at(23, 55), desk: "Ledger", zone: "Europe/London" }).text).not.toBeNull();
+    const renamed = environmentNote(late.told, { now: at(23, 55), desk: "Supplier ledger", zone });
+    expect(renamed.text).toContain('the chat ("Supplier ledger")');
+    expect(environmentNote(renamed.told, { now: at(23, 56), desk: "Supplier ledger", zone }).text).toBeNull();
+  });
+});
+

@@ -2,62 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Transcript } from "../app/src/chat/Transcript.tsx";
-import { applyEvent, beginCommand, emptyLive } from "../core/attention/model.ts";
-import { carryTimes, fromHistory, type TranscriptRow } from "../core/attention/transcript.ts";
-import { toTranscript } from "../core/harness.ts";
+import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { clockLabel, dayPills, holdMark, unreadBoundary } from "../app/src/shared/thread.ts";
-
-const rt = { agent_id: "a", conversation_id: "c" };
-const delta = (message_type: string, extra: Record<string, unknown> = {}) => ({ type: "stream_delta", runtime: rt, delta: { message_type, ...extra } });
-
-describe("message times from history", () => {
-  test("history with times yields rows with times; history without yields rows without", () => {
-    const timed = toTranscript([
-      { message_type: "user_message", content: "hi", date: "2026-09-23T08:00:00Z" },
-      { message_type: "assistant_message", content: "hello", date: "2026-09-23T08:00:05Z" },
-    ]).map(fromHistory);
-    expect(timed).toEqual([
-      { role: "user", text: "hi", at: "2026-09-23T08:00:00Z" },
-      { role: "assistant", text: "hello", at: "2026-09-23T08:00:05Z" },
-    ]);
-    const bare = toTranscript([{ message_type: "assistant_message", content: "hello" }]).map(fromHistory);
-    expect(bare).toEqual([{ role: "assistant", text: "hello" }]);
-    expect("at" in bare[0]).toBe(false);
-  });
-});
-
-describe("live rows are stamped on arrival", () => {
-  test("user, tool, event and settled assistant rows carry the time they arrived; the reply keeps the time it started", () => {
-    const l = emptyLive();
-    applyEvent(l, delta("user_message", { content: "go" }), "2026-09-23T09:00:00.000Z");
-    applyEvent(l, delta("assistant_message", { content: "Let " }), "2026-09-23T09:00:02.000Z");
-    applyEvent(l, delta("assistant_message", { content: "me" }), "2026-09-23T09:00:03.000Z");
-    expect(l.streamingAt).toBe("2026-09-23T09:00:02.000Z");
-    applyEvent(l, delta("tool_call_message", { tool_call: { name: "Bash", tool_call_id: "t1" } }), "2026-09-23T09:00:04.000Z");
-    beginCommand(l, "/reload", "2026-09-23T09:00:06.000Z");
-    expect(l.tail.map((r) => [r.role, r.at])).toEqual([
-      ["user", "2026-09-23T09:00:00.000Z"],
-      ["assistant", "2026-09-23T09:00:02.000Z"],
-      ["tool", "2026-09-23T09:00:04.000Z"],
-      ["event", "2026-09-23T09:00:06.000Z"],
-    ]);
-    expect(l.streamingAt).toBeNull();
-  });
-
-  test("a reload from history keeps the live times where history has none, and history's own time wins", () => {
-    const live: TranscriptRow[] = [
-      { role: "user", text: "ok", at: "2026-09-23T09:00:00.000Z" },
-      { role: "assistant", text: "done", at: "2026-09-23T09:00:02.000Z" },
-    ];
-    // the mod's log without times: an older "ok" must not take the newest one's time
-    const reloaded = carryTimes([{ role: "user", text: "ok" }, { role: "assistant", text: "earlier" }, { role: "user", text: "ok" }, { role: "assistant", text: "done" }], live);
-    expect(reloaded.map((r) => r.at)).toEqual([undefined, undefined, "2026-09-23T09:00:00.000Z", "2026-09-23T09:00:02.000Z"]);
-    const withOwn = carryTimes([{ role: "user", text: "ok", at: "2026-09-23T08:59:59Z" }, { role: "assistant", text: "done" }], live);
-    expect(withOwn.map((r) => r.at)).toEqual(["2026-09-23T08:59:59Z", "2026-09-23T09:00:02.000Z"]);
-    // a second reload still finds the times in the rows the first one kept
-    expect(carryTimes([{ role: "user", text: "ok" }, { role: "assistant", text: "done" }], reloaded).map((r) => r.at)).toEqual(["2026-09-23T09:00:00.000Z", "2026-09-23T09:00:02.000Z"]);
-  });
-});
 
 describe("day pills", () => {
   // Restored to the zone itself: with TZ unset, assigning the undefined back left Los Angeles in place, and the

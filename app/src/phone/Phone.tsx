@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { WidgetSourceContext } from "../chat/useInlineWidgets";
 import { useAttention } from "../../../core/attention/useAttention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
@@ -294,6 +295,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const health = useHealthBuild();
   const update = <UpdateBar servedBuild={desk.servedBuild} health={health} />;
   return (
+    <WidgetSourceContext.Provider value={desk}>
     <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
@@ -318,6 +320,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         update
       )}
     </div>
+    </WidgetSourceContext.Provider>
   );
 }
 

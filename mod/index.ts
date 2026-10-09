@@ -13,12 +13,12 @@ import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
 import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder, recentFolders } from "./folders.ts";
-import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscript, type InboxRow } from "./desks.ts";
+import { DeskRegistry, agentHasMemory, digestLocalConversation, listLocalConversations, lookupLocalAgentName, lookupLocalConversation, readLocalTranscriptPage, type InboxRow } from "./desks.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
 import { RecallWorker, askViaAppServer, startLessonViaAppServer } from "./recall-worker.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
-import { TaskBoard, formatTasksContext } from "./tasks.ts";
+import { TaskBoard, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -198,6 +198,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
       // A deleted agent leaves its memory repo behind: its record must still exist too. Hidden conversations stay
       // out, except the recall worker's: those are desks you can open to read what it asked and what the agent said.
       if ((c.hidden && !recall.owns(c.conversationId)) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
+      // Helper agents have memory folders too: without this, the eviction above was undone on every listing.
+      if (isSubagent(c.agentId)) continue;
       scopes.add(desks.remember(c.conversationId, c.agentId));
     }
     return sortDesks(
@@ -297,7 +299,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     seen,
     appServerAvailable: () => appServerUrl !== null,
     appServerUrl: () => appServerUrl,
-    transcript: (agentId, conversationId) => readLocalTranscript(conversationId, agentId, 400),
+    transcript: (agentId, conversationId, limit) => readLocalTranscriptPage(conversationId, agentId, limit),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => recentFolders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
@@ -339,6 +341,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
       port: modPort,
       token,
       profile: (agentId) => profilePath(agentId),
+      uploads: paths.uploads,
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
     }).then((s) => {
       ws = attachWs(s.server, token, bridge);
@@ -374,6 +377,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     handlers: bridge,
     desktopToken: token,
     profile: (agentId) => profilePath(agentId),
+    uploads: paths.uploads,
     health: () => ({ phones: lan?.clientCount() ?? 0 }),
     onChange: (what, status) => {
       if (what === "status") {
@@ -398,6 +402,8 @@ export default function activate(letta: LettaMod): (() => void) | void {
   const titleRefreshes = new ScopeDebouncer();
   /** When each desk's running turn began, for turn_finished's duration. */
   const turnsBegun = new Map<string, number>();
+  /** What each conversation was last told about its board tasks: the block rides along only when it changes. */
+  const tasksNotice = new TasksNotice();
 
   track("conversation_open", (event, ctx) => {
     const runtime = runtimeFromEvent(event as ConversationOpenEvent | undefined, ctx);
@@ -436,16 +442,25 @@ export default function activate(letta: LettaMod): (() => void) | void {
       if (personTyped(ev?.input)) seen.engage(runtime.agentId, convId, "message");
       broadcast({ type: "seen", seen: seen.all(), viewed: seen.viewedAll(), focus: seen.focusAll(), appServer: appServerUrl !== null });
     }
-    // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation.
+    // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation
+    // (only when those changed since the agent was last told).
     const blocks: string[] = [];
     if (lines.length) blocks.push(formatDeskContext(scope, lines, paths.widgets));
-    const tasksBlock = convId ? formatTasksContext(tasks.cached(), { conversation: convId }) : null;
+    const tasksBlock = convId ? tasksNotice.pending(convId, tasks.cached()) : null;
     if (tasksBlock) blocks.push(tasksBlock);
     if (blocks.length && ev && Array.isArray(ev.input)) {
-      ev.input = attachDeskContext(ev.input, blocks.join("\n\n"));
+      const next = attachDeskContext(ev.input, blocks.join("\n\n"));
+      // No message of the user's to ride on (approvals only): the tasks wait for the next one.
+      if (next !== ev.input && convId && tasksBlock) tasksNotice.sent(convId, tasksBlock);
+      ev.input = next;
       return { input: ev.input };
     }
     return undefined;
+  });
+
+  track("compact_end", (event, ctx) => {
+    const convId = runtimeFromEvent(event as TurnEndEvent | undefined, ctx).conversationId;
+    if (convId) tasksNotice.forget(convId);
   });
 
   // Diagnostics: see whether Letta reaches the mod-tool dispatch at all.

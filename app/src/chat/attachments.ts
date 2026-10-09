@@ -1,4 +1,5 @@
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { FileAttachment, ImageAttachment } from "../../../core/attention/content.ts";
+import { inLan, injectedToken, modBase } from "../desk/env";
 
 const MAX_EDGE = 1600;
 
@@ -29,16 +30,73 @@ export async function imageFromBlob(blob: Blob): Promise<ImageAttachment> {
   return { id: `img-${Math.random().toString(36).slice(2, 9)}`, mediaType, data: url.slice(url.indexOf(",") + 1), url };
 }
 
-/** Image files out of a paste or drop. */
-export function imageBlobs(dt: DataTransfer | null): Blob[] {
-  if (!dt) return [];
-  const out: Blob[] = [];
+/** Letta's default for a channel's media (mod/uploads.ts UPLOAD_MAX_BYTES): checked here too, before a long upload. */
+export const FILE_MAX_BYTES = 25 * 1024 * 1024;
+
+/** Every file out of a paste or drop, split into images (sent inside the message) and the rest (uploaded). */
+export function droppedFiles(dt: DataTransfer | null): { images: Blob[]; files: File[] } {
+  if (!dt) return { images: [], files: [] };
+  const all: File[] = [];
   for (const item of Array.from(dt.items ?? [])) {
-    if (item.kind === "file" && item.type.startsWith("image/")) {
-      const f = item.getAsFile();
-      if (f) out.push(f);
-    }
+    if (item.kind !== "file") continue;
+    const f = item.getAsFile();
+    if (f) all.push(f);
   }
-  if (!out.length) for (const f of Array.from(dt.files ?? [])) if (f.type.startsWith("image/")) out.push(f);
-  return out;
+  if (!all.length) all.push(...Array.from(dt.files ?? []));
+  return { images: all.filter(isInlineImage), files: all.filter((f) => !isInlineImage(f)) };
+}
+
+/** An image the agent can see inside the message; SVG and odd types go as files. */
+export const isInlineImage = (f: Blob): boolean => /^image\/(png|jpe?g|gif|webp|heic|heif|bmp|tiff)$/i.test(f.type);
+
+/** "482 KB", "3.1 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+/** The mod's /uploads with its credential: the desktop token as ?t=, or on the LAN the device cookie. */
+function uploadsUrl(query: Record<string, string>): string {
+  const token = injectedToken() ?? readToken();
+  const q = new URLSearchParams({ ...query, ...(token ? { t: token } : {}) });
+  return `${modBase()}/uploads?${q}`;
+}
+
+function readToken(): string | null {
+  try {
+    return localStorage.getItem("loki.token");
+  } catch {
+    return null;
+  }
+}
+
+/** Put a file on the Mac (mod/uploads.ts), reporting progress 0–1; resolves to the attachment the message will carry. */
+export function uploadFile(file: File, onProgress?: (share: number) => void): Promise<FileAttachment> {
+  if (file.size > FILE_MAX_BYTES) return Promise.reject(new Error(`${fileSize(file.size)} is over the ${fileSize(FILE_MAX_BYTES)} limit`));
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadsUrl({ name: file.name || "file", type: file.type || "application/octet-stream" }));
+    xhr.withCredentials = inLan;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let body: { path?: string; name?: string; size?: number; mime?: string; error?: string } = {};
+      try {
+        body = JSON.parse(xhr.responseText) as typeof body;
+      } catch {
+        // not JSON: the status says enough
+      }
+      if (xhr.status !== 200 || !body.path) return reject(new Error(body.error ?? `upload failed (${xhr.status})`));
+      resolve({ id: `file-${Math.random().toString(36).slice(2, 9)}`, kind: "file", path: body.path, name: body.name ?? file.name, size: body.size ?? file.size, mime: body.mime ?? file.type });
+    };
+    xhr.onerror = () => reject(new Error("couldn't reach loki on the Mac"));
+    xhr.send(file);
+  });
+}
+
+/** A file taken off the message before it was sent: removed from the Mac again. Failing is harmless. */
+export function discardUpload(path: string): void {
+  void fetch(uploadsUrl({ path }), { method: "DELETE", credentials: inLan ? "include" : "same-origin" }).catch(() => undefined);
 }

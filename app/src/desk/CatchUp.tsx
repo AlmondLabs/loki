@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { PermissionMode } from "../chat/PermissionMode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
+import { useInlineWidgets, type InlineWidgetSource } from "../chat/useInlineWidgets";
+import { scopeFor } from "../../../core/desk-core.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./CatchUpParts";
 import { useDeckActions } from "./useDeckActions";
@@ -38,12 +40,12 @@ interface CatchUpProps {
   onArchive: (item: AttentionItem) => Promise<string | null>;
   onUnarchive: (item: AttentionItem) => void;
   /** The live conversation model behind a card; `rows` is undefined until loaded. */
-  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null };
+  conversation: (agentId: string, conversationId: string) => { rows: TranscriptRow[] | undefined; status: ChatStatus; mode?: string | null; older?: (() => void) | null };
   loadHistory: (item: AttentionItem) => void;
   onSeen: (item: AttentionItem, via: "next" | "approve" | "deny") => void;
   onUnread: (item: AttentionItem) => void;
   onApprove: (item: AttentionItem, requestId: string, behavior: "allow" | "deny") => void;
-  onReply: (item: AttentionItem, text: string, images?: ImageAttachment[]) => void;
+  onReply: (item: AttentionItem, text: string, images?: Attachment[]) => void;
   /** Stop the card's conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
@@ -66,6 +68,8 @@ interface CatchUpProps {
   onShown?: (item: AttentionItem) => void;
   /** An agent pill chosen, null for All (analytics). */
   onFilter?: (agent: string | null) => void;
+  /** The desks' widgets, so a card draws the ones its chat made, live, in the thread (chat/useInlineWidgets.tsx). */
+  widgetSource?: InlineWidgetSource;
 }
 
 export type PassSummaryHandler = (pass: { decided: number; next: number; archive: number; approve: number; deny: number; replies: number; shown: number; duration_ms: number }) => void;
@@ -177,6 +181,9 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
   const { agentId, id } = current;
   const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor } = deck;
+  // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
+  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread?.rows, current.agentName ?? null);
+  const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
   return (
     <div
       style={{
@@ -203,6 +210,7 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
           mode: thread?.mode ?? modeFor?.(agentId, id) ?? null,
           approval: current.pendingApproval ?? null,
           question: current.pendingQuestion ?? null,
+          older: thread?.older ?? null,
         }}
         actions={{
           onSend: (text, images) => deck.onReply(current, text, images),
@@ -216,6 +224,7 @@ function Card({ current, thread, decided, typing, setTyping, replyRef, actions, 
           onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
         }}
         models={deck.models ?? null}
+        layout={layout}
         agentName={current.agentName}
         header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} />}
         footer={<CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />}

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DeskRegistry, digestLocalConversation, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript } from "../mod/desks.ts";
+import { DeskRegistry, digestLocalConversation, lookupLocalAgentId, lookupLocalConversation, readLocalTranscript, readLocalTranscriptPage, readLocalTranscriptSince } from "../mod/desks.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 
 describe("desk registry", () => {
@@ -89,7 +89,37 @@ describe("local transcript", () => {
         { role: "user", text: "plain string" },
       ]);
       expect(readLocalTranscript("local-conv-9", null, 2, backend).map((m) => m.text)).toEqual(["done.", "plain string"]);
+      // A page says whether the log holds older rows than it returned: the chat asks for the next page when it does.
+      expect(readLocalTranscriptPage("local-conv-9", null, 2, backend).more).toBe(true);
+      expect(readLocalTranscriptPage("local-conv-9", null, 400, backend).more).toBe(false);
+      expect(readLocalTranscriptPage("nowhere", null, 400, backend)).toEqual({ rows: [], more: false });
       expect(readLocalTranscript("missing", null, 400, backend)).toEqual([]);
+    } finally {
+      rmSync(backend, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("the local log from a cursor (the Learn worker's read)", () => {
+  test("words only: tool rows keep their label without their step, a result before the cursor is ignored, and the line count continues", () => {
+    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
+    try {
+      const dir = join(backend, "conversations", conversationDirName("local-conv-since"));
+      mkdirSync(dir, { recursive: true });
+      const lines = [
+        { type: "message", timestamp: "2026-10-09T10:00:00.000Z", message: { role: "user", content: "check the build" } },
+        { type: "message", timestamp: "2026-10-09T10:00:01.000Z", message: { role: "assistant", content: [{ type: "text", text: "Looking." }, { type: "toolCall", id: "c1", name: "Bash", arguments: { command: "make" } }] } },
+        { type: "message", message: { role: "toolResult", toolCallId: "c1", content: "ok", isError: false } },
+        { type: "message", timestamp: "2026-10-09T10:00:03.000Z", message: { role: "assistant", content: "It builds." } },
+      ];
+      writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+      const all = readLocalTranscriptSince("local-conv-since", null, 0, backend);
+      expect(all.lines).toBe(4);
+      expect(all.rows.map((r) => `${r.role}:${r.text}`)).toEqual(["user:check the build", "assistant:Looking.", "tool:Bash · make", "assistant:It builds."]);
+      expect(all.rows.some((r) => "tool" in r)).toBe(false);
+      const later = readLocalTranscriptSince("local-conv-since", null, 2, backend);
+      expect(later).toEqual({ rows: [{ role: "assistant", text: "It builds.", at: "2026-10-09T10:00:03.000Z" }], lines: 4 });
+      expect(readLocalTranscriptSince("nowhere", null, 0, backend)).toEqual({ rows: [], lines: 0 });
     } finally {
       rmSync(backend, { recursive: true, force: true });
     }

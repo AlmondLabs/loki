@@ -103,6 +103,7 @@ export function useDesk() {
     recentModels,
     widgetLogs,
     setWidgetLogs,
+    watchDesk,
     waiters,
     lastInteractionRef,
     pendingRef,
@@ -307,10 +308,10 @@ export function useDesk() {
      * The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame).
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
      */
-    loadHistory: (agentId: string, conversationId: string): Promise<TranscriptRow[]> =>
-      request("history_get", { agentId, conversationId }, 4000).then((m) => {
+    loadHistory: (agentId: string, conversationId: string, limit?: number): Promise<{ rows: TranscriptRow[]; more: boolean }> =>
+      request("history_get", { agentId, conversationId, ...(limit ? { limit } : {}) }, 8000).then((m) => {
         if (m && Array.isArray(m.widgetLog)) setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), m.widgetLog));
-        return (m?.messages as TranscriptRow[] | undefined) ?? [];
+        return { rows: (m?.messages as TranscriptRow[] | undefined) ?? [], more: m?.more === true };
       }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
@@ -444,5 +445,10 @@ export function useDesk() {
     cameraTarget,
     /** This desk's widget change log, oldest first (desk/widgetRows.ts); undefined before any arrived. */
     widgetLog: widgetLogs[scope],
+    /** Any desk's widget change log (a thread elsewhere: the Inbox, the phone). */
+    widgetLogOf: (s: Scope) => widgetLogs[s],
+    /** Any desk's widgets and the user's edits to them, once watched (watchDesk); undefined until they arrive. */
+    widgetsOf: (s: Scope) => (widgets[s] ? { entries: widgets[s], overlay: desks[s]?.overlay ?? {} } : undefined),
+    watchDesk,
   };
 }

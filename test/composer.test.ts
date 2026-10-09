@@ -52,7 +52,7 @@ describe("the message box's bottom row", () => {
   for (const touch of [false, true]) {
     test(`${touch ? "phone" : "desktop"}: +, the model pill with its name and effort, then send, inside the one field`, () => {
       const html = conversation(touch);
-      expect(barLabels(html)).toEqual(["Attach images", "Model: Opus 5.5, medium effort", "Send"]);
+      expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "Send"]);
       // the text and the row share the one rounded field
       expect(html.indexOf('class="loki-composer-box')).toBeLessThan(html.indexOf("loki-composer-text"));
       expect(html.indexOf("loki-composer-text")).toBeLessThan(html.indexOf('class="loki-composer-bar'));
@@ -75,7 +75,7 @@ describe("the message box's bottom row", () => {
           draft: { value: { text: "", images: [] }, onChange: () => {} },
         }),
       );
-      expect(barLabels(html)).toEqual(["Attach images", "Model: Opus 5.5, medium effort", "permission mode", "Send"]);
+      expect(barLabels(html)).toEqual(["Attach files", "Model: Opus 5.5, medium effort", "permission mode", "Send"]);
       expect(html).not.toContain("loki-conversation-footer");
     });
   }
@@ -83,8 +83,8 @@ describe("the message box's bottom row", () => {
   test("the mic sits between the pill and send, only where dictation works", () => {
     const bar = (dictation: boolean) =>
       barLabels(renderToStaticMarkup(createElement(ComposerBar, { touch: false, attach: { onClick: () => {} }, tools: null, dictation: dictation ? { listening: false, pending: false, title: "dictate", onToggle: () => {} } : null, canSend: false, sendLabel: "Send", onSend: () => {} })));
-    expect(bar(true)).toEqual(["Attach images", "Dictate", "Send"]);
-    expect(bar(false)).toEqual(["Attach images", "Send"]);
+    expect(bar(true)).toEqual(["Attach files", "Dictate", "Send"]);
+    expect(bar(false)).toEqual(["Attach files", "Send"]);
   });
 
   test("send is disabled while the box is empty and live once there is text", () => {
@@ -106,17 +106,17 @@ describe("the message box's bottom row", () => {
         ),
       );
     const stop = async () => null;
-    expect(working("", stop)).toEqual(["Attach images", "Stop"]);
-    expect(working("and also this", stop)).toEqual(["Attach images", "Queue: sends when this turn ends"]);
-    expect(working("")).toEqual(["Attach images", "Queue: sends when this turn ends"]);
+    expect(working("", stop)).toEqual(["Attach files", "Stop"]);
+    expect(working("and also this", stop)).toEqual(["Attach files", "Queue: sends when this turn ends"]);
+    expect(working("")).toEqual(["Attach files", "Queue: sends when this turn ends"]);
     // idle: never Stop
     const idle = renderToStaticMarkup(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {}, onStop: stop } }));
-    expect(barLabels(idle)).toEqual(["Attach images", "Send"]);
+    expect(barLabels(idle)).toEqual(["Attach files", "Send"]);
   });
 
   test("without a model handler there is no pill", () => {
     const html = renderToStaticMarkup(createElement(Conversation, { view: { rows: [], status: "idle" }, actions: { onSend: () => {} } }));
-    expect(barLabels(html)).toEqual(["Attach images", "Send"]);
+    expect(barLabels(html)).toEqual(["Attach files", "Send"]);
   });
 });
 

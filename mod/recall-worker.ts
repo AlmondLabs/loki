@@ -10,7 +10,8 @@ import { scopeFor, type WidgetChange } from "../core/desk-core.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
 import { learnTitle, type Card, type Lead } from "../core/recall/model.ts";
 import { appServerHeaders } from "./app-server.ts";
-import { readLocalTranscriptSince, type InboxRow, type LocalTranscriptMessage } from "./desks.ts";
+import { readLocalTranscriptSince, type InboxRow } from "./desks.ts";
+import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
 import { RecallStore, newCardId } from "./recall.ts";
 import { paths } from "./paths.ts";
@@ -66,7 +67,7 @@ export interface WorkerDeps {
   listInbox: () => InboxRow[];
   ask: Ask;
   /** Transcript rows from a log line on; injectable for tests. */
-  readSince?: (conversationId: string, agentId: string | null, fromLine: number) => { rows: LocalTranscriptMessage[]; lines: number };
+  readSince?: (conversationId: string, agentId: string | null, fromLine: number) => { rows: TranscriptRow[]; lines: number };
   now?: () => number;
 }
 
@@ -272,7 +273,7 @@ interface Candidate {
  * (a stretch they wrote half of beats one the agent monologued), and their questions (each up to six adds
  * fifteen percent). Plain code, no model: Letta's reflection catalogue prunes the same way before its picker.
  */
-export function scoreStretch(rows: LocalTranscriptMessage[]): number {
+export function scoreStretch(rows: TranscriptRow[]): number {
   const said = rows.filter((r) => r.role === "user" || r.role === "assistant");
   const total = said.reduce((n, r) => n + r.text.length, 0);
   if (total === 0) return 0;
@@ -316,7 +317,7 @@ export function overlappingCards<T extends { front: string; back: string; tags: 
 }
 
 /** "you: …" / "<agent>: …" lines; tool markers and harness notices are left out. */
-export function formatTranscript(rows: LocalTranscriptMessage[], agentName: string | null): string {
+export function formatTranscript(rows: TranscriptRow[], agentName: string | null): string {
   const who = agentName ?? "agent";
   return rows
     .filter((r) => r.role === "user" || r.role === "assistant")
@@ -377,8 +378,8 @@ export function askViaAppServer(opts: { url: () => string | null; store: RecallS
           if (!finished) return;
           clearTimeout(timer);
           off();
-          // The full reply: the settled tail row (lastAssistantText is a digest, cut to its last few hundred characters).
-          const text = [...live.tail].reverse().find((r) => r.role === "assistant")?.text ?? live.streamingText;
+          // The full reply, from the thread (lastAssistantText is a digest, cut to its last few hundred characters).
+          const text = live.thread.lastReply();
           if (live.error) reject(new Error(live.error));
           else resolve(text);
         });

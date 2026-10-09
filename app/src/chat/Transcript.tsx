@@ -1,15 +1,17 @@
-import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import type { TranscriptRow } from "../../../core/attention/transcript.ts";
+import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
+import { inTauri } from "../desk/env";
+import { fileSize } from "./attachments";
 import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
 import { threadId } from "./transcriptWindow";
 import { ToolSteps } from "./ToolSteps";
-import { toolRuns } from "../shared/toolSteps";
+import { isWorkRow, toolRuns } from "../shared/toolSteps";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -21,11 +23,14 @@ export type { TranscriptRow };
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
  * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
  */
-export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, widgets, onFrameWidget, onShowDesk, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
+export const Transcript = memo(function Transcript({ rows, streaming = false, dim = true, onCancelQueued, people, dividerAt = null, dividerDay = null, widgets, onFrameWidget, onShowDesk, inline, from = 0, arrivedFrom = Infinity, busy = false }: { rows: TranscriptRow[]; streaming?: boolean; dim?: boolean; onCancelQueued?: (row: TranscriptRow) => void; from?: number; /** Rows from this index on came in while the thread was open (useArrivedFrom); they rise in. */ arrivedFrom?: number; /** The agent is working (thinking or streaming): a last run of tools still waiting on its result reads "Running". */ busy?: boolean } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
-  // Widget rows, by the row they sit before (rows.length: after the last); only in the message layout, only in the window.
+  // Widget rows, by the row they sit before (rows.length: after the last); only where the host passes them, only in the window.
   const marks = new Map<number, WidgetMark[]>();
-  if (people) for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  // Each widget is drawn live once, under its latest row; its earlier rows stay one line each.
+  const latest = new Map<string, string>();
+  for (const w of widgets ?? []) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
   const shown = first ? rows.slice(first) : rows;
   // Day pills only in the message layout, and only where the messages carry times; then the pills name the day and the New line does not.
   const timed = !!people && shown.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
@@ -41,17 +46,24 @@ export const Transcript = memo(function Transcript({ rows, streaming = false, di
     });
   }
   const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
-  // Consecutive tool calls read as one line (chat/ToolSteps.tsx); a widget row, a day or the New line ends a run.
+  // A stretch of work (tool calls, background tasks, skills loaded) reads as one line (chat/ToolSteps.tsx); a widget
+  // row, a day or the New line ends it.
   const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
-  const widgetRow = (w: WidgetMark) => <WidgetRow key={`w-${w.id}`} mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />;
+  const widgetRow = (w: WidgetMark) => (
+    <Fragment key={`w-${w.id}`}>
+      <WidgetRow mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />
+      {inline && !w.gone && latest.get(w.widgetId) === w.id && inline(w.widgetId)}
+    </Fragment>
+  );
   const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
   const message = (m: TranscriptRow, i: number) => {
     const last = i === rows.length - 1;
-    if (m.role === "tool") {
+    if (isWorkRow(m)) {
       const end = tools.get(i);
       if (end === undefined) return null; // inside a run, drawn with its first row
       const run = rows.slice(i, end);
-      const running = busy && end === rows.length && !run[run.length - 1].tool?.output;
+      const tail = run[run.length - 1];
+      const running = busy && end === rows.length && tail.role === "tool" && !tail.tool?.output;
       return (
         <Fragment key={i}>
           {dividerAt === i && <Divider day={timed ? null : dividerDay} />}
@@ -164,6 +176,8 @@ export interface MessageLayout {
   onFrameWidget?: (widgetId: string) => void;
   /** Choosing the "N earlier widget changes" summary row: open the Desk tab. */
   onShowDesk?: () => void;
+  /** The live widget, drawn under its latest row (chat/useInlineWidgets.tsx); null while it is not known. */
+  inline?: (widgetId: string) => ReactNode;
 }
 
 /** A widget change in the thread: "friday added Revenue chart" (or "You removed …", "loki added …"), placed before row `before`. */
@@ -469,6 +483,28 @@ function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean
   );
 }
 
+/** A file the message carried: its name and size; in the desktop app a click shows it in its folder. */
+function FileChip({ file }: { file: FileRef }) {
+  const body = (
+    <>
+      <Icon name="file" size={16} />
+      <span className="loki-file-chip-name">{file.name}</span>
+      {file.size !== undefined && <span className="loki-file-chip-size">{fileSize(file.size)}</span>}
+    </>
+  );
+  if (!inTauri) return <span className="loki-file-chip" title={file.path}>{body}</span>;
+  return (
+    <button
+      type="button"
+      className="loki-file-chip"
+      title={`Show ${file.path} in its folder`}
+      onClick={() => void import("@tauri-apps/plugin-opener").then(({ revealItemInDir }) => revealItemInDir(file.path)).catch((err) => console.warn("loki: reveal file", err))}
+    >
+      {body}
+    </button>
+  );
+}
+
 function UserBody({ row: m }: { row: TranscriptRow }) {
   return (
     <>
@@ -476,6 +512,13 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 8 : 0 }}>
           {m.images.map((src, k) => (
             <img key={k} src={src} alt="" style={{ maxWidth: 220, maxHeight: 160, borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
+          ))}
+        </div>
+      )}
+      {m.files && m.files.length > 0 && (
+        <div className="loki-bubble-files" style={{ marginBottom: m.text ? 8 : 0 }}>
+          {m.files.map((f) => (
+            <FileChip key={f.path} file={f} />
           ))}
         </div>
       )}

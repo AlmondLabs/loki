@@ -1075,6 +1075,8 @@ span.loki-phone-section-btn { cursor: default; }
 /* The box, in both the page and the Inbox card: the shared field (chat/chat.css) at the phone's sizes — the 24
    radius, 15px text, the row's controls 36 and round with a 44 target each; no hairline over it (the notice
    pill separates). The flash goes round the whole field there, as on Search's. */
+.loki-phone .loki-file-chip { min-height: 40px; max-width: 100%; border-radius: var(--phone-radius-md); font-size: var(--phone-text-meta); }
+.loki-phone .loki-file-chip-remove { width: 28px; height: 28px; border-radius: 50%; line-height: 28px; font-size: var(--phone-text-body); }
 .loki-phone .loki-composer-box { gap: var(--phone-space-1); padding: var(--phone-space-2); border-radius: var(--phone-radius-lg); }
 .loki-phone .loki-field.loki-composer-text { padding: var(--phone-space-1) var(--phone-space-2); font-size: var(--phone-text-body); line-height: 20px; scrollbar-width: none; }
 /* The empty box stays one line at 320: a long placeholder ends in an ellipsis rather than wrapping. */
@@ -1176,9 +1178,13 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone .loki-steps-timeline .loki-steps-verb { font-size: var(--phone-text-emph); }
 .loki-phone .loki-steps-timeline .loki-steps-target { font-size: var(--phone-text-body); color: var(--loki-muted); }
 .loki-phone .loki-steps-failed { font-size: var(--phone-text-meta); }
+.loki-phone .loki-steps-failure { min-height: 32px; font-size: var(--phone-text-meta); }
+.loki-phone .loki-steps-timeline .loki-steps-step[data-minor] { min-height: 52px; }
+.loki-phone .loki-steps-timeline .loki-steps-step[data-minor] .loki-steps-verb { color: var(--loki-muted); font-size: var(--phone-text-body); }
 .loki-phone .loki-steps-detail { margin: 0; gap: var(--phone-space-4); padding-bottom: var(--phone-space-2); }
 .loki-phone .loki-steps-heading { margin: 0 0 var(--phone-space-2); font-size: var(--phone-text-body); font-weight: var(--phone-weight-strong); color: var(--loki-muted); }
 .loki-phone .loki-steps-code { max-height: none; padding: var(--phone-space-3) var(--phone-space-4); border-radius: var(--phone-radius-md); font-size: var(--phone-text-meta); }
+.loki-phone .loki-steps-desc { padding: var(--phone-space-3) var(--phone-space-4); border-radius: var(--phone-radius-md); font-size: var(--phone-text-body); }
 .loki-phone .loki-steps-none { font-size: var(--phone-text-body); }
 .loki-phone .loki-event-row { margin: var(--phone-space-2) 0 var(--phone-space-2) 44px; font-size: var(--phone-text-meta); }
 .loki-phone .loki-event-summary { font-family: var(--loki-font); letter-spacing: normal; min-height: var(--phone-touch); display: flex; align-items: center; gap: var(--phone-space-1); flex-wrap: wrap; }
@@ -1497,3 +1503,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) { animat
     --phone-dur-sheet: 0ms;
   }
 }
+.loki-phone .loki-inline-widget { margin: var(--phone-space-1) 0 var(--phone-space-3) 44px; max-width: calc(100% - 44px); border-radius: var(--phone-radius-md); }
+.loki-phone .loki-inline-widget-head { font-size: var(--phone-text-meta); }
+.loki-phone .loki-inline-widget-note { font-size: var(--phone-text-body); }

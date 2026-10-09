@@ -90,11 +90,17 @@ count goes up; the camera glides to a widget on the smooth spring, and a wheel, 
 (`desk/cameraGlide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
 shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
 
-Tool calls read the way Claude's apps show them (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a run
-of consecutive calls is one quiet line in the thread ("Ran 3 commands", "Ran a command, used 9 tools (1 failed)",
-"Running" breathing while the last one waits). On the phone it opens a bottom sheet of the steps on a thin timeline,
-each a verb and what it was done to, and a step opens its command and output in the same sheet; on the desktop the
-steps unfold in place. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
+The agent's work reads the way Claude's apps show it (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a
+stretch between two messages (tool calls, background-task notices, skills it loaded) is one quiet line in the thread,
+"Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed" ("Ran 3 commands" when the rows carry no
+times; "Working" breathing while the last step waits). When a step failed, its name sits under the closed line in red
+("✕ Deploy approved Dealshield image and ECS routing failed"), and a click opens the stretch at it. Canvas activity and
+compactions stay rows of their own. Opened (inline on the desktop, a bottom sheet on the phone), every step is a line
+in one flat list, in order: background tasks, commands, agents and anything that failed in full, led by what the agent
+said they were for; reads, edits, searches and skills quieter. Past 8 steps, chips filter it: All, Failed, Steps,
+Files and search. A step opens its description, command
+and output under it, one at a time (on the phone, in the same sheet with a way back); a background task opens its
+result. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
 from the live stream, Letta's history and the local log alike.
 
 `test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
@@ -167,9 +173,15 @@ opening each calendar day, a red **New** line before the first message you have 
 toolbar that holds only what loki does to a message (copy as markdown). A message with no known time shows none.
 **Widget rows** sit among the messages by time, one quiet line with a tile icon in the face's column: "friday
 added Revenue chart · 14:49", the widget's title in the link blue while it is still on the canvas; choosing one
-opens the Canvas tab framed on that widget. Tool and event lines sit in the message column under the text they
+opens the Canvas tab framed on that widget. Under a widget's latest row the widget itself is drawn, live
+(`chat/InlineWidget.tsx`, `chat/useInlineWidgets.tsx`, 2026-10-09): the same kit component or module the canvas
+draws, in a card as wide as the thread allows, with "Show on canvas"; using it there is using it on the canvas (a
+`set` gesture on the widget's own desk, recorded for that desk's agent). Earlier rows for the same widget stay one
+line each, so a widget edited ten times is drawn once. Every chat surface draws them: the desk's chat, the Inbox
+card (which asks the mod for that chat's widgets, `desk_get`) and the phone, where kit widgets draw read only and a
+custom module says to open the chat on the Mac (the phone cannot load modules yet). Tool and event lines sit in the message column under the text they
 follow. **The message box** (2026-09-24, after Claude's, one for the phone and the desktop) is one rounded field
-on the well, the text on top and a row inside it: a round "+" (attach images), the **model pill** (the model's
+on the well, the text on top and a row inside it: a round "+" (attach images and files: files upload to the Mac at once, mod/uploads.ts, and go as Letta attachment tags), the **model pill** (the model's
 name in the ink, its effort after it in the muted colour, only when the model offers levels), then the mic
 (only where dictation works) and a round send, Slack's green once there is something to send and a muted
 circle while the box is empty; every control in the row is one height (28 here, 36 on the phone with a 44

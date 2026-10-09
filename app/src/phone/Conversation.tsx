@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useInlineWidgets } from "../chat/useInlineWidgets";
+import { scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion } from "../../../core/attention/model.ts";
-import type { ImageAttachment } from "../../../core/attention/content.ts";
+import type { Attachment } from "../../../core/attention/content.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/ModelPicker";
 import type { TranscriptRow } from "../chat/Transcript";
@@ -37,6 +39,7 @@ export interface ThreadView {
   pending: PendingApproval | null;
   question: PendingQuestion | null;
   error: string | null;
+  older?: (() => void) | null;
 }
 
 /**
@@ -110,7 +113,7 @@ export function ConversationScreen({
   /** Stop this conversation's turn, so you can take over; resolves to an error or null. */
   onStop?: (rt: Runtime) => Promise<string | null>;
   onAnswer: (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => void;
-  onSend: (rt: Runtime, text: string, images: ImageAttachment[], desk: string | null) => void;
+  onSend: (rt: Runtime, text: string, images: Attachment[], desk: string | null) => void;
   /** Done: the Inbox's clear (seen_mark). */
   onSeen: (rt: Runtime) => void;
   /** Not done: the Inbox's undo (seen_unmark); left out, the sheet does not offer it. */
@@ -144,7 +147,8 @@ export function ConversationScreen({
   // Viewed, not done: open is a look; the New line goes before what came since the look from before this open.
   const heldLook = useViewed(keyOf(thread.agentId, thread.conversationId), item, !!onViewed, onViewed ?? noop);
   const dividerAt = unreadBoundary(view.rows, item?.unread ?? false, item?.seenAt, heldLook);
-  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt) }), [people, dividerAt, item?.lastMessageAt]);
+  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(thread.conversationId, thread.agentId), view.rows, thread.agentName ?? null, { readOnly: true });
+  const layout = useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline }), [people, dividerAt, item?.lastMessageAt, widgets, inline]);
   const message = useMessageActions({ user: "You", assistant: thread.agentName ?? "Agent" });
   const said = threadNotice(item, waiting, view.status, thread.agentName);
   const notice =
@@ -167,7 +171,7 @@ export function ConversationScreen({
             touch
             dim={false}
             gutter={{ left: "var(--phone-safe-left)", right: "var(--phone-safe-right)", bottom: "var(--phone-safe-bottom)" }}
-            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question }}
+            view={{ rows: view.rows, status: view.status, error: view.error, model, reasoningEffort, approval: view.pending, question: view.question, older: view.older ?? null }}
             models={models}
             actions={{
               onLoadModels,

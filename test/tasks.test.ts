@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INIT_ARGS, TaskBoard, bdBinary, assignArgs, createArgs, formatTasksContext, parseTasks, projectLabel, clampPriority, type Task } from "../mod/tasks.ts";
+import { INIT_ARGS, TaskBoard, bdBinary, assignArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority, type Task } from "../mod/tasks.ts";
 
 const raw = (over: Record<string, unknown> = {}) => ({
   id: "lk-a1",
@@ -79,6 +79,38 @@ describe("tasks: turn-start block", () => {
   });
   test("nothing assigned: no block at all", () => {
     expect(formatTasksContext([t({})], { conversation: "c1" })).toBeNull();
+  });
+});
+
+describe("tasks: told once, again only on a change", () => {
+  const t = (over: Partial<Task>): Task => ({ id: "lk-a1", title: "rotate SSO creds", description: "", status: "open", priority: 1, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata: { assignedTo: "c1" }, ...over });
+  const deliver = (n: TasksNotice, conv: string, tasks: Task[]) => {
+    const block = n.pending(conv, tasks);
+    if (block) n.sent(conv, block);
+    return block;
+  };
+  test("the same list rides along once; a new, closed or started task sends it again", () => {
+    const n = new TasksNotice();
+    const one = [t({})];
+    expect(deliver(n, "c1", one)).toContain("lk-a1");
+    expect(deliver(n, "c1", one)).toBeNull();
+    expect(deliver(n, "c1", [...one, t({ id: "lk-b2" })])).toContain("lk-b2");
+    expect(deliver(n, "c1", [t({ status: "in_progress" }), t({ id: "lk-b2" })])).toContain("in progress");
+    expect(deliver(n, "c2", one)).toBeNull(); // nothing assigned to c2
+  });
+  test("the last task leaving says so once, then nothing", () => {
+    const n = new TasksNotice();
+    deliver(n, "c1", [t({})]);
+    expect(deliver(n, "c1", [t({ status: "closed" })])).toBe(TASKS_CLEARED);
+    expect(deliver(n, "c1", [])).toBeNull();
+  });
+  test("a block not attached is still pending; after compaction it is sent again", () => {
+    const n = new TasksNotice();
+    const one = [t({})];
+    expect(n.pending("c1", one)).toContain("lk-a1"); // approvals-only turn: never marked sent
+    expect(deliver(n, "c1", one)).toContain("lk-a1");
+    n.forget("c1");
+    expect(deliver(n, "c1", one)).toContain("lk-a1");
   });
 });
 

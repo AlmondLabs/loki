@@ -159,6 +159,38 @@ export function formatTasksContext(tasks: Task[], opts: { conversation: string }
   ].join("\n");
 }
 
+/** Sent once when the last of a conversation's tasks is closed or moved elsewhere. */
+export const TASKS_CLEARED = "<loki-tasks>\nNo tasks are assigned to this conversation on the user's board any more.\n</loki-tasks>";
+
+/**
+ * What each conversation was last told about its tasks. The block rides along only when it would say something
+ * new (a task assigned, closed, edited or started), not on every message: the agent keeps the earlier one in
+ * its history, and `loki_task list` reads the board whenever it wants. Held in memory, so a restart of the mod
+ * tells each conversation once more.
+ */
+export class TasksNotice {
+  private told = new Map<string, string>();
+
+  /** The block this conversation's next message should carry, or null when it would repeat the last one. */
+  pending(conversation: string, tasks: Task[]): string | null {
+    const block = formatTasksContext(tasks, { conversation });
+    const was = this.told.get(conversation);
+    if (block === null) return was === undefined ? null : TASKS_CLEARED;
+    return block === was ? null : block;
+  }
+
+  /** The block went out on a message (call only once it is attached). */
+  sent(conversation: string, block: string): void {
+    if (block === TASKS_CLEARED) this.told.delete(conversation);
+    else this.told.set(conversation, block);
+  }
+
+  /** The agent's copy is gone (the conversation was compacted): tell it again next time. */
+  forget(conversation: string): void {
+    this.told.delete(conversation);
+  }
+}
+
 /** Runs bd against the shared board, one call at a time. */
 export class TaskBoard {
   private queue: Promise<unknown> = Promise.resolve();

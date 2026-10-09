@@ -9,7 +9,7 @@ macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup — `bun start` looks
 
 ```bash
 bun install
-bun start              # Vite on 127.0.0.1:5173 plus the Tauri window in one terminal (Ctrl-C stops both)
+bun start              # Vite on 127.0.0.1:5173, the Tauri window, and app/dist rebuilt for the phone as you edit (Ctrl-C stops all)
 bun run dev            # Vite alone, for a browser tab
 bun run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```

@@ -117,7 +117,7 @@ export function WidgetError({ message }: { message: string }) {
   );
 }
 
-class WidgetErrorBoundary extends Component<
+export class WidgetErrorBoundary extends Component<
   { id: string; onError: (id: string, message: string | null) => void; children: ReactNode },
   { error: string | null }
 > {

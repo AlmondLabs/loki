@@ -19,7 +19,7 @@ export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive, o
   const shown = useMemo(() => archiveList(desks, null, query), [desks, query]);
   return (
     <div className="loki-phone-page">
-      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Archived chats" sub={all.length ? <span>{all.length === 1 ? "1 chat" : `${all.length} desks`}</span> : undefined} />
+      <TopBar left={<BackButton onClick={onBack} label={backLabel} />} title="Archived chats" sub={all.length ? <span>{all.length === 1 ? "1 chat" : `${all.length} chats`}</span> : undefined} />
       {banner}
       <Scroll memory="archive" flush>
         {all.length > 0 && (
