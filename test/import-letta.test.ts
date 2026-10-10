@@ -66,8 +66,10 @@ function setup() {
   const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx));
   const secrets = memorySecrets();
   const credentials = new KeychainCredentials(secrets);
-  const run = (running: () => string | null = () => null) => importFromLetta({ paths: paths(), stores, credentials, knownProviders: new Set(["openrouter", "openai-codex", "anthropic"]), context: ctx, running });
-  return { stores, credentials, run };
+  const imported: string[] = [];
+  const run = (running: () => string | null = () => null) =>
+    importFromLetta({ paths: paths(), stores, credentials, knownProviders: new Set(["openrouter", "openai-codex", "anthropic"]), context: ctx, running, imported: (a, c, n) => imported.push(`${a}/${c}:${n}`) });
+  return { stores, credentials, run, imported };
 }
 
 beforeEach(() => {
@@ -136,9 +138,11 @@ describe("importing from Letta", () => {
   });
 
   test("a compacted chat keeps its summary, the compaction's head on the kept message, and Learn's cursors resume at the same message", async () => {
-    const { stores, run } = setup();
+    const { stores, run, imported } = setup();
     try {
       await run();
+      // Reflection is told the whole history is already read.
+      expect(imported).toContain(`${A}/local-conv-long:7`);
       const { entries } = await rows(stores, A, "local-conv-long");
       expect(entries.map((e) => e.kind)).toEqual(["pi.user", "pi.assistant", "pi.user", "pi.assistant", "pi.compaction", "pi.user", "pi.assistant"]);
       const compaction = entries[4];

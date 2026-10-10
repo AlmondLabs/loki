@@ -122,6 +122,7 @@ const importLetta = () =>
     credentials: credentials ?? new KeychainCredentials(memorySecrets()),
     knownProviders: new Set(models.getProviders().map((p) => p.id)),
     context,
+    imported: (agentId, chatId, entries) => reflection.markReflected(agentId, chatId, entries),
   });
 const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report, importLetta });
 chats.follow(stores);

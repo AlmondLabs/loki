@@ -158,7 +158,16 @@ function lettaAgents(backend: string): Array<{ id: string; record: Record<string
 
 type LettaConversation = { id: string; agent_id: string; summary?: string | null; archived?: boolean; hidden?: boolean; created_at?: string; model?: string };
 
-export async function importFromLetta(deps: { paths: ImportPaths; stores: StoreManager; credentials: CredentialStore; knownProviders: ReadonlySet<string>; context: Context; running?: () => string | null }): Promise<ImportReport> {
+export async function importFromLetta(deps: {
+  paths: ImportPaths;
+  stores: StoreManager;
+  credentials: CredentialStore;
+  knownProviders: ReadonlySet<string>;
+  context: Context;
+  running?: () => string | null;
+  /** Told each chat's entry count once it is imported: its history is not new to reflection (daemon/reflection.ts). */
+  imported?: (agentId: string, chatId: string, entries: number) => void;
+}): Promise<ImportReport> {
   const { paths, context } = deps;
   const running = (deps.running ?? runningLetta)();
   if (running) throw new Error(`Letta is running (${running}); quit it, then import`);
@@ -229,6 +238,7 @@ export async function importFromLetta(deps: { paths: ImportPaths; stores: StoreM
         cursorsMoved = true;
       }
     }
+    deps.imported?.(record.agent_id, record.id, written.length);
     done.chats.push(key);
     writeJson(paths.doneFile, done);
     report.chats++;

@@ -33,7 +33,8 @@ async function setup(trigger: "step-count" | "off") {
   const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx));
   const chats = new ChatProjection(ctx, () => "Ada");
   chats.follow(stores);
-  const reflection = new Reflection({ stores, chats, registry, backendDir: dir, root: join(dir, "reflection"), settingsFile: join(dir, "reflection.json"), context: ctx, quietMs: 30 });
+  const reports: string[] = [];
+  const reflection = new Reflection({ stores, chats, registry, backendDir: dir, root: join(dir, "reflection"), settingsFile: join(dir, "reflection.json"), context: ctx, quietMs: 30, report: (m) => reports.push(m) });
   reflection.setSettings({ trigger, stepCount: 2, merge: "auto", mergeInstructions: "" });
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
@@ -43,7 +44,7 @@ async function setup(trigger: "step-count" | "off") {
     await stores.closeAll();
     rmSync(dir, { recursive: true, force: true });
   };
-  return { dir, faux, agentId, chat, chats, reflection, passes, cleanup };
+  return { dir, faux, agentId, chat, chats, reflection, passes, reports, cleanup };
 }
 
 describe("reflection", () => {
@@ -74,6 +75,35 @@ describe("reflection", () => {
       // The pass's own chat is hidden, so it never shows as a chat.
       expect(s.chats.list().find((c) => c.conversationId === "reflection-c")?.hidden).toBe(true);
       expect(await s.reflection.run(s.agentId, "c")).toBe("nothing new");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("history marked as already reflected on (an imported chat) does not start a pass", async () => {
+    const s = await setup("step-count");
+    try {
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two")]);
+      await (await s.chat.submit({ type: "input", content: "a" }, ctx)).wait(ctx);
+      await (await s.chat.submit({ type: "input", content: "b" }, ctx)).wait(ctx);
+      s.reflection.markReflected(s.agentId, "c", 4);
+      await new Promise((r) => setTimeout(r, 150));
+      expect(s.chats.list().some((c) => c.conversationId === "reflection-c")).toBe(false);
+      expect(s.reports).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a pass that fails is reported and leaves the daemon running", async () => {
+    const s = await setup("step-count");
+    try {
+      // Two answers and nothing for the pass: the model fails it.
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two")]);
+      await (await s.chat.submit({ type: "input", content: "a" }, ctx)).wait(ctx);
+      await (await s.chat.submit({ type: "input", content: "b" }, ctx)).wait(ctx);
+      await until(() => s.reports.some((r) => r.includes("stopped")));
+      expect(s.reports.some((r) => r.startsWith("reflection on c failed"))).toBe(true);
     } finally {
       await s.cleanup();
     }

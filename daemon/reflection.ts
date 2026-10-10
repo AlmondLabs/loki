@@ -96,13 +96,23 @@ export class Reflection {
     renameSync(`${file}.tmp`, file);
   }
 
+  /**
+   * A chat's history up to `entries` is already reflected on (an imported chat: Letta's reflection read it), so a
+   * pass starts after it, and only answers given since count toward the trigger.
+   */
+  markReflected(agentId: string, chatId: string, entries: number): void {
+    const state = this.state(agentId, chatId);
+    this.saveState(agentId, chatId, { ...state, reflected_through: Math.max(state.reflected_through ?? 0, entries), steps_since_last_successful_reflection: 0 });
+  }
+
   /** Wait for the chat to go quiet (each new answer starts the wait again), then count and maybe reflect. */
   private later(agentId: string, chatId: string, force: boolean): void {
     const key = `${agentId}\u0000${chatId}`;
     clearTimeout(this.timers.get(key));
     const timer = setTimeout(() => {
       this.timers.delete(key);
-      void this.quiet(agentId, chatId, force);
+      // A pass that fails is reported by run(); it must never take the daemon down.
+      this.quiet(agentId, chatId, force).catch((error: unknown) => this.deps.report?.(`reflection on ${chatId} stopped: ${String(error)}`));
     }, this.deps.quietMs ?? QUIET_MS);
     timer.unref?.();
     this.timers.set(key, timer);
