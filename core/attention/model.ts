@@ -59,7 +59,8 @@ export interface QueuedSend {
 }
 
 export interface Live {
-  loop?: string;
+  /** Where the chat's loop is, as loki's daemon says: running a turn, idle, or waiting on an approval. */
+  loop?: "running" | "idle" | "approval";
   pending: PendingApproval | null;
   pendingAsk: PendingQuestion | null;
   error: string | null;
@@ -125,7 +126,7 @@ const TEXT_LIMIT = 700;
 
 /**
  * A conversation's live state, its thread inside. A reply settling into the thread is where "the agent said something
- * new" is recorded: the loop usually reports WAITING_ON_INPUT before stop_reason or turn_finished arrive, and Catch Up
+ * new" is recorded: the loop may report idle before the turn's end arrives, and Catch Up
  * re-queues a decided card on exactly that.
  */
 export function emptyLive(): Live {
@@ -135,7 +136,7 @@ export function emptyLive(): Live {
 
 /** "idle" | "thinking" | "streaming" — what a chat box should show for this conversation. */
 export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "streaming" {
-  if (!l?.loop || l.loop === "WAITING_ON_INPUT" || l.loop === "WAITING_ON_APPROVAL") return "idle";
+  if (l?.loop !== "running") return "idle";
   return l.thread.streaming ? "streaming" : "thinking";
 }
 
@@ -213,7 +214,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       // A backend may repeat a status (Letta said WAITING_ON_INPUT for every idle conversation every few seconds): a
       // repeat that moves nothing is no change, so nothing re-renders on it.
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
-      l.loop = e.detail ?? e.state;
+      l.loop = e.state;
       if (e.state === "running") l.inTurn = true;
       if (e.state === "idle") {
         l.thread.settle(now);
@@ -315,7 +316,7 @@ export function buildItems(
     if (l?.pending) status = "approval";
     else if (l?.pendingAsk) status = "question";
     else if (l?.error && unread) status = "failed";
-    else if (l?.loop && l.loop !== "WAITING_ON_INPUT" && l.loop !== "WAITING_ON_APPROVAL") status = "running";
+    else if (l?.loop === "running") status = "running";
     else if (unread && looksLikeQuestion(lastAssistantText)) status = "question";
     else if (unread) status = "done";
     out.push({

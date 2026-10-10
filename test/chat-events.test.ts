@@ -5,7 +5,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-work
 import { createRegistry, defineExtension, defineTool, MemoryStorage, watchEvents, type AgentEvent } from "@earendil-works/pi-durable";
 import { ChatEventConverter } from "../daemon/chat-events.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
-import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
+import { applyChatEvent, chatStatusOf, emptyLive, type ChatEvent } from "../core/attention/model.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const NOW = "2026-10-10T10:00:00.000Z";
@@ -49,6 +49,17 @@ describe("chat event converter", () => {
     } finally {
       await store.close(ctx);
     }
+  });
+
+  test("the daemon's own loop states drive the box: running thinks, idle and approval do not", () => {
+    const l = emptyLive();
+    expect(chatStatusOf(l)).toBe("idle");
+    applyChatEvent(l, { kind: "loop", state: "running" }, NOW);
+    expect(chatStatusOf(l)).toBe("thinking");
+    applyChatEvent(l, { kind: "loop", state: "idle" }, NOW);
+    expect(chatStatusOf(l)).toBe("idle");
+    applyChatEvent(l, { kind: "loop", state: "approval" }, NOW);
+    expect(chatStatusOf(l)).toBe("idle");
   });
 
   test("a tool with no result entry shows as failed", () => {
