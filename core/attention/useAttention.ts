@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Runtime } from "./protocol.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
-import type { ConnectProvider, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
+import type { ConnectProvider, PassSettings } from "./protocol.ts";
 import { applyChatEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
@@ -734,25 +734,25 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
 
   /**
-   * Reflection (daemon/reflection.ts): its settings (the daemon's, though the call addresses a conversation), and a
-   * pass started by hand — the same as /reflect in that conversation's chat.
+   * The background passes (daemon/passes.ts): whether reflection and Learn run, and a reflection pass started by hand
+   * — the same as /reflect in that conversation's chat.
    */
   const reflection = useMemo(
     () => ({
-      get: async (_rt: Runtime): Promise<ReflectionSettings | null> => {
+      get: async (): Promise<PassSettings | null> => {
         const sock = socketRef.current;
         if (!sock) return null;
         try {
-          return await sock.getReflectionSettings();
+          return await sock.getPassSettings();
         } catch {
           return null;
         }
       },
-      set: async (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<string | null> => {
+      set: async (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
         try {
-          await sock.setReflectionSettings(rt, s);
+          await sock.setPassSettings(s);
           return null;
         } catch (err) {
           return err instanceof Error ? err.message : String(err);

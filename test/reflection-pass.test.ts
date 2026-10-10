@@ -11,17 +11,15 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ChatProjection } from "../daemon/chats.ts";
 import { memoryExtension, memoryRoot } from "../daemon/memory.ts";
-import { Reflection } from "../daemon/reflection.ts";
+import { PassRunner } from "../daemon/passes.ts";
+import { PassState } from "../daemon/passes-state.ts";
+import { reflectionJob } from "../daemon/reflection.ts";
 import { createAgent } from "../daemon/store/agents.ts";
-import { readReflectionConversations } from "../mod/reflection.ts";
 
 const ctx = BACKGROUND_CONTEXT;
-const until = async (check: () => boolean, ms = 3000) => {
-  const end = Date.now() + ms;
-  while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
-};
+const LONG = "I drink tea every morning, never coffee, and I like it strong with no sugar at all. ".repeat(5);
 
-async function setup(trigger: "step-count" | "off") {
+async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-reflection-"));
   const faux = fauxProvider();
   const models = createModels();
@@ -33,86 +31,99 @@ async function setup(trigger: "step-count" | "off") {
   const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx));
   const chats = new ChatProjection(ctx, () => "Ada");
   chats.follow(stores);
+  const state = new PassState(join(dir, "state"));
+  state.setSettings({ reflection: { enabled: opts.enabled ?? true } });
   const reports: string[] = [];
-  const reflection = new Reflection({ stores, chats, registry, backendDir: dir, root: join(dir, "reflection"), settingsFile: join(dir, "reflection.json"), context: ctx, quietMs: 30, report: (m) => reports.push(m) });
-  reflection.setSettings({ trigger, stepCount: 2, merge: "auto", mergeInstructions: "" });
+  const events: Array<Record<string, unknown>> = [];
+  const runner = new PassRunner({ stores, chats, registry, state, backendDir: dir, context: ctx, jobs: [reflectionJob], busy: async () => false, isSubagent: () => false, capture: (_e, p) => events.push(p), report: (m) => reports.push(m), quietMs: opts.quietMs ?? 0 });
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
   const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
-  const passes: string[] = [];
+  const say = async (...texts: string[]) => {
+    for (const t of texts) await (await chat.submit({ type: "input", content: t }, ctx)).wait(ctx);
+  };
+  const log = () => execFileSync("git", ["-C", memoryRoot(dir, agentId), "log", "--format=%an|%s"], { encoding: "utf8" }).trim();
   const cleanup = async () => {
     await stores.closeAll();
     rmSync(dir, { recursive: true, force: true });
   };
-  return { dir, faux, agentId, chat, chats, reflection, passes, reports, cleanup };
+  return { dir, faux, agentId, store, chat, chats, state, runner, reports, events, say, log, cleanup };
 }
 
-describe("reflection", () => {
-  test("after enough answers and a quiet spell, a pass reads the chat and commits to memory as Reflection; its counters are where the Agents page looks", async () => {
-    const s = await setup("step-count");
+const remember = (seen: { text: string }) =>
+  (c: { messages: unknown }) => {
+    seen.text = JSON.stringify(c.messages);
+    return fauxAssistantMessage(fauxToolCall("memory_write", { path: "system/human.md", content: "Prefers strong tea.\n", message: "Remember the tea" }), { stopReason: "toolUse" });
+  };
+
+describe("reflection on the background passes", () => {
+  test("a short chat that has gone quiet is reflected on, and what it keeps is committed to memory as Reflection", async () => {
+    const s = await setup();
     try {
-      let sawTranscript = "";
-      s.faux.setResponses([
-        fauxAssistantMessage("one"),
-        fauxAssistantMessage("two"),
-        (c) => {
-          sawTranscript = JSON.stringify(c.messages);
-          return fauxAssistantMessage(fauxToolCall("memory_write", { path: "system/human.md", content: "Prefers tea.\n", message: "Remember the tea" }), { stopReason: "toolUse" });
-        },
-        fauxAssistantMessage("kept one thing"),
-      ]);
-      await (await s.chat.submit({ type: "input", content: "I drink tea" }, ctx)).wait(ctx);
-      await (await s.chat.submit({ type: "input", content: "always tea" }, ctx)).wait(ctx);
-      const root = memoryRoot(s.dir, s.agentId);
-      const log = () => execFileSync("git", ["-C", root, "log", "--format=%an|%s"], { encoding: "utf8" }).trim();
-      await until(() => log().startsWith("Reflection|"));
-      expect(log().split("\n")[0]).toBe("Reflection|Remember the tea");
-      expect(readFileSync(join(root, "system", "human.md"), "utf8")).toBe("Prefers tea.\n");
-      expect(sawTranscript).toContain("always tea");
-      await until(() => readReflectionConversations(s.agentId, () => null, join(s.dir, "reflection"))[0]?.lastSucceededAt != null);
-      const [state] = readReflectionConversations(s.agentId, () => null, join(s.dir, "reflection"));
-      expect(state).toMatchObject({ conversationId: "c", stepsSince: 0, totalSteps: 2 });
+      const seen = { text: "" };
+      s.faux.setResponses([fauxAssistantMessage("noted"), remember(seen), fauxAssistantMessage("kept one thing")]);
+      await s.say(LONG);
+      await s.runner.sweep();
+      expect(s.log().split("\n")[0]).toBe("Reflection|Remember the tea");
+      expect(readFileSync(join(memoryRoot(s.dir, s.agentId), "system", "human.md"), "utf8")).toBe("Prefers strong tea.\n");
+      expect(seen.text).toContain("never coffee");
+      // The instructions hold the durable bar.
+      expect(seen.text).toContain("leave out one-off details");
+      expect(s.events.at(-1)).toMatchObject({ job: "reflection", outcome: "changed", items: { memory_changes: 1 } });
       // The pass's own chat is hidden, so it never shows as a chat.
-      expect(s.chats.list().find((c) => c.conversationId === "reflection-c")?.hidden).toBe(true);
-      expect(await s.reflection.run(s.agentId, "c")).toBe("nothing new");
+      expect(s.chats.list().find((c) => c.conversationId === `reflection-${s.agentId}`)?.hidden).toBe(true);
     } finally {
       await s.cleanup();
     }
   });
 
-  test("a pass that fails is reported and leaves the daemon running", async () => {
-    const s = await setup("step-count");
+  test("a pass that keeps nothing leaves memory as it was, and the chat is not read again", async () => {
+    const s = await setup();
     try {
-      // Two answers and nothing for the pass: the model fails it.
-      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two")]);
-      await (await s.chat.submit({ type: "input", content: "a" }, ctx)).wait(ctx);
-      await (await s.chat.submit({ type: "input", content: "b" }, ctx)).wait(ctx);
-      await until(() => s.reports.some((r) => r.includes("stopped")));
-      expect(s.reports.some((r) => r.startsWith("reflection on c failed"))).toBe(true);
-    } finally {
-      await s.cleanup();
-    }
-  });
-
-  test("with reflection off, no pass runs, and the counters still count", async () => {
-    const s = await setup("off");
-    try {
-      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("three")]);
-      for (const text of ["a", "b", "c"]) await (await s.chat.submit({ type: "input", content: text }, ctx)).wait(ctx);
-      await until(() => (readReflectionConversations(s.agentId, () => null, join(s.dir, "reflection"))[0]?.stepsSince ?? 0) === 3);
-      expect(readReflectionConversations(s.agentId, () => null, join(s.dir, "reflection"))[0]).toMatchObject({ stepsSince: 3, lastStartedAt: null });
+      s.faux.setResponses([fauxAssistantMessage("noted"), fauxAssistantMessage("nothing worth keeping")]);
+      const before = s.log();
+      await s.say(LONG);
+      await s.runner.sweep();
+      expect(s.log()).toBe(before);
+      expect(s.events.at(-1)).toMatchObject({ outcome: "nothing" });
+      await s.runner.sweep();
       expect(s.faux.getPendingResponseCount()).toBe(0);
     } finally {
       await s.cleanup();
     }
   });
 
-  test("settings round-trip, and a missing file reads as the defaults", async () => {
-    const s = await setup("off");
+  test("a compacted chat is reflected on at once, without waiting for it to go quiet", async () => {
+    const s = await setup({ quietMs: 60 * 60_000 });
     try {
-      expect(s.reflection.setSettings({ trigger: "compaction-event", stepCount: 10, merge: "auto", mergeInstructions: "" })).toEqual({ trigger: "compaction-event", stepCount: 10, merge: "auto", mergeInstructions: "" });
-      rmSync(join(s.dir, "reflection.json"));
-      expect(s.reflection.settings()).toEqual({ trigger: "step-count", stepCount: 25, merge: "auto", mergeInstructions: "" });
+      const seen = { text: "" };
+      const HUGE = LONG.repeat(150);
+      // Compaction may also run on its own mid-chat, so each answer is picked by what is asked, not by its turn.
+      const answer = (c: { messages: unknown }) => {
+        const text = JSON.stringify(c.messages);
+        if (!text.includes("since you last reflected on it")) return fauxAssistantMessage("a summary");
+        return text.includes("toolResult") ? fauxAssistantMessage("kept") : remember(seen)(c);
+      };
+      s.faux.setResponses(Array.from({ length: 20 }, () => answer));
+      await s.say(HUGE, HUGE, HUGE, HUGE, HUGE, HUGE);
+      await s.store.harness.waitForTask(await s.chat.compact(undefined, ctx), ctx);
+      await s.runner.sweep();
+      expect(s.log().split("\n")[0]).toBe("Reflection|Remember the tea");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("with reflection off nothing runs on its own, but a pass by hand (/reflect) still does", async () => {
+    const s = await setup({ enabled: false });
+    try {
+      const seen = { text: "" };
+      s.faux.setResponses([fauxAssistantMessage("noted"), remember(seen), fauxAssistantMessage("kept")]);
+      await s.say(LONG);
+      await s.runner.sweep();
+      expect(s.faux.getPendingResponseCount()).toBe(2);
+      expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("changed");
+      expect(s.log().split("\n")[0]).toBe("Reflection|Remember the tea");
     } finally {
       await s.cleanup();
     }

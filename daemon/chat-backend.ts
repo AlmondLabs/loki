@@ -17,7 +17,8 @@ import { turnIdOf } from "./telemetry.ts";
 import { piHandle } from "./model-handle.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
 import type { Providers } from "./providers.ts";
-import type { Reflection } from "./reflection.ts";
+import type { PassRunner } from "./passes.ts";
+import type { PassState } from "./passes-state.ts";
 import { editMemoryFile } from "./memory.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
@@ -35,8 +36,8 @@ type Deps = {
   stores: StoreManager;
   approvals: Approvals;
   providers: Providers;
-  /** Reflection passes (daemon/reflection.ts); absent in tests that do not reflect. */
-  reflection?: Reflection;
+  /** The background passes (daemon/passes.ts): reflection and Learn. Absent in tests that run none. */
+  passes?: { runner: PassRunner; state: PassState };
   mods: ModRegistry;
   models: Models;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
@@ -122,6 +123,15 @@ export class DaemonChats implements ChatBackend {
       const events = batch.flatMap((ev) => converter.convert(ev));
       if (events.length) this.push(agentId, conversationId, events);
     });
+  }
+
+  /** Whether a turn is running in a chat, or waits on the person (the background passes leave such a chat alone). */
+  async busy(agentId: string, conversationId: string): Promise<boolean> {
+    const store = await this.deps.stores.get(agentId);
+    const chat = await store.chat(conversationId, this.deps.context);
+    if (!chat) return false;
+    if (this.deps.approvals.waitingIn(agentId, conversationId).length > 0) return true;
+    return Boolean((await store.harness.snapshot(LiveDoc, chat.id, this.deps.context))?.run);
   }
 
   private async state(store: AgentStore, chat: Conversation, agentId: string, conversationId: string): Promise<ChatState> {
@@ -263,14 +273,20 @@ export class DaemonChats implements ChatBackend {
     return { url: "", instructions: null };
   }
 
-  async reflection() {
-    if (!this.deps.reflection) throw new Error("reflection is not running");
-    return this.deps.reflection.settings();
+  async passes() {
+    if (!this.deps.passes) throw new Error("the background passes are not running");
+    return this.deps.passes.state.settings();
   }
 
-  async setReflection(s: PayloadOf<"chat_reflection_set">) {
-    if (!this.deps.reflection) throw new Error("reflection is not running");
-    return this.deps.reflection.setSettings(s);
+  async setPasses(s: PayloadOf<"chat_passes_set">) {
+    if (!this.deps.passes) throw new Error("the background passes are not running");
+    return this.deps.passes.state.setSettings(s);
+  }
+
+  /** Learn's "Run now": every settled chat it has new material in, whether Learn is on or not. */
+  async runLearn(): Promise<void> {
+    if (!this.deps.passes) throw new Error("the background passes are not running");
+    await this.deps.passes.runner.runAllNow("learn");
   }
 
   /** The slash commands the daemon runs: /compact [instructions], /clear, /remember [what], /reflect. */
@@ -290,9 +306,9 @@ export class DaemonChats implements ChatBackend {
         return { success: true, output: "asked the agent to remember" };
       }
       case "reflect":
-        if (!this.deps.reflection) return { success: false, output: "reflection is not running" };
-        // The pass runs on its own; its memory changes show on the agent's page when it is done.
-        void this.deps.reflection.run(p.agentId, p.conversationId).catch(() => {});
+        if (!this.deps.passes) return { success: false, output: "reflection is not running" };
+        // The pass runs on its own, even with reflection off; its memory changes show on the agent's page when it is done.
+        void this.deps.passes.runner.runNow("reflection", p.agentId, p.conversationId).catch(() => {});
         return { success: true, output: "reflecting on this chat; its memory changes show on the agent's page" };
       default:
         return { success: false, output: `/${p.command} is not a command loki's daemon runs` };

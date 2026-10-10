@@ -298,7 +298,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       read: (id, path) => readMemoryFile(id, path),
       log: (id, opts) => memoryLog(id, opts),
       diff: (id, sha) => memoryDiff(id, sha),
-      reflection: (id) => reflectionState(id, (c) => chats.info(c, id)?.title ?? null),
+      reflection: (id) => reflectionState(id),
       globalSkills: () => listGlobalSkills().map((g) => ({ ...g, source: skillSources.describeGlobal(g) })),
       install: (id, source, force) => installSkill(source, id, { force }),
     },

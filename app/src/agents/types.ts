@@ -1,7 +1,7 @@
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
 
-import type { ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime } from "../../../core/attention/protocol.ts";
+import type { PassSettings, Runtime } from "../../../core/attention/protocol.ts";
 import type { GlobalSkill, LocalAgent, MemoryCommit, MemoryFile, MemorySkillInfo, ReflectionState, RefreshOutcome } from "../../../core/frame-types.ts";
 
 export interface AgentDetails {
@@ -28,8 +28,9 @@ export interface AgentsApi {
 
 /** Reflection through loki's daemon (daemon/reflection.ts): its settings, and a pass by hand. */
 export interface ReflectionControls {
-  get: (rt: Runtime) => Promise<ReflectionSettings | null>;
-  set: (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }) => Promise<string | null>;
+  /** The background passes' settings (daemon/passes-state.ts): reflection and Learn on or off, Learn's cards a day. */
+  get: () => Promise<PassSettings | null>;
+  set: (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }) => Promise<string | null>;
   /** Resolves to the harness's one-line answer ("Started a reflection pass…", "No new transcript content…"). */
   run: (rt: Runtime) => Promise<string>;
 }

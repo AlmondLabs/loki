@@ -78,19 +78,7 @@ export interface GlobalSkill {
   source?: string | null;
 }
 
-export interface ReflectionConversation {
-  conversationId: string;
-  title: string | null;
-  /** Steps since the last pass that succeeded: what the step-count trigger compares against. */
-  stepsSince: number;
-  totalSteps: number;
-  lastStartedAt: string | null;
-  lastSucceededAt: string | null;
-}
-
 export interface ReflectionState {
-  /** Most steps since a pass first: the conversations nearest the next one. */
-  conversations: ReflectionConversation[];
   /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
   lastCommit: MemoryCommit | null;
 }

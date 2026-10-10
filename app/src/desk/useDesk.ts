@@ -231,7 +231,7 @@ export function useDesk() {
     read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
     log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
     diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
-    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { conversations: r.reply.conversations, lastCommit: r.reply.lastCommit } : null)),
+    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { lastCommit: r.reply.lastCommit } : null)),
     globalSkills: () => request("skills_global", {}, 10_000).then((r): GlobalSkill[] => (r.ok ? r.reply.skills : [])),
     /** Install a skill from a source into the agent's memory, through the mod (mod/skills.ts); resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>

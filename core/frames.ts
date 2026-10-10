@@ -2,7 +2,7 @@ import { isEventName } from "./analytics.ts";
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
 import type { ModelEntry, ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
-import type { ConnectProvider } from "./attention/protocol.ts";
+import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { CardWithSchedule, RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
@@ -103,7 +103,7 @@ export interface Replies {
   chat_signin: { url: string; instructions: string | null };
   chat_command_done: { success: boolean; output: string };
   chat_skill_enabled: { name: string; linkPath: string };
-  chat_reflection: { trigger: "off" | "step-count" | "compaction-event"; stepCount: number; merge: "auto" | "explicit"; mergeInstructions: string };
+  chat_passes: PassSettings;
 }
 export type ReplyName = keyof Replies;
 
@@ -254,11 +254,17 @@ export const FRAMES = {
   chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
-  chat_reflection_get: request("chat_reflection", "when reflection passes run", nothing),
-  chat_reflection_set: request("chat_reflection", "change when reflection passes run", (m) => {
-    const trigger = m.trigger === "off" || m.trigger === "step-count" || m.trigger === "compaction-event" ? (m.trigger as "off" | "step-count" | "compaction-event") : null;
-    if (!trigger) return "trigger must be off, step-count or compaction-event";
-    return { trigger, stepCount: isNum(m.stepCount) && m.stepCount > 0 ? Math.floor(m.stepCount) : 25, merge: m.merge === "explicit" ? ("explicit" as const) : ("auto" as const), mergeInstructions: strOr(m.mergeInstructions, "") };
+  chat_passes_get: request("chat_passes", "whether reflection and Learn run in the background, and Learn's cards a day", nothing),
+  chat_passes_set: request("chat_passes", "turn reflection or Learn on or off, or set Learn's cards a day", (m) => {
+    const part = (v: unknown) => (v && typeof v === "object" ? (v as Raw) : undefined);
+    const r = part(m.reflection), l = part(m.learn);
+    if (r?.enabled !== undefined && typeof r.enabled !== "boolean") return "reflection.enabled must be true or false";
+    if (l?.enabled !== undefined && typeof l.enabled !== "boolean") return "learn.enabled must be true or false";
+    if (l?.dailyCap !== undefined && !(isNum(l.dailyCap) && l.dailyCap >= 0)) return "learn.dailyCap must be a number, 0 or more";
+    return {
+      ...(r?.enabled !== undefined ? { reflection: { enabled: r.enabled as boolean } } : {}),
+      ...(l ? { learn: { ...(l.enabled !== undefined ? { enabled: l.enabled as boolean } : {}), ...(l.dailyCap !== undefined ? { dailyCap: Math.floor(l.dailyCap as number) } : {}) } } : {}),
+    };
   }),
   chat_command: request("chat_command_done", "run a slash command in a chat: compact, clear, remember or reflect", (m) => {
     const c = chatRef(m);
@@ -329,7 +335,7 @@ export const FRAMES = {
   memory_log: request("memory_commits", "memory's git log, for a path or all of it", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, path: strOr(m.path, undefined), limit: typeof m.limit === "number" ? m.limit : undefined } : "agentId required", PHONE),
   memory_diff: request("memory_diff", "one memory commit's diff", (m) => (isAgentId(m.agentId) ? (str(m.sha) ? { agentId: m.agentId, sha: m.sha } : "sha required") : "agentId required"), PHONE),
-  reflection_state: request("reflection_state", "reflection's counters per conversation and the last pass that changed memory", agent),
+  reflection_state: request("reflection_state", "the last reflection pass that changed an agent's memory", agent),
   skills_global: request("skills_global", "skills outside memory (~/.agents/skills)", nothing),
   skill_install: request("skill_installed", "install a skill into an agent's memory", (m) =>
     isAgentId(m.agentId) && str(m.source) ? { agentId: m.agentId, source: m.source, force: m.force === true } : "agentId and source required"),

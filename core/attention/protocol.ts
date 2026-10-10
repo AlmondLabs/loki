@@ -1,6 +1,6 @@
 /**
- * The shapes a chat's live half speaks in (core/attention/chat-client.ts): which chat, the reflection settings, the
- * model providers and. Their casing and names are the ones loki's app
+ * The shapes a chat's live half speaks in (core/attention/chat-client.ts): which chat, the background passes' settings,
+ * the model providers and. Their casing and names are the ones loki's app
  * grew up with, kept so the screens did not change when the daemon took over (plan 017).
  */
 export interface Runtime {
@@ -9,21 +9,13 @@ export interface Runtime {
 }
 export type ServerEvent = Record<string, unknown> & { type: string; runtime?: Runtime };
 
-/** Reflection: when a pass fires and how its changes land (ReflectionSettingsSnapshot, in loki's casing). */
-export type ReflectionTrigger = "off" | "step-count" | "compaction-event";
-export type ReflectionMerge = "auto" | "explicit";
-export interface ReflectionSettings {
-  trigger: ReflectionTrigger;
-  /** Steps a conversation accumulates since its last pass before the step-count trigger fires. */
-  stepCount: number;
-  merge: ReflectionMerge;
-  mergeInstructions: string;
-}
-export function parseReflectionSettings(v: unknown): ReflectionSettings | null {
-  if (!v || typeof v !== "object") return null;
-  const o = v as Record<string, unknown>;
-  const trigger = o.trigger === "off" || o.trigger === "step-count" || o.trigger === "compaction-event" ? o.trigger : "step-count";
-  return { trigger, stepCount: typeof o.step_count === "number" && o.step_count > 0 ? Math.floor(o.step_count) : 25, merge: o.merge === "explicit" ? "explicit" : "auto", mergeInstructions: typeof o.merge_instructions === "string" ? o.merge_instructions : "" };
+/**
+ * The background passes' settings (daemon/passes-state.ts, plan 018): reflection and Learn on or off, and the most
+ * cards Learn writes in a day.
+ */
+export interface PassSettings {
+  reflection: { enabled: boolean };
+  learn: { enabled: boolean; dailyCap: number };
 }
 
 /** One credential the harness asks for when connecting a provider. */

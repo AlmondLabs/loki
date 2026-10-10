@@ -29,7 +29,9 @@ import { webSearchExtension } from "./web-search.ts";
 import { BackgroundTasks, backgroundExtension } from "./background.ts";
 import { Schedules, scheduleExtension } from "./schedule.ts";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
-import { Reflection } from "./reflection.ts";
+import { reflectionJob } from "./reflection.ts";
+import { PassRunner } from "./passes.ts";
+import { PassState } from "./passes-state.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -42,6 +44,7 @@ import { ModRegistry } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
 import { isSubagent } from "../mod/agents.ts";
 import { paths } from "../mod/paths.ts";
+import { recallDir } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 
 export const EXIT_HELD = 3;
@@ -71,12 +74,11 @@ const report = (message: string) => console.error(`loki-daemon: ${message}`);
 const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
-// The daemon's agents (records and memory, daemon/store/agents.ts), reflection's counters and the pinned chats live
-// under its folder; the mod's readers are told where, for a daemon serving a folder other than ~/.loki. Each agent's
-// chats are in its own store (daemon/kernel/stores.ts).
+// The daemon's agents (records and memory, daemon/store/agents.ts) and the pinned chats live under its folder; the
+// mod's readers are told where, for a daemon serving a folder other than ~/.loki. Each agent's chats are in its own
+// store (daemon/kernel/stores.ts).
 const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
-process.env.LOKI_REFLECTION_DIR = join(args.dir, "reflection");
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
@@ -108,8 +110,11 @@ const schedules = new Schedules(schedulesFile, deliver, report);
 mods.registry.install(scheduleExtension(schedules));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, deviceIdIn(join(args.dir, "state", "device-id")));
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
-const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
-const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report });
+// The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
+const passState = new PassState(join(args.dir, "state"));
+const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
+const passes = new PassRunner({ stores, chats, registry: mods.registry, state: passState, backendDir: backend, context, jobs: [reflectionJob], busy, isSubagent: (id) => isSubagent(id, backend), capture: (event, properties) => analytics.capture("mod", event, properties), report });
+const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
@@ -139,6 +144,17 @@ const stopWatchingCore = args.mod.endsWith("boot.ts")
   : () => {};
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
+// The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
+// store has its chats loaded; then the runner looks over the chats once a minute.
+const oldPassFiles = { reflectionSettings: join(args.dir, "state", "reflection.json"), reflectionRoot: join(args.dir, "reflection"), learnWorker: join(recallDir(), "worker.json") };
+void chats.loaded().then(() => {
+  if (!passState.started()) {
+    const list = chats.list().flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
+    passState.migrate(oldPassFiles, list);
+    report(`background passes: settings and cursors carried over for ${list.length} chats`);
+  }
+  passes.start();
+});
 console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
 
 let stopping = false;
@@ -150,6 +166,7 @@ function stop(signal: string) {
     stopWatchingCore();
     stopWatchingMods();
     schedules.stop();
+    passes.stop();
     background.stopAll();
     for (const name of mods.names()) mods.unload(name);
   } finally {

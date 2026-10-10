@@ -2,7 +2,7 @@ import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyOf, RequestName, RequestResult } from "../frames.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
-import type { ConnectProvider, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime, ServerEvent } from "./protocol.ts";
+import type { ConnectProvider, PassSettings, Runtime, ServerEvent } from "./protocol.ts";
 
 /**
  * What the attention model (useAttention) talks to for a chat's live half (plan 017, U5): loki's daemon, through the
@@ -20,7 +20,7 @@ export type ChatClient = Pick<
   | "deleteMemoryFile"
   | "disconnectProvider"
   | "executeCommand"
-  | "getReflectionSettings"
+  | "getPassSettings"
   | "isSubscribed"
   | "listAgents"
   | "listConnectProviders"
@@ -29,7 +29,7 @@ export type ChatClient = Pick<
   | "respondApproval"
   | "runtimeStart"
   | "sendUserMessage"
-  | "setReflectionSettings"
+  | "setPassSettings"
   | "skillDisable"
   | "skillEnable"
   | "updateAgent"
@@ -243,12 +243,14 @@ export class FrameChatClient {
   async disconnectProvider(providerId: string): Promise<ConnectProvider[]> {
     return (await this.call("chat_provider_disconnect", { providerId })).providers;
   }
-  async getReflectionSettings(): Promise<ReflectionSettings | null> {
-    return this.call("chat_reflection_get", {});
+
+  async getPassSettings(): Promise<PassSettings | null> {
+    return this.call("chat_passes_get", {});
   }
-  async setReflectionSettings(_rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<ReflectionSettings | null> {
-    return this.call("chat_reflection_set", { trigger: s.trigger, stepCount: s.stepCount, merge: s.merge, mergeInstructions: s.mergeInstructions ?? "" });
+  async setPassSettings(s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }): Promise<PassSettings | null> {
+    return this.call("chat_passes_set", s);
   }
+
   async writeMemoryFile(agentId: string, path: string, content: string, commitMessage?: string): Promise<void> {
     await this.call("chat_memory_write", { agentId, path, content, message: commitMessage });
   }

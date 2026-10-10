@@ -28,8 +28,10 @@ export interface ChatBackend {
   connectProvider(providerId: string, apiKey: string): Promise<void>;
   disconnectProvider(providerId: string): Promise<void>;
   signIn(providerId: string, code: string | null): Promise<Replies["chat_signin"]>;
-  reflection(): Promise<Replies["chat_reflection"]>;
-  setReflection(s: PayloadOf<"chat_reflection_set">): Promise<Replies["chat_reflection"]>;
+  passes(): Promise<Replies["chat_passes"]>;
+  setPasses(s: PayloadOf<"chat_passes_set">): Promise<Replies["chat_passes"]>;
+  /** Learn's "Run now" (daemon/passes.ts). */
+  runLearn(): Promise<void>;
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
@@ -70,8 +72,8 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_agent_create: (p) => served(b, (x) => x.createAgent(p)),
     chat_agent_update: (p) => served(b, async (x) => (await x.updateAgent(p), DONE)),
     chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
-    chat_reflection_get: () => served(b, (x) => x.reflection()),
-    chat_reflection_set: (p) => served(b, (x) => x.setReflection(p)),
+    chat_passes_get: () => served(b, (x) => x.passes()),
+    chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
     chat_skill_enable: ({ path }) => served(b, (x) => x.enableSkill(path)),
     chat_skill_disable: ({ name }) => served(b, async (x) => (await x.disableSkill(name), DONE)),
