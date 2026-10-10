@@ -6,7 +6,7 @@ product
 
 ## Users
 
-People who run personal Letta Code agents on a Mac and want one place to see what those agents built, what needs a reply, and what should happen next. They move between the desktop app and a paired phone during ongoing conversations.
+People who run personal AI agents on their own computer, mostly a Mac, and want one place to see what those agents built, what needs a reply, and what should happen next. loki runs the agents itself, in a daemon on that machine, with the model provider the person chose. They move between the desktop app and a paired phone during ongoing conversations.
 
 ## Product Purpose
 
@@ -26,7 +26,7 @@ Avoid generic dark SaaS dashboards, decorative control-room chrome, glass panels
 - Spend emphasis on states that require a decision or response.
 - Make agent activity readable as work with a source, status, and next action.
 - Use one interaction vocabulary across chats, inbox, settings, and phone.
-- Preserve local ownership: the app explains what stays on the Mac and what reaches a provider.
+- Preserve local ownership: agents, memory, chats and tools stay on the person's machine, keys stay in its keychain, and the app explains what reaches a provider.
 
 ## Accessibility & Inclusion
 
