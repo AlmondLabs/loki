@@ -68,6 +68,7 @@ export function useDesk() {
     modes,
     setModes,
     chatListeners,
+    reconnectListeners,
     seenMap,
     viewedMap,
     focusMap,
@@ -271,6 +272,10 @@ export function useDesk() {
             onChatEvent: (fn) => {
               chatListeners.current.add(fn);
               return () => chatListeners.current.delete(fn);
+            },
+            onReconnect: (fn) => {
+              reconnectListeners.current.add(fn);
+              return () => reconnectListeners.current.delete(fn);
             },
             agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
             // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.

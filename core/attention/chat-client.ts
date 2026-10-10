@@ -62,11 +62,21 @@ export class FrameChatClient {
   private readonly agents = new Map<string, string>();
   private readonly openUrl: (url: string) => void;
 
-  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; agentOf?: (conversationId: string) => string | null; openUrl?: (url: string) => void }) {
+  /**
+   * `onReconnect`: told each time the mod's socket opens again. The daemon may have restarted meanwhile and follows
+   * none of the chats this client opened, and a turn may have ended unheard: each is opened again, which brings its
+   * state now (a finished turn stops showing as running) and its events from here on.
+   */
+  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; onReconnect?: (fn: () => void) => () => void; agentOf?: (conversationId: string) => string | null; openUrl?: (url: string) => void }) {
     this.request = opts.request;
     this.openUrl = opts.openUrl ?? (() => {});
     this.agentOf = opts.agentOf ?? (() => null);
-    this.unsubscribe = opts.onChatEvent(({ agentId, conversationId, events }) => this.emit({ agent_id: agentId, conversation_id: conversationId }, events));
+    const offEvents = opts.onChatEvent(({ agentId, conversationId, events }) => this.emit({ agent_id: agentId, conversation_id: conversationId }, events));
+    const offReconnect = opts.onReconnect?.(() => void this.reopen()) ?? (() => {});
+    this.unsubscribe = () => {
+      offEvents();
+      offReconnect();
+    };
     queueMicrotask(() => this.onStatus?.("open"));
   }
 
@@ -104,6 +114,13 @@ export class FrameChatClient {
   close(): void {
     this.unsubscribe();
     this.listeners.clear();
+  }
+
+  /** Open every chat this client follows again (after the socket came back). */
+  private async reopen(): Promise<void> {
+    const chats = [...this.opened].map((key) => key.split("\u0000"));
+    this.opened.clear();
+    await Promise.all(chats.map(([agent_id, conversation_id]) => this.runtimeStart({ agent_id, conversation_id }).catch(() => {})));
   }
 
   isSubscribed(rt: Runtime): boolean {

@@ -175,6 +175,21 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("a message into a chat no client opened since the daemon started is still heard: its events go out", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      // No open: a client that opened the chat before a restart sends straight away.
+      s.faux.setResponses([s.reply("still heard")]);
+      await s.chats.send({ agentId: agent.id, conversationId, text: "hi", images: [], sendId: "r1", context: null });
+      await until(() => kinds(s.pushed).includes("turn_end"));
+      expect(kinds(s.pushed)).toEqual(expect.arrayContaining(["step:assistant", "turn_end"]));
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("an image sent with a message reaches the model as an image part", async () => {
     const s = await setup();
     try {

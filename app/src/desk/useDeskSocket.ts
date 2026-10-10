@@ -52,6 +52,8 @@ export function useDeskSocket() {
   const [modes, setModes] = useState<Record<Scope, string>>({});
   /** Who listens for the chats' events, which loki's daemon sends on this socket. */
   const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
+  /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
+  const reconnectListeners = useRef(new Set<() => void>());
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
@@ -98,6 +100,8 @@ export function useDeskSocket() {
     let disposed = false;
     let retryMs = 500;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    // A drop, not a chat switch (that opens a socket of its own): the next open is a reconnect.
+    let dropped = false;
     const token = readSession().token;
 
     const connect = () => {
@@ -111,6 +115,8 @@ export function useDeskSocket() {
         setConnection("open");
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
+        if (dropped) for (const fn of reconnectListeners.current) fn();
+        dropped = false;
       };
       ws.onmessage = (ev) => {
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
@@ -235,6 +241,7 @@ export function useDeskSocket() {
       ws.onclose = () => {
         setConnection("closed");
         if (!disposed) {
+          dropped = true;
           retry = setTimeout(connect, retryMs);
           retryMs = Math.min(retryMs * 2, 8000);
         }
@@ -300,6 +307,7 @@ export function useDeskSocket() {
     modes,
     setModes,
     chatListeners,
+    reconnectListeners,
     seenMap,
     viewedMap,
     focusMap,

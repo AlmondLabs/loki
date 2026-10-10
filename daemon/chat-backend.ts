@@ -90,9 +90,7 @@ export class DaemonChats implements ChatBackend {
       if (!isPermissionMode(mode)) throw new Error(`not a permission mode: ${mode}`);
       await store.updateChat(conversationId, { mode }, this.deps.context);
     }
-    const key = `${agentId}\u0000${conversationId}`;
-    if (!this.watching.has(key)) this.watching.set(key, this.follow(store, chat, agentId, conversationId));
-    await this.watching.get(key);
+    await this.watch(store, chat, agentId, conversationId);
     const state = await this.state(store, chat, agentId, conversationId);
     // What the chat is waiting on reaches a client that opens it late, after the state it opens with.
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId);
@@ -106,6 +104,16 @@ export class DaemonChats implements ChatBackend {
 
   async answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
     return this.deps.approvals.answer(p.questionId, p.input);
+  }
+
+  /**
+   * Follow a chat, once: from now on its events go to every client. A chat a message goes into is followed too, so a
+   * client that opened it before the daemon restarted (and does not open it again) still hears the answer.
+   */
+  private async watch(store: AgentStore, chat: Conversation, agentId: string, conversationId: string): Promise<void> {
+    const key = `${agentId}\u0000${conversationId}`;
+    if (!this.watching.has(key)) this.watching.set(key, this.follow(store, chat, agentId, conversationId));
+    await this.watching.get(key);
   }
 
   /** Push every event of a chat from now on. */
@@ -144,6 +152,7 @@ export class DaemonChats implements ChatBackend {
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { store, chat } = await this.chat(p.agentId, p.conversationId);
     await this.healModel(store, chat);
+    await this.watch(store, chat, p.agentId, p.conversationId);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mediaType }));
     const parts = [...(p.context ? [{ type: "text" as const, text: p.context }] : []), ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []), ...images];
     const agentName = readLocalAgent(p.agentId, this.deps.backendDir)?.name ?? "";
@@ -156,6 +165,7 @@ export class DaemonChats implements ChatBackend {
   async deliver(agentId: string, conversationId: string, text: string): Promise<void> {
     const { store, chat } = await this.chat(agentId, conversationId);
     await this.healModel(store, chat);
+    await this.watch(store, chat, agentId, conversationId);
     await chat.submit({ type: "input", content: text }, this.deps.context);
   }
 
