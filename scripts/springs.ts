@@ -1,7 +1,7 @@
 /**
  * Writes loki's springs (app/src/kit/spring.ts) into kit/tokens.css, between the spring markers, as the
  * `--spring-<name>` easings and their `--spring-<name>-ms` durations. Run after changing a preset:
- *   bun scripts/springs.ts
+ *   node --experimental-strip-types scripts/springs.ts
  * test/spring.test.ts fails while the stylesheet and the presets disagree.
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { springTokens } from "../app/src/kit/spring.ts";
 export const START = "  /* springs: written by scripts/springs.ts from kit/spring.ts — do not edit by hand */";
 export const END = "  /* end springs */";
 
-const path = join(import.meta.dir, "..", "app", "src", "kit", "tokens.css");
+const path = join(import.meta.dirname, "..", "app", "src", "kit", "tokens.css");
 const css = readFileSync(path, "utf8");
 const a = css.indexOf(START);
 const b = css.indexOf(END);

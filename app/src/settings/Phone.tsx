@@ -47,7 +47,7 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
       <Row label="Phone">
         <Switch on={on} onToggle={() => phone.setEnabled(!on)} label="phones can reach this Mac" />
         {status.error && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>{status.error}</div>}
-        {on && !status.appServed && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>the canvas build is missing; run bun run build:app</div>}
+        {on && !status.appServed && <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>the canvas build is missing; run npm run build:app</div>}
       </Row>
 
       {on && (

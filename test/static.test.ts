@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { STALE_RELOAD_SCRIPT, bootScript, buildIdOf, createStaticApp, jsonForScript, resolveAppDist } from "../mod/static.ts";
 
 // These tests open sockets and spawn processes; on a loaded machine (a Rust build beside them, a CI runner) one
-// of them has crossed bun's 5 s default. Twenty seconds still catches a hang.
-setDefaultTimeout(20_000);
+// of them has crossed the 5 s default. Twenty seconds still catches a hang.
+vi.setConfig({ testTimeout: 20_000 });
 
 const INDEX = `<!doctype html><html><head><meta charset="utf-8"><title>loki</title></head><body><div id="root"></div></body></html>`;
 
@@ -125,7 +125,7 @@ describe("static app", () => {
     const res = await fetch(`${empty.base}/`);
     expect(res.status).toBe(503);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("bun run build:app");
+    expect(await res.text()).toContain("npm run build:app");
     expect((await fetch(`${empty.base}/assets/x.js`)).status).toBe(503);
   });
 });

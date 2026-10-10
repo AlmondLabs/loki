@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { chosenFolder, folderName, foldersOf, shownFolders } from "../app/src/phone/newChatFolders.ts";
 
 describe("the phone's New chat folder", () => {

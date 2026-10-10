@@ -9,7 +9,7 @@ import { createRecents } from "../shared/recents";
  *   recents  recent searches and destinations, bounded, on the device (localStorage, sanitized on read; shared/recents.ts)
  *   scroll   each destination's list offset (memory)
  *   focus    the control a page was opened from, handed back when you return (memory)
- * The factories are pure enough for Bun (test/phone-session.test.ts); the hooks wire them to React.
+ * The factories are pure enough for a test without a DOM (test/phone-session.test.ts); the hooks wire them to React.
  */
 
 // ---- Drafts ---------------------------------------------------------------------------------------

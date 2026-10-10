@@ -1,10 +1,10 @@
-import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { describe, expect, test } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
 
 /**
  * The release bundle (src-tauri/resources/mod/loki-mod.mjs) is what every Homebrew and .dmg install runs; a
- * checkout runs mod/boot.ts instead, so a bundle that only imports under Bun goes unnoticed for weeks. Two
- * things keep it importable under Node and working under Bun (found 2026-09-15, docs/plans/…-009).
+ * checkout runs mod/boot.ts instead, so a bundle that does not import under Node goes unnoticed for weeks
+ * (found 2026-09-15, docs/plans/…-009).
  */
 describe("the release bundle's build", () => {
   const src = readFileSync(new URL("../scripts/build-mod.ts", import.meta.url), "utf8");
@@ -20,13 +20,13 @@ describe("the release bundle's build", () => {
     expect(src.match(/banner:\s*\{\s*js:\s*'import \{ createRequire as \w+ \} from "node:module"; const require = \w+\(import\.meta\.url\);'/g)).toHaveLength(2);
   });
 
-  test("the mod takes Bun's own ws at runtime rather than the inlined copy", () => {
+  test("the mod takes ws from one module, the package esbuild inlines", () => {
     const ws = readFileSync(new URL("../mod/ws.ts", import.meta.url), "utf8");
-    expect(ws).toContain("process.versions.bun");
-    expect(ws).toContain('const specifier = process.env.LOKI_WS_MODULE ?? "ws"'); // opaque to esbuild, which folds "w" + "s"
-    expect(ws).toContain("await import(specifier)");
-    for (const f of ["index.ts", "server.ts"]) {
-      expect(readFileSync(new URL(`../mod/${f}`, import.meta.url), "utf8")).toContain('from "./ws.ts"');
+    expect(ws).toContain('export { WebSocket, WebSocketServer } from "ws";');
+    // and nothing else in the mod reaches for the package directly
+    for (const f of readdirSync(new URL("../mod/", import.meta.url)).filter((n) => n.endsWith(".ts") && n !== "ws.ts")) {
+      expect(readFileSync(new URL(`../mod/${f}`, import.meta.url), "utf8"), f).not.toMatch(/from "ws"/);
     }
+    expect(readFileSync(new URL("../mod/server.ts", import.meta.url), "utf8")).toContain('from "./ws.ts"');
   });
 });

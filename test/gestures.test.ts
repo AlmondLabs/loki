@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { GestureLog, attachDeskContext, describeGesture, formatDeskContext } from "../mod/gestures.ts";
 import type { WidgetManifestEntry } from "../core/desk-core.ts";
 

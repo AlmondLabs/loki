@@ -12,14 +12,14 @@ is written as the call goes, to `~/.letta/loki/calls/<yyyy-MM-dd-HHmm>.md` (or `
 It needs macOS 26 and Xcode or the Command Line Tools.
 
 ```sh
-bun run listen                    # Meet in Chrome and Slack huddles, until Ctrl-C
-bun run listen -- --apps zoom     # or: chrome, slack, safari, teams, or any bundle ID
-bun run listen -- --all           # every app's audio
-bun run listen -- --raw-mic       # the microphone without echo cancelling, to compare
-bun run listen -- --locale en-US  # the language spoken (default this Mac's)
-bun run listen -- --list          # which apps Core Audio sees, and which are playing
-bun run listen -- --languages     # which languages are supported (✓ installed)
-bun run listen -- --file x.m4a    # transcribe a file, to check transcription without a call
+npm run listen                    # Meet in Chrome and Slack huddles, until Ctrl-C
+npm run listen -- --apps zoom     # or: chrome, slack, safari, teams, or any bundle ID
+npm run listen -- --all           # every app's audio
+npm run listen -- --raw-mic       # the microphone without echo cancelling, to compare
+npm run listen -- --locale en-US  # the language spoken (default this Mac's)
+npm run listen -- --list          # which apps Core Audio sees, and which are playing
+npm run listen -- --languages     # which languages are supported (✓ installed)
+npm run listen -- --file x.m4a    # transcribe a file, to check transcription without a call
 ```
 
 ## First run

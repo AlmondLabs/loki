@@ -89,7 +89,7 @@ trigger, the same cursors, the same hidden chat run as the agent itself, one run
 ### What it costs, and the levers
 
 Every run is one model turn as the agent, carrying the agent's whole fixed prompt (its system prompt and memory)
-on top of up to 24k characters of the stretch. Each run is measured (`bun run analytics`, the background passes
+on top of up to 24k characters of the stretch. Each run is measured (`npm run analytics`, the background passes
 section). Two levers:
 
 1. **The agent's memory size.** This is most of every ask. An agent whose `memory/system` folder has grown to

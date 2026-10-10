@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { FrameChatClient, type FrameRequest } from "../core/attention/chat-client.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 

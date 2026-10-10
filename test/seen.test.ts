@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -103,7 +103,7 @@ describe("a mark that changes nothing, and the coalesced write", () => {
       store.view("a", "c1");
       store.view("a", "c1");
       expect(() => readFileSync(path, "utf8")).toThrow(); // nothing on disk yet
-      await Bun.sleep(80);
+      await new Promise((r) => setTimeout(r, 80));
       expect(JSON.parse(readFileSync(path, "utf8")).viewed).toEqual({ "a/c1": "2026-09-25T10:00:02.000Z" }); // the last of the burst
       store.mark("a", "c1");
       store.flush(); // the mod's shutdown

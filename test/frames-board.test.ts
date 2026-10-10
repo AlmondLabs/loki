@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { Task } from "../core/frame-types.ts";
 import type { TaskBoard } from "../mod/tasks.ts";
 import type { RecallStore } from "../mod/recall.ts";

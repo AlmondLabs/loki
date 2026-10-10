@@ -1,5 +1,5 @@
 /**
- * The phone's Inbox deck, the pure half — no DOM, so test/deck.test.ts runs it under bun:
+ * The phone's Inbox deck, the pure half — no DOM, so test/deck.test.ts runs it without one:
  * when a drag becomes a swipe and which way it commits, how far a card leans and how strongly the
  * reveal shows, what this visit has done, and which cards the deck must not show again.
  */

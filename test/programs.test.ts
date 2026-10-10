@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { commandFor, escapeArgument, execProgram, onPath } from "../mod/programs.ts";
 
 const WIN_ENV = { Path: String.raw`C:\Windows\system32;"C:\Program Files\nodejs";C:\Users\someone\AppData\Roaming\npm;`, PATHEXT: ".COM;.EXE;.BAT;.CMD" };

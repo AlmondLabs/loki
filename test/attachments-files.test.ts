@@ -1,5 +1,5 @@
 import { historySteps, applyEvent } from "./fixtures/letta-events.ts";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { attachmentTag, withAttachments } from "../core/attention/content.ts";
 import { messageFiles, stripHarnessMarkup } from "../core/harness.ts";
 import { emptyLive } from "../core/attention/model.ts";

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { AttentionItem, PendingQuestion } from "../core/attention/model.ts";
 import { draftWriter, submitDraft } from "../app/src/chat/useDraft.ts";
 import { EMPTY_DECK, commitCard, threadNotice, undoCard } from "../app/src/phone/deck.ts";
@@ -211,7 +211,7 @@ describe("focus on arrival", () => {
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
-    g.HTMLElement ??= class {}; // Bun has no DOM; restoreFocus only asks whether a launcher is one
+    g.HTMLElement ??= class {}; // no DOM here; restoreFocus only asks whether a launcher is one
     try {
       restoreFocus(root, "#/agents", false, createFocusMemory());
     } finally {

@@ -1,5 +1,5 @@
 import { applyEvent } from "./fixtures/letta-events.ts";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
 
 describe("attention model (browser)", () => {

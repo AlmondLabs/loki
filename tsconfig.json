@@ -14,7 +14,7 @@
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": { "@loki/kit": ["app/src/kit/index.tsx"] },
-    "types": ["node", "bun", "vite/client"]
+    "types": ["node", "vite/client"]
   },
   "include": ["mod", "core", "daemon", "app/src", "app/vite.config.ts", "test", "test-node"]
 }

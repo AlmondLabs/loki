@@ -66,7 +66,7 @@ every CSS duration *and delay*; JS-driven moves ask `prefersReducedMotion()` or 
 
 Motion is springs, the way Apple's is (the phone first; the desktop follows). `app/src/kit/spring.ts` holds three,
 named after SwiftUI's: *smooth* (no bounce, sheets and screens), *snappy* (a trace of bounce, menus, pills, a card
-springing home) and *bouncy* (small confirmations only: the send button, the inbox badge). `bun scripts/springs.ts`
+springing home) and *bouncy* (small confirmations only: the send button, the inbox badge). `node --experimental-strip-types scripts/springs.ts`
 writes them into `tokens.css` as `--spring-<name>` (a `linear()` curve) and `--spring-<name>-ms`; each looks settled by
 ~300 ms. The rules, from Rauno Freiberg's and Emil Kowalski's essays: only transform and opacity move, so it runs on the
 compositor while agents stream; a finger's speed carries into the spring it lets go of (`spring(name, velocity)`);
@@ -103,7 +103,7 @@ and output under it, one at a time (on the phone, in the same sheet with a way b
 result. Each tool row keeps its input and output (capped at 4,000 characters) and whether it failed,
 from the live stream, Letta's history and the local log alike.
 
-`test/tokens.test.ts` fails `bun test` when a style leaves these scales. It reads every `.tsx`, `.ts`
+`test/tokens.test.ts` fails `npm test` when a style leaves these scales. It reads every `.tsx`, `.ts`
 and `.css` under `app/src` (colours, sizes, radii, tracking, faces, shadows, layers, outlines), checks that
 every `var(--loki-*)` is defined and used and every `loki-*` class has a rule, that `index.html`, the manifest
 and the native window carry `--loki-bg`, that every family defines the attention and affirm roles with AA ink,

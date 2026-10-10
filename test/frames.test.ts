@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -77,7 +77,7 @@ describe("the frame table", () => {
 });
 
 describe("the app's side is typed by the table", () => {
-  // Compile-time checks: bun runs them as no-ops, `bun run typecheck` holds them.
+  // Compile-time checks: vitest runs them as no-ops, `npm run typecheck` holds them.
   const request = <N extends RequestName>(_type: N, _payload: InputOf<N>): ReplyOf<N> | null => null;
   const send = <N extends SendName>(_frame: { type: N } & InputOf<N>): boolean => true;
   test("a request without a required field, or a send of a wrong field, does not compile", () => {

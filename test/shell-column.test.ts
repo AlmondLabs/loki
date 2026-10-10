@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { COLUMN_DEFAULT, COLUMN_KEY, COLUMN_MAX, COLUMN_MIN, NARROW_BELOW, clampColumn, columnShown, columnStore, hasColumn, loadColumn, saveColumn, toggleColumn } from "../app/src/shell/column.ts";
 
 /**

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { PAIRING_ALPHABET, PAIRING_TTL_MS, PairingCodes } from "../mod/pairing.ts";
 
 describe("pairing codes", () => {

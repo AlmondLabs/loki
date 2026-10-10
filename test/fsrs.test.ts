@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { describeGap, intervalDays, isDue, isNew, keepsFailing, newSchedule, previews, retrievability, review } from "../core/recall/fsrs.ts";
 import { dueCount, reviewQueue, toAnkiTsv, updatedSinceReview, type Card, type CardWithSchedule } from "../core/recall/model.ts";
 

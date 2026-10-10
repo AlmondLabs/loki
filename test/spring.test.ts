@@ -1,13 +1,13 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { SPRINGS, settleTime, spring, springAt, springTokens } from "../app/src/kit/spring.ts";
 
-const tokens = readFileSync(join(import.meta.dir, "..", "app", "src", "kit", "tokens.css"), "utf8");
+const tokens = readFileSync(join(import.meta.dirname, "..", "app", "src", "kit", "tokens.css"), "utf8");
 const points = (easing: string) => easing.slice("linear(".length, -1).split(", ").map(Number);
 
 describe("springs", () => {
-  test("tokens.css carries exactly what kit/spring.ts computes (run bun scripts/springs.ts)", () => {
+  test("tokens.css carries exactly what kit/spring.ts computes (run node --experimental-strip-types scripts/springs.ts)", () => {
     expect(tokens).toContain(springTokens());
   });
 

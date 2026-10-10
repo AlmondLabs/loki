@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { covered, median, turnTimings } from "../daemon/timing.ts";
 
 describe("turn timings", () => {

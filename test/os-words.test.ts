@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
@@ -66,7 +66,7 @@ describe("Hide loki off the Mac is Minimise loki", () => {
  * one by one. Comments are not strings.
  */
 describe("the machine comes from the words table", () => {
-  const APP = join(import.meta.dir, "..", "app", "src");
+  const APP = join(import.meta.dirname, "..", "app", "src");
   const ALLOW = ["shell/osWords.ts", "phone/", "settings/Phone.tsx"];
   /** Phone pairing is on the Mac only (U3): the rail's Settings label says so only while it is on. */
   const MAC_ONLY_LINES = ["shell/Sidebar.tsx: , phones can reach this Mac"];

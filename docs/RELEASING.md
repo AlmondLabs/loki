@@ -53,7 +53,7 @@ accepted; the version is the day, not a commit.
 
 ## What a release run builds
 
-1. **plan** (`bun scripts/release.ts plan`) decides stable, nightly, repush, preview or nothing, and the versions.
+1. **plan** (`npm run release -- plan`) decides stable, nightly, repush, preview or nothing, and the versions.
    It asks GitHub which stables the Mac has shipped: releases with a `.dmg` (a tag alone may be Windows and Linux's).
    The Windows and Linux PR landing is recognised by the push itself changing `.github/preview.txt` (only on a push:
    the midnight and manual runs never rebuild a preview), and is a preview of that version whatever else the merge
@@ -73,8 +73,8 @@ accepted; the version is the day, not a commit.
 
    | job | runner | how | files |
    |---|---|---|---|
-   | Windows | `windows-latest` | `bun run tauri build --bundles nsis` | `loki_<v>_x64-setup.exe` |
-   | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `bun run tauri build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
+   | Windows | `windows-latest` | `npm run tauri -- build --bundles nsis` | `loki_<v>_x64-setup.exe` |
+   | Linux | `ubuntu-22.04` | the WebKitGTK apt packages, then `npm run tauri -- build --bundles appimage,deb` | `loki_<v>_amd64.AppImage`, `loki_<v>_amd64.deb` |
 
    Linux builds on the oldest supported Ubuntu so the files run on newer glibc too; the apt list is the same as
    `ci.yml`'s. The last job downloads whatever built and runs `release.ts attach v<v> <files…>`: with a release
@@ -145,7 +145,7 @@ channels is `brew uninstall --cask loki && brew install --cask almondlabs/loki/l
 
 Without the secret the workflow renders the cask, attaches it to the release, then fails at the push with a message
 naming the secret; copy the file into the tap by hand and nothing else is lost. `scripts/cask.ts` is the template
-(`bun scripts/cask.ts <owner> <version> <sha256> [stable|nightly]`), covered by `test/cask.test.ts`.
+(`npm run cask -- <owner> <version> <sha256> [stable|nightly]`), covered by `test/cask.test.ts`.
 
 ## Signing (one-time setup)
 
@@ -182,7 +182,7 @@ succeeds unsigned. Both channels are signed the same way.
 
 ## Building locally
 
-`bun run desktop:build` produces the `.app` and the `.dmg` under `src-tauri/target/release/bundle/`, at the version
+`npm run desktop:build` produces the `.app` and the `.dmg` under `src-tauri/target/release/bundle/`, at the version
 the files hold (the last stable). The `.dmg` step drives Finder through AppleScript to lay out the window; from a
 terminal without Automation permission for Finder (an SSH session, an agent's shell) it fails with `Finder got an
 error: AppleEvent timed out`. The `.app` is complete at that point; make the image without the Finder pass:
@@ -194,10 +194,10 @@ cd src-tauri/target/release/bundle/macos
   ../dmg/loki_2026.9.28_aarch64.dmg loki.app
 ```
 
-On Windows or Linux, `bun run tauri build --bundles nsis` or `bun run tauri build --bundles appimage,deb` makes the
+On Windows or Linux, `npm run tauri -- build --bundles nsis` or `npm run tauri -- build --bundles appimage,deb` makes the
 same files as the release, under `src-tauri/target/release/bundle/nsis/`, `appimage/` and `deb/` (the Linux build
 needs the apt packages in `ci.yml`). Neither needs the Finder workaround.
 
-`bun scripts/release.ts plan` says what the workflow would do for the checkout as it stands, and
-`bun scripts/release.ts notes` prints the notes the release PR would carry. Neither writes anything; both ask
+`npm run release -- plan` says what the workflow would do for the checkout as it stands, and
+`npm run release -- notes` prints the notes the release PR would carry. Neither writes anything; both ask
 GitHub (`gh`, signed in) which releases carry a `.dmg`.

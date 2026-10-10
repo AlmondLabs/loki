@@ -32,7 +32,6 @@ import { sortDesks } from "./frames/desks.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
-import { wsSource } from "./ws.ts";
 import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { scopeOfId } from "../core/desk-core.ts";
@@ -73,9 +72,9 @@ export type Host = { chats: ChatSource; chat: ChatBackend; analytics?: Analytics
 
 export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
-  // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
+  // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
   const analytics = host.analytics ?? createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
-  log("activate", { pid: process.pid, node: process.versions.node, ws: wsSource, api: api.apiVersion });
+  log("activate", { pid: process.pid, node: process.versions.node, api: api.apiVersion });
 
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
   const token = loadOrCreateToken();

@@ -1,6 +1,6 @@
 /**
  * Plan 017, U4: mods in a folder load, reload when edited, and unload when removed. Runs under Node, the daemon's
- * runtime: `bun run test:node`.
+ * runtime: `npm run test:node`.
  */
 import { strict as assert } from "node:assert";
 import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";

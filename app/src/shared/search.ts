@@ -1,7 +1,7 @@
 /**
  * Search's matching and ranking, for any kind of hit: the phone's Search (phone/searchIndex.ts) and the
  * desktop's ⌘K build their own hits, routes and named pages and hand them here as entries. Pure, so
- * test/shared-search.test.ts runs it under bun.
+ * test/shared-search.test.ts runs it under Node, with no DOM.
  *
  * Ranking is one rule: the best tier any field reaches (exact, prefix, word start, substring), a title
  * (the first field) before a secondary field at the same tier, then the newest, then the order given.

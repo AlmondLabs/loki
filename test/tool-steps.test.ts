@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { TOOL_TEXT_MAX, toolInput, toolOutput, toolStep } from "../core/harness.ts";
 import { withoutSkillCalls, isNamedStep, isWorkRow, lastFailure, stepFailed, stepTarget, stepVerb, toolRuns, workSummary } from "../app/src/shared/toolSteps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";

@@ -20,29 +20,28 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - id: install
-        run: bun install --frozen-lockfile
-      # Each check runs once the install did, whatever the one before it said: a lint error must not hide a failing
-      # test (it did, from 2026-10-09: Windows' bun test went unrun behind lint).
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run typecheck
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run lint
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun test
-      # loki's daemon runs on Node (22.19 or newer: node:sqlite, type stripping), and some of its tests only can: a
-      # crash and resume, the mod folder's reloads (test-node/).
+      # Everything runs on Node: the tests, the scripts and loki's daemon (22.19 or newer: node:sqlite, type stripping).
       - uses: actions/setup-node@v4
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         with:
           node-version: 22
+          cache: npm
+      - id: install
+        run: npm ci
+      # Each check runs once the install did, whatever the one before it said: a lint error must not hide a failing
+      # test (it did, from 2026-10-09: Windows' tests went unrun behind lint).
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run test:node
+        run: npm run typecheck
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run build:app
+        run: npm run lint
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run build:mod
+        run: npm test
+      # Node's own test runner, for the tests that need it: a crash and resume, the mod folder's reloads (test-node/).
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:node
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:app
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:mod
 
   shell:
     name: tauri shell, cargo test (${{ matrix.os }})
@@ -62,13 +61,15 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
             build-essential curl wget file patchelf
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: bun install --frozen-lockfile
+      - run: npm ci
       # tauri::generate_context!() needs frontendDist (app/dist) to exist at compile time; build:mod then ships it for phones.
-      - run: bun run build:app
-      - run: bun run build:mod
+      - run: npm run build:app
+      - run: npm run build:mod
       - run: cargo test --manifest-path src-tauri/Cargo.toml

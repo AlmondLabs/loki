@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { buildSearchIndex, cleanQuery, groupHits, rankHits, tierOf, type Indexed } from "../app/src/shared/search.ts";
 
 /**

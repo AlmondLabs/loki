@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { sortDesks } from "../mod/frames/desks.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";

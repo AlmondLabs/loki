@@ -6,7 +6,7 @@
  * never frame by frame on the main thread, which is busy exactly while agents stream.
  *
  * The three presets are CSS custom properties in kit/tokens.css (`--spring-<name>` and `--spring-<name>-ms`),
- * written from here by `bun scripts/springs.ts`; test/spring.test.ts fails when they drift. A motion that
+ * written from here by `node --experimental-strip-types scripts/springs.ts`; test/spring.test.ts fails when they drift. A motion that
  * starts from a finger (a card let go, a sheet flicked) asks `springWith` for the same spring carrying the
  * finger's speed.
  */

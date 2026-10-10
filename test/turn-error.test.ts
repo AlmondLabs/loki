@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { readTurnError, retryMessage } from "../app/src/chat/turnError.ts";
 
 describe("a failed turn, in words", () => {

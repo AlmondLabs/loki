@@ -5,8 +5,8 @@
   "identifier": "app.loki.desktop",
   "build": {
     "frontendDist": "../app/dist",
-    "beforeDevCommand": "bun run build:mod",
-    "beforeBuildCommand": "bun run build:app && bun run build:mod"
+    "beforeDevCommand": "npm run build:mod",
+    "beforeBuildCommand": "npm run build:app && npm run build:mod"
   },
   "app": {
     "windows": [],

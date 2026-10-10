@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { HARNESS_COMMANDS, LOKI_COMMANDS, allCommands, commandInput, matchCommands, parseSlash, slashQuery } from "../core/attention/commands.ts";
 
 describe("slash commands", () => {

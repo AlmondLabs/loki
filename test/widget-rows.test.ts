@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { WidgetLogEntry } from "../core/desk-core.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { parseWidgetEntry, widgetMarks, withEntry, withHistoryLog } from "../app/src/desk/widgetRows.ts";

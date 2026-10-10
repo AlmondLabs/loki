@@ -5,22 +5,22 @@ welcome, and so is a fork that takes it somewhere else.
 
 ## Setup
 
-macOS 13+, [Bun](https://bun.sh), Rust (stable, via rustup — `bun start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools. Letta Code is not a prerequisite: the shell uses the `letta` on the Mac or installs it with `npm install -g` on first launch (which needs a Node 22+ somewhere), and `LOKI_LETTA_BIN` points a dev build at a checkout instead. On a Mac that has never run loki, `bun start` also writes the development shim and skill symlink described in the manual's [Install (development)](manual.md#install-development).
+macOS 13+, Node 22.19 or newer (it runs npm, Vite, the Tauri CLI, the tests and loki's daemon), Rust (stable, via rustup — `npm start` looks in `~/.cargo/bin` too, and says what to install when there is none) and Xcode's command line tools. Letta Code is not a prerequisite: the shell uses the `letta` on the Mac or installs it with `npm install -g` on first launch (which needs a Node 22+ somewhere), and `LOKI_LETTA_BIN` points a dev build at a checkout instead. On a Mac that has never run loki, `npm start` also writes the development shim and skill symlink described in the manual's [Install (development)](manual.md#install-development).
 
 ```bash
-bun install
-bun start              # Vite on 127.0.0.1:5173, the Tauri window, and app/dist rebuilt for the phone as you edit (Ctrl-C stops all)
-bun run dev            # Vite alone, for a browser tab
-bun run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
+npm install
+npm start              # Vite on 127.0.0.1:5173, the Tauri window, and app/dist rebuilt for the phone as you edit (Ctrl-C stops all)
+npm run dev            # Vite alone, for a browser tab
+npm run desktop:dev    # the Tauri window against a Vite already running (in a second terminal)
 ```
 
-**Windows and Linux** (the preview builds): Bun and Rust as above; in place of Xcode's tools, Windows needs the
+**Windows and Linux** (the preview builds): Node and Rust as above; in place of Xcode's tools, Windows needs the
 Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
 Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in
 `.github/workflows/ci.yml`. On Windows run the commands from Git Bash, as CI does; `~` is `%USERPROFILE%`.
 `.gitattributes` keeps every checkout LF, so the tests that read source files pass there. The test in
 `test/agents.test.ts` that makes file symlinks needs Developer Mode or an administrator shell on Windows (CI's
-runner is one). `bun run tauri build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
+runner is one). `npm run tauri -- build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
 release's files.
 
 For the mod, point Letta at your checkout instead of the installed copy: write the shim from the manual's
@@ -30,12 +30,13 @@ marker is never overwritten by the app.
 ## Checks
 
 ```bash
-bun test                                          # mod, shared, app logic, design tokens
-bun run typecheck
-bun run lint
-bun run build:app && bun run build:mod            # the canvas build and the mod bundle (cargo test needs both)
+npm test                                          # mod, shared, app logic, design tokens (vitest, on Node)
+npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
+npm run typecheck
+npm run lint
+npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs both)
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
-bun run doctor                                    # optional: react-doctor's report on the React code (not in CI)
+npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
 CI runs all of these but the doctor, on macOS 14, Ubuntu 22.04 and Windows (`.github/workflows/ci.yml`), each

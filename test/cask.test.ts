@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { dmgName, renderCask } from "../scripts/cask.ts";
 
 const sha = "a".repeat(64);
@@ -34,7 +34,7 @@ describe("homebrew cask", () => {
   test("matches the app's floor and knows what loki leaves behind", () => {
     const rb = renderCask({ owner: "example", version: "2026.9.28", sha256: sha });
     expect(rb).toContain("depends_on macos: :ventura"); // tauri.conf.json: minimumSystemVersion 13.0; Homebrew 7 deprecates the ">= :ventura" string form
-    expect(rb).toContain('depends_on formula: "node"'); // the daemon runs on Node; not bun (a dev tool)
+    expect(rb).toContain('depends_on formula: "node"'); // the daemon runs on Node; nothing else
     expect(rb).not.toContain("letta-code");
     // Everything loki keeps, and the link an older loki's folder left at the old path.
     for (const p of ["~/.loki", "~/.letta/loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);

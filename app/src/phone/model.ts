@@ -1,5 +1,5 @@
 /**
- * The phone's pure bits — no DOM, so test/phone.test.ts can run them under bun:
+ * The phone's pure bits — no DOM, so test/phone.test.ts can run them without one:
  * the pairing URL both ways, the device label, the "last seen" wording, and the
  * frame shapes the mod sends about the LAN listener (the contract in
  * docs/plans/2026-09-07-007-feat-loki-mobile-plan.md, "Bridge frames").

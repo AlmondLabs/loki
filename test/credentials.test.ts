@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
 
 describe("provider credentials", () => {

@@ -1,7 +1,7 @@
 /**
  * Product analytics for loki in PostHog's shape, without PostHog: one event per line in
  * ~/.loki/logs/events.jsonl — `{ event, timestamp, distinct_id, properties }`. Local only: the mod writes
- * it, nothing reads it but `bun run analytics` on this machine, and it would import into PostHog's batch
+ * it, nothing reads it but `npm run analytics` on this machine, and it would import into PostHog's batch
  * endpoint as is should that ever be wanted. Properties are ids and counts (a desk's scope, a model's handle),
  * never message text, titles or paths. This module is the shape and the arithmetic; mod/analytics.ts captures,
  * mod/bridge.ts and the app decide when, daemon/telemetry.ts measures each agent turn, scripts/analytics.ts turns

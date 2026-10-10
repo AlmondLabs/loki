@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import { EMPTY_PANE, EMPTY_ROUTE, agentState, chatKeyTarget, chooseTab, escapeTab, nextFrame, openTab, paneView, routeTick, sidebarHidden, tabOf, tickFor } from "../app/src/desk/pane.ts";
 import { createDrafts, draftKey } from "../app/src/shared/drafts.ts";
 import { draftWriter } from "../app/src/chat/useDraft.ts";
@@ -179,9 +180,9 @@ describe("desk pane: hidden behind other sections", () => {
   // The shell hides the whole pane with visibility while the Inbox or Board shows; a panel that set itself
   // "visible" overrode that, and the thread's day pills showed through the Inbox (U13).
   test("the tab panels inherit visibility, never force it on", async () => {
-    const src = await Bun.file(new URL("../app/src/desk/DeskPane.tsx", import.meta.url)).text();
+    const src = readFileSync(new URL("../app/src/desk/DeskPane.tsx", import.meta.url), "utf8");
     const panels = src.match(/visibility: tab === "(messages|desk)" \? "[a-z]+"/g) ?? [];
     expect(panels).toHaveLength(2);
-    for (const p of panels) expect(p).toEndWith('"inherit"');
+    for (const p of panels) expect(p.endsWith('"inherit"')).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { createBridge } from "../mod/bridge.ts";
 import { fail, reply, type FrameHandlers } from "../mod/frames/context.ts";
 import { bridgeWith, client, settled } from "./fixtures/frames.ts";

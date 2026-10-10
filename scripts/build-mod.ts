@@ -1,6 +1,6 @@
 // Bundle loki's daemon and the mod it hosts into the files the loki app installs: src-tauri/resources/daemon/daemon.mjs
 // and src-tauri/resources/mod/loki-mod.mjs (plus the agent's skill, and the built canvas for phones when app/dist exists).
-// `bun run build:mod`; tauri runs it before dev and build.
+// `npm run build:mod`; tauri runs it before dev and build.
 // node_modules are bundled in (ws), except esbuild, which the mod treats as optional.
 import { build } from "esbuild";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -60,5 +60,5 @@ if (existsSync(`${appDist}/index.html`)) {
   console.log("mod bundled → src-tauri/resources/ (with app/dist for phones)");
 } else {
   console.log("mod bundled → src-tauri/resources/");
-  console.log("note: app/dist not found — phones get a 'run bun run build:app' page until the canvas is built and build:mod runs again");
+  console.log("note: app/dist not found — phones get a 'run npm run build:app' page until the canvas is built and build:mod runs again");
 }

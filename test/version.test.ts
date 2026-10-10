@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test } from "vitest";
 import { isNewerVersion, parseVersion } from "../core/version.ts";
 import { dateVersion, nightlyVersion } from "../scripts/release.ts";
 

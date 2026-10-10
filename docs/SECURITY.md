@@ -99,7 +99,7 @@ previews, like the Mac's `.dmg`. No other downloads.
 - The board in `~/.letta/loki/board` through the `bd` binary.
 - Nothing is uploaded, logged remotely, or telemetered. The mod keeps a local usage log
   (`~/.letta/loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only
-  `bun run analytics` on this machine reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is
+  `npm run analytics` on this machine reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is
   the two checks above and what your agent's provider connection and widgets initiate.
 
 ## Reporting

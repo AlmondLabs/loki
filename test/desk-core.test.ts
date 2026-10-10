@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, findFreeSpot, forgetWidget, mergeData, occupiedRects, reveal, scopeFor, type Rect, type WidgetManifestEntry } from "../core/desk-core.ts";
 
 const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;

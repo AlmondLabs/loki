@@ -1,4 +1,4 @@
-// The Homebrew cask for a release: `bun scripts/cask.ts <owner> <version> <sha256> [stable|nightly]` prints
+// The Homebrew cask for a release: `npm run cask -- <owner> <version> <sha256> [stable|nightly]` prints
 // Casks/loki.rb, or Casks/loki-nightly.rb for the rolling nightly. .github/workflows/release.yml runs it after
 // each build and pushes the result to <owner>/homebrew-loki. The two casks conflict: loki shares its state
 // (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
@@ -6,6 +6,8 @@
 // xattr line that lets macOS open it; Settings › Privacy & Security › Open Anyway is the other way.
 // The cask depends on the `node` formula: loki's daemon runs on Node 22.19 or newer, so a Mac with nothing on it
 // gets Node from Homebrew.
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export type Channel = "stable" | "nightly";
 export type CaskInput = { owner: string; version: string; sha256: string; channel?: Channel };
@@ -65,10 +67,11 @@ end
 `;
 }
 
-if (import.meta.main) {
+// Run as a script, not imported by its test.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [owner, version, sha256, channel = "stable"] = process.argv.slice(2);
   if (!owner || !version || !sha256 || (channel !== "stable" && channel !== "nightly")) {
-    console.error("usage: bun scripts/cask.ts <owner> <version> <sha256> [stable|nightly]");
+    console.error("usage: npm run cask -- <owner> <version> <sha256> [stable|nightly]");
     process.exit(2);
   }
   process.stdout.write(renderCask({ owner, version, sha256, channel }));

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,8 +10,10 @@ describe("background tasks", () => {
   test("a task's output is read in pieces, and its end sends one notice the thread shows as an event", async () => {
     const notices: Array<{ chatId: string; text: string }> = [];
     const tasks = new BackgroundTasks((_a, chatId, text) => notices.push({ chatId, text }));
-    const id = tasks.start("agent-a", "c", tmpdir(), "echo first; sleep 0.2; echo second");
+    // The second line waits for input rather than a sleep, so a busy machine cannot deliver both before the first read.
+    const id = tasks.start("agent-a", "c", tmpdir(), "echo first; read go; echo second");
     expect(await tasks.wait(id, "agent-a", "first", 2000)).toContain("first");
+    tasks.write(id, "agent-a", "go\n");
     const rest = await tasks.wait(id, "agent-a", undefined, 3000);
     expect(rest).toContain("[exited with 0]");
     expect(rest).toContain("second");
@@ -26,7 +28,9 @@ describe("background tasks", () => {
   test("a task takes input, can be stopped, and another agent cannot reach it", async () => {
     const notices: string[] = [];
     const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
-    const id = tasks.start("agent-a", "c", tmpdir(), "read line; echo got $line; sleep 30");
+    // `sleep` stays a child of the shell in every shell (the echo after it keeps zsh from exec'ing it) and holds the
+    // output open: a stop must end it too, not only the shell.
+    const id = tasks.start("agent-a", "c", tmpdir(), "read line; echo got $line; sleep 30; echo after");
     tasks.write(id, "agent-a", "hello\n");
     expect(await tasks.wait(id, "agent-a", "got hello", 2000)).toContain("got hello");
     expect(() => tasks.output(id, "agent-b")).toThrow("no background task");
