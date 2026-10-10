@@ -78,6 +78,9 @@ export type FinishedTurn = {
 
 export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "requestId" | "entries" | "agentIsSubagent">): TurnOrigin {
   if (t.agentIsSubagent || t.requestId?.startsWith("subagent:")) return "subagent";
+  // A background pass's run (daemon/passes.ts) says which job it is in its request id.
+  if (t.requestId?.startsWith("pass:learn:")) return "recall";
+  if (t.requestId?.startsWith("pass:reflection:")) return "reflection";
   if (isWriterChat(t.chatId) || (t.hidden && t.title === "recall")) return "recall";
   if (t.chatId.startsWith("reflection-")) return "reflection";
   const first = t.entries.find((e) => e.kind === "pi.user")?.model?.[0] as Message | undefined;
@@ -111,6 +114,8 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
     harness_version: t.harnessVersion,
     turn_id: t.turnId,
     origin: originOf(t),
+    // A background pass's request id, which its pass_finished line carries too.
+    ...(t.requestId?.startsWith("pass:") ? { request_id: t.requestId } : {}),
     input_tokens: input,
     output_tokens: sum((u) => u.output),
     cache_read_tokens: cacheRead,

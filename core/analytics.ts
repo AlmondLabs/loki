@@ -65,7 +65,8 @@ export const EVENTS: Record<string, string> = {
   desk_arranged: "a desk tidied",
   widget_trashed: "a widget deleted",
   turn_finished:
-    "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
+    "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
+  pass_finished: "a background pass ran on a chat (daemon/passes.ts) { job: reflection | learn, agent, chat, entries_read, outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
   turn_stopped: "a turn stopped from loki's Stop button { aborted, turn_id }",
   tool_used: "the agent called a desk tool { tool }",
 };
@@ -75,6 +76,7 @@ export const BREAKDOWN: Record<string, string> = {
   view_opened: "view",
   desk_switched: "desk",
   turn_finished: "origin",
+  pass_finished: "outcome",
   message_sent: "origin",
   model_switched: "model",
   mode_set: "mode",
@@ -170,6 +172,8 @@ export interface AnalyticsReport {
   };
   /** The daemon's turns (turn_finished with its measurements), by model and by harness version, most turns first. */
   harness: { turns: number; byModel: HarnessRow[]; byVersion: HarnessRow[] };
+  /** The background passes (pass_finished), by job: how runs ended, what they wrote, and what a run cost. */
+  passes: PassRow[];
   /** Events by local hour of day (24) and weekday (7, Sunday first). */
   hours: number[];
   weekdays: number[];
@@ -193,6 +197,16 @@ export interface HarnessRow {
   toolFailureRate: number | null;
 }
 export type Spread = { p50: number | null; p90: number | null };
+
+export interface PassRow {
+  job: string;
+  runs: number;
+  outcomes: Record<string, number>;
+  /** What the runs wrote, summed by kind (memory changes; cards, revisions, leads). */
+  items: Record<string, number>;
+  /** Mean cost of a run, from its turn_finished joined by request id; null when none was measured. */
+  costPerRun: number | null;
+}
 
 /** A turn as the harness section reads it from a turn_finished line; null for a line from before the daemon measured turns. */
 type MeasuredTurn = { model: string; version: string; ttft: number | null; overhead: number; total: number; cost: number; prompt: number; cacheRead: number; error: boolean; tools: number; toolFailures: number };
@@ -239,6 +253,22 @@ function harnessRows(turns: MeasuredTurn[], keyOf: (t: MeasuredTurn) => string):
       toolFailureRate: ratio(sum(ts, (t) => t.toolFailures), sum(ts, (t) => t.tools)),
     }))
     .sort((a, b) => b.turns - a.turns || a.key.localeCompare(b.key));
+}
+
+function passRows(runs: Array<{ job: string; outcome: string; items: Record<string, unknown>; requestId: string | null }>, cost: Map<string, number>): PassRow[] {
+  const byJob = new Map<string, PassRow & { costed: number; spent: number }>();
+  for (const run of runs) {
+    const row = byJob.get(run.job) ?? { job: run.job, runs: 0, outcomes: {}, items: {}, costPerRun: null, costed: 0, spent: 0 };
+    row.runs++;
+    row.outcomes[run.outcome] = (row.outcomes[run.outcome] ?? 0) + 1;
+    for (const [kind, n] of Object.entries(run.items)) row.items[kind] = (row.items[kind] ?? 0) + num(n);
+    if (run.requestId && cost.has(run.requestId)) {
+      row.costed++;
+      row.spent += cost.get(run.requestId)!;
+    }
+    byJob.set(run.job, row);
+  }
+  return [...byJob.values()].map(({ costed, spent, ...row }) => ({ ...row, costPerRun: costed ? spent / costed : null })).sort((a, b) => a.job.localeCompare(b.job));
 }
 
 /** Turns nobody waits on: a helper's, Learn's writer's and reflection's. They are measured, but no one answers them. */
@@ -289,6 +319,8 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const respond: number[] = [];
   const decide: number[] = [];
   const measured: MeasuredTurn[] = [];
+  const passRuns: Array<{ job: string; outcome: string; items: Record<string, unknown>; requestId: string | null }> = [];
+  const passCost = new Map<string, number>();
 
   for (const e of events) {
     const p = e.properties;
@@ -317,7 +349,9 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       if (desk && !UNATTENDED_ORIGINS.has(String(p.origin))) waiting.set(desk, t);
       const turn = measuredTurn(p);
       if (turn) measured.push(turn);
+      if (typeof p.request_id === "string") passCost.set(p.request_id, num(p.cost));
     }
+    if (e.event === "pass_finished") passRuns.push({ job: String(p.job), outcome: String(p.outcome), items: (p.items ?? {}) as Record<string, unknown>, requestId: typeof p.request_id === "string" ? p.request_id : null });
     const answered = e.event === "message_sent" || e.event === "question_answered" || e.event === "approval_decided" || (e.event === "inbox_card_decided" && ENGAGED_ACTIONS.has(String(p.action)));
     if (answered && desk && waiting.has(desk)) {
       respond.push((t - waiting.get(desk)!) / 60_000);
@@ -397,6 +431,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     inbox,
     engagement,
     harness: { turns: measured.length, byModel: harnessRows(measured, (t) => t.model), byVersion: harnessRows(measured, (t) => t.version) },
+    passes: passRows(passRuns, passCost),
     hours,
     weekdays,
     neverFired: Object.keys(EVENTS).filter((name) => !rows.has(name)),
@@ -454,6 +489,12 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
       out.push(`  ${title}`, `    ${"".padEnd(kw)} ${"turns".padStart(5)} ${"ttft".padStart(13)} ${"overhead".padStart(13)} ${"total".padStart(13)} ${"cost".padStart(8)} ${"cache".padStart(5)} ${"errors".padStart(6)} ${"tool fails".padStart(10)}`);
       for (const row of rows) out.push(`    ${row.key.padEnd(kw)} ${String(row.turns).padStart(5)} ${both(row.ttftMs).padStart(13)} ${both(row.overheadMs).padStart(13)} ${both(row.totalMs).padStart(13)} ${money(row.costPerTurn).padStart(8)} ${share(row.cacheShare).padStart(5)} ${share(row.errorRate).padStart(6)} ${share(row.toolFailureRate).padStart(10)}`);
     }
+  }
+  if (r.passes.length) {
+    out.push("", "background passes · runs · how they ended · what they wrote · cost a run, mean");
+    const money = (n: number | null) => (n === null ? "–" : `$${n < 0.01 ? n.toFixed(4) : n.toFixed(3)}`);
+    const list = (o: Record<string, number>) => Object.entries(o).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(" · ") || "–";
+    for (const p of r.passes) out.push(`  ${p.job.padEnd(10)} ${String(p.runs).padStart(5)} · ${list(p.outcomes)} · ${list(p.items)} · ${money(p.costPerRun)}`);
   }
   out.push("", "when", `  hour  ${bars(r.hours, (h) => (h % 6 === 0 ? String(h).padStart(2, "0") : ""))}`, `  day   ${bars(r.weekdays, (d) => WEEKDAY[d])}`);
   out.push("", `never fired: ${r.neverFired.length ? r.neverFired.join(", ") : "nothing — every event fired at least once"}`);

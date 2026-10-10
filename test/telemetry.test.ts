@@ -88,6 +88,14 @@ describe("turn telemetry: one turn's event", () => {
     expect(originOf(turn({ chatId: "recall-agent-local-a" }))).toBe("recall");
     expect(originOf(turn({ chatId: "c9", hidden: true, title: "recall" }))).toBe("recall");
     expect(originOf(turn({ chatId: "reflection-local-conv-1" }))).toBe("reflection");
+    // A background pass's run says its job in the request id.
+    expect(originOf(turn({ chatId: "recall-agent-local-a", requestId: "pass:learn:c1:12" }))).toBe("recall");
+    expect(originOf(turn({ chatId: "reflection-agent-local-a", requestId: "pass:reflection:c1:12" }))).toBe("reflection");
+  });
+
+  test("a background pass's turn carries its request id, so its pass_finished line can be joined to it; other turns do not", () => {
+    expect(turnProperties(turn({ chatId: "recall-agent-local-a", requestId: "pass:learn:c1:12" })).request_id).toBe("pass:learn:c1:12");
+    expect(turnProperties(turn({ requestId: "subagent:3" })).request_id).toBeUndefined();
   });
 
   test("a turn's id is its agent and the submission that opened it", () => {

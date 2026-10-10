@@ -176,6 +176,35 @@ describe("analytics: the harness, from the daemon's turns", () => {
   });
 });
 
+describe("analytics: the background passes", () => {
+  const run = (over: Record<string, unknown>, minute: number) => ev(0, "pass_finished", { job: "learn", agent: "a1", chat: "c", entries_read: 10, outcome: "changed", items: {}, duration_ms: 900, request_id: null, ...over }, "mod", "m1", minute);
+  const cost = (requestId: string, c: number, minute: number) => ev(0, "turn_finished", { desk: "x", origin: "recall", total_ms: 900, overhead_ms: 10, cost: c, request_id: requestId }, "mod", "m1", minute);
+  const r = analyticsReport(
+    [
+      cost("pass:learn:c1:10", 0.02, 0),
+      run({ request_id: "pass:learn:c1:10", items: { cards: 2, revisions: 1, leads: 0 } }, 1),
+      cost("pass:learn:c2:4", 0.04, 2),
+      run({ request_id: "pass:learn:c2:4", outcome: "nothing", items: { cards: 0, revisions: 0, leads: 0 } }, 3),
+      run({ job: "reflection", request_id: "pass:reflection:c1:10", outcome: "failed" }, 4),
+      run({ job: "reflection", request_id: "pass:reflection:c3:8", items: { memory_changes: 3 } }, 5),
+    ],
+    { now: NOW, days: 30 },
+  );
+
+  test("by job: runs, how they ended, what they wrote, and a run's mean cost from its turn", () => {
+    expect(r.passes).toEqual([
+      { job: "learn", runs: 2, outcomes: { changed: 1, nothing: 1 }, items: { cards: 2, revisions: 1, leads: 0 }, costPerRun: 0.03 },
+      { job: "reflection", runs: 2, outcomes: { failed: 1, changed: 1 }, items: { memory_changes: 3 }, costPerRun: null },
+    ]);
+  });
+
+  test("the text report has a background passes section, and none without runs", () => {
+    const text = formatAnalyticsReport(r);
+    for (const s of ["background passes", "learn", "changed 1 · nothing 1", "cards 2 · revisions 1", "$0.030", "memory_changes 3"]) expect(text).toContain(s);
+    expect(formatAnalyticsReport(analyticsReport([ev(0, "view_opened", { view: "inbox" })], { now: NOW, days: 30 }))).not.toContain("background passes");
+  });
+});
+
 describe("analytics: the writer", () => {
   test("fills the system properties, keeps one distinct_id per install, cuts sessions on the gap, rotates past the cap", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-analytics-"));
