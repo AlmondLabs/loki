@@ -1,6 +1,6 @@
 {
   "name": "loki",
-  "version": "2026.10.9",
+  "version": "2026.10.10",
   "private": true,
   "license": "Apache-2.0",
   "repository": "github:AlmondLabs/loki",
