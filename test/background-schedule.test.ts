@@ -41,6 +41,18 @@ describe("background tasks", () => {
   });
 });
 
+describe("a stop the task's processes cannot all hear", () => {
+  // A child outside the task's process group keeps its output open after the shell is gone — on Windows, a Git Bash
+  // child taskkill's tree misses. The task still reads as stopped once its shell has exited.
+  test.skipIf(process.platform === "win32")("a straggler holding the output does not keep a stopped task running", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const id = tasks.start("agent-a", "c", tmpdir(), "perl -e '$| = 1; setpgrp(0, 0); print qq(escaped\\n); sleep 5' & wait");
+    expect(await tasks.wait(id, "agent-a", "escaped", 2000)).toContain("escaped");
+    tasks.stop(id, "agent-a");
+    expect(await tasks.wait(id, "agent-a", undefined, 3000)).toContain("[stopped (SIGTERM)]");
+  });
+});
+
 describe("a task's shell", () => {
   test("the person's own, else /bin/sh; on Windows Git Bash where Git for Windows puts it, else bash.exe on PATH", () => {
     expect(shell({ SHELL: "/bin/zsh" }, "darwin")).toBe("/bin/zsh");

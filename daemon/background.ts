@@ -38,6 +38,12 @@ const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 /** When a stop signals the task's processes again, and when it kills what is left. */
 const RESIGNAL_MS = 150;
 const GRACE_MS = 2_000;
+/**
+ * After a stop, how long the task's output may stay open once its shell has gone. Something the stop could not reach
+ * holds it then: on Windows, a Git Bash child that taskkill's tree misses (its emulated fork leaves it parentless).
+ * The task's pipes are closed on our side, so it reads as stopped rather than running forever.
+ */
+const STRAGGLER_MS = 500;
 
 /**
  * The shell a task runs in: the person's own, else /bin/sh. Windows has neither, so there it is Git Bash where Git for
@@ -78,6 +84,13 @@ export class BackgroundTasks {
     child.stdout?.on("data", take);
     child.stderr?.on("data", take);
     child.on("error", (error) => take(Buffer.from(`\n${error.message}\n`)));
+    child.on("exit", () => {
+      if (!task.stopping) return;
+      setTimeout(() => {
+        if (task.exit) return;
+        for (const stream of [child.stdin, child.stdout, child.stderr]) stream?.destroy();
+      }, STRAGGLER_MS).unref?.();
+    });
     child.on("close", (code, exitSignal) => {
       // Windows ends a tree without a signal; a task stopped there still reads as stopped.
       const signal = exitSignal ?? task.stopping ?? null;
