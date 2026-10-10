@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, AGENT_PAGE_LABEL, DEFAULT_AGENT_PAGE, isAgentPage } from "../app/src/agents/pages.ts";
 import { firstAgentId, readingFor, shownShaOf, shownSkillOf } from "../app/src/agents/reading.ts";
 

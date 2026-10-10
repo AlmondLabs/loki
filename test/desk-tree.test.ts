@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { sectionDesks, statusLine, treeKey } from "../app/src/shell/DeskTree.tsx";
 
 import type { AttentionItem } from "../core/attention/model.ts";

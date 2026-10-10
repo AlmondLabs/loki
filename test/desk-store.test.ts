@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { describe, expect, test } from "vitest";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DeskStore } from "../mod/desk-store.ts";
@@ -79,7 +79,7 @@ describe("persistence", () => {
   test("corrupt snapshot files are skipped", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-persist-"));
     try {
-      Bun.write(join(dir, "bad.json"), "{not json");
+      writeFileSync(join(dir, "bad.json"), "{not json");
       const store = new DeskStore();
       expect(loadDesks(store, dir)).toEqual([]);
     } finally {

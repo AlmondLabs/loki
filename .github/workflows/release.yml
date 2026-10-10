@@ -33,12 +33,14 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       # the releases say which stables the Mac has shipped (a .dmg); a tag alone may be Windows and Linux's
       - id: plan
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun scripts/release.ts plan
+        run: npm run release -- plan
 
   release-pr:
     name: the release PR
@@ -55,13 +57,15 @@ jobs:
           fetch-tags: true
           # RELEASE_TOKEN (optional, see RELEASING.md) makes the PR's pushes trigger ci.yml; the workflow token cannot.
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          bun scripts/release.ts release-pr "${{ needs.plan.outputs.next }}"
+          npm run release -- release-pr "${{ needs.plan.outputs.next }}"
 
   # The Windows and Linux PR, on the same runs as the release PR and for the same day; closed while that day's
   # release has its Windows and Linux files.
@@ -79,13 +83,15 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          bun scripts/release.ts preview-pr "${{ needs.plan.outputs.preview }}"
+          npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"
 
   build:
     name: build and publish (${{ needs.plan.outputs.kind }} ${{ needs.plan.outputs.version }})
@@ -106,17 +112,19 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: bun install --frozen-lockfile
+      - run: npm ci
       # The version files hold the last stable; the build gets this run's number and nothing is committed.
       - name: stamp the version
-        run: bun scripts/release.ts set "$VERSION"
+        run: npm run release -- set "$VERSION"
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
       # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
       # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
@@ -147,14 +155,14 @@ jobs:
           set -euo pipefail
           DMG="$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/loki_*_universal.dmg)"
           echo "dmg=$DMG" >> "$GITHUB_ENV"
-          bun scripts/release.ts publish "$KIND" "$VERSION" "$DMG"
+          npm run release -- publish "$KIND" "$VERSION" "$DMG"
       - name: render the cask
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           SHA="$(shasum -a 256 "$dmg" | cut -d' ' -f1)"
-          bun scripts/cask.ts "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
+          npm run --silent cask -- "$OWNER" "$VERSION" "$SHA" "$KIND" > cask.rb
           cat cask.rb
           # The cask rides along on the release too, so anyone can check what the tap carries.
           TAG="$([ "$KIND" = stable ] && echo "v$VERSION" || echo nightly)"
@@ -195,16 +203,18 @@ jobs:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: bun install --frozen-lockfile
+      - run: npm ci
       - name: stamp the version
-        run: bun scripts/release.ts set "$VERSION"
+        run: npm run release -- set "$VERSION"
       - name: build the installer
-        run: bun run tauri build --bundles nsis
+        run: npm run tauri -- build --bundles nsis
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -228,16 +238,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
             build-essential curl wget file patchelf
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: bun install --frozen-lockfile
+      - run: npm ci
       - name: stamp the version
-        run: bun scripts/release.ts set "$VERSION"
+        run: npm run release -- set "$VERSION"
       - name: build the AppImage and .deb
-        run: bun run tauri build --bundles appimage,deb
+        run: npm run tauri -- build --bundles appimage,deb
       - uses: actions/upload-artifact@v4
         with:
           name: linux
@@ -267,7 +279,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -287,4 +301,4 @@ jobs:
           # every file, wherever the artifact put it: the Linux one keeps appimage/ and deb/ folders
           mapfile -t FILES < <(find dist -type f | sort)
           printf '%s\n' "${FILES[@]}"
-          bun scripts/release.ts attach "v$VERSION" "${FILES[@]}"
+          npm run release -- attach "v$VERSION" "${FILES[@]}"

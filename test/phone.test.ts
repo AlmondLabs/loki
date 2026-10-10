@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { AGENT_FILTERS, PHONE_APPEARANCE, agentLine, agentRows, agentsShown, linkWord, moreSections, updateState } from "../app/src/phone/model.ts";
 import { THEME_PREFERENCES } from "../app/src/theme.tsx";
 import { AUTO_RELOAD_HIDDEN_MS, CODE_ALPHABET, HOME_ATTENTION_MAX, archiveList, homeCounts, homeSections, linkState, shortcutLine, CODE_LENGTH, codeFromUrl, countdown, deviceKind, deviceName, lanStatusFromFrame, lastSeen, liveDeskCount, liveDesksLabel, memoryFolders, needsReload, normalizeCode, pairOrigin, pairUrlFor, routeOf, viaLabel, shouldAutoReload, stripFrontmatter } from "../app/src/phone/model.ts";
@@ -10,7 +10,7 @@ import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
  * The phone's pure bits (app/src/phone/model.ts): the pairing URL both ways, the device label,
- * the "last seen" wording. No DOM — these run under bun and fence the copy Settings and the
+ * the "last seen" wording. No DOM — these run without one and fence the copy Settings and the
  * phone page agree on.
  */
 

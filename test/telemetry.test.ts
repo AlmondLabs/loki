@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -114,7 +114,7 @@ describe("turn telemetry: one turn's event", () => {
       } finally {
         if (before !== undefined) process.env.LOKI_VERSION = before;
       }
-      expect(harnessVersion(join(import.meta.dir, ".."))).toMatch(/^[0-9a-f]{7,}(-dirty)?$/);
+      expect(harnessVersion(join(import.meta.dirname, ".."))).toMatch(/^[0-9a-f]{7,}(-dirty)?$/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

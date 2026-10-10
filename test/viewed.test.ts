@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { NO_LOOKS, nextLook, type Looks } from "../app/src/shared/useViewed.ts";
 
 /**

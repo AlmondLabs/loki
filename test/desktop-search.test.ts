@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { buildIndex, flatHits, PLACES_KEY, recentPlaceHits, search, topHit, type SearchSources } from "../app/src/shell/searchModel.ts";
 import { createRecents } from "../app/src/shared/recents.ts";
 

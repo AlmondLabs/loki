@@ -5,7 +5,7 @@ import type { Attachment } from "../../../core/attention/content.ts";
  * A reply's draft — its text and images — keyed by agent and conversation, kept in memory for the page's
  * lifetime so leaving a conversation never costs what was typed. One store for every view of the same
  * conversation: the phone's Inbox card and desk page, the desktop's Messages and Desk tabs.
- * The factory is pure enough for Bun (test/phone-session.test.ts); the hook wires it to React.
+ * The factory is pure enough for a test without a DOM (test/phone-session.test.ts); the hook wires it to React.
  */
 
 export type Draft = { text: string; images: Attachment[] };

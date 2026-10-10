@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { piHandle } from "../daemon/model-handle.ts";
 
 const known = (p: string) => ["openai-codex", "openrouter", "anthropic", "openai"].includes(p);

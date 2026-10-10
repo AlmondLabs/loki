@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { decodeEntities, extractHarnessEvents, stripHarnessMarkup } from "../core/harness.ts";
 
 describe("harness markup", () => {

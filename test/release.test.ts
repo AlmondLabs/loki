@@ -1,7 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parse as parseYaml } from "yaml";
 import { attachPreview, dateVersion, hasPreviewFiles, isDateVersion, isNightlyVersion, latestStable, nextStable, nightlyVersion, plan, previewAction, previewLine, previewPr, publish, releaseNotes, setVersion, shipping, withChangelog } from "../scripts/release.ts";
 import { channelOf, isNewerVersion, nightlyVersionIn } from "../core/version.ts";
 
@@ -364,7 +365,7 @@ describe("the Windows and Linux PR: the same day's version as the Mac's, whichev
 
 describe("the workflow: both PRs on the same runs, Windows and Linux from the merge", () => {
   type Job = { if?: string; needs?: string | string[]; steps: Array<{ uses?: string; with?: Record<string, unknown>; run?: string }> };
-  const wf = Bun.YAML.parse(readFileSync(join(import.meta.dir, "..", ".github", "workflows", "release.yml"), "utf8")) as { jobs: Record<string, Job> };
+  const wf = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "release.yml"), "utf8")) as { jobs: Record<string, Job> };
 
   test("the Windows and Linux PR is refreshed exactly when the release PR is: every merge, midnight and a manual run", () => {
     expect(wf.jobs["preview-pr"].if).toBe(wf.jobs["release-pr"].if);
@@ -376,7 +377,7 @@ describe("the workflow: both PRs on the same runs, Windows and Linux from the me
     for (const job of ["windows", "linux"]) {
       const checkout = wf.jobs[job].steps.find((s) => s.uses?.startsWith("actions/checkout"))!;
       expect(checkout.with?.ref).toBeUndefined();
-      expect(wf.jobs[job].steps.some((s) => s.run?.includes('release.ts set "$VERSION"'))).toBe(true);
+      expect(wf.jobs[job].steps.some((s) => s.run?.includes('npm run release -- set "$VERSION"'))).toBe(true);
     }
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { HOME, TABS, backTarget, depthOf, entryState, formatRoute, isOverlay, labelOf, originOf, ownerOf, parentOf, parseRoute, screenOf, showsNav, type Route } from "../app/src/phone/router.ts";
 
 /**

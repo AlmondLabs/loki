@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { KEYMAP, conflicts, takenBy, formatKeys, matches, menuSpec, resolve, tauriAccelerator, chordIds, dialogState, keySegment, shellKeyAllowed, keysOf, keyFor, keyRows, wasFor, cmdHeld, type Binding } from "../app/src/shell/keymap.ts";
 import { keysFor, keysSheetNote } from "../app/src/shell/KeysSheet.tsx";
 import { hideWindow } from "../app/src/shell/useWindowChrome.ts";

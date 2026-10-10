@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { AGE_POINTS_PER_HOUR, BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS, WAITING_POINTS_PER_HOUR, byScore, reasonOf, scoreOf, scored } from "../core/attention/priority.ts";
 import { isScheduledPrompt } from "../core/harness.ts";

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { previewLine } from "../app/src/shared/preview.ts";
 
 describe("a message as a preview line", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { afterSegmentKey } from "../app/src/settings/preferences.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";

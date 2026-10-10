@@ -1,6 +1,6 @@
 /**
  * Plan 017, R5: a turn cut off by a crash continues after a restart. Runs under Node (pi-durable's SQLite backend is
- * `node:sqlite`): bun run test:node
+ * `node:sqlite`): npm run test:node
  */
 import { strict as assert } from "node:assert";
 import { spawn } from "node:child_process";

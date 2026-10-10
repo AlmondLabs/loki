@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
 import { mergeQueue, popHead, stampOf } from "../core/attention/queue.ts";
 import { scored } from "../core/attention/priority.ts";

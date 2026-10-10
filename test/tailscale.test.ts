@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { Tailscale, findTailscale, parseServeStatus, parseStatus } from "../mod/tailscale.ts";
 import { SERVE_41415, STATUS_RUNNING, STATUS_STOPPED } from "./fixtures/tailscale.ts";
 

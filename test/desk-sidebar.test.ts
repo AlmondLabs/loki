@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { DESK_NAME_MAX, SIDEBAR_KEY, canArchive, canMove, canPin, canRename, cleanDeskName, deskRowState, doneAction, loadSidebar, offscreenWaits, parseSidebar, saveSidebar, sidebarModel, toggleFold } from "../app/src/shell/sidebarModel.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";

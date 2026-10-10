@@ -153,7 +153,7 @@ const MISSING_PAGE = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>loki</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#101014;color:#d9d6cf;font:15px/1.5 -apple-system,system-ui,sans-serif}main{max-width:32em;padding:2em}code{color:#c9a86a}</style>
 </head><body><main><h1 style="font-size:17px;margin:0 0 .5em">loki is on, but the phone app is not built</h1>
-<p>This loki has no <code>app/dist</code> to serve. In the checkout run <code>bun run build:app</code>, then <code>bun run build:mod</code>, and reload the mod.</p>
+<p>This loki has no <code>app/dist</code> to serve. In the checkout run <code>npm run build:app</code>, then <code>npm run build:mod</code>, and reload the mod.</p>
 </main></body></html>
 `;
 

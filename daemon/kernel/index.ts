@@ -68,7 +68,7 @@ export class AgentStore {
 
   /**
    * Open a store over `storage`, or over the SQLite file at `file`. The SQLite backend is Node's own `node:sqlite`,
-   * loaded only when a file is asked for, so tests on memory storage run under Bun.
+   * loaded only when a file is asked for, so tests on memory storage need no SQLite.
    */
   static async open(where: { file: string } | { storage: Storage }, options: StoreOptions, context: Context): Promise<AgentStore> {
     const storage =

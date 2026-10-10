@@ -159,7 +159,7 @@ const importLetta = (): Promise<ImportReport> =>
   })().finally(() => (importing = null)));
 const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report, importLetta });
 chats.follow(stores);
-// Product analytics, local only (core/analytics.ts; `bun run analytics` reads it), one writer for the daemon and loki's
+// Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
 const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
 const telemetry = new TurnTelemetry({ capture: (event, properties) => analytics.capture("mod", event, properties), harnessVersion: harnessVersion(paths.root), isSubagent: (id) => isSubagent(id, backend), context, report });

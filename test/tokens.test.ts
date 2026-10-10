@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
@@ -10,7 +10,7 @@ import ts from "typescript";
  * It reads every .tsx, .ts and .css under app/src (the first version read .tsx only, and the drift
  * moved into chat/ui.ts and chat.css), plus the page's own colour in index.html and the manifest.
  */
-const APP = join(import.meta.dir, "..", "app", "src");
+const APP = join(import.meta.dirname, "..", "app", "src");
 const TOKENS = join(APP, "kit", "tokens.css");
 
 function walk(dir: string, keep: (name: string) => boolean): string[] {
@@ -235,8 +235,8 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
   test("text fields never blink: the caret shows focus; the flash is for controls only", () => {
     const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(field).toMatch(/animation: none/);
-    const phone = readFileSync(join(import.meta.dir, "..", "app", "src", "phone", "phone.css"), "utf8");
-    const chat = readFileSync(join(import.meta.dir, "..", "app", "src", "chat", "chat.css"), "utf8");
+    const phone = readFileSync(join(import.meta.dirname, "..", "app", "src", "phone", "phone.css"), "utf8");
+    const chat = readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "chat.css"), "utf8");
     for (const [css, sel] of [[phone, ".loki-phone :is(input, textarea):focus-visible"], [phone, ".loki-phone-search-field:focus-within"], [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"]] as const) {
       const rule = css.slice(css.indexOf(sel)).match(/\{([^}]*)\}/)?.[1] ?? "";
       expect(rule, sel).toMatch(/animation: none/);

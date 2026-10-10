@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { DeskRegistry } from "../mod/desks.ts";
 import { ScopeDebouncer } from "../mod/lifecycle-events.ts";
 import { join } from "node:path";

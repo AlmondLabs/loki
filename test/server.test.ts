@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { attachWs, startServer, type Client } from "../mod/server.ts";
 
 describe("loki server", () => {

@@ -1,6 +1,6 @@
 // The phone's Inbox card: its message box carries the model pill as the conversation page's does, and a plain wait
 // adds no line above it (the box's "Message friday" already says it is your turn).
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";

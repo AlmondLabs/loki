@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { createActiveClock } from "../core/attention/activeClock.ts";
 
 describe("active clock", () => {

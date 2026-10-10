@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { motionFor } from "../app/src/phone/transitions.ts";
 import { edgeCommits } from "../app/src/phone/edgeSwipe.ts";
 import { dismisses, rubberBand } from "../app/src/components/sheetMotion.ts";

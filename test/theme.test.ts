@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { isPalette, isThemePreference, PALETTE_STORAGE_KEY, PALETTES, resolvedTheme, storedPalette, storedTheme, THEME_STORAGE_KEY } from "../app/src/theme.tsx";
 
 describe("theme preference", () => {

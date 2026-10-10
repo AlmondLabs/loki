@@ -1,7 +1,7 @@
 /**
  * Bounded recent histories on the device — searches, places opened — in localStorage, sanitized on
  * read so a stale or tampered entry drops instead of becoming a broken row. Each caller names its own
- * storage key (the phone's are loki.phone.*). Pure enough for Bun (test/phone-session.test.ts).
+ * storage key (the phone's are loki.phone.*). Pure enough for a test without a DOM (test/phone-session.test.ts).
  */
 
 /** One remembered thing: a search's text or a destination's hash, and when. */

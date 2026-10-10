@@ -6,13 +6,13 @@
 // only the release PR moves them. `.github/workflows/release.yml` runs this on every push to main, at midnight UTC,
 // and by hand:
 //
-//   bun scripts/release.ts plan                 what this run should do: stable | nightly | repush | preview | none
-//   bun scripts/release.ts set <version>        stamp the three version files (+ Cargo.lock), uncommitted
-//   bun scripts/release.ts notes <version>      release notes from the commits since the last stable
-//   bun scripts/release.ts release-pr <version> create or refresh the one release PR (branch release/next)
-//   bun scripts/release.ts publish <kind> <version> <dmg…>   the GitHub release: vX (new, or onto Windows and Linux's), or the rolling nightly
-//   bun scripts/release.ts preview-pr <version> create, refresh or close the Windows and Linux PR (branch release/preview)
-//   bun scripts/release.ts attach <tag> <files…> the Windows and Linux files onto vX, creating it when the Mac has not shipped it yet
+//   npm run release -- plan                 what this run should do: stable | nightly | repush | preview | none
+//   npm run release -- set <version>        stamp the three version files (+ Cargo.lock), uncommitted
+//   npm run release -- notes <version>      release notes from the commits since the last stable
+//   npm run release -- release-pr <version> create or refresh the one release PR (branch release/next)
+//   npm run release -- publish <kind> <version> <dmg…>   the GitHub release: vX (new, or onto Windows and Linux's), or the rolling nightly
+//   npm run release -- preview-pr <version> create, refresh or close the Windows and Linux PR (branch release/preview)
+//   npm run release -- attach <tag> <files…> the Windows and Linux files onto vX, creating it when the Mac has not shipped it yet
 //
 // Windows and Linux are previews and only ever stables (plan 014 R12). Their PR proposes the same day's version as
 // the release PR and is rebuilt from main alongside it; whichever of the two is merged first creates `vYYYY.M.D`,
@@ -23,7 +23,7 @@
 // with today are not tagged, the PR is force-pushed with the right number and asks for one more merge.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseVersion } from "../core/version.ts";
@@ -425,7 +425,8 @@ function cmdAttach(tag: string, files: string[]): void {
   console.error(`release: put ${files.length} Windows and Linux file${files.length === 1 ? "" : "s"} on ${tag}`);
 }
 
-if (import.meta.main) {
+// Run as a script (`npm run release -- …`), not imported by its test.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, ...args] = process.argv.slice(2);
   try {
     switch (cmd) {
@@ -451,7 +452,7 @@ if (import.meta.main) {
         cmdAttach(args[0] ?? "", args.slice(1));
         break;
       default:
-        console.error("usage: bun scripts/release.ts plan | set <version> | notes [version] | release-pr [version] | publish <stable|nightly> <version> <dmg…> | preview-pr [version] | attach <tag> <files…>");
+        console.error("usage: npm run release -- plan | set <version> | notes [version] | release-pr [version] | publish <stable|nightly> <version> <dmg…> | preview-pr [version] | attach <tag> <files…>");
         process.exit(2);
     }
   } catch (err) {

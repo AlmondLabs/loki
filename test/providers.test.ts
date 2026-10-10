@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
 import { deviceIdIn, Providers } from "../daemon/providers.ts";

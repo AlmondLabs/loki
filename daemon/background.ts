@@ -35,6 +35,10 @@ export type Notify = (agentId: string, chatId: string, text: string) => void;
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** When a stop signals the task's processes again, and when it kills what is left. */
+const RESIGNAL_MS = 150;
+const GRACE_MS = 2_000;
+
 /**
  * The shell a task runs in: the person's own, else /bin/sh. Windows has neither, so there it is Git Bash where Git for
  * Windows puts it, else a bash.exe on PATH: where pi-durable's own bash tool looks (@earendil-works/pi-durable/env/node).
@@ -112,20 +116,31 @@ export class BackgroundTasks {
     this.kill(this.get(id, agentId));
   }
 
-  /** End a task and everything its shell started: its process group, or on Windows its process tree. */
+  /**
+   * End a task and everything its shell started: its process group, or on Windows its process tree. Signalled again
+   * shortly after, because a process the shell was forking as the first signal landed misses it and lives on holding
+   * the output open (CI's busy runners hit this); whatever still runs after the grace period is killed outright.
+   */
   private kill(task: Task): void {
     const pid = task.child.pid;
-    if (task.exit || pid === undefined) return;
+    if (task.exit || task.stopping || pid === undefined) return;
     task.stopping = "SIGTERM";
-    if (process.platform === "win32") {
-      execFile("taskkill", ["/PID", String(pid), "/T", "/F"], (error) => error && task.child.kill());
-      return;
-    }
-    try {
-      process.kill(-pid, "SIGTERM");
-    } catch {
-      task.child.kill("SIGTERM"); // the group is gone already; the shell may not be
-    }
+    const end = (force: boolean) => {
+      if (task.exit) return;
+      if (process.platform === "win32") {
+        execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {});
+        return;
+      }
+      try {
+        process.kill(-pid, force ? "SIGKILL" : "SIGTERM");
+      } catch {
+        if (!force) task.child.kill("SIGTERM"); // no group left; the shell may still be there
+      }
+    };
+    end(false);
+    const timers = [setTimeout(() => end(false), RESIGNAL_MS), setTimeout(() => end(true), GRACE_MS)];
+    for (const t of timers) t.unref?.();
+    task.child.once("close", () => timers.forEach(clearTimeout));
   }
 
   /** Wait until the output matches `pattern`, the task ends, or `ms` pass; then its new output. */

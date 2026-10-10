@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ListRow, ListSection, PaneHeader, countText, rowStatus } from "../app/src/components/index.tsx";

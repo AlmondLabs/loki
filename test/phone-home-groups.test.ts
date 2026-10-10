@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { homeDeskSections, homeSections } from "../app/src/phone/model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";

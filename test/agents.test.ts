@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -91,7 +91,7 @@ describe("agents: memory", () => {
     expect(profilePath(linkedAgent, dir)).toBeNull();
   });
   test("profile image path", () => {
-    expect(profilePath(AGENT, dir)).toEndWith("profile.png");
+    expect(profilePath(AGENT, dir)?.endsWith("profile.png")).toBe(true);
     expect(profilePath("agent-local-nope", dir)).toBeNull();
   });
   test("git log parsing keeps message, time and touched files", () => {

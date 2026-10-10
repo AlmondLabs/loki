@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { buildPrompt, lessonBrief, parseExtraction, similarFront } from "../core/recall/extract.ts";
 
 describe("recall prompt", () => {

@@ -1,5 +1,5 @@
 import { applyEvent, lettaChatEvents } from "./fixtures/letta-events.ts";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { emptyLive, folderMoveAnswer as answerOf } from "../core/attention/model.ts";
 import type { ServerEvent } from "../core/attention/protocol.ts";
 

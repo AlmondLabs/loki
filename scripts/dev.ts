@@ -1,9 +1,9 @@
-// One command for a development session: `bun start` (package.json "start").
+// One command for a development session: `npm start` (package.json "start").
 //   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and, on a Mac, Xcode's
 //      command line tools, which cargo links with there.
-//      Vite and the Tauri CLI are Node programs, and a Mac without Node runs them with Bun; loki's daemon needs a Node
-//      22.19 or newer, which the window finds itself (Welcome says how to install one when there is none).
-//   1. Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `bun run dev` in another terminal).
+//      This script, Vite and the Tauri CLI run on the Node that runs `npm start`; loki's daemon needs a Node 22.19 or
+//      newer, which the window finds itself (Welcome says how to install one when there is none).
+//   1. Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `npm run dev` in another terminal).
 //      Another project's dev server on that port is refused rather than shown in the window.
 //   1b. A watching build of the same app into app/dist, which the phone is served (the Mac's window runs from Vite, the
 //      phone from the build): a change reaches the phone about ten seconds later, and it offers a reload.
@@ -60,10 +60,10 @@ function rustPreflight(): string | null {
   console.error(
     [
       "loki dev: the Tauri window is a Rust program and this machine has no Rust toolchain (no `cargo` on PATH, none in ~/.cargo/bin).",
-      `  Install it, then open a new terminal${windows ? "" : " (or `source ~/.cargo/env`)"} and run \`bun start\` again:`,
+      `  Install it, then open a new terminal${windows ? "" : " (or `source ~/.cargo/env`)"} and run \`npm start\` again:`,
       windows ? "    winget install Rustlang.Rustup   (rustup-init also offers the Visual Studio C++ build tools cargo links with)" : "    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh",
       ...(mac ? ["  Building also needs Xcode's command line tools: `xcode-select --install` if clang is missing."] : []),
-      "  Without Rust, `bun run dev` serves the canvas alone at " + DEV_URL + " for a browser tab.",
+      "  Without Rust, `npm run dev` serves the canvas alone at " + DEV_URL + " for a browser tab.",
     ].join("\n"),
   );
   return null;
@@ -110,10 +110,9 @@ async function waitFor(url: string, ms: number, alive: () => boolean = () => tru
 
 const children: ChildProcess[] = [];
 let env = process.env;
-/** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts. Without a Node on PATH they run under Bun (process.execPath), which handles both; on Windows always, since `bin` names their JS entries there. */
-const nodeless = !onPath("node");
+/** Vite and the Tauri CLI are `#!/usr/bin/env node` scripts; on Windows `bin` names their JS entries, so this Node runs them. */
 function run(cmd: string, args: string[]): ChildProcess {
-  const child = nodeless || windows ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
+  const child = windows ? spawn(process.execPath, [cmd, ...args], { cwd: root, stdio: "inherit", env }) : spawn(cmd, args, { cwd: root, stdio: "inherit", env });
   children.push(child);
   return child;
 }
@@ -132,10 +131,10 @@ const firstBuild = !existsSync(join(root, "src-tauri", "target"));
 if (process.argv.includes("--check")) {
   const homeCargo = onPath("cargo", join(home, ".cargo", "bin"));
   const cargo = onPath("cargo") ?? (homeCargo ? homeCargo + " (not on PATH)" : null);
-  console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `bun start` would stop and say how to install it");
-  if (mac) console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
-  console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; loki's daemon needs a Node 22.19+ somewhere (brew install node)" : `node: ${onPath("node")}`);
-  console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`bun start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
+  console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `npm start` would stop and say how to install it");
+  if (mac) console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `npm start` would stop and say to run `xcode-select --install`");
+  console.log(`node: ${process.version} at ${process.execPath}`);
+  console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`npm start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
   console.log(`phone: would run ${bin("vite")} build --watch --emptyOutDir=false --config app/vite.config.ts, so app/dist follows the code`);
   console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
   console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts the daemon`);
@@ -145,14 +144,13 @@ if (process.argv.includes("--check")) {
 const path = rustPreflight();
 if (!path) process.exit(1);
 if (mac && !xcodeToolsPresent()) {
-  console.error(["loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.", "  Run `xcode-select --install`, finish the dialog, then `bun start` again."].join("\n"));
+  console.error(["loki dev: Xcode's command line tools are not installed (`xcode-select -p` finds no developer directory); cargo cannot link without them.", "  Run `xcode-select --install`, finish the dialog, then `npm start` again."].join("\n"));
   process.exit(1);
 }
 env = { ...process.env, PATH: path };
-if (nodeless) console.error("loki dev: no Node on PATH — Vite and the Tauri CLI run with Bun; loki's daemon needs a Node 22.19+ somewhere (Homebrew's counts)");
 
 if (vite === "other") {
-  console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `bun start` again."].join("\n"));
+  console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `npm start` again."].join("\n"));
   process.exit(1);
 }
 if (vite === "ours") {
@@ -183,8 +181,8 @@ tauri.on("exit", (code) => {
 // The phone's copy: rebuilt on every change. Its going away only means the phone stops following; the session goes on.
 console.error("loki dev: rebuilding the phone's app (app/dist) as the code changes");
 // Not emptied first: the phone keeps being served the last build while the next one is written. Old hashed files pile
-// up until a plain `bun run build:app` clears them. Errors only: its chunk-size and dynamic-import warnings would
-// repeat on every save (a plain `bun run build:app` still shows them).
+// up until a plain `npm run build:app` clears them. Errors only: its chunk-size and dynamic-import warnings would
+// repeat on every save (a plain `npm run build:app` still shows them).
 // A build watch reads its config once (Vite's dev server restarts on a config change; this does not), so a change to
 // app/vite.config.ts starts it afresh; a stale config once left every build failing while the watch looked alive.
 let phoneBuild: ChildProcess;
@@ -193,7 +191,7 @@ const startPhoneBuild = () => {
   phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
   phoneBuild.on("exit", (code) => {
     if (restarting) return;
-    if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
+    if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`npm run build:app\` after phone changes`);
   });
 };
 startPhoneBuild();

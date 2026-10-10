@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
 
 import { formatRoute } from "../app/src/phone/router.ts";
@@ -171,7 +171,7 @@ describe("recent places", () => {
   test("each kind of place resolves to a row that opens it", () => {
     const hits = recentPlaceHits([conv, inboxConv, agent, file, "#/learn", "#/preferences", "#/inbox"], src());
     expect(hits.map((h) => h.title)).toEqual(["Loki mobile", "Approve the invoice", "Ledger", "today.md", "Learn", "Preferences", "Inbox"]);
-    for (const h of hits) expect(formatRoute(h.route)).toBeString();
+    for (const h of hits) expect(typeof formatRoute(h.route)).toBe("string");
     expect(hits[0].route).toEqual({ kind: "conversation", agentId: "a1", conversationId: "c-Loki mobile", prefill: null });
   });
   test("stale places are dropped: a deleted desk, a gone agent, a junk hash, Search itself", () => {

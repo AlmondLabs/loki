@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { AgentsDeps } from "../mod/frames/agents.ts";
 import type { LanDeps } from "../mod/frames/lan.ts";
 import { bridgeWith, client, settled } from "./fixtures/frames.ts";

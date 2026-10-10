@@ -70,8 +70,8 @@ xattr -dr com.apple.quarantine /Applications/loki.app
 
 Or open it, dismiss the dialog, and allow it under System Settings › Privacy & Security.
 
-**From source**: Bun, Rust and Xcode's command line tools, then `bun start` to run the checkout or
-`bun run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
+**From source**: Node, Rust and Xcode's command line tools, then `npm start` to run the checkout or
+`npm run desktop:build` for a `.app` (see the README). A build made on your own Mac never carries the flag.
 
 **Windows (preview)**: `loki_<version>_x64-setup.exe` from a stable release, an unsigned NSIS installer. SmartScreen
 stops it as an unknown publisher; **More info**, then **Run anyway**, once.
@@ -338,16 +338,16 @@ Only the things a mod can do:
 
 ## Install (development)
 
-You need Bun, Rust (stable, from rustup) and Xcode's command line tools; Vite and the Tauri CLI run under Bun
-when there is no Node. Letta Code is found or installed by the window as the app does it (Requirements), which
+You need Node 22.19 or newer, Rust (stable, from rustup) and Xcode's command line tools; Node runs npm, Vite, the
+Tauri CLI and the tests. Letta Code is found or installed by the window as the app does it (Requirements), which
 needs a Node 22 or newer somewhere only when no `letta` is on the Mac yet. Then:
 
 ```bash
-bun install
-bun start
+npm install
+npm start
 ```
 
-`bun start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
+`npm start` checks three things first and stops with the fix when one is missing: `cargo` — on PATH, or in
 `~/.cargo/bin` where rustup just put it (Tauri's own message is a bare "No such file or directory") — Xcode's
 command line tools (`xcode-select -p`; without them the build fails later with an `xcrun` or linker error), and
 that whatever answers on port 5173 is loki's own Vite and not another project's dev server, which the window
@@ -355,7 +355,7 @@ would otherwise show. It then starts Vite, opens the window (the first build com
 and waits for the mod: if nothing answers on its port after a minute and a half, one paragraph names the shim
 and the harness log instead of Vite's proxy errors. On a first launch, when no `letta` is on the Mac yet, the
 script says so and starts that clock only once the window has installed one.
-`bun start --check` reports all of it without starting anything.
+`npm start --check` reports all of it without starting anything.
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), so it would run a harness
 without the mod on a Mac that never had loki. Instead, when the shim and the skill are both absent, it points
@@ -386,7 +386,7 @@ Skill, so the agent knows the vocabulary:
 ln -s /ABSOLUTE/PATH/TO/loki/skills/loki ~/.agents/skills/loki
 ```
 
-Then `/reload` in Letta Code and run `bun start` (Vite plus the window in one terminal), or `bun run dev` (Vite) plus `bun run desktop:dev` (the window against
+Then `/reload` in Letta Code and run `npm start` (Vite plus the window in one terminal), or `npm run dev` (Vite) plus `npm run desktop:dev` (the window against
 it), or open the Vite URL in a browser tab.
 
 When something does not come up:
@@ -577,7 +577,7 @@ is the score, `core/attention/focus.ts` the focus.
 **What the ranking is tuned for: engagement.** Every card that comes to the top is logged (`inbox_card_shown`),
 and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
 chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
-how long the card was on top, counting only the time loki's window was visible and focused). `bun run analytics`
+how long the card was on top, counting only the time loki's window was visible and focused). `npm run analytics`
 reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
 archive it — a Next straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
 rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
@@ -618,7 +618,7 @@ Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise**
 loki keeps product analytics on itself — which views you open, which chats get turns, how an inbox visit went,
 what you send from where, which models and modes you pick — as events in `~/.letta/loki/logs/events.jsonl`, one
 per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
-writes the file, nothing sends it anywhere, and `bun run analytics` on this machine is the only reader. The
+writes the file, nothing sends it anywhere, and `npm run analytics` on this machine is the only reader. The
 `distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, phone,
 or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
 a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
@@ -630,7 +630,7 @@ every window that saw it and written once), `chat_archived` and `chat_restored` 
 lists them all with their properties. The file rotates
 at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the harness's environment turns it off.
 
-`bun run analytics` (or `bun run analytics -- --days 7`) prints the report: sessions by device and their median
+`npm run analytics` (or `npm run analytics -- --days 7`) prints the report: sessions by device and their median
 length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
 property (views by name, turns by chat, sends by origin, models picked), the inbox visits and their decision
 split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
@@ -642,14 +642,13 @@ period.
 `LOKI_APP_SERVER_URL` (skip discovery), `LOKI_LETTA_BIN` / `LOKI_NODE_BIN` / `LOKI_BD` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1`
 (make a dev build install its bundled mod instead of linking the checkout), `LOKI_NO_INSTALL=1` (stop a release
 build from installing, and a dev build from linking), `LOKI_MOD_SERVE=1|0` (make the mod serve the app, or not,
-whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics), `LOKI_WS_MODULE` (debugging only: the module the mod takes `ws` from under Bun). The
+whatever harness loaded it), `LOKI_ANALYTICS=0` (no analytics). The
 harness loki launches gets `LETTA_SCRATCHPAD` (the scratch folder), `DISABLE_AUTOUPDATER=1` and
-`LOKI_OWN_APP_SERVER_URL` (its own address, which the mod reads once and removes so nothing the agents start inherits it). On Linux the shell sets `GDK_BACKEND=x11` unless it is already set. Letta runs it under
-Bun when one is on PATH and under Node otherwise; `mod.log`'s `activate` line says which, and which `ws`.
+`LOKI_OWN_APP_SERVER_URL` (its own address, which the mod reads once and removes so nothing the agents start inherits it). On Linux the shell sets `GDK_BACKEND=x11` unless it is already set. The mod runs under
+Node, inside loki's daemon; `mod.log`'s `activate` line names the Node.
 Logs: `~/.letta/loki/mod.log`, `~/.letta/loki/logs/harness.log` (the harness loki starts),
 `~/.letta/loki/logs/install.log` (every Letta Code install or update, appended), `~/.letta/loki/logs/events.jsonl`
-(product analytics on loki itself; see "Analytics"). To run the mod without Letta:
-`bun scripts/harness.ts`.
+(product analytics on loki itself; see "Analytics").
 
 ## Hard rules
 

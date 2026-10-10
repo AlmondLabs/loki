@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { askQuestions, buildQuestionAnswer, buildUserContent, environmentReminder, environmentNote, ENV_NOTE_EVERY_MS } from "../core/attention/content.ts";
 
 describe("user message content", () => {

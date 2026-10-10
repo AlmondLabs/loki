@@ -263,10 +263,10 @@ and provider credentials in the OS keychain.
    `node.rs` finds Node; `procs.rs` finds a leftover daemon; `root.rs` moves the root to `~/.loki`; `install.rs`
    puts the bundles and the skill in place; `widgets.rs` transpiles `.tsx` widgets; `native.rs` and `menu.rs` the
    Mac's tray, badge, shortcut and menu bar.
-6. `scripts/`: `dev.ts` (`bun start`), `build-mod.ts` (the daemon and mod bundles the app ships), `trial.ts` (the
+6. `scripts/`: `dev.ts` (`npm start`), `build-mod.ts` (the daemon and mod bundles the app ships), `trial.ts` (the
    timing trial), `pi-import-check.ts` (checks the import against real Letta logs), `cask.ts`, `release.ts` and
    `analytics.ts`.
-7. `test/` (bun) and `test-node/` (Node: SQLite stores, resuming after a crash, mods from a folder).
+7. `test/` (vitest, on Node) and `test-node/` (Node's own runner: SQLite stores, resuming after a crash, mods from a folder).
 
 ## One codebase, three systems
 
@@ -296,5 +296,5 @@ place, and the Mac's side of it is what shipped first.
    `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.
-8. **Builds.** CI runs the bun tests, the Node tests and `cargo test` on macOS, Ubuntu and Windows; a release builds
+8. **Builds.** CI runs the vitest suite, the Node runner's tests and `cargo test` on macOS, Ubuntu and Windows; a release builds
    the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner each ([RELEASING.md](RELEASING.md)).

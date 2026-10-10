@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -7,7 +7,7 @@ import { dirname, join, relative, resolve } from "node:path";
  * where it runs: no browser globals, no Tauri, no reach into app/. Relative imports carry the `.ts`
  * extension so Node (the mod) and Metro (the phone) can both resolve them from source.
  */
-const CORE = resolve(import.meta.dir, "..", "core");
+const CORE = resolve(import.meta.dirname, "..", "core");
 const LEAKS = /window\.|document\.|localStorage|navigator\.|@tauri-apps/;
 /** Bare specifiers the package may import: the hook layer needs React; everything else is its own. */
 const ALLOWED_BARE = new Set(["react"]);

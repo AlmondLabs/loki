@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { modelEntriesFromWire, reasoningEffortFromSettings, type ModelEntry } from "../core/models.ts";
 import { effortEntriesFor, groupModelEntries, preferredModelEntry } from "../app/src/chat/ModelPicker.tsx";
 
