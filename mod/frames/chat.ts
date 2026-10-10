@@ -36,8 +36,6 @@ export interface ChatBackend {
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
   disableSkill(name: string): Promise<void>;
-  /** One prompt in a hidden chat of loki's own (Learn's writer), its whole reply back (mod/recall-worker.ts). */
-  ask(agentId: string, conversationId: string, prompt: string, model: string | null): Promise<string>;
 }
 
 export type ChatDeps = { chat?: ChatBackend };

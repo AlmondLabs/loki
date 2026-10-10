@@ -21,10 +21,10 @@ beforeEach(() => {
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("recall store", () => {
-  test("a fresh dir has no cards, no rejections and default worker settings", () => {
+  test("a fresh dir has no cards, no rejections and no old hidden chats", () => {
     expect(store.cards()).toEqual([]);
     expect(store.rejected()).toEqual([]);
-    expect(store.status(T0)).toEqual({ enabled: false, model: null, dailyCap: 25, tickMinutes: 10, lastRunAt: null, lastRunNote: null, writtenToday: 0 });
+    expect(store.legacyChats()).toEqual([]);
   });
   test("add writes a card file and a fresh schedule; cards come back oldest first", () => {
     store.add(card("b", { createdAt: "2026-09-10T10:00:00Z" }));
@@ -74,17 +74,6 @@ describe("recall store", () => {
     expect(store.rejected()).toEqual([]);
     expect(store.reject("nope")).toBeNull();
   });
-  test("the worker's daily count rolls over with the day and settings merge over defaults", () => {
-    store.noteWritten(3, T0);
-    store.noteWritten(2, T0 + 60_000);
-    expect(store.writtenToday(T0)).toBe(5);
-    expect(store.writtenToday(T0 + 86_400_000)).toBe(0);
-    store.saveWorker({ dailyCap: 4, model: "anthropic/claude-haiku-4-5", cursors: { "a/c": 12 } });
-    const w = store.worker();
-    expect(w.dailyCap).toBe(4);
-    expect(w.enabled).toBe(false); // off until the user switches it on
-    expect(w.cursors["a/c"]).toBe(12);
-  });
   test("a corrupt card file is skipped, a card without a schedule file gets a fresh one", () => {
     store.add(card("a"));
     writeFileSync(join(dir, "cards", "bad.json"), "{not json");
@@ -131,7 +120,7 @@ describe("leads and lessons", () => {
 });
 
 describe("learn: the views in the list column", () => {
-  const snap = (over: Partial<RecallSnapshot> = {}): RecallSnapshot => ({ cards: [], rejected: [], leads: [], dismissedLeads: [], lessons: [], worker: { enabled: true, model: null, dailyCap: 20, tickMinutes: 30, lastRunAt: null, lastRunNote: null } as RecallSnapshot["worker"], ...over });
+  const snap = (over: Partial<RecallSnapshot> = {}): RecallSnapshot => ({ cards: [], rejected: [], leads: [], dismissedLeads: [], lessons: [], worker: { enabled: true, dailyCap: 20, lastRunAt: null, lastRunNote: null, writtenToday: 0 }, ...over });
 
   test("the four views in order, each with what it shows: due cards, leads, every card, and the deleted cards and leads", () => {
     const rows = learnViews(snap({ cards: [{}, {}, {}] as RecallSnapshot["cards"], leads: [{}] as RecallSnapshot["leads"], rejected: [{}] as RecallSnapshot["rejected"], dismissedLeads: [{}, {}] as RecallSnapshot["dismissedLeads"] }), 2);

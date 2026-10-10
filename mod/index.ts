@@ -15,8 +15,9 @@ import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
-import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
-import { RecallWorker, askViaChats, startLessonViaChats } from "./recall-worker.ts";
+import { RecallStore, isoDay } from "./recall.ts";
+import { ownsRecallChat, startLessonViaChats } from "./recall-worker.ts";
+import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
@@ -233,20 +234,16 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Where each memory skill came from, and the refresh that pulls upstream and reconciles (mod/skill-sources.ts).
   const skillSources = new SkillSources({ sourcesFile: join(paths.state, "skill-sources.json"), stagingDir: join(paths.state, "upstream") });
   // --- recall -----------------------------------------------------------
-  // Cards written in the background from conversations that have gone quiet, asked of the agent through the
-  // harness in a hidden conversation of its own; the person meets them only in the Recall section (mod/recall-worker.ts).
+  // Cards written in the background by the daemon's Learn pass (daemon/learn.ts) from chats that have gone quiet;
+  // the person meets them only in the Learn section. Its settings and last run are the daemon's (daemon/passes-state.ts).
   const recallStore = new RecallStore();
-  const recall = new RecallWorker({ store: recallStore, listInbox, readSince: (c, a, from) => chats.since(c, a, from), ask: askViaChats(chatBackend) });
-  const recallTick = () => void recall.tick().then((r) => log("recall:tick", r)).catch((err) => log("recall:tick-error", err instanceof Error ? err.message : String(err)));
-  const recallFirst = setTimeout(recallTick, 90_000); // once the daemon has settled
-  // The sweep timer: every `tickMinutes` (Settings › learn; ten by default), reset when the setting changes.
-  let recallTimer: ReturnType<typeof setInterval> | null = null;
-  const scheduleRecall = (minutes: number) => {
-    if (recallTimer) clearInterval(recallTimer);
-    recallTimer = setInterval(recallTick, clampTickMinutes(minutes) * 60_000);
-    log("recall:schedule", { minutes: clampTickMinutes(minutes) });
+  const recall = { owns: (id: string) => ownsRecallChat(recallStore, id) };
+  const learnStatus = () => {
+    const passes = new PassState(paths.state);
+    const s = passes.settings().learn;
+    const last = passes.learnLast();
+    return { enabled: s.enabled, dailyCap: s.dailyCap, lastRunAt: last?.at ?? null, lastRunNote: last?.note ?? null, writtenToday: passes.writtenOn(isoDay(Date.now())) };
   };
-  scheduleRecall(recallStore.worker().tickMinutes ?? DEFAULT_TICK_MINUTES);
   // A lesson's chat is made by the daemon, in process.
   const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
@@ -258,8 +255,12 @@ export default function activate(api: ModApi, host: Host): () => void {
     listInbox,
     recall: {
       store: recallStore,
-      run: () => recall.tick(),
-      reschedule: scheduleRecall,
+      status: learnStatus,
+      setSettings: async (s) => void (await chatBackend.setPasses({ learn: s })),
+      run: async () => {
+        await chatBackend.runLearn();
+        return { note: learnStatus().lastRunNote ?? "nothing new" };
+      },
       startLesson: startLessonViaChats(chatBackend, lessons),
       lessonEmpty: (l) => chats.info(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
@@ -467,8 +468,6 @@ export default function activate(api: ModApi, host: Host): () => void {
     widgets.close();
     titleRefreshes.clear();
     clearInterval(tasksTimer);
-    clearTimeout(recallFirst);
-    if (recallTimer) clearInterval(recallTimer);
     seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
   };
   api.signal.addEventListener("abort", shutdown, { once: true });

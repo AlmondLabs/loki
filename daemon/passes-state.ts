@@ -20,7 +20,7 @@ const OLD_DEFAULT_DAILY_CAP = 25;
 
 export const DEFAULT_SETTINGS: PassSettings = { reflection: { enabled: true }, learn: { enabled: false, dailyCap: DEFAULT_DAILY_CAP } };
 
-type Cursors = { cursors: Record<JobName, Record<string, number>>; learnWritten: { day: string; count: number } };
+type Cursors = { cursors: Record<JobName, Record<string, number>>; learnWritten: { day: string; count: number }; learnLast?: { at: string; note: string } };
 
 const key = (agentId: string, chatId: string) => `${agentId}/${chatId}`;
 
@@ -55,7 +55,7 @@ export class PassState {
     this.settingsFile = join(stateDir, "passes.json");
     this.cursorsFile = join(stateDir, "pass-cursors.json");
     const read = readJson<Partial<Cursors>>(this.cursorsFile);
-    this.data = { cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } }, learnWritten: read?.learnWritten ?? { day: "", count: 0 } };
+    this.data = { cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } }, learnWritten: read?.learnWritten ?? { day: "", count: 0 }, ...(read?.learnLast ? { learnLast: read.learnLast } : {}) };
   }
 
   /** Whether the passes have started here before: no settings file means this is the first start. */
@@ -89,6 +89,16 @@ export class PassState {
 
   noteWritten(day: string, count: number): void {
     this.data.learnWritten = { day, count: this.writtenOn(day) + count };
+    this.save();
+  }
+
+  /** Learn's last run and a line on what it did, for the Learn section's status. */
+  learnLast(): { at: string; note: string } | null {
+    return this.data.learnLast ?? null;
+  }
+
+  noteLearnRun(at: string, note: string): void {
+    this.data.learnLast = { at, note };
     this.save();
   }
 

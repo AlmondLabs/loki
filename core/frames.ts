@@ -297,13 +297,11 @@ export const FRAMES = {
   recall_reject: request("recall_card", "set a card aside (card: null)", (m) => ({ id: strOr(m.id, "") }), PHONE),
   recall_restore: request("recall_card", "bring a set-aside card back", (m) => ({ id: strOr(m.id, "") }), PHONE),
   recall_forget: request("recall_card", "forget a set-aside card for good (card: null)", (m) => ({ id: strOr(m.id, "") })),
-  recall_settings: request("recall", "the writer's settings: on, model, daily cap, minutes between sweeps", (m) => ({
+  recall_settings: request("recall", "Learn's settings: on or off, and the most cards it writes in a day", (m) => ({
     enabled: typeof m.enabled === "boolean" ? m.enabled : undefined,
-    model: m.model === null || str(m.model) ? m.model || null : undefined,
     dailyCap: isNum(m.dailyCap) && m.dailyCap >= 0 ? Math.round(m.dailyCap) : undefined,
-    tickMinutes: isNum(m.tickMinutes) ? m.tickMinutes : undefined,
   })),
-  recall_run: request("recall_ran", "run the writer now", nothing),
+  recall_run: request("recall_ran", "run Learn now over every chat with new material", nothing),
   recall_export: request("recall_export", "every card as Anki TSV", nothing, PHONE),
   recall_lead_dismiss: request("recall", "set a lead aside", (m) => ({ id: strOr(m.id, "") }), PHONE),
   recall_lead_restore: request("recall", "bring a set-aside lead back", (m) => ({ id: strOr(m.id, "") }), PHONE),

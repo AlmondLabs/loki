@@ -107,9 +107,9 @@ describe("every frame in the table, through the real router", () => {
     transcript: () => ({ rows: [], more: false }),
     widgetLog: () => [],
     folders: { recent: () => ({ byAgent: {}, byConversation: {} }), complete: () => [], check: (path) => ({ ok: true, path, branch: null }), pick: async () => null },
-    recall: { store: new RecallStore(join(dir, "recall")), run: async () => ({ note: "ran" }), startLesson: async () => ({ agentId: "agent-1", conversationId: "conv-1" }) },
+    recall: { store: new RecallStore(join(dir, "recall")), status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }), setSettings: async () => {}, run: async () => ({ note: "ran" }), startLesson: async () => ({ agentId: "agent-1", conversationId: "conv-1" }) },
     tasks: { list: async () => [], create: async () => ({}), assign: async () => [], close: async () => [], setStatus: async () => [] } as never,
-    agents: { get: () => ({ id: "agent-1" }) as never, tree: () => [], skills: () => [], hasProfile: () => false, read: () => null, log: async () => [], diff: async () => "", reflection: async () => ({ conversations: [], lastCommit: null }), globalSkills: () => [], install: async () => "ok", refreshSkill: async () => ({ outcome: "current", label: "x" }) },
+    agents: { get: () => ({ id: "agent-1" }) as never, tree: () => [], skills: () => [], hasProfile: () => false, read: () => null, log: async () => [], diff: async () => "", reflection: async () => ({ lastCommit: null }), globalSkills: () => [], install: async () => "ok", refreshSkill: async () => ({ outcome: "current", label: "x" }) },
     lan: { status: () => lanStatus, refresh: async () => lanStatus, setEnabled: async () => lanStatus, setVia: () => lanStatus, setServe: async () => lanStatus, pairBegin: () => ({ code: "K9HF6D", url: "http://mac.local:41415/?code=K9HF6D", expiresAt: "" }), devices: () => [], forget: () => true },
   };
   /** The smallest frame each entry accepts. */

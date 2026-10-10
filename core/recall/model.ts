@@ -93,13 +93,10 @@ export interface RecallSnapshot {
   lessons: Lesson[];
 }
 
+/** Learn's settings and last run (daemon/passes-state.ts), as the Learn section shows them. */
 export interface WorkerStatus {
   enabled: boolean;
-  /** The model handle the worker asks, or null for the harness's default. */
-  model: string | null;
   dailyCap: number;
-  /** Minutes between the writer's sweeps. */
-  tickMinutes: number;
   lastRunAt: string | null;
   lastRunNote: string | null;
   /** Cards written today, against the cap. */

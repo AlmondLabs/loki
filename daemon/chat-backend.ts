@@ -3,7 +3,6 @@ import type { Models } from "@earendil-works/pi-ai/models";
 import { LiveDoc, watchEvents, type Conversation } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
-import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { globalSkillsDir } from "../mod/skills.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
@@ -175,31 +174,6 @@ export class DaemonChats implements ChatBackend {
     await this.healModel(store, chat);
     await this.watch(store, chat, agentId, conversationId);
     await chat.submit({ type: "input", content: text }, this.deps.context);
-  }
-
-  /**
-   * Learn's ask: the prompt in a hidden chat, made on first use in the home folder, the agent's whole reply back. The
-   * chat is compacted after each ask so the next starts from a summary, and reflection leaves it alone
-   * (daemon/reflection.ts).
-   */
-  async ask(agentId: string, conversationId: string, prompt: string, model: string | null): Promise<string> {
-    const store = await this.deps.stores.get(agentId);
-    const ref = modelRef(model ?? readLocalAgent(agentId, this.deps.backendDir)?.model ?? "");
-    let chat = await store.chat(conversationId, this.deps.context);
-    if (!chat) chat = await store.createChat(conversationId, { title: "recall", hidden: true, agent: { cwd: homedir(), ...(ref ? { model: ref } : {}) } }, this.deps.context);
-    else if (ref) await chat.configure({ model: ref }, this.deps.context);
-    const settled = await (await chat.submit({ type: "input", content: prompt }, this.deps.context)).wait(this.deps.context);
-    if (settled.status !== "done") throw new Error(`the agent did not answer: ${settled.status}`);
-    let reply = "";
-    for (const entry of await store.entries(chat, this.deps.context)) {
-      const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
-      if (entry.kind !== "pi.assistant" || m?.role !== "assistant") continue;
-      const text = (m.content ?? []).filter((p) => p.type === "text").map((p) => p.text).join("").trim();
-      if (text) reply = text;
-    }
-    // A compaction that fails only means the next ask carries this one too.
-    await chat.compact(undefined, this.deps.context).catch((e: unknown) => this.deps.report?.(`recall compaction failed: ${String(e)}`));
-    return reply;
   }
 
   async abort(agentId: string, conversationId: string): Promise<void> {

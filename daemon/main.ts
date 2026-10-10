@@ -30,6 +30,7 @@ import { BackgroundTasks, backgroundExtension } from "./background.ts";
 import { Schedules, scheduleExtension } from "./schedule.ts";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { reflectionJob } from "./reflection.ts";
+import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
 import { PassState } from "./passes-state.ts";
 import { readLocalAgent } from "../mod/agents.ts";
@@ -44,7 +45,7 @@ import { ModRegistry } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
 import { isSubagent } from "../mod/agents.ts";
 import { paths } from "../mod/paths.ts";
-import { recallDir } from "../mod/recall.ts";
+import { RecallStore, recallDir } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 
 export const EXIT_HELD = 3;
@@ -113,7 +114,7 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
-const passes = new PassRunner({ stores, chats, registry: mods.registry, state: passState, backendDir: backend, context, jobs: [reflectionJob], busy, isSubagent: (id) => isSubagent(id, backend), capture: (event, properties) => analytics.capture("mod", event, properties), report });
+const passes = new PassRunner({ stores, chats, registry: mods.registry, state: passState, backendDir: backend, context, jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })], busy, isSubagent: (id) => isSubagent(id, backend), capture: (event, properties) => analytics.capture("mod", event, properties), report });
 const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it), one writer for the daemon and loki's
