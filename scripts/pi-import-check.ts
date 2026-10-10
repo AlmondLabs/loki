@@ -17,7 +17,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { lettaLogEntries } from "../daemon/import/convert.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
-import { readLocalTranscriptPage } from "../mod/desks.ts";
+import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 
 const backend = process.argv[2] ?? join(homedir(), ".letta", "lc-local-backend");
 const ctx = BACKGROUND_CONTEXT;

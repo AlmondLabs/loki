@@ -28,7 +28,7 @@ export function renderCask({ owner, version, sha256, channel = "stable" }: CaskI
 
   url "https://github.com/${owner}/loki/releases/download/${tag}/${dmgName("#{version}")}"
   name "${nightly ? "loki nightly" : "loki"}"
-  desc "Desk, inbox, board and recall cards around Letta Code${nightly ? " — built from every merge" : ""}"
+  desc "Agents with a canvas, an inbox, a board and recall cards${nightly ? " — built from every merge" : ""}"
   homepage "https://github.com/${owner}/loki"
 
 ${nightly
@@ -40,19 +40,19 @@ ${nightly
     strategy :github_latest
   end`}
 
-  # One loki at a time: both builds share ~/.letta/loki, the mod shim and the harness port.
+  # One loki at a time: both builds share ~/.loki and the mod's port.
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
   depends_on macos: :ventura
-  # Letta Code is installed with npm on first launch (docs/manual.md › Requirements); Node brings npm.
+  # loki's daemon runs on Node 22.19 or newer (docs/manual.md › Requirements).
   depends_on formula: "node"
 
   app "loki.app"
 
   zap trash: [
     "~/.agents/skills/loki",
+    "~/.loki",
     "~/.letta/loki",
-    "~/.letta/mods/loki.ts",
   ]
 
   caveats <<~EOS

@@ -1,6 +1,6 @@
+import { lokiDir } from "./paths.ts";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { backendName } from "../core/desk-core.ts";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
@@ -15,7 +15,7 @@ import { isAgentId } from "../core/frames.ts";
  * changing memory is the agent's job, which the page hands over to the chat.
  */
 
-export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(homedir(), ".letta", "lc-local-backend");
+export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
 
 /**
  * Letta spawns helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
@@ -163,33 +163,3 @@ export async function memoryDiff(agentId: string, sha: string, dir = backendDir(
   return out.length > 200_000 ? `${out.slice(0, 200_000)}\n… (diff truncated)` : out;
 }
 
-// --- permission modes ------------------------------------------------------------------------------
-/**
- * Letta persists each conversation's permission mode in ~/.letta/remote-settings.json under
- * permissionModeMap, keyed "conversation:<id>" (or "agent:<id>::conversation:default" for a main
- * chat). Entries equal to the default are not written, and the default is "unrestricted".
- */
-export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
-export const DEFAULT_PERMISSION_MODE: PermissionMode = "unrestricted";
-
-export function permissionModeKey(agentId: string | null, conversationId: string): string {
-  return conversationId === "default" ? `agent:${agentId ?? "__unknown__"}::conversation:default` : `conversation:${conversationId}`;
-}
-
-export function readPermissionModes(file = join(homedir(), ".letta", "remote-settings.json")): Record<string, PermissionMode> {
-  try {
-    const raw = JSON.parse(readFileSync(file, "utf8")) as { permissionModeMap?: Record<string, { mode?: string }> };
-    const out: Record<string, PermissionMode> = {};
-    for (const [k, v] of Object.entries(raw.permissionModeMap ?? {})) {
-      const m = v?.mode;
-      if (m === "strict" || m === "standard" || m === "acceptEdits" || m === "unrestricted") out[k] = m;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-export function permissionModeOf(agentId: string | null, conversationId: string, file?: string): PermissionMode {
-  return readPermissionModes(file)[permissionModeKey(agentId, conversationId)] ?? DEFAULT_PERMISSION_MODE;
-}

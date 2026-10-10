@@ -4,14 +4,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import * as esbuild from "esbuild";
 
 /**
- * Entry for the ~/.letta/mods shim. Node caches ES modules by URL for the life
- * of the process, so re-importing mod.ts with a fresh query only refreshes
- * mod.ts itself — every file it imports would still be the old copy. Bundling
- * the mod's own files into a uniquely named file on each activate gives
- * /reload a genuinely fresh module graph. node_modules stay external and
- * resolve from the project because the bundle is written inside it.
+ * The mod's entry in a checkout, which the daemon loads in development (src-tauri/src/lib.rs start_daemon). Node
+ * caches ES modules by URL for the life of the process, so re-importing mod/index.ts would refresh only that file —
+ * every file it imports would still be the old copy. Bundling the mod's own files into a uniquely named file on each
+ * activate gives a reload a genuinely fresh module graph. node_modules stay external and resolve from the project
+ * because the bundle is written inside it.
  */
-export default async function activate(letta: unknown): Promise<unknown> {
+export default async function activate(api: unknown, host: unknown): Promise<unknown> {
   const here = fileURLToPath(new URL(import.meta.url)); // query stripped by fileURLToPath
   const root = dirname(dirname(here));
   const outDir = join(root, ".loki-build");
@@ -40,6 +39,6 @@ export default async function activate(letta: unknown): Promise<unknown> {
     // housekeeping only
   }
 
-  const mod = (await import(pathToFileURL(outfile).href)) as { default: (l: unknown) => unknown };
-  return mod.default(letta);
+  const mod = (await import(pathToFileURL(outfile).href)) as { default: (api: unknown, host: unknown) => unknown };
+  return mod.default(api, host);
 }

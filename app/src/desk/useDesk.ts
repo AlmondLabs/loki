@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
-import { readSession } from "./session";
-import { inTauri, modWsBase } from "./env";
+import { inTauri } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
@@ -68,8 +67,6 @@ export function useDesk() {
     setReasoningEfforts,
     modes,
     setModes,
-    appServer,
-    chatsOnDaemon,
     chatListeners,
     seenMap,
     viewedMap,
@@ -189,8 +186,6 @@ export function useDesk() {
     return true;
   };
 
-  const token = readSession().token;
-  const tunnelUrl = `${modWsBase()}/appserver?t=${token}`;
   /** The board, through the mod. Every call resolves to tasks or an error message; never throws. */
   const boardCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_status">(type: N, payload: InputOf<N>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
     request(type, payload, 25_000).then((r) => {
@@ -265,15 +260,12 @@ export function useDesk() {
   }, [connection]);
 
   const attention = {
-    // The shell holds its own link; the mod's discovery flag only matters in a browser tab. loki's daemon serves chats
-    // on this socket, wherever the page runs.
-    available: appServer || inTauri || chatsOnDaemon,
-    backend: (chatsOnDaemon ? "daemon" : "letta") as "daemon" | "letta",
-    /** The one-time import from Letta, on the daemon only (daemon/import/letta.ts); it may take a minute. */
-    importLetta: chatsOnDaemon ? () => request("chat_import", {}, 600_000) : null,
-    /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts); Letta's app-server otherwise. */
-    makeClient: chatsOnDaemon
-      ? () =>
+    // loki's daemon serves chats on this socket, wherever the page runs; a request made before it opens waits for it.
+    available: true,
+    /** The one-time import from Letta (daemon/import/letta.ts); it may take a minute. */
+    importLetta: () => request("chat_import", {}, 600_000),
+    /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts). */
+    makeClient: () =>
           new FrameChatClient({
             request,
             onChatEvent: (fn) => {
@@ -286,10 +278,8 @@ export function useDesk() {
               if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err) => console.warn("loki: open sign-in", err));
               else window.open(url, "_blank", "noopener,noreferrer");
             },
-          })
-      : undefined,
+          }),
     capture,
-    tunnelUrl,
     seen: seenMap,
     /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
     focus: focusMap,

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { lettaLogCwd, lettaLogEntries } from "../daemon/import/convert.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
-import { readLocalTranscriptPage } from "../mod/desks.ts";
+import { readLocalTranscript, readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import { assistantLine, headerLine, logText, sampleLog, userLine } from "./fixtures/letta-log.ts";
 
@@ -93,5 +93,40 @@ describe("Letta log conversion", () => {
   test("the session header's folder is read; a log without one has none", () => {
     expect(lettaLogCwd(sampleLog())).toBe("/tmp/project");
     expect(lettaLogCwd(logText([userLine("a", null, "2026-10-01T10:00:01.000Z", "hi")]))).toBeUndefined();
+  });
+});
+
+describe("Letta's log as loki showed it (the import's reference)", () => {
+  test("keeps user/assistant text across compactions, marks tool calls with their results, drops harness markup", () => {
+    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
+    try {
+      const dir = join(backend, "conversations", conversationDirName("local-conv-9"));
+      mkdirSync(dir, { recursive: true });
+      const lines = [
+        { type: "session", id: "local-conv-9" },
+        { type: "message", message: { role: "user", content: [{ type: "text", text: "<system-reminder>env</system-reminder>\nhello there" }] } },
+        { type: "message", message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } },
+        { type: "message", message: { role: "toolResult", toolCallId: "t1", toolName: "Bash", isError: false, content: [{ type: "text", text: "ok" }] } },
+        { type: "compaction", summary: "…" },
+        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "done." }] } },
+        "not json",
+        { type: "message", message: { role: "user", content: "plain string" } },
+      ];
+      writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => (typeof l === "string" ? l : JSON.stringify(l))).join("\n") + "\n");
+      expect(readLocalTranscript("local-conv-9", null, 400, backend)).toEqual([
+        { role: "user", text: "hello there" },
+        { role: "tool", text: "Bash", tool: { name: "Bash", id: "t1", output: "ok" } },
+        { role: "assistant", text: "done." },
+        { role: "user", text: "plain string" },
+      ]);
+      expect(readLocalTranscript("local-conv-9", null, 2, backend).map((m) => m.text)).toEqual(["done.", "plain string"]);
+      // A page says whether the log holds older rows than it returned: the chat asks for the next page when it does.
+      expect(readLocalTranscriptPage("local-conv-9", null, 2, backend).more).toBe(true);
+      expect(readLocalTranscriptPage("local-conv-9", null, 400, backend).more).toBe(false);
+      expect(readLocalTranscriptPage("nowhere", null, 400, backend)).toEqual({ rows: [], more: false });
+      expect(readLocalTranscript("missing", null, 400, backend)).toEqual([]);
+    } finally {
+      rmSync(backend, { recursive: true, force: true });
+    }
   });
 });

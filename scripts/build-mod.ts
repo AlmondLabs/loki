@@ -1,5 +1,5 @@
-// Bundle the mod into the single file the loki app installs: src-tauri/resources/mod/loki-mod.mjs
-// (plus the agent's skill, and the built canvas for phones when app/dist exists).
+// Bundle loki's daemon and the mod it hosts into the files the loki app installs: src-tauri/resources/daemon/daemon.mjs
+// and src-tauri/resources/mod/loki-mod.mjs (plus the agent's skill, and the built canvas for phones when app/dist exists).
 // `bun run build:mod`; tauri runs it before dev and build.
 // node_modules are bundled in (ws), except esbuild, which the mod treats as optional.
 import { build } from "esbuild";
@@ -21,17 +21,17 @@ await build({
   bundle: true,
   platform: "node",
   format: "esm",
-  target: "node20",
+  target: "node22",
   external: ["esbuild"],
   // The bundle is ESM, and `ws` (inlined) reaches Node's builtins with require(): without a `require` in scope,
   // esbuild's shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle,
-  // and the mod never activates. Bun tolerated it, which is how it went unnoticed.
+  // and the mod never activates.
   banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
   legalComments: "none",
   logLevel: "warning",
 });
-// loki's daemon (plan 017), which the shell starts in place of `letta server` when LOKI_BACKEND=pi: the same
-// banner, and pi-durable's SQLite backend is Node's own `node:sqlite`, which stays a builtin.
+// loki's daemon (plan 017), which the shell starts and keeps running: the same banner, and pi-durable's SQLite
+// backend is Node's own `node:sqlite`, which stays a builtin.
 await build({
   entryPoints: [here("../daemon/main.ts")],
   define: { "process.env.LOKI_VERSION": JSON.stringify(version) },

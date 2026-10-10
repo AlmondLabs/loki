@@ -52,11 +52,11 @@ describe("bridge", () => {
     const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m) });
     const c = client("c1");
     bridge.onConnect(c);
-    expect(c.sent.map((m) => [m.type, m.scope])).toEqual([["config", undefined], ["desk", "c1"], ["desk", "shared"]]);
-    expect((c.sent[1].widgets as unknown[]).length).toBe(1);
+    expect(c.sent.map((m) => [m.type, m.scope])).toEqual([["desk", "c1"], ["desk", "shared"]]);
+    expect((c.sent[0].widgets as unknown[]).length).toBe(1);
     const s = client("shared");
     bridge.onConnect(s);
-    expect(s.sent.map((m) => m.type)).toEqual(["config", "desk"]);
+    expect(s.sent.map((m) => m.type)).toEqual(["desk"]);
   });
 
   test("gesture updates the widget's desk and logs under the widget's desk with before-value", () => {
@@ -120,9 +120,8 @@ describe("bridge", () => {
     });
     const c = client("c1");
     bridge.onConnect(c);
-    expect(c.sent[0]).toMatchObject({ type: "config" });
-    expect(c.sent[1]).toMatchObject({ type: "desk", scope: "c1", title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", reasoningEffort: "high" });
-    expect(c.sent[2]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
+    expect(c.sent[0]).toMatchObject({ type: "desk", scope: "c1", title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", reasoningEffort: "high" });
+    expect(c.sent[1]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
     bridge.onConnect(client("gone"));
     await new Promise((r) => setTimeout(r, 10));
   });

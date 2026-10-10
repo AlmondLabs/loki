@@ -1,5 +1,5 @@
+import { lokiDir } from "./paths.ts";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { memoryLog } from "./agents.ts";
 import { isAgentId } from "../core/frames.ts";
@@ -12,8 +12,8 @@ import type { MemoryCommit, ReflectionConversation, ReflectionState } from "../c
  * pass's times) — the counters its step-count trigger compares against. The settings themselves live in Letta's
  * settings.json, per agent, and are read and written through the app-server (core/attention/protocol.ts), not here.
  */
-/** Letta's transcript root: its own env override, else ~/.letta/transcripts (Letta Code src/agent/transcript-paths.ts). */
-export const transcriptRoot = (): string => process.env.LETTA_TRANSCRIPT_ROOT?.trim() || join(homedir(), ".letta", "transcripts");
+/** Where the daemon keeps each chat's reflection counters (daemon/reflection.ts): <loki>/reflection. */
+export const transcriptRoot = (): string => process.env.LOKI_REFLECTION_DIR?.trim() || join(lokiDir(), "reflection");
 
 const isoOrNull = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
 const count = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0);

@@ -1,13 +1,13 @@
+import { historySteps, applyEvent } from "./fixtures/letta-events.ts";
 import { afterEach, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyEvent, chatStatusOf, emptyLive } from "../core/attention/model.ts";
+import { chatStatusOf, emptyLive } from "../core/attention/model.ts";
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type Step } from "../core/attention/thread.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { historySteps } from "../core/harness.ts";
 import { conversationDirName } from "../core/desk-core.ts";
-import { readLocalTranscriptPage } from "../mod/desks.ts";
+import { readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 
 const rt = { agent_id: "a", conversation_id: "c" };
 const delta = (message_type: string, extra: Record<string, unknown> = {}) => ({ type: "stream_delta", runtime: rt, delta: { message_type, ...extra } });

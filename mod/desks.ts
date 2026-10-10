@@ -1,32 +1,25 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
-import { backendName, conversationDirName, scopeFor } from "../core/desk-core.ts";
-import { contentText, isScheduledPrompt, stripHarnessMarkup } from "../core/harness.ts";
-import { foldSteps, type Step } from "../core/attention/thread.ts";
-import { messageSteps } from "../core/attention/pi-steps.ts";
+import { backendName, scopeFor } from "../core/desk-core.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
-import type { TranscriptRow } from "../core/attention/transcript.ts";
-import type { Runtime } from "./app-server.ts";
-import { reasoningEffortFromSettings, type ReasoningEffort } from "../core/models.ts";
-import type { LocalDigest } from "../core/frame-types.ts";
+import type { PermissionMode } from "../daemon/approvals.ts";
+import type { ReasoningEffort } from "../core/models.ts";
 
-/**
- * Desk registry: which agent + conversation a desk (scope) belongs to. The
- * scope is a sanitized conversation id, so this is how we get back to the real
- * ids the app-server needs. Learned from events and commands; persisted.
- */
+/** A chat by its agent and conversation ids, as the desk registry keeps it. */
+export interface Runtime {
+  agent_id: string;
+  conversation_id: string;
+}
+
 export class DeskRegistry {
   private byScope = new Map<Scope, Runtime>();
   private readonly path: string;
-  private readonly backendDir: string;
   private readonly agentOf: (conversationId: string) => string | null;
 
-  /** `agentOf` names the agent of a conversation it has not seen (mod/chat-source.ts); Letta's disk by default. */
-  constructor(path: string, backendDir = defaultBackendDir(), agentOf: (conversationId: string) => string | null = (id) => lookupLocalAgentId(id, backendDir)) {
+  /** `agentOf` names the agent of a conversation it has not seen (the daemon's chats, mod/chat-source.ts). */
+  constructor(path: string, agentOf: (conversationId: string) => string | null) {
     this.path = path;
-    this.backendDir = backendDir;
     this.agentOf = agentOf;
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Runtime>;
@@ -66,7 +59,7 @@ export class DeskRegistry {
    * The runtime behind a desk. The registry is a cache of what turn_start /
    * turn_start told us; a desk it has never seen is still resolvable from the
    * scope itself: `default-<agentId>` names its agent, and any other scope is
-   * a conversation id whose owner the local backend records.
+   * a conversation id whose owner the daemon's chats know.
    */
   get(scope: Scope): Runtime | undefined {
     const known = this.byScope.get(scope);
@@ -75,7 +68,7 @@ export class DeskRegistry {
     let rt: Runtime | null = null;
     if (scope.startsWith("default-")) rt = { agent_id: scope.slice("default-".length), conversation_id: "default" };
     else {
-      const agent_id = lookupLocalAgentId(scope, this.backendDir);
+      const agent_id = this.agentOf(scope);
       if (agent_id) rt = { agent_id, conversation_id: scope };
     }
     if (!rt) return undefined;
@@ -119,9 +112,19 @@ export interface LocalConversationInfo {
   /** The conversation's own model, when it was switched away from the agent's. */
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
+  /** The chat's permission mode (GLOSSARY.md). */
+  mode: PermissionMode;
 }
 
-/** The agent's display name from the local backend, if present. */
+export interface LocalConversationRow {
+  conversationId: string;
+  agentId: string;
+  archived: boolean;
+  hidden: boolean;
+  lastMessageAt: string | null;
+}
+
+/** The agent's display name from its record, if present. */
 export function lookupLocalAgentName(agentId: string, backendDir = defaultBackendDir()): string | null {
   try {
     const a = JSON.parse(readFileSync(join(backendDir, "agents", `${backendName(agentId)}.json`), "utf8")) as { name?: string };
@@ -131,210 +134,12 @@ export function lookupLocalAgentName(agentId: string, backendDir = defaultBacken
   }
 }
 
-/** Title and recency for a conversation from the local backend, if present. */
-export function lookupLocalConversation(conversationId: string, agentId?: string | null, backendDir = defaultBackendDir()): LocalConversationInfo | null {
-  try {
-    const dir = join(backendDir, "conversations", conversationDirName(conversationId, agentId));
-    const p = join(dir, "conversation.json");
-    if (!existsSync(p)) return null;
-    const c = JSON.parse(readFileSync(p, "utf8")) as { agent_id?: string; summary?: string | null; last_message_at?: string | null; archived?: boolean; model?: string | null; model_settings?: unknown };
-    const agent = typeof c.agent_id === "string" ? c.agent_id : null;
-    // An agent's main chat has no summary; call it by the agent's name.
-    const fallback = conversationId === "default" && agent ? `${lookupLocalAgentName(agent, backendDir) ?? "agent"} · main chat` : null;
-    return {
-      agentId: agent,
-      title: typeof c.summary === "string" && c.summary.trim() ? c.summary.trim() : fallback,
-      lastMessageAt: typeof c.last_message_at === "string" ? c.last_message_at : null,
-      archived: c.archived === true,
-      model: typeof c.model === "string" && c.model ? c.model : null,
-      reasoningEffort: reasoningEffortFromSettings(c.model_settings),
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Local-backend fallback: conversations live in
- * ~/.letta/lc-local-backend/conversations/<base64("conversation:"+id)>/conversation.json
- * with an agent_id field. Lets a tab attach before any turn has told us the agent.
- */
-export interface LocalConversationRow {
-  conversationId: string;
-  agentId: string;
-  archived: boolean;
-  hidden: boolean;
-  lastMessageAt: string | null;
-}
-
-/**
- * Every conversation the local backend has, so the desks list is complete: a conversation that
- * never ran a turn while loki was up, and has no widgets, still deserves a row in the tree.
- */
-export function listLocalConversations(backendDir = defaultBackendDir()): LocalConversationRow[] {
-  const root = join(backendDir, "conversations");
-  if (!existsSync(root)) return [];
-  const out: LocalConversationRow[] = [];
-  for (const name of readdirSync(root)) {
-    try {
-      const c = JSON.parse(readFileSync(join(root, name, "conversation.json"), "utf8")) as { id?: string; agent_id?: string; archived?: boolean; hidden?: boolean; last_message_at?: string | null };
-      if (typeof c.id !== "string" || typeof c.agent_id !== "string") continue;
-      out.push({ conversationId: c.id, agentId: c.agent_id, archived: c.archived === true, hidden: c.hidden === true, lastMessageAt: typeof c.last_message_at === "string" ? c.last_message_at : null });
-    } catch {
-      // not a conversation dir
-    }
-  }
-  return out;
-}
-
-/** Agents with a memory filesystem are the user's own; the rest are one-off subagents the app-server hides. */
+/** Agents with a memory folder are the person's own; helper agents have none of their own. */
 export function agentHasMemory(agentId: string, backendDir = defaultBackendDir()): boolean {
   return existsSync(join(backendDir, "memfs", agentId));
-}
-
-export function lookupLocalAgentId(conversationId: string, backendDir = defaultBackendDir()): string | null {
-  if (conversationId === "default") return null; // ambiguous without the agent
-  try {
-    const dir = join(backendDir, "conversations", conversationDirName(conversationId));
-    const p = join(dir, "conversation.json");
-    if (!existsSync(p)) return null;
-    const c = JSON.parse(readFileSync(p, "utf8")) as { agent_id?: string };
-    return typeof c.agent_id === "string" ? c.agent_id : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The conversation's full text transcript from the local backend log
- * (`messages.jsonl`). Unlike the app-server's message list, this survives
- * compaction, so a tab opened late still sees the whole conversation.
- * Tool calls become one-line markers carrying their step (the input, and the
- * result from its toolResult line, paired by call id), harness notices
- * (background task results, compaction) become event rows; thinking is
- * skipped. Only the last `limit` rows are returned, oldest first.
- */
-export function readLocalTranscript(
-  conversationId: string,
-  agentId?: string | null,
-  limit = HISTORY_PAGE,
-  backendDir = defaultBackendDir(),
-): TranscriptRow[] {
-  return readLocalTranscriptPage(conversationId, agentId, limit, backendDir).rows;
 }
 
 /** How many rows a chat opens with; scrolling past the oldest asks for this many more (history_get's `limit`). */
 export const HISTORY_PAGE = 400;
 /** The most a page may ask for: about a month of a busy chat, and a few MB over the phone's link. */
 export const HISTORY_MAX = 20_000;
-
-/** The last `limit` rows, and whether the log holds older ones. */
-export function readLocalTranscriptPage(
-  conversationId: string,
-  agentId?: string | null,
-  limit = HISTORY_PAGE,
-  backendDir = defaultBackendDir(),
-): { rows: TranscriptRow[]; more: boolean } {
-  const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
-  if (!existsSync(path)) return { rows: [], more: false };
-  const out = foldSteps(readFileSync(path, "utf8").split("\n").flatMap(logSteps));
-  return out.length > limit ? { rows: out.slice(out.length - limit), more: true } : { rows: out, more: false };
-}
-
-/**
- * The transcript from line `fromLine` of the log on (a cursor the recall worker keeps per conversation),
- * and the line count to continue from. Same rows as readLocalTranscript.
- */
-export function readLocalTranscriptSince(
-  conversationId: string,
-  agentId: string | null | undefined,
-  fromLine: number,
-  backendDir = defaultBackendDir(),
-): { rows: TranscriptRow[]; lines: number } {
-  const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
-  if (!existsSync(path)) return { rows: [], lines: 0 };
-  const all = readFileSync(path, "utf8").split("\n");
-  const lines = all[all.length - 1] === "" ? all.length - 1 : all.length; // the trailing newline is not a line
-  // The recall worker reads words: tool rows keep their one-line label and leave their step behind.
-  const rows = foldSteps(all.slice(Math.max(0, fromLine), lines).flatMap(logSteps)).map(({ tool: _tool, ...row }) => row);
-  return { rows, lines };
-}
-
-/**
- * One line of the local log as thread steps (core/attention/thread.ts): a user or assistant message with its text,
- * the assistant's tool calls after its words, and a toolResult line as the result of the call it names. Thinking,
- * session and compaction lines, and anything that does not parse, are nothing.
- */
-function logSteps(line: string): Step[] {
-  if (!line.trim()) return [];
-  let entry: { type?: string; timestamp?: unknown; message?: { role?: string; content?: unknown; toolCallId?: unknown; isError?: unknown; metadata?: { created_at?: unknown } } };
-  try {
-    entry = JSON.parse(line) as typeof entry;
-  } catch {
-    return [];
-  }
-  const m = entry.message;
-  if (entry.type !== "message" || !m) return [];
-  // Letta's local backend writes the time on every message line; older lines may lack it.
-  const stamp = typeof entry.timestamp === "string" ? entry.timestamp : typeof m.metadata?.created_at === "string" ? m.metadata.created_at : null;
-  return messageSteps(m, stamp && Number.isFinite(Date.parse(stamp)) ? stamp : null);
-}
-
-/** One open conversation as the inbox lists it: the record from disk plus its digest. */
-
-const DIGEST_TAIL_BYTES = 256 * 1024;
-const DIGEST_TEXT_LIMIT = 700;
-
-/**
- * The tail of a conversation's local log, read as the inbox reads it: the last human or assistant
- * message with text decides `lastRole` (harness markup in a user message does not count as the user
- * speaking), and the assistant's last text is kept for the card. Only the end of the file is read,
- * so a long main chat costs the same as a short one.
- */
-export function digestLocalConversation(conversationId: string, agentId?: string | null, backendDir = defaultBackendDir()): LocalDigest {
-  const path = join(backendDir, "conversations", conversationDirName(conversationId, agentId), "messages.jsonl");
-  const none: LocalDigest = { lastRole: null, lastAssistantText: null, lastAsk: null };
-  let tail: string;
-  try {
-    const size = statSync(path).size;
-    const start = Math.max(0, size - DIGEST_TAIL_BYTES);
-    const buf = Buffer.alloc(size - start);
-    const fd = openSync(path, "r");
-    try {
-      readSync(fd, buf, 0, buf.length, start);
-    } finally {
-      closeSync(fd);
-    }
-    tail = buf.toString("utf8");
-  } catch {
-    return none;
-  }
-  const lines = tail.split("\n");
-  if (lines.length && tail.length === DIGEST_TAIL_BYTES) lines.shift(); // a line cut in half at the window's edge
-  // Backwards: the first human or assistant text decides who spoke last; the scan goes on to the last
-  // thing a person (or a schedule) said, and stops there — nothing older changes the digest.
-  let lastRole: LocalDigest["lastRole"] = null;
-  let lastAssistantText: string | null = null;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i];
-    if (!line.trim()) continue;
-    let entry: { type?: string; message?: { role?: string; content?: unknown } };
-    try {
-      entry = JSON.parse(line) as typeof entry;
-    } catch {
-      continue;
-    }
-    if (entry.type !== "message" || !entry.message) continue;
-    const role = entry.message.role;
-    if (role === "user") {
-      const text = stripHarnessMarkup(contentText(entry.message.content)).trim();
-      if (text) return { lastRole: lastRole ?? "user", lastAssistantText, lastAsk: isScheduledPrompt(text) ? "schedule" : "person" };
-    } else if (role === "assistant" && !lastRole) {
-      const text = contentText(entry.message.content).trim();
-      if (!text) continue;
-      lastRole = "assistant";
-      lastAssistantText = text.slice(-DIGEST_TEXT_LIMIT);
-    }
-  }
-  return { lastRole, lastAssistantText, lastAsk: null };
-}

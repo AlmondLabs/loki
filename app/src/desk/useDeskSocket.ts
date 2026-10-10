@@ -51,9 +51,7 @@ export function useDeskSocket() {
   const [reasoningEfforts, setReasoningEfforts] = useState<Record<Scope, ReasoningEffort>>({});
   const [modes, setModes] = useState<Record<Scope, string>>({});
   /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
-  const [appServer, setAppServer] = useState(false);
-  /** loki's daemon serves chats on this socket (config `chats: "daemon"`), and who listens for their events. */
-  const [chatsOnDaemon, setChatsOnDaemon] = useState(false);
+  /** Who listens for the chats' events, which loki's daemon sends on this socket. */
   const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
@@ -170,10 +168,6 @@ export function useDeskSocket() {
             setDeskList((list) => keepSame(list, msg.desks as DeskSummary[]));
             setDesksLoaded(true);
             break;
-          case "config":
-            setAppServer(msg.appServer === true);
-            setChatsOnDaemon(msg.chats === "daemon");
-            break;
           case "chat_event":
             for (const listener of chatListeners.current) listener(msg);
             break;
@@ -219,7 +213,6 @@ export function useDeskSocket() {
             if (msg.viewed && typeof msg.viewed === "object") setViewedMap((m) => keepSame(m, msg.viewed as Record<string, string>));
             // A mod from before focus sends none: keep what we have.
             if (msg.focus && typeof msg.focus === "object") setFocusMap((m) => keepSame(m, msg.focus as Record<string, FocusEntry>));
-            if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
           case "desk_title": {
             // Sent again on every title refresh: a repeat keeps each map as it is.
@@ -307,8 +300,6 @@ export function useDeskSocket() {
     setReasoningEfforts,
     modes,
     setModes,
-    appServer,
-    chatsOnDaemon,
     chatListeners,
     seenMap,
     viewedMap,

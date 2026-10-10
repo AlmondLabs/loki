@@ -38,7 +38,8 @@ import { StoreManager } from "./kernel/stores.ts";
 import { listAgents } from "./store/agents.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
-import { fromLettaMod } from "./mods/letta-facade.ts";
+import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
+import type { Host } from "../mod/index.ts";
 import { ModRegistry } from "./mods/registry.ts";
 
 export const EXIT_HELD = 3;
@@ -68,13 +69,12 @@ const report = (message: string) => console.error(`loki-daemon: ${message}`);
 const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
-// The daemon's agents, in the layout Letta's backend used (daemon/store/agents.ts), so the mod's agent and memory
-// readers find them through LOKI_BACKEND_DIR; each agent's chats in its own store (daemon/kernel/stores.ts).
+// The daemon's agents (records and memory, daemon/store/agents.ts), reflection's counters and the pinned chats live
+// under its folder; the mod's readers are told where, for a daemon serving a folder other than ~/.loki. Each agent's
+// chats are in its own store (daemon/kernel/stores.ts).
 const backend = join(args.dir, "backend");
 process.env.LOKI_BACKEND_DIR = backend;
-// Reflection's counters, where the mod's reader looks for them (mod/reflection.ts).
-process.env.LETTA_TRANSCRIPT_ROOT = join(args.dir, "reflection");
-// Pinned chats are loki's own here; the import from Letta copies Letta's pins in (daemon/import/letta.ts).
+process.env.LOKI_REFLECTION_DIR = join(args.dir, "reflection");
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
@@ -133,11 +133,9 @@ await Promise.all(
   }),
 );
 
-// loki's own mod, written for Letta's API, through the facade (daemon/mods/letta-facade.ts). It serves only inside a
-// host that is not a terminal session (mod/gate.ts); the daemon always is one.
-process.env.LOKI_MOD_SERVE ??= "1";
-const core = (await import(pathToFileURL(args.mod).href)) as { default: (host: unknown) => unknown };
-const loadCore = () => mods.load(fromLettaMod("loki", core.default, { chats, chat }));
+// loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
+const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
+const loadCore = () => mods.load({ name: "loki", apiVersion: MOD_API_VERSION, activate: (api) => core.default(api, { chats, chat }) as Promise<() => void> | (() => void) });
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
 const stopWatchingCore = args.mod.endsWith("boot.ts")

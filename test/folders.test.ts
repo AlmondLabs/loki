@@ -4,8 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
-import { checkFolder, completeFolder, expandPath, gitBranch, recentFolders } from "../mod/folders.ts";
-import { conversationDirName } from "../core/desk-core.ts";
+import { checkFolder, completeFolder, expandPath, gitBranch } from "../mod/folders.ts";
 import { FolderPicker, browseWith, dialogPick, folderLabel, suggestedFolder, type BrowseWith } from "../app/src/desk/NewDesk.tsx";
 
 describe("folders", () => {
@@ -17,32 +16,6 @@ describe("folders", () => {
     expect(suggestedFolder(recent, "/work/current", "a1", null)).toEqual({ path: "/work/latest", source: "recent" });
     expect(suggestedFolder(recent, null, "a1", "a1")).toEqual({ path: "/work/latest", source: "recent" });
     expect(suggestedFolder(recent, null, "missing", "a1")).toBeNull();
-  });
-
-  test("recent folders per agent, newest first, deduped; the desk's own folder by conversation", () => {
-    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
-    try {
-      const conv = (id: string, agent: string, at: string, cwd: string) => {
-        const d = join(backend, "conversations", conversationDirName(id));
-        mkdirSync(d, { recursive: true });
-        writeFileSync(join(d, "conversation.json"), JSON.stringify({ id, agent_id: agent, last_message_at: at }));
-        writeFileSync(join(d, "messages.jsonl"), JSON.stringify({ type: "session", id, cwd }) + "\n" + JSON.stringify({ type: "message" }) + "\n");
-      };
-      conv("c1", "a1", "2026-09-01T00:00:00Z", "/work/old");
-      conv("c2", "a1", "2026-09-03T00:00:00Z", "/work/new");
-      conv("c3", "a1", "2026-09-02T00:00:00Z", "/work/new");
-      conv("c4", "a2", "2026-09-02T00:00:00Z", "/home/x");
-      const r = recentFolders(backend, join(backend, "no-settings.json"));
-      expect(r.byAgent).toEqual({ a1: ["/work/new", "/work/old"], a2: ["/home/x"] });
-      expect(r.byConversation[conversationDirName("c4")]).toBe("/home/x");
-      // A conversation Letta Code moved (its cwdMap) counts in its new folder.
-      writeFileSync(join(backend, "settings.json"), JSON.stringify({ cwdMap: { "conversation:c2": "/work/moved", "conversation:gone": "/nowhere" } }));
-      const m = recentFolders(backend, join(backend, "settings.json"));
-      expect(m.byConversation[conversationDirName("c2")]).toBe("/work/moved");
-      expect(m.byAgent.a1).toEqual(["/work/moved", "/work/new", "/work/old"]);
-    } finally {
-      rmSync(backend, { recursive: true, force: true });
-    }
   });
 
   test("expand, complete, check and branch", () => {

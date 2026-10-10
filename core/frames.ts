@@ -120,8 +120,6 @@ export interface ChatState {
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
 export interface Pushes {
-  /** `chats: "daemon"`: loki's daemon serves chats through the mod's own frames (plan 017, U5), not an app-server. */
-  config: { appServer: boolean; chats?: "daemon" };
   desk: { scope: Scope; title: string | null; status: DeskStatus; agentName: string | null; agentId: string | null; model: string | null; reasoningEffort: ReasoningEffort | null; mode: string | null; state: DeskState; widgets: WidgetManifestEntry[] };
   desk_title: { scope: Scope; title: string | null; status: DeskStatus; agentName: string | null; model: string | null; reasoningEffort: ReasoningEffort | null; mode?: string | null };
   state: { scope: Scope; state: DeskState };
@@ -130,7 +128,7 @@ export interface Pushes {
   widget_change: { entry: WidgetLogEntry };
   switch_desk: { scope: Scope };
   desks: { desks: DeskSummary[] };
-  seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry>; appServer: boolean };
+  seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry> };
   models_recent: { recent: string[] };
   recall_changed: Record<never, never>;
   tasks_changed: Record<never, never>;
@@ -349,7 +347,6 @@ export const FRAMES = {
   device_forget: send("forget a phone and close its sockets", (m) => ({ id: strOr(m.id, null) }), { causes: ["devices"] }),
 
   // Pushes
-  config: push("on connect: whether an app-server was discovered"),
   desk: push("one desk in full (on connect, and for desk_get)"),
   desk_title: push("a desk's conversation was renamed, archived or changed model or mode"),
   state: push("a desk's geometry and overlay changed"),

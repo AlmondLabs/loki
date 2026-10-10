@@ -43,19 +43,14 @@ describe("attachDeskContext", () => {
     expect(block).toContain("- moved A");
     expect(block.endsWith("</loki-desk>")).toBe(true);
   });
-  test("appends to the last user message (string content)", () => {
-    const out = attachDeskContext([{ type: "message", role: "user", content: "hi" }], block);
-    expect(out[0].content).toBe(`hi\n\n${block}`);
+  test("a typed message grows a paragraph", () => {
+    expect(attachDeskContext("hi", block)).toBe(`hi\n\n${block}`);
   });
-  test("appends a text part for array content; skips approval items; leaves input untouched otherwise", () => {
-    const input = [
-      { type: "message", role: "user", content: [{ type: "text", text: "a" }] },
-      { type: "approval", approve: true },
-    ];
-    const out = attachDeskContext(input, block);
-    expect((out[0].content as unknown[]).length).toBe(2);
-    expect(out[1]).toBe(input[1]);
-    expect(input[0].content).toHaveLength(1); // not mutated
-    expect(attachDeskContext([{ type: "approval" }], block)).toEqual([{ type: "approval" }]);
+  test("a message of parts (text and images) gains a text part, and the original is not changed", () => {
+    const content = [{ type: "text", text: "a" }, { type: "image", data: "x", mimeType: "image/png" }];
+    const out = attachDeskContext(content, block) as unknown[];
+    expect(out).toHaveLength(3);
+    expect(out[2]).toEqual({ type: "text", text: block });
+    expect(content).toHaveLength(2);
   });
 });

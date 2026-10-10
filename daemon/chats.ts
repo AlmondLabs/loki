@@ -1,3 +1,4 @@
+import { DEFAULT_MODE, isPermissionMode } from "./approvals.ts";
 import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName } from "../core/desk-core.ts";
@@ -189,6 +190,7 @@ export class ChatProjection implements ChatSource {
       archived: chat.info?.archived === true,
       model,
       reasoningEffort: effortOf(chat.settings.thinkingLevel),
+      mode: isPermissionMode(chat.info?.mode) ? chat.info.mode : DEFAULT_MODE,
     };
   }
 

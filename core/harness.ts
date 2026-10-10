@@ -6,7 +6,6 @@
  */
 
 import type { FileRef, ToolStep } from "./attention/transcript.ts";
-import type { Step } from "./attention/thread.ts";
 
 export function stripHarnessMarkup(text: string): string {
   return text
@@ -134,53 +133,8 @@ export function contentText(content: unknown): string {
   return lines.join("\n");
 }
 
-/**
- * Letta protocol messages from conversation_messages_list, oldest first, as thread steps (core/attention/thread.ts).
- * Reasoning is dropped; the rest is the thread's to fold.
- */
-export function historySteps(messages: Array<Record<string, unknown>>): Step[] {
-  const out: Step[] = [];
-  for (const m of messages) {
-    const at = typeof m.date === "string" ? m.date : null;
-    const step = protocolStep(m, at);
-    if (step) out.push(step);
-  }
-  return out;
-}
-
-/** One Letta protocol message, from history or a stream delta, as a thread step; null for anything a thread does not show. */
-export function protocolStep(m: Record<string, unknown> | undefined, at: string | null, chunk = false): Step | null {
-  switch (m?.message_type) {
-    case "user_message":
-      return { kind: "user", raw: contentText(m.content), at };
-    case "assistant_message":
-      // A streamed piece is part of a word as often as a whole line: the pieces join as they came.
-      return { kind: "assistant", text: chunk ? messageText(m.content) : contentText(m.content), at, ...(chunk ? { chunk } : {}) };
-    case "tool_call_message":
-    case "approval_request_message": {
-      const tc = m.tool_call as { name?: string; arguments?: unknown; tool_call_id?: string } | undefined;
-      if (!tc?.name) return null;
-      return { kind: m.message_type === "tool_call_message" ? "call" : "approval", name: tc.name, args: tc.arguments, id: tc.tool_call_id ?? null, at };
-    }
-    case "tool_return_message":
-      return typeof m.tool_call_id === "string" ? { kind: "result", id: m.tool_call_id, output: m.tool_return, failed: m.status === "error" } : null;
-    default:
-      return null;
-  }
-}
-
-/** Letta's scheduler speaks first in a cron turn, always with this opening: not a person's message. */
+/** A scheduled task's prompt arrives with this opening (daemon/schedule.ts): not a person's message. */
 export const isScheduledPrompt = (text: string): boolean => /^\s*Scheduled task\b/.test(text);
-
-/**
- * Whether a turn's input is something a person typed: text left once harness markup is stripped, and not a
- * scheduled task's prompt. A turn with nothing typed (markup alone, the agent carrying on) is not a person.
- */
-export function personTyped(input: unknown): boolean {
-  if (!Array.isArray(input)) return false;
-  const text = stripHarnessMarkup(input.map((m) => messageText((m as { content?: unknown } | null)?.content)).join("\n")).trim();
-  return text !== "" && !isScheduledPrompt(text);
-}
 
 /** Heuristic: does this assistant message end by asking the user something? */
 export function looksLikeQuestion(text: string | null): boolean {

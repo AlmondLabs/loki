@@ -1,21 +1,11 @@
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import {
-  digestLocalConversation,
-  listLocalConversations,
-  lookupLocalAgentId,
-  lookupLocalConversation,
-  readLocalTranscriptPage,
-  readLocalTranscriptSince,
-  type LocalConversationInfo,
-  type LocalConversationRow,
-} from "./desks.ts";
-import { recentFolders } from "./folders.ts";
+import type { LocalConversationInfo, LocalConversationRow } from "./desks.ts";
 
 /**
  * Where the mod reads chats from (plan 017, U6): their list and details, their threads, and the folders they work in.
- * Under Letta it is Letta's local backend on disk; in loki's daemon it is the daemon's own stores (daemon/chats.ts),
- * handed to the mod as `chats` on its host. Every call answers at once, as the mod's readers always have.
+ * It is the daemon's own stores (daemon/chats.ts), handed to the mod as `chats` on its host. Every call answers at
+ * once, as a synchronous view kept current from the stores' commits.
  */
 export interface ChatSource {
   list(): LocalConversationRow[];
@@ -29,14 +19,3 @@ export interface ChatSource {
   digest(conversationId: string, agentId: string | null): LocalDigest;
   folders(): RecentFolders;
 }
-
-/** Letta's local backend, read from disk. */
-export const lettaChats: ChatSource = {
-  list: () => listLocalConversations(),
-  info: (id, agentId) => lookupLocalConversation(id, agentId),
-  agentOf: (id) => lookupLocalAgentId(id),
-  page: (id, agentId, limit) => readLocalTranscriptPage(id, agentId, limit),
-  since: (id, agentId, from) => readLocalTranscriptSince(id, agentId, from),
-  digest: (id, agentId) => digestLocalConversation(id, agentId),
-  folders: () => recentFolders(),
-};

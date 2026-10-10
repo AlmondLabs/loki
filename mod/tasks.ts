@@ -1,3 +1,4 @@
+import { lokiDir } from "./paths.ts";
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, join } from "node:path";
 import { homedir } from "node:os";
@@ -43,7 +44,7 @@ export interface AssignTarget {
 export type Runner = (args: string[]) => Promise<string>;
 
 /** Where the shared board lives; LOKI_BOARD_DIR for tests and experiments. */
-export const boardDir = (): string => process.env.LOKI_BOARD_DIR ?? join(homedir(), ".letta", "loki", "board");
+export const boardDir = (): string => process.env.LOKI_BOARD_DIR ?? join(lokiDir(), "board");
 
 /** LOKI_BD, then PATH (`bd.exe` on Windows), then Homebrew, /usr/local, Go's and ~/.local's bin. */
 export function bdBinary(look: Look = {}): string | null {

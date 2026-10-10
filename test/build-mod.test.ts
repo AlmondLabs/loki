@@ -25,7 +25,7 @@ describe("the release bundle's build", () => {
     expect(ws).toContain("process.versions.bun");
     expect(ws).toContain('const specifier = process.env.LOKI_WS_MODULE ?? "ws"'); // opaque to esbuild, which folds "w" + "s"
     expect(ws).toContain("await import(specifier)");
-    for (const f of ["app-server.ts", "recall-worker.ts", "server.ts"]) {
+    for (const f of ["index.ts", "server.ts"]) {
       expect(readFileSync(new URL(`../mod/${f}`, import.meta.url), "utf8")).toContain('from "./ws.ts"');
     }
   });

@@ -1,20 +1,18 @@
 import type { FileRef, ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { historySteps } from "../harness.ts";
-import { AppServerSocket, type Runtime } from "./protocol.ts";
+import type { Runtime } from "./protocol.ts";
 import type { ChatClient } from "./chat-client.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
 import { applyChatEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
-import { foldSteps, ownSendKey, type HistoryRow } from "./thread.ts";
+import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./activeClock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
-import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
-import type { MakeTransport } from "./transport.ts";
+import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
@@ -54,11 +52,8 @@ const minutesSince = (iso: string | null, now: number): number | null => {
 };
 
 export interface UseAttentionOptions {
-  /** The mod says whether an app-server was discovered. */
+  /** Whether the mod's socket is up, which carries the chats. */
   enabled: boolean;
-  tunnelUrl: string;
-  /** How to reach the app-server from here: a WebSocket in a tab or on the phone, the Rust link in the shell. */
-  makeTransport: MakeTransport;
   seen: Record<string, string>;
   /** When each conversation was last looked at (the mod's viewed markers); a look is not done. */
   viewed?: Record<string, string>;
@@ -80,10 +75,8 @@ export interface UseAttentionOptions {
   sent?: (rt: Runtime) => void;
   /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
   activity?: Activity;
-  /** Which backend serves chats; a change reconnects. */
-  backend?: "letta" | "daemon";
-  /** The chat client for loki's daemon (core/attention/chat-client.ts); left out, Letta's app-server. */
-  makeClient?: () => ChatClient;
+  /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
+  makeClient: () => ChatClient;
 }
 
 /** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
@@ -194,8 +187,8 @@ export function useAttention(opts: UseAttentionOptions) {
       setStatus("off");
       return;
     }
-    // loki's daemon serves chats through the mod's own frames; Letta through its app-server (plan 017, U5).
-    const sock: ChatClient = optsRef.current.makeClient?.() ?? new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
+    // loki's daemon serves chats through the mod's own frames (plan 017, U5).
+    const sock: ChatClient = optsRef.current.makeClient();
     sock.onStatus = (s) => {
       setStatus(s);
       if (s === "closed") linkDropped.current = true;
@@ -262,7 +255,8 @@ export function useAttention(opts: UseAttentionOptions) {
     // Promise-style error handling here: the React Compiler cannot take a loop or a ?? inside a try block.
     const loadOnce = async () => {
       void sock.serverInfo().then((info) => {
-        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: info.exclusive ? [] : fromAdvertised(info.commands, info.modCommands), ...(info.exclusive ? { only: info.commands } : {}) });
+        // The daemon runs exactly its own commands; the palette offers those and loki's.
+        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: [], only: info.commands });
       }).catch(() => {});
       const agents = await sock.listAgents();
       const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
@@ -299,7 +293,7 @@ export function useAttention(opts: UseAttentionOptions) {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.enabled, opts.tunnelUrl, opts.backend]);
+  }, [opts.enabled]);
 
   // The pending tick, if any, has nothing to render into after unmount.
   useEffect(
@@ -366,17 +360,15 @@ export function useAttention(opts: UseAttentionOptions) {
     optsRef.current.capture?.("inbox_filtered", { agent });
   }, []);
 
-  // The app-server only lists what is still in the agent's context, so a compacted
-  // conversation shows a stub. The mod reads the whole local log; ask it first.
+  // A chat's thread comes from the mod, which reads the whole of it from the daemon's store.
   const loadThread = useCallback(async (rt: Runtime) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     if (loading.current.has(key)) return;
     loading.current.add(key);
     const read = async () => {
       const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
-      let rows: HistoryRow[] = page?.rows ?? [];
+      const rows: HistoryRow[] = page?.rows ?? [];
       setOlder((o) => (!!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
-      if (!rows.length && socketRef.current) rows = foldSteps(historySteps(await socketRef.current.listMessages(rt, 60)));
       liveOf(key).thread.load(rows);
       setLive(new Map(liveRef.current));
     };
@@ -753,11 +745,11 @@ export function useAttention(opts: UseAttentionOptions) {
    */
   const reflection = useMemo(
     () => ({
-      get: async (rt: Runtime): Promise<ReflectionSettings | null> => {
+      get: async (_rt: Runtime): Promise<ReflectionSettings | null> => {
         const sock = socketRef.current;
         if (!sock) return null;
         try {
-          return await sock.getReflectionSettings(rt);
+          return await sock.getReflectionSettings();
         } catch {
           return null;
         }

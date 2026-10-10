@@ -1,17 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { WebSocket } from "./ws.ts";
-import { AppServerSocket, type Runtime, type ServerEvent } from "../core/attention/protocol.ts";
-import type { Transport } from "../core/attention/transport.ts";
-import { applyEvent, emptyLive } from "../core/attention/model.ts";
 import { LEADS_PER_CONVERSATION, MAX_TRANSCRIPT_CHARS, buildPrompt, parseExtraction, similarFront, type Slice } from "../core/recall/extract.ts";
 import { scopeFor, type WidgetChange } from "../core/desk-core.ts";
 import { keepsFailing } from "../core/recall/fsrs.ts";
-import { learnTitle, writerChatId, type Card, type Lead } from "../core/recall/model.ts";
+import { isWriterChat, learnTitle, writerChatId, type Card, type Lead } from "../core/recall/model.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import { appServerHeaders } from "./app-server.ts";
-import { readLocalTranscriptSince } from "./desks.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
 import { RecallStore, newCardId } from "./recall.ts";
@@ -58,8 +52,6 @@ export const REPLAY_CHARS = 4_000;
 export const MAX_QUOTED_CARDS = 80;
 /** Open learning leads the pile holds at most; past this the writer is not asked for more until some are started or dismissed. */
 export const MAX_OPEN_LEADS = 12;
-/** A sweep may take a few tool calls (the model may grep the deck) on top of the answer. */
-const ASK_TIMEOUT_MS = 240_000;
 
 export type Ask = (agentId: string, prompt: string, model: string | null) => Promise<string>;
 
@@ -68,8 +60,8 @@ export interface WorkerDeps {
   /** Every open conversation of the person's agents, newest first (mod/index.ts listInbox). */
   listInbox: () => InboxRow[];
   ask: Ask;
-  /** Transcript rows from a log line on; injectable for tests. */
-  readSince?: (conversationId: string, agentId: string | null, fromLine: number) => { rows: TranscriptRow[]; lines: number };
+  /** A chat's rows from a position on (Learn's cursor), and the position to continue from (the daemon's chats). */
+  readSince: (conversationId: string, agentId: string | null, from: number) => { rows: TranscriptRow[]; lines: number };
   now?: () => number;
 }
 
@@ -94,8 +86,9 @@ export class RecallWorker {
     this.deps = deps;
   }
 
-  /** True for the worker's own hidden conversations (today's writers and the pre-2026-09-14 ones), which must never become desks or inbox cards. */
+  /** True for the worker's own hidden conversations (the daemon's writer chats, and Letta's imported ones), which must never become desks or inbox cards. */
   owns(conversationId: string): boolean {
+    if (isWriterChat(conversationId)) return true;
     const w = this.deps.store.worker();
     return Object.values(w.writers ?? {}).includes(conversationId) || Object.values(w.recallConversations ?? {}).includes(conversationId);
   }
@@ -109,7 +102,7 @@ export class RecallWorker {
   private async run(): Promise<TickReport> {
     const { store, listInbox } = this.deps;
     const now = this.deps.now?.() ?? Date.now();
-    const readSince = this.deps.readSince ?? ((c, a, from) => readLocalTranscriptSince(c, a, from));
+    const { readSince } = this.deps;
     const w = store.worker();
     const report: TickReport = { looked: 0, asked: 0, slices: 0, written: 0, revised: 0, leads: 0, note: "" };
     if (!w.enabled) return { ...report, note: "off" };
@@ -327,78 +320,6 @@ export function formatTranscript(rows: TranscriptRow[], agentName: string | null
     .join("\n");
 }
 
-/** Letta reads a folder's own settings from here (settings.local.json under .letta): the writer's turn reflection off. */
-export const WRITER_SETTINGS: Readonly<Record<string, unknown>> = { reflectionTrigger: "off" };
-
-/**
- * The writer's working folder (the recall folder), given Letta's project settings, which keep the
- * dreaming pass (reflection) off every conversation that runs there. Letta resolves reflection settings
- * per conversation working directory — global, then the folder's, then the agent's — and the folder's
- * `reflectionTrigger` wins over a global step-count or compaction-event trigger. The file is ours: a
- * missing or different trigger is put back; other keys someone added stay.
- */
-export function ensureWriterDir(dir: string): string {
-  const settingsDir = join(dir, ".letta");
-  mkdirSync(settingsDir, { recursive: true });
-  const file = join(settingsDir, "settings.local.json");
-  let current: Record<string, unknown> = {};
-  if (existsSync(file)) {
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) current = parsed as Record<string, unknown>;
-    } catch {
-      // unreadable: rewritten below
-    }
-  }
-  const wanted = { ...current, ...WRITER_SETTINGS };
-  if (JSON.stringify(wanted) !== JSON.stringify(current) || !existsSync(file)) writeFileSync(file, JSON.stringify(wanted, null, 2) + "\n");
-  return dir;
-}
-
-/**
- * Ask an agent through the harness's app-server, in its long-running hidden "recall" conversation: create it
- * once in the writer's folder (and hide it), set the model when one is configured, send the prompt, collect
- * the reply, then compact the conversation so the next ask starts from a summary.
- */
-export function askViaAppServer(opts: { url: () => string | null; store: RecallStore; writerDir?: string }): Ask {
-  return async (agentId, prompt, model) => {
-    const url = opts.url();
-    if (!url) throw new Error("no app-server");
-    const sock = new AppServerSocket(url, wsTransport);
-    await sock.connect();
-    try {
-      const rt = await writerConversation(sock, opts.store, agentId, opts.writerDir ?? opts.store.dir);
-      if (model) await sock.updateModel(rt, model).catch((e) => log("recall:model", { model, message: String(e) }));
-      const live = emptyLive();
-      const done = new Promise<string>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("the model did not answer in time")), ASK_TIMEOUT_MS);
-        const off = sock.on((ev: ServerEvent) => {
-          if (ev.runtime && ev.runtime.conversation_id !== rt.conversation_id) return;
-          applyEvent(live, ev);
-          const status = (ev.loop_status as { status?: string } | undefined)?.status;
-          const finished = ev.type === "turn_finished" || (ev.type === "update_loop_status" && status === "WAITING_ON_INPUT" && live.turns > 0);
-          if (!finished) return;
-          clearTimeout(timer);
-          off();
-          // The full reply, from the thread (lastAssistantText is a digest, cut to its last few hundred characters).
-          const text = live.thread.lastReply();
-          if (live.error) reject(new Error(live.error));
-          else resolve(text);
-        });
-      });
-      if (!(await sock.sendUserMessage(rt, prompt))) throw new Error("the harness did not accept the prompt");
-      const reply = await done;
-      // The ask is answered; fold it into the summary so the conversation stays a few hundred words long. A
-      // compaction that fails only means the next ask carries this one too — it is tried again then.
-      const compacted = await sock.executeCommand(rt, "compact", "all").catch((e: unknown) => ({ success: false, output: e instanceof Error ? e.message : String(e) }));
-      if (!compacted.success) log("recall:compact-failed", { conversation: rt.conversation_id, message: compacted.output });
-      return reply;
-    } finally {
-      sock.close();
-    }
-  };
-}
-
 /**
  * Start a lesson from a lead: a new conversation `[Learn] · <title>` for the lead's agent in the home
  * directory, the brief sent as the person's first message, the lead recorded as a lesson. The socket
@@ -450,21 +371,6 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
   };
 }
 
-export function startLessonViaAppServer(opts: LessonOpts & { url: () => string | null }): StartLesson {
-  return startLessonWith(async (agentId, title) => {
-    const url = opts.url();
-    if (!url) throw new Error("no app-server");
-    const sock = new AppServerSocket(url, wsTransport);
-    await sock.connect();
-    try {
-      const rt = await sock.createConversation(agentId, homedir(), title);
-      return { agentId: rt.agent_id, conversationId: rt.conversation_id };
-    } finally {
-      sock.close();
-    }
-  }, opts);
-}
-
 /** Learn on loki's daemon: the lesson's chat is made in process (mod/frames/chat.ts). */
 export function startLessonViaChats(chats: ChatBackend, opts: LessonOpts): StartLesson {
   return startLessonWith((agentId, title) => chats.create(agentId, homedir(), title), opts);
@@ -473,47 +379,4 @@ export function startLessonViaChats(chats: ChatBackend, opts: LessonOpts): Start
 /** Learn's ask on loki's daemon: in the agent's hidden writer chat, in process (DaemonChats.ask). */
 export function askViaChats(chats: ChatBackend): Ask {
   return (agentId, prompt, model) => chats.ask(agentId, writerChatId(agentId), prompt, model);
-}
-
-/**
- * The agent's writer conversation: one for the life of the agent, created in the writer's folder and hidden
- * on first use, remembered in worker.json `writers`. The pre-2026-09-14 `recallConversations` entry, made in
- * the home folder and cleared before each ask, is not reused: its folder has no settings of its own.
- */
-async function writerConversation(sock: AppServerSocket, store: RecallStore, agentId: string, writerDir: string): Promise<Runtime> {
-  const known = store.worker().writers?.[agentId];
-  if (known) {
-    const rt = { agent_id: agentId, conversation_id: known };
-    try {
-      await sock.runtimeStart(rt);
-      return rt;
-    } catch {
-      // gone (deleted, or a different backend): make another
-    }
-  }
-  const rt = await sock.createConversation(agentId, ensureWriterDir(writerDir), "recall");
-  await sock.updateConversation(rt.conversation_id, { hidden: true }).catch((e) => log("recall:hide-failed", { message: String(e) }));
-  store.saveWorker({ writers: { ...(store.worker().writers ?? {}), [agentId]: rt.conversation_id } });
-  log("recall:writer-created", { agent: agentId, conversation: rt.conversation_id, cwd: writerDir });
-  return rt;
-}
-
-/** A `ws` socket as the core's Transport, with the harness's bearer header. */
-function wsTransport(url: string): Transport {
-  let ws: WebSocket | null = null;
-  return {
-    open(h) {
-      ws = new WebSocket(url, { headers: appServerHeaders() });
-      ws.on("open", h.onOpen);
-      ws.on("message", (d) => h.onMessage(String(d)));
-      ws.on("close", h.onClose);
-      ws.on("error", (e) => h.onError(e instanceof Error ? e : new Error(String(e))));
-    },
-    send(raw) {
-      ws?.send(raw);
-    },
-    close() {
-      ws?.close();
-    },
-  };
 }

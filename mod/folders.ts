@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, openSync, readSync, closeSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, posix, resolve, win32 } from "node:path";
-import type { FolderCheck, RecentFolders } from "../core/frame-types.ts";
+import type { FolderCheck } from "../core/frame-types.ts";
 
 /**
  * Working folders for "new desk": where recent conversations ran (per agent),
@@ -21,77 +21,6 @@ export function expandPath(p: string, home = homedir(), windows = IS_WINDOWS): s
   if (rest === "") return home;
   if (rest !== null && (rest.startsWith("/") || (windows && rest.startsWith("\\")))) return path.resolve(home, rest.slice(1));
   return path.resolve(t);
-}
-
-/** The first `bytes` of a file as text (a transcript's session line is at the top). */
-function head(path: string, bytes = 4096): string {
-  const fd = openSync(path, "r");
-  try {
-    const buf = Buffer.alloc(bytes);
-    const n = readSync(fd, buf, 0, bytes, 0);
-    return buf.subarray(0, n).toString("utf8");
-  } finally {
-    closeSync(fd);
-  }
-}
-
-/**
- * Letta Code's own record of the folders it moved conversations to (`cwdMap` in ~/.letta/remote-settings.json,
- * written by a /chdir or a change_device_state with a cwd): its key per conversation, `conversation:<id>` or
- * `agent:<agentId>::conversation:default`, to the folder.
- */
-function movedFolders(settingsFile: string): Record<string, string> {
-  try {
-    const map = (JSON.parse(readFileSync(settingsFile, "utf8")) as { cwdMap?: unknown }).cwdMap;
-    return map && typeof map === "object" ? (Object.fromEntries(Object.entries(map).filter(([, v]) => typeof v === "string" && v)) as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
-
-/** A backend conversation directory (base64 of `conversation:<id>` or `default:<agentId>`) as its cwdMap key. */
-function cwdMapKey(dir: string): string {
-  const name = Buffer.from(dir, "base64").toString("utf8");
-  return name.startsWith("default:") ? `agent:${name.slice("default:".length)}::conversation:default` : name;
-}
-
-/**
- * Scan the local backend: each conversation's transcript starts with a session line carrying the folder it
- * began in; conversation.json gives the agent and recency. A conversation Letta Code has since moved (its
- * cwdMap) counts in its new folder.
- */
-export function recentFolders(backendDir = join(homedir(), ".letta", "lc-local-backend"), settingsFile = join(homedir(), ".letta", "remote-settings.json")): RecentFolders {
-  const moved = movedFolders(settingsFile);
-  const root = join(backendDir, "conversations");
-  const byAgent: Record<string, Array<{ at: string; cwd: string }>> = {};
-  const byConversation: Record<string, string> = {};
-  let dirs: string[] = [];
-  try {
-    dirs = readdirSync(root);
-  } catch {
-    return { byAgent: {}, byConversation: {} };
-  }
-  for (const d of dirs) {
-    try {
-      const meta = JSON.parse(readFileSync(join(root, d, "conversation.json"), "utf8")) as { agent_id?: string; last_message_at?: string | null; archived?: boolean };
-      const first = head(join(root, d, "messages.jsonl")).split("\n")[0] ?? "";
-      const session = JSON.parse(first) as { type?: string; cwd?: string };
-      if (session.type !== "session" || typeof session.cwd !== "string" || !session.cwd) continue;
-      const cwd = moved[cwdMapKey(d)] ?? session.cwd;
-      byConversation[d] = cwd;
-      if (!meta.agent_id) continue;
-      (byAgent[meta.agent_id] ??= []).push({ at: meta.last_message_at ?? "", cwd });
-    } catch {
-      // not every directory is a full conversation
-    }
-  }
-  const out: Record<string, string[]> = {};
-  for (const [agent, list] of Object.entries(byAgent)) {
-    list.sort((a, b) => b.at.localeCompare(a.at));
-    const seen = new Set<string>();
-    out[agent] = list.filter((x) => (seen.has(x.cwd) ? false : (seen.add(x.cwd), true))).map((x) => x.cwd);
-  }
-  return { byAgent: out, byConversation };
 }
 
 /** The system a completion runs against: its separators, and how a folder is listed (a fake disk in tests). */

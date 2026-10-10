@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
-import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, WRITER_SETTINGS, ensureWriterDir, formatTranscript, lessonCard, startLessonViaChats, overlappingCards, packSlices, scoreStretch } from "../mod/recall-worker.ts";
+import { MAX_OPEN_LEADS, MIN_NEW_CHARS, QUIET_MS, RecallWorker, formatTranscript, lessonCard, startLessonViaChats, overlappingCards, packSlices, scoreStretch } from "../mod/recall-worker.ts";
 
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { review } from "../core/recall/fsrs.ts";
@@ -84,21 +84,6 @@ describe("recall worker", () => {
     expect(worker.owns("short")).toBe(false);
   });
 
-  test("the writer's folder carries Letta's project settings with reflection off, and keeps what else is there", () => {
-    const wd = join(dir, "writer");
-    expect(ensureWriterDir(wd)).toBe(wd);
-    const file = join(wd, ".letta", "settings.local.json");
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(WRITER_SETTINGS);
-    // Someone set the trigger back on and added a key of their own: the trigger goes off again, the key stays.
-    writeFileSync(file, JSON.stringify({ reflectionTrigger: "step-count", theirs: 1 }));
-    ensureWriterDir(wd);
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ reflectionTrigger: "off", theirs: 1 });
-    // Garbage in the file is replaced rather than left to break Letta's read of it.
-    writeFileSync(file, "{not json");
-    ensureWriterDir(wd);
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(WRITER_SETTINGS);
-    expect(existsSync(join(wd, ".letta"))).toBe(true);
-  });
   test("rejected cards are quoted and never come back; two quiet conversations of one agent go in one call, and the room is shared", async () => {
     store.add({ id: "old", front: "What does KMS key rotation do?", back: "x", tags: [], source: { agentId: "a1", agentName: "ira", conversationId: "c0", title: null, at: null }, createdAt: "2026-09-09T00:00:00Z", updatedAt: "2026-09-09T00:00:00Z", updatedBy: "recall", previous: [] });
     store.reject("old", T0 - 1000);

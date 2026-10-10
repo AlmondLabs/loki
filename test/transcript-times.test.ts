@@ -118,7 +118,7 @@ describe("the mod's local history", () => {
     const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
     const { join } = await import("node:path");
-    const { readLocalTranscript } = await import("../mod/desks.ts");
+    const { readLocalTranscript } = await import("../daemon/import/letta-log.ts");
     const { conversationDirName } = await import("../core/desk-core.ts");
     const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
     try {

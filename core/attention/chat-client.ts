@@ -2,15 +2,14 @@ import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyOf, RequestName, RequestResult } from "../frames.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
-import type { AppServerSocket, ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime, ServerEvent } from "./protocol.ts";
+import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime, ServerEvent } from "./protocol.ts";
 
 /**
- * What the attention model (useAttention) talks to for a chat's live half (plan 017, U5): Letta's app-server through
- * AppServerSocket, or loki's daemon through the mod's own frames (FrameChatClient). Events arrive as loki's chat
- * events either way.
+ * What the attention model (useAttention) talks to for a chat's live half (plan 017, U5): loki's daemon, through the
+ * mod's own frames (FrameChatClient below). Events arrive as loki's chat events. A test may stand in for it.
  */
 export type ChatClient = Pick<
-  AppServerSocket,
+  FrameChatClient,
   | "abortTurn"
   | "answerQuestion"
   | "changeFolder"
@@ -25,7 +24,6 @@ export type ChatClient = Pick<
   | "isSubscribed"
   | "listAgents"
   | "listConnectProviders"
-  | "listMessages"
   | "listModels"
   | "renameConversation"
   | "respondApproval"
@@ -39,14 +37,9 @@ export type ChatClient = Pick<
   | "updateModel"
   | "writeMemoryFile"
   | "close"
-> & {
-  onStatus?: (s: "connecting" | "open" | "closed") => void;
-  /** Every chat event, with the chat it happened in. */
-  onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void;
-  /** Which backend this is, for Settings. */
-  /** `exclusive`: the backend runs exactly `commands`, and the palette offers no others of the harness's. */
-  serverInfo(): Promise<{ version: string | null; protocol: number | null; commands?: string[]; modCommands?: Array<{ id: string; description?: string; args?: string }>; exclusive?: boolean }>;
-};
+  | "onChat"
+  | "serverInfo"
+> & { onStatus?: (s: "connecting" | "open" | "closed") => void };
 
 /** The mod socket's request, as the app's useDesk makes it. */
 export type FrameRequest = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number) => Promise<RequestResult<ReplyOf<N>>>;
@@ -56,7 +49,7 @@ export type FrameRequest = <N extends RequestName>(type: N, payload: InputOf<N>,
  * the attention model sometimes names it by id alone (archiving from the sidebar), so the client remembers each
  * chat's agent as it meets it, and asks `agentOf` for the rest.
  */
-export class FrameChatClient implements ChatClient {
+export class FrameChatClient {
   onStatus?: (s: "connecting" | "open" | "closed") => void;
   private readonly request: FrameRequest;
   private readonly agentOf: (conversationId: string) => string | null;
@@ -194,10 +187,6 @@ export class FrameChatClient implements ChatClient {
   }
 
   /** The thread comes from the mod's history (history_get) on the daemon; there is no second source. */
-  async listMessages(): Promise<Array<Record<string, unknown>>> {
-    return [];
-  }
-
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
     return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, approvalId: requestId, allow: behavior === "allow", message: null })).accepted;
   }

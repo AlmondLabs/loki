@@ -1,12 +1,12 @@
+import { lokiDir } from "./paths.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { clamp } from "../core/range.ts";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
 import type { Card, CardWithSchedule, DismissedLead, Lead, Lesson, Rejected, WorkerStatus } from "../core/recall/model.ts";
 
 /**
- * The Recall files, under ~/.letta/loki/recall (LOKI_RECALL_DIR in tests):
+ * The Recall files, under ~/.loki/recall (LOKI_RECALL_DIR in tests):
  *   cards/<id>.json      the text and its source — the worker's to write and update
  *   schedule/<id>.json   the person's review history (FSRS state) — never touched by the worker
  *   rejected/<id>.json   deleted cards, kept as negative examples the worker reads before writing
@@ -16,7 +16,7 @@ import type { Card, CardWithSchedule, DismissedLead, Lead, Lesson, Rejected, Wor
  *   worker.json          the worker's settings, its per-conversation cursors and its last run
  * One file per card so an agent, a person or a sync tool can read and edit any of it by hand.
  */
-export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(homedir(), ".letta", "loki", "recall");
+export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
 interface WorkerFile {
   enabled: boolean;

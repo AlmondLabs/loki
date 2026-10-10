@@ -20,10 +20,9 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
   return [desksFrames(deps), seenFrames(deps), captureFrames(), historyFrames(deps), foldersFrames(deps), recallFrames(deps), boardFrames(deps), agentsFrames(deps), lanFrames(deps), chatFrames(deps)];
 }
 
-/** What a socket is told when it opens: whether an app-server was found, its desk and the shared desk, and the recent models. */
+/** What a socket is told when it opens: its desk and the shared desk, and the recent models. */
 export function welcomeFrames(deps: ModuleDeps): (scope: Scope) => PushFrame[] {
   return (scope) => [
-    { type: "config", appServer: deps.appServerAvailable?.() ?? false, ...(deps.chat ? { chats: "daemon" as const } : {}) },
     deskFrame(deps, scope),
     ...(scope !== SHARED_SCOPE ? [deskFrame(deps, SHARED_SCOPE)] : []),
     ...(deps.recentModels ? [{ type: "models_recent" as const, recent: deps.recentModels.read() }] : []),

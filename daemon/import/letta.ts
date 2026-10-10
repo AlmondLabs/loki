@@ -5,7 +5,6 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, w
 import { dirname, join } from "node:path";
 import { isPermissionMode } from "../approvals.ts";
 import { modelRef } from "../chat-backend.ts";
-import { permissionModeKey } from "../../mod/agents.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import { writeRecord } from "../store/agents.ts";
 import type { ScheduledTask } from "../schedule.ts";
@@ -57,6 +56,11 @@ function writeJson(file: string, value: unknown): void {
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(`${file}.tmp`, JSON.stringify(value, null, 2) + "\n");
   renameSync(`${file}.tmp`, file);
+}
+
+/** Letta's key for a chat in its settings maps (permissionModeMap, cwdMap). */
+export function permissionModeKey(agentId: string, conversationId: string): string {
+  return conversationId === "default" ? `agent:${agentId}::conversation:default` : `conversation:${conversationId}`;
 }
 
 /** A Letta process that is running now, by its command line, or null: the desktop app or the `letta` CLI. */

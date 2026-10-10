@@ -12,7 +12,7 @@ import type { Client, WsHandlers } from "./server.ts";
  *  4. calls its handler, sync or async;
  *  5. sends a request's reply under the table's name with its requestId, or `error` with the requestId when the
  *     handler failed, threw or rejected. A send's handler pushes what it causes; its failure answers `error`.
- * HTTP routes (agent faces, pairing, uploads, the /appserver tunnel) are mod/server.ts's and mod/lan.ts's.
+ * HTTP routes (agent faces, pairing, uploads) are mod/server.ts's and mod/lan.ts's.
  */
 export interface BridgeDeps {
   /** The frame handlers (mod/frames/index.ts frameModules): each frame answered by exactly one. */
@@ -22,7 +22,6 @@ export interface BridgeDeps {
   broadcast(msg: object, scope?: Scope): void;
   /** Analytics (mod/analytics.ts): an event this client caused, or a `capture` frame it sent about one the mod cannot see. */
   capture?: (client: Client, event: string, properties?: Record<string, unknown>) => void;
-  appServerUrl?: () => string | null;
 }
 
 type Handler = (payload: never, ctx: FrameContext) => unknown;
@@ -49,7 +48,6 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
   }
 
   return {
-    appServerUrl: () => deps.appServerUrl?.() ?? null,
     onConnect(client: Client) {
       for (const frame of deps.welcome?.(client.scope) ?? []) client.send(frame);
     },

@@ -39,7 +39,7 @@ type Deps = {
   chats: ChatProjection;
   registry: Registry;
   backendDir: string;
-  /** The daemon's transcript root (LETTA_TRANSCRIPT_ROOT for mod/reflection.ts). */
+  /** Where each chat's reflection counters are kept (LOKI_REFLECTION_DIR for mod/reflection.ts). */
   root: string;
   /** Where the settings are kept. */
   settingsFile: string;

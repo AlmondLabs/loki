@@ -185,22 +185,32 @@ fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 /// Watch the daemon once a second. One that exits on its own is started again after harness::restart_delay; one loki
-/// stopped, or one that found another daemon already serving (harness::EXIT_HELD), is left down — and then the
-/// supervisor ends, so retry_daemon may start it again.
+/// stopped is left down — and then the supervisor ends, so retry_daemon may start it again. One that found another
+/// daemon already serving (harness::EXIT_HELD) is tried again every HELD_RETRY: that one may be a leftover that dies
+/// later, and then this loki's takes over.
+/// How often a daemon that found another one serving tries again.
+const HELD_RETRY: std::time::Duration = std::time::Duration::from_secs(30);
+
 fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) -> Result<(), String> + Send + 'static) {
     std::thread::Builder::new()
         .name("loki-daemon-supervisor".into())
         .spawn(move || {
             let mut exits: Vec<std::time::Instant> = vec![];
+            let mut held = false;
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 let Some(h) = app.try_state::<harness::Harness>() else { break };
                 if h.was_stopped() { break; }
                 let Some(status) = h.exited() else { continue };
                 if status.code() == Some(harness::EXIT_HELD) {
-                    eprintln!("loki: daemon: another daemon is already serving — using that one");
-                    break;
+                    if !held { eprintln!("loki: daemon: another daemon is already serving — using that one, and trying again every {} s", HELD_RETRY.as_secs()); }
+                    held = true;
+                    std::thread::sleep(HELD_RETRY);
+                    if h.was_stopped() { break; }
+                    if let Err(e) = launch(&app) { eprintln!("loki: daemon start failed: {e}"); }
+                    continue;
                 }
+                held = false;
                 exits.retain(|t| t.elapsed() < std::time::Duration::from_secs(60));
                 let delay = harness::restart_delay(exits.len());
                 exits.push(std::time::Instant::now());

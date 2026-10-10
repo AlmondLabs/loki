@@ -1,6 +1,6 @@
 import type { Scope } from "../core/desk-core.ts";
 import { KIT, SHARED_SCOPE, mergeData, scopeFor } from "../core/desk-core.ts";
-import type { LettaMod } from "./letta-types.ts";
+import type { ModApi } from "../daemon/mods/api.ts";
 import type { DeskStore } from "./desk-store.ts";
 import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
@@ -60,16 +60,34 @@ export function deskSnapshot(deps: ToolDeps, scope: Scope) {
   });
 }
 
-export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => void) | void> {
-  if (!letta.capabilities?.tools || !letta.tools) return [];
+/** What a tool's body is told about its call: the arguments, and the chat and agent making it. */
+type Call = { args: Record<string, unknown>; conversation: { id: string }; agent: { id: string; name: string } };
+type LokiTool = { name: string; description: string; parameters: object; annotations?: { readOnly?: boolean }; run(ctx: Call): unknown };
+
+export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
+  /** One tool through the mod API; a result of `{ status: "error", content }` is a failed call with that message. */
+  const tools = {
+    register: (tool: LokiTool) =>
+      api.tools.register({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
+        execute: async (args, c) => {
+          const out = await tool.run({ args, conversation: { id: c.chatId }, agent: { id: c.agentId, name: c.agentName } });
+          if (out && typeof out === "object" && (out as { status?: unknown }).status === "error") throw new Error(String((out as { content?: unknown }).content ?? "the tool failed"));
+          return out;
+        },
+      }),
+  };
   const kitLine = Object.entries(KIT)
     .map(([t, k]) => `${t}: ${k.dataShape}`)
     .join("; ");
 
-  const disposers: Array<(() => void) | void> = [];
+  const disposers: Array<() => void> = [];
 
   disposers.push(
-    letta.tools.register({
+    tools.register({
       name: "desk_state",
       description:
         "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
@@ -86,9 +104,6 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
         },
         additionalProperties: false,
       },
-      requiresApproval: false,
-      // Not parallelSafe: the parallel-safe scheduler is the one path v1 never exercised in Letta.
-      parallelSafe: false,
       async run(ctx) {
         const args = ctx?.args ?? {};
         log("tool:desk_state:start", args);
@@ -113,7 +128,7 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
   );
 
   disposers.push(
-    letta.tools.register({
+    tools.register({
       name: "loki_camera",
       description:
         "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
@@ -129,8 +144,6 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
         },
         additionalProperties: false,
       },
-      requiresApproval: false,
-      parallelSafe: false,
       async run(ctx) {
         const args = ctx?.args ?? {};
         const ids = Array.isArray(args.widgetIds)
@@ -157,7 +170,7 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
   if (deps.tasks) {
     const board = deps.tasks;
     disposers.push(
-      letta.tools.register({
+      tools.register({
         name: "loki_task",
         description:
           "The user's board of tasks for later (beads, shared by every agent and folder). Use it when the user asks to " +
@@ -182,8 +195,6 @@ export function registerTools(letta: LettaMod, deps: ToolDeps): Array<(() => voi
           required: ["action"],
           additionalProperties: false,
         },
-        requiresApproval: false,
-        parallelSafe: false,
         async run(ctx) {
           const args = ctx?.args ?? {};
           const action = String(args.action ?? "");

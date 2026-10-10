@@ -4,13 +4,12 @@ import type { FrameHandlers } from "./context.ts";
 
 export interface SeenDeps {
   seen?: SeenStore;
-  appServerAvailable?: () => boolean;
 }
 
 /** The done and viewed marks and the focus weights, as one push: the one place it is built (the turn-start mark too). */
 export function seenFrame(deps: SeenDeps): { type: "seen" } & Pushes["seen"] {
   const { seen } = deps;
-  return { type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll() ?? {}, appServer: deps.appServerAvailable?.() ?? false };
+  return { type: "seen", seen: seen?.all() ?? {}, viewed: seen?.viewedAll() ?? {}, focus: seen?.focusAll() ?? {} };
 }
 
 /** The marks the Inbox and the sidebar read: done, not done, a look, and engagements the mod cannot see. A mark that moves nothing is not broadcast. */

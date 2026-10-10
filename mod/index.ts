@@ -1,24 +1,22 @@
-import { personTyped } from "../core/harness.ts";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import type { Scope, WidgetChange } from "../core/desk-core.ts";
 import { SHARED_SCOPE } from "../core/desk-core.ts";
-import type { ConversationOpenEvent, EventContext, LettaMod, TurnEndEvent, TurnStartEvent } from "./letta-types.ts";
-import { runtimeFromEvent, ScopeDebouncer } from "./lifecycle-events.ts";
+import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
+import { ScopeDebouncer } from "./lifecycle-events.ts";
 import { DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, paths } from "./paths.ts";
 import { DeskStore } from "./desk-store.ts";
 import { loadDesks, persistDesks } from "./persist.ts";
 import { watchWidgets } from "./widgets-fs.ts";
 import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { GestureLog, attachDeskContext, formatDeskContext } from "./gestures.ts";
-import { discoverAppServer } from "./app-server.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
 import { DeskRegistry, agentHasMemory, lookupLocalAgentName } from "./desks.ts";
-import { lettaChats, type ChatSource } from "./chat-source.ts";
+import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, clampTickMinutes, DEFAULT_TICK_MINUTES } from "./recall.ts";
-import { RecallWorker, askViaAppServer, askViaChats, startLessonViaAppServer, startLessonViaChats } from "./recall-worker.ts";
+import { RecallWorker, askViaChats, startLessonViaChats } from "./recall-worker.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
@@ -26,14 +24,13 @@ import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
-import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, permissionModeOf, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
+import { isSubagent, memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
 import { conversationDirName, scopeFor } from "../core/desk-core.ts";
 
 import { sortDesks } from "./frames/desks.ts";
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import { join } from "node:path";
 import { attachWs, startServer, type LokiServer, type WsBridge } from "./server.ts";
-import { shouldServe } from "./gate.ts";
 import { wsSource } from "./ws.ts";
 import { createBridge } from "./bridge.ts";
 import { seenFrame } from "./frames/seen.ts";
@@ -51,23 +48,11 @@ import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
 /**
  * loki — a memory palace your agent builds.
  *
- * The desk is a directory the agent writes into (app/src/widgets/<desk>/).
- * Vite compiles those files into the open tab. This mod is the part only a
- * mod can be: it owns geometry and gesture state, tells the agent what the
- * user did on the desk, and tunnels the browser to Letta's app-server.
- *
- * Loaded straight from source (Node strips types): ~/.letta/mods/loki.ts is a
- * shim that dynamic-imports mod/index.ts with a cache-busting query.
+ * The desk is a directory the agent writes into (<widgets>/<desk>/), compiled into the open tab. This mod is loki's
+ * own, hosted by loki's daemon (daemon/main.ts) through the mod API (daemon/mods/api.ts): it owns geometry and gesture
+ * state, serves the app and the phone over its sockets, tells the agent what the person did on the canvas, and gives
+ * the agent its canvas and board tools. The daemon hands it the chats (`chats`, read; `chat`, run).
  */
-
-/**
- * The address loki's own harness is told (src-tauri/src/harness.rs). Taken once and removed from the environment,
- * so the agents' shells and any `letta` or loki they start never inherit it as theirs; kept on globalThis so a
- * reload of this mod inside the same harness still has it.
- */
-const own = globalThis as { __lokiOwnAppServerUrl?: string };
-own.__lokiOwnAppServerUrl ??= process.env.LOKI_OWN_APP_SERVER_URL;
-delete process.env.LOKI_OWN_APP_SERVER_URL;
 
 function loadOrCreateToken(): string {
   try {
@@ -82,18 +67,14 @@ function loadOrCreateToken(): string {
   return token;
 }
 
-export default function activate(letta: LettaMod): (() => void) | void {
-  if (!letta.capabilities?.tools && !letta.capabilities?.events) return; // nothing a desk needs
+/** What the daemon hosts the mod with besides the mod API: its chats, to read and to run. */
+export type Host = { chats: ChatSource; chat: ChatBackend };
+
+export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
   // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
   const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
-  // Every harness loads this mod; only the one hosting an app-server serves the desk (mod/gate.ts).
-  const gate = shouldServe(letta.capabilities);
-  if (!gate.serve) {
-    log("activate:standing-down", { pid: process.pid, reason: gate.reason });
-    return;
-  }
-  log("activate", { pid: process.pid, node: process.versions.node, bun: process.versions.bun ?? null, ws: wsSource, capabilities: letta.capabilities });
+  log("activate", { pid: process.pid, node: process.versions.node, ws: wsSource, api: api.apiVersion });
 
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
   const token = loadOrCreateToken();
@@ -141,16 +122,12 @@ export default function activate(letta: LettaMod): (() => void) | void {
     broadcastWidgetChanges(widgetLog, diff, broadcast);
   });
 
-  // --- app-server ---------------------------------------------------------
-  // Conversations live in the browser (app/src/attention), which reaches Letta's
-  // app-server through this mod's tunnel. The mod only has to find the server.
-  // Where chats are read from: the daemon's stores when the host brings them, Letta's disk otherwise (mod/chat-source.ts).
-  const chats: ChatSource = (letta as { chats?: ChatSource }).chats ?? lettaChats;
-  // The daemon also serves the chats themselves (sending, streaming, models, agents) through the mod's frames.
-  const chatBackend = (letta as { chat?: ChatBackend }).chat;
-  chatBackend?.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agentId, conversationId, events }));
-  const desks = new DeskRegistry(join(paths.state, "desks.json"), undefined, (id) => chats.agentOf(id));
-  let appServerUrl: string | null = null;
+  // --- chats -------------------------------------------------------------
+  // Read from the daemon's stores (`chats`), and run by it (`chat`: sending, streaming, models, agents) through the
+  // mod's frames; what happens in a chat goes to every client.
+  const { chats, chat: chatBackend } = host;
+  chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agentId, conversationId, events }));
+  const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
   // The board (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
   const tasks = new TaskBoard();
@@ -162,26 +139,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
   refreshTasks();
   const tasksTimer = setInterval(refreshTasks, 60_000);
   log("tasks:board", { dir: tasks.dir, ready: tasks.ready() });
-  let discovering: Promise<void> | null = null;
-  const discover = (): Promise<void> => {
-    if (appServerUrl) return Promise.resolve();
-    discovering ??= discoverAppServer({ exclude: [modPort], explicitUrl: process.env.LOKI_APP_SERVER_URL ?? own.__lokiOwnAppServerUrl })
-      .then((url) => {
-        if (!url) {
-          log("app-server:not-found");
-          return;
-        }
-        appServerUrl = url;
-        log("app-server:found", { url });
-        broadcast({ type: "config", appServer: true }); // tabs already open can connect now
-      })
-      .catch((err) => log("app-server:discovery-error", err instanceof Error ? err.message : String(err)))
-      .finally(() => {
-        discovering = null;
-      });
-    return discovering;
-  };
-  void discover();
 
   // --- transport -------------------------------------------------------
   const deskInfo = (scope: Scope): DeskInfo & { lastActive: string | null } => {
@@ -193,7 +150,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     const agentModel = agent?.model ?? null;
     const agentEffort = reasoningEffortFromSettings(agent?.modelSettings);
     const info = chats.info(rt.conversation_id, rt.agent_id);
-    const mode = permissionModeOf(rt.agent_id, rt.conversation_id);
+    const mode = info?.mode ?? "unrestricted";
     if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, reasoningEffort: agentEffort, mode, lastActive: null };
     return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, reasoningEffort: info.model ? info.reasoningEffort : info.reasoningEffort ?? agentEffort, mode, lastActive: info.lastMessageAt };
   };
@@ -278,9 +235,9 @@ export default function activate(letta: LettaMod): (() => void) | void {
   // Cards written in the background from conversations that have gone quiet, asked of the agent through the
   // harness in a hidden conversation of its own; the person meets them only in the Recall section (mod/recall-worker.ts).
   const recallStore = new RecallStore();
-  const recall = new RecallWorker({ store: recallStore, listInbox, readSince: (c, a, from) => chats.since(c, a, from), ask: chatBackend ? askViaChats(chatBackend) : askViaAppServer({ url: () => appServerUrl, store: recallStore }) });
+  const recall = new RecallWorker({ store: recallStore, listInbox, readSince: (c, a, from) => chats.since(c, a, from), ask: askViaChats(chatBackend) });
   const recallTick = () => void recall.tick().then((r) => log("recall:tick", r)).catch((err) => log("recall:tick-error", err instanceof Error ? err.message : String(err)));
-  const recallFirst = setTimeout(recallTick, 90_000); // once the harness and the app-server link have settled
+  const recallFirst = setTimeout(recallTick, 90_000); // once the daemon has settled
   // The sweep timer: every `tickMinutes` (Settings › learn; ten by default), reset when the setting changes.
   let recallTimer: ReturnType<typeof setInterval> | null = null;
   const scheduleRecall = (minutes: number) => {
@@ -289,7 +246,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     log("recall:schedule", { minutes: clampTickMinutes(minutes) });
   };
   scheduleRecall(recallStore.worker().tickMinutes ?? DEFAULT_TICK_MINUTES);
-  // A lesson's chat is made by the daemon in process, or through Letta's app-server.
+  // A lesson's chat is made by the daemon, in process.
   const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
 
   const moduleDeps: ModuleDeps = {
@@ -302,13 +259,12 @@ export default function activate(letta: LettaMod): (() => void) | void {
       store: recallStore,
       run: () => recall.tick(),
       reschedule: scheduleRecall,
-      startLesson: chatBackend ? startLessonViaChats(chatBackend, lessons) : startLessonViaAppServer({ ...lessons, url: () => appServerUrl }),
+      startLesson: startLessonViaChats(chatBackend, lessons),
       lessonEmpty: (l) => chats.info(l.conversationId, l.agentId)?.lastMessageAt == null,
     },
     deskInfo,
     deleteWidgetFile,
     seen,
-    appServerAvailable: () => appServerUrl !== null,
     transcript: (agentId, conversationId, limit) => chats.page(conversationId, agentId, limit),
     widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
@@ -351,7 +307,6 @@ export default function activate(letta: LettaMod): (() => void) | void {
     welcome: welcomeFrames(moduleDeps),
     broadcast,
     capture: (client, event, properties) => analytics.capture(client.deviceId ? "phone" : "mac", event, properties),
-    appServerUrl: () => appServerUrl,
   });
   const ensureServer = async (): Promise<LokiServer> => {
     if (srv) return srv;
@@ -371,7 +326,7 @@ export default function activate(letta: LettaMod): (() => void) | void {
     } catch (err) {
       starting = null;
       log("server:failed", err instanceof Error ? err.message : String(err));
-      letta.diagnostics?.report({
+      api.diagnostics.report({
         message: `loki: server failed to start on ${modPort} (${err instanceof Error ? err.message : String(err)})`,
         severity: "error",
       });
@@ -409,111 +364,92 @@ export default function activate(letta: LettaMod): (() => void) | void {
   if (lan.enabled()) void lan.start();
 
   // --- events ----------------------------------------------------------
-  const eventDisposers: Array<(() => void) | void> = [];
-  const track = (name: string, handler: (event: unknown, ctx: EventContext) => unknown) => {
-    try {
-      eventDisposers.push(letta.events?.on(name, handler));
-    } catch {
-      // events capability absent — the mod still serves desks and tools
-    }
-  };
+  const eventDisposers: Array<() => void> = [];
   const titleRefreshes = new ScopeDebouncer();
   /** When each desk's running turn began, for turn_finished's duration. */
   const turnsBegun = new Map<string, number>();
   /** What each conversation was last told about its board tasks: the block rides along only when it changes. */
   const tasksNotice = new TasksNotice();
+  /** Helper agents' chats and the recall worker's own get no desk, and the tab does not follow them. */
+  const ignored = (e: ChatRef) => isSubagent(e.agentId) || recall.owns(e.chatId);
 
-  track("conversation_open", (event, ctx) => {
-    const runtime = runtimeFromEvent(event as ConversationOpenEvent | undefined, ctx);
-    log("event:conversation_open", { id: runtime.conversationId });
-    if (runtime.agentId && isSubagent(runtime.agentId)) return; // helper agents get no desk, and the tab does not follow them
-    if (runtime.conversationId && recall.owns(runtime.conversationId)) return; // the recall worker's own conversation: no desk follows it
-    const next = runtime.conversationId ? desks.remember(runtime.conversationId, runtime.agentId) : SHARED_SCOPE;
-    if (next !== activeScope) {
-      activeScope = next;
-      broadcast({ type: "switch_desk", scope: activeScope }); // the tab follows the conversation
-    }
-  });
+  eventDisposers.push(
+    api.events.on("chat_open", (e) => {
+      log("event:chat_open", { id: e.chatId });
+      if (ignored(e)) return;
+      const next = desks.remember(e.chatId, e.agentId);
+      if (next !== activeScope) {
+        activeScope = next;
+        broadcast({ type: "switch_desk", scope: activeScope }); // the tab follows the conversation
+      }
+    }),
+  );
 
-  track("turn_start", (event, ctx) => {
-    const ev = event as TurnStartEvent | undefined;
-    const runtime = runtimeFromEvent(ev, ctx);
-    const convId = runtime.conversationId;
-    // Letta's own helper agents get no desk: their turn still runs, it just is not furnished or listed.
-    if (runtime.agentId && isSubagent(runtime.agentId)) return;
-    // The recall worker's conversation is a desk you can open, but its turns are the worker's: no context rides
-    // along, the tab does not follow it, and it is never marked seen.
-    if (convId && recall.owns(convId)) {
-      desks.remember(convId, runtime.agentId);
-      return;
-    }
-    const scope = convId ? desks.remember(convId, runtime.agentId) : SHARED_SCOPE;
-    activeScope = scope;
-    analytics.capture("mod", "turn_started", { desk: scope });
-    turnsBegun.set(scope, Date.now());
-    // The return path: everything the user did on this desk (and the shared desk) rides along.
-    const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
-    log("event:turn_start", { desk: scope, attached: lines.length });
-    if (convId) {
-      seen.mark(runtime.agentId, convId); // you just spoke in this conversation
-      // Your message is engagement, typed anywhere; a scheduled task's prompt, or a turn with nothing typed, is not you.
-      if (personTyped(ev?.input)) seen.engage(runtime.agentId, convId, "message");
-      broadcast(seenFrame({ seen, appServerAvailable: () => appServerUrl !== null }));
-    }
-    // Two riders on the user's message: what they did on the desk, and the board's tasks assigned to this conversation
-    // (only when those changed since the agent was last told).
-    const blocks: string[] = [];
-    if (lines.length) blocks.push(formatDeskContext(scope, lines, paths.widgets));
-    const tasksBlock = convId ? tasksNotice.pending(convId, tasks.cached()) : null;
-    if (tasksBlock) blocks.push(tasksBlock);
-    if (blocks.length && ev && Array.isArray(ev.input)) {
-      const next = attachDeskContext(ev.input, blocks.join("\n\n"));
-      // No message of the user's to ride on (approvals only): the tasks wait for the next one.
-      if (next !== ev.input && convId && tasksBlock) tasksNotice.sent(convId, tasksBlock);
-      ev.input = next;
-      return { input: ev.input };
-    }
-    return undefined;
-  });
+  // The person's message, about to be sent: two riders go with it — what they did on the canvas, and the board's tasks
+  // assigned to this conversation (only when those changed since the agent was last told).
+  eventDisposers.push(
+    api.message.transform((m) => {
+      if (isSubagent(m.agentId)) return undefined;
+      // The recall worker's conversation is a desk you can open, but its turns are the worker's: nothing rides along,
+      // the tab does not follow it, and it is never marked seen.
+      if (recall.owns(m.chatId)) {
+        desks.remember(m.chatId, m.agentId);
+        return undefined;
+      }
+      const scope = desks.remember(m.chatId, m.agentId);
+      activeScope = scope;
+      analytics.capture("mod", "turn_started", { desk: scope });
+      turnsBegun.set(scope, Date.now());
+      const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
+      log("event:message", { desk: scope, attached: lines.length });
+      seen.mark(m.agentId, m.chatId); // you just spoke in this conversation
+      // Your message is engagement; a turn with nothing typed (an image alone) is still yours, but not typed words.
+      if (m.typed) seen.engage(m.agentId, m.chatId, "message");
+      broadcast(seenFrame({ seen }));
+      const blocks: string[] = [];
+      if (lines.length) blocks.push(formatDeskContext(scope, lines, paths.widgets));
+      const tasksBlock = tasksNotice.pending(m.chatId, tasks.cached());
+      if (tasksBlock) blocks.push(tasksBlock);
+      if (!blocks.length) return undefined;
+      if (tasksBlock) tasksNotice.sent(m.chatId, tasksBlock);
+      return attachDeskContext(m.content, blocks.join("\n\n"));
+    }),
+  );
 
-  track("compact_end", (event, ctx) => {
-    const convId = runtimeFromEvent(event as TurnEndEvent | undefined, ctx).conversationId;
-    if (convId) tasksNotice.forget(convId);
-  });
+  eventDisposers.push(api.events.on("compact_end", (e) => tasksNotice.forget(e.chatId)));
 
-  // Diagnostics: see whether Letta reaches the mod-tool dispatch at all.
-  track("tool_start", (event) => {
-    const e = event as { toolName?: string; args?: unknown } | undefined;
-    if (e?.toolName?.startsWith("desk_") || e?.toolName?.startsWith("loki_")) {
-      log("event:tool_start", { tool: e.toolName, args: e.args });
-      analytics.capture("mod", "tool_used", { tool: e.toolName });
-    }
-    return undefined;
-  });
-  track("tool_end", (event) => {
-    const e = event as { toolName?: string; status?: string } | undefined;
-    if (e?.toolName?.startsWith("desk_") || e?.toolName?.startsWith("loki_")) log("event:tool_end", { tool: e.toolName, status: e.status });
-    return undefined;
-  });
+  eventDisposers.push(
+    api.events.on("tool_start", (e) => {
+      if (e.name.startsWith("desk_") || e.name.startsWith("loki_")) {
+        log("event:tool_start", { tool: e.name, args: e.args });
+        analytics.capture("mod", "tool_used", { tool: e.name });
+      }
+    }),
+  );
+  eventDisposers.push(
+    api.events.on("tool_end", (e) => {
+      if (e.name.startsWith("desk_") || e.name.startsWith("loki_")) log("event:tool_end", { tool: e.name, failed: e.failed });
+    }),
+  );
 
-  track("turn_end", (event, ctx) => {
-    const runtime = runtimeFromEvent(event as TurnEndEvent | undefined, ctx);
-    if (runtime.agentId && isSubagent(runtime.agentId)) return;
-    if (runtime.conversationId && recall.owns(runtime.conversationId)) return;
-    const scope = runtime.conversationId ? desks.remember(runtime.conversationId, runtime.agentId) : activeScope;
-    // The turn's end, for how long you take to come back to it (the report's time to respond).
-    const begun = turnsBegun.get(scope);
-    turnsBegun.delete(scope);
-    analytics.capture("mod", "turn_finished", { desk: scope, duration_ms: begun === undefined ? null : Date.now() - begun });
-    titleRefreshes.schedule(scope, () => {
-      // Letta names conversations lazily; tell tabs when the title or status changes.
-      const info = deskInfo(scope);
-      if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null }, scope === SHARED_SCOPE ? undefined : scope);
-    }, 1200);
-  });
+  eventDisposers.push(
+    api.events.on("turn_end", (e) => {
+      if (ignored(e)) return;
+      const scope = desks.remember(e.chatId, e.agentId);
+      // The turn's end, for how long you take to come back to it (the report's time to respond).
+      const begun = turnsBegun.get(scope);
+      turnsBegun.delete(scope);
+      analytics.capture("mod", "turn_finished", { desk: scope, duration_ms: begun === undefined ? null : Date.now() - begun });
+      titleRefreshes.schedule(scope, () => {
+        // A chat's title can come after its first turn; tell tabs when the title or status changes.
+        const info = deskInfo(scope);
+        if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null }, scope === SHARED_SCOPE ? undefined : scope);
+      }, 1200);
+    }),
+  );
 
   // --- tools -----------------------------------------------------------
-  const toolDisposers = registerTools(letta, {
+  const toolDisposers = registerTools(api, {
     store,
     widgets,
     gestures,
@@ -541,11 +477,11 @@ export default function activate(letta: LettaMod): (() => void) | void {
     if (recallTimer) clearInterval(recallTimer);
     seen.flush(); // the marks' write is coalesced (mod/seen.ts): land the last one
   };
-  letta.signal?.addEventListener("abort", shutdown, { once: true });
+  api.signal.addEventListener("abort", shutdown, { once: true });
 
   return () => {
-    for (const d of eventDisposers) d?.();
-    for (const d of toolDisposers) d?.();
+    for (const d of eventDisposers) d();
+    for (const d of toolDisposers) d();
     stopPersist();
     shutdown();
   };

@@ -1,6 +1,6 @@
-import { isScheduledPrompt, looksLikeQuestion, protocolStep, stripHarnessMarkup } from "../harness.ts";
+import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
 import { ThreadModel, type Step } from "./thread.ts";
-import type { Runtime, ServerEvent } from "./protocol.ts";
+import type { Runtime } from "./protocol.ts";
 import type { Attachment } from "./content.ts";
 import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts";
 
@@ -182,58 +182,6 @@ export type ChatEvent =
   | { kind: "settle" }
   /** The turn ended. */
   | { kind: "turn_end" };
-
-/** One Letta app-server event as chat events (until the cutover, plan 017 U15). */
-export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
-  switch (ev.type) {
-    case "control_request": {
-      const req = ev.request as { subtype?: string; tool_name?: string; input?: unknown } | undefined;
-      if (req?.subtype !== "can_use_tool") return [];
-      const requestId = String(ev.request_id);
-      return req.tool_name === "AskUserQuestion" ? [{ kind: "question", requestId, input: req.input }] : [{ kind: "approval", requestId, toolName: req.tool_name ?? "tool", input: req.input }];
-    }
-    case "update_device_status": {
-      const status = ev.device_status as { current_permission_mode?: string; current_working_directory?: string } | undefined;
-      return [{ kind: "device", ...(status?.current_permission_mode ? { mode: status.current_permission_mode } : {}), ...(status?.current_working_directory ? { cwd: status.current_working_directory } : {}) }];
-    }
-    case "update_loop_status": {
-      const status = (ev.loop_status as { status?: string } | undefined)?.status;
-      if (!status) return [];
-      const state = status === "WAITING_ON_INPUT" ? "idle" : status === "WAITING_ON_APPROVAL" ? "approval" : "running";
-      return [{ kind: "loop", state, detail: status }];
-    }
-    case "stream_delta": {
-      const d = ev.delta as Record<string, unknown> | undefined;
-      const mt = d?.message_type;
-      const step = protocolStep(d, now, true);
-      if (step) return [{ kind: "step", step }];
-      if (mt === "error_message" || mt === "loop_error") return [{ kind: "error", message: String((d as { message?: string })?.message ?? "the turn failed") }];
-      if (mt === "slash_command_start" || mt === "slash_command_end") {
-        const c = d as { command_id?: string; input?: string; output?: string; success?: boolean };
-        const input = typeof c.input === "string" && c.input ? c.input : `/${c.command_id ?? "command"}`;
-        return [mt === "slash_command_start" ? { kind: "command", phase: "start", input } : { kind: "command", phase: "end", input, success: c.success !== false, output: typeof c.output === "string" ? c.output : "" }];
-      }
-      if (mt === "stop_reason") return [{ kind: "settle" }];
-      return [];
-    }
-    case "turn_finished":
-      return [{ kind: "turn_end" }];
-    default:
-      return [];
-  }
-}
-
-/** Fold one Letta app-server event into a conversation's live state. */
-export function applyEvent(l: Live, ev: ServerEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
-  let changed = false;
-  let userSpoke = false;
-  for (const e of lettaChatEvents(ev, now)) {
-    const r = applyChatEvent(l, e, now);
-    changed ||= r.changed;
-    userSpoke ||= r.userSpoke;
-  }
-  return { changed, userSpoke };
-}
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
