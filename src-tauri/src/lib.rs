@@ -1,27 +1,27 @@
 //! loki desktop shell (Tauri).
 //!
 //! A native window around the React canvas. The Rust side:
-//!  - hands the page the mod's token and port before any script runs
-//!  - holds the app-server socket (with the bearer token) and relays frames
-//!  - attaches to a running app-server (Desktop's, a `letta server`), or launches its own `letta server --listen …`
-//!    from the machine's Letta Code — installing that with npm first when the Mac has none (bootstrap.rs)
+//!  - moves loki's root to ~/.loki once (root.rs) and hands the page the token and the mod's port before any script runs
+//!  - installs what a release build ships (install.rs): the mod and daemon bundles, the phone canvas, the agent's skill
+//!  - runs loki's daemon on the machine's Node (node.rs, harness.rs), restarts it when it dies, and stops it on quit;
+//!    the page talks to the daemon itself, over the mod's port
 
-mod appserver;
-mod bootstrap;
 mod harness;
 mod install;
 mod menu;
 mod native;
+mod node;
+mod procs;
 mod root;
-mod scratch;
 mod widgets;
 
 use std::path::{Path, PathBuf};
 use tauri::{Manager, State};
 
 fn loki_dir() -> PathBuf {
-    home_dir().join(".letta").join("loki")
+    home_dir().join(".loki")
 }
+
 
 fn read_token() -> Option<String> {
     std::fs::read_to_string(loki_dir().join("token")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
@@ -29,15 +29,15 @@ fn read_token() -> Option<String> {
 
 /// 16 bytes from the system's random source as 32 lowercase hex chars — the shape the mod makes
 /// (`randomBytes(16).toString("hex")`). The OS source, not /dev/urandom: Windows has no such file, and
-/// reading it there silently produced no token, so the harness started pointing at a missing token file.
+/// reading it there silently produced no token, so the daemon started pointing at a missing token file.
 fn new_token() -> Option<String> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).ok()?;
     Some(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// The capability token the harness, the mod and this shell share. The mod creates it on first
-/// activate, but a first launch starts the harness *before* any mod ran, so the shell writes it
+/// The capability token the daemon, the mod and this shell share. The mod creates it on first
+/// activate, but a first launch starts the daemon *before* any mod ran, so the shell writes it
 /// when it is missing (`new_token`, mode 0600 where the system has modes — the same shape the mod makes).
 fn ensure_token() -> Option<String> {
     if let Some(t) = read_token() { return Some(t); }
@@ -84,160 +84,109 @@ fn client_log(level: String, message: String) {
     eprintln!("loki[{level}]: {message}");
 }
 
-/// The page sends an app-server frame (already JSON).
-#[tauri::command]
-async fn appserver_send(link: State<'_, appserver::SharedLink>, text: String) -> Result<bool, String> {
-    Ok(link.send(text).await)
-}
-
-/// Which app-server the shell is linked to, for the title block / diagnostics.
-#[tauri::command]
-fn appserver_url(link: State<'_, appserver::SharedLink>) -> String {
-    link.url.clone()
-}
-
-/// What launch did about the mod and the skill (Settings shows it).
+/// What launch did about the mod, the skill and the phone canvas (Settings shows it).
 #[tauri::command]
 fn install_status(report: State<'_, install::Report>) -> install::Report {
     report.inner().clone()
 }
 
-/// Where the programs loki depends on were found, if at all (letta: see bootstrap_status).
+/// Where the programs loki depends on were found, if at all.
 #[tauri::command]
-fn tool_status(boot: State<'_, bootstrap::BootstrapState>) -> install::Tools {
-    let mut t = install::tools(&home_dir());
-    if let Ok(s) = boot.0.lock() { if s.letta.is_some() { t.letta = s.letta.clone(); } }
-    t
+fn tool_status() -> install::Tools {
+    install::tools(&home_dir())
 }
 
-/// Letta Code: found, being installed, installed, or failed.
-#[tauri::command]
-fn bootstrap_status(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> bootstrap::Status {
-    let mut s = boot.0.lock().map(|s| s.clone()).unwrap_or_default();
-    s.managed = app.try_state::<harness::Harness>().is_some() && s.letta.is_some();
-    s
+/// The daemon as Welcome and Settings see it: the Node it runs on, why it could not start, and — when no new-enough
+/// Node was found — what Welcome's Node step needs to say.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DaemonStatus {
+    pub node: Option<String>,
+    pub error: Option<String>,
+    pub node_missing: Option<node::NodeMissing>,
 }
 
-/// Settings › letta "check": what `letta --version` says and the newest release on npm. Off the main thread.
+/// DaemonStatus, kept current by start_daemon and the supervisor; `supervising` while a supervisor thread watches
+/// the daemon, so a retry never starts a second one beside it.
+#[derive(Default)]
+struct DaemonState {
+    status: std::sync::Mutex<DaemonStatus>,
+    supervising: std::sync::atomic::AtomicBool,
+}
+
+impl DaemonState {
+    fn get(&self) -> DaemonStatus {
+        self.status.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+    fn set(&self, f: impl FnOnce(&mut DaemonStatus)) {
+        if let Ok(mut s) = self.status.lock() { f(&mut s); }
+    }
+}
+
 #[tauri::command]
-async fn check_letta_update(app: tauri::AppHandle) -> Result<bootstrap::Status, String> {
+fn daemon_status(state: State<'_, DaemonState>) -> DaemonStatus {
+    state.get()
+}
+
+/// Welcome's "check again" once the person has installed Node: look for Node afresh and start the daemon, unless a
+/// supervisor already watches one (it restarts the daemon itself). Off the main thread: the look runs `node --version`.
+#[tauri::command]
+async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let boot = app.state::<bootstrap::BootstrapState>();
-        let rt = boot.0.lock().ok().and_then(|s| s.runtime());
-        let version = rt.as_ref().and_then(bootstrap::letta_version);
-        let latest = bootstrap::latest_version(rt.as_ref(), &home_dir());
-        let mut s = boot.0.lock().map_err(|e| e.to_string())?;
-        s.version = version;
-        s.latest = latest?.into();
-        s.managed = app.try_state::<harness::Harness>().is_some() && s.letta.is_some();
-        Ok(s.clone())
+        let state = app.state::<DaemonState>();
+        if !state.supervising.load(std::sync::atomic::Ordering::SeqCst) {
+            if let Err(e) = start_daemon(&app) { eprintln!("loki: {e}"); }
+        }
+        state.get()
     })
     .await
-    .map_err(|e| e.to_string())?
-}
-
-/// Settings › letta "update": `npm install -g @letta-ai/letta-code@latest` — the same command that installed it,
-/// into the same global folder — then restart the harness on it. Only for a harness loki launched (Desktop's, or a
-/// `letta server` the user started, is not ours to restart), and never for a binary named by LOKI_LETTA_BIN.
-#[tauri::command]
-fn update_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
-    if app.try_state::<harness::Harness>().is_none() {
-        return Err("this harness is not loki's to restart — update Letta Code where it runs".into());
-    }
-    let Some(rt) = boot.0.lock().ok().and_then(|s| s.runtime()) else { return Err("no Letta Code to update".into()) };
-    if rt.explicit {
-        return Err(format!("{} is named by LOKI_LETTA_BIN — not npm's to update", rt.letta.display()));
-    }
-    if boot.0.lock().map(|s| s.installing).unwrap_or(false) { return Ok(()); }
-    let home = home_dir();
-    let before = boot.0.lock().ok().and_then(|s| s.version.clone());
-    run_bootstrap_job(app, "updating Letta Code with npm", move |report| {
-        let after = bootstrap::install_version(&home, "latest", report)?;
-        // npm said yes but the copy did not move: say so instead of restarting the harness for nothing.
-        let now = bootstrap::letta_version(&after);
-        if before.is_some() && now == before {
-            return Err(format!("the install finished, but {} still reports {}", after.letta.display(), now.unwrap_or_default()).into());
-        }
-        Ok(after)
-    });
-    Ok(())
-}
-
-/// Settings › letta: the harness's scratch folder, the default, and the line for a terminal (scratch.rs).
-#[tauri::command]
-fn scratch_settings() -> scratch::Settings {
-    scratch::settings(&loki_dir(), &home_dir())
-}
-
-/// Settings › letta: a new scratch folder (None: back to the default). Saved, then the harness restarts on it —
-/// the env var is read at launch — when it is loki's own; a turn in progress stops, the link reconnects.
-#[tauri::command]
-fn set_scratch_dir(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>, path: Option<String>) -> Result<scratch::Settings, String> {
-    let (data, home) = (loki_dir(), home_dir());
-    let chosen = match path.as_deref().map(str::trim) {
-        Some(p) if !p.is_empty() => Some(scratch::validate(p, &home)?),
-        _ => None,
-    };
-    scratch::write(&data, &scratch::ShellPrefs { scratch_dir: chosen.map(|p| p.to_string_lossy().into_owned()) })?;
-    if app.try_state::<harness::Harness>().is_some() {
-        if let Some(rt) = boot.0.lock().ok().and_then(|s| s.runtime()) {
-            start_harness(&app, &rt)?;
-        }
-    }
-    Ok(scratch::settings(&data, &home))
-}
-
-/// Install (or retry installing) Letta Code with npm, then start the harness. Progress: `loki:bootstrap` events.
-#[tauri::command]
-fn install_letta(app: tauri::AppHandle, boot: State<'_, bootstrap::BootstrapState>) -> Result<(), String> {
-    if boot.0.lock().map(|s| s.installing).unwrap_or(false) { return Ok(()); }
-    start_install(app);
-    Ok(())
-}
-
-/// The install, off the main thread; on success the harness starts and the link (already retrying) connects.
-fn start_install(app: tauri::AppHandle) {
-    let home = home_dir();
-    run_bootstrap_job(app, "installing Letta Code with npm", move |report| bootstrap::install(&home, report));
-}
-
-/// `letta server` on `rt`, with loki's token, logs, scratch folder and private mods folder.
-fn start_harness(app: &tauri::AppHandle, rt: &bootstrap::Runtime) -> Result<(), String> {
-    let (data, home) = (loki_dir(), home_dir());
-    let Some(h) = app.try_state::<harness::Harness>() else { return Err("no harness slot".into()) };
-    h.start(rt, &harness::Launch { token_file: &data.join("token"), log_dir: &data.join("logs"), scratch: &scratch::effective_dir(&data, &home) })
-}
-
-/// Whether loki runs its own Pi daemon instead of Letta (plan 017): LOKI_BACKEND=pi, until the cutover makes it the only way.
-fn pi_backend() -> bool {
-    std::env::var("LOKI_BACKEND").is_ok_and(|v| v == "pi")
+    .map_err(|e| e.to_string())
 }
 
 /// Start loki's daemon and keep it running: a daemon left by a crashed loki is stopped first, and one that dies is
-/// restarted (supervise_daemon). A development build runs the checkout's sources; a release build the installed bundle.
-fn start_daemon(app: &tauri::AppHandle, home: &Path, data: &Path) -> Result<(), String> {
-    let node = bootstrap::find_node_program(home).ok_or_else(|| "no Node.js 22.19 or newer found for loki's daemon".to_string())?;
+/// restarted (supervise_daemon). A development build runs the checkout's sources; a release build the installed
+/// bundle. What happened lands in DaemonState for daemon_status.
+fn start_daemon(app: &tauri::AppHandle) -> Result<(), String> {
+    let (home, data) = (home_dir(), loki_dir());
+    let state = app.state::<DaemonState>();
+    let node = match node::find_node_program(&home) {
+        Ok(n) => n,
+        Err(missing) => {
+            let message = missing.message();
+            state.set(|s| *s = DaemonStatus { node: None, error: Some(message.clone()), node_missing: Some(missing) });
+            return Err(message);
+        }
+    };
     let (entry, mod_entry) = match dev_checkout() {
         Some(checkout) => (checkout.join("daemon").join("main.ts"), checkout.join("mod").join("boot.ts")),
         None => (data.join("daemon").join("daemon.mjs"), data.join("mod").join("loki-mod.mjs")),
     };
     let token_file = data.join("token");
-    if let Some(left) = appserver::daemon_leftover(&appserver::os::snapshot(), &token_file) {
+    if let Some(left) = procs::daemon_leftover(&procs::os::snapshot(), &token_file) {
         eprintln!("loki: daemon: one left from an earlier run (pid {}) — stopping it", left.pid);
-        appserver::os::kill(left.pid, Some(left.started));
+        procs::os::kill(left.pid, Some(left.started));
     }
+    let node_shown = node.display().to_string();
     let launch = move |app: &tauri::AppHandle| -> Result<(), String> {
         let Some(h) = app.try_state::<harness::Harness>() else { return Err("no harness slot".into()) };
-        let daemon = harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &loki_dir() };
-        h.start_daemon(&daemon, &harness::Launch { token_file: &token_file, log_dir: &loki_dir().join("logs"), scratch: &loki_dir() })
+        let daemon = harness::Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &data };
+        h.start_daemon(&daemon, &harness::Launch { token_file: &token_file, log_dir: &data.join("logs") })
     };
-    launch(app)?;
-    supervise_daemon(app.clone(), launch);
+    if let Err(e) = launch(app) {
+        state.set(|s| *s = DaemonStatus { node: Some(node_shown), error: Some(e.clone()), node_missing: None });
+        return Err(e);
+    }
+    eprintln!("loki: daemon on {node_shown}");
+    state.set(|s| *s = DaemonStatus { node: Some(node_shown), error: None, node_missing: None });
+    if !state.supervising.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        supervise_daemon(app.clone(), launch);
+    }
     Ok(())
 }
 
 /// Watch the daemon once a second. One that exits on its own is started again after harness::restart_delay; one loki
-/// stopped, or one that found another daemon already serving (harness::EXIT_HELD), is left down.
+/// stopped, or one that found another daemon already serving (harness::EXIT_HELD), is left down — and then the
+/// supervisor ends, so retry_daemon may start it again.
 fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) -> Result<(), String> + Send + 'static) {
     std::thread::Builder::new()
         .name("loki-daemon-supervisor".into())
@@ -245,26 +194,29 @@ fn supervise_daemon(app: tauri::AppHandle, launch: impl Fn(&tauri::AppHandle) ->
             let mut exits: Vec<std::time::Instant> = vec![];
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(1));
-                let Some(h) = app.try_state::<harness::Harness>() else { return };
-                if h.was_stopped() { return; }
+                let Some(h) = app.try_state::<harness::Harness>() else { break };
+                if h.was_stopped() { break; }
                 let Some(status) = h.exited() else { continue };
                 if status.code() == Some(harness::EXIT_HELD) {
                     eprintln!("loki: daemon: another daemon is already serving — using that one");
-                    return;
+                    break;
                 }
                 exits.retain(|t| t.elapsed() < std::time::Duration::from_secs(60));
                 let delay = harness::restart_delay(exits.len());
                 exits.push(std::time::Instant::now());
                 eprintln!("loki: daemon exited ({status}) — restarting in {} s", delay.as_secs());
                 std::thread::sleep(delay);
-                if h.was_stopped() { return; }
-                if let Err(e) = launch(&app) { eprintln!("loki: daemon restart failed: {e}"); }
+                if h.was_stopped() { break; }
+                let result = launch(&app);
+                if let Err(e) = &result { eprintln!("loki: daemon restart failed: {e}"); }
+                app.state::<DaemonState>().set(|s| s.error = result.err());
             }
+            app.state::<DaemonState>().supervising.store(false, std::sync::atomic::Ordering::SeqCst);
         })
         .expect("the daemon supervisor thread");
 }
 
-/// SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the harness ourselves. Windows has no such
+/// SIGTERM/SIGINT (a `kill`, a logout) never reach Tauri's exit events: stop the daemon ourselves. Windows has no such
 /// signals; Ctrl-C in the console of a `tauri dev` is the one that reaches us there (a GUI build has no console, and
 /// its quit paths all go through the exit events).
 fn stop_on_signals(handle: tauri::AppHandle) {
@@ -282,70 +234,11 @@ fn stop_on_signals(handle: tauri::AppHandle) {
     });
 }
 
-/// Every line an install or update produced, on disk: Welcome and Settings show the last few, this keeps them all
-/// (one section per attempt, appended). Best effort — a log that cannot be written never stops an install.
-fn install_log_line(line: &str) {
-    use std::io::Write;
-    let path = loki_dir().join("logs").join("install.log");
-    if let Some(dir) = path.parent() { let _ = std::fs::create_dir_all(dir); }
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) { let _ = writeln!(f, "{line}"); }
-}
-
-/// An install or update, off the main thread: progress as `loki:bootstrap` events, Status.log and
-/// ~/.letta/loki/logs/install.log, and on success the harness (re)starts on the runtime the job produced — the
-/// link, already retrying, reconnects.
-fn run_bootstrap_job(app: tauri::AppHandle, opening: &str, job: impl FnOnce(&dyn Fn(bootstrap::Progress)) -> Result<bootstrap::Runtime, bootstrap::InstallError> + Send + 'static) {
-    use tauri::Emitter;
-    let home = home_dir();
-    if let Some(b) = app.try_state::<bootstrap::BootstrapState>() {
-        if let Ok(mut s) = b.0.lock() { s.installing = true; s.error = None; s.node_missing = None; s.log.clear(); }
-    }
-    install_log_line(&format!("\n--- {opening} · {} · loki {} ---", bootstrap::stamp(), env!("CARGO_PKG_VERSION")));
-    let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "start", message: opening.to_string() });
-    tauri::async_runtime::spawn_blocking(move || {
-        let report = |p: bootstrap::Progress| {
-            eprintln!("loki: bootstrap: {} · {}", p.stage, p.message);
-            install_log_line(&format!("[{}] {}", p.stage, p.message));
-            if let Some(b) = app.try_state::<bootstrap::BootstrapState>() {
-                if let Ok(mut s) = b.0.lock() { s.log.push(p.message.clone()); if s.log.len() > 200 { s.log.remove(0); } }
-            }
-            let _ = app.emit("loki:bootstrap", p);
-        };
-        let result = job(&report);
-        match &result {
-            Ok(rt) => install_log_line(&format!("done: {}", rt.letta.display())),
-            Err(e) => install_log_line(&format!("error: {}", e.message)),
-        }
-        let Some(b) = app.try_state::<bootstrap::BootstrapState>() else { return };
-        match result {
-            Ok(rt) => {
-                harness::ensure_backend_mode(&rt, &home);
-                let version = bootstrap::letta_version(&rt);
-                let started = start_harness(&app, &rt);
-                if let Ok(mut s) = b.0.lock() {
-                    let (log, latest) = (std::mem::take(&mut s.log), s.latest.take());
-                    *s = bootstrap::Status::from_runtime(&rt);
-                    s.log = log;
-                    s.version = version;
-                    s.latest = latest;
-                    if let Err(e) = started { s.error = Some(e); }
-                }
-                let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "done", message: "harness starting".into() });
-            }
-            Err(e) => {
-                // No Node: Welcome's Node step, whose "check again" is this same job run again.
-                if let Ok(mut s) = b.0.lock() { s.installing = false; s.error = Some(e.message.clone()); s.node_missing = e.node_missing; }
-                let _ = app.emit("loki:bootstrap", bootstrap::Progress { stage: "error", message: e.message });
-            }
-        }
-    });
-}
-
-/// The user's home folder, where everything loki keeps lives (~/.letta/loki). It has to be the folder the
-/// mod's `os.homedir()` answers inside the harness, or the two would read different tokens and state: on
-/// Windows that is USERPROFILE (Node ignores a HOME there, such as Git Bash's), elsewhere HOME. An empty
-/// value counts as unset. `run` checks it once at launch and stops with a line on stderr when there is none,
-/// rather than keeping ~/.letta under `/` as it once did.
+/// The user's home folder, where everything loki keeps lives (~/.loki). It has to be the folder the
+/// daemon's `os.homedir()` answers, or the two would read different tokens and state: on Windows that is
+/// USERPROFILE (Node ignores a HOME there, such as Git Bash's), elsewhere HOME. An empty value counts as
+/// unset. `run` checks it once at launch and stops with a line on stderr when there is none, rather than
+/// keeping loki's root under `/`.
 fn home_from(windows: bool, var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<PathBuf> {
     var(if windows { "USERPROFILE" } else { "HOME" }).filter(|v| !v.is_empty()).map(PathBuf::from)
 }
@@ -360,14 +253,15 @@ fn home_dir() -> PathBuf {
     platform_home().unwrap_or_else(|| panic!("{HOME_VAR} is not set (checked at launch)"))
 }
 
-/// Release builds install on every launch; `tauri dev` leaves a developer's shim alone unless asked (LOKI_INSTALL=1).
+/// Release builds install on every launch; `tauri dev` runs the checkout instead, unless asked (LOKI_INSTALL=1).
 fn install_wanted() -> bool {
     if std::env::var_os("LOKI_NO_INSTALL").is_some() { return false; }
     !cfg!(debug_assertions) || std::env::var_os("LOKI_INSTALL").is_some()
 }
 
-/// The checkout a development build was compiled from, when it should be wired into Letta where nothing is yet
-/// (install.rs `link_checkout`). Release builds: never (the path is not even in the binary). LOKI_NO_INSTALL: no.
+/// The checkout a development build was compiled from: its daemon runs the checkout's daemon/main.ts with
+/// `--mod mod/boot.ts`, and the skill is linked there where nothing is yet (install.rs `link_checkout`). Release
+/// builds: never (the path is not even in the binary). LOKI_NO_INSTALL: no, the installed bundles run.
 fn dev_checkout() -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     {
@@ -396,14 +290,20 @@ pub fn prefer_x11() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if platform_home().is_none() {
-        eprintln!("loki: {HOME_VAR} is not set, so there is no home folder for ~/.letta/loki; set it and start loki again");
+        eprintln!("loki: {HOME_VAR} is not set, so there is no home folder for ~/.loki; set it and start loki again");
         std::process::exit(1);
+    }
+    // loki's root is ~/.loki, with a link at ~/.letta/loki: moved once, before anything opens a file in it (root.rs).
+    // A failed move is said and loki carries on; the old folder stays where it was.
+    match root::move_root(&home_dir()) {
+        Ok(moved) => eprintln!("loki: root: {moved:?}"),
+        Err(e) => eprintln!("loki: root not moved: {e}"),
     }
     let _ = ensure_token();
     let script = init_script();
     let builder = tauri::Builder::default();
     // One loki per user off the Mac (plan 014 KTD7): a second launch hands over to the running one, which comes
-    // forward, and exits before it starts a harness. First of the plugins, as the plugin asks.
+    // forward, and exits before it starts a daemon. First of the plugins, as the plugin asks.
     #[cfg(any(windows, target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
         if let Some(w) = app.get_webview_window("main") {
@@ -417,23 +317,13 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![appserver_send, appserver_url, client_log, install_status, tool_status, bootstrap_status, install_letta, check_letta_update, update_letta, native::set_waiting, native::set_global_shortcut, menu::set_menu, scratch_settings, set_scratch_dir])
+        .invoke_handler(tauri::generate_handler![client_log, install_status, tool_status, daemon_status, retry_daemon, native::set_waiting, native::set_global_shortcut, menu::set_menu])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
         .setup(move |app| {
             use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-            // On loki's daemon its root is ~/.loki, with a link at ~/.letta/loki: moved once, before anything below
-            // opens a file in it (src-tauri/src/root.rs). A failed move leaves the old root in use, and says so.
-            if pi_backend() {
-                match root::move_root(&home_dir()) {
-                    Ok(moved) => eprintln!("loki: root: {moved:?}"),
-                    Err(e) => eprintln!("loki: root not moved: {e}"),
-                }
-            }
-
-            // The mod first, so a harness we launch below loads the copy that ships with this build.
-            // Everything loki writes lives under ~/.letta/loki (loki_dir): the mod bundle, the phone canvas; the shim in ~/.letta/mods.
+            // What this build ships goes in place first, so the daemon started below runs this build's bundles.
             let (home, data) = (home_dir(), loki_dir());
             let mut report = install::Report::skipped(&home);
             if install_wanted() {
@@ -445,80 +335,16 @@ pub fn run() {
                 eprintln!("loki: install: mod {:?} · skill {:?} · app {:?}{}", report.r#mod, report.skill, report.app, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             } else if let Some(checkout) = dev_checkout() {
                 report = install::link_checkout(&checkout, &home);
-                eprintln!("loki: dev: mod {:?} · skill {:?} · shim {} → {}{}", report.r#mod, report.skill, report.shim, report.mod_path, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
+                eprintln!("loki: dev: mod {:?} {} · skill {:?}{}", report.r#mod, report.mod_path, report.skill, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
             }
-
-            // Which harness? A running app-server if there is one (Desktop's, a `letta server`); otherwise launch our
-            // own on a fixed port from the machine's Letta Code. loki's own from an earlier run (a crash, a force-quit)
-            // is stopped and launched afresh, so it runs the current Letta Code and environment (Choice::Replace).
-            let explicit = std::env::var("LOKI_APP_SERVER_URL").ok();
-            let token = read_token();
-            let (home_for_boot, token_file) = (home.clone(), data.join("token"));
-            // (url, bearer, launching our own?, letta runtime if found)
-            // LOKI_BACKEND=pi (plan 017): loki's own daemon runs the agents; no Letta is looked for or started.
-            let pi = pi_backend();
-            let (url, bearer, own, runtime) = tauri::async_runtime::block_on(async {
-                if pi {
-                    return (harness::LISTEN_URL.to_string(), None, false, None);
-                }
-                if let Some(u) = explicit {
-                    return (u, None, false, None);
-                }
-                let launch = |token| (harness::LISTEN_URL.to_string(), token, true, bootstrap::find_letta(&home_for_boot));
-                match appserver::find_app_server(&[41414, 41415], token.as_deref(), &token_file).await {
-                    appserver::Choice::Attach { url, bearer } => (url, bearer, false, None),
-                    appserver::Choice::Launch => launch(token),
-                    appserver::Choice::Replace { pid, started } => {
-                        eprintln!("loki: app-server: a loki harness left from an earlier run (pid {pid}) — restarting it");
-                        let port = harness::LISTEN_PORT;
-                        let stopped = appserver::stop_leftover(pid, started, port, std::time::Duration::from_secs(5));
-                        if !stopped.killed { eprintln!("loki: app-server: pid {pid} was not stopped (already gone, or no longer that harness)"); }
-                        if stopped.port_free {
-                            launch(token)
-                        } else {
-                            // Never a harness that fails to bind: use the one holding the port, as loki did before.
-                            eprintln!("loki: app-server: port {port} is still held after 5 s — attaching to the harness there instead");
-                            (harness::LISTEN_URL.to_string(), token, false, None)
-                        }
-                    }
-                }
-            });
-            eprintln!("loki: app-server at {url} ({})", if own { "launching" } else if url == harness::LISTEN_URL { "a loki harness already running" } else { "attached" });
-            // A harness that was already up loaded whatever mod it found at its start.
-            report.needs_reload = report.changed() && !own;
             app.manage(report);
-            app.manage(bootstrap::BootstrapState(std::sync::Mutex::new(runtime.as_ref().map(bootstrap::Status::from_runtime).unwrap_or_default())));
-            if own {
-                app.manage(harness::Harness::default());
-                match &runtime {
-                    Some(rt) => {
-                        eprintln!("loki: letta at {}{}", rt.letta.display(), if rt.explicit { " (LOKI_LETTA_BIN)" } else { "" });
-                        harness::ensure_backend_mode(rt, &home);
-                        if let Err(e) = start_harness(app.handle(), rt) {
-                            eprintln!("loki: {e}");
-                            if let Ok(mut s) = app.state::<bootstrap::BootstrapState>().0.lock() { s.error = Some(e); }
-                        }
-                    }
-                    None => {
-                        eprintln!("loki: no Letta Code on this Mac — installing it with npm");
-                        start_install(app.handle().clone());
-                    }
-                }
-                stop_on_signals(app.handle().clone());
-            }
-            if pi {
-                app.manage(harness::Harness::default());
-                if let Err(e) = start_daemon(app.handle(), &home, &data) {
-                    eprintln!("loki: {e}");
-                    if let Ok(mut s) = app.state::<bootstrap::BootstrapState>().0.lock() { s.error = Some(e); }
-                }
-                stop_on_signals(app.handle().clone());
-            }
 
-            let link = appserver::Link::new(url, bearer);
-            app.manage(link.clone());
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move { link.run(handle).await });
+            // loki's daemon runs the agents and serves the page. No Node yet: Welcome says so, and retry_daemon starts
+            // it once one is installed.
+            app.manage(harness::Harness::default());
+            app.manage(DaemonState::default());
+            if let Err(e) = start_daemon(app.handle()) { eprintln!("loki: {e}"); }
+            stop_on_signals(app.handle().clone());
 
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("loki")
@@ -554,7 +380,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building loki")
         .run(|app, event| {
-            // Quit from the menu, the dock, or the last window closing: take the harness down first.
+            // Quit from the menu, the dock, or the last window closing: take the daemon down first.
             if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
                 if let Some(h) = app.try_state::<harness::Harness>() { h.stop(); }
             }
