@@ -243,8 +243,10 @@ export class DaemonChats implements ChatBackend {
     return this.deps.providers.disconnect(providerId);
   }
 
-  signIn(providerId: string) {
-    return this.deps.providers.signIn(providerId);
+  async signIn(providerId: string, code: string | null = null) {
+    if (code === null) return this.deps.providers.signIn(providerId);
+    this.deps.providers.finishSignIn(providerId, code);
+    return { url: "", instructions: null };
   }
 
   async reflection() {

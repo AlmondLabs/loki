@@ -276,8 +276,8 @@ export const FRAMES = {
   chat_provider_connect: request("chat_providers", "keep a provider's API key, once the provider accepts it", (m) =>
     str(m.providerId) && m.providerId && str(m.apiKey) ? { providerId: m.providerId, apiKey: m.apiKey } : "providerId and apiKey required"),
   chat_provider_disconnect: request("chat_providers", "forget a provider's credential", (m) => (str(m.providerId) && m.providerId ? { providerId: m.providerId } : "providerId required")),
-  chat_provider_signin: request("chat_signin", "start signing in to a provider: the page to open; the credential is kept when the browser comes back", (m) =>
-    str(m.providerId) && m.providerId ? { providerId: m.providerId } : "providerId required"),
+  chat_provider_signin: request("chat_signin", "start signing in to a provider: the page to open; the credential is kept when the browser comes back. With `code`, the address the browser ended on, for a sign-in still waiting", (m) =>
+    str(m.providerId) && m.providerId ? { providerId: m.providerId, code: strOr(m.code, null) } : "providerId required"),
 
   // Folders
   folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),

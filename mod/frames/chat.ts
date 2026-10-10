@@ -27,7 +27,7 @@ export interface ChatBackend {
   providers(): Promise<Replies["chat_providers"]["providers"]>;
   connectProvider(providerId: string, apiKey: string): Promise<void>;
   disconnectProvider(providerId: string): Promise<void>;
-  signIn(providerId: string): Promise<Replies["chat_signin"]>;
+  signIn(providerId: string, code: string | null): Promise<Replies["chat_signin"]>;
   reflection(): Promise<Replies["chat_reflection"]>;
   setReflection(s: PayloadOf<"chat_reflection_set">): Promise<Replies["chat_reflection"]>;
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
@@ -81,6 +81,6 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
     chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
     chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),
-    chat_provider_signin: ({ providerId }) => served(b, (x) => x.signIn(providerId)),
+    chat_provider_signin: ({ providerId, code }) => served(b, (x) => x.signIn(providerId, code)),
   };
 }

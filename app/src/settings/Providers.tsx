@@ -112,7 +112,12 @@ function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconne
       setBusy(false);
     }
   };
-  return { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect };
+  /** A sign-in still waiting for its browser: the address the browser ended on finishes it (the wait in connect sees it). */
+  const finish = async (address: string) => {
+    if (!address.trim()) return;
+    setError(await onConnect(p.id, { redirect_url: address.trim() }, "oauth_code"));
+  };
+  return { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect, finish };
 }
 
 type ConnectState = ReturnType<typeof useProviderConnect>;
@@ -157,9 +162,11 @@ function TerminalNote({ id }: { id: string }) {
 
 /** The open row's form: a method picker when the provider has more than one, the harness's fields, connect / disconnect, the error. */
 function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: boolean; state: ConnectState }) {
-  const { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect } = state;
+  const { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect, finish } = state;
   /** Each field's input is `${fieldId}-${key}`, so its label can name it. */
   const fieldId = useId();
+  const [address, setAddress] = useState("");
+  const signIn = authMethodId === "oauth" ? p.auth_methods?.find((m) => m.id === "oauth") : undefined;
   return (
     <>
       {p.auth_methods && p.auth_methods.length > 1 && (
@@ -195,7 +202,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
       ))}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
-          {busy ? "checking…" : connected ? "replace the key" : "connect"}
+          {signIn ? (busy ? "waiting for the browser…" : connected ? "sign in again" : signIn.label) : busy ? "checking…" : connected ? "replace the key" : "connect"}
         </Button>
         {connected && (
           <Button size="sm" onClick={() => void disconnect()} disabled={busy}>
@@ -204,6 +211,27 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         )}
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       </div>
+      {signIn && busy && (
+        <label htmlFor={`${fieldId}-address`} style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 10, alignItems: "center", fontSize: 12 }}>
+          <span style={{ color: "var(--loki-muted)" }}>browser didn't come back?</span>
+          <Field
+            id={`${fieldId}-address`}
+            size="sm"
+            mono
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void finish(address)}
+            placeholder="paste the address the browser ended on"
+            autoComplete="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-form-type="other"
+          />
+          <Button size="sm" onClick={() => void finish(address)} disabled={!address.trim()}>
+            finish
+          </Button>
+        </label>
+      )}
     </>
   );
 }

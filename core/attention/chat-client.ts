@@ -214,8 +214,13 @@ export class FrameChatClient implements ChatClient {
    * in the browser and waits (up to five minutes) for the daemon to report the provider connected.
    */
   async connectProvider(providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<ConnectProvider[]> {
+    // The address the browser ended on, for a sign-in that is waiting: the daemon finishes it, and the wait below sees it.
+    if (authMethodId === "oauth_code") {
+      await this.call("chat_provider_signin", { providerId, code: fields.redirect_url ?? "" }, 30_000);
+      return this.listConnectProviders();
+    }
     if (authMethodId !== "oauth") return (await this.call("chat_provider_connect", { providerId, apiKey: fields.api_key ?? "" }, 30_000)).providers;
-    const page = await this.call("chat_provider_signin", { providerId }, 30_000);
+    const page = await this.call("chat_provider_signin", { providerId, code: null }, 30_000);
     this.openUrl(page.url);
     const until = Date.now() + 5 * 60_000;
     while (Date.now() < until) {

@@ -20,7 +20,7 @@ import { DaemonChats } from "./chat-backend.ts";
 import { Approvals, kindOf } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
-import { Providers } from "./providers.ts";
+import { deviceIdIn, Providers } from "./providers.ts";
 import { memoryExtension } from "./memory.ts";
 import { fileToolsExtension } from "./tools.ts";
 import { skillsExtension } from "./skills.ts";
@@ -104,7 +104,7 @@ const background = new BackgroundTasks((agentId, chatId, text) => void deliver(a
 mods.registry.install(backgroundExtension(background));
 const schedules = new Schedules(schedulesFile, deliver, report);
 mods.registry.install(scheduleExtension(schedules));
-const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report);
+const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, deviceIdIn(join(args.dir, "state", "device-id")));
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
 const importDone = join(args.dir, "state", "letta-import.json");
