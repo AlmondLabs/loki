@@ -25,7 +25,7 @@ export const QUIET_MS = 30 * 60_000;
 export const SWEEP_MS = 60_000;
 /** New transcript text shorter than this is not worth a model call: a thanks, an acknowledgement. The cursor moves on. */
 export const MIN_NEW_CHARS = 300;
-/** The most of a stretch a run reads: its newest part, so one long chat cannot overflow the pass. */
+/** The most of a stretch a run reads: its oldest part, up to an entry's end; what does not fit is the next run's. */
 export const MAX_MATERIAL_CHARS = 24_000;
 
 export type PassInput = { agentId: string; chatId: string; agentName: string | null; rows: TranscriptRow[]; material: string; now: Date };
@@ -71,7 +71,8 @@ export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped"
 
 export class PassRunner {
   private readonly deps: Deps;
-  private readonly queue: Array<{ job: PassJob; agentId: string; chatId: string; force: boolean }> = [];
+  private readonly queue: Array<{ job: PassJob; agentId: string; chatId: string; force: boolean; done: (outcome: RunOutcome) => void }> = [];
+  /** Queued or running, by job and chat: a sweep during a run does not queue it again. */
   private readonly queued = new Set<string>();
   /** A run that failed waits a quiet spell before it is tried again, so a broken model is not asked every minute. */
   private readonly failedAt = new Map<string, number>();
@@ -103,16 +104,20 @@ export class PassRunner {
     this.timer = null;
   }
 
+  /** The person's chats: not hidden (a pass's own chats among them), not a helper's. */
+  private chats() {
+    return this.deps.chats.list().filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isWriterChat(row.conversationId) && !this.deps.isSubagent(row.agentId));
+  }
+
   /** One look over every chat: queue each run that is due, then work the queue. */
   async sweep(): Promise<void> {
     const settings = this.deps.state.settings();
     const now = this.now();
-    for (const row of this.deps.chats.list()) {
-      if (row.hidden || isReflectionChat(row.conversationId) || isWriterChat(row.conversationId) || this.deps.isSubagent(row.agentId)) continue;
+    for (const row of this.chats()) {
       for (const job of this.deps.jobs) {
         if (!settings[job.name].enabled) continue;
         if (job.open && !job.open(settings, now)) continue;
-        if (await this.due(job, row.agentId, row.conversationId, row.lastMessageAt, now)) this.enqueue(job, row.agentId, row.conversationId, false);
+        if (await this.due(job, row.agentId, row.conversationId, row.lastMessageAt, now)) void this.enqueue(job, row.agentId, row.conversationId, false);
       }
     }
     await this.drain();
@@ -131,57 +136,66 @@ export class PassRunner {
     return !(await this.deps.busy(agentId, chatId));
   }
 
-  private enqueue(job: PassJob, agentId: string, chatId: string, force: boolean): void {
+  /** Queue a run; resolves with its outcome, or "skipped" when the same run is already queued or running. */
+  private enqueue(job: PassJob, agentId: string, chatId: string, force: boolean): Promise<RunOutcome> {
     const k = `${job.name}\u0000${agentId}\u0000${chatId}`;
-    if (this.queued.has(k)) return;
+    if (this.queued.has(k)) return Promise.resolve("skipped");
     this.queued.add(k);
-    this.queue.push({ job, agentId, chatId, force });
+    return new Promise((done) => this.queue.push({ job, agentId, chatId, force, done }));
   }
 
   /** Work the queue, one run at a time; a second caller waits on the same pass through it. */
   private drain(): Promise<void> {
     this.draining ??= (async () => {
-      while (this.queue.length) {
-        const next = this.queue.shift()!;
-        this.queued.delete(`${next.job.name}\u0000${next.agentId}\u0000${next.chatId}`);
-        await this.run(next.job, next.agentId, next.chatId, next.force);
+      await Promise.resolve(); // `draining` is set before the loop can end and clear it
+      try {
+        while (this.queue.length) {
+          const next = this.queue.shift()!;
+          try {
+            next.done(await this.run(next.job, next.agentId, next.chatId, next.force));
+          } finally {
+            this.queued.delete(`${next.job.name}\u0000${next.agentId}\u0000${next.chatId}`);
+          }
+        }
+      } finally {
+        // Cleared in the same step the loop ends, so a run queued after it starts a new pass rather than waiting.
+        this.draining = null;
       }
-    })().finally(() => (this.draining = null));
+    })();
     return this.draining;
   }
 
   /**
    * Run a job on a chat now (`/reflect`, Learn's "Run now"): whether the job is on or not, and without the quiet
-   * wait, but never while the chat is busy.
+   * wait, but never while the chat is busy, and in the same queue as every other run.
    */
   async runNow(name: JobName, agentId: string, chatId: string): Promise<RunOutcome> {
-    const job = this.job(name);
-    if (await this.deps.busy(agentId, chatId)) return "skipped";
-    return this.run(job, agentId, chatId, true);
+    const outcome = this.enqueue(this.job(name), agentId, chatId, true);
+    await this.drain();
+    return outcome;
   }
 
   /** "Run now" over every chat a job has new material in: Learn's button, which names no chat. */
   async runAllNow(name: JobName): Promise<void> {
     const job = this.job(name);
-    for (const row of this.deps.chats.list()) {
-      if (row.hidden || isReflectionChat(row.conversationId) || isWriterChat(row.conversationId) || this.deps.isSubagent(row.agentId)) continue;
+    for (const row of this.chats()) {
       const cursor = this.deps.state.cursor(job.name, row.agentId, row.conversationId) ?? 0;
       if (this.deps.chats.answers(row.conversationId, row.agentId, 0).entries <= cursor) continue;
-      if (await this.deps.busy(row.agentId, row.conversationId)) continue;
-      this.enqueue(job, row.agentId, row.conversationId, true);
+      void this.enqueue(job, row.agentId, row.conversationId, true);
     }
     await this.drain();
   }
 
   private async run(job: PassJob, agentId: string, chatId: string, force: boolean): Promise<RunOutcome> {
+    // The chat may have woken while the run waited its turn: it waits for the next sweep, its cursor where it was.
+    if (await this.deps.busy(agentId, chatId)) return "skipped";
     const started = this.now();
     const k = `${job.name}\u0000${agentId}\u0000${chatId}`;
     const { state, context } = this.deps;
     const cursor = state.cursor(job.name, agentId, chatId) ?? 0;
-    const { rows, lines } = this.deps.chats.since(chatId, agentId, cursor);
     const record = readLocalAgent(agentId, this.deps.backendDir);
     const agentName = record?.name ?? null;
-    const transcript = formatTranscript(rows, agentName);
+    const { rows, lines, transcript } = this.stretch(chatId, agentId, cursor, agentName);
     const finish = (outcome: RunOutcome, extra: Record<string, unknown> = {}) => {
       this.deps.capture?.("pass_finished", { job: job.name, agent: agentId, chat: chatId, entries_read: lines - cursor, outcome, duration_ms: this.now().getTime() - started.getTime(), ...extra });
       return outcome;
@@ -191,7 +205,7 @@ export class PassRunner {
       state.setCursor(job.name, agentId, chatId, lines);
       return "nothing";
     }
-    const input: PassInput = { agentId, chatId, agentName, rows, material: transcript.length > MAX_MATERIAL_CHARS ? transcript.slice(-MAX_MATERIAL_CHARS) : transcript, now: started };
+    const input: PassInput = { agentId, chatId, agentName, rows, material: transcript, now: started };
     const requestId = `pass:${job.name}:${chatId}:${lines}`;
     try {
       const prompt = await job.prompt(input);
@@ -231,5 +245,29 @@ export class PassRunner {
       this.deps.report?.(`${job.name} on ${chatId} failed: ${String(error)}`);
       return finish("failed", { request_id: requestId, items: {} });
     }
+  }
+
+  /**
+   * The stretch a run reads: from the cursor, as many whole entries as fit in MAX_MATERIAL_CHARS, the oldest first,
+   * so a long stretch is read over several runs and none of it is skipped. A single entry longer than that is read
+   * from its start.
+   */
+  private stretch(chatId: string, agentId: string, from: number, agentName: string | null): { rows: TranscriptRow[]; lines: number; transcript: string } {
+    const read = (to?: number) => {
+      const { rows, lines } = this.deps.chats.since(chatId, agentId, from, to);
+      return { rows, lines, transcript: formatTranscript(rows, agentName) };
+    };
+    const all = read();
+    if (all.transcript.length <= MAX_MATERIAL_CHARS) return all;
+    // The furthest end whose stretch still fits; the length only grows with the end.
+    let lo = from + 1;
+    let hi = all.lines;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (read(mid).transcript.length <= MAX_MATERIAL_CHARS) lo = mid;
+      else hi = mid - 1;
+    }
+    const fit = read(lo);
+    return { ...fit, transcript: fit.transcript.slice(0, MAX_MATERIAL_CHARS) };
   }
 }

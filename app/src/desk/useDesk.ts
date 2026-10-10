@@ -212,7 +212,7 @@ export function useDesk() {
     reject: (id: string) => recallCall("recall_reject", { id }),
     restore: (id: string) => recallCall("recall_restore", { id }),
     forget: (id: string) => recallCall("recall_forget", { id }),
-    settings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number; tickMinutes?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
+    settings: (s: { enabled?: boolean; dailyCap?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
     /** Run the worker now; resolves to its one-line note (or the error). */
     run: () => request("recall_run", {}, 240_000).then((r) => (r.ok ? r.reply.note : r.error)),
     /** Anki's plain-text import format, or null. */

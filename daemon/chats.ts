@@ -220,12 +220,14 @@ export class ChatProjection implements ChatSource {
     return rows.length > limit ? { rows: rows.slice(rows.length - limit), more: true } : { rows, more: false };
   }
 
-  since(conversationId: string, agentId: string | null, from: number): { rows: TranscriptRow[]; lines: number } {
+  /** A chat's rows from position `from` up to `to` (its end when absent), and the position they reach. */
+  since(conversationId: string, agentId: string | null, from: number, to?: number): { rows: TranscriptRow[]; lines: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { rows: [], lines: 0 };
+    const end = Math.min(chat.entries.length, to ?? chat.entries.length);
     // Learn reads words: tool rows keep their one-line label and leave their step behind.
-    const rows = foldSteps(chat.entries.slice(Math.max(0, from)).flatMap((e) => e.steps)).map(({ tool: _tool, ...row }) => row);
-    return { rows, lines: chat.entries.length };
+    const rows = foldSteps(chat.entries.slice(Math.max(0, from), end).flatMap((e) => e.steps)).map(({ tool: _tool, ...row }) => row);
+    return { rows, lines: end };
   }
 
   digest(conversationId: string, agentId: string | null): LocalDigest {

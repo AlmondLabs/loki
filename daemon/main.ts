@@ -148,14 +148,17 @@ schedules.start();
 // The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
 // store has its chats loaded; then the runner looks over the chats once a minute.
 const oldPassFiles = { reflectionSettings: join(args.dir, "state", "reflection.json"), reflectionRoot: join(args.dir, "reflection"), learnWorker: join(recallDir(), "worker.json") };
-void chats.loaded().then(() => {
-  if (!passState.started()) {
-    const list = chats.list().flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
-    passState.migrate(oldPassFiles, list);
-    report(`background passes: settings and cursors carried over for ${list.length} chats`);
-  }
-  passes.start();
-});
+void chats
+  .loaded()
+  .then(() => {
+    if (!passState.started()) {
+      const list = chats.list().flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
+      passState.migrate(oldPassFiles, list);
+      report(`background passes: settings and cursors carried over for ${list.length} chats`);
+    }
+    passes.start();
+  })
+  .catch((error: unknown) => report(`background passes did not start: ${String(error)}`));
 console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
 
 let stopping = false;

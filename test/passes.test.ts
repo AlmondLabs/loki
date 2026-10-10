@@ -218,4 +218,87 @@ describe("background passes", () => {
       await s.cleanup();
     }
   });
+
+  test("/reflect while a sweep is running waits its turn in the same queue: runs never overlap, and the same run is not queued twice", async () => {
+    const s = await setup();
+    try {
+      let open = 0;
+      let most = 0;
+      const prompt = s.runner["deps"].jobs[0].prompt;
+      s.runner["deps"].jobs[0].prompt = async (input) => {
+        open++;
+        most = Math.max(most, open);
+        await new Promise((r) => setTimeout(r, 30));
+        open--;
+        return prompt(input);
+      };
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept"), fauxAssistantMessage("kept")]);
+      await s.say("a", LONG);
+      await s.say("b", LONG);
+      const sweep = s.runner.sweep();
+      const [byHand, again] = await Promise.all([s.runner.runNow("reflection", s.agentId, "b"), s.runner.runNow("reflection", s.agentId, "b")]);
+      await sweep;
+      expect(most).toBe(1);
+      expect(s.seen).toHaveLength(2);
+      expect(([byHand, again] as string[]).sort()).toEqual(["changed", "skipped"]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a chat that wakes while its run waits in the queue is left for later, its cursor where it was", async () => {
+    let busyChat: string | null = null;
+    const s = await setup({ busy: () => false });
+    try {
+      s.runner["deps"].busy = async (_a: string, chat: string) => chat === busyChat;
+      const prompt = s.runner["deps"].jobs[0].prompt;
+      s.runner["deps"].jobs[0].prompt = async (input) => {
+        busyChat = "b"; // the person comes back to b while a is being read
+        return prompt(input);
+      };
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
+      await s.say("a", LONG);
+      await s.say("b", LONG);
+      await s.runner.sweep();
+      expect(s.seen.map((i) => i.chatId)).toEqual(["a"]);
+      expect(s.state.cursor("reflection", s.agentId, "b")).toBeUndefined();
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a stretch longer than one run reads is read over several runs, oldest first, and none of it is skipped", async () => {
+    const s = await setup();
+    try {
+      const big = (tag: string) => `${tag} ${"the delta grows where the river slows. ".repeat(300)}`; // about 11k characters each
+      s.faux.setResponses(Array.from({ length: 12 }, () => fauxAssistantMessage("kept")));
+      await s.say("c", big("FIRST"), big("SECOND"), big("THIRD"));
+      for (let i = 0; i < 4 && (s.state.cursor("reflection", s.agentId, "c") ?? 0) < s.chats.answers("c", s.agentId, 0).entries; i++) await s.runner.sweep();
+      const read = s.seen.map((i) => i.material).join("\n");
+      for (const tag of ["FIRST", "SECOND", "THIRD"]) expect(read).toContain(tag);
+      expect(s.seen.length).toBeGreaterThan(1);
+      expect(s.seen[0].material).toContain("FIRST");
+      expect(s.seen[0].material.length).toBeLessThanOrEqual(24_000);
+      expect(s.state.cursor("reflection", s.agentId, "c")).toBe(s.chats.answers("c", s.agentId, 0).entries);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("Learn's Run now reads every chat with something new, even with the job off, and leaves a busy one", async () => {
+    const s = await setup({ quietMs: 60 * 60_000 });
+    try {
+      s.state.setSettings({ reflection: { enabled: false } });
+      s.runner["deps"].busy = async (_a: string, chat: string) => chat === "b";
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
+      await s.say("a", LONG);
+      await s.say("b", LONG);
+      await s.runner.runAllNow("reflection");
+      expect(s.seen.map((i) => i.chatId)).toEqual(["a"]);
+      expect(s.state.cursor("reflection", s.agentId, "a")).toBe(s.chats.answers("a", s.agentId, 0).entries);
+      expect(s.state.cursor("reflection", s.agentId, "b")).toBeUndefined();
+    } finally {
+      await s.cleanup();
+    }
+  });
 });

@@ -58,9 +58,12 @@ export class PassState {
     this.data = { cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } }, learnWritten: read?.learnWritten ?? { day: "", count: 0 }, ...(read?.learnLast ? { learnLast: read.learnLast } : {}) };
   }
 
-  /** Whether the passes have started here before: no settings file means this is the first start. */
+  /**
+   * Whether the passes have started here before. The cursors file marks it: only the carry-over and the runner write
+   * it, while a settings change in the first seconds after a start could write the settings file before either.
+   */
   started(): boolean {
-    return existsSync(this.settingsFile);
+    return existsSync(this.cursorsFile);
   }
 
   settings(): PassSettings {
