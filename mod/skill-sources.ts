@@ -196,7 +196,7 @@ export class SkillSources {
     const who = readLocalAgent(agentId, this.opts.backendDir)?.name?.trim() || "loki";
     try {
       await this.exec("git", ["add", "-A", "--", spec], { cwd: memory, timeoutMs: 10_000 });
-      await this.exec("git", ["-c", `user.name=${who}`, "-c", `user.email=${agentId}@letta.com`, "commit", "--quiet", "-m", `chore(skills): refresh ${name} from ${label}`, "--", spec], { cwd: memory, timeoutMs: 15_000 });
+      await this.exec("git", ["-c", `user.name=${who}`, "-c", `user.email=${agentId}@loki.local`, "commit", "--quiet", "-m", `chore(skills): refresh ${name} from ${label}`, "--", spec], { cwd: memory, timeoutMs: 15_000 });
       return (await this.exec("git", ["rev-parse", "HEAD"], { cwd: memory, timeoutMs: 5_000 })).trim();
     } catch (err) {
       // The hook refused, or git did: put the copy back as it was and say why.

@@ -388,7 +388,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
   const createDesk = useCallback(async (agentId: string, cwd: string, name?: string): Promise<Runtime> => {
     const sock = socketRef.current;
-    if (!sock) throw new Error("not connected to Letta's app-server");
+    if (!sock) throw new Error("not connected to loki's daemon");
     const rt = await sock.createConversation(agentId, cwd, name);
     const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
     setConversations((c) => [{ id: rt.conversation_id, agentId: rt.agent_id, agentName, title: name?.trim() || null, lastMessageAt: new Date().toISOString(), archived: false }, ...c]);
@@ -653,7 +653,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const from = liveRef.current.get(key)?.cwd;
     folderMoves.current.get(key)?.done("replaced by a newer change");
     return new Promise<string | null>((resolve) => {
-      const timer = setTimeout(() => move.done("Letta Code did not answer; the folder may not have changed"), FOLDER_MOVE_MS);
+      const timer = setTimeout(() => move.done("the daemon did not answer; the folder may not have changed"), FOLDER_MOVE_MS);
       const move = {
         from,
         to,

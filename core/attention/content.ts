@@ -67,7 +67,7 @@ export function environmentReminder(opts: { now?: Date; desk?: string | null; lo
   const lines = [
     "<system-reminder>",
     "This is an automated message providing context about the user's environment.",
-    "The user is sending a message via loki, on their Mac or a paired phone (not the Letta desktop app).",
+    "The user is sending a message via loki, on their Mac or a paired phone.",
     `User's device local time: ${when}`,
   ];
   if (opts.desk) lines.push(`The user is looking at this conversation in loki, the chat ("${opts.desk}").`);

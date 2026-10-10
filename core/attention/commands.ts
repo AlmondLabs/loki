@@ -17,18 +17,12 @@ export interface SlashCommand {
   withKey?: boolean;
 }
 
-/** What Letta Code 0.31 runs remotely (SUPPORTED_REMOTE_COMMANDS); the app_server_info list, when the harness sends one, is merged on top. */
+/** What loki's daemon runs (daemon/chat-backend.ts command); it says so in serverInfo, and the palette offers only these. */
 export const HARNESS_COMMANDS: SlashCommand[] = [
-  { id: "reload", description: "reload settings, local mods and secrets", where: "harness" },
-  { id: "compact", description: "summarise the conversation so far (compaction)", args: "[all|sliding_window]", where: "harness" },
-  { id: "clear", description: "clear the in-context messages", where: "harness" },
-  { id: "remember", description: "remember something from this conversation", args: "[instructions]", where: "harness" },
-  { id: "reflect", description: "reflect on this conversation now: a sleep-time pass that commits what it keeps to memory", where: "harness" },
-  { id: "init", description: "initialise (or re-initialise) the agent's memory", where: "harness" },
-  { id: "doctor", description: "audit and refine the agent's memory structure", where: "harness" },
-  { id: "context-limit", description: "set this conversation's context window", args: "[tokens] [--override]", where: "harness" },
-  { id: "channels", description: "manage channels (Slack, Telegram)", args: "[subcommand]", where: "harness" },
-  { id: "upgrade-letta-code", description: "upgrade Letta Code to the latest release", where: "harness" },
+  { id: "compact", description: "summarise the conversation so far (compaction)", args: "[instructions]", where: "harness" },
+  { id: "clear", description: "start the agent afresh in this chat; what was said stays in the thread", where: "harness" },
+  { id: "remember", description: "remember something from this conversation", args: "[what]", where: "harness" },
+  { id: "reflect", description: "reflect on this conversation now: a pass that commits what it keeps to memory", where: "harness" },
 ];
 
 /** loki's own: things the header chips and the rail already do, reachable from the box. */
@@ -39,22 +33,6 @@ export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "chats", description: "search chats, agents and pages", where: "loki", action: "search.open", withKey: true },
 ];
 
-/** A command the harness advertised in app_server_info that the table above does not know. */
-export function fromAdvertised(ids: string[] | undefined, mods: Array<{ id: string; description?: string; args?: string }> | undefined, known: SlashCommand[] = HARNESS_COMMANDS): SlashCommand[] {
-  const have = new Set(known.map((c) => c.id));
-  const out: SlashCommand[] = [];
-  for (const id of ids ?? []) {
-    if (have.has(id) || !/^[a-z][\w-]*$/.test(id)) continue;
-    have.add(id);
-    out.push({ id, description: "", where: "harness" });
-  }
-  for (const m of mods ?? []) {
-    if (!m.id || have.has(m.id)) continue;
-    have.add(m.id);
-    out.push({ id: m.id, description: m.description ?? "", args: m.args, where: "harness" });
-  }
-  return out;
-}
 
 /** Every command the box offers: loki's, the harness's, then whatever else the harness advertised. */
 /** loki's commands and the harness's; `only`, when the backend names exactly what it runs (loki's daemon), keeps those. */

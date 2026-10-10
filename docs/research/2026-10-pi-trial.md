@@ -18,9 +18,9 @@ None of the 46 turns failed. The daemon's event loop stayed responsive while thr
 ## Setup
 
 1. **Model:** OpenRouter's `~anthropic/claude-haiku-latest` on both backends, using the same key. Letta's model catalogue predates Haiku 5.5's exact id, so both used the alias.
-2. **Letta:** Letta Code's app-server on the Mac, with hidden conversations on the agent `friday`, archived after the run. Permission mode was Letta's default, unrestricted.
+2. **Letta:** Letta Code's app-server on the Mac, with hidden conversations on one of the person's agents, archived after the run. Permission mode was Letta's default, unrestricted.
 3. **Daemon:** `daemon/kernel` on pi-durable 1.1.0, with in-memory storage and pi-durable's coding tools.
-   - Instructions: `friday`'s own compiled system prompt (about 109 KB), so both sent the model the same instructions.
+   - Instructions: that agent's own compiled system prompt (about 109 KB), so both sent the model the same instructions.
    - Approvals: none.
 4. **Prompts**, each run five times in a fresh conversation:
    1. a one-sentence question with no tools;

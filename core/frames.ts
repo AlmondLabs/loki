@@ -180,7 +180,7 @@ export const FRAMES = {
   widget_status: send("a runtime or reload error from the tab (null clears it)", (m) => (str(m.id) ? { id: m.id, error: str(m.error) && m.error.trim() ? m.error.trim() : null } : "malformed widget_status"), { causes: ["widgets"] }),
   desk_get: send("another desk's state and widgets, for widgets shown inline in a thread; no switch", (m) => (str(m.scope) && m.scope ? { scope: m.scope as Scope } : "scope required"), { phone: PHONE, causes: ["desk"] }),
   list_desks: send("every desk, for the sidebar and search", nothing, { phone: PHONE, causes: ["desks"] }),
-  pin_set: send("pin or unpin a conversation (Letta's pinned-conversations.json)", (m) => (str(m.agentId) && str(m.conversationId) ? { agentId: m.agentId, conversationId: m.conversationId, pinned: m.pinned === true } : "agentId and conversationId required"), { phone: PHONE, causes: ["desks"] }),
+  pin_set: send("pin or unpin a conversation (state/pins.json)", (m) => (str(m.agentId) && str(m.conversationId) ? { agentId: m.agentId, conversationId: m.conversationId, pinned: m.pinned === true } : "agentId and conversationId required"), { phone: PHONE, causes: ["desks"] }),
   models_recent_add: send("a model picked in loki, for the shared quick picks", (m) => (str(m.handle) && m.handle ? { handle: m.handle } : "handle required"), { phone: PHONE, causes: ["models_recent"] }),
 
   // Seen marks and focus
@@ -330,8 +330,8 @@ export const FRAMES = {
   memory_log: request("memory_commits", "memory's git log, for a path or all of it", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, path: strOr(m.path, undefined), limit: typeof m.limit === "number" ? m.limit : undefined } : "agentId required", PHONE),
   memory_diff: request("memory_diff", "one memory commit's diff", (m) => (isAgentId(m.agentId) ? (str(m.sha) ? { agentId: m.agentId, sha: m.sha } : "sha required") : "agentId required"), PHONE),
-  reflection_state: request("reflection_state", "Letta's reflection counters per conversation and the last pass that changed memory", agent),
-  skills_global: request("skills_global", "skills outside memory (~/.letta/skills)", nothing),
+  reflection_state: request("reflection_state", "reflection's counters per conversation and the last pass that changed memory", agent),
+  skills_global: request("skills_global", "skills outside memory (~/.agents/skills)", nothing),
   skill_install: request("skill_installed", "install a skill into an agent's memory", (m) =>
     isAgentId(m.agentId) && str(m.source) ? { agentId: m.agentId, source: m.source, force: m.force === true } : "agentId and source required"),
   skill_refresh: request("skill_refreshed", "refresh an other skill from its upstream: current, replaced, or staged for the agent to reconcile", (m) =>

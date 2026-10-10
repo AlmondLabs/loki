@@ -17,7 +17,7 @@ const { version, repository } = JSON.parse(readFileSync(here("../package.json"),
 /** "owner/name": what the app asks GitHub about for newer releases (Settings › letta). */
 const repo = (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
 /** The agent's widget files: user data outside the repo (the mod passes the same path). */
-const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".letta", "loki", "widgets");
+const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
 
 function compilerOptions() {

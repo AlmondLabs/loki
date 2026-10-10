@@ -130,7 +130,7 @@ describe("refresh", () => {
     if (r.outcome !== "replaced") return;
     expect(r.changed).toEqual(["references/a.md"]);
     expect(existsSync(join(memory, "skills", "fmt-linked", "references", "a.md"))).toBe(true);
-    expect(git(memory, "log", "-1", "--format=%an <%ae> %s")).toContain(`tester <${AGENT}@letta.com> chore(skills): refresh fmt-linked from team-skills checkout`);
+    expect(git(memory, "log", "-1", "--format=%an <%ae> %s")).toContain(`tester <${AGENT}@loki.local> chore(skills): refresh fmt-linked from team-skills checkout`);
     expect(git(memory, "status", "--short").trim()).toBe("");
     // And now it is current, still other, still unedited.
     expect((await sources.refresh(AGENT, "fmt-linked")).outcome).toBe("current");

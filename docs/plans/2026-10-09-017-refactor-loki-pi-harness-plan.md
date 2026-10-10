@@ -151,7 +151,7 @@ Letta Code is itself built on Pi: its backend calls `@earendil-works/pi-ai` and 
   3. The Rust shell's authenticated app-server link (`appserver.rs` `Link`) goes. It existed only because Letta's app-server wanted a bearer header a browser cannot send, and the page already reaches the mod's `/ws` with the token.
   4. The phone allow-list marks the chat frames the phone uses today through the `/appserver` tunnel.
 - KTD6. **Each agent's store holds its chats, and a loki index document keeps Letta's ids.**
-  1. Each agent's store is `~/.loki/agents/<agentId>/store.sqlite` (pi-durable SQLite, WAL), and its memory stays a git repo at `~/.loki/agents/<agentId>/memory/`.
+  1. Each agent's store is `~/.loki/stores/<agentId>.sqlite` (pi-durable SQLite, WAL), and its record and memory keep Letta's layout under `~/.loki/backend/` (`agents/<name>.json`, `memfs/<agentId>/memory/`, a git repo). (As built; the plan first had them together under `~/.loki/agents/<agentId>/`.)
   2. pi-durable assigns its own numeric conversation ids. A session-scoped index document maps each loki chat id (`conv-…`, or `default` for the agent's main chat) to its pi-durable conversation.
   3. A conversation-scoped `loki.chat` document holds the title, archive flag, model override, folder and permission mode. The index and `loki.chat` are written in the same commit that creates the chat.
   4. Agent records stay loki JSON (`~/.loki/agents/<agentId>/agent.json`), keeping the Letta fields loki reads.

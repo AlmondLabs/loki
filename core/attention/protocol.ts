@@ -54,12 +54,12 @@ export interface ConnectProvider {
   auth_methods?: ProviderAuthMethod[];
   connected: { is_connected: boolean; id?: string; provider_name?: string; provider_type?: string; auth_type?: string };
 }
-/** Letta's personality presets accepted by create_agent. */
+/** The personality presets a new agent can start from (Welcome, New agent). */
 export type Personality = "memo" | "blank" | "tutorial" | "linus" | "kawaii";
 export const PERSONALITIES: Array<{ id: Personality; label: string; description: string }> = [
-  { id: "memo", label: "Letta Code", description: "the memory-first coding agent; what `letta` itself creates" },
+  { id: "memo", label: "Coding agent", description: "the memory-first coding agent" },
   { id: "blank", label: "Blank", description: "no personality written; you or the agent fill in persona.md" },
-  { id: "tutorial", label: "Tutor", description: "knows Letta, helps set up and configure agents" },
+  { id: "tutorial", label: "Tutor", description: "helps set up and configure agents" },
   { id: "linus", label: "Linus", description: "terse and exacting" },
   { id: "kawaii", label: "Kawaii", description: "cheerful" },
 ];

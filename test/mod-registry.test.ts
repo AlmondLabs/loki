@@ -5,7 +5,6 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-work
 import { MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
-import { fromLettaMod } from "../daemon/mods/letta-facade.ts";
 import type { LokiMod, ModTool } from "../daemon/mods/api.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -166,46 +165,6 @@ describe("mod registry", () => {
       faux.setResponses([record(fauxAssistantMessage("ok"))]);
       await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       expect(ended).toEqual(["c"]);
-    } finally {
-      await store.close(ctx);
-    }
-  });
-});
-
-describe("Letta facade", () => {
-  test("a mod written for Letta's API registers its tools and rides its turn_start on the person's message", async () => {
-    const mods = new ModRegistry(() => {});
-    const runs: unknown[] = [];
-    const lettaMod = fromLettaMod("core", (letta) => {
-      letta.tools.register({
-        name: "desk_state",
-        description: "The desk",
-        parameters: { type: "object", properties: {} },
-        run: (c) => {
-          runs.push({ conversation: c.conversation.id, agent: c.agent });
-          return { widgets: [] };
-        },
-      });
-      letta.tools.register({ name: "loki_camera", description: "The camera", parameters: { type: "object", properties: {} }, run: () => ({ status: "error", content: "give widgetId or widgetIds" }) });
-      letta.events.on("turn_start", (event) => {
-        const ev = event as { conversationId: string; input: Array<{ role: string; content: unknown }> };
-        const last = ev.input.at(-1)!;
-        return { input: [{ ...last, content: `${String(last.content)}\n\n<loki-desk desk="${ev.conversationId}"/>` }] };
-      });
-    });
-    await mods.load(lettaMod);
-    expect(mods.transformMessage({ chatId: "local-conv-9", agentId: "a", agentName: "A", content: "hello", typed: true })).toBe('hello\n\n<loki-desk desk="local-conv-9"/>');
-    const { store, faux, record, model } = await setup(mods);
-    try {
-      const chat = await store.createChat("local-conv-9", { agent: { model } }, ctx);
-      faux.setResponses([record(fauxAssistantMessage([fauxToolCall("desk_state", {}), fauxToolCall("loki_camera", {})], { stopReason: "toolUse" })), record(fauxAssistantMessage("ok"))]);
-      await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
-      expect(runs).toEqual([{ conversation: "local-conv-9", agent: { id: "agent-local-a", name: "Ada" } }]);
-      const [desk, camera] = await results(store, "local-conv-9");
-      expect(desk).toContain("widgets");
-      // Letta's error result reaches the model as a failed call, with its message.
-      expect(camera).toContain("give widgetId or widgetIds");
-      expect(camera).not.toContain('"status"');
     } finally {
       await store.close(ctx);
     }

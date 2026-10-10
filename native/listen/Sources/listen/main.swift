@@ -13,7 +13,7 @@ let usage = """
          listen --list | --languages
 
   Records a call until Ctrl-C: the apps' audio as "Them", the microphone as "You", both transcribed on this Mac.
-  The transcript is written as it goes to DIR (default ~/.letta/loki/calls, or $LOKI_CALLS_DIR). No audio is kept.
+  The transcript is written as it goes to DIR (default ~/.loki/calls, or $LOKI_CALLS_DIR). No audio is kept.
     --apps   what to tap, by name or bundle ID (default chrome,slack: Meet in Chrome, Slack huddles)
     --all    tap every app's audio instead (music playing will be transcribed too)
     --raw-mic  the microphone as it is, without Apple's echo cancelling (to compare)
@@ -40,7 +40,7 @@ var echoCancel = true
 var localeArg: String?
 var filePath: String?
 var outDir = ProcessInfo.processInfo.environment["LOKI_CALLS_DIR"].map { URL(fileURLWithPath: $0) }
-  ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".letta/loki/calls")
+  ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".loki/calls")
 var args = CommandLine.arguments.dropFirst().makeIterator()
 while let arg = args.next() {
   switch arg {
