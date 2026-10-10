@@ -15,14 +15,15 @@ import { isSubagent, readLocalAgent } from "../../mod/agents.ts";
 
 const run = promisify(execFile);
 
-export type NewAgent = { name: string; description?: string; system?: string; model?: string };
+/** `persona`: who the agent is and how it works, in the person's words, its memory's system/persona.md to start with. */
+export type NewAgent = { name: string; description?: string; persona?: string; system?: string; model?: string };
 
 /** A new agent's record and its memory repo, with a first commit; returns its id. */
 export async function createAgent(backendDir: string, agent: NewAgent): Promise<string> {
   const id = `agent-local-${randomUUID()}`;
   const memory = join(backendDir, "memfs", id, "memory");
   mkdirSync(join(memory, "system"), { recursive: true });
-  writeFileSync(join(memory, "system", "persona.md"), `${agent.description?.trim() || `I am ${agent.name}.`}\n`);
+  writeFileSync(join(memory, "system", "persona.md"), `${agent.persona?.trim() || `I am ${agent.name}.`}\n`);
   const git = (...args: string[]) => run("git", ["-C", memory, ...args]);
   await git("init", "--quiet");
   await git("add", "-A");

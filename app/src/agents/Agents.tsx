@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import type { Personality } from "../../../core/attention/protocol.ts";
+import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
 import { AgentFace } from "../desk/AgentChip";
 import { registerActions } from "../shell/keymap";
@@ -117,7 +117,7 @@ export function Agents({
   const shownSkill = shownSkillOf(d, skillName);
   const shownSha = shownShaOf(sha, log);
   const reading = useReading(selected, readingFor(page, filePath, shownSha, shownSkill), api);
-  const created = async (opts: { personality: Personality; name: string; description?: string; model?: string }) => {
+  const created = async (opts: NewAgentOptions) => {
     const r = await write.createAgent(opts);
     if ("error" in r) return r.error;
     setSelected(r.id); // closes the form too

@@ -1,9 +1,9 @@
 import type { FileRef, ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Runtime } from "./protocol.ts";
-import type { ChatClient } from "./chat-client.ts";
+import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
-import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
+import type { ConnectProvider, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
 import { applyChatEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
@@ -77,16 +77,6 @@ export interface UseAttentionOptions {
   activity?: Activity;
   /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
   makeClient: () => ChatClient;
-}
-
-/** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
-async function createNamedAgent(sock: ChatClient, opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string; name: string }> {
-  const created = await sock.createAgent({ personality: opts.personality, model: opts.model });
-  const body: Record<string, unknown> = {};
-  if (opts.name.trim() && opts.name.trim() !== created.name) body.name = opts.name.trim();
-  if (opts.description?.trim()) body.description = opts.description.trim();
-  if (Object.keys(body).length) await sock.updateAgent(created.id, body);
-  return { id: created.id, name: (body.name as string | undefined) ?? created.name };
 }
 
 /** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
@@ -566,13 +556,14 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, []);
-  /** create_agent, then agent_update for the name and description; the agent list reloads. Resolves to the new id. */
-  const createAgent = useCallback(async (opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string } | { error: string }> => {
+  /** A new agent with its name, description, persona and model, in one request; the agent list reloads. Resolves to the new id. */
+  const createAgent = useCallback(async (opts: NewAgentOptions): Promise<{ id: string } | { error: string }> => {
     const sock = socketRef.current;
     if (!sock) return { error: "not connected to loki's daemon" };
     let made: { id: string; name: string };
     try {
-      made = await createNamedAgent(sock, opts);
+      const created = await sock.createAgent(opts);
+      made = { id: created.id, name: created.name };
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
     }

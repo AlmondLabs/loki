@@ -261,7 +261,7 @@ export { dayLabel, unreadBoundary } from "../shared/thread";
 
 /**
  * The line above the card's message box: what the agent is doing after your reply, or what it wants beyond a reply.
- * None for a plain wait: the box's own "Message friday" already says it is your turn.
+ * None for a plain wait: the box's own "Message atlas" already says it is your turn.
  */
 export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string | null {
   const who = item.agentName ?? "The agent";

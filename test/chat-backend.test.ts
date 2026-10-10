@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -54,8 +54,12 @@ describe("the daemon's chats", () => {
   test("a new agent comes with its main chat; a new chat opens idle, and a message streams back to every client", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada" }]);
+      // With no persona of yours, the agent's memory starts with its name; with one, with your words.
+      expect(readFileSync(join(s.dir, "backend", "memfs", agent.id, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada.\n");
+      const told = await s.chats.createAgent({ name: "Bo", description: "reviews pull requests", persona: "  A careful reviewer who asks before changing code.  ", model: s.handle });
+      expect(readFileSync(join(s.dir, "backend", "memfs", told.id, "memory", "system", "persona.md"), "utf8")).toBe("A careful reviewer who asks before changing code.\n");
       expect(await (await s.stores.get(agent.id)).chat("default", ctx)).toBeDefined();
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
       expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", mode: "unrestricted", cwd: "/work" });
@@ -73,7 +77,7 @@ describe("the daemon's chats", () => {
   test("a message sent while the chat runs waits its turn, and one sent again with its sendId goes once", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
       await s.chats.open(agent.id, conversationId);
       s.faux.setResponses([s.reply("one"), s.reply("two")]);
@@ -94,7 +98,7 @@ describe("the daemon's chats", () => {
   test("moving a chat's folder pushes the new folder; its model and title change; deleting an agent removes it all", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, "/a", null);
       expect((await s.chats.folder(agent.id, conversationId, "/b")).cwd).toBe("/b");
       expect(s.pushed.at(-1)).toEqual({ conversationId, events: [{ kind: "device", cwd: "/b" }] });
@@ -117,7 +121,7 @@ describe("the daemon's chats", () => {
   test("slash commands: /remember asks the agent, /clear starts it afresh, /compact summarises, and others are refused", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
       await s.chats.open(agent.id, conversationId);
       const run = (command: string, args: string | null = null) => s.chats.command({ agentId: agent.id, conversationId, command, args });
@@ -141,7 +145,7 @@ describe("the daemon's chats", () => {
   test("Learn's ask runs in a hidden chat of its own, made once, and hands back the agent's whole reply", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       s.faux.setResponses([s.reply("first card"), s.reply("second card")]);
       expect(await s.chats.ask(agent.id, `recall-${agent.id}`, "write a card", null)).toBe("first card");
       expect(await s.chats.ask(agent.id, `recall-${agent.id}`, "another", null)).toBe("second card");
@@ -156,7 +160,7 @@ describe("the daemon's chats", () => {
   test("an image sent with a message reaches the model as an image part", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: s.handle });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
       await s.chats.open(agent.id, conversationId);
       s.faux.setResponses([s.reply("a cat")]);
@@ -181,7 +185,7 @@ describe("the daemon's chats", () => {
   test("a chat that does not exist is refused, and a handle without a provider is not a model", async () => {
     const s = await setup();
     try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, model: null });
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: null });
       await expect(s.chats.open(agent.id, "nope")).rejects.toThrow("no chat nope");
       expect(modelRef("gpt")).toBeUndefined();
       expect(modelRef("openrouter/~anthropic/claude-haiku-latest")).toEqual({ provider: "openrouter", modelId: "~anthropic/claude-haiku-latest" });

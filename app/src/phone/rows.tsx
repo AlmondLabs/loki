@@ -67,7 +67,7 @@ export interface PhoneRowProps {
   /** The start: an Avatar or a RowIcon. */
   lead: ReactNode;
   title: ReactNode;
-  /** One muted line under the title, e.g. "friday · needs approval". */
+  /** One muted line under the title, e.g. "atlas · needs approval". */
   preview?: ReactNode;
   /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
   time?: string | null;

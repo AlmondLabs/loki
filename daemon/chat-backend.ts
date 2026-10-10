@@ -213,7 +213,7 @@ export class DaemonChats implements ChatBackend {
   }
 
   async createAgent(p: PayloadOf<"chat_agent_create">): Promise<{ id: string; name: string }> {
-    const id = await createAgent(this.deps.backendDir, { name: p.name, ...(p.description ? { description: p.description } : {}), ...(p.model ? { model: p.model } : {}) });
+    const id = await createAgent(this.deps.backendDir, { name: p.name, ...(p.description ? { description: p.description } : {}), ...(p.persona ? { persona: p.persona } : {}), ...(p.model ? { model: p.model } : {}) });
     const store = await this.deps.stores.get(id);
     await store.setAgent({ id, name: p.name }, this.deps.context);
     const model = p.model ? modelRef(p.model) : undefined;

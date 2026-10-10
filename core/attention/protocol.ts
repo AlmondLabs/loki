@@ -1,6 +1,6 @@
 /**
  * The shapes a chat's live half speaks in (core/attention/chat-client.ts): which chat, the reflection settings, the
- * model providers and the personalities a new agent starts from. Their casing and names are the ones loki's app
+ * model providers and. Their casing and names are the ones loki's app
  * grew up with, kept so the screens did not change when the daemon took over (plan 017).
  */
 export interface Runtime {
@@ -54,12 +54,3 @@ export interface ConnectProvider {
   auth_methods?: ProviderAuthMethod[];
   connected: { is_connected: boolean; id?: string; provider_name?: string; provider_type?: string; auth_type?: string };
 }
-/** The personality presets a new agent can start from (Welcome, New agent). */
-export type Personality = "memo" | "blank" | "tutorial" | "linus" | "kawaii";
-export const PERSONALITIES: Array<{ id: Personality; label: string; description: string }> = [
-  { id: "memo", label: "Coding agent", description: "the memory-first coding agent" },
-  { id: "blank", label: "Blank", description: "no personality written; you or the agent fill in persona.md" },
-  { id: "tutorial", label: "Tutor", description: "helps set up and configure agents" },
-  { id: "linus", label: "Linus", description: "terse and exacting" },
-  { id: "kawaii", label: "Kawaii", description: "cheerful" },
-];

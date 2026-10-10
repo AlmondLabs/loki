@@ -249,8 +249,8 @@ export const FRAMES = {
   }, PHONE),
   chat_models: request("chat_models", "the models the connected providers offer", nothing, PHONE),
   chat_agents: request("chat_agents", "the person's agents", nothing, PHONE),
-  chat_agent_create: request("chat_agent_created", "a new agent, with its main chat", (m) =>
-    str(m.name) && m.name.trim() ? { name: m.name.trim(), description: strOr(m.description, null), model: strOr(m.model, null) } : "name required"),
+  chat_agent_create: request("chat_agent_created", "a new agent, with its main chat; `persona` is who it is, written to its memory", (m) =>
+    str(m.name) && m.name.trim() ? { name: m.name.trim(), description: strOr(m.description, null), persona: strOr(m.persona, null), model: strOr(m.model, null) } : "name required"),
   chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),

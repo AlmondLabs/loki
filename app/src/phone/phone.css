@@ -918,7 +918,7 @@ span.loki-phone-section-btn { cursor: default; }
 .loki-phone-card [data-thread-scroll] { touch-action: pan-y; }
 .loki-phone-card .loki-banner { flex: none; margin: 0 var(--phone-space-3); }
 .loki-phone-card-veil { position: absolute; inset: 0; background: var(--loki-veil); pointer-events: none; }
-/* "friday is waiting for your reply": a quiet pill between the thread and the box. */
+/* "atlas is waiting for your reply": a quiet pill between the thread and the box. */
 .loki-phone-notice {
   flex: none;
   display: flex;

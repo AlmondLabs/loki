@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Button, Field, Sheet, Title } from "../components";
-import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../core/attention/protocol.ts";
+import { Button, Field, Sheet, TextArea, Title } from "../components";
+import type { ConnectProvider } from "../../../core/attention/protocol.ts";
+import { PERSONA_HINT } from "../agents/NewAgent";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";
 import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
@@ -104,19 +105,19 @@ function ProviderStep({ nodeStep, showAgent, connected, providers, onLoadProvide
   return <span className="loki-meta loki-meta--wrap">{connected ? `${providers!.filter(isConnected).map((p) => p.display_name).join(", ")}` : "none yet — Settings › providers, any time"}</span>;
 }
 
-/** Step 2: the form for the first agent; ↵ anywhere but the description creates it. */
+/** Step 2: the form for the first agent; ↵ anywhere but the persona creates it. */
 function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: ReturnType<typeof useAgentDraft>; nameRef: RefObject<HTMLInputElement | null>; models: string[] | null; canGoBack: boolean; onBack: () => void }) {
-  const { name, setName, description, setDescription, personality, setPersonality, model, setModel, busy, error, create } = draft;
+  const { name, setName, description, setDescription, persona, setPersona, model, setModel, busy, error, create } = draft;
   return (
     <div style={{ display: "grid", gap: 10 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
       <Labelled label="Name">
-        <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" />
+        <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="atlas, scout, sage…" autoComplete="off" data-1p-ignore data-form-type="other" />
       </Labelled>
       <Labelled label="Description">
         <Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" />
       </Labelled>
-      <Labelled label="Personality">
-        <PersonalityPicker value={personality} onPick={setPersonality} />
+      <Labelled label="Persona">
+        <TextArea rows={4} value={persona} onChange={(e) => setPersona(e.target.value)} placeholder={PERSONA_HINT} data-form-type="other" />
       </Labelled>
       <Labelled label="Model">
         <Field mono list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" />
@@ -134,20 +135,6 @@ function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: Retur
           {busy ? "creating…" : "create and open the chat"}
         </Button>
       </div>
-    </div>
-  );
-}
-
-/** The personalities as a radio group, one row each. */
-function PersonalityPicker({ value, onPick }: { value: Personality; onPick: (p: Personality) => void }) {
-  return (
-    <div role="radiogroup" style={{ display: "grid", gap: 4 }}>
-      {PERSONALITIES.map((p) => (
-        <button key={p.id} type="button" role="radio" aria-checked={value === p.id} onClick={() => onPick(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, textAlign: "left", padding: "6px 10px", border: `1px solid ${value === p.id ? "var(--loki-accent)" : "var(--loki-border)"}`, borderRadius: "var(--loki-radius-sm)", background: value === p.id ? "var(--loki-brass-soft)" : "transparent", color: "var(--loki-fg)", cursor: "pointer", font: "inherit" }}>
-          <span style={{ fontSize: 13.5, color: value === p.id ? "var(--loki-accent)" : "var(--loki-fg)" }}>{p.label}</span>
-          <span className="loki-meta loki-meta--wrap">{p.description}</span>
-        </button>
-      ))}
     </div>
   );
 }

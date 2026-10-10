@@ -1,6 +1,7 @@
+import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
 
-import type { Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime } from "../../../core/attention/protocol.ts";
+import type { ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime } from "../../../core/attention/protocol.ts";
 import type { GlobalSkill, LocalAgent, MemoryCommit, MemoryFile, MemorySkillInfo, ReflectionState, RefreshOutcome } from "../../../core/frame-types.ts";
 
 export interface AgentDetails {
@@ -35,7 +36,7 @@ export interface ReflectionControls {
 
 /** Writes through loki's daemon; each resolves to an error message or null. */
 export interface AgentsWrite {
-  createAgent: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<{ id: string } | { error: string }>;
+  createAgent: (opts: NewAgentOptions) => Promise<{ id: string } | { error: string }>;
   deleteAgent: (agentId: string) => Promise<string | null>;
   writeMemory: (agentId: string, path: string, content: string, message?: string) => Promise<string | null>;
   removeMemory: (agentId: string, path: string, message?: string) => Promise<string | null>;

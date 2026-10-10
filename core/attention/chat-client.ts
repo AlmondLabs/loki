@@ -2,7 +2,7 @@ import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import type { InputOf, ReplyOf, RequestName, RequestResult } from "../frames.ts";
 import type { ImageAttachment } from "./content.ts";
 import type { ChatEvent } from "./model.ts";
-import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime, ServerEvent } from "./protocol.ts";
+import type { ConnectProvider, ReflectionMerge, ReflectionSettings, ReflectionTrigger, Runtime, ServerEvent } from "./protocol.ts";
 
 /**
  * What the attention model (useAttention) talks to for a chat's live half (plan 017, U5): loki's daemon, through the
@@ -40,6 +40,9 @@ export type ChatClient = Pick<
   | "onChat"
   | "serverInfo"
 > & { onStatus?: (s: "connecting" | "open" | "closed") => void };
+
+/** A new agent as the person describes it: its name, a line about it, who it is (its persona), and its model. */
+export type NewAgentOptions = { name: string; description?: string; persona?: string; model?: string };
 
 /** The mod socket's request, as the app's useDesk makes it. */
 export type FrameRequest = <N extends RequestName>(type: N, payload: InputOf<N>, timeoutMs: number) => Promise<RequestResult<ReplyOf<N>>>;
@@ -168,8 +171,8 @@ export class FrameChatClient {
     return (await this.call("chat_agents", {})).agents;
   }
 
-  async createAgent(opts: { personality: Personality; model?: string; tags?: string[] }): Promise<{ id: string; name: string; model: string | null }> {
-    const created = await this.call("chat_agent_create", { name: "New agent", description: null, model: opts.model ?? null }, 30_000);
+  async createAgent(opts: NewAgentOptions): Promise<{ id: string; name: string; model: string | null }> {
+    const created = await this.call("chat_agent_create", { name: opts.name, description: opts.description ?? null, persona: opts.persona ?? null, model: opts.model ?? null }, 30_000);
     return { id: created.id, name: created.name, model: opts.model ?? null };
   }
 
