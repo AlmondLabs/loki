@@ -2170,7 +2170,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "loki"
-version = "2026.10.10"
+version = "2026.10.11"
 dependencies = [
  "getrandom 0.3.4",
  "libc",
