@@ -201,7 +201,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
       <p style={{ margin: 0, color: "var(--loki-muted)" }}>
         It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at
         all while no conversation has new text. The hidden conversations sit in the chats sidebar as "recall" chats, so you can read what it was asked.
-        Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/recall/</code>. It is off until you turn it on,
+        Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.loki/recall/</code>. It is off until you turn it on,
         and Settings › learn turns it off again.
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -246,7 +246,7 @@ export function RecallSettings({ worker, onSettings, onRun, running }: { worker:
           <Button size="sm" onClick={onRun} disabled={running || !worker.enabled} title="read the quiet conversations now instead of waiting for the timer">{running ? "running…" : "run now"}</Button>
         </span>
       </Line>
-      <Line label="Files"><Meta>~/.letta/loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
+      <Line label="Files"><Meta>~/.loki/recall/ — cards, schedule and the deleted pile, one JSON file each</Meta></Line>
     </div>
   );
 }

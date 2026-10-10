@@ -1,40 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { inTauri } from "../desk/env";
 
-/** Mirrors src-tauri/src/bootstrap.rs `Status`. */
-export interface BootstrapStatus {
-  letta: string | null;
+/** Mirrors the shell's `daemon_status`: the Node loki's daemon runs on, why it could not start, and the Node it wants when none is new enough. */
+export interface DaemonStatus {
   node: string | null;
-  /** Named by LOKI_LETTA_BIN: not npm's to update. */
-  explicit: boolean;
-  installing: boolean;
   error: string | null;
-  log: string[];
-  /** `letta --version`, once Settings asked. */
-  version: string | null;
-  /** The newest release on npm, once Settings asked. */
-  latest: string | null;
-  /** loki started this harness and can restart it: the update button's precondition. */
-  managed: boolean;
-  /** The install stopped for want of a Node 22.19+ (Welcome's Node step); null otherwise. Absent from older shells. */
-  node_missing?: NodeMissing | null;
+  nodeMissing: NodeMissing | null;
 }
 
-/** Mirrors bootstrap.rs `NodeMissing`: no Node new enough anywhere loki looks, on this system. */
+/** Mirrors node.rs `NodeMissing`: no Node new enough anywhere loki looks, on this system. */
 export interface NodeMissing {
   os: "macos" | "windows" | "linux";
   /** The newest older Node found ("20.11.1") and where, if any. */
   found: string | null;
   at: string | null;
-  /** "22.19": Letta Code's engines.node. */
+  /** "22.19": the oldest Node loki's daemon runs on. */
   needed: string;
-}
-
-/** Where Welcome's Letta Code step is: still looking, npm running, stopped for want of Node, or failed otherwise. */
-export function lettaPhase(status: BootstrapStatus | null): "looking" | "installing" | "node" | "failed" {
-  if (status?.installing) return "installing";
-  if (status?.node_missing) return "node";
-  return status?.error ? "failed" : "looking";
 }
 
 /** The usual way to get Node on each system, for Welcome: one command where there is one, and a line around it. */
@@ -44,54 +25,41 @@ export function nodeHelp(os: NodeMissing["os"]): { command: string; also?: strin
   return { command: "brew install node", note: "with Homebrew (the loki cask brings it)." };
 }
 
+/** How often the status is asked again while the daemon could not start: it may yet, once Node is installed. */
+const RECHECK_MS = 4000;
+
 /**
- * Letta Code on this machine, as the shell sees it: found where installers put it, being installed with
- * npm by loki, or failed. Outside the shell (a browser tab) there is nothing to report and `status` stays null.
- * `check` asks for the installed and the newest version; `update` runs `npm install -g @letta-ai/letta-code@latest`
- * and restarts the harness when loki launched it (that harness runs with its self-updater off; a terminal
- * session updates the same install by itself). Both resolve to an error line, or null.
+ * loki's daemon as the shell sees it: the Node it runs on, or why it could not start. Outside the shell (a
+ * browser tab) there is nothing to report and `status` stays null. While `error` is set the status is asked
+ * again every few seconds; `retry` (Welcome's "check again") has the shell look for Node afresh and start the
+ * daemon when nothing runs it yet.
  */
-export function useBootstrap(): { status: BootstrapStatus | null; install: () => Promise<void>; check: () => Promise<string | null>; update: () => Promise<string | null> } {
-  const [status, setStatus] = useState<BootstrapStatus | null>(null);
+export function useDaemonStatus(): { status: DaemonStatus | null; retry: () => Promise<void> } {
+  const [status, setStatus] = useState<DaemonStatus | null>(null);
+  const failing = !!status?.error;
   useEffect(() => {
     if (!inTauri) return;
-    let off: (() => void) | null = null;
     let cancelled = false;
-    void (async () => {
-      const [{ invoke }, { listen }] = await Promise.all([import("@tauri-apps/api/core"), import("@tauri-apps/api/event")]);
-      const refresh = () => void invoke<BootstrapStatus>("bootstrap_status").then((s) => !cancelled && setStatus(s)).catch(() => {});
-      refresh();
-      off = await listen("loki:bootstrap", refresh);
-    })();
+    const refresh = () =>
+      void import("@tauri-apps/api/core")
+        .then(({ invoke }) => invoke<DaemonStatus>("daemon_status"))
+        .then((s) => !cancelled && setStatus(s))
+        .catch(() => {});
+    refresh();
+    const timer = failing ? setInterval(refresh, RECHECK_MS) : null;
     return () => {
       cancelled = true;
-      off?.();
+      if (timer) clearInterval(timer);
     };
-  }, []);
-  const install = useCallback(async () => {
+  }, [failing]);
+  const retry = useCallback(async () => {
     if (!inTauri) return;
     const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("install_letta").catch(() => {});
-  }, []);
-  const check = useCallback(async () => {
-    if (!inTauri) return "not in the app";
-    const { invoke } = await import("@tauri-apps/api/core");
     try {
-      setStatus(await invoke<BootstrapStatus>("check_letta_update"));
-      return null;
+      setStatus(await invoke<DaemonStatus>("retry_daemon"));
     } catch (e) {
-      return String(e);
+      setStatus((s) => ({ node: s?.node ?? null, nodeMissing: s?.nodeMissing ?? null, error: String(e) }));
     }
   }, []);
-  const update = useCallback(async () => {
-    if (!inTauri) return "not in the app";
-    const { invoke } = await import("@tauri-apps/api/core");
-    try {
-      await invoke("update_letta");
-      return null;
-    } catch (e) {
-      return String(e);
-    }
-  }, []);
-  return { status, install, check, update };
+  return { status, retry };
 }

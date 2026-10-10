@@ -264,7 +264,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
         />
 
         <div>
-          <div className="loki-label" style={{ marginBottom: 6 }}>Name <span style={{ fontWeight: 400 }}>· optional, Letta names it from the first exchange otherwise</span></div>
+          <div className="loki-label" style={{ marginBottom: 6 }}>Name <span style={{ fontWeight: 400 }}>· optional, named from the first exchange otherwise</span></div>
           <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this chat is about" aria-label="chat name" autoComplete="off" />
         </div>
 
@@ -278,7 +278,7 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
 
 /**
  * "Change folder": move a chat to another folder. The field starts on the chat's folder, with the same list,
- * completion and Browse as New chat; Move is off until it names another folder that exists. Letta Code tells the
+ * completion and Browse as New chat; Move is off until it names another folder that exists. The daemon tells the
  * agent on its next turn that the working directory changed.
  */
 export function ChangeFolder({ onClose, agentId, agentName, conversationKey, title, folders, onMove }: { onClose: () => void; agentId: string; agentName: string | null; conversationKey: string; title: string | null; folders: FolderApi; onMove: (folder: string) => Promise<string | null> }) {

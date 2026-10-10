@@ -3,16 +3,14 @@ import { useEffect, useState } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/osWords";
-import { Button, Chip, Dot, Field, IconButton, Sheet, Switch, Title, sentence } from "../components";
-import type { Scratch } from "../shell/useScratch";
+import { Button, Chip, Dot, IconButton, Sheet, Switch, Title, sentence } from "../components";
 import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/ChatWindow";
-import { MIN_LETTA_CODE, TESTED_LETTA_CODE, UPGRADE_LINE, lettaStanding } from "../../../core/compat.ts";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { Providers } from "./Providers";
 import { Phone, type PhoneApi } from "./Phone";
 import { Skills, type GlobalSkillsApi } from "./Skills";
-import type { BootstrapStatus } from "../shell/bootstrap";
-import { useHarnessFacts, type InstallReport, type Tools } from "../shell/useHarnessFacts";
+import type { DaemonStatus } from "../shell/bootstrap";
+import { useHarnessFacts, type InstallReport } from "../shell/useHarnessFacts";
 import type { LokiUpdate } from "../shell/useLokiUpdate";
 import type { GlobalShortcut } from "../shell/useGlobalShortcut";
 import type { Recall as RecallModel } from "../shell/useRecall";
@@ -20,25 +18,19 @@ import { RecallSettings } from "../recall/RecallParts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
 import { ThemeChoice } from "./ThemeChoice";
-import { PAGES, SETTINGS_PAGE_KEY, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
+import { PAGES, SETTINGS_PAGE_KEY, pageTitle, savedPage, type SettingsPage } from "./pages";
 import { PageList } from "./PageList";
 import { useTheme } from "../theme";
 
-const HOME = "~/.letta/loki";
+const HOME = "~/.loki";
 
 export { PAGES, isSettingsPage, pageTitle, type SettingsPage } from "./pages";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
 
-type AppServerStatus = "connecting" | "open" | "closed" | "unavailable";
+/** The daemon's chat link (useAttention's status, "off" shown as connecting). */
+type ChatLink = "connecting" | "open" | "closed";
 type ModConnection = "connecting" | "open" | "closed";
-
-/** Who runs the app-server, read off its address. */
-function describeRunner(appServerUrl: string | null): string {
-  const viaTunnel = !!appServerUrl && appServerUrl.includes("/appserver");
-  const ownHarness = !!appServerUrl && /:41600\//.test(appServerUrl);
-  return !appServerUrl ? "not found" : viaTunnel ? "whichever harness the mod found — this tab reaches it through the mod's tunnel" : ownHarness ? "loki's own harness (letta server --listen), launched now or by an earlier run" : "a harness loki did not launch — Letta Desktop, or a letta server you started; loki attached to it instead of launching its own";
-}
 
 type SettingsProps = Parameters<typeof Settings>[0];
 
@@ -56,80 +48,63 @@ export function Preferences({ onClose, ...rest }: Omit<SettingsProps, "onClose">
 }
 
 /**
- * Settings: the facts that had no home — which harness the app is on, how it reaches
+ * Settings: the facts that had no home — what loki runs on, how it reaches
  * the mod, where the files are — a couple of preferences, and the keymap. Laid out as Preferences' body:
  * the section list on the left, the page on the right, filling whatever holds it.
  */
 export function Settings({
-  appServerStatus,
-  tunnelUrl,
+  chatLink,
   modConnection,
   deskCount,
   chatWidth,
   onChatWidth,
   chatPlacement,
   onChatPlacement,
-  lettaVersion,
   providers,
   onLoadProviders,
   importLetta = null,
   onConnectProvider,
   onDisconnectProvider,
   onModelsChanged,
-  bootstrap,
-  onInstallLetta,
-  onCheckLetta,
-  onUpdateLetta,
+  daemon,
   phone,
   globalSkills,
   update,
   shortcut,
   recall,
-  scratch,
   onClose,
 }: {
-  appServerStatus: AppServerStatus;
-  tunnelUrl: string | null;
+  chatLink: ChatLink;
   modConnection: ModConnection;
   deskCount: number;
   chatWidth: ChatWidth;
   onChatWidth: (w: ChatWidth) => void;
   chatPlacement: ChatPlacement;
   onChatPlacement: (p: ChatPlacement) => void;
-  /** From the harness's app_server_info reply. */
-  lettaVersion: string | null;
   providers: ConnectProvider[] | null;
   onLoadProviders: () => Promise<unknown>;
-  /** The one-time import from Letta, when chats are on loki's daemon. */
+  /** The one-time import from Letta into loki's daemon. */
   importLetta?: (() => Promise<RequestResult<Replies["chat_imported"]>>) | null;
   onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
   onDisconnectProvider: (providerId: string) => Promise<string | null>;
   onModelsChanged: () => void;
-  bootstrap: BootstrapStatus | null;
-  onInstallLetta: () => Promise<void>;
-  /** Settings › letta: ask npm for the newest Letta Code, and pull it (restarting the harness). Each resolves to an error line or null. */
-  onCheckLetta: () => Promise<string | null>;
-  onUpdateLetta: () => Promise<string | null>;
+  /** loki's daemon as the shell sees it: the Node it runs on, or why it could not start (null in a browser tab). */
+  daemon: DaemonStatus | null;
   /** The LAN listener and paired phones (useDesk().phone). */
   phone: PhoneApi;
-  /** ~/.letta/skills, which every agent reads (Settings › skills). */
+  /** ~/.agents/skills, which every agent reads (Settings › skills). */
   globalSkills: GlobalSkillsApi;
-  /** Newer loki releases, from GitHub (Settings › letta). */
+  /** Newer loki releases, from GitHub (Settings › loki). */
   update: LokiUpdate;
   /** ⌥Space, held or released (Settings › keys). */
   shortcut: GlobalShortcut;
   /** The card writer's switch and knobs (Settings › learn). */
   recall: RecallModel;
-  /** The harness's scratch folder (Settings › letta). */
-  scratch: Scratch;
   /** The close button in the page's header (Preferences); none without it. */
   onClose?: () => void;
 }) {
-  const harness = useHarnessFacts(tunnelUrl);
-  const [page, setPage] = useState<SettingsPage>(() => {
-    const saved = sessionStorage.getItem(PAGE_KEY);
-    return isSettingsPage(saved) ? saved : "letta";
-  });
+  const harness = useHarnessFacts();
+  const [page, setPage] = useState<SettingsPage>(() => savedPage(sessionStorage.getItem(PAGE_KEY)));
   const pick = (p: SettingsPage) => {
     setPage(p);
     sessionStorage.setItem(PAGE_KEY, p);
@@ -162,9 +137,9 @@ export function Settings({
         </div>
         {/* Keyed by page so a new page starts at its top. */}
         <div key={page} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px 40px", display: "grid", gap: 28, alignContent: "start" }}>
-          {page === "letta" && <LettaPage update={update} harness={harness} appServerStatus={appServerStatus} modConnection={modConnection} deskCount={deskCount} lettaVersion={lettaVersion} bootstrap={bootstrap} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} scratch={scratch} importLetta={importLetta} />}
+          {page === "loki" && <LokiPage update={update} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} importLetta={importLetta} />}
           {page === "inbox" && <InboxPage />}
-          {page === "providers" && <ProvidersPage appServerStatus={appServerStatus} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
+          {page === "providers" && <ProvidersPage chatLink={chatLink} providers={providers} onLoadProviders={onLoadProviders} onConnectProvider={onConnectProvider} onDisconnectProvider={onDisconnectProvider} onModelsChanged={onModelsChanged} />}
           {page === "phone" && <PhonePage phone={phone} modConnection={modConnection} />}
           {page === "skills" && <SkillsPage globalSkills={globalSkills} />}
           {page === "learn" && <RecallPage recall={recall} />}
@@ -191,37 +166,25 @@ function AppearancePage() {
   );
 }
 
-/** Settings › letta: the harness, the mod, what loki needs on this machine, and what launch installed. */
-function LettaPage({ update, harness, appServerStatus, modConnection, deskCount, lettaVersion, bootstrap, onInstallLetta, onCheckLetta, onUpdateLetta, scratch, importLetta }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; appServerStatus: AppServerStatus; modConnection: ModConnection; deskCount: number; lettaVersion: string | null; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; scratch: Scratch; importLetta: (() => Promise<RequestResult<Replies["chat_imported"]>>) | null }) {
-  // Never print the token: a browser tab's tunnel URL carries it as a query.
-  const shownUrl = harness.appServerUrl ? harness.appServerUrl.replace(/\?.*$/, "") : null;
+/** Settings › loki: this app, the import from Letta, the mod, what loki needs on this machine, and what launch installed. */
+function LokiPage({ update, harness, daemon, modConnection, deskCount, importLetta }: { update: LokiUpdate; harness: ReturnType<typeof useHarnessFacts>; daemon: DaemonStatus | null; modConnection: ModConnection; deskCount: number; importLetta: (() => Promise<RequestResult<Replies["chat_imported"]>>) | null }) {
   return (
     <>
       <Section title="loki" hint="this app; the only update it ever offers on its own">
         <LokiVersionFact update={update} />
       </Section>
       {importLetta && (
-        <Section title="Import" hint="your agents, their memory and chats, keys and schedules, from Letta into loki's daemon; Letta's own files are left as they are">
+        <Section title="Import" hint="your agents, their memory and chats, keys and schedules, from Letta into loki; Letta's own files are left as they are">
           <ImportFact run={importLetta} />
         </Section>
       )}
-      <Section title="Harness" hint="the Letta process loki talks to; the mod runs inside it">
-        <Fact label="App-server" value={shownUrl ?? "—"} mono />
-        <Fact label="Who runs it" value={describeRunner(harness.appServerUrl)} />
-        <Fact label="Link" value={<Status s={appServerStatus} />} />
-      </Section>
-      <Section title="Scratch" hint="where Letta's Bash tool keeps background output; dreaming runs sandboxed and may only write under ~/.letta">
-        <ScratchFacts scratch={scratch} />
-      </Section>
-      <Section title="Mod" hint="canvas layout, widget files, transcripts">
+      <Section title="Mod" hint="canvas layout, widget files, transcripts and chats, served by loki's daemon">
         <Fact label="Endpoint" value={modBase()} mono />
         <Fact label="Link" value={<Status s={modConnection} />} />
         <Fact label="Chats" value={String(deskCount)} />
       </Section>
       <Section title="Requirements" hint="what loki needs on this machine, and where it found it">
-        <LettaCodeFact lettaVersion={lettaVersion} tools={harness.tools} />
-        <LettaCliFact bootstrap={bootstrap} tools={harness.tools} onInstallLetta={onInstallLetta} />
-        {inTauri && <LettaUpdateFact bootstrap={bootstrap} onCheck={onCheckLetta} onUpdate={onUpdateLetta} />}
+        {inTauri && <NodeFact daemon={daemon} />}
         <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (the board needs it; everything else works without)`}</Note> : "—"} mono />
         <SystemFact />
       </Section>
@@ -230,87 +193,10 @@ function LettaPage({ update, harness, appServerStatus, modConnection, deskCount,
   );
 }
 
-/**
- * The scratch folder: loki's harness gets one under ~/.letta (Letta's own default, a system temp folder, is refused
- * by the sandbox its memory subagents run in since 0.31.13, so every dreaming pass failed silently); a `letta`
- * run from a terminal needs its own, because Letta names the files inside by a per-process counter.
- */
-function ScratchFacts({ scratch }: { scratch: Scratch }) {
-  if (!scratch.available) return <Fact label="loki's harness" value="the app only — a browser tab does not launch a harness" />;
-  return (
-    <>
-      <HarnessScratchFact scratch={scratch} />
-      <TerminalScratchFact suggestion={scratch.settings?.terminalSuggestion ?? "$HOME/.letta/scratch"} terminalLine={scratch.settings?.terminalLine} />
-    </>
-  );
-}
-
-/** The folder loki's harness uses: editable, applied with a harness restart, and a way back to the default. */
-function HarnessScratchFact({ scratch }: { scratch: Scratch }) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const s = scratch.settings;
-  const shown = draft ?? s?.path ?? "";
-  const changed = s ? shown.trim() !== s.path : false;
-  const apply = (path: string | null) => void scratch.set(path).then(() => setDraft(null));
-  return (
-    <Fact
-      label="loki's harness"
-      value={
-        <span style={{ display: "inline-grid", gap: 6 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Field size="sm" mono value={shown} onChange={(e) => setDraft(e.target.value)} placeholder={s?.defaultPath ?? "reading…"} style={{ width: 340 }} aria-label="scratch folder for loki's harness" disabled={!s || scratch.busy} />
-            <Button size="sm" tone="positive" disabled={!s || !changed || scratch.busy} onClick={() => apply(shown)} title="saves the folder and restarts the harness on it — a turn in progress stops">
-              {scratch.busy ? "restarting…" : "apply, restarting the harness"}
-            </Button>
-            {s && !s.isDefault && (
-              <Button size="sm" bare disabled={scratch.busy} onClick={() => apply(null)}>
-                back to the default
-              </Button>
-            )}
-          </span>
-          {scratchWord(scratch)}
-        </span>
-      }
-    />
-  );
-}
-
-/** The line under the field: the shell's error, else where the folder stands against the default. */
-function scratchWord(scratch: Scratch): React.ReactNode {
-  if (scratch.error) return <Note tone="warn">{scratch.error}</Note>;
-  const s = scratch.settings;
-  if (!s) return <Note>asking the shell…</Note>;
-  return <Note>{s.isDefault ? "the default; emptied each time the harness starts" : `default ${s.defaultPath}`}</Note>;
-}
-
-/** The export line for a `letta` run from a terminal, with copy. */
-function TerminalScratchFact({ suggestion, terminalLine }: { suggestion: string; terminalLine?: string }) {
-  const [copied, setCopied] = useState(false);
-  // The shell's line, in the terminal's own syntax (PowerShell on Windows); an older shell sends only the folder.
-  const line = terminalLine ?? `export LETTA_SCRATCHPAD="${suggestion}"`;
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(line);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-  return (
-    <Fact
-      label="Your terminal"
-      value={
-        <span style={{ display: "inline-grid", gap: 6 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{line}</code>
-            <Button size="sm" onClick={() => void copy()}>{copied ? "copied" : "copy"}</Button>
-          </span>
-          <Note>for a `letta` you run yourself, in its shell profile — a different folder from loki's, since both write task_1.log, task_2.log…</Note>
-        </span>
-      }
-    />
-  );
+/** The Node the daemon runs on, or why the daemon could not start. */
+function NodeFact({ daemon }: { daemon: DaemonStatus | null }) {
+  const value = !daemon ? "—" : daemon.error ? <Note tone="warn">{daemon.error}</Note> : daemon.node ?? "starting…";
+  return <Fact label="Node" value={value} mono={!!daemon?.node && !daemon.error} />;
 }
 
 /** Where loki runs, said plainly (in a browser tab, that the tab is only a view of it), over what that system needs. */
@@ -346,50 +232,6 @@ export function LokiVersionFact({ update, os = platform }: { update: LokiUpdate;
   return <Fact label="Version" value={value} />;
 }
 
-/** The Letta Code the harness reports, against the range loki runs on (core/compat.ts). */
-function LettaCodeFact({ lettaVersion, tools }: { lettaVersion: string | null; tools: Tools | null }) {
-  return <Fact label="Letta Code" value={lettaVersion ? <span>harness reports {lettaVersion}<StandingNote version={lettaVersion} /></span> : tools ? (tools.letta ? "harness not linked yet" : <Note tone="warn">not found — the shell installs it with npm on launch</Note>) : "—"} />;
-}
-
-/** Where a version stands: the tested release, newer than it (runs; first suspect), older (fine), or below the minimum (upgrade). */
-function StandingNote({ version }: { version: string }) {
-  const standing = lettaStanding(version);
-  if (standing === "tested") return <Note>the release loki was tested with</Note>;
-  if (standing === "newer") return <Note>newer than the release loki was tested with ({TESTED_LETTA_CODE}) — if something is off, this is the first suspect</Note>;
-  if (standing === "too_old") return <Note tone="warn">below the oldest release loki runs on ({MIN_LETTA_CODE}) — in a terminal: {UPGRADE_LINE}</Note>;
-  if (standing === "older") return <Note>older than the tested release ({TESTED_LETTA_CODE}); fine down to {MIN_LETTA_CODE}</Note>;
-  return null;
-}
-
-/**
- * Updating Letta Code from here: "check" asks npm for the newest release; "update" runs the same
- * `npm install -g @letta-ai/letta-code@latest` that installed it and restarts the harness — only when loki
- * launched that harness. loki's harness runs with the self-updater off, so nothing changes under a session;
- * a terminal `letta` updates the same install by itself.
- */
-function LettaUpdateFact({ bootstrap, onCheck, onUpdate }: { bootstrap: BootstrapStatus | null; onCheck: () => Promise<string | null>; onUpdate: () => Promise<string | null> }) {
-  const [busy, setBusy] = useState<"check" | "update" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const run = async (what: "check" | "update", act: () => Promise<string | null>) => {
-    setBusy(what);
-    setError(await act());
-    setBusy(null);
-  };
-  if (!bootstrap?.letta) return null;
-  return (
-    <Fact
-      label="Updates"
-      value={
-        <span style={{ display: "inline-flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 12 }}>{bootstrap.version ? `installed ${bootstrap.version}` : "installed —"}{bootstrap.latest ? ` · newest ${bootstrap.latest}` : ""}</span>
-          {bootstrap.installing ? <Note>{bootstrap.log[bootstrap.log.length - 1] ?? "updating…"}</Note> : <UpdateActions bootstrap={bootstrap} busy={busy} onCheck={() => void run("check", onCheck)} onUpdate={() => void run("update", onUpdate)} />}
-          <UpdateNotes bootstrap={bootstrap} error={error} />
-        </span>
-      }
-    />
-  );
-}
-
 /** Run the import from Letta, then say what came over; again imports only what is missing. */
 function ImportFact({ run }: { run: () => Promise<RequestResult<Replies["chat_imported"]>> }) {
   const [busy, setBusy] = useState(false);
@@ -420,50 +262,14 @@ function ImportFact({ run }: { run: () => Promise<RequestResult<Replies["chat_im
   );
 }
 
-/** Check, and update when a newer release exists and this harness is loki's to restart; else the one-line verdict. */
-function UpdateActions({ bootstrap, busy, onCheck, onUpdate }: { bootstrap: BootstrapStatus; busy: "check" | "update" | null; onCheck: () => void; onUpdate: () => void }) {
-  const { version, latest, managed } = bootstrap;
-  const newer = !!latest && !!version && latest !== version;
-  return (
-    <>
-      <Button size="sm" onClick={onCheck} disabled={busy !== null}>{busy === "check" ? "checking…" : "check"}</Button>
-      {newer && managed && (
-        <Button size="sm" tone="positive" onClick={onUpdate} disabled={busy !== null} title="npm install -g @letta-ai/letta-code@latest, then the harness restarts — a turn in progress stops">
-          {busy === "update" ? "updating…" : `update to ${latest}`}
-        </Button>
-      )}
-      {newer && !managed && <Note>newer release — this harness is not loki's to restart; in a terminal: {UPGRADE_LINE}, then restart it where it runs</Note>}
-      {latest && !newer && version && <Note>up to date</Note>}
-    </>
-  );
-}
-
-/** The footnotes: a newest release beyond the tested one, the how-it-moves reminder before the first check, and any error. */
-function UpdateNotes({ bootstrap, error }: { bootstrap: BootstrapStatus; error: string | null }) {
-  const { version, latest, installing } = bootstrap;
-  const newer = !!latest && !!version && latest !== version;
-  const shown = error ?? (installing ? null : bootstrap.error);
-  return (
-    <>
-      {newer && lettaStanding(latest) === "newer" && <Note>loki was tested with {TESTED_LETTA_CODE}; a newer release may need a loki update too</Note>}
-      {!installing && !latest && !error && <Note>loki's harness never updates itself; this button or a terminal's {UPGRADE_LINE} moves the one install both use</Note>}
-      {shown && <Note tone="warn">{shown}</Note>}
-    </>
-  );
-}
-
-/** The letta CLI on this machine: found where installers put it, being installed with npm, failed (with the install button), or as the tool scan saw it. */
-function LettaCliFact({ bootstrap, tools, onInstallLetta }: { bootstrap: BootstrapStatus | null; tools: Tools | null; onInstallLetta: () => Promise<void> }) {
-  return <Fact label="Letta CLI" value={bootstrap ? (bootstrap.letta ? <span>{bootstrap.letta}{bootstrap.explicit ? <Note>named by LOKI_LETTA_BIN — not npm's, so not the update button's to move</Note> : <Note>the Mac's own Letta Code — the same file a terminal runs</Note>}</span> : bootstrap.installing ? <Note tone="warn">installing with npm… {bootstrap.log[bootstrap.log.length - 1] ?? ""}</Note> : <span><Note tone="warn">{bootstrap.error ?? "not found"}</Note> <Button size="sm" onClick={() => void onInstallLetta()} style={{ marginLeft: 8 }}>install</Button> <Note>or, in a terminal: {UPGRADE_LINE}</Note></span>) : tools ? tools.letta ?? <Note tone="warn">not found — {UPGRADE_LINE}</Note> : "—"} mono />;
-}
-
 /** In the shell only: what launch did about the mod and the skill. */
 function InstallSection({ install }: { install: InstallReport | null }) {
   return (
-    <Section title="Install" hint="on launch the app puts its mod and skill where Letta looks">
+    <Section title="Install" hint="on launch the app puts its mod, its daemon, the phone canvas and the skill in place">
       <ModFact install={install} />
-      <Fact label="Shim" value={<span>{install?.shim ?? "~/.letta/mods/loki.ts"}<Note>every harness on {osWords().machine} loads it; the mod serves loki only inside one that hosts an app-server (loki's own, Letta Desktop, a letta server) and stands down in a terminal session</Note></span>} mono />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
+      <Fact label="Canvas" value={install ? <InstallState s={install.app} /> : "—"} />
+      {install?.app_path ? <Fact label="Canvas path" value={install.app_path} mono /> : null}
       <Fact label="Skill" value={install ? <span><InstallState s={install.skill} /> {install.skill === "custom" ? <Note>a symlink or your own copy; left alone</Note> : install.skill === "linked" ? <Note>a symlink to the checkout this build came from</Note> : null}</span> : "—"} />
       <Fact label="Skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
       {install?.error ? <Fact label="Error" value={<span style={{ color: "var(--loki-negative)" }}>{install.error}</span>} /> : null}
@@ -471,11 +277,10 @@ function InstallSection({ install }: { install: InstallReport | null }) {
   );
 }
 
-/** The word after the mod's state: what launch found in the shim's place, or what the harness still needs. */
+/** The word after the mod's state: what launch found in its place. */
 function modNote(install: InstallReport): React.ReactNode {
-  if (install.mod === "custom") return <Note>your own shim is in place; the app leaves it alone</Note>;
-  if (install.needs_reload) return <Note tone="warn">the harness started before this copy landed: /reload in it, or restart Letta Desktop</Note>;
-  if (install.mod === "linked") return <Note>development build — the shim imports this checkout's mod/boot.ts; /reload re-bundles it</Note>;
+  if (install.mod === "custom") return <Note>your own copy is in place; the app leaves it alone</Note>;
+  if (install.mod === "linked") return <Note>development build — the daemon runs this checkout's mod/boot.ts</Note>;
   if (install.mod === "skipped") return <Note>development build — the app's own copy is in place; set LOKI_INSTALL=1 to refresh it</Note>;
   return null;
 }
@@ -484,10 +289,10 @@ function ModFact({ install }: { install: InstallReport | null }) {
   return <Fact label="Mod" value={install ? <span><InstallState s={install.mod} /> {modNote(install)}</span> : "—"} />;
 }
 
-function ProvidersPage({ appServerStatus, providers, onLoadProviders, onConnectProvider, onDisconnectProvider, onModelsChanged }: { appServerStatus: AppServerStatus; providers: ConnectProvider[] | null; onLoadProviders: () => Promise<unknown>; onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>; onDisconnectProvider: (providerId: string) => Promise<string | null>; onModelsChanged: () => void }) {
+function ProvidersPage({ chatLink, providers, onLoadProviders, onConnectProvider, onDisconnectProvider, onModelsChanged }: { chatLink: ChatLink; providers: ConnectProvider[] | null; onLoadProviders: () => Promise<unknown>; onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>; onDisconnectProvider: (providerId: string) => Promise<string | null>; onModelsChanged: () => void }) {
   return (
-    <Section title="Providers" hint={`who answers the models; keys are checked, then kept by Letta on ${osWords().machine}`}>
-      {appServerStatus === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="Link" value="the harness is not linked yet" />}
+    <Section title="Providers" hint="who answers the models; keys are checked, then kept in this computer's keychain">
+      {chatLink === "open" ? <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnectProvider} onDisconnect={onDisconnectProvider} onChanged={onModelsChanged} /> : <Fact label="Link" value="loki's daemon is not linked yet" />}
     </Section>
   );
 }
@@ -502,7 +307,7 @@ function PhonePage({ phone, modConnection }: { phone: PhoneApi; modConnection: M
 
 function SkillsPage({ globalSkills }: { globalSkills: GlobalSkillsApi }) {
   return (
-    <Section title="Skills" hint="~/.letta/skills — every agent reads these; an agent's own skills are on its page">
+    <Section title="Skills" hint="~/.agents/skills — every agent reads these; an agent's own skills are on its page">
       <Skills api={globalSkills} />
     </Section>
   );
@@ -557,7 +362,7 @@ function FilesPage() {
       <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
       <Fact label="Board" value={`${HOME}/board  (beads · bd, embedded Dolt, prefix lk)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />
-      <Fact label="Logs" value={`${HOME}/mod.log · ${HOME}/logs/harness.log`} mono />
+      <Fact label="Logs" value={`${HOME}/mod.log · ${HOME}/logs/daemon.log`} mono />
       <Fact label="Mod · canvas" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />
     </Section>
   );

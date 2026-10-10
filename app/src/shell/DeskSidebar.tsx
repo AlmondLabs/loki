@@ -23,8 +23,8 @@ function isFolded(pref: SidebarPref, filtering: boolean, id: string): boolean {
   return !filtering && (id === ARCHIVED ? !pref.archivedOpen : pref.collapsed.includes(id));
 }
 
-const NO_ARCHIVE_REASON = "Archiving needs the app-server, which is not connected";
-const NO_MOVE_REASON = "Changing folder needs the app-server, which is not connected";
+const NO_ARCHIVE_REASON = "Archiving needs loki's daemon, which is not connected";
+const NO_MOVE_REASON = "Changing folder needs loki's daemon, which is not connected";
 
 /** localStorage, or nothing (a blocked store only costs the folds and the scroll). */
 const store = (): Pick<Storage, "getItem" | "setItem"> | null => {

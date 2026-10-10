@@ -7,7 +7,7 @@
 import { platform, systemName, type Platform } from "../desk/env";
 
 export interface OsWords {
-  /** The machine mid-sentence: "keys are kept by Letta on this Mac". */
+  /** The machine mid-sentence: "every agent on this Mac". */
   machine: string;
   /** The same at the start of a sentence. */
   Machine: string;
@@ -19,10 +19,8 @@ export interface OsWords {
   folderExample: string;
   /** The line that installs beads (bd), the board's task tracker. */
   beadsInstall: string;
-  /** Settings › letta's System fact, under runsOn: what loki needs of the system. */
+  /** Settings › loki's System fact, under runsOn: what loki needs of the system. */
   system: string;
-  /** Where Welcome's failed install sends a global folder npm may not write. */
-  npmDenied: string;
 }
 
 const WORDS: Record<Platform, OsWords> = {
@@ -33,8 +31,7 @@ const WORDS: Record<Platform, OsWords> = {
     fileManager: "Finder",
     folderExample: "~/Documents/…",
     beadsInstall: "brew install beads",
-    system: "macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript",
-    npmDenied: "A global folder npm may not write needs the sudo line above, run in a terminal.",
+    system: "macOS 13 or later; the shell picks folders with osascript",
   },
   windows: {
     machine: "this PC",
@@ -44,7 +41,6 @@ const WORDS: Record<Platform, OsWords> = {
     folderExample: "~\\Documents\\…",
     beadsInstall: "npm install -g @beads/bd",
     system: "64-bit Windows 10 or 11, a preview build; the shell picks folders with the system's own dialog",
-    npmDenied: "A global folder npm may not write needs the line above, run in a terminal opened as administrator.",
   },
   linux: {
     machine: "this computer",
@@ -54,7 +50,6 @@ const WORDS: Record<Platform, OsWords> = {
     folderExample: "~/Documents/…",
     beadsInstall: "npm install -g @beads/bd",
     system: "64-bit desktop Linux (Ubuntu and Debian first), a preview build; the shell picks folders with the system's own dialog",
-    npmDenied: "A global folder npm may not write needs the sudo line above, run in a terminal.",
   },
 };
 
@@ -69,7 +64,7 @@ export function lokiUpgrade(cask: string, os: Platform = platform): string {
   return `brew upgrade --cask ${cask}, or the .dmg on the release page`;
 }
 
-/** Settings › letta's System fact: "loki runs on this Mac (macOS)" in the app, "…on a Mac (macOS); you're viewing it in a browser" in a tab. */
+/** Settings › loki's System fact: "loki runs on this Mac (macOS)" in the app, "…on a Mac (macOS); you're viewing it in a browser" in a tab. */
 export function runsOn(os: Platform, shell: boolean): string {
   const w = WORDS[os];
   return shell ? `loki runs on ${w.machine} (${systemName(os)})` : `loki runs on ${w.aMachine} (${systemName(os)}); you're viewing it in a browser`;

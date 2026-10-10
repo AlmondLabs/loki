@@ -249,7 +249,7 @@ describe("the sidebar, rendered", () => {
     expect(html).not.toContain("Old spike");
     // Not connected: archive is there but disabled, with the reason.
     expect(html).toMatch(/aria-label="Archive"[^>]*disabled|disabled[^>]*aria-label="Archive"/);
-    expect(html).toContain("Archiving needs the app-server");
+    expect(html).toContain("Archiving needs loki&#x27;s daemon");
   });
 });
 

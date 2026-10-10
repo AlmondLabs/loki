@@ -16,10 +16,9 @@ import type { ChatPlacement, ChatWidth } from "../chat/ChatWindow";
 import { DeskTree } from "./DeskTree";
 import { Preferences } from "../settings/Settings";
 import { Welcome } from "./Welcome";
-import type { BootstrapStatus } from "./bootstrap";
+import type { DaemonStatus } from "./bootstrap";
 import type { LokiUpdate } from "./useLokiUpdate";
 import type { GlobalShortcut } from "./useGlobalShortcut";
-import type { Scratch } from "./useScratch";
 import type { AssignTarget, useBoard } from "./useBoard";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
@@ -77,7 +76,7 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
       onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agentId), item.runtime, mode)}
       commands={catchUp.commands}
       onCommand={(item, id, args) => {
-        // loki's own commands are keymap actions; everything else is the harness's, run for the card's conversation.
+        // loki's own commands are keymap actions; everything else is the daemon's, run for the card's conversation.
         const local = LOKI_COMMANDS.find((c) => c.id === id);
         if (local?.action) runAction(local.action);
         else void catchUp.execute(item.runtime, id, args);
@@ -114,14 +113,14 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
   );
 }
 
-/** Preferences (the Settings sheet): the harness and mod facts come from the two models; the chat preferences from useChatLayout. */
-export function SettingsView({ desk, catchUp, boot, onInstallLetta, onCheckLetta, onUpdateLetta, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut, recall, scratch, onClose }: { onClose: () => void; update: LokiUpdate; shortcut: GlobalShortcut; recall: RecallModel; scratch: Scratch; desk: Desk; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; onCheckLetta: () => Promise<string | null>; onUpdateLetta: () => Promise<string | null>; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
+/** Preferences (the Settings sheet): the daemon and mod facts come from the two models and the shell; the chat preferences from useChatLayout. */
+export function SettingsView({ desk, catchUp, daemon, chatWidth, onChatWidth, chatPlacement, onChatPlacement, onModelsChanged, update, shortcut, recall, onClose }: { onClose: () => void; update: LokiUpdate; shortcut: GlobalShortcut; recall: RecallModel; desk: Desk; catchUp: CatchUp; daemon: DaemonStatus | null; chatWidth: ChatWidth; onChatWidth: (w: ChatWidth) => void; chatPlacement: ChatPlacement; onChatPlacement: (p: ChatPlacement) => void; onModelsChanged: () => void }) {
   const { attention } = desk;
-  return <Preferences onClose={onClose} appServerStatus={attention.available ? (catchUp.status === "off" ? "connecting" : catchUp.status) : "unavailable"} tunnelUrl={attention.tunnelUrl} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} lettaVersion={catchUp.server?.version ?? null} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} bootstrap={boot} onInstallLetta={onInstallLetta} onCheckLetta={onCheckLetta} onUpdateLetta={onUpdateLetta} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} scratch={scratch} importLetta={attention.importLetta} />;
+  return <Preferences onClose={onClose} chatLink={catchUp.status === "off" ? "connecting" : catchUp.status} modConnection={desk.connection} deskCount={desk.desks.list.filter((d) => d.status === "live").length} chatWidth={chatWidth} onChatWidth={onChatWidth} chatPlacement={chatPlacement} onChatPlacement={onChatPlacement} providers={catchUp.providers} onLoadProviders={catchUp.loadProviders} onConnectProvider={catchUp.connectProvider} onDisconnectProvider={catchUp.disconnectProvider} onModelsChanged={onModelsChanged} daemon={daemon} phone={desk.phone} globalSkills={{ list: desk.agents.globalSkills, enable: catchUp.skills.enable, disable: catchUp.skills.disable }} update={update} shortcut={shortcut} recall={recall} importLetta={attention.importLetta} />;
 }
 
-/** First launch, over the empty desk: the provider, the first agent, its desk. */
-export function WelcomeView({ step, catchUp, boot, onInstallLetta, models, onLoadModels, onModelsChanged, onDone }: { step: "letta" | "provider" | "agent"; catchUp: CatchUp; boot: BootstrapStatus | null; onInstallLetta: () => Promise<void>; models: ModelEntry[] | null; onLoadModels: () => void; onModelsChanged: () => void; onDone: (agentId: string) => void }) {
+/** First launch, over the empty desk: Node when the daemon could not start, the provider, the first agent, its desk. */
+export function WelcomeView({ step, catchUp, daemon, onRetryDaemon, models, onLoadModels, onModelsChanged, onDone }: { step: "node" | "provider" | "agent"; catchUp: CatchUp; daemon: DaemonStatus | null; onRetryDaemon: () => Promise<void>; models: ModelEntry[] | null; onLoadModels: () => void; onModelsChanged: () => void; onDone: (agentId: string) => void }) {
   return (
     <Welcome
       step={step}
@@ -133,8 +132,8 @@ export function WelcomeView({ step, catchUp, boot, onInstallLetta, models, onLoa
       models={models ? [...new Set(models.map((m) => m.handle))] : null}
       onLoadModels={onLoadModels}
       onCreate={catchUp.createAgent}
-      bootstrap={boot}
-      onInstallLetta={onInstallLetta}
+      daemon={daemon}
+      onRetryDaemon={onRetryDaemon}
       onDone={onDone}
     />
   );

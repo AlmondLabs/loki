@@ -8,18 +8,17 @@ import type { AgentsApi, ReflectionControls } from "./types";
 import type { DeskSummary, ReflectionConversation, ReflectionState } from "../../../core/frame-types.ts";
 
 /**
- * The reflection page: Letta's sleep-time pass over what happened, for one agent. After a turn, Letta may launch a
- * Reflection Subagent over a conversation's unreflected transcript; what it keeps becomes memory commits. The
- * settings on the left are Letta's own for this agent (what its /sleeptime overlay shows in a terminal), read and
- * written through the app-server. The list on the right is what the step-count trigger looks at: each conversation's
- * steps since its last pass, from Letta's transcript state files through the mod. "reflect now" starts a pass by
- * hand, the same as /reflect in that conversation's chat; the harness answers in a line, and the pass itself runs in
- * the background and lands on the changes page when it commits.
+ * The reflection page: loki's pass over what happened, for one agent. Once a chat goes quiet, the daemon may run a
+ * reflection over what was said since the last pass, in a hidden chat of the same agent; what it keeps becomes memory
+ * commits. The settings on the left are this agent's, read and written through the daemon. The list on the right is
+ * what the step-count trigger looks at: each conversation's steps since its last pass, through the mod. "reflect now"
+ * starts a pass by hand, the same as /reflect in that conversation's chat; the daemon answers in a line, and the pass
+ * itself runs in the background and lands on the changes page when it commits.
  */
 type Patch = Partial<Pick<ReflectionSettings, "trigger" | "stepCount" | "merge" | "mergeInstructions">>;
 
 export function ReflectionPage({ agentId, agentName, desks, api, reflect, onOpenDesk }: { agentId: string; agentName: string; desks: DeskSummary[]; api: AgentsApi; reflect: ReflectionControls; onOpenDesk: (agentId: string, conversationId: string) => void }) {
-  /** undefined: reading; null: the app-server did not answer. */
+  /** undefined: reading; null: the daemon did not answer. */
   const [settings, setSettings] = useState<ReflectionSettings | null | undefined>(undefined);
   const [state, setState] = useState<ReflectionState | null | undefined>(undefined);
   const [notice, setNotice] = useState<string | null>(null);
@@ -30,7 +29,7 @@ export function ReflectionPage({ agentId, agentName, desks, api, reflect, onOpen
   const someConversation = (s: ReflectionState | null | undefined) => s?.conversations[0]?.conversationId ?? desks.find((d) => d.agentId === agentId && d.conversationId)?.conversationId ?? null;
 
   // Mounted per agent (Agents.tsx keys this page by the agent id), so the state above starts fresh with each tab.
-  // The two halves come from different places (the mod, the app-server) and neither waits for the other: the
+  // The two halves come from different places (the mod, the daemon) and neither waits for the other: the
   // settings go through one of the agent's desks when there is one, else through the first counted conversation.
   useEffect(() => {
     let gone = false;
@@ -86,8 +85,8 @@ export function ReflectionPage({ agentId, agentName, desks, api, reflect, onOpen
 
 /** The left half: trigger, steps, merge (with review instructions when the agent reviews), and the last pass that changed memory. */
 function SettingsPane({ settings, state, agentName, onSave }: { settings: ReflectionSettings | null | undefined; state: ReflectionState | null | undefined; agentName: string; onSave: (patch: Patch) => Promise<void> }) {
-  if (settings === undefined) return <Meta>reading Letta's settings…</Meta>;
-  if (settings === null) return <Meta wrap>Letta did not answer for these settings — loki has to be linked to the harness, and the agent needs a conversation.</Meta>;
+  if (settings === undefined) return <Meta>reading the settings…</Meta>;
+  if (settings === null) return <Meta wrap>loki's daemon did not answer for these settings — it has to be running, and the agent needs a conversation.</Meta>;
   const ranBefore = state?.conversations.some((c) => c.lastSucceededAt) ?? false;
   return (
     <div style={{ display: "grid", gap: 14, padding: "4px 8px 0" }}>
@@ -110,7 +109,7 @@ function SettingsPane({ settings, state, agentName, onSave }: { settings: Reflec
           <Meta wrap>no pass has changed memory yet{ranBefore ? " — the passes that ran found nothing to keep" : ""}</Meta>
         )}
       </Line>
-      <Meta wrap>These are Letta's own settings for {agentName}, the same ones its /sleeptime overlay shows in a terminal; a pass runs inside the harness whether loki is open or not.</Meta>
+      <Meta wrap>These are {agentName}'s own settings; a pass runs in loki's daemon, in the background.</Meta>
     </div>
   );
 }
@@ -145,7 +144,7 @@ function StepsLine({ value, onSave }: { value: number; onSave: (n: number) => vo
   );
 }
 
-/** Letta's "review instructions": a line the reviewing pass is told to follow, saved on blur. */
+/** The "review instructions": a line the reviewing pass is told to follow, saved on blur. */
 function InstructionsLine({ value, onSave }: { value: string; onSave: (s: string) => void }) {
   const [text, setText] = useState(value);
   return (

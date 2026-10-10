@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toast } from "../components";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { useAttention } from "../../../core/attention/useAttention.ts";
-import { makeTransport } from "./transport";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { DeskPane } from "../desk/DeskPane";
 import { useDeskPane } from "../desk/useDeskPane";
@@ -13,7 +12,7 @@ import { AgentsColumn } from "../agents/Agents";
 import { BoardColumn } from "../board/BoardColumn";
 import { LearnColumn } from "../recall/LearnColumn";
 import { TaskCapture } from "../board/TaskCapture";
-import { useBootstrap, type BootstrapStatus } from "./bootstrap";
+import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
 import { Sidebar, SIDEBAR_WIDTH, TitleStrip, TITLEBAR_HEIGHT } from "./Sidebar";
@@ -26,7 +25,6 @@ import { useBoard } from "./useBoard";
 import { useRecall } from "./useRecall";
 import { useLokiUpdate } from "./useLokiUpdate";
 import { useGlobalShortcut } from "./useGlobalShortcut";
-import { useScratch } from "./useScratch";
 import { useShellKeys } from "./useShellKeys";
 import { KeysSheet } from "./KeysSheet";
 import { useColumn } from "./useColumn";
@@ -50,10 +48,10 @@ function savedSegment(): Segment {
   return s === "inbox" || s === "board" || s === "agents" || s === "learn" ? s : "desk";
 }
 
-/** First launch: nothing to talk to yet. Only while the harness has answered and lists no agents. */
-function welcomeFor(boot: BootstrapStatus | null, catchUp: Pick<CatchUp, "status" | "agentsLoaded" | "agents" | "providers">): "letta" | "provider" | "agent" | null {
-  return boot && !boot.letta && catchUp.status !== "open"
-    ? "letta" // no Letta Code on this Mac and no harness answering: loki is installing one
+/** First launch: nothing to talk to yet. Only while the daemon could not start, or has answered and lists no agents. */
+function welcomeFor(daemon: DaemonStatus | null, catchUp: Pick<CatchUp, "status" | "agentsLoaded" | "agents" | "providers">): "node" | "provider" | "agent" | null {
+  return daemon?.error && catchUp.status !== "open"
+    ? "node" // the daemon could not start (no new-enough Node, or another reason) and nothing answers
     : catchUp.status === "open" && catchUp.agentsLoaded
       ? welcomeStep({ agents: catchUp.agents.length, providers: catchUp.providers })
       : null;
@@ -73,10 +71,7 @@ export function Shell() {
   const capture = useCallback((event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }), [captureRaw]);
   const catchUp = useAttention({
     enabled: attention.available,
-    backend: attention.backend,
     makeClient: attention.makeClient,
-    tunnelUrl: attention.tunnelUrl,
-    makeTransport,
     seen: attention.seen,
     viewed: attention.viewed,
     focus: attention.focus,
@@ -132,8 +127,8 @@ export function Shell() {
   /** Bumped by ⌘F to open the chat's find bar. */
   const [findChat, setFindChat] = useState(0);
   const { list: modelList, load: loadModels, forget: forgetModels } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
-  const boot = useBootstrap();
-  const welcome = welcomeFor(boot.status, catchUp);
+  const daemon = useDaemonStatus();
+  const welcome = welcomeFor(daemon.status, catchUp);
   useEffect(() => {
     if (catchUp.status === "open" && catchUp.agentsLoaded && catchUp.agents.length === 0 && catchUp.providers === null) void catchUp.loadProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,7 +139,7 @@ export function Shell() {
   }, [welcome, loadModels]);
   const pickModel = async (scope: string, rt: Runtime, selection: ModelSelection) => {
     const { applied, error } = await catchUp.updateModel(rt, selection);
-    if (error || !applied) return notice(`model: ${error ?? "the app-server did not return the applied model"}`);
+    if (error || !applied) return notice(`model: ${error ?? "the daemon did not return the applied model"}`);
     desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
     desk.models.used(applied.handle);
     const effort = applied.reasoningEffort ? ` · effort ${effortLabel(applied.reasoningEffort)}` : "";
@@ -206,7 +201,6 @@ export function Shell() {
   const recall = useRecall(desk, segment, notice);
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
-  const scratch = useScratch();
   const [picker, setPicker] = useState<Picker | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   /** The `?` cheat sheet for the view showing. */
@@ -419,7 +413,7 @@ export function Shell() {
             />
           )}
 
-          {welcome && !prefsOpen && <WelcomeView step={welcome} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} models={modelList} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
+          {welcome && !prefsOpen && <WelcomeView step={welcome} catchUp={catchUp} daemon={daemon.status} onRetryDaemon={daemon.retry} models={modelList} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
 
           <PickerTree picker={picker} onClose={() => setPicker(null)} desk={desk} catchUp={catchUp} onAssign={board.assignTo} pendingAssignRef={pendingAssign} onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })} />
 
@@ -430,7 +424,7 @@ export function Shell() {
       {searchOpen && <SearchSheet sources={searchSources} here={segment === "desk" ? deskPlace(desk.scope) : segment === "settings" ? null : sectionPlace(segment)} avatar={avatarUrl} onOpen={openHit} onClose={() => setSearchOpen(false)} />}
       {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), sessionStorage.setItem(SETTINGS_PAGE_KEY, "keys"), setPrefsOpen(true))} />}
       {/* Preferences covers the whole window, rail included, like Slack's. */}
-      {prefsOpen && <SettingsView onClose={() => setPrefsOpen(false)} update={update} shortcut={shortcut} recall={recall} scratch={scratch} desk={desk} catchUp={catchUp} boot={boot.status} onInstallLetta={boot.install} onCheckLetta={boot.check} onUpdateLetta={boot.update} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
+      {prefsOpen && <SettingsView onClose={() => setPrefsOpen(false)} update={update} shortcut={shortcut} recall={recall} desk={desk} catchUp={catchUp} daemon={daemon.status} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
       {boardNotice && <Toast>{boardNotice}</Toast>}
 
       <NewDeskSheet

@@ -3,7 +3,6 @@ import { WidgetSourceContext } from "../chat/useInlineWidgets";
 import { useAttention } from "../../../core/attention/useAttention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { makeTransport } from "../shell/transport";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/useDesk";
 import { AgentPage, FilePage } from "./Agent";
@@ -39,7 +38,7 @@ import "./phone.css";
 /**
  * Phone mode: the second shell. The mod serves this page over the Wi‑Fi with `__LOKI__.lan` set and
  * lets the device in by cookie. `GET /me` decides between Pair and the app; once paired, the same
- * two hooks the desktop shell uses (useDesk for the mod, useAttention for the app-server tunnel)
+ * two hooks the desktop shell uses (useDesk for the mod, useAttention for the chats, over the same socket)
  * feed four tabs in a floating capsule — Home, Inbox, Agents, More, with Search beside it — and the
  * full-screen pages over them: Search, Learn, Archive, Preferences, the connection, About, a
  * conversation, an agent, and a memory file. Routes live in the hash; each page knows where it was opened from (router.ts), and
@@ -159,10 +158,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const capture = useCallback((event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }), [captureRaw]);
   const catchUp = useAttention({
     enabled: attention.available,
-    backend: attention.backend,
     makeClient: attention.makeClient,
-    tunnelUrl: attention.tunnelUrl,
-    makeTransport,
     seen: attention.seen,
     viewed: attention.viewed,
     focus: attention.focus,
@@ -198,7 +194,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   }, [desk.connection]);
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
-  // The model list for Select model, as the desktop shell keeps it: once per harness, on the first ask.
+  // The model list for Select model, as the desktop shell keeps it: once per daemon, on the first ask.
   const models = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
   useUnpairWatch(desk.connection, onUnpaired);
 
@@ -267,7 +263,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place]);
 
-  // Archive and restore go through the app-server, the way the desktop tree does; null while it cannot take them.
+  // Archive and restore go through the daemon, the way the desktop tree does; null while it cannot take them.
   const onArchive: ArchiveDesk | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
@@ -290,7 +286,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         }
       : null;
 
-  const link = linkState(desk.connection, catchUp.status, attention.available);
+  const link = linkState(desk.connection);
   // What Search looks through: only what the phone already holds (searchIndex.ts), agent descriptions from the Agents cache.
   const searchSources = useMemo(() => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, describe: knownDescription }), [desk.desks.list, catchUp.agents, catchUp.items]);
   // The /health poll lives here, not in the bar: the bar moves between the dock and the page strip, which remounts it.
@@ -306,8 +302,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} onRename={onRename} />}
         {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
-        {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} appServerLink={catchUp.status} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
-        {route.kind === "about" && <AboutPage version={catchUp.server?.version ?? null} servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "connection" && <ConnectionPage me={me} link={link} modLink={desk.connection} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "about" && <AboutPage servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "agent" && <AgentPage agentId={route.agentId} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} desks={desk.desks.list} items={catchUp.items} api={desk.agents} banner={banner} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "file" && <FilePage agentId={route.agentId} path={route.path} name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)} api={desk.agents} banner={banner} onBack={onBack} />}
 
@@ -327,8 +323,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
 }
 
 /**
- * The conversation the route names, full screen over the tabs, wired to the tunnel and the mod's desk list. Its
- * model is the mod's word for the conversation (the desks list), switched through the app-server as the desktop
+ * The conversation the route names, full screen over the tabs, wired to the chats and the mod's desk list. Its
+ * model is the mod's word for the conversation (the desks list), switched through the daemon as the desktop
  * does; a refused switch says why in the banner for a few seconds.
  */
 function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; onRename: RenameDeskName | null; onArchive: ArchiveDesk | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
@@ -345,7 +341,7 @@ function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, on
   }, [note]);
   const pickModel = async (rt: Runtime, selection: ModelSelection) => {
     const { applied, error } = await catchUp.updateModel(rt, selection);
-    if (error || !applied) return setNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
+    if (error || !applied) return setNote(`Model: ${error ?? "the daemon did not return the applied model"}`);
     desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
     desk.models.used(applied.handle);
   };
@@ -384,7 +380,7 @@ function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, on
       folder={
         attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
           ? {
-              // The live folder (Letta Code's device status) first, else what the Mac's records say; the agent's recent folders to choose from.
+              // The live folder (the daemon's word) first, else what the Mac's records say; the agent's recent folders to choose from.
               load: async () => {
                 const r = await attention.folders.recent();
                 const current = catchUp.conversation(thread.agentId, thread.conversationId).cwd ?? r.byConversation[conversationDirName(thread.conversationId, thread.agentId)] ?? null;
@@ -429,7 +425,7 @@ function Screen({ tab, me, link, desk, catchUp, deck, due, banner, recentFolders
       catchUp.status === "open"
         ? async (item: AttentionItem, selection: ModelSelection) => {
             const { applied, error } = await catchUp.updateModel(item.runtime, selection);
-            if (error || !applied) return setCardNote(`Model: ${error ?? "the app-server did not return the applied model"}`);
+            if (error || !applied) return setCardNote(`Model: ${error ?? "the daemon did not return the applied model"}`);
             desk.setDeskModel(scopeFor(item.id, item.agentId), applied.handle, applied.reasoningEffort);
             desk.models.used(applied.handle);
           }

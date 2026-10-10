@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { lettaPhase, nodeHelp, type BootstrapStatus, type NodeMissing } from "../app/src/shell/bootstrap.ts";
-import { LettaInstall, NodeNeeded } from "../app/src/shell/Welcome.tsx";
+import { nodeHelp, type DaemonStatus, type NodeMissing } from "../app/src/shell/bootstrap.ts";
+import { DaemonProblem, NodeNeeded } from "../app/src/shell/Welcome.tsx";
 
-const base: BootstrapStatus = { letta: null, node: null, explicit: false, installing: false, error: null, log: [], version: null, latest: null, managed: false, node_missing: null };
 const missing = (os: NodeMissing["os"], found: string | null = null, at: string | null = null): NodeMissing => ({ os, found, at, needed: "22.19" });
-const noNode = (os: NodeMissing["os"], found?: string, at?: string): BootstrapStatus => ({ ...base, error: "no Node", node_missing: missing(os, found ?? null, at ?? null) });
-const html = (status: BootstrapStatus | null) => renderToStaticMarkup(createElement(LettaInstall, { status, onRetry: async () => {} }));
+const noNode = (os: NodeMissing["os"], found?: string, at?: string): DaemonStatus => ({ node: null, error: "no Node", nodeMissing: missing(os, found ?? null, at ?? null) });
+const html = (status: DaemonStatus | null) => renderToStaticMarkup(createElement(DaemonProblem, { status, onRetry: async () => {} }));
 
 /** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
@@ -25,7 +24,7 @@ describe("Welcome: no Node 22 on the machine", () => {
     expect(out).toContain("winget install OpenJS.NodeJS.LTS");
     expect(out).toContain("check again");
     expect(out.match(/<button/g)?.length).toBe(1);
-    expect(out).not.toContain("retry the install");
+    expect(out).not.toContain("Letta");
     expect(out).not.toContain("brew");
   });
 
@@ -63,33 +62,13 @@ describe("Welcome: no Node 22 on the machine", () => {
     expect(busy?.props.disabled).toBe(true);
   });
 
-  test("re-check with Node present moves on to installing Letta Code", () => {
-    expect(lettaPhase(noNode("windows"))).toBe("node");
-    // The shell clears the Node state as the re-check starts and reports the npm install as it runs.
-    const rechecking: BootstrapStatus = { ...base, installing: true, log: ["using Node at C:\\Program Files\\nodejs\\node.exe"] };
-    expect(lettaPhase(rechecking)).toBe("installing");
-    const out = html(rechecking);
+  test("any other reason the daemon could not start: the reason, where the log is, and check again", () => {
+    const out = html({ node: "/opt/homebrew/bin/node", error: "daemon exited: EADDRINUSE", nodeMissing: null });
+    expect(out).toContain("EADDRINUSE");
+    expect(out).toContain("~/.loki/logs/daemon.log");
+    expect(out).toContain("check again");
+    expect(out.match(/<button/g)?.length).toBe(1);
     expect(out).not.toContain("Node 22 or newer is needed");
-    expect(out).toContain("installing it with npm");
-    expect(out).toContain("using Node at");
-  });
-
-  test("the phases: looking, installing, failed for another reason, Node missing", () => {
-    expect(lettaPhase(null)).toBe("looking");
-    expect(lettaPhase(base)).toBe("looking");
-    expect(lettaPhase({ ...base, installing: true })).toBe("installing");
-    expect(lettaPhase({ ...base, error: "npm failed: ENOTFOUND" })).toBe("failed");
-    // A re-check in flight wins over the Node state it is replacing.
-    expect(lettaPhase({ ...noNode("linux"), installing: true })).toBe("installing");
-    // An older shell with no node_missing field at all still reads as a failed install.
-    const { node_missing: _, ...older } = { ...base, error: "x" };
-    expect(lettaPhase(older as BootstrapStatus)).toBe("failed");
-  });
-
-  test("any other failure keeps the retry and the error line", () => {
-    const out = html({ ...base, error: "npm failed: ENOTFOUND registry.npmjs.org" });
-    expect(out).toContain("ENOTFOUND");
-    expect(out).toContain("retry the install");
-    expect(out).not.toContain("Node 22 or newer is needed");
+    expect(out).not.toContain("Letta");
   });
 });

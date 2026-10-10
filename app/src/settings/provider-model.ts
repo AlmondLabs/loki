@@ -2,16 +2,13 @@ import type { ConnectProvider, ProviderField } from "../../../core/attention/pro
 
 /**
  * Pure helpers for the provider rows: which fields a connect form shows, whether it can be
- * submitted, how the catalogue is ordered. The catalogue itself comes from the harness.
+ * submitted, how the catalogue is ordered. The catalogue itself comes from the daemon.
  */
 
 /** The ones most people start with; shown first on the Welcome sheet. */
 export const SHORTLIST = ["anthropic", "openai", "google", "openrouter", "ollama"];
 
 export const isConnected = (p: ConnectProvider): boolean => p.connected?.is_connected === true;
-
-/** OAuth entries have no fields the app can collect; they connect in the terminal. */
-export const needsTerminal = (p: ConnectProvider): boolean => p.is_oauth === true || (!p.fields?.length && !p.auth_methods?.length && p.requires_api_key);
 
 /** The fields for a provider, given the chosen auth method (the first one by default). */
 export function fieldsFor(p: ConnectProvider, authMethodId?: string | null): { authMethodId: string | null; fields: ProviderField[] } {

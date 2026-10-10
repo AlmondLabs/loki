@@ -343,9 +343,9 @@ export function Inbox({
   card,
 }: {
   items: AttentionItem[];
-  /** The app-server has answered at least once; before that an empty list means nothing. */
+  /** The daemon has answered at least once; before that an empty list means nothing. */
   loaded: boolean;
-  /** The mod found an app-server to tunnel to; without one there is no inbox to read. */
+  /** The Mac serves chats; without them there is no inbox to read. */
   available: boolean;
   /** Another tab or a page is on top: keep everything (the pass, the thread's scroll, the draft) but show nothing. */
   hidden?: boolean;
@@ -447,7 +447,7 @@ export function Inbox({
 }
 
 /**
- * No card up: still reading (a card's shape), or why (no harness, the Mac unreachable, every chat moved past), what
+ * No card up: still reading (a card's shape), or why (loki not running, the Mac unreachable, every chat moved past), what
  * this visit did, and what to do next.
  */
 function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pass, backLabel, onClose, onConnection }: { available: boolean; loaded: boolean; banner?: ReactNode; running: number; /** Chats this visit went past; the badge still counts the ones that need you. */ passedOver: number; onAgain: () => void; pass: PassSummary; backLabel: string; onClose: () => void; onConnection: () => void }) {
@@ -461,9 +461,9 @@ function EmptyDeck({ available, loaded, banner, running, passedOver, onAgain, pa
     );
   // Passed over is not caught up: the badge and Home still count those cards, so the words must too.
   const again = loaded && !macProblem && passedOver > 0;
-  const title = !available ? "No harness on the Mac" : banner ? "The Mac is out of reach" : again ? "You've been through every chat" : "You're caught up";
+  const title = !available ? "loki is not running on the Mac" : banner ? "The Mac is out of reach" : again ? "You've been through every chat" : "You're caught up";
   const line = !available
-    ? "Open loki on the Mac so its mod can find Letta's app-server."
+    ? "Open loki on the Mac."
     : banner
       ? "Cards come back when it reconnects; nothing in the Inbox is lost."
       : again

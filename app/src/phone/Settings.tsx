@@ -16,7 +16,6 @@ import { BackButton, ConfirmSheet, Scroll, TopBar } from "./ui";
  */
 
 type ModLink = "connecting" | "open" | "closed";
-type AppServerLink = "off" | "connecting" | "open" | "closed";
 
 /** A page under More: the back control, the title, the banner, then its groups. */
 function Page({ title, backLabel, onBack, banner, children }: { title: string; backLabel: string; onBack: () => void; banner?: ReactNode; children: ReactNode }) {
@@ -46,9 +45,9 @@ export function Preferences({ banner, backLabel = "more", onBack }: { banner?: R
   );
 }
 
-/** A socket's state in words: linked, connecting, reconnecting, or none to make. */
-function LinkFact({ state }: { state: AppServerLink }) {
-  const word = state === "open" ? "Linked" : state === "closed" ? "Reconnecting" : state === "connecting" ? "Connecting" : "None found";
+/** The socket's state in words: linked, connecting, reconnecting. */
+function LinkFact({ state }: { state: ModLink }) {
+  const word = state === "open" ? "Linked" : state === "closed" ? "Reconnecting" : "Connecting";
   return <StateWord state={state === "open" ? "on" : state === "closed" ? "off" : "wait"}>{word}</StateWord>;
 }
 
@@ -61,7 +60,7 @@ export function HostSystemRow({ os = platform }: { os?: Platform }) {
  * The paired Mac and this phone. Unpairing is the one destructive action on the phone: a named row, then
  * a sheet that says what follows and how to pair again; a failure keeps the sheet open with the error.
  */
-export function ConnectionPage({ me, link, modLink, appServerLink, banner, onUnpaired, backLabel = "more", onBack }: { me: Me; link: LinkState; modLink: ModLink; appServerLink: AppServerLink; banner?: ReactNode; onUnpaired: () => void; backLabel?: string; onBack: () => void }) {
+export function ConnectionPage({ me, link, modLink, banner, onUnpaired, backLabel = "more", onBack }: { me: Me; link: LinkState; modLink: ModLink; banner?: ReactNode; onUnpaired: () => void; backLabel?: string; onBack: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,12 +81,11 @@ export function ConnectionPage({ me, link, modLink, appServerLink, banner, onUnp
       <RowGroup title="Paired Mac">
         <FactRow label="Status" value={<StateWord state={link === "online" ? "on" : link === "offline" ? "off" : "wait"}>{linkWord(link)}</StateWord>} />
         <HostSystemRow />
-        <FactRow label="Chats (mod)" value={<LinkFact state={modLink} />} />
-        <FactRow label="Chats (app-server)" value={<LinkFact state={appServerLink} />} />
+        <FactRow label="Chats" value={<LinkFact state={modLink} />} />
         <FactRow label="Address" value={location.host} />
         <FactRow label="Route" value={routeOf(location.host, location.protocol)} />
       </RowGroup>
-      <p className="loki-phone-group-note">Both links reconnect by themselves. The route is the address this page was opened on; the other route (Wi‑Fi or Tailscale) is another address, paired on its own from Settings › phone on the Mac.</p>
+      <p className="loki-phone-group-note">The link reconnects by itself. The route is the address this page was opened on; the other route (Wi‑Fi or Tailscale) is another address, paired on its own from Settings › phone on the Mac.</p>
       <RowGroup title="This phone">
         <FactRow label="Name" value={me.name} />
         <FactRow label="Pairing" value="Paired" />
@@ -102,8 +100,8 @@ export function ConnectionPage({ me, link, modLink, appServerLink, banner, onUnp
   );
 }
 
-/** What loki is on this phone: the build it runs against the one the Mac serves, Letta Code's version, the screen. */
-export function AboutPage({ version, servedBuild, banner, backLabel = "more", onBack }: { version: string | null; servedBuild: string | null; banner?: ReactNode; backLabel?: string; onBack: () => void }) {
+/** What loki is on this phone: the build it runs against the one the Mac serves, the screen. */
+export function AboutPage({ servedBuild, banner, backLabel = "more", onBack }: { servedBuild: string | null; banner?: ReactNode; backLabel?: string; onBack: () => void }) {
   const current = currentBuild();
   const update = updateState(servedBuild, current);
   const [reload, setReload] = useState(false);
@@ -112,7 +110,6 @@ export function AboutPage({ version, servedBuild, banner, backLabel = "more", on
       <RowGroup title="Versions">
         <FactRow label="This page" value={current ?? "Unstamped"} />
         <FactRow label="The Mac serves" value={servedBuild ?? current ?? "—"} />
-        <FactRow label="Letta Code" value={version ?? "—"} />
         <MenuRow icon="refresh" label="Reload loki" aside={UPDATE_WORD[update]} sheet launch="about:reload" onClick={() => setReload(true)} />
       </RowGroup>
       <RowGroup title="This screen">

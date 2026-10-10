@@ -3,10 +3,8 @@ import { Button, Field, Sheet, Title } from "../components";
 import { PERSONALITIES, type ConnectProvider, type Personality } from "../../../core/attention/protocol.ts";
 import { Providers } from "../settings/Providers";
 import { isConnected } from "../settings/provider-model";
-import { lettaPhase, nodeHelp, type BootstrapStatus, type NodeMissing } from "./bootstrap";
+import { nodeHelp, type DaemonStatus, type NodeMissing } from "./bootstrap";
 import { formatKeys } from "./keymap";
-import { osWords } from "./osWords";
-import { platform, type Platform } from "../desk/env";
 import { useAgentDraft, type CreateAgent } from "./useAgentDraft";
 
 type ProviderProps = {
@@ -19,7 +17,8 @@ type ProviderProps = {
 
 /**
  * First launch, as a sheet over the empty desk: a provider (skipped when one is connected), then
- * the first agent, then its desk. Shown only while the harness lists no agents at all.
+ * the first agent, then its desk. Shown only while the daemon lists no agents at all, or could not start
+ * (then Node, or the reason, comes first).
  */
 export function Welcome({
   step,
@@ -32,13 +31,14 @@ export function Welcome({
   onLoadModels,
   onCreate,
   onDone,
-  bootstrap,
-  onInstallLetta,
+  daemon,
+  onRetryDaemon,
 }: ProviderProps & {
-  step: "letta" | "provider" | "agent";
-  /** The shell's view of Letta Code on this machine (null in a browser tab). */
-  bootstrap: BootstrapStatus | null;
-  onInstallLetta: () => Promise<void>;
+  step: "node" | "provider" | "agent";
+  /** The shell's view of loki's daemon (null in a browser tab). */
+  daemon: DaemonStatus | null;
+  /** Look for Node again and start the daemon (the shell's retry_daemon). */
+  onRetryDaemon: () => Promise<void>;
   models: string[] | null;
   /** Fetch the model list; the "skip for now" / "next" button calls it, the shell does when it opens on the agent step. */
   onLoadModels: () => void;
@@ -48,8 +48,8 @@ export function Welcome({
   const [skipProvider, setSkipProvider] = useState(false);
   const draft = useAgentDraft(onCreate, onDone);
   const nameRef = useRef<HTMLInputElement>(null);
-  const lettaStep = step === "letta";
-  const showAgent = !lettaStep && (step === "agent" || skipProvider);
+  const nodeStep = step === "node";
+  const showAgent = !nodeStep && (step === "agent" || skipProvider);
   useEffect(() => {
     if (!showAgent) return;
     const t = setTimeout(() => nameRef.current?.focus(), 0);
@@ -67,12 +67,14 @@ export function Welcome({
         </div>
       </div>
 
-      <Step n={0} title="Letta Code" done={!lettaStep} active={lettaStep}>
-        <LettaStep lettaStep={lettaStep} bootstrap={bootstrap} onInstallLetta={onInstallLetta} />
-      </Step>
+      {nodeStep && (
+        <Step n={0} title={daemon?.nodeMissing ? "Node" : "Starting loki"} active>
+          <DaemonProblem status={daemon} onRetry={onRetryDaemon} />
+        </Step>
+      )}
 
-      <Step n={1} title="A model provider" done={connected} active={!showAgent && !lettaStep}>
-        <ProviderStep lettaStep={lettaStep} showAgent={showAgent} connected={connected} providers={providers} onLoadProviders={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onModelsChanged={onModelsChanged} onNext={() => (setSkipProvider(true), onLoadModels())} />
+      <Step n={1} title="A model provider" done={connected} active={!showAgent && !nodeStep}>
+        <ProviderStep nodeStep={nodeStep} showAgent={showAgent} connected={connected} providers={providers} onLoadProviders={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onModelsChanged={onModelsChanged} onNext={() => (setSkipProvider(true), onLoadModels())} />
       </Step>
 
       <Step n={2} title="Your first agent" active={showAgent}>
@@ -82,24 +84,15 @@ export function Welcome({
   );
 }
 
-/** Step 0: the install as it runs, or the Letta Code this window is linked to once it is done. */
-function LettaStep({ lettaStep, bootstrap, onInstallLetta }: { lettaStep: boolean; bootstrap: BootstrapStatus | null; onInstallLetta: () => Promise<void> }) {
-  return lettaStep ? (
-    <LettaInstall status={bootstrap} onRetry={onInstallLetta} />
-  ) : (
-    <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)" }}>{bootstrap?.letta ?? "the harness this window is linked to"}</span>
-  );
-}
-
-/** Step 1: waits for Letta Code, then the provider shortlist with "next" / "skip for now", then a line naming what connected. */
-function ProviderStep({ lettaStep, showAgent, connected, providers, onLoadProviders, onConnect, onDisconnect, onModelsChanged, onNext }: ProviderProps & { lettaStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
-  if (lettaStep) return <span className="loki-meta loki-meta--wrap">after Letta Code is in place</span>;
+/** Step 1: waits for the daemon, then the provider shortlist with "next" / "skip for now", then a line naming what connected. */
+function ProviderStep({ nodeStep, showAgent, connected, providers, onLoadProviders, onConnect, onDisconnect, onModelsChanged, onNext }: ProviderProps & { nodeStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
+  if (nodeStep) return <span className="loki-meta loki-meta--wrap">once loki is running</span>;
   if (!showAgent)
     return (
       <div style={{ display: "grid", gap: 10 }}>
         <Providers providers={providers} onLoad={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onModelsChanged} shortlist />
         <div className="loki-meta loki-meta--wrap" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span>{`Keys are checked with the provider and kept by Letta on ${osWords().machine}; loki never sees them again.`}</span>
+          <span>Keys are checked with the provider and kept in this computer's keychain.</span>
           <span style={{ flex: 1 }} />
           {/* Moving on shows the agent form, which lists models; when the shell gets here on its own it asks for them itself. */}
           <Button size="sm" onClick={onNext}>
@@ -126,7 +119,7 @@ function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: Retur
         <PersonalityPicker value={personality} onPick={setPersonality} />
       </Labelled>
       <Labelled label="Model">
-        <Field mono list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the harness default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" />
+        <Field mono list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" />
         <datalist id="loki-welcome-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
       </Labelled>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
@@ -159,46 +152,24 @@ function PersonalityPicker({ value, onPick }: { value: Personality; onPick: (p: 
   );
 }
 
-/** Letta Code is being installed with npm (or failed): the log as it comes, retry when it fails; no Node to install it with: the Node step. */
-export function LettaInstall({ status, onRetry, os = platform }: { status: BootstrapStatus | null; onRetry: () => Promise<void>; os?: Platform }) {
-  const words = osWords(os);
+/** The daemon could not start: for want of a new-enough Node, the Node step; for anything else, the reason and "check again". */
+export function DaemonProblem({ status, onRetry }: { status: DaemonStatus | null; onRetry: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
-  const lines = status?.log ?? [];
   const retry = () => {
     setBusy(true);
     void onRetry().finally(() => setBusy(false));
   };
-  if (lettaPhase(status) === "node" && status?.node_missing) return <NodeNeeded missing={status.node_missing} busy={busy} onRecheck={retry} />;
+  if (status?.nodeMissing) return <NodeNeeded missing={status.nodeMissing} busy={busy} onRecheck={retry} />;
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>
-        {status?.error ? "Installing Letta Code did not finish." : status?.installing ? `${words.Machine} has no Letta Code, so loki is installing it with npm — the same install a terminal's npm install -g makes, into npm's global folder, so the letta command works there too.` : "Looking for Letta Code…"}
+      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>loki could not start the process that runs your agents.</div>
+      {status?.error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>}
+      <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
+        Its log is <code style={mono}>~/.loki/logs/daemon.log</code>.
       </div>
-      {lines.length > 0 && (
-        <pre style={{ margin: 0, maxHeight: 160, overflowY: "auto", padding: "8px 10px", fontSize: 10.5, lineHeight: 1.5, fontFamily: "var(--loki-mono)", color: "var(--loki-muted)", background: "var(--loki-well)", borderRadius: "var(--loki-radius-sm)", whiteSpace: "pre-wrap" }}>
-          {lines.slice(-12).join("\n")}
-        </pre>
-      )}
-      {status?.error && (
-        <div style={{ display: "grid", gap: 8 }}>
-          <div className="loki-meta loki-meta--negative loki-meta--wrap">{status.error}</div>
-          <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
-            The install needs a Node 22 or newer with npm (
-            {os === "macos" ? (
-              <>
-                Homebrew's <code style={mono}>brew install node</code>; the loki cask brings it
-              </>
-            ) : (
-              <code style={mono}>{nodeHelp(os).command}</code>
-            )}
-            ) and registry.npmjs.org to be reachable. {words.npmDenied} Retry below once it is fixed. Every line of every attempt is in <code style={{ fontFamily: "var(--loki-mono)" }}>~/.letta/loki/logs/install.log</code>.
-          </div>
-          <Button size="sm" tone="positive" disabled={busy} onClick={retry} style={{ justifySelf: "start" }}>
-            {busy ? "starting…" : "retry the install"}
-          </Button>
-        </div>
-      )}
-      {!status?.error && status?.installing && <div className="loki-meta loki-meta--wrap">{`npm from the Node already on ${words.machine}; Letta Code from registry.npmjs.org. A few minutes.`}</div>}
+      <Button size="sm" tone="positive" disabled={busy} onClick={retry} style={{ justifySelf: "start" }}>
+        {busy ? "checking…" : "check again"}
+      </Button>
     </div>
   );
 }
@@ -207,14 +178,14 @@ const mono = { fontFamily: "var(--loki-mono)" };
 
 /**
  * No Node 22 or newer anywhere loki looks: what to install, this system's usual command, the nodejs.org link, and
- * one button — the install's own retry, which looks for Node afresh and goes on to npm once one is there. loki
+ * one button — the daemon's retry, which looks for Node afresh and starts the daemon once one is there. loki
  * never downloads Node itself.
  */
 export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing; busy: boolean; onRecheck: () => void }) {
   const help = nodeHelp(missing.os);
   return (
     <div style={{ display: "grid", gap: 8 }}>
-      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. Letta Code runs on it, and its npm installs Letta Code.</div>
+      <div style={{ fontSize: 13.5, color: "var(--loki-fg)", lineHeight: 1.5 }}>Node 22 or newer is needed. loki runs your agents on it.</div>
       {missing.found && (
         <div className="loki-meta loki-meta--wrap">
           The Node found is {missing.found}

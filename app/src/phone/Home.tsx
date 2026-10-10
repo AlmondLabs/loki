@@ -30,9 +30,9 @@ function openAttention(item: AttentionItem) {
   navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
 }
 
-/** Archive or restore a desk's conversation through the app-server; resolves to an error, or null when done. */
+/** Archive or restore a desk's conversation through the daemon; resolves to an error, or null when done. */
 export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
-/** Rename a desk's conversation through the app-server; resolves to an error, or null when done. */
+/** Rename a desk's conversation through the daemon; resolves to an error, or null when done. */
 export type RenameDeskName = (d: DeskSummary, name: string) => Promise<string | null>;
 
 /** What the presence dot and its name say about the paired Mac. */
@@ -78,12 +78,12 @@ export function Home({
   /** Ask the mod for the list again (on mount, from the menu, and when the socket reopens). */
   onRefresh: () => void;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
-  /** Null while the app-server cannot take it (not reachable, or not on this Mac). */
+  /** Null while the daemon cannot take it (not reachable, or not on this Mac). */
   onArchive: ArchiveDesk | null;
   onRename: RenameDeskName | null;
   /** `folders_get`: the folders each agent worked in, most recent first. */
   recentFolders: () => Promise<Record<string, string[]>>;
-  /** A new conversation through the app-server; resolves to its runtime. */
+  /** A new conversation through the daemon; resolves to its runtime. */
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>;
 }) {
   const [query, setQuery] = useState("");
@@ -186,7 +186,7 @@ function FilterPills({ query, onClearQuery }: { query: string; onClearQuery: () 
   );
 }
 
-/** A desk's actions sheet from Home: pin only for a live desk with a conversation, archive while the app-server takes it. */
+/** A desk's actions sheet from Home: pin only for a live desk with a conversation, archive while the daemon takes it. */
 function ActingDesk({ desk, onPin, onArchive, onRename, onClose }: { desk: DeskSummary; onPin: (agentId: string, conversationId: string, pinned: boolean) => void; onArchive: ArchiveDesk | null; onRename: RenameDeskName | null; onClose: () => void }) {
   const { agentId, conversationId } = desk;
   const pin = agentId && conversationId && desk.status === "live" ? (p: boolean) => onPin(agentId, conversationId, p) : null;
@@ -401,8 +401,8 @@ const canArchive = (d: DeskSummary) => !!d.conversationId && d.conversationId !=
 
 /**
  * A desk's actions, as a bottom sheet: open it, pin or unpin (live desks), rename, archive or restore. Archive
- * waits for the app-server and stays open with its error when it fails; `onArchive` null means the
- * app-server cannot take it now, and the row says so instead of vanishing.
+ * waits for the daemon and stays open with its error when it fails; `onArchive` null means the
+ * daemon cannot take it now, and the row says so instead of vanishing.
  */
 export function DeskActions({ desk: d, onClose, onPin, onArchive, onRename }: { desk: DeskSummary; onClose: () => void; onPin: ((pinned: boolean) => void) | null; onArchive: ((archived: boolean) => Promise<string | null>) | null; onRename: ((name: string) => Promise<string | null>) | null }) {
   const [busy, setBusy] = useState(false);
@@ -577,7 +577,7 @@ function NewSheet({ agents, defaultAgentId, recentFolders, onCreate, onClose }: 
   );
 }
 
-/** The agent chips, one lit; a line instead when the harness has no agents yet. */
+/** The agent chips, one lit; a line instead when the daemon has no agents yet. */
 function AgentPicker({ agents, agentId, onPick }: { agents: Array<{ id: string; name: string | null }>; agentId: string | null; onPick: (id: string) => void }) {
   return (
     <div role="radiogroup" aria-label="Agent" className="loki-phone-chips loki-phone-chips--wrap">
@@ -587,7 +587,7 @@ function AgentPicker({ agents, agentId, onPick }: { agents: Array<{ id: string; 
           {a.name ?? "agent"}
         </Chip>
       ))}
-      {agents.length === 0 && <span className="loki-phone-meta">No agents yet. Is Letta Code running on the Mac?</span>}
+      {agents.length === 0 && <span className="loki-phone-meta">No agents yet. Is loki running on the Mac?</span>}
     </div>
   );
 }
