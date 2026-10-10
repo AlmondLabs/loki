@@ -3,6 +3,13 @@ import { contentText } from "../core/harness.ts";
 import { messageAt } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 
+/** Why a message went unanswered, for the person. */
+function unanswered(reason: string | undefined): string {
+  if (reason === "no_model") return "this chat's model is not available — connect its provider in Settings › Providers, or pick another model for the chat";
+  if (reason === "model_error") return "the model could not be reached — is its provider connected in Settings › Providers? Or pick another model for the chat";
+  return `the agent could not take this message up${reason ? ` (${reason})` : ""}`;
+}
+
 /**
  * One chat's pi-durable agent events as loki's chat events (plan 017, U5), what the daemon pushes to every client
  * watching the chat. Stateful per chat: an answer's words stream in as pieces, and a short answer can be committed
@@ -40,6 +47,10 @@ export class ChatEventConverter {
       }
       case "task_failed":
         return [{ kind: "error", message: ev.message }];
+      // A message the agent could not take up at all (no model to run it on, say): the turn ends here, and says why.
+      case "submission":
+        if (ev.record.status !== "unanswered") return [];
+        return [{ kind: "error", message: unanswered(ev.record.reason) }, { kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" }];
       default:
         return [];
     }

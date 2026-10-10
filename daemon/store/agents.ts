@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import { backendName } from "../../core/desk-core.ts";
 import { isSubagent, readLocalAgent } from "../../mod/agents.ts";
+import { piHandle } from "../model-handle.ts";
 
 /**
  * The daemon's agents (plan 017, U6), kept in the layout Letta's local backend used, under the daemon's own backend
@@ -48,6 +49,25 @@ export function writeRecord(backendDir: string, id: string, record: Record<strin
   const file = join(dir, `${backendName(id)}.json`);
   writeFileSync(`${file}.tmp`, JSON.stringify(record, null, 2));
   renameSync(`${file}.tmp`, file);
+}
+
+/**
+ * Rename an agent's model to the name pi-ai runs it by, when its record carries Letta's (daemon/model-handle.ts);
+ * true when the record changed.
+ */
+export function healRecordModel(backendDir: string, id: string, known: (provider: string) => boolean): boolean {
+  const file = join(backendDir, "agents", `${backendName(id)}.json`);
+  let record: Record<string, unknown>;
+  try {
+    record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  if (typeof record.model !== "string") return false;
+  const healed = piHandle(record.model, known);
+  if (healed === record.model) return false;
+  writeRecord(backendDir, id, { ...record, model: healed });
+  return true;
 }
 
 /** The person's agents: those with a record and a memory folder, helper agents left out. */

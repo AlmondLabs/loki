@@ -29,6 +29,28 @@ describe("chat event converter", () => {
     ]);
   });
 
+  test("a message the agent could not take up (no model) ends the turn with why, and the live state settles", async () => {
+    const models = createModels();
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry: createRegistry() }, ctx);
+    try {
+      const chat = await store.createChat("c", { agent: { model: { provider: "nowhere", modelId: "nothing" } } }, ctx);
+      const stream = await watchEvents(store.harness, chat.id, ctx);
+      const c = new ChatEventConverter();
+      const events: ChatEvent[] = [];
+      stream.start(async (batch) => void events.push(...batch.flatMap((ev) => c.convert(ev, NOW))));
+      await (await chat.submit({ type: "input", content: "hello" }, ctx)).wait(ctx);
+      const end = Date.now() + 2000;
+      while (!events.some((e) => e.kind === "turn_end") && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+      expect(events.find((e) => e.kind === "error")).toEqual({ kind: "error", message: expect.stringContaining("model is not available") });
+      const l = emptyLive();
+      for (const e of events) applyChatEvent(l, e, NOW);
+      expect(l.inTurn).toBe(false);
+      expect(l.error).toContain("model is not available");
+    } finally {
+      await store.close(ctx);
+    }
+  });
+
   test("a tool with no result entry shows as failed", () => {
     expect(new ChatEventConverter().convert({ type: "tool_execution_end", toolCallId: "t1", toolName: "bash" }, NOW)).toEqual([{ kind: "step", step: { kind: "result", id: "t1", output: "the tool did not finish", failed: true } }]);
   });

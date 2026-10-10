@@ -38,3 +38,16 @@ describe("provider credentials", () => {
     expect(await new KeychainCredentials(secrets).read("x")).toBeUndefined();
   });
 });
+
+describe("the keychain's index", () => {
+  test("providers saved at the same moment are all listed", async () => {
+    const secrets = memorySecrets();
+    // A slow keychain, so every save's read of the index overlaps the others'.
+    const slow = { ...secrets, get: async (a: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.get(a)), set: async (a: string, v: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.set(a, v)) };
+    const store = new KeychainCredentials(slow);
+    await Promise.all(["a", "b", "c", "d"].map((p) => store.modify(p, async () => ({ type: "api_key", key: p }))));
+    expect((await store.list()).map((c) => c.providerId).sort()).toEqual(["a", "b", "c", "d"]);
+    await Promise.all(["a", "c"].map((p) => store.delete(p)));
+    expect((await store.list()).map((c) => c.providerId).sort()).toEqual(["b", "d"]);
+  });
+});

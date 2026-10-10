@@ -26,8 +26,8 @@ function put(file: string, value: unknown): void {
   writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value));
 }
 
-function agent(id: string, name: string, tags: string[] = ["origin:letta-code"]) {
-  put(join(letta, "lc-local-backend", "agents", `${backendName(id)}.json`), { id, name, description: null, system: "", tags, model: "openrouter/some-model", model_settings: {}, hidden: false });
+function agent(id: string, name: string, tags: string[] = ["origin:letta-code"], model = "openrouter/some-model") {
+  put(join(letta, "lc-local-backend", "agents", `${backendName(id)}.json`), { id, name, description: null, system: "", tags, model, model_settings: {}, hidden: false });
   put(join(letta, "lc-local-backend", "memfs", id, "memory", "system", "persona.md"), `I am ${name}`);
 }
 
@@ -76,7 +76,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "loki-import-"));
   letta = join(dir, "letta");
   agent(A, "Ada");
-  agent(B, "Bo");
+  agent(B, "Bo", undefined, "chatgpt-plus-pro/chatgpt-plus-pro/openai-codex/gpt-test");
   agent(HELPER, "helper", ["origin:letta-code", "role:subagent"]);
   mkdirSync(join(letta, "lc-local-backend", "memfs", "agent-local-orphan", "memory"), { recursive: true }); // no record
   conversation(A, "default", {}, logText([headerLine(), userLine("x1", null, "2026-10-01T09:00:00.000Z", "hi"), assistantLine("x2", "x1", "2026-10-01T09:00:01.000Z", "hello")]));
@@ -124,6 +124,8 @@ describe("importing from Letta", () => {
       const p = paths();
       expect(readFileSync(join(p.backendDir, "memfs", A, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada");
       expect(existsSync(join(p.backendDir, "agents", `${backendName(A)}.json`))).toBe(true);
+      // Letta's name for a model is translated to pi-ai's.
+      expect(JSON.parse(readFileSync(join(p.backendDir, "agents", `${backendName(B)}.json`), "utf8")).model).toBe("openai-codex/gpt-test");
       expect(existsSync(join(p.backendDir, "memfs", HELPER))).toBe(false);
       const ada = await rows(stores, A, "default");
       expect(foldSteps(ada.entries.flatMap(entrySteps)).map((r) => r.text)).toEqual(["hi", "hello"]);

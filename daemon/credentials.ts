@@ -29,7 +29,7 @@ export async function keychain(): Promise<SecretBackend> {
 
 export class KeychainCredentials implements CredentialStore {
   private readonly backend: SecretBackend;
-  /** Each provider's last change, so the next waits for it. */
+  /** Each provider's last change, so the next waits for it; the index has a queue of its own, which every provider's change joins. */
   private readonly queue = new Map<string, Promise<unknown>>();
 
   constructor(backend: SecretBackend) {
@@ -81,8 +81,10 @@ export class KeychainCredentials implements CredentialStore {
       const next = await fn(current);
       if (next === undefined) return current;
       await this.backend.set(this.account(providerId), JSON.stringify(next));
-      const ids = await this.index();
-      if (!ids.includes(providerId)) await this.backend.set(INDEX, JSON.stringify([...ids, providerId]));
+      await this.serial(INDEX, async () => {
+        const ids = await this.index();
+        if (!ids.includes(providerId)) await this.backend.set(INDEX, JSON.stringify([...ids, providerId]));
+      });
       return next;
     });
   }
@@ -90,8 +92,10 @@ export class KeychainCredentials implements CredentialStore {
   delete(providerId: string): Promise<void> {
     return this.serial(providerId, async () => {
       await this.backend.delete(this.account(providerId));
-      const ids = await this.index();
-      if (ids.includes(providerId)) await this.backend.set(INDEX, JSON.stringify(ids.filter((id) => id !== providerId)));
+      await this.serial(INDEX, async () => {
+        const ids = await this.index();
+        if (ids.includes(providerId)) await this.backend.set(INDEX, JSON.stringify(ids.filter((id) => id !== providerId)));
+      });
     });
   }
 }

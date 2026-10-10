@@ -13,6 +13,7 @@ import type { ModelEntry, ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
+import { piHandle } from "./model-handle.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
 import type { ImportReport } from "./import/letta.ts";
 import type { Providers } from "./providers.ts";
@@ -132,8 +133,17 @@ export class DaemonChats implements ChatBackend {
     return { agentId, conversationId };
   }
 
+  /** A chat whose model pi-ai cannot name (one imported from Letta under Letta's name) is moved to the name it can. */
+  private async healModel(store: AgentStore, chat: Conversation): Promise<void> {
+    const model = ((await store.agentSettings(chat.id, this.deps.context)) as { model?: { provider?: string; modelId?: string } } | undefined)?.model;
+    if (!model?.provider || !model.modelId || this.deps.models.getProvider(model.provider)) return;
+    const healed = modelRef(piHandle(`${model.provider}/${model.modelId}`, (id) => Boolean(this.deps.models.getProvider(id))));
+    if (healed && healed.provider !== model.provider) await chat.configure({ model: healed }, this.deps.context);
+  }
+
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
-    const { chat } = await this.chat(p.agentId, p.conversationId);
+    const { store, chat } = await this.chat(p.agentId, p.conversationId);
+    await this.healModel(store, chat);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mediaType }));
     const parts = [...(p.context ? [{ type: "text" as const, text: p.context }] : []), ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []), ...images];
     const agentName = readLocalAgent(p.agentId, this.deps.backendDir)?.name ?? "";
@@ -144,7 +154,8 @@ export class DaemonChats implements ChatBackend {
 
   /** A message from loki itself (a finished background task, a scheduled prompt): it waits its turn like yours. */
   async deliver(agentId: string, conversationId: string, text: string): Promise<void> {
-    const { chat } = await this.chat(agentId, conversationId);
+    const { store, chat } = await this.chat(agentId, conversationId);
+    await this.healModel(store, chat);
     await chat.submit({ type: "input", content: text }, this.deps.context);
   }
 

@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, w
 import { dirname, join } from "node:path";
 import { isPermissionMode } from "../approvals.ts";
 import { modelRef } from "../chat-backend.ts";
+import { piHandle } from "../model-handle.ts";
 import type { StoreManager } from "../kernel/stores.ts";
 import { writeRecord } from "../store/agents.ts";
 import type { ScheduledTask } from "../schedule.ts";
@@ -185,7 +186,9 @@ export async function importFromLetta(deps: {
   const ids = new Set(agents.map((a) => a.id));
   for (const { id, record } of agents) {
     if (!existsSync(join(paths.backendDir, "memfs", id, "memory"))) cpSync(join(backend, "memfs", id, "memory"), join(paths.backendDir, "memfs", id, "memory"), { recursive: true, verbatimSymlinks: true });
-    writeRecord(paths.backendDir, id, record);
+    // Letta's names for a model are not always pi-ai's (ChatGPT's provider is `chatgpt-plus-pro` there).
+    const known = (provider: string) => deps.knownProviders.has(provider);
+    writeRecord(paths.backendDir, id, typeof record.model === "string" ? { ...record, model: piHandle(record.model, known) } : record);
     await (await deps.stores.get(id)).setAgent({ id, name: String(record.name ?? id) }, context);
     if (!done.agents.includes(id)) done.agents.push(id);
     report.agents.push(String(record.name ?? id));
@@ -219,7 +222,7 @@ export async function importFromLetta(deps: {
     const settingsKey = permissionModeKey(record.agent_id, record.id);
     const cwd = desktopCwd[settingsKey] ?? remote.cwdMap?.[settingsKey] ?? lettaLogCwd(text);
     const agentRecord = agents.find((a) => a.id === record.agent_id)!.record;
-    const model = modelRef(record.model ?? (typeof agentRecord.model === "string" ? agentRecord.model : ""));
+    const model = modelRef(piHandle(record.model ?? (typeof agentRecord.model === "string" ? agentRecord.model : ""), (p) => deps.knownProviders.has(p)));
     const chat = existing ?? (await store.createChat(record.id, { title: record.summary?.trim() || null, hidden: record.hidden === true, createdAt: record.created_at, agent: { ...(model ? { model } : {}), ...(cwd ? { cwd } : {}) } }, context));
     const mode = remote.permissionModeMap?.[settingsKey]?.mode;
     await store.updateChat(record.id, { archived: record.archived === true, ...(isPermissionMode(mode) ? { mode } : {}) }, context);

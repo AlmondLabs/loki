@@ -157,6 +157,24 @@ describe("the daemon's chats", () => {
     }
   });
 
+  test("a chat whose model carries Letta's name for it is renamed and answered", async () => {
+    const s = await setup();
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const store = await s.stores.get(agent.id);
+      await store.createChat("imported", { agent: { model: { provider: "chatgpt-plus-pro", modelId: s.handle } } }, ctx);
+      await s.chats.open(agent.id, "imported");
+      s.faux.setResponses([s.reply("answered")]);
+      await s.chats.send({ agentId: agent.id, conversationId: "imported", text: "hi", images: [], sendId: "h1", context: null });
+      await until(() => kinds(s.pushed).includes("turn_end"));
+      expect(s.pushed.flatMap((p) => p.events).some((e) => e.kind === "error")).toBe(false);
+      const chat = (await store.chat("imported", ctx))!;
+      expect(((await store.agentSettings(chat.id, ctx)) as { model?: { provider: string } }).model?.provider).toBe(s.faux.provider.id);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("an image sent with a message reaches the model as an image part", async () => {
     const s = await setup();
     try {

@@ -35,7 +35,7 @@ import { Reflection } from "./reflection.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
-import { listAgents } from "./store/agents.ts";
+import { listAgents, healRecordModel } from "./store/agents.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
@@ -126,6 +126,9 @@ const importLetta = () =>
   });
 const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report, importLetta });
 chats.follow(stores);
+// An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
+const knownProvider = (id: string) => Boolean(models.getProvider(id));
+for (const id of listAgents(backend)) if (healRecordModel(backend, id, knownProvider)) report(`${id}: its model now goes by pi-ai's name`);
 await Promise.all(
   listAgents(backend).map(async (id) => {
     const store = await stores.get(id);
