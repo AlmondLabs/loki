@@ -10,6 +10,7 @@ import {
   type HarnessOptions,
   type Storage,
 } from "@earendil-works/pi-durable";
+import type { ImportedEntry } from "../import/convert.ts";
 
 /**
  * The daemon's only door to pi-durable (plan 017, KTD1). Each agent has one store, a Harness over one SQLite file
@@ -149,6 +150,31 @@ export class AgentStore {
       },
       context,
     );
+  }
+
+  /**
+   * Write converted Letta entries into a chat, in one commit, without asking the model anything. Returns each source
+   * line's new entry id, which is what a Learn cursor into the old log becomes (daemon/import/letta.ts).
+   */
+  async importEntries(conversation: Conversation, entries: readonly ImportedEntry[], context: Context): Promise<Map<number, EntryId>> {
+    return conversation.commit(async (tx) => {
+      const bySource = new Map<string, EntryId>();
+      const byLine = new Map<number, EntryId>();
+      // In order: each entry's id is minted as it is appended, and a compaction names one appended before it.
+      for (const entry of entries) {
+        const head = entry.headSourceId === undefined ? undefined : bySource.get(entry.headSourceId);
+        if (entry.kind === "pi.compaction" && head === undefined) continue;
+        const written = await tx.appendEntry(conversation.id, {
+          kind: entry.kind,
+          ...(entry.model ? { model: entry.model as unknown as EntryRecord["model"] } : {}),
+          ...(entry.data ? { data: entry.data as unknown as JsonValue } : {}),
+          ...(head === undefined ? {} : { head }),
+        });
+        bySource.set(entry.sourceId, written.id);
+        byLine.set(entry.line, written.id);
+      }
+      return byLine;
+    }, context);
   }
 
   /** Every entry of a chat, oldest first, including those before its newest compaction. */

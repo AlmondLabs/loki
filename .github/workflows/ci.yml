@@ -21,18 +21,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run lint
-      - run: bun test
+      - id: install
+        run: bun install --frozen-lockfile
+      # Each check runs once the install did, whatever the one before it said: a lint error must not hide a failing
+      # test (it did, from 2026-10-09: Windows' bun test went unrun behind lint).
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run typecheck
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run lint
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun test
       # loki's daemon runs on Node (22.19 or newer: node:sqlite, type stripping), and some of its tests only can: a
       # crash and resume, the mod folder's reloads (test-node/).
       - uses: actions/setup-node@v4
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         with:
           node-version: 22
-      - run: bun run test:node
-      - run: bun run build:app
-      - run: bun run build:mod
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run test:node
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run build:app
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run build:mod
 
   shell:
     name: tauri shell, cargo test (${{ matrix.os }})

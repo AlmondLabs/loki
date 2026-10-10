@@ -107,7 +107,11 @@ mod tests {
         let (old, new) = roots(&home);
         std::fs::create_dir_all(&old).unwrap();
         assert_eq!(move_root(&home), Ok(RootMove::Moved));
-        std::fs::remove_file(&old).unwrap(); // the link
+        // The link: a symlink is removed as a file, a Windows junction as a directory (remove_file refuses it there).
+        #[cfg(windows)]
+        std::fs::remove_dir(&old).unwrap();
+        #[cfg(not(windows))]
+        std::fs::remove_file(&old).unwrap();
         std::fs::remove_dir(home.join(".letta")).unwrap();
         assert_eq!(move_root(&home), Ok(RootMove::Already));
         assert!(!home.join(".letta").exists());

@@ -263,6 +263,8 @@ export function useDesk() {
   const attention = {
     // loki's daemon serves chats on this socket, wherever the page runs; a request made before it opens waits for it.
     available: true,
+    /** The one-time import from Letta (daemon/import/letta.ts); it may take a minute. */
+    importLetta: () => request("chat_import", {}, 600_000),
     /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts). */
     makeClient: () =>
           new FrameChatClient({

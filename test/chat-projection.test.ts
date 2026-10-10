@@ -5,9 +5,11 @@ import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/provid
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { ChatProjection } from "../daemon/chats.ts";
+import { lettaLogEntries } from "../daemon/import/convert.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
 import { conversationDirName } from "../core/desk-core.ts";
+import { sampleLog } from "./fixtures/letta-log.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const AGENT = "agent-local-a";
@@ -23,21 +25,17 @@ async function setup() {
 }
 
 describe("chat projection", () => {
-  test("a chat with history reads as its rows, with its details, once its store is attached", async () => {
-    const { store, faux, model, chats } = await setup();
+  test("an imported chat reads as the same rows, with its details, once its store is attached", async () => {
+    const { store, model, chats } = await setup();
     try {
       const chat = await store.createChat("local-conv-1", { title: "Readme", agent: { model, cwd: "/work/loki" } }, ctx);
-      faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two")]);
-      await (await chat.submit({ type: "input", content: "first" }, ctx)).wait(ctx);
-      await (await chat.submit({ type: "input", content: "second" }, ctx)).wait(ctx);
+      const converted = lettaLogEntries(sampleLog());
+      await store.importEntries(chat, converted, ctx);
       await chats.attach(AGENT, store);
-      const entries = await store.entries(chat, ctx);
-      expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(entries.flatMap(entrySteps)), more: false });
-      expect(chats.page("local-conv-1", AGENT, 1000).rows.map((r) => r.text)).toEqual(["first", "one", "second", "two"]);
+      expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap(entrySteps)), more: false });
       expect(chats.page("local-conv-1", AGENT, 2).more).toBe(true);
-      const info = chats.info("local-conv-1", AGENT);
-      expect(info).toMatchObject({ agentId: AGENT, title: "Readme", archived: false, model: `${model.provider}/${model.modelId}` });
-      expect(chats.list()).toEqual([{ conversationId: "local-conv-1", agentId: AGENT, archived: false, hidden: false, lastMessageAt: info!.lastMessageAt }]);
+      expect(chats.info("local-conv-1", AGENT)).toMatchObject({ agentId: AGENT, title: "Readme", archived: false, model: `${model.provider}/${model.modelId}`, lastMessageAt: "2026-10-01T10:00:06.000Z" });
+      expect(chats.list()).toEqual([{ conversationId: "local-conv-1", agentId: AGENT, archived: false, hidden: false, lastMessageAt: "2026-10-01T10:00:06.000Z" }]);
       expect(chats.agentOf("local-conv-1")).toBe(AGENT);
       expect(chats.folders()).toEqual({ byAgent: { [AGENT]: ["/work/loki"] }, byConversation: { [conversationDirName("local-conv-1", AGENT)]: "/work/loki" } });
     } finally {
