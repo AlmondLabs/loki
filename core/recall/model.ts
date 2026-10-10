@@ -16,6 +16,9 @@ export interface CardSource {
   at: string | null;
 }
 
+/** A card or lead id names a file (`cards/<id>.json`): letters, digits, `-` and `_` only, so no id can name a file outside. */
+export const isRecallId = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+
 export interface Card {
   id: string;
   front: string;

@@ -209,7 +209,9 @@ export class LanListener {
       this.server = server;
       this.bindError = null;
       this.boundPort = (server.address() as { port: number }).port;
-      this.ws = attachWs(server, this.authorize, this.opts.handlers);
+      // A page on another site can open a WebSocket to this address, and the phone's cookie rides along:
+      // an upgrade naming a foreign Origin is refused, as /uploads is.
+      this.ws = attachWs(server, (req, url) => (crossOrigin(req, this.allowedHosts()) ? { ok: false } : this.authorize(req, url)), this.opts.handlers);
       log("lan:listening", { port: this.boundPort, addresses: lanAddresses(this.opts.interfaces), appDist: this.dist });
       // Phones cannot reload themselves from a menu: watch the build and tell them when it changes.
       this.announcedBuild = buildIdOf(this.dist);
@@ -344,6 +346,8 @@ export class LanListener {
     const ip = req.socket.remoteAddress ?? "?";
     if (this.attempts.blocked(ip)) return void json(res, 429, { error: "too many wrong codes; wait a while" });
     void readJson(req).then((body) => {
+      // Again once the body is in: requests sent together all passed the first check before any had failed.
+      if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
       if (!body || typeof body.code !== "string") return json(res, 400, { error: "expected {code, name}" });
       if (!this.opts.codes.redeem(body.code)) {
         this.attempts.failed(ip);

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
@@ -25,6 +25,29 @@ describe("recall store", () => {
     expect(store.cards()).toEqual([]);
     expect(store.rejected()).toEqual([]);
     expect(store.legacyChats()).toEqual([]);
+  });
+  test("an id that is not one never becomes a path: nothing outside the folder is written or removed", () => {
+    const outside = join(dir, "..", `${dir.split("/").pop()}-victim.json`);
+    writeFileSync(outside, "{}");
+    try {
+      for (const id of ["../x", "a/b", "..", ""]) {
+        expect(() => store.add(card(id))).toThrow("not a card or lead id");
+        expect(() => store.forget(id)).toThrow("not a card or lead id");
+        expect(() => store.reject(id)).toThrow("not a card or lead id");
+      }
+      expect(() => store.forget(`../${outside.split("/").pop()!.replace(/\.json$/, "")}`)).toThrow();
+      expect(readFileSync(outside, "utf8")).toBe("{}");
+      // A rejection whose card carries a bad id (a file planted by hand) is not restored.
+      mkdirSync(join(dir, "rejected"), { recursive: true });
+      writeFileSync(join(dir, "rejected", "r1.json"), JSON.stringify({ card: card("../../evil"), at: new Date(T0).toISOString() }));
+      expect(store.restore("r1")).toBeNull();
+      // A card file with a bad id inside is left out of the list rather than breaking it.
+      mkdirSync(join(dir, "cards"), { recursive: true });
+      writeFileSync(join(dir, "cards", "odd.json"), JSON.stringify(card("../odd")));
+      expect(store.cards()).toEqual([]);
+    } finally {
+      rmSync(outside, { force: true });
+    }
   });
   test("add writes a card file and a fresh schedule; cards come back oldest first", () => {
     store.add(card("b", { createdAt: "2026-09-10T10:00:00Z" }));

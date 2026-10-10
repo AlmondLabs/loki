@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -87,6 +87,36 @@ describe("an agent's memory", () => {
       await editMemoryFile(dir, agentId, "reference/a.md", "hello", "Add a");
       await editMemoryFile(dir, agentId, "reference/a.md", null);
       expect(log(memoryRoot(dir, agentId))).toEqual(["You|Remove reference/a.md", "You|Add a", "Ada|Begin memory"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("git's own files are not memory files, in any case, at any depth", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
+    try {
+      const agentId = await createAgent(dir, { name: "Ada" });
+      const root = memoryRoot(dir, agentId);
+      const config = readFileSync(join(root, ".git", "config"), "utf8");
+      for (const path of [".git/config", ".GIT/config", ".Git/hooks/pre-commit", "notes/.git/config", ".gitattributes", "notes/.GitAttributes", ".gitmodules", "../outside.md"])
+        await expect(editMemoryFile(dir, agentId, path, "x")).rejects.toThrow("is not a memory file");
+      expect(readFileSync(join(root, ".git", "config"), "utf8")).toBe(config);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a commit runs none of the repo's hooks", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
+    try {
+      const agentId = await createAgent(dir, { name: "Ada" });
+      const root = memoryRoot(dir, agentId);
+      const ran = join(dir, "hook-ran");
+      mkdirSync(join(root, ".git", "hooks"), { recursive: true });
+      writeFileSync(join(root, ".git", "hooks", "pre-commit"), `#!/bin/sh\ntouch "${ran}"\n`, { mode: 0o755 });
+      await editMemoryFile(dir, agentId, "reference/a.md", "hello", "Add a");
+      expect(existsSync(ran)).toBe(false);
+      expect(log(root)[0]).toBe("You|Add a");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
