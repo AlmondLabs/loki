@@ -2,6 +2,8 @@ import type { Context } from "@earendil-works/chord";
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 
 /**
@@ -31,6 +33,19 @@ export type Notify = (agentId: string, chatId: string, text: string) => void;
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/**
+ * The shell a task runs in: the person's own, else /bin/sh. Windows has neither, so there it is Git Bash where Git for
+ * Windows puts it, else a bash.exe on PATH: where pi-durable's own bash tool looks (@earendil-works/pi-durable/env/node).
+ */
+export function shell(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform, exists: (path: string) => boolean = existsSync): string {
+  if (platform !== "win32") return env.SHELL || "/bin/sh";
+  for (const root of [env.ProgramFiles, env["ProgramFiles(x86)"]]) {
+    const bash = root ? join(root, "Git", "bin", "bash.exe") : null;
+    if (bash && exists(bash)) return bash;
+  }
+  return "bash.exe";
+}
+
 export class BackgroundTasks {
   private readonly tasks = new Map<string, Task>();
   private readonly notify: Notify;
@@ -41,7 +56,7 @@ export class BackgroundTasks {
 
   start(agentId: string, chatId: string, cwd: string, command: string): string {
     const id = `bg-${randomBytes(3).toString("hex")}`;
-    const child = spawn(process.env.SHELL || "/bin/sh", ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env });
+    const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env });
     const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, waiters: new Set() };
     const take = (chunk: Buffer) => {
       task.output += chunk.toString("utf8");

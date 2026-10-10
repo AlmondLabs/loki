@@ -180,6 +180,8 @@ export function withChangelog(existing: string, section: string): string {
 const run = (cmd: string, args: string[], input?: string): string => execFileSync(cmd, args, { cwd: root, encoding: "utf8", input, stdio: ["pipe", "pipe", "inherit"] }).trim();
 const git = (...args: string[]) => run("git", args);
 const gh = (...args: string[]) => run("gh", args);
+/** The paths staged for the next commit. */
+const staged = (): string[] => git("diff", "--cached", "--name-only").split("\n").filter(Boolean);
 
 function tags(): string[] {
   return git("tag", "--list").split("\n").filter(Boolean);
@@ -245,6 +247,12 @@ function cmdReleasePr(version: string): void {
   const changelog = join(root, "CHANGELOG.md");
   writeFileSync(changelog, withChangelog(existsSync(changelog) ? readFileSync(changelog, "utf8") : "", notes));
   git("add", "package.json", "src-tauri/tauri.conf.json", "src-tauri/Cargo.toml", "src-tauri/Cargo.lock", "CHANGELOG.md");
+  // main already carries this release: its PR was merged before its day (one stable a day). There is nothing to
+  // propose; the run on that day finds the files dated today and publishes it.
+  if (staged().length === 0) {
+    console.error(`release: main already carries ${version}; nothing to propose, and the run on ${version} (UTC) publishes it`);
+    return;
+  }
   const title = `release: ${version}`;
   git("commit", "--quiet", "-m", `${title}\n\nThe release PR: merge it and this becomes stable ${version} (UTC). Rebuilt from main on every merge; do not edit.`);
   git("push", "--force", "--quiet", "origin", `HEAD:refs/heads/${RELEASE_BRANCH}`);

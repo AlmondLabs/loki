@@ -16,9 +16,10 @@ describe("uploads: names and places", () => {
     expect(safeName("")).toBe("file");
   });
   test("a taken name gets a number before its extension", () => {
-    const taken = new Set(["/u/q3.pdf", "/u/q3 (2).pdf"]);
-    expect(freePath("/u", "q3.pdf", (p) => taken.has(p))).toBe("/u/q3 (3).pdf");
-    expect(freePath("/u", "notes", () => false)).toBe("/u/notes");
+    // In this system's separators: freePath joins with node:path, so Windows' come back as backslashes.
+    const taken = new Set([join("/u", "q3.pdf"), join("/u", "q3 (2).pdf")]);
+    expect(freePath("/u", "q3.pdf", (p) => taken.has(p))).toBe(join("/u", "q3 (3).pdf"));
+    expect(freePath("/u", "notes", () => false)).toBe(join("/u", "notes"));
   });
   test("only paths under the uploads folder count as uploads", () => {
     expect(insideDir("/u", "/u/2026-09-30/a.pdf")).toBe(true);
