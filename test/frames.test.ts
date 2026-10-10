@@ -50,6 +50,10 @@ describe("the frame table", () => {
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
     expect(FRAMES.history_get.parse({ agentId: "a" })).toBe("conversationId required");
+    // A payload never names its own `requestId`: the app spreads it after the frame's, and its reply would go unmatched.
+    const approve = { requestId: "frame-1", agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true };
+    expect(FRAMES.chat_approve.parse(approve)).toEqual({ agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true, message: null });
+    expect(FRAMES.chat_answer.parse({ requestId: "frame-2", agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} })).toEqual({ agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} });
     expect(FRAMES.history_get.parse({ conversationId: "c", limit: 99999 })).toEqual({ agentId: null, conversationId: "c", limit: 99999 });
     expect(FRAMES.task_assign.parse({ ids: ["t1"], conversationId: "c" })).toBe("assign needs a conversation and a chat");
     expect(FRAMES.task_status.parse({ id: "t1", status: "open" })).toEqual({ ids: ["t1"], status: "open" });

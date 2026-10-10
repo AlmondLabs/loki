@@ -199,11 +199,11 @@ export class FrameChatClient implements ChatClient {
   }
 
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny"): Promise<boolean> {
-    return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, allow: behavior === "allow", message: null })).accepted;
+    return (await this.call("chat_approve", { agentId: rt.agent_id, conversationId: rt.conversation_id, approvalId: requestId, allow: behavior === "allow", message: null })).accepted;
   }
 
   async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
-    return (await this.call("chat_answer", { agentId: rt.agent_id, conversationId: rt.conversation_id, requestId, input: updatedInput })).accepted;
+    return (await this.call("chat_answer", { agentId: rt.agent_id, conversationId: rt.conversation_id, questionId: requestId, input: updatedInput })).accepted;
   }
   async listConnectProviders(): Promise<ConnectProvider[]> {
     return (await this.call("chat_providers", {})).providers;

@@ -217,12 +217,13 @@ export const FRAMES = {
   chat_approve: request("chat_accepted", "the person's decision on a tool call the chat asked about", (m) => {
     const c = chatRef(m);
     if (typeof c === "string") return c;
-    return str(m.requestId) && typeof m.allow === "boolean" ? { ...c, requestId: m.requestId, allow: m.allow, message: strOr(m.message, null) } : "requestId and allow required";
+    // The approval's own id: `requestId` is the frame's, matched to its reply.
+    return str(m.approvalId) && typeof m.allow === "boolean" ? { ...c, approvalId: m.approvalId, allow: m.allow, message: strOr(m.message, null) } : "approvalId and allow required";
   }, PHONE),
   chat_answer: request("chat_accepted", "the person's answers to a question card (the tool input with `answers` filled in)", (m) => {
     const c = chatRef(m);
     if (typeof c === "string") return c;
-    return str(m.requestId) && m.input && typeof m.input === "object" ? { ...c, requestId: m.requestId, input: m.input as Raw } : "requestId and input required";
+    return str(m.questionId) && m.input && typeof m.input === "object" ? { ...c, questionId: m.questionId, input: m.input as Raw } : "questionId and input required";
   }, PHONE),
   chat_create: request("chat_created", "a new chat for an agent, in a folder", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agentId required", PHONE),

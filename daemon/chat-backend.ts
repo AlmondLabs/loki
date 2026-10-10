@@ -100,11 +100,11 @@ export class DaemonChats implements ChatBackend {
   }
 
   async approve(p: PayloadOf<"chat_approve">): Promise<boolean> {
-    return this.deps.approvals.decide(p.requestId, p.allow, p.message ?? undefined);
+    return this.deps.approvals.decide(p.approvalId, p.allow, p.message ?? undefined);
   }
 
   async answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
-    return this.deps.approvals.answer(p.requestId, p.input);
+    return this.deps.approvals.answer(p.questionId, p.input);
   }
 
   /** Push every event of a chat from now on. */
