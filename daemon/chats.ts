@@ -22,7 +22,7 @@ import type { StoreManager } from "./kernel/stores.ts";
  */
 
 /** One entry as the projection keeps it: its thread steps, and who spoke and what, for the Inbox's digest. */
-type Kept = { steps: Step[]; role: "user" | "assistant" | null; text: string; at: string | null };
+type Kept = { steps: Step[]; role: "user" | "assistant" | null; text: string; at: string | null; compaction?: true };
 
 type AgentSettings = { model?: { provider?: string; modelId?: string }; thinkingLevel?: string; cwd?: string };
 
@@ -45,6 +45,7 @@ function shownMessage(entry: Pick<EntryRecord, "kind" | "model" | "data">): PiMe
 }
 
 function keep(entry: Pick<EntryRecord, "kind" | "model" | "data">): Kept {
+  if (entry.kind === "pi.compaction") return { steps: [], role: null, text: "", at: null, compaction: true };
   const steps = entrySteps(entry as Parameters<typeof entrySteps>[0]);
   const message = shownMessage(entry);
   if (!message || (message.role !== "user" && message.role !== "assistant")) return { steps, role: null, text: "", at: null };
@@ -66,6 +67,7 @@ export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
   private readonly listeners = new Set<(agentId: string, chatId: string, kind: "answer" | "compaction") => void>();
   private readonly unsubscribe = new Map<string, () => void>();
+  private readonly attaching = new Set<Promise<void>>();
   private readonly context: Context;
   private readonly agentName: (agentId: string) => string | null;
 
@@ -76,7 +78,15 @@ export class ChatProjection implements ChatSource {
 
   /** Follow every store `stores` opens, now and after a reopen. */
   follow(stores: StoreManager): () => void {
-    return stores.onOpen((agentId, store) => void this.attach(agentId, store));
+    return stores.onOpen((agentId, store) => {
+      const attached = this.attach(agentId, store).finally(() => this.attaching.delete(attached));
+      this.attaching.add(attached);
+    });
+  }
+
+  /** Settles once every store opened so far has its chats loaded. */
+  async loaded(): Promise<void> {
+    while (this.attaching.size) await Promise.allSettled([...this.attaching]);
   }
 
   /** Load one agent's chats and keep them current. */
@@ -116,6 +126,11 @@ export class ChatProjection implements ChatSource {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { entries: 0, since: 0 };
     return { entries: chat.entries.length, since: chat.entries.slice(Math.max(0, from)).filter((e) => e.role === "assistant").length };
+  }
+
+  /** Whether a chat's context was compacted at or after position `from` (daemon/passes.ts: reflection runs on it then). */
+  compactedSince(conversationId: string, agentId: string, from: number): boolean {
+    return this.find(conversationId, agentId)?.entries.slice(Math.max(0, from)).some((e) => e.compaction === true) ?? false;
   }
 
   private key(agentId: string, chatId: string): string {
