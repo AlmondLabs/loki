@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 
@@ -19,6 +19,9 @@ const repo = (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/git
 /** The agent's widget files: user data outside the repo (the mod passes the same path). */
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
+/** The same folder by its real path: Rollup names a file by where a link leads (~/.letta/loki → ~/.loki), not by the link. */
+const widgetsReal = realpathSync(widgetsDir);
+const inWidgets = (id: string) => id.startsWith(widgetsDir) || id.startsWith(widgetsReal);
 
 function compilerOptions() {
   const base = {
@@ -49,7 +52,7 @@ export default defineConfig({
     outDir: here("dist"),
     emptyOutDir: true,
     // The agent's widget files are dev-time HMR targets only; a production build must not pull them in.
-    rollupOptions: { external: (id) => id.startsWith(widgetsDir) },
+    rollupOptions: { external: inWidgets },
   },
   plugins: [
     {
@@ -80,7 +83,7 @@ export default defineConfig({
     alias: { "@loki/kit": here("./src/kit/index.tsx"), "@desks": widgetsDir },
   },
   server: {
-    fs: { allow: [here(".."), widgetsDir] },
+    fs: { allow: [here(".."), widgetsDir, widgetsReal] },
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,

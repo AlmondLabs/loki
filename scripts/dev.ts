@@ -12,7 +12,7 @@
 //      came up shows only as Vite's proxy errors. One paragraph says why, and where its log is.
 // Ctrl-C (or the window closing) stops what this script started and nothing else. `--check` only reports.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, watch } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -185,9 +185,31 @@ console.error("loki dev: rebuilding the phone's app (app/dist) as the code chang
 // Not emptied first: the phone keeps being served the last build while the next one is written. Old hashed files pile
 // up until a plain `bun run build:app` clears them. Errors only: its chunk-size and dynamic-import warnings would
 // repeat on every save (a plain `bun run build:app` still shows them).
-const phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
-phoneBuild.on("exit", (code) => {
-  if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
+// A build watch reads its config once (Vite's dev server restarts on a config change; this does not), so a change to
+// app/vite.config.ts starts it afresh; a stale config once left every build failing while the watch looked alive.
+let phoneBuild: ChildProcess;
+let restarting = false;
+const startPhoneBuild = () => {
+  phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
+  phoneBuild.on("exit", (code) => {
+    if (restarting) return;
+    if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
+  });
+};
+startPhoneBuild();
+let configTimer: ReturnType<typeof setTimeout> | null = null;
+watch(join(root, "app", "vite.config.ts"), () => {
+  if (configTimer) clearTimeout(configTimer);
+  configTimer = setTimeout(() => {
+    if (tauri.exitCode !== null) return;
+    console.error("loki dev: app/vite.config.ts changed — restarting the phone's build watch");
+    restarting = true;
+    phoneBuild.once("exit", () => {
+      restarting = false;
+      startPhoneBuild();
+    });
+    phoneBuild.kill("SIGTERM");
+  }, 300);
 });
 
 // The mod, once the daemon hosts it. Nothing to say while it comes up; one paragraph if it never does.
