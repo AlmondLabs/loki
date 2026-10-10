@@ -30,7 +30,7 @@ export function deskMark(item: AttentionItem | undefined, status: DeskSummary["s
 /** A conversation can be archived (or restored) unless it is the agent's main chat or already deleted. */
 export const canArchive = (d: DeskSummary): boolean => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
 /**
- * A desk with its own conversation can be renamed, archived or not: the name is Letta's summary. The main chat is
+ * A desk with its own conversation can be renamed, archived or not: the name is the chat's title. The main chat is
  * called after its agent (it has no summary to set) and a deleted desk has no conversation left to write to.
  */
 export const canRename = (d: DeskSummary): boolean => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
@@ -44,7 +44,7 @@ export function cleanDeskName(raw: string): string | null {
   return name || null;
 }
 /** A live desk with an agent and a conversation can be pinned. */
-/** A desk with an agent and a conversation, not deleted, can move to another folder (Letta Code keeps it per chat). */
+/** A desk with an agent and a conversation, not deleted, can move to another folder (the daemon keeps it per chat). */
 export const canMove = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status !== "deleted";
 
 export const canPin = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status === "live";

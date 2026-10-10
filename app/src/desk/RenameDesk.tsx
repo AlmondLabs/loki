@@ -9,7 +9,7 @@ export interface RenameDeskProps {
   /** The desk's name now; the field starts on it, selected. */
   name: string;
   onClose: () => void;
-  /** Save the cleaned name; resolves to the app-server's error, or null when it took. */
+  /** Save the cleaned name; resolves to the daemon's error, or null when it took. */
   onRename: (name: string) => Promise<string | null>;
 }
 
@@ -100,11 +100,11 @@ export function RenameDesk({ name, onClose, onRename }: RenameDeskProps) {
   return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
 
-/** Without the app-server there is nothing to write the name to; the menus say so on the disabled item. */
+/** Without the link to loki's daemon there is nothing to write the name to; the menus say so on the disabled item. */
 export const NO_RENAME_REASON = "Not connected";
 
 /**
- * The save both menus share: the app-server renames the conversation, then the new name shows at once (the mod
+ * The save both menus share: loki's daemon renames the conversation, then the new name shows at once (the mod
  * only re-broadcasts titles at a turn's end) and the desks list is asked for again, as archive does.
  */
 export function renameDesk(desk: Desk, catchUp: CatchUp, notice: (m: string) => void) {

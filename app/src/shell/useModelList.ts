@@ -2,9 +2,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { withRecent, type ModelEntry } from "../../../core/models.ts";
 
 /**
- * list_models, fetched once from the app-server when a picker first wants it; switches go per conversation.
- * The list belongs to one harness: it is kept with the link's identity (open, and which Letta Code), so a
- * reconnect — an update restarting the harness — or a different version reads as no list and the next ask
+ * The models the connected providers offer (chat_models), fetched once from loki's daemon when a picker first
+ * wants it; switches go per conversation. The list belongs to one daemon: it is kept with the link's identity (open,
+ * and which daemon), so a reconnect — an update restarting the daemon — reads as no list and the next ask
  * refetches. The desktop shell and the phone both hold one. Each entry carries its place among the models used
  * lately (`recent`, from the mod), which leads the picker's quick picks.
  */

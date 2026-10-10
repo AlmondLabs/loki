@@ -3,9 +3,9 @@ import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
 import { errorMessage, fail, reply, type FrameHandlers, type Outcome } from "./context.ts";
 
 /**
- * Chats on loki's daemon (plan 017, U5): what the app asked Letta's app-server for, as frames on the mod's socket.
- * The daemon brings a ChatBackend on the mod's host; under Letta there is none, the app-server serves chats, and
- * every request here answers that it is the daemon's.
+ * Chats on loki's daemon (plan 017, U5), as frames on the mod's socket: the app's FrameChatClient asks, and the
+ * daemon's ChatBackend (daemon/chat-backend.ts) on the mod's host answers. A host with no backend (a test that
+ * hosts the mod alone) answers every request that chats are the daemon's.
  */
 export interface ChatBackend {
   /** Tell every socket what happened in a chat; the backend calls it as events arrive. */

@@ -98,7 +98,7 @@ export function DeskTree({ open, ...props }: TreeProps & { open: boolean }) {
 interface TreeProps {
   onClose: () => void;
   desks: DeskSummary[];
-  /** Agents the app-server knows; an agent with no desk yet still gets a chip. */
+  /** Agents loki's daemon knows; an agent with no desk yet still gets a chip. */
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   current: Scope;

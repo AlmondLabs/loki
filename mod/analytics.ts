@@ -6,7 +6,7 @@ import { rotateIfLarge } from "./log.ts";
 
 /**
  * The analytics writer (core/analytics.ts has the shape): capture() appends one event to
- * ~/.letta/loki/logs/events.jsonl with the system properties filled in — the device, a session cut on a
+ * ~/.loki/logs/events.jsonl with the system properties filled in — the device, a session cut on a
  * 30-minute gap per device, the app version, and one distinct_id minted per install and kept in
  * state/analytics.json. Past EVENTS_MAX_BYTES the file becomes events.jsonl.1 and a fresh one starts,
  * about two years at a few hundred events a day. Never throws; a null path (LOKI_ANALYTICS=0) captures nothing.

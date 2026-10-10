@@ -1,8 +1,9 @@
 /**
- * Letta's harness injects machinery into transcripts as ordinary messages:
- * system reminders, background-task notifications, compaction notes, and
- * loki's own desk-activity block. Both halves of loki need to recognise them:
- * the mod for the chat mirror, the browser for the Catch Up thread.
+ * The harness injects machinery into transcripts as ordinary messages:
+ * background-task notifications, skill bodies, loki's own desk-activity block,
+ * and, in history imported from Letta, its system reminders and compaction notes.
+ * Both halves of loki need to recognise them: the mod for the chat mirror, the
+ * browser for the Catch Up thread.
  */
 
 import type { FileRef, ToolStep } from "./attention/transcript.ts";
@@ -22,7 +23,7 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/^\s*\{"type":\s*"system_alert"[\s\S]*?\}\s*$/gm, "");
 }
 
-/** Undo the HTML escaping Letta applies inside task-notification results. */
+/** Undo the HTML escaping inside task-notification results (daemon/background.ts escapes them, as Letta did). */
 export function decodeEntities(text: string): string {
   return text
     .replace(/&lt;/g, "<")
@@ -94,7 +95,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   return out;
 }
 
-/** Text of a Letta message's content (string or text parts). */
+/** Text of a message's content (string or text parts). */
 export function messageText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";

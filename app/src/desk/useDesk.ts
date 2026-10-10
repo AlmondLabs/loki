@@ -232,7 +232,7 @@ export function useDesk() {
     diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
     reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { conversations: r.reply.conversations, lastCommit: r.reply.lastCommit } : null)),
     globalSkills: () => request("skills_global", {}, 10_000).then((r): GlobalSkill[] => (r.ok ? r.reply.skills : [])),
-    /** `letta install <source> --agent <id>` through the mod; resolves to an error message or null. */
+    /** Install a skill from a source into the agent's memory, through the mod (mod/skills.ts); resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>
       request("skill_install", { agentId, source, force }, 130_000).then((r) => (r.ok ? null : r.timedOut ? "install timed out" : r.error)),
     /** Refresh an installed skill from its upstream (mod/skill-sources.ts); the outcome, or `{ error }`. */
@@ -289,10 +289,10 @@ export function useDesk() {
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */
     viewed: viewedMap,
     markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
-    /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
+    /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : [])),
     /**
-     * The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame).
+     * The conversation's transcript from the daemon's store, through the mod; empty if the mod does not know it.
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
      */
     loadHistory: (agentId: string, conversationId: string, limit?: number): Promise<{ rows: TranscriptRow[]; more: boolean }> =>
@@ -373,7 +373,7 @@ export function useDesk() {
   };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
   const agentId = agentIds[scope] ?? null;
-  /** The conversation behind this desk, as the app-server names it. */
+  /** The conversation behind this desk, as loki's daemon names it. */
   const conversationId = scope === SHARED_SCOPE ? null : scope.startsWith("default-") ? "default" : scope;
 
   return {
@@ -403,7 +403,7 @@ export function useDesk() {
       loaded: desksLoaded,
       request: requestDesks,
       switchTo: switchDesk,
-      /** Pin or unpin; the mod rewrites Letta's file and broadcasts the list back. */
+      /** Pin or unpin; the mod rewrites its pins file (mod/pins.ts) and broadcasts the list back. */
       pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agentId, conversationId, pinned }),
     },
     attention,

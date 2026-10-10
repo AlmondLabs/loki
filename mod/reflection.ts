@@ -6,11 +6,12 @@ import { isAgentId } from "../core/frames.ts";
 import type { MemoryCommit, ReflectionConversation, ReflectionState } from "../core/frame-types.ts";
 
 /**
- * Letta's sleep-time reflection, read from the outside. After a turn, Letta may launch a Reflection Subagent over a
- * conversation's unreflected transcript; what it keeps lands in the memory repo as commits by that author. Letta
- * keeps a state file per conversation under its transcript root (`steps_since_last_successful_reflection`, the last
- * pass's times) — the counters its step-count trigger compares against. The settings themselves live in Letta's
- * settings.json, per agent, and are read and written through the app-server (core/attention/protocol.ts), not here.
+ * Reflection, read for the Agents page. Once a chat has been quiet, the daemon may run a reflection pass over what
+ * it has not yet reflected on (daemon/reflection.ts); what it keeps lands in the memory repo as commits by
+ * "Reflection". The daemon keeps a state file per chat under its transcript root
+ * (`steps_since_last_successful_reflection`, the last pass's times, in the shape Letta used so imported counters
+ * carry over) — the counters its step-count trigger compares against. The settings themselves are the daemon's, read
+ * and written through the mod's chat frames (core/attention/protocol.ts has their shape), not here.
  */
 /** Where the daemon keeps each chat's reflection counters (daemon/reflection.ts): <loki>/reflection. */
 export const transcriptRoot = (): string => process.env.LOKI_REFLECTION_DIR?.trim() || join(lokiDir(), "reflection");
@@ -44,7 +45,7 @@ export function readReflectionConversations(agentId: string, titleOf: (conversat
   return out.sort((a, b) => b.stepsSince - a.stepsSince || (b.lastSucceededAt ?? "").localeCompare(a.lastSucceededAt ?? ""));
 }
 
-/** Letta commits a pass's changes as "Reflection Subagent"; the agent's own commits carry its name. */
+/** A pass's commits are by "Reflection" (by "Reflection Subagent" in history imported from Letta); the agent's own carry its name. */
 export const isReflectionCommit = (c: MemoryCommit): boolean => /reflection/i.test(c.author);
 
 export async function reflectionState(agentId: string, titleOf: (conversationId: string) => string | null, opts: { root?: string; log?: (agentId: string) => Promise<MemoryCommit[]> } = {}): Promise<ReflectionState> {

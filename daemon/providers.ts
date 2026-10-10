@@ -8,7 +8,7 @@ import type { ConnectProvider } from "../core/attention/protocol.ts";
 /**
  * Model providers on loki's daemon (plan 017, U8): the ones pi-ai knows, each connected with an API key or by signing
  * in through the browser, its credential kept in the keychain (daemon/credentials.ts). Settings › providers reads and
- * changes them in the shape it read from Letta (ConnectProvider). A key is tried before it is kept, by listing the
+ * changes them in the ConnectProvider shape it was written for. A key is tried before it is kept, by listing the
  * provider's models where the provider lists them over the network. Anthropic's subscription sign-in is not offered:
  * pi-ai implements it by presenting itself as Claude Code (KTD10).
  */

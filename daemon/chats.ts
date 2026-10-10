@@ -18,7 +18,7 @@ import type { StoreManager } from "./kernel/stores.ts";
  * the Inbox, a thread's page, Learn's cursor), and pi-durable answers asynchronously, so the daemon keeps a
  * projection: each chat's details and its entries as thread steps, loaded when a store opens and kept current from
  * the store's commits, which pi-durable publishes synchronously after each one. A position in a chat is an entry's
- * index, which is what Learn's cursor counts (it counted log lines on Letta).
+ * index, which is what Learn's cursor counts (it counted log lines on Letta; the import converts it).
  */
 
 /** One entry as the projection keeps it: its thread steps, and who spoke and what, for the Inbox's digest. */
@@ -208,7 +208,7 @@ export class ChatProjection implements ChatSource {
   since(conversationId: string, agentId: string | null, from: number): { rows: TranscriptRow[]; lines: number } {
     const chat = this.find(conversationId, agentId);
     if (!chat) return { rows: [], lines: 0 };
-    // Learn reads words: tool rows keep their one-line label and leave their step behind, as on Letta.
+    // Learn reads words: tool rows keep their one-line label and leave their step behind.
     const rows = foldSteps(chat.entries.slice(Math.max(0, from)).flatMap((e) => e.steps)).map(({ tool: _tool, ...row }) => row);
     return { rows, lines: chat.entries.length };
   }

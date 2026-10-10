@@ -99,7 +99,7 @@ function chatGptOAuthEfforts(handle: string): ReasoningEffort[] {
   return ["none", "low", "medium", "high", "xhigh"];
 }
 
-/** Read the applied level from the provider-specific model_settings shapes Letta persists. */
+/** Read the applied level from the provider-specific model_settings shapes Letta persisted (imported agent records carry them). */
 export function reasoningEffortFromSettings(value: unknown): ReasoningEffort | null {
   if (!value || typeof value !== "object") return null;
   const settings = value as Record<string, unknown>;

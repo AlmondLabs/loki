@@ -127,7 +127,7 @@ describe("agents column", () => {
     item("a2", "c3", "running"),
   ] as never;
 
-  test("each agent a row in the app-server's order: waiting count, running, and the newest reply's first line as the preview", async () => {
+  test("each agent a row in the daemon's order: waiting count, running, and the newest reply's first line as the preview", async () => {
     const { agentDmRows } = await import("../app/src/agents/rows.ts");
     const rows = agentDmRows(agents, desks, items);
     expect(rows.map((r) => r.id)).toEqual(["a1", "a2"]);

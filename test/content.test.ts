@@ -6,7 +6,7 @@ describe("user message content", () => {
   test("text only stays a plain string", () => {
     expect(buildUserContent("hi", [])).toBe("hi");
   });
-  test("images become base64 parts after the text, in the app-server's shape", () => {
+  test("images become base64 parts after the text, in Letta's create_message shape", () => {
     expect(buildUserContent("look", [img])).toEqual([
       { type: "text", text: "look" },
       { type: "image", source: { type: "base64", media_type: "image/jpeg", data: "QUJD" } },
@@ -34,7 +34,7 @@ describe("AskUserQuestion", () => {
 });
 
 describe("environment reminder", () => {
-  test("carries the local time and the chat in Desktop's shape, ahead of the text; the folder is Letta Code's to send", () => {
+  test("carries the local time and the chat in Desktop's shape, ahead of the text; the folder left out", () => {
     const note = environmentReminder({ now: new Date(2026, 8, 6, 2, 35), desk: "Supplier ledger", locale: "en-GB" });
     expect(note.startsWith("<system-reminder>")).toBe(true);
     expect(note).toContain("via loki, on their Mac or a paired phone");

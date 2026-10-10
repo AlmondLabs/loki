@@ -67,7 +67,7 @@ const whoOf = (e: WidgetLogEntry, agentName: string | null) => (e.by === "you" ?
 /**
  * The thread's widget rows: each log entry placed before the first message timed after it (after the
  * latest one when none is), so it reads among the messages by time. Rows without a time keep their
- * arrival order and place nothing. A thread with messages but no times at all (app-server history) cannot
+ * arrival order and place nothing. A thread with messages but no times at all (a history that kept none) cannot
  * place the log, so it does not dump it after the newest message: the changes logged since `liveSince` (this
  * session's) follow the last row in arrival order, after one quiet summary row counting the older ones
  * (`earlier`). A row is `gone` when it removed the widget or a later entry did: choosing it frames nothing.

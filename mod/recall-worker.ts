@@ -22,17 +22,14 @@ import type { InboxRow } from "../core/frame-types.ts";
  * second cursor keeps looking for leads, so a busy day is not a lead-less one.
  * It never posts anywhere: the person meets its work in the Learn section and nowhere else.
  *
- * The model is asked through the harness, in one long-running hidden conversation per agent named "recall"
- * (`writerConversation`), so the agent's own memory informs the cards while no transcript the person reads
- * is touched. Each ask is self-contained; after the reply the conversation is compacted (`/compact all`),
- * so the next ask starts from a short summary rather than every transcript ever sent — the in-context
- * messages stay small while the transcript on disk keeps everything. (`/clear` is not an option: through
- * the app-server it makes a *new* conversation and leaves the old one addressed, which is how untitled
- * empty desks once piled up.) The conversation runs in a folder of its own, <recall>/writer, with Letta's
- * project settings there turning reflection off: the writer's digests must never become the agent's
- * memory. The folder is the recall folder itself, so the model's read-only tools (Read, Grep — inside the
- * working directory they need no approval) reach the deck: the prompt quotes only the cards that overlap
- * the slices and names the folder for the rest. The worker skips its own conversations everywhere (`owns`).
+ * The model is asked through loki's daemon, in one long-running hidden chat per agent, `recall-<agent>`
+ * (`writerChatId`, daemon/chat-backend.ts ask), so the agent's own memory informs the cards while no transcript
+ * the person reads is touched. Each ask is self-contained; after the reply the chat is compacted, so the next
+ * ask starts from a short summary rather than every transcript ever sent — the in-context messages stay small
+ * while the store keeps everything. Reflection leaves the writer chat alone (daemon/reflection.ts): the
+ * writer's digests must never become the agent's memory. The prompt quotes only the cards that overlap the
+ * slices and names the deck's folder for the rest, which the model reads with its own tools. The worker skips
+ * its own conversations everywhere (`owns`).
  */
 export const QUIET_MS = 10 * 60_000;
 /** Less new text than this is not worth a model call; the cursor just moves on. */
@@ -86,7 +83,7 @@ export class RecallWorker {
     this.deps = deps;
   }
 
-  /** True for the worker's own hidden conversations (the daemon's writer chats, and Letta's imported ones), which must never become desks or inbox cards. */
+  /** True for the worker's own hidden conversations (the daemon's writer chats, and the ones the import brought from Letta), which must never become desks or inbox cards. */
   owns(conversationId: string): boolean {
     if (isWriterChat(conversationId)) return true;
     const w = this.deps.store.worker();
@@ -266,7 +263,7 @@ interface Candidate {
 /**
  * How much a stretch deserves the room: its length with diminishing returns, the person's share of the words
  * (a stretch they wrote half of beats one the agent monologued), and their questions (each up to six adds
- * fifteen percent). Plain code, no model: Letta's reflection catalogue prunes the same way before its picker.
+ * fifteen percent). Plain code, no model (Letta's reflection catalogue pruned the same way before its picker).
  */
 export function scoreStretch(rows: TranscriptRow[]): number {
   const said = rows.filter((r) => r.role === "user" || r.role === "assistant");

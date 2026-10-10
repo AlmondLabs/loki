@@ -102,7 +102,7 @@ describe("origin: self or other", () => {
     expect(sources.sourceOf(AGENT, "copied-in")).toEqual({ kind: "github", url: "https://github.com/someone/skills.git", path: "skills/copied-in", ref: null, label: "someone/skills" });
     expect(sources.sourceOf(AGENT, "fmt-typed")).toBeNull();
   });
-  test("the install pattern is Letta's two installers and our refresh", () => {
+  test("the install pattern is loki's and Letta's installers and our refresh", () => {
     expect(INSTALL_RE.test("Install skill: gog")).toBe(true);
     expect(INSTALL_RE.test("chore(skills): install stocks")).toBe(true);
     expect(INSTALL_RE.test("chore(skills): refresh fmt-x from team checkout")).toBe(true);

@@ -14,7 +14,7 @@ import { dirname, join, relative } from "node:path";
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const modPort = process.env.LOKI_PORT ?? "41414";
 const { version, repository } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string; repository?: string };
-/** "owner/name": what the app asks GitHub about for newer releases (Settings › letta). */
+/** "owner/name": what the app asks GitHub about for newer releases (Settings › loki). */
 const repo = (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/github\.com\//, "").replace(/\.git$/, "");
 /** The agent's widget files: user data outside the repo (the mod passes the same path). */
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".loki", "widgets");

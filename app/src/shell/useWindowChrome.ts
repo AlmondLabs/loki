@@ -12,7 +12,7 @@ import type { Desk } from "./types";
 export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "agentName">, segment: Segment, waiting: number, openTasks: number, dueCards = 0): void {
   useEffect(() => {
     const deskName = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
-    // "agent · title", the way Letta names a main chat ("ira · main chat"); no repeat when the title already leads with it.
+    // "agent · title", the way a main chat is named ("ira · main chat"); no repeat when the title already leads with it.
     const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
     const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
     const name = segment === "inbox" ? (waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox") : segment === "board" ? (openTasks > 0 ? `Board · ${openTasks} open` : "Board") : segment === "learn" ? (dueCards > 0 ? `Learn · ${dueCards} due` : "Learn") : segment === "agents" ? "Agents" : segment === "settings" ? "Preferences" : `${who}${deskName}${state}`;

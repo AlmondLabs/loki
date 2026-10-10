@@ -27,7 +27,7 @@ import { createAgent, listAgents, writeRecord } from "./store/agents.ts";
  * Chats on loki's daemon, as the mod's chat frames ask for them (plan 017, U5; mod/frames/chat.ts). A chat a client
  * opens is followed through pi-durable's event stream, converted to loki's chat events and pushed to every socket.
  * The person's message passes through every mod's transform before it is sent (loki's own adds what you did on the
- * canvas), and a message sent while the chat is busy waits its turn, as on Letta.
+ * canvas), and a message sent while the chat is busy waits its turn.
  */
 
 type Deps = {
@@ -285,7 +285,7 @@ export class DaemonChats implements ChatBackend {
     }
   }
 
-  /** A skill made global the way Letta made it: a link to its folder in the global skills folder (mod/skills.ts). */
+  /** A skill made global: a link to its folder in the global skills folder, ~/.agents/skills (mod/skills.ts). */
   async enableSkill(path: string): Promise<{ name: string; linkPath: string }> {
     if (!existsSync(join(path, "SKILL.md"))) throw new Error(`${path} has no SKILL.md`);
     const dir = globalSkillsDir();

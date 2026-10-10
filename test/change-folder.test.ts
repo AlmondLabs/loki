@@ -30,7 +30,7 @@ describe("change folder", () => {
     expect(folderMoveAnswer({ type: "stream_delta", delta: { message_type: "assistant_message", content: "hi" } }, "/work/a", move)).toBeNull();
   });
 
-  test("the environment note leaves the folder to Letta Code", () => {
+  test("the environment note leaves the folder out: it is the chat's working directory", () => {
     expect(environmentReminder({ desk: "x" })).not.toContain("working directory");
   });
 });

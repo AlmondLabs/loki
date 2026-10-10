@@ -10,9 +10,9 @@ import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillO
 /**
  * Where an agent's skills came from, and how to refresh the ones that came from elsewhere.
  *
- * An agent's memory holds two kinds of skill. *Self*: the agent (or Deepak, in the Agents tab) wrote it;
+ * An agent's memory holds two kinds of skill. *Self*: the agent (or the person, in the Agents tab) wrote it;
  * nobody else has a copy, nothing to pull. *Other*: it was installed from somewhere — a GitHub repo, a
- * checkout on this Mac linked into ~/.letta/skills, a `letta install` source — and that somewhere may
+ * checkout on this Mac linked into ~/.agents/skills, a source installed from the Agents page — and that somewhere may
  * have moved on. The distinction is read off the memory repo's own history: an install commit
  * (`Install skill: x`, `chore(skills): install x`, or our own `chore(skills): refresh x …`) marks a
  * skill as other; a skill with no such commit but a namesake in the global folder is other too;
@@ -29,7 +29,7 @@ import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillO
 export interface SkillSourcesOptions {
   /** The local backend (mod/agents.ts backendDir()). */
   backendDir?: string;
-  /** ~/.letta/skills (or the folder it links to). */
+  /** ~/.agents/skills (or the folder it links to). */
   globalDir?: string;
   /** The `skills` CLI's lock: ~/.agents/.skill-lock.json. */
   lockFile?: string;
@@ -41,7 +41,7 @@ export interface SkillSourcesOptions {
   exec?: (bin: string, args: string[], opts: { cwd?: string; timeoutMs: number }) => Promise<string>;
 }
 
-/** Commit subjects that mean "this copy came from outside" — Letta's two installers and our refresh. */
+/** Commit subjects that mean "this copy came from outside" — loki's installer (mod/skills.ts), Letta's (in imported history) and our refresh. */
 export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) )/;
 
 const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");
@@ -186,7 +186,7 @@ export class SkillSources {
     return dir;
   }
 
-  /** Overwrite the memory copy and commit as the agent, the way `letta install` does. */
+  /** Overwrite the memory copy and commit as the agent, the way an install does (mod/skills.ts). */
   private async replace(agentId: string, memory: string, name: string, upstream: string, label: string): Promise<string | null> {
     const target = join(memory, "skills", name);
     const spec = `skills/${name}`;

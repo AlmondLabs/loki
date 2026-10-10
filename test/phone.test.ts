@@ -372,7 +372,7 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
   ];
   const rows = agentRows(agents, desks, items);
 
-  test("each agent in the app-server's order: live desks, a turn running, and what waits on you (a quiet chat left out)", () => {
+  test("each agent in the daemon's order: live desks, a turn running, and what waits on you (a quiet chat left out)", () => {
     expect(rows.map((r) => [r.id, r.live, r.running, r.waiting])).toEqual([
       ["a1", 2, false, 2],
       ["a2", 1, true, 0],

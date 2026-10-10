@@ -10,10 +10,10 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
 /**
  * The archived desks, one page reached from Home's rail and from More: every desk no longer live that
  * has a conversation, in the desk list's order, each reopening it. A filter narrows a long archive; a long
- * press (or a row's actions button) restores one to Desks while the app-server is reachable — offline,
+ * press (or a row's actions button) restores one to Desks while loki's daemon is reachable — offline,
  * the action stays visible and says why it cannot run. Back returns to wherever the page was opened from.
  */
-export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive, onRename }: { desks: DeskSummary[]; /** The mod has answered with the desk list. */ loaded: boolean; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the app-server cannot take it. */ onArchive: ArchiveDesk | null; onRename: RenameDeskName | null }) {
+export function Archive({ desks, loaded, banner, backLabel, onBack, onArchive, onRename }: { desks: DeskSummary[]; /** The mod has answered with the desk list. */ loaded: boolean; banner?: ReactNode; backLabel: string; onBack: () => void; /** Null while the daemon cannot take it. */ onArchive: ArchiveDesk | null; onRename: RenameDeskName | null }) {
   const [query, setQuery] = useState("");
   const [acting, setActing] = useState<DeskSummary | null>(null);
   const all = useMemo(() => archiveList(desks, null, ""), [desks]);

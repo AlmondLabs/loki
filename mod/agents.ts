@@ -7,20 +7,21 @@ import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/
 import { isAgentId } from "../core/frames.ts";
 
 /**
- * What Letta keeps per agent on this machine, read for the Agents page:
+ * What the daemon keeps per agent on this machine (in Letta's local-backend layout), read for the Agents page:
  *   <backend>/agents/<b64 id>.json          the record: name, description, model, settings, tags
  *   <backend>/memfs/<id>/memory/            the memory filesystem — a git repo: system/{persona,human}.md,
  *                                           reference/**, skills/<name>/SKILL.md, profile.png
- * Everything here is read-only. Changing the record goes through the app-server (agent_update);
+ * Everything here is read-only. Changing the record goes through the daemon (chat_agent_update);
  * changing memory is the agent's job, which the page hands over to the chat.
  */
 
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
 
 /**
- * Letta spawns helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
- * history-analyzer), all named "Letta Code". They are the harness's, not the user's: no desk, no tree
- * row, no inbox card. Unknown agents (no record) are not treated as subagents.
+ * Letta spawned helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
+ * history-analyzer), all named "Letta Code", and the import may bring their records over. They were the
+ * harness's, not the user's: no desk, no tree row, no inbox card. Unknown agents (no record) are not treated
+ * as subagents. The daemon's own helpers (daemon/subagents.ts) are not agent records at all.
  */
 export function isSubagent(agentId: string, dir = backendDir()): boolean {
   return readLocalAgent(agentId, dir)?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;

@@ -2,14 +2,14 @@ import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, tool
 import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
 
 /**
- * A chat's thread, built in one place (GLOSSARY.md: ThreadModel). Every source of a conversation, the local log the
- * mod reads, the app-server's history and its live stream, is parsed into steps by its own adapter; this folds the
+ * A chat's thread, built in one place (GLOSSARY.md: ThreadModel). Every source of a conversation, the history page
+ * the mod reads from the daemon and the live stream of chat events, is parsed into steps by its own adapter; this folds the
  * steps into rows, keeps the rows that arrived live (your own message the moment you sent it, a queued one, a slash
  * command's row, the reply as it streams), and reconciles them with a history page when one arrives. The rows it
  * hands out keep their identity until they change: the transcript's rows are memoised on it.
  */
 
-/** One thing Letta reported, in the shape every source is parsed into. `at` is when it was written, null when unknown. */
+/** One thing the harness reported, in the shape every source is parsed into. `at` is when it was written, null when unknown. */
 export type Step =
   /** A user message as written: harness markup in it becomes event rows, the rest the bubble. */
   | { kind: "user"; raw: string; at: string | null }
@@ -22,7 +22,7 @@ export type Step =
   /** What came back from the call with this id. */
   | { kind: "result"; id: string; output: unknown; failed: boolean };
 
-/** A row as a history page carries it (the mod's local log, or the app-server's history folded): times may be null. */
+/** A row as a history page carries it (the mod's history_get, from the daemon's projection): times may be null. */
 export type HistoryRow = Omit<TranscriptRow, "at"> & { at?: string | null };
 
 /** How a sent message is known again in its echo: its text, or for files alone, their paths. */
@@ -222,8 +222,8 @@ export class ThreadModel {
   }
 
   /**
-   * The link to the app-server came back after dropping: a command still marked running lost its answer
-   * with the old link, and nothing else will ever finish it. For /reload that is the success case — the
+   * The link to the daemon (the mod's socket) came back after dropping: a command still marked running lost its
+   * answer with the old link, and nothing else will ever finish it. For /reload that is the success case — the
    * reload is what took the link down. Returns true when a row changed.
    */
   settleCommands(): boolean {
@@ -235,7 +235,7 @@ export class ThreadModel {
         r.detail = null;
       } else {
         r.summary = "failed";
-        r.detail = "the link to the app-server dropped while this ran; its answer was lost";
+        r.detail = "the link to loki's daemon dropped while this ran; its answer was lost";
       }
       changed = true;
     }

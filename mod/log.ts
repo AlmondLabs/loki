@@ -2,9 +2,9 @@ import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import { dirname } from "node:path";
 
 /**
- * Append-only trace log at ~/.letta/loki/mod.log. The mod runs inside a Letta
- * process with no console we can read, so this is how we see activation, tool
- * calls, scans, and errors. Never throws.
+ * Append-only trace log at ~/.loki/mod.log. The mod runs inside loki's daemon,
+ * whose own output goes to ~/.loki/logs/daemon.log; this file is the mod's trace
+ * of activation, tool calls, scans, and errors on its own. Never throws.
  *
  * Rotation: past LOG_MAX_BYTES the file is renamed to mod.log.1 (replacing the
  * previous one) and a fresh mod.log starts, so the pair never passes ~10 MB.

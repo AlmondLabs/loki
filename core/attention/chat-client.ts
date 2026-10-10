@@ -242,7 +242,7 @@ export class FrameChatClient {
     await this.call("chat_skill_disable", { name });
   }
 
-  /** A slash command, shown in the thread as it runs and when it answers, as Letta's were. */
+  /** A slash command, shown in the thread as it runs and when it answers. */
   async executeCommand(rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> {
     const input = `/${commandId}${args ? ` ${args}` : ""}`;
     this.emit(rt, [{ kind: "command", phase: "start", input }]);

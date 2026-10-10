@@ -17,15 +17,15 @@ export interface AgentsApi {
   log: (agentId: string, path?: string, limit?: number) => Promise<MemoryCommit[]>;
   diff: (agentId: string, sha: string) => Promise<string | null>;
   globalSkills: () => Promise<GlobalSkill[]>;
-  /** `letta install <source> --agent <id>` through the mod; an error message or null. */
+  /** Install a skill from a source into the agent's memory, through the mod (mod/skills.ts); an error message or null. */
   installSkill: (agentId: string, source: string, force?: boolean) => Promise<string | null>;
   /** Fetch an installed skill's upstream and replace, stage for the agent to reconcile, or report it current (mod/skill-sources.ts). */
   refreshSkill: (agentId: string, name: string, source?: string) => Promise<RefreshOutcome | { error: string }>;
-  /** Letta's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
+  /** The daemon's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
   reflection: (agentId: string) => Promise<ReflectionState | null>;
 }
 
-/** Letta's sleep-time reflection through the app-server: the agent's settings, and a pass by hand. */
+/** Reflection through loki's daemon (daemon/reflection.ts): its settings, and a pass by hand. */
 export interface ReflectionControls {
   get: (rt: Runtime) => Promise<ReflectionSettings | null>;
   set: (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }) => Promise<string | null>;
@@ -33,7 +33,7 @@ export interface ReflectionControls {
   run: (rt: Runtime) => Promise<string>;
 }
 
-/** Writes through the app-server; each resolves to an error message or null. */
+/** Writes through loki's daemon; each resolves to an error message or null. */
 export interface AgentsWrite {
   createAgent: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<{ id: string } | { error: string }>;
   deleteAgent: (agentId: string) => Promise<string | null>;
@@ -41,5 +41,5 @@ export interface AgentsWrite {
   removeMemory: (agentId: string, path: string, message?: string) => Promise<string | null>;
 }
 
-/** An edit to the agent's identity, as the app-server takes it: any of name, description, model. */
+/** An edit to the agent's identity, as the daemon takes it (chat_agent_update): any of name, description, model. */
 export type AgentEdit = { name?: string; description?: string; model?: string };

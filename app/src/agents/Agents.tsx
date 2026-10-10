@@ -30,7 +30,7 @@ export { AgentsColumn } from "./AgentsColumn";
 /**
  * The Agents page, Slack's DMs (plan 013 U10): the agents down the column (AgentsColumn), the chosen one
  * in the pane under a header whose tabs are its pages — its face, name, description and model (editable
- * through the app-server), its memory as a browsable tree with the git history of what it learned, its skills,
+ * through loki's daemon), its memory as a browsable tree with the git history of what it learned, its skills,
  * and where it is working (desks, tasks). Memory is read-only here: to change a fact you hand the
  * request to the agent in its own chat.
  */
@@ -64,10 +64,10 @@ export function Agents({
   onOpenDesk: (agentId: string, conversationId: string) => void;
   /** Open the agent's main chat with a prefilled request to change a memory file. */
   onAskToUpdate: (agentId: string, text: string) => void;
-  /** Through the app-server; resolves to an error message or null. */
+  /** Through loki's daemon; resolves to an error message or null. */
   onUpdateAgent: (agentId: string, body: AgentEdit) => Promise<string | null>;
   write: AgentsWrite;
-  /** Letta's reflection settings and a pass by hand, through the app-server. */
+  /** Reflection's settings and a pass by hand, through loki's daemon. */
   reflect: ReflectionControls;
   listModels: () => Promise<Array<{ handle: string }>>;
   onShowDesks: () => void;

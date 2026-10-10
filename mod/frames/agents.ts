@@ -11,7 +11,7 @@ export interface AgentsDeps {
     read: (agentId: string, path: string) => string | null;
     log: (agentId: string, opts: { path?: string; limit?: number }) => Promise<MemoryCommit[]>;
     diff: (agentId: string, sha: string) => Promise<string>;
-    /** Letta's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
+    /** The daemon's reflection counters per conversation and the last pass that changed memory (mod/reflection.ts). */
     reflection?: (agentId: string) => Promise<ReflectionState>;
     /** Skills outside memory (mod/skills.ts). */
     globalSkills?: () => GlobalSkill[];

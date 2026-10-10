@@ -7,8 +7,8 @@ const shortPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");
 
 /**
  * The phone's Change folder: the folders this chat's agent has worked in on the Mac, as chips (New chat's), the
- * chat's own folder lit; Move waits for another one. Letta Code moves the chat and tells the agent on its next
- * turn that the working directory changed. A refusal shows under the chips and the sheet stays. Browsing any
+ * chat's own folder lit; Move waits for another one. loki's daemon moves the chat, and its tools run in the new
+ * folder from its next turn. A refusal shows under the chips and the sheet stays. Browsing any
  * folder on the Mac is the desktop's (the phone is not given the Mac's disk).
  */
 export function FolderSheet({ load, onMove, onClose }: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null>; onClose: () => void }) {

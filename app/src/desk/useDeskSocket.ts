@@ -50,7 +50,6 @@ export function useDeskSocket() {
   const [models, setModels] = useState<Record<Scope, string>>({});
   const [reasoningEfforts, setReasoningEfforts] = useState<Record<Scope, ReasoningEffort>>({});
   const [modes, setModes] = useState<Record<Scope, string>>({});
-  /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
   /** Who listens for the chats' events, which loki's daemon sends on this socket. */
   const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});

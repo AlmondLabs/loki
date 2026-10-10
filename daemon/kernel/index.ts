@@ -32,10 +32,10 @@ export type ChatInfo = {
   id: string;
   title: string | null;
   archived: boolean;
-  /** Kept out of lists, as Letta's one-off side threads and Learn's own chats are. */
+  /** Kept out of lists: Learn's writer chats, reflection's passes, and side threads imported from Letta. */
   hidden: boolean;
   createdAt: string;
-  /** Which tool calls ask the person first (daemon/approvals.ts); absent, unrestricted, as on Letta. */
+  /** Which tool calls ask the person first (daemon/approvals.ts); absent, unrestricted. */
   mode?: string;
 };
 

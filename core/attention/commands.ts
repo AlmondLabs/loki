@@ -1,7 +1,6 @@
 /**
- * Slash commands in the message box, as Letta Desktop has them. Two kinds: the harness's own
- * (`execute_command` over the app-server socket — the same path Desktop and the channels use) and
- * loki's (a keymap action, run in place). The box shows a palette while a command is being typed;
+ * Slash commands in the message box. Two kinds: the harness's own (chat_command to loki's daemon,
+ * through the mod's socket) and loki's (a keymap action, run in place). The box shows a palette while a command is being typed;
  * Enter runs it, or fills it in when it takes arguments.
  */
 export interface SlashCommand {
@@ -9,7 +8,7 @@ export interface SlashCommand {
   description: string;
   /** Argument hint, when the command takes any (e.g. "[tokens]"). */
   args?: string;
-  /** Where it runs: the harness (Letta Code) or loki itself. */
+  /** Where it runs: the harness (loki's daemon) or loki itself. */
   where: "harness" | "loki";
   /** loki commands: the keymap action id to run. */
   action?: string;

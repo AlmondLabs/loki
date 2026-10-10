@@ -1,8 +1,8 @@
 /**
- * Where one turn's time went (plan 017, R2): waiting for the model, running tools, or the harness itself. Both Letta
- * and pi-durable save each model response with the time it started and ended, and each tool result with when it
- * finished, so one function measures either backend from what it saved, plus two moments only a client sees: when the
- * message was sent and when its first word arrived.
+ * Where one turn's time went (plan 017, R2): waiting for the model, running tools, or the harness itself. pi-durable
+ * saves each model response with the time it started and ended, and each tool result with when it finished, so one
+ * function measures a turn from what the store saved (the trial measured Letta's turns the same way), plus two
+ * moments only a client sees: when the message was sent and when its first word arrived.
  */
 
 /** A stretch of time in milliseconds since the epoch. */

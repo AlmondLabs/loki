@@ -112,7 +112,7 @@ export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${
 /**
  * Whether an event answers a folder change under way (useAttention changeFolder), read after the event was folded
  * in: "moved" when a device status shows the new folder (or, the folder before being known, any other), the
- * error's words when Letta Code refused it with a loop error, null when the event says nothing about it.
+ * error's words when the daemon refused it, null when the event says nothing about it.
  */
 export function folderMoveAnswer(events: ChatEvent[], cwd: string | undefined, move: { from: string | undefined; to: string }): "moved" | { error: string } | null {
   for (const e of events) {
@@ -160,8 +160,9 @@ export function cancelQueued(l: Live, text: string): boolean {
 }
 
 /**
- * What happens in a chat while it runs, in loki's own words (plan 017, U5): the daemon pushes these, and Letta's
- * app-server events are read into them (lettaChatEvents), so one function folds either into a chat's live state.
+ * What happens in a chat while it runs, in loki's own words (plan 017, U5): the daemon pushes these over the mod's
+ * socket, and one function folds them into a chat's live state. (The tests write Letta's events in this shape too,
+ * test/fixtures/letta-events.ts.)
  */
 export type ChatEvent =
   /** The agent asks to run a tool. */
@@ -209,7 +210,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       return { changed, userSpoke: false };
     }
     case "loop": {
-      // A backend repeats a status (Letta says WAITING_ON_INPUT for every idle conversation every few seconds): a
+      // A backend may repeat a status (Letta said WAITING_ON_INPUT for every idle conversation every few seconds): a
       // repeat that moves nothing is no change, so nothing re-renders on it.
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
       l.loop = e.detail ?? e.state;

@@ -4,7 +4,7 @@
  * pi-durable extension (daemon/mods/registry.ts), so its tools and hooks reach every chat of every agent, and editing a
  * mod reloads it in place.
  *
- * The shape grew out of the Letta mod API loki was written against (mod/letta-types.ts): `tools.register`,
+ * The shape grew out of the Letta mod API loki was first written against: `tools.register`,
  * `events.on`, `diagnostics.report` and `signal` keep their names. Parameters are JSON Schema, as there.
  */
 

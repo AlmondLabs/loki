@@ -192,9 +192,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     );
   };
   /**
-   * The inbox's list, straight from disk: every open conversation of the user's own agents, main
-   * chats included, however old — a conversation leaves the inbox by being archived, not by going
-   * quiet. Hidden conversations (the app-server's one-off side threads) stay out, as in the tree.
+   * The inbox's list, from the daemon's chats (its projection): every open conversation of the user's own
+   * agents, main chats included, however old — a conversation leaves the inbox by being archived, not by
+   * going quiet. Hidden conversations (Learn's writer chats, reflection's, side threads imported from Letta)
+   * stay out, as in the tree.
    */
   const listInbox = (): InboxRow[] => {
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));

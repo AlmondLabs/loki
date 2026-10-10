@@ -8,7 +8,8 @@ export interface ImageAttachment {
 
 /**
  * A file attached to a message that is not an image: already uploaded to the Mac (mod/uploads.ts), so the
- * message carries only where it is, in Letta's attachment tag, and the agent reads it with its own tools.
+ * message carries only where it is, in an attachment tag (the shape Letta's channels used), and the agent reads it
+ * with its own tools.
  */
 export interface FileAttachment {
   id: string;
@@ -26,7 +27,7 @@ export const isFileAttachment = (a: Attachment): a is FileAttachment => (a as Fi
 
 const xmlAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** A file as Letta's channels hand one to an agent: `<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`. */
+/** A file as an attachment tag, the shape Letta's channels handed one to an agent in: `<attachment kind="file" local_path=… name=… mime_type=… size_bytes=… />`. */
 export function attachmentTag(f: { path: string; name: string; size: number; mime: string }): string {
   return `<attachment kind="file" local_path="${xmlAttr(f.path)}" name="${xmlAttr(f.name)}" mime_type="${xmlAttr(f.mime)}" size_bytes="${f.size}" />`;
 }
@@ -41,9 +42,10 @@ export function withAttachments(text: string, files: Array<{ path: string; name:
 export type UserContent = string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
 
 /**
- * The `content` of a create_message user message: a plain string when there are
- * no images, otherwise text and image parts in the shape Letta's app-server
- * validates (`{ type: "image", source: { type: "base64", media_type, data } }`).
+ * A user message's `content` in the shape Letta's create_message took: a plain string when there are
+ * no images, otherwise text and image parts
+ * (`{ type: "image", source: { type: "base64", media_type, data } }`). The chat client sends images apart
+ * (chat_send), so only the tests use this now.
  */
 export function buildUserContent(text: string, images: ImageAttachment[] = [], context?: string): UserContent {
   if (!images.length && !context) return text;
@@ -55,11 +57,10 @@ export function buildUserContent(text: string, images: ImageAttachment[] = [], c
 }
 
 /**
- * The environment note, in the shape Letta Desktop uses, so an agent talked to from loki keeps its sense of time
- * (it has no clock, and chats run for days) and knows which chat you are on. The folder is not in it: Letta Code
- * sends its own environment context (working directory, git) at a session's start, whenever the folder changes
- * and after compaction. Rendered transcripts strip system reminders, so you never see it. This is the full note,
- * a chat's first; `environmentNote` decides when a chat needs one again.
+ * The environment note, in the shape Letta Desktop used, so an agent talked to from loki keeps its sense of time
+ * (it has no clock, and chats run for days) and knows which chat you are on. The folder is not in it: the chat's
+ * folder is its working directory on the daemon, where its tools run. Rendered transcripts strip system reminders,
+ * so you never see it. This is the full note, a chat's first; `environmentNote` decides when a chat needs one again.
  */
 export function environmentReminder(opts: { now?: Date; desk?: string | null; locale?: string } = {}): string {
   const now = opts.now ?? new Date();
@@ -118,7 +119,7 @@ function localTime(now: Date, locale?: string): string {
   return now.toLocaleString(locale ?? undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZoneName: "short" });
 }
 
-/** One question from Letta's AskUserQuestion tool. */
+/** One question from the AskUserQuestion tool (daemon/ask.ts, in the shape Letta's used). */
 export interface AskQuestion {
   question: string;
   header?: string;
@@ -143,8 +144,8 @@ export function askQuestions(input: unknown): AskQuestion[] {
 
 /**
  * The tool input handed back with the answers filled in, keyed by question text
- * (multi-select answers are labels joined with ", "), which is how Letta's own
- * channel clients answer: an allow decision with this as `updated_input`.
+ * (multi-select answers are labels joined with ", "), the way Letta's channel
+ * clients answered, which the daemon's tool keeps: an allow decision with this as `updated_input`.
  */
 export function buildQuestionAnswer(input: unknown, answers: Record<string, string | string[]>): Record<string, unknown> {
   const base = input && typeof input === "object" ? (input as Record<string, unknown>) : {};

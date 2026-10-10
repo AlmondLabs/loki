@@ -3,7 +3,7 @@ import { PERSONALITIES, type Personality } from "../../../core/attention/protoco
 import { Button, Field, Row } from "../components";
 import { formatKeys } from "../shell/keymap";
 
-/** The form for a new agent: name, description, one of Letta's personality presets, a model. */
+/** The form for a new agent: name, description, a personality preset (core/attention/protocol.ts), a model. */
 export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { models: string[] | null; onLoadModels: () => void; onCreate: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<string | null>; onCancel: () => void; canCancel: boolean }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");

@@ -14,7 +14,7 @@ import { inTauri } from "./env";
 // "@desks" is aliased to the widgets dir in vite.config.ts. Keys come back in whatever form Vite
 // resolves them to, so lookups match on the "<desk>/<name>.ext" suffix.
 // Dev only: Vite pre-registers the agent's widget files so HMR reaches them. A production build
-// must not bundle files from ~/.letta; there widgets arrive compiled from the shell (loki://) instead.
+// must not bundle files from ~/.loki; there widgets arrive compiled from the shell (loki://) instead.
 const loaders: Record<string, () => Promise<Record<string, unknown>>> = import.meta.env.DEV ? import.meta.glob<Record<string, unknown>>("@desks/*/*.{tsx,jsx}") : {};
 const loaderFor = (file: string) => {
   const suffix = `/${file}`;

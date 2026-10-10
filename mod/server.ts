@@ -17,7 +17,7 @@ export interface LokiServer {
 }
 
 /**
- * Who may upgrade to /ws or /appserver, or fetch an agent's face. The loopback server
+ * Who may upgrade to /ws, or fetch an agent's face. The loopback server
  * checks `?t=` against the desktop token (tokenAuth); the LAN listener (mod/lan.ts)
  * looks a device cookie or bearer up and names the device, so its sockets can be
  * closed when the device is forgotten.

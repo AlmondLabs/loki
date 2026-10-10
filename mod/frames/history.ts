@@ -13,7 +13,7 @@ export interface HistoryDeps {
   listInbox?: () => InboxRow[];
 }
 
-/** A chat's history from its local log, and the Inbox's list of open conversations. */
+/** A chat's history from the daemon's projection of its store, and the Inbox's list of open conversations. */
 export function historyFrames(deps: HistoryDeps): FrameHandlers {
   return {
     history_get: ({ agentId, conversationId, limit }) => {

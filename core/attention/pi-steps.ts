@@ -3,8 +3,8 @@ import type { Step } from "./thread.ts";
 
 /**
  * Pi's messages as thread steps (core/attention/thread.ts). Letta's local log and pi-durable's entries both carry
- * pi-ai messages, so one adapter reads both: the mod's log reader hands it a log line's message, the daemon a durable
- * entry's. Structural types only: core imports no packages (test/core-portability.test.ts).
+ * pi-ai messages, so one adapter reads both: the import's log reader (daemon/import/letta-log.ts) hands it a log
+ * line's message, the daemon a durable entry's. Structural types only: core imports no packages (test/core-portability.test.ts).
  */
 
 /** A pi-ai message as either source stores it: user, assistant, toolResult or system. */

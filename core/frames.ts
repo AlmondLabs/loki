@@ -30,8 +30,8 @@ const isPoint = (v: unknown): boolean => typeof v === "object" && v !== null && 
 
 /**
  * Agent ids reach the mod from the socket and from the LAN page, then become path segments under the
- * backend's memfs. Only the shape Letta itself produces is allowed: letters, digits, `.`, `_`, `-`, not
- * starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
+ * backend's memfs. Only the shape agent ids take (`agent-…`, as Letta made them and the daemon still does) is
+ * allowed: letters, digits, `.`, `_`, `-`, not starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
  */
 export function isAgentId(id: unknown): id is string {
   return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
@@ -188,7 +188,7 @@ export const FRAMES = {
   seen_mark: send("mark a conversation done", mark, { phone: PHONE, causes: ["seen"] }),
   seen_unmark: send("mark a conversation not done", mark, { phone: PHONE, causes: ["seen"] }),
   viewed_mark: send("a look, not done (the sidebar's bold, the New line)", mark, { phone: PHONE, causes: ["seen"] }),
-  focus_add: send("an engagement the mod cannot see (it went to the app-server)", (m) => {
+  focus_add: send("an engagement the mod cannot see (a decision, an answer)", (m) => {
     const c = mark(m);
     if (typeof c === "string") return c;
     const action = m.action;
@@ -207,7 +207,7 @@ export const FRAMES = {
     str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId, limit: isNum(m.limit) ? m.limit : null } : "conversationId required", PHONE),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
 
-  // Chats on loki's daemon (plan 017, U5); under Letta the app-server serves these and the mod answers `error`
+  // Chats on loki's daemon (plan 017, U5), answered by its ChatBackend (mod/frames/chat.ts)
   chat_open: request("chat_state", "follow a chat: its state now, then its chat_event pushes; `mode` sets its permission mode", (m) => {
     const c = chatRef(m);
     return typeof c === "string" ? c : { ...c, mode: strOr(m.mode, null) };
