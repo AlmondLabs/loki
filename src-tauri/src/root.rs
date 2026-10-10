@@ -1,6 +1,6 @@
 //! loki's root moves from `~/.letta/loki` to `~/.loki` (plan 017, KTD7), once, before anything opens a file in it:
 //! the folder is renamed and a link left at the old path (a symlink, or a junction on Windows), so every path that
-//! still names `~/.letta/loki` (agents' memories, old widget references, this build's own constants) resolves.
+//! still names `~/.letta/loki` (agents' memories, old widget references, an older loki still installed) resolves.
 
 use std::path::{Path, PathBuf};
 
