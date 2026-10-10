@@ -55,7 +55,7 @@ including the Homebrew install of the finished app, is under [Install](#install)
 | **Inbox** | ⌘2 | Every chat you haven't archived, as cards, highest score first: blocked agents, then what's new, then the chats you have been working in, learned from what you do (a task you move on from fades on its own). Approve and reply inline; a reply keeps the card while the answer streams in. **Next** moves on and the chat comes back next visit; **Archive** is done. ⌥Space opens it from anywhere on the Mac. |
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a chat, or dispatch so the agent starts now. |
 | **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, its reflection settings, and its skills with one-click refresh from upstream. |
-| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
+| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations — only concepts and knowledge that last, never the details of a task — and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how many cards a day is yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
 | **Phone** | | The inbox, every chat, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and read agree with the Mac. Mac only for now. |
 
 Keys are written the Mac's way. On Windows and Linux ⌘ is Ctrl and ⌥ is Alt, and loki shows them that way; the
@@ -242,7 +242,7 @@ WebView2 runtime (Windows 11 has it) in place of Xcode's tools, and run the comm
 ## Read on
 
 - [The manual](docs/manual.md): every view, every key, every file loki writes.
-- [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a sweep costs.
+- [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a run costs.
 - [Architecture](docs/architecture.md): the processes that run, what the daemon holds, and the journey of a message.
 - [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/RELEASING.md).

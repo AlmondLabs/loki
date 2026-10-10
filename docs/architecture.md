@@ -106,9 +106,13 @@ every chat gets, the chats, then the mods.
    keeps running after its turn; the agent reads its output, writes to it, waits on it or stops it, and its chat
    gets a `<task-notification>` when it ends. Scheduled prompts are kept in `~/.loki/state/crons.json` and checked
    once a minute; a slot missed while loki was closed fires once at the next start.
-9. **Reflection (`daemon/reflection.ts`).** Once a chat has been quiet, and the agent's settings say so, a hidden
-   chat of the same agent with only the memory tools reads what happened and updates memory. It never runs during a
-   turn, so it never competes with you for the model.
+9. **The background passes (`daemon/passes.ts`).** Reflection (`daemon/reflection.ts`) keeps each agent's memory;
+   Learn (`daemon/learn.ts`) writes the person's cards. Same process, different objectives: once a minute the runner
+   looks over the chats, and a chat quiet for half an hour with new material past a pass's cursor gets a run of it
+   (reflection also reads a chat right after its context is compacted). A run works as the agent in that pass's
+   hidden chat for the agent, cleared first, never while the chat is busy, one run at a time across all agents, and
+   is measured (`pass_finished`). Their settings and cursors are in `~/.loki/state/passes.json` and
+   `pass-cursors.json`.
 10. **The mod registry (`daemon/mods/`).** loki's mod API, version 1 (`daemon/mods/api.ts`): a mod registers tools
     and prompt sections, gets a say before a tool runs, transforms the person's message before it is sent, and
     listens to turn events. Each mod becomes one pi-durable extension shared by every agent's store, so one install
@@ -116,7 +120,7 @@ every chat gets, the chats, then the mods.
     mod reloads it in place: work already under way finishes on the old code and the next step uses the new. A mod
     built for a newer major API version is refused.
 11. **The chats (`daemon/chat-backend.ts`, `daemon/chats.ts`, `daemon/chat-events.ts`).** `DaemonChats` runs chats
-    for the mod's chat frames: open, send, steer, abort, approve, answer, models, agents, providers, reflection,
+    for the mod's chat frames: open, send, steer, abort, approve, answer, models, agents, providers, the passes,
     memory and skills. A message sent while the chat is busy waits its turn. pi-durable's events become loki's chat
     events and are pushed to every socket. `ChatProjection` keeps a synchronous view of every chat (its details and
     its entries as thread steps), kept current from each store's commits. It exists because the mod asks about
@@ -135,8 +139,8 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
 3. **The agent's tools.** `desk_state` (the canvas as you left it), `loki_camera` (move your view to a widget) and
    `loki_task` (the board).
 4. **The board.** Tasks for later in beads, through `bd`.
-5. **Learn.** The card writer and leads; it asks the agent in a hidden writer chat of its own, so no chat you read is
-   touched.
+5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
+   Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
 6. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
    listener on `0.0.0.0:41415` for paired phones (off by default).
 
@@ -230,7 +234,7 @@ and provider credentials in the OS keychain.
 
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
    `mods/` the mod API and registry; the rest one file per capability
-   (approvals, providers, memory, tools, skills, subagents, background, schedule, reflection, chats).
+   (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
 2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports; `bridge.ts` routes each
    frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,
    the board, agents, the phone listener); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas

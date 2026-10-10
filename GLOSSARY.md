@@ -60,8 +60,13 @@ settling, the turn ending. loki's daemon pushes them (`chat_event`), and the app
 model.
 
 **Daemon** (`daemon/main.ts`): loki's one long-running Node process, started and restarted by the shell. It holds
-every agent's chats, the tools, approvals, memory, reflection and the mods. _Avoid_: harness (for the process),
+every agent's chats, the tools, approvals, memory, the background passes and the mods. _Avoid_: harness (for the process),
 app-server, server.
+
+**Background pass** (`daemon/passes.ts`): a job the daemon runs on a chat once it has been quiet for half an hour
+and holds new material past the job's cursor, as the agent in that job's hidden chat, one run at a time. There are
+two: reflection, which keeps the agent's memory, and Learn, which writes the person's cards. Same process, different
+objectives. _Avoid_: worker, sweep (the mod's Learn worker and its timer before plan 018).
 
 **Agent store** (`daemon/kernel/`): one agent's chats in one pi-durable Harness over one SQLite file,
 `~/.loki/stores/<agentId>.sqlite`. Only `daemon/kernel/` imports pi-durable.
