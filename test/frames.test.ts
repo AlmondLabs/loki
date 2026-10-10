@@ -46,6 +46,15 @@ describe("the frame table", () => {
     }
   });
 
+  test("the background passes' settings: each part optional, wrong kinds refused", () => {
+    expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: false } })).toEqual({ reflection: { enabled: false } });
+    expect(FRAMES.chat_passes_set.parse({ learn: { enabled: true, dailyCap: 3.7 } })).toEqual({ learn: { enabled: true, dailyCap: 3 } });
+    expect(FRAMES.chat_passes_set.parse({})).toEqual({});
+    expect(FRAMES.chat_passes_set.parse({ learn: { dailyCap: -1 } })).toBe("learn.dailyCap must be a number, 0 or more");
+    expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: "yes" } })).toBe("reflection.enabled must be true or false");
+    expect(FRAMES.recall_settings.parse({ enabled: true, dailyCap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, dailyCap: 3 });
+  });
+
   test("parsers keep today's checks", () => {
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
