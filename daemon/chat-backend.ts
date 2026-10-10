@@ -13,6 +13,7 @@ import type { ModelEntry, ReasoningEffort } from "../core/models.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";
 import { ChatEventConverter } from "./chat-events.ts";
+import { turnIdOf } from "./telemetry.ts";
 import { piHandle } from "./model-handle.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
 import type { Providers } from "./providers.ts";
@@ -116,7 +117,7 @@ export class DaemonChats implements ChatBackend {
   /** Push every event of a chat from now on. */
   private async follow(store: AgentStore, chat: Conversation, agentId: string, conversationId: string): Promise<void> {
     const stream = await watchEvents(store.harness, chat.id, this.deps.context);
-    const converter = new ChatEventConverter();
+    const converter = new ChatEventConverter(agentId);
     stream.start(async (batch) => {
       const events = batch.flatMap((ev) => converter.convert(ev));
       if (events.length) this.push(agentId, conversationId, events);
@@ -127,7 +128,7 @@ export class DaemonChats implements ChatBackend {
     const [view, settings] = await Promise.all([store.harness.snapshot(LiveDoc, chat.id, this.deps.context), store.agentSettings(chat.id, this.deps.context)]);
     const info = await store.chatInfo(chat.id, this.deps.context);
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
-    return { agentId, conversationId, loop: waiting ? "approval" : view?.run ? "running" : "idle", mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted", cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null };
+    return { agentId, conversationId, loop: waiting ? "approval" : view?.run ? "running" : "idle", turnId: view?.run ? turnIdOf(agentId, view.run.inputs) : null, mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted", cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null };
   }
 
   async create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }> {

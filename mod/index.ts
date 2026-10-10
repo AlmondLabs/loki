@@ -41,7 +41,7 @@ import { LanListener } from "./lan.ts";
 import { Tailscale } from "./tailscale.ts";
 import { registerTools } from "./tools.ts";
 import { initLog, log } from "./log.ts";
-import { appVersion, createAnalytics } from "./analytics.ts";
+import { appVersion, createAnalytics, type Analytics } from "./analytics.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
 
@@ -67,13 +67,13 @@ function loadOrCreateToken(): string {
   return token;
 }
 
-/** What the daemon hosts the mod with besides the mod API: its chats, to read and to run. */
-export type Host = { chats: ChatSource; chat: ChatBackend };
+/** What the daemon hosts the mod with besides the mod API: its chats, to read and to run, and its analytics writer. */
+export type Host = { chats: ChatSource; chat: ChatBackend; analytics?: Analytics };
 
 export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
   // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
-  const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
+  const analytics = host.analytics ?? createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
   log("activate", { pid: process.pid, node: process.versions.node, ws: wsSource, api: api.apiVersion });
 
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
@@ -367,8 +367,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
   const titleRefreshes = new ScopeDebouncer();
-  /** When each desk's running turn began, for turn_finished's duration. */
-  const turnsBegun = new Map<string, number>();
   /** What each conversation was last told about its board tasks: the block rides along only when it changes. */
   const tasksNotice = new TasksNotice();
   /** Helper agents' chats and the recall worker's own get no desk, and the tab does not follow them. */
@@ -399,8 +397,6 @@ export default function activate(api: ModApi, host: Host): () => void {
       }
       const scope = desks.remember(m.chatId, m.agentId);
       activeScope = scope;
-      analytics.capture("mod", "turn_started", { desk: scope });
-      turnsBegun.set(scope, Date.now());
       const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];
       log("event:message", { desk: scope, attached: lines.length });
       seen.mark(m.agentId, m.chatId); // you just spoke in this conversation
@@ -436,11 +432,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   eventDisposers.push(
     api.events.on("turn_end", (e) => {
       if (ignored(e)) return;
+      // The turn itself is measured by the daemon (daemon/telemetry.ts, turn_finished).
       const scope = desks.remember(e.chatId, e.agentId);
-      // The turn's end, for how long you take to come back to it (the report's time to respond).
-      const begun = turnsBegun.get(scope);
-      turnsBegun.delete(scope);
-      analytics.capture("mod", "turn_finished", { desk: scope, duration_ms: begun === undefined ? null : Date.now() - begun });
       titleRefreshes.schedule(scope, () => {
         // A chat's title can come after its first turn; tell tabs when the title or status changes.
         const info = deskInfo(scope);

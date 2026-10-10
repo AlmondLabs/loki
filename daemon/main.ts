@@ -26,7 +26,6 @@ import { fileToolsExtension } from "./tools.ts";
 import { skillsExtension } from "./skills.ts";
 import { subagentExtension } from "./subagents.ts";
 import { webSearchExtension } from "./web-search.ts";
-import { recallDir } from "../mod/recall.ts";
 import { BackgroundTasks, backgroundExtension } from "./background.ts";
 import { Schedules, scheduleExtension } from "./schedule.ts";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
@@ -40,6 +39,10 @@ import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
 import type { Host } from "../mod/index.ts";
 import { ModRegistry } from "./mods/registry.ts";
+import { appVersion, createAnalytics } from "../mod/analytics.ts";
+import { isSubagent } from "../mod/agents.ts";
+import { paths } from "../mod/paths.ts";
+import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 
 export const EXIT_HELD = 3;
 
@@ -108,6 +111,11 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
 const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report });
 chats.follow(stores);
+// Product analytics, local only (core/analytics.ts; `bun run analytics` reads it), one writer for the daemon and loki's
+// mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
+const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
+const telemetry = new TurnTelemetry({ capture: (event, properties) => analytics.capture("mod", event, properties), harnessVersion: harnessVersion(paths.root), isSubagent: (id) => isSubagent(id, backend), context, report });
+telemetry.follow(stores);
 // An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
 const knownProvider = (id: string) => Boolean(models.getProvider(id));
 for (const id of listAgents(backend)) if (healRecordModel(backend, id, knownProvider)) report(`${id}: its model now goes by pi-ai's name`);
@@ -120,7 +128,7 @@ await Promise.all(
 
 // loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
-const loadCore = () => mods.load({ name: "loki", apiVersion: MOD_API_VERSION, activate: (api) => core.default(api, { chats, chat }) as Promise<() => void> | (() => void) });
+const loadCore = () => mods.load({ name: "loki", apiVersion: MOD_API_VERSION, activate: (api) => core.default(api, { chats, chat, analytics }) as Promise<() => void> | (() => void) });
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
 const stopWatchingCore = args.mod.endsWith("boot.ts")

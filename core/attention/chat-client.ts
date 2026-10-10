@@ -132,7 +132,7 @@ export class FrameChatClient {
     this.remember(rt);
     const state = await this.call("chat_open", { agentId: rt.agent_id, conversationId: rt.conversation_id, mode: opts.mode ?? null });
     this.opened.add(`${rt.agent_id}\u0000${rt.conversation_id}`);
-    this.emit(rt, [{ kind: "loop", state: state.loop }, { kind: "device", ...(state.mode ? { mode: state.mode } : {}), ...(state.cwd ? { cwd: state.cwd } : {}) }]);
+    this.emit(rt, [{ kind: "loop", state: state.loop, ...(state.turnId ? { turnId: state.turnId } : {}) }, { kind: "device", ...(state.mode ? { mode: state.mode } : {}), ...(state.cwd ? { cwd: state.cwd } : {}) }]);
     return { type: "chat_state" };
   }
 

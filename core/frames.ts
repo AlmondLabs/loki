@@ -112,6 +112,8 @@ export interface ChatState {
   agentId: string;
   conversationId: string;
   loop: "running" | "idle" | "approval";
+  /** The turn running now (daemon/telemetry.ts), for the app's analytics; null when idle. */
+  turnId?: string | null;
   mode: string | null;
   cwd: string | null;
 }

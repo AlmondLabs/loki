@@ -2,6 +2,7 @@ import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
 import { contentText } from "../core/harness.ts";
 import { messageAt } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
+import { turnIdOf } from "./telemetry.ts";
 
 /** Why a message went unanswered, for the person. */
 function unanswered(reason: string | undefined): string {
@@ -19,13 +20,24 @@ function unanswered(reason: string | undefined): string {
 export class ChatEventConverter {
   /** The answer in flight: its text so far, by content block. */
   private streamed = new Map<number, string>();
+  /** The turn in flight (daemon/telemetry.ts names it the same), for the app's analytics to carry. */
+  private turnId: string | null = null;
+  private readonly agentId: string;
+
+  constructor(agentId = "") {
+    this.agentId = agentId;
+  }
 
   convert(ev: AgentEvent, now = new Date().toISOString()): ChatEvent[] {
     switch (ev.type) {
       case "run_start":
-        return [{ kind: "loop", state: "running" }];
-      case "run_end":
-        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" }];
+        this.turnId = turnIdOf(this.agentId, ev.inputs);
+        return [{ kind: "loop", state: "running", ...(this.turnId ? { turnId: this.turnId } : {}) }];
+      case "run_end": {
+        const turnId = turnIdOf(this.agentId, ev.inputs) ?? this.turnId;
+        this.turnId = null;
+        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turnId } : {}) }];
+      }
       case "message_start":
         if (ev.message.role !== "user") return [];
         return [{ kind: "step", step: { kind: "user", raw: contentText(ev.message.content), at: messageAt(ev.message) ?? now } }];
@@ -50,7 +62,7 @@ export class ChatEventConverter {
       // A message the agent could not take up at all (no model to run it on, say): the turn ends here, and says why.
       case "submission":
         if (ev.record.status !== "unanswered") return [];
-        return [{ kind: "error", message: unanswered(ev.record.reason) }, { kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" }];
+        return [{ kind: "error", message: unanswered(ev.record.reason) }, { kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", turnId: turnIdOf(this.agentId, [ev.record.id])! }];
       default:
         return [];
     }

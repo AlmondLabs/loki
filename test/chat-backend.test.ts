@@ -62,7 +62,7 @@ describe("the daemon's chats", () => {
       expect(readFileSync(join(s.dir, "backend", "memfs", told.id, "memory", "system", "persona.md"), "utf8")).toBe("A careful reviewer who asks before changing code.\n");
       expect(await (await s.stores.get(agent.id)).chat("default", ctx)).toBeDefined();
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
-      expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", mode: "unrestricted", cwd: "/work" });
+      expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", turnId: null, mode: "unrestricted", cwd: "/work" });
       s.faux.setResponses([s.reply("Hello back")]);
       expect(await s.chats.send({ agentId: agent.id, conversationId, text: "hello", images: [], sendId: "s1", context: null })).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));

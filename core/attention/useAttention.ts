@@ -320,11 +320,13 @@ export function useAttention(opts: UseAttentionOptions) {
   const [clock] = useState(() => createActiveClock());
   const activity = opts.activity;
   useEffect(() => activity?.((on) => clock.set(on)), [activity, clock]);
+  /** The turn running in a chat, or the last one that ran: what client events join the daemon's turn_finished by. */
+  const turnOf = (agentId: string, conversationId: string) => liveRef.current.get(keyOf(agentId, conversationId))?.turnId ?? null;
   const cardProps = (item: AttentionItem) => {
     const queue = inboxQueue(itemsRef.current);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
     const it = queue[at] ?? item;
-    return { desk: deskOf(item.agentId, item.id), agent: item.agentId, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
+    return { desk: deskOf(item.agentId, item.id), agent: item.agentId, turn_id: turnOf(item.agentId, item.id), rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
   };
   const shown = useCallback((item: AttentionItem) => {
     shownAt.current.set(idOf(item), clock.now());
@@ -417,7 +419,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (l && was) l.pending = null; // optimistic: the card clears at once
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "decide");
-    optsRef.current.capture?.("approval_decided", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, behavior, wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null });
+    optsRef.current.capture?.("approval_decided", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, turn_id: l?.turnId ?? null, behavior, wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null });
     bump();
     void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
       if (ok || !l || !was) return;
@@ -451,7 +453,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     const l = liveOf(key);
     const fileCount = images.filter(isFileAttachment).length;
-    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
+    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, turn_id: l.turnId ?? null, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
@@ -684,7 +686,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (conversationId === "default") return "a main chat cannot be archived";
     try {
       await sock.updateConversation(conversationId, { archived });
-      if (origin) optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", { desk: scopeFor(conversationId), origin });
+      if (origin) optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", { desk: scopeFor(conversationId), origin, ...(archived ? { turn_id: [...liveRef.current].find(([key]) => key.endsWith(`/${conversationId}`))?.[1].turnId ?? null } : {}) });
       if (archived) setConversations((c) => c.filter((x) => x.id !== conversationId));
       else reloadRef.current?.();
       return null;
@@ -709,8 +711,9 @@ export function useAttention(opts: UseAttentionOptions) {
     const sock = socketRef.current;
     if (!sock) return "not connected to loki's daemon";
     try {
+      const turnId = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id))?.turnId ?? null;
       const aborted = await sock.abortTurn(rt);
-      optsRef.current.capture?.("turn_stopped", { aborted });
+      optsRef.current.capture?.("turn_stopped", { aborted, turn_id: turnId });
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : String(err);

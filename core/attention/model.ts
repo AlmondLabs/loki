@@ -74,6 +74,8 @@ export interface Live {
   /** Turns the agent has completed since this tab connected — a turn is new content even when it ended in a tool call. */
   turns: number;
   inTurn: boolean;
+  /** The turn running, or the last one that ran, as the daemon names it: what the app's analytics join turns by. */
+  turnId?: string;
   /** Messages typed while a turn ran, in order; one goes out at each turn end. */
   queued: QueuedSend[];
   /** From update_device_status: the permission mode the harness applies to this conversation right now. */
@@ -173,7 +175,7 @@ export type ChatEvent =
   /** The chat's permission mode or folder, as the backend has them now. */
   | { kind: "device"; mode?: string; cwd?: string }
   /** Whether the chat is running, idle, or waiting on an approval; `detail` is the backend's own word for it. */
-  | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string }
+  | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string; turnId?: string }
   /** A piece of the thread: a message, a streamed piece of the reply, a call, an approval, a result. */
   | { kind: "step"; step: Step }
   /** The turn failed. */
@@ -183,7 +185,7 @@ export type ChatEvent =
   /** The reply in progress is complete. */
   | { kind: "settle" }
   /** The turn ended. */
-  | { kind: "turn_end" };
+  | { kind: "turn_end"; turnId?: string };
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
@@ -215,6 +217,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       // repeat that moves nothing is no change, so nothing re-renders on it.
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
       l.loop = e.state;
+      if (e.turnId) l.turnId = e.turnId;
       if (e.state === "running") l.inTurn = true;
       if (e.state === "idle") {
         l.thread.settle(now);
@@ -255,6 +258,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       l.thread.settle(now);
       return { changed: true, userSpoke: false };
     case "turn_end":
+      if (e.turnId) l.turnId = e.turnId;
       l.thread.settle(now);
       if (l.inTurn) {
         l.turns += 1;

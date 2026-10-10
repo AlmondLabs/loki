@@ -4,7 +4,8 @@
  * it, nothing reads it but `bun run analytics` on this machine, and it would import into PostHog's batch
  * endpoint as is should that ever be wanted. Properties are ids and counts (a desk's scope, a model's handle),
  * never message text, titles or paths. This module is the shape and the arithmetic; mod/analytics.ts captures,
- * mod/bridge.ts and the app decide when, scripts/analytics.ts turns the file into a report.
+ * mod/bridge.ts and the app decide when, daemon/telemetry.ts measures each agent turn, scripts/analytics.ts turns
+ * the file into a report. A turn's `turn_id` (the daemon's) joins the client events made while it ran or after it.
  */
 
 /** Where it happened: the desktop window (on a Mac, Windows or Linux), a paired phone, or the mod itself (turns and tools, whichever client began them). */
@@ -42,9 +43,9 @@ export const EVENTS: Record<string, string> = {
   desk_switched: "the chat on screen changed { desk }",
   chat_opened: "the desk chat opened",
   chat_closed: "the desk chat closed",
-  message_sent: "a message went out { desk, agent, origin: desk | inbox | lesson, images, queued }",
+  message_sent: "a message went out { desk, agent, turn_id (the turn running when queued, else the last one), origin: desk | inbox | lesson, images, files, queued }",
   approval_requested: "an agent asked for a tool permission or asked a question { desk, agent, tool, kind: approval | question }",
-  approval_decided: "a tool permission decided { desk, agent, behavior, wait_ms }",
+  approval_decided: "a tool permission decided { desk, agent, turn_id, behavior, wait_ms }",
   question_answered: "an agent's question answered { desk, agent, wait_ms }",
   command_run: "a harness slash command run { command }",
   model_switched: "a conversation's model switched { model, effort }",
@@ -52,10 +53,10 @@ export const EVENTS: Record<string, string> = {
   folder_changed: "a conversation moved to another folder { desk, agent }",
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
   inbox_card_shown: "a card came to the top of the inbox { desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
-  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
+  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
   inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, desk, agent }",
   inbox_filtered: "an agent pill chosen in the inbox { agent } (null: All)",
-  chat_archived: "a chat archived { desk, origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
+  chat_archived: "a chat archived { desk, turn_id (its last turn), origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
   chat_restored: "a chat restored from the archive { desk, origin: inbox_undo | sidebar | chat_header | phone_list | phone_chat }",
   conversation_marked_seen: "a conversation marked seen",
   conversation_kept_unread: "a conversation kept unread",
@@ -63,9 +64,9 @@ export const EVENTS: Record<string, string> = {
   widget_gestured: "a widget moved, resized, opened, closed or set { kind }",
   desk_arranged: "a desk tidied",
   widget_trashed: "a widget deleted",
-  turn_started: "an agent turn began, typed anywhere (the terminal included) { desk }",
-  turn_finished: "an agent turn ended, begun anywhere { desk, duration_ms }",
-  turn_stopped: "a turn stopped from loki's Stop button { aborted }",
+  turn_finished:
+    "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
+  turn_stopped: "a turn stopped from loki's Stop button { aborted, turn_id }",
   tool_used: "the agent called a desk tool { tool }",
 };
 
@@ -73,7 +74,7 @@ export const EVENTS: Record<string, string> = {
 export const BREAKDOWN: Record<string, string> = {
   view_opened: "view",
   desk_switched: "desk",
-  turn_started: "desk",
+  turn_finished: "origin",
   message_sent: "origin",
   model_switched: "model",
   mode_set: "mode",
@@ -167,11 +168,81 @@ export interface AnalyticsReport {
     /** Minutes an approval or question waited for you (median). */
     decideMinutes: number | null;
   };
+  /** The daemon's turns (turn_finished with its measurements), by model and by harness version, most turns first. */
+  harness: { turns: number; byModel: HarnessRow[]; byVersion: HarnessRow[] };
   /** Events by local hour of day (24) and weekday (7, Sunday first). */
   hours: number[];
   weekdays: number[];
   neverFired: string[];
 }
+
+/** One group of turns: the spread of where their time went, what they cost, and how often they failed. */
+export interface HarnessRow {
+  key: string;
+  turns: number;
+  ttftMs: Spread;
+  overheadMs: Spread;
+  totalMs: Spread;
+  /** Mean cost of a turn, in the provider's currency (dollars). */
+  costPerTurn: number | null;
+  /** Of every prompt token sent, the share read from the cache. */
+  cacheShare: number | null;
+  /** Turns that ended in an error. */
+  errorRate: number | null;
+  /** Tool calls that failed, of all tool calls. */
+  toolFailureRate: number | null;
+}
+export type Spread = { p50: number | null; p90: number | null };
+
+/** A turn as the harness section reads it from a turn_finished line; null for a line from before the daemon measured turns. */
+type MeasuredTurn = { model: string; version: string; ttft: number | null; overhead: number; total: number; cost: number; prompt: number; cacheRead: number; error: boolean; tools: number; toolFailures: number };
+function measuredTurn(p: Record<string, unknown>): MeasuredTurn | null {
+  if (typeof p.total_ms !== "number") return null;
+  return {
+    model: typeof p.model === "string" ? p.model : "unknown",
+    version: typeof p.harness_version === "string" ? p.harness_version : "unknown",
+    ttft: typeof p.ttft_ms === "number" ? p.ttft_ms : null,
+    overhead: num(p.overhead_ms),
+    total: p.total_ms,
+    cost: num(p.cost),
+    prompt: num(p.input_tokens) + num(p.cache_read_tokens) + num(p.cache_write_tokens),
+    cacheRead: num(p.cache_read_tokens),
+    error: p.error === true,
+    tools: num(p.tool_calls),
+    toolFailures: num(p.tool_failures),
+  };
+}
+
+/** The value at or below which `q` of the values fall (nearest rank); null for none. */
+export function percentile(values: readonly number[], q: number): number | null {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.max(0, Math.ceil(q * s.length) - 1))];
+}
+const spread = (values: number[]): Spread => ({ p50: percentile(values, 0.5), p90: percentile(values, 0.9) });
+const ratio = (n: number, of: number) => (of ? n / of : null);
+
+function harnessRows(turns: MeasuredTurn[], keyOf: (t: MeasuredTurn) => string): HarnessRow[] {
+  const groups = new Map<string, MeasuredTurn[]>();
+  for (const t of turns) (groups.get(keyOf(t)) ?? groups.set(keyOf(t), []).get(keyOf(t))!).push(t);
+  const sum = (ts: MeasuredTurn[], pick: (t: MeasuredTurn) => number) => ts.reduce((n, t) => n + pick(t), 0);
+  return [...groups.entries()]
+    .map(([key, ts]) => ({
+      key,
+      turns: ts.length,
+      ttftMs: spread(ts.flatMap((t) => (t.ttft === null ? [] : [t.ttft]))),
+      overheadMs: spread(ts.map((t) => t.overhead)),
+      totalMs: spread(ts.map((t) => t.total)),
+      costPerTurn: ratio(sum(ts, (t) => t.cost), ts.length),
+      cacheShare: ratio(sum(ts, (t) => t.cacheRead), sum(ts, (t) => t.prompt)),
+      errorRate: ratio(ts.filter((t) => t.error).length, ts.length),
+      toolFailureRate: ratio(sum(ts, (t) => t.toolFailures), sum(ts, (t) => t.tools)),
+    }))
+    .sort((a, b) => b.turns - a.turns || a.key.localeCompare(b.key));
+}
+
+/** Turns nobody waits on: a helper's, Learn's writer's and reflection's. They are measured, but no one answers them. */
+const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection"]);
 
 const DAY_MS = 86_400_000;
 /** What counts as engaging with an Inbox card: acting on it or opening it, rather than moving past or archiving it. */
@@ -217,6 +288,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const waiting = new Map<string, number>();
   const respond: number[] = [];
   const decide: number[] = [];
+  const measured: MeasuredTurn[] = [];
 
   for (const e of events) {
     const p = e.properties;
@@ -241,7 +313,11 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     weekdays[when.getDay()]++;
     if (e.event === "message_sent" || e.event === "question_answered" || e.event === "approval_decided") engagement.actions++;
     const desk = typeof p.desk === "string" ? p.desk : null;
-    if (e.event === "turn_finished" && desk) waiting.set(desk, t);
+    if (e.event === "turn_finished") {
+      if (desk && !UNATTENDED_ORIGINS.has(String(p.origin))) waiting.set(desk, t);
+      const turn = measuredTurn(p);
+      if (turn) measured.push(turn);
+    }
     const answered = e.event === "message_sent" || e.event === "question_answered" || e.event === "approval_decided" || (e.event === "inbox_card_decided" && ENGAGED_ACTIONS.has(String(p.action)));
     if (answered && desk && waiting.has(desk)) {
       respond.push((t - waiting.get(desk)!) / 60_000);
@@ -320,6 +396,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     breakdowns: [...breakdown.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([event, values]) => ({ event, property: BREAKDOWN[event], values: ranked(values, 8) })),
     inbox,
     engagement,
+    harness: { turns: measured.length, byModel: harnessRows(measured, (t) => t.model), byVersion: harnessRows(measured, (t) => t.version) },
     hours,
     weekdays,
     neverFired: Object.keys(EVENTS).filter((name) => !rows.has(name)),
@@ -366,6 +443,18 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
   if (g.shown) out.push(`  shown ${g.shown} · engaged by rank shown ${g.byRank.map(([rank, v]) => `${rank} ${pct(v.engaged, v.shown)} of ${v.shown}`).join(" · ")}`);
   const mins = (m: number | null) => (m === null ? "–" : m < 1 ? "<1 min" : m < 90 ? `${Math.round(m)} min` : `${Math.round(m / 6) / 10} h`);
   if (g.respondMinutes !== null || g.decideMinutes !== null) out.push(`  time to respond after a turn ends ${mins(g.respondMinutes)} · an approval or question waits ${mins(g.decideMinutes)} (medians)`);
+  if (r.harness.turns) {
+    out.push("", `harness ${r.harness.turns} turns · p50/p90 · cost a turn, mean · cache share of prompt tokens`);
+    const ms = (n: number | null) => (n === null ? "–" : n < 1000 ? `${Math.round(n)}ms` : `${(n / 1000).toFixed(1)}s`);
+    const both = (s: Spread) => `${ms(s.p50)}/${ms(s.p90)}`;
+    const share = (n: number | null) => (n === null ? "–" : `${Math.round(n * 100)}%`);
+    const money = (n: number | null) => (n === null ? "–" : `$${n < 0.01 ? n.toFixed(4) : n.toFixed(3)}`);
+    for (const [title, rows] of [["by model", r.harness.byModel], ["by harness version", r.harness.byVersion]] as const) {
+      const kw = Math.max(5, ...rows.map((row) => row.key.length));
+      out.push(`  ${title}`, `    ${"".padEnd(kw)} ${"turns".padStart(5)} ${"ttft".padStart(13)} ${"overhead".padStart(13)} ${"total".padStart(13)} ${"cost".padStart(8)} ${"cache".padStart(5)} ${"errors".padStart(6)} ${"tool fails".padStart(10)}`);
+      for (const row of rows) out.push(`    ${row.key.padEnd(kw)} ${String(row.turns).padStart(5)} ${both(row.ttftMs).padStart(13)} ${both(row.overheadMs).padStart(13)} ${both(row.totalMs).padStart(13)} ${money(row.costPerTurn).padStart(8)} ${share(row.cacheShare).padStart(5)} ${share(row.errorRate).padStart(6)} ${share(row.toolFailureRate).padStart(10)}`);
+    }
+  }
   out.push("", "when", `  hour  ${bars(r.hours, (h) => (h % 6 === 0 ? String(h).padStart(2, "0") : ""))}`, `  day   ${bars(r.weekdays, (d) => WEEKDAY[d])}`);
   out.push("", `never fired: ${r.neverFired.length ? r.neverFired.join(", ") : "nothing — every event fired at least once"}`);
   return out.join("\n");
