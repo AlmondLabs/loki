@@ -4,10 +4,8 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
-import { lettaLogEntries } from "../daemon/import/convert.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
-import { assistantLine, headerLine, logText, sampleLog, userLine } from "./fixtures/letta-log.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -38,59 +36,6 @@ describe("agent store", () => {
       expect(listed.map((c) => c.id).sort()).toEqual(["default", "local-conv-1"]);
       expect(listed.find((c) => c.id === "local-conv-1")).toMatchObject({ title: "Plans", archived: false, createdAt: "2026-10-01T00:00:00.000Z" });
       await expect(store.createChat("local-conv-1", {}, ctx)).rejects.toThrow("already exists");
-    } finally {
-      await store.close(ctx);
-    }
-  });
-
-  test("an imported Letta chat reads back as the same rows, and continues with its history sent to the model", async () => {
-    const { store, faux, sent, reply, model } = await fauxStore();
-    try {
-      const chat = await store.createChat("local-conv-test", { agent: { model } }, ctx);
-      const converted = lettaLogEntries(sampleLog());
-      const lines = await store.importEntries(chat, converted, ctx);
-      expect([...lines.keys()]).toEqual([1, 2, 3, 4, 5, 6]);
-
-      const imported = await store.entries(chat, ctx);
-      expect(foldSteps(imported.flatMap(entrySteps))).toEqual(foldSteps(converted.flatMap(entrySteps)));
-
-      faux.setResponses([reply("You are welcome.")]);
-      const submission = await chat.submit({ type: "input", content: "One more thing", requestId: "r1" }, ctx);
-      const settled = await submission.wait(ctx);
-      expect(settled.status).toBe("done");
-
-      // The model sees the compaction summary and what it keeps, not the entries before it.
-      const request = JSON.stringify(sent[0]);
-      expect(request).toContain("Asked about the readme.");
-      expect(request).toContain("It is the loki readme.");
-      expect(request).toContain("One more thing");
-      expect(request).not.toContain("What is in the readme?");
-
-      const after = foldSteps((await store.entries(chat, ctx)).flatMap(entrySteps));
-      expect(after.at(-1)).toMatchObject({ role: "assistant", text: "You are welcome." });
-    } finally {
-      await store.close(ctx);
-    }
-  });
-
-  test("a reply imported from off Letta's main path shows in the thread and is never sent to the model", async () => {
-    const { store, faux, sent, reply, model } = await fauxStore();
-    try {
-      const chat = await store.createChat("b", { agent: { model } }, ctx);
-      const text = logText([
-        headerLine(),
-        userLine("a", null, "2026-10-01T10:00:01.000Z", "first try"),
-        assistantLine("x", "a", "2026-10-01T10:00:02.000Z", "abandoned answer"),
-        assistantLine("y", "a", "2026-10-01T10:00:03.000Z", "kept answer"),
-      ]);
-      await store.importEntries(chat, lettaLogEntries(text), ctx);
-      const rows = foldSteps((await store.entries(chat, ctx)).flatMap(entrySteps)).map((r) => r.text);
-      expect(rows).toEqual(["first try", "abandoned answer", "kept answer"]);
-      faux.setResponses([reply("ok")]);
-      await (await chat.submit({ type: "input", content: "next" }, ctx)).wait(ctx);
-      const request = JSON.stringify(sent[0]);
-      expect(request).toContain("kept answer");
-      expect(request).not.toContain("abandoned answer");
     } finally {
       await store.close(ctx);
     }

@@ -113,35 +113,6 @@ describe("the New line after a look", () => {
   });
 });
 
-describe("the mod's local history", () => {
-  test("rows carry the log line's timestamp; lines without one give rows without", async () => {
-    const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const { readLocalTranscript } = await import("../daemon/import/letta-log.ts");
-    const { conversationDirName } = await import("../core/desk-core.ts");
-    const backend = mkdtempSync(join(tmpdir(), "loki-backend-"));
-    try {
-      const dir = join(backend, "conversations", conversationDirName("local-conv-t"));
-      mkdirSync(dir, { recursive: true });
-      const lines = [
-        { type: "message", timestamp: "2026-09-22T17:48:21.948Z", message: { role: "user", content: "hi" } },
-        { type: "message", message: { role: "assistant", content: [{ type: "text", text: "hello" }, { type: "toolCall", name: "Bash", arguments: {} }], metadata: { created_at: "2026-09-22T17:48:30.000Z" } } },
-        { type: "message", message: { role: "user", content: "untimed" } },
-      ];
-      writeFileSync(join(dir, "messages.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
-      expect(readLocalTranscript("local-conv-t", null, 400, backend)).toEqual([
-        { role: "user", text: "hi", at: "2026-09-22T17:48:21.948Z" },
-        { role: "assistant", text: "hello", at: "2026-09-22T17:48:30.000Z" },
-        { role: "tool", text: "Bash", at: "2026-09-22T17:48:30.000Z", tool: { name: "Bash" } },
-        { role: "user", text: "untimed" },
-      ]);
-    } finally {
-      rmSync(backend, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("Transcript draws the times in the message layout only", () => {
   const today = new Date();
   today.setHours(10, 42, 0, 0);

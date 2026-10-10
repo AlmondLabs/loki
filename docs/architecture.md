@@ -80,7 +80,7 @@ every chat gets, the chats, then the mods.
    imported from Letta keep their ids, and with them their widgets, Inbox marks, pins and board stamps.
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`, in the
    layout Letta's local backend used: `agents/<id>.json` for the record, `memfs/<id>/memory/` for the memory repo.
-   Keeping the layout let the importer copy agents as they were and let the Agents page read them unchanged. The
+   Keeping the layout let agents imported from Letta come over as they were and let the Agents page read them unchanged. The
    memory repo's `system/` files go into the prompt; the rest is listed by path. Each change is a git commit, by
    the agent, or by "Reflection".
 3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials
@@ -122,10 +122,6 @@ every chat gets, the chats, then the mods.
     its entries as thread steps), kept current from each store's commits. It exists because the mod asks about
     chats often and needs an answer at once (the chat list, the Inbox, a thread's page, Learn's cursor), while
     pi-durable answers asynchronously.
-12. **The import from Letta (`daemon/import/`).** A one-time, repeatable import, run from Settings › loki › Import.
-    It copies agents (with their memory's git history), every conversation under its Letta id, keys into the
-    keychain, permission modes and folders onto chats, schedules and Learn's cursors. It refuses while Letta runs and
-    never writes to Letta's files. A second run imports only what is missing.
 
 ## loki's own mod
 
@@ -222,7 +218,7 @@ Windows), so paths written in agents' memories and old widget references still r
 5. `backend/`: agent records (`agents/`) and memory repos (`memfs/<id>/memory/`).
 6. `widgets/<desk>/`: the files agents write onto the canvas.
 7. `state/`: small JSON files: schedules (`crons.json`), pins, the Inbox's marks (`attention.json`), the LAN switch,
-   paired devices, each chat's canvas, and a record of the import from Letta.
+   paired devices, and each chat's canvas.
 8. `mods/`: mods of your own, loaded after loki's.
 9. `logs/`: `daemon.log` (the daemon's output, appended across restarts) and `events.jsonl` (the local usage
    events).
@@ -233,7 +229,7 @@ and provider credentials in the OS keychain.
 ## Where the code lives
 
 1. `daemon/`: the daemon. `main.ts` wires it; `kernel/` is the only door to pi-durable; `store/` the agent records;
-   `mods/` the mod API and registry; `import/` the import from Letta; the rest one file per capability
+   `mods/` the mod API and registry; the rest one file per capability
    (approvals, providers, memory, tools, skills, subagents, background, schedule, reflection, chats).
 2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports; `bridge.ts` routes each
    frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,

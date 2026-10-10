@@ -16,7 +16,7 @@ pub enum RootMove {
     Moved,
     /// The old path already leads to the new root.
     Already,
-    /// Nothing was there: the new root was made, with the link.
+    /// Nothing was there: the new root was made. No link: nothing names the old path.
     Fresh,
 }
 
@@ -29,14 +29,11 @@ pub fn move_root(home: &Path) -> Result<RootMove, String> {
     }
     let old_is_dir = std::fs::symlink_metadata(&old).map(|m| m.is_dir()).unwrap_or(false);
     if !old_is_dir {
-        if std::fs::symlink_metadata(&old).is_ok() {
-            return Err(format!("{} is neither a folder nor a link to {}", old.display(), new.display()));
+        // Nothing to move (a new install, or one whose old folder and link were removed): only the new root matters.
+        if new.is_dir() {
+            return Ok(RootMove::Already);
         }
         std::fs::create_dir_all(&new).map_err(|e| format!("making {}: {e}", new.display()))?;
-        if let Some(parent) = old.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("making {}: {e}", parent.display()))?;
-        }
-        link(&new, &old)?;
         return Ok(RootMove::Fresh);
     }
     if std::fs::symlink_metadata(&new).is_ok() {
@@ -94,12 +91,27 @@ mod tests {
     }
 
     #[test]
-    fn a_first_start_makes_the_new_root_with_the_link() {
+    fn a_first_start_makes_the_new_root_and_nothing_under_letta() {
         let home = tmp("fresh");
         assert_eq!(move_root(&home), Ok(RootMove::Fresh));
-        let (old, new) = roots(&home);
+        let (_, new) = roots(&home);
         assert!(new.is_dir());
-        assert_eq!(std::fs::canonicalize(&old).unwrap(), std::fs::canonicalize(&new).unwrap());
+        assert!(!home.join(".letta").exists(), "no old path to keep resolving");
+        assert_eq!(move_root(&home), Ok(RootMove::Already));
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn once_the_old_folder_and_its_link_are_gone_nothing_brings_them_back() {
+        let home = tmp("letgo");
+        let (old, new) = roots(&home);
+        std::fs::create_dir_all(&old).unwrap();
+        assert_eq!(move_root(&home), Ok(RootMove::Moved));
+        std::fs::remove_file(&old).unwrap(); // the link
+        std::fs::remove_dir(home.join(".letta")).unwrap();
+        assert_eq!(move_root(&home), Ok(RootMove::Already));
+        assert!(!home.join(".letta").exists());
+        assert!(new.is_dir());
         let _ = std::fs::remove_dir_all(&home);
     }
 

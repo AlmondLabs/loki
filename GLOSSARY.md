@@ -27,7 +27,7 @@ steps:
    compaction has dropped from the agent's context.
 2. **Stream**: the daemon's live `chat_event` pushes (`daemon/chat-events.ts`).
 
-Letta's old `messages.jsonl` logs are read only by the import, and by its check (`daemon/import/letta-log.ts`).
+Chats imported from Letta keep its off-path replies as `loki.branch` entries: shown in the thread, never sent to the model.
 
 **Tail**: the rows that streamed in since the last history page was loaded.
 

@@ -10,8 +10,8 @@ import { piHandle } from "../model-handle.ts";
 /**
  * The daemon's agents (plan 017, U6), kept in the layout Letta's local backend used, under the daemon's own backend
  * folder: `agents/<base64 id>.json` for the record and `memfs/<id>/memory/` for the memory, a git repo. The mod's
- * readers (mod/agents.ts: the Agents page, memory, skills) read it by its folder, and the importer copies Letta's
- * agents in as they are (U14).
+ * readers (mod/agents.ts: the Agents page, memory, skills) read it by its folder; agents imported from Letta came in
+ * as they were.
  */
 
 const run = promisify(execFile);

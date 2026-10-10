@@ -26,7 +26,6 @@ import { fileToolsExtension } from "./tools.ts";
 import { skillsExtension } from "./skills.ts";
 import { subagentExtension } from "./subagents.ts";
 import { webSearchExtension } from "./web-search.ts";
-import { importFromLetta } from "./import/letta.ts";
 import { recallDir } from "../mod/recall.ts";
 import { BackgroundTasks, backgroundExtension } from "./background.ts";
 import { Schedules, scheduleExtension } from "./schedule.ts";
@@ -107,24 +106,7 @@ mods.registry.install(scheduleExtension(schedules));
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, deviceIdIn(join(args.dir, "state", "device-id")));
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 const reflection = new Reflection({ stores, chats, registry: mods.registry, backendDir: backend, root: join(args.dir, "reflection"), settingsFile: join(args.dir, "state", "reflection.json"), context, report });
-const importDone = join(args.dir, "state", "letta-import.json");
-const importLetta = () =>
-  importFromLetta({
-    paths: {
-      letta: join(homedir(), ".letta"),
-      backendDir: backend,
-      doneFile: importDone,
-      schedulesFile,
-      pinsFile: process.env.LOKI_PINS_FILE!,
-      recallWorkerFile: join(recallDir(), "worker.json"),
-    },
-    stores,
-    credentials: credentials ?? new KeychainCredentials(memorySecrets()),
-    knownProviders: new Set(models.getProviders().map((p) => p.id)),
-    context,
-    imported: (agentId, chatId, entries) => reflection.markReflected(agentId, chatId, entries),
-  });
-const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report, importLetta });
+const chat = new DaemonChats({ stores, mods, approvals, providers, reflection, models, backendDir: backend, context, report });
 chats.follow(stores);
 // An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
 const knownProvider = (id: string) => Boolean(models.getProvider(id));

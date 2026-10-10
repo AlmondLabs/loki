@@ -73,7 +73,7 @@ interface Page {
 
 /** Words for the Preferences pages beyond their names. */
 const PREF_WORDS: Partial<Record<SettingsPage, string[]>> = {
-  loki: ["daemon", "node", "mod", "version", "update", "install", "import", "letta"],
+  loki: ["daemon", "node", "mod", "version", "update", "install", "letta"],
   inbox: ["order", "score", "focus", "archive"],
   providers: ["models", "api key", "openai", "anthropic"],
   phone: ["pairing", "wi-fi", "lan"],

@@ -80,21 +80,6 @@ describe("reflection", () => {
     }
   });
 
-  test("history marked as already reflected on (an imported chat) does not start a pass", async () => {
-    const s = await setup("step-count");
-    try {
-      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two")]);
-      await (await s.chat.submit({ type: "input", content: "a" }, ctx)).wait(ctx);
-      await (await s.chat.submit({ type: "input", content: "b" }, ctx)).wait(ctx);
-      s.reflection.markReflected(s.agentId, "c", 4);
-      await new Promise((r) => setTimeout(r, 150));
-      expect(s.chats.list().some((c) => c.conversationId === "reflection-c")).toBe(false);
-      expect(s.reports).toEqual([]);
-    } finally {
-      await s.cleanup();
-    }
-  });
-
   test("a pass that fails is reported and leaves the daemon running", async () => {
     const s = await setup("step-count");
     try {
