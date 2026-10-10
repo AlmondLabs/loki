@@ -32,7 +32,8 @@ import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { reflectionJob } from "./reflection.ts";
 import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
-import { PassState } from "./passes-state.ts";
+import { JOBS, PassState } from "./passes-state.ts";
+import { importFromLetta, importNeeded, type ImportPaths, type ImportReport } from "./import/letta.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -115,7 +116,48 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
 const passes = new PassRunner({ stores, chats, registry: mods.registry, state: passState, backendDir: backend, context, jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })], busy, isSubagent: (id) => isSubagent(id, backend), capture: (event, properties) => analytics.capture("mod", event, properties), report });
-const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report });
+// The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
+// store has its chats loaded (before an import from Letta, whose chats then get cursors of their own).
+const oldPassFiles = { reflectionSettings: join(args.dir, "state", "reflection.json"), reflectionRoot: join(args.dir, "reflection"), learnWorker: join(recallDir(), "worker.json") };
+async function carryOverPasses(): Promise<void> {
+  await chats.loaded();
+  if (passState.started()) return;
+  const list = chats.list().flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
+  passState.migrate(oldPassFiles, list);
+  report(`background passes: settings and cursors carried over for ${list.length} chats`);
+}
+// The import from Letta (daemon/import/letta.ts), for a Mac that ran loki on Letta: on its own at start until one run
+// finishes, and again from Settings › loki › Import. A chat is held from the passes while its entries are written.
+const importPaths: ImportPaths = {
+  letta: join(homedir(), ".letta"),
+  backendDir: backend,
+  doneFile: join(args.dir, "state", "letta-import.json"),
+  schedulesFile,
+  pinsFile: process.env.LOKI_PINS_FILE!,
+  recallWorkerFile: oldPassFiles.learnWorker,
+};
+let importing: Promise<ImportReport> | null = null;
+const importLetta = (): Promise<ImportReport> =>
+  (importing ??= (async () => {
+    await carryOverPasses();
+    return importFromLetta({
+      paths: importPaths,
+      stores,
+      credentials: credentials ?? new KeychainCredentials(memorySecrets()),
+      knownProviders: new Set(models.getProviders().map((p) => p.id)),
+      context,
+      passes: {
+        importing: (agentId, chatId) => {
+          for (const job of JOBS) passState.setCursor(job, agentId, chatId, Number.MAX_SAFE_INTEGER);
+        },
+        imported: (agentId, chatId, cursors) => {
+          passState.setCursor("reflection", agentId, chatId, cursors.entries);
+          passState.setCursor("learn", agentId, chatId, cursors.learn);
+        },
+      },
+    });
+  })().finally(() => (importing = null)));
+const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report, importLetta });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `bun run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
@@ -132,6 +174,16 @@ await Promise.all(
   }),
 );
 
+// Before the mod opens its sockets, so the window never offers Welcome's first agent while Letta's are on their way.
+if (importNeeded(importPaths)) {
+  try {
+    const r = await importLetta();
+    report(`imported from Letta: ${r.agents.length} agents, ${r.chats} chats (${r.kept} already here), ${r.credentials.length} keys, ${r.schedules} schedules${r.notes.length ? `; ${r.notes.join("; ")}` : ""}`);
+  } catch (error) {
+    report(`import from Letta not done, tried again at the next start or from Settings › loki › Import: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 // loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
 const loadCore = () => mods.load({ name: "loki", apiVersion: MOD_API_VERSION, activate: (api) => core.default(api, { chats, chat, analytics }) as Promise<() => void> | (() => void) });
@@ -145,19 +197,9 @@ const stopWatchingCore = args.mod.endsWith("boot.ts")
   : () => {};
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
-// The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
-// store has its chats loaded; then the runner looks over the chats once a minute.
-const oldPassFiles = { reflectionSettings: join(args.dir, "state", "reflection.json"), reflectionRoot: join(args.dir, "reflection"), learnWorker: join(recallDir(), "worker.json") };
-void chats
-  .loaded()
-  .then(() => {
-    if (!passState.started()) {
-      const list = chats.list().flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
-      passState.migrate(oldPassFiles, list);
-      report(`background passes: settings and cursors carried over for ${list.length} chats`);
-    }
-    passes.start();
-  })
+// The passes' settings and cursors carried over (carryOverPasses, above); then the runner looks over the chats once a minute.
+void carryOverPasses()
+  .then(() => passes.start())
   .catch((error: unknown) => report(`background passes did not start: ${String(error)}`));
 console.error(`loki-daemon: pid ${process.pid} serving ${args.dir} with mods ${mods.names().join(", ")}`);
 

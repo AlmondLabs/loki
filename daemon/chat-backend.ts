@@ -15,6 +15,7 @@ import { ChatEventConverter } from "./chat-events.ts";
 import { turnIdOf } from "./telemetry.ts";
 import { piHandle } from "./model-handle.ts";
 import { isPermissionMode, type Approvals } from "./approvals.ts";
+import type { ImportReport } from "./import/letta.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
 import type { PassState } from "./passes-state.ts";
@@ -43,6 +44,8 @@ type Deps = {
   backendDir: string;
   context: Context;
   report?: (message: string) => void;
+  /** The import from Letta (daemon/import/letta.ts); absent in tests that do not import. */
+  importLetta?: () => Promise<ImportReport>;
 };
 
 /** A model handle (`provider/model`) as pi-durable's model reference. */
@@ -174,6 +177,11 @@ export class DaemonChats implements ChatBackend {
     await this.healModel(store, chat);
     await this.watch(store, chat, agentId, conversationId);
     await chat.submit({ type: "input", content: text }, this.deps.context);
+  }
+
+  importLetta(): Promise<ImportReport> {
+    if (!this.deps.importLetta) throw new Error("this daemon does not import from Letta");
+    return this.deps.importLetta();
   }
 
   async abort(agentId: string, conversationId: string): Promise<void> {

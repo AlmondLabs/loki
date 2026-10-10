@@ -36,6 +36,7 @@ export interface ChatBackend {
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
   disableSkill(name: string): Promise<void>;
+  importLetta(): Promise<Replies["chat_imported"]>;
 }
 
 export type ChatDeps = { chat?: ChatBackend };
@@ -70,6 +71,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_agent_create: (p) => served(b, (x) => x.createAgent(p)),
     chat_agent_update: (p) => served(b, async (x) => (await x.updateAgent(p), DONE)),
     chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
+    chat_import: () => served(b, (x) => x.importLetta()),
     chat_passes_get: () => served(b, (x) => x.passes()),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
