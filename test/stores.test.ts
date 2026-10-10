@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
@@ -28,7 +29,7 @@ describe("store manager", () => {
     const [a1, a2, b] = await Promise.all([stores.get("agent-a"), stores.get("agent-a"), stores.get("agent-b")]);
     expect(a1).toBe(a2);
     expect(a1).not.toBe(b);
-    expect(opened).toEqual(["/nowhere/agent-a.sqlite", "/nowhere/agent-b.sqlite"]);
+    expect(opened).toEqual([join("/nowhere", "agent-a.sqlite"), join("/nowhere", "agent-b.sqlite")]);
     expect(stores.agents().sort()).toEqual(["agent-a", "agent-b"]);
     await stores.closeAll();
   });

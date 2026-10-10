@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BackgroundTasks } from "../daemon/background.ts";
+import { BackgroundTasks, shell } from "../daemon/background.ts";
 import { dueBetween, matches, parseCron, Schedules } from "../daemon/schedule.ts";
 import { extractHarnessEvents } from "../core/harness.ts";
 
@@ -34,6 +34,16 @@ describe("background tasks", () => {
     expect(await tasks.wait(id, "agent-a", undefined, 3000)).toContain("[stopped (SIGTERM)]");
     await new Promise((r) => setTimeout(r, 50));
     expect(notices[0]).toContain("<status>stopped (SIGTERM)</status>");
+  });
+});
+
+describe("a task's shell", () => {
+  test("the person's own, else /bin/sh; on Windows Git Bash where Git for Windows puts it, else bash.exe on PATH", () => {
+    expect(shell({ SHELL: "/bin/zsh" }, "darwin")).toBe("/bin/zsh");
+    expect(shell({}, "linux")).toBe("/bin/sh");
+    const gitBash = join("C:\\Program Files", "Git", "bin", "bash.exe");
+    expect(shell({ ProgramFiles: "C:\\Program Files" }, "win32", (p) => p === gitBash)).toBe(gitBash);
+    expect(shell({ ProgramFiles: "C:\\Program Files", SHELL: "/usr/bin/bash" }, "win32", () => false)).toBe("bash.exe");
   });
 });
 

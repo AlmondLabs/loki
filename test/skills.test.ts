@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { installSkill, listGlobalSkills, skillDescription, skillOrigin, validSkillSource } from "../mod/skills.ts";
 
 describe("global skills", () => {
@@ -39,7 +39,7 @@ describe("skill install", () => {
     expect(skillOrigin("https://github.com/owner/repo/tree/main/skills/pdf")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: "main", path: "skills/pdf" });
     expect(skillOrigin("https://github.com/owner/repo/blob/v2/skills/pdf/SKILL.md")).toMatchObject({ ref: "v2", path: "skills/pdf" });
     expect(skillOrigin("git@example.com:team/skills.git")).toEqual({ kind: "git", url: "git@example.com:team/skills.git", ref: null, path: "" });
-    expect(skillOrigin("~/skills/mine", "/home/x")).toEqual({ kind: "folder", path: "/home/x/skills/mine" });
+    expect(skillOrigin("~/skills/mine", "/home/x")).toEqual({ kind: "folder", path: resolve("/home/x", "skills/mine") }); // D:\home\x\… on Windows
     expect(() => skillOrigin("justaname")).toThrow("GitHub path");
   });
 
