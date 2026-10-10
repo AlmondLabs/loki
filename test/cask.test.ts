@@ -34,9 +34,11 @@ describe("homebrew cask", () => {
   test("matches the app's floor and knows what loki leaves behind", () => {
     const rb = renderCask({ owner: "example", version: "2026.9.28", sha256: sha });
     expect(rb).toContain("depends_on macos: :ventura"); // tauri.conf.json: minimumSystemVersion 13.0; Homebrew 7 deprecates the ">= :ventura" string form
-    expect(rb).toContain('depends_on formula: "node"'); // npm for the Letta Code install on first launch; not bun (a dev tool), not letta-code (the formula lags npm)
+    expect(rb).toContain('depends_on formula: "node"'); // the daemon runs on Node; not bun (a dev tool)
     expect(rb).not.toContain("letta-code");
-    for (const p of ["~/.letta/loki", "~/.letta/mods/loki.ts", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
+    // Everything loki keeps, and the link an older loki's folder left at the old path.
+    for (const p of ["~/.loki", "~/.letta/loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
+    expect(rb).not.toContain("~/.letta/mods");
     expect(rb).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
     expect(rb).not.toContain("--no-quarantine"); // gone from Homebrew 7: "invalid option"
   });

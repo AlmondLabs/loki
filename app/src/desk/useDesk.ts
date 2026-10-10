@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
-import { readSession } from "./session";
-import { inTauri, modWsBase } from "./env";
+import { inTauri } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
+import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
 import { withHistoryLog } from "./widgetRows";
 
@@ -67,7 +67,8 @@ export function useDesk() {
     setReasoningEfforts,
     modes,
     setModes,
-    appServer,
+    chatListeners,
+    reconnectListeners,
     seenMap,
     viewedMap,
     focusMap,
@@ -186,8 +187,6 @@ export function useDesk() {
     return true;
   };
 
-  const token = readSession().token;
-  const tunnelUrl = `${modWsBase()}/appserver?t=${token}`;
   /** The board, through the mod. Every call resolves to tasks or an error message; never throws. */
   const boardCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_status">(type: N, payload: InputOf<N>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
     request(type, payload, 25_000).then((r) => {
@@ -213,7 +212,7 @@ export function useDesk() {
     reject: (id: string) => recallCall("recall_reject", { id }),
     restore: (id: string) => recallCall("recall_restore", { id }),
     forget: (id: string) => recallCall("recall_forget", { id }),
-    settings: (s: { enabled?: boolean; model?: string | null; dailyCap?: number; tickMinutes?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
+    settings: (s: { enabled?: boolean; dailyCap?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
     /** Run the worker now; resolves to its one-line note (or the error). */
     run: () => request("recall_run", {}, 240_000).then((r) => (r.ok ? r.reply.note : r.error)),
     /** Anki's plain-text import format, or null. */
@@ -232,9 +231,9 @@ export function useDesk() {
     read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
     log: (agentId: string, path?: string, limit?: number) => request("memory_log", { agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
     diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
-    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { conversations: r.reply.conversations, lastCommit: r.reply.lastCommit } : null)),
+    reflection: (agentId: string) => request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { lastCommit: r.reply.lastCommit } : null)),
     globalSkills: () => request("skills_global", {}, 10_000).then((r): GlobalSkill[] => (r.ok ? r.reply.skills : [])),
-    /** `letta install <source> --agent <id>` through the mod; resolves to an error message or null. */
+    /** Install a skill from a source into the agent's memory, through the mod (mod/skills.ts); resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>
       request("skill_install", { agentId, source, force }, 130_000).then((r) => (r.ok ? null : r.timedOut ? "install timed out" : r.error)),
     /** Refresh an installed skill from its upstream (mod/skill-sources.ts); the outcome, or `{ error }`. */
@@ -262,9 +261,28 @@ export function useDesk() {
   }, [connection]);
 
   const attention = {
-    available: appServer || inTauri, // the shell holds its own link; the mod's discovery flag only matters in a browser tab
+    // loki's daemon serves chats on this socket, wherever the page runs; a request made before it opens waits for it.
+    available: true,
+    /** The daemon's chat client, over this socket's frames (core/attention/chat-client.ts). */
+    makeClient: () =>
+          new FrameChatClient({
+            request,
+            onChatEvent: (fn) => {
+              chatListeners.current.add(fn);
+              return () => chatListeners.current.delete(fn);
+            },
+            onReconnect: (fn) => {
+              reconnectListeners.current.add(fn);
+              return () => reconnectListeners.current.delete(fn);
+            },
+            agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
+            // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
+            openUrl: (url) => {
+              if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err) => console.warn("loki: open sign-in", err));
+              else window.open(url, "_blank", "noopener,noreferrer");
+            },
+          }),
     capture,
-    tunnelUrl,
     seen: seenMap,
     /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
     focus: focusMap,
@@ -274,10 +292,10 @@ export function useDesk() {
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/useViewed.ts). */
     viewed: viewedMap,
     markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
-    /** Every open conversation from the mod's disk scan, with who spoke last; the inbox's list. Empty when the mod does not answer. */
+    /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : [])),
     /**
-     * The conversation's transcript from the mod's local log; empty if the mod does not know it (or predates this frame).
+     * The conversation's transcript from the daemon's store, through the mod; empty if the mod does not know it.
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
      */
     loadHistory: (agentId: string, conversationId: string, limit?: number): Promise<{ rows: TranscriptRow[]; more: boolean }> =>
@@ -358,7 +376,7 @@ export function useDesk() {
   };
   const modeOf = (s: Scope): string | null => modes[s] ?? deskList.find((d) => d.scope === s)?.mode ?? null;
   const agentId = agentIds[scope] ?? null;
-  /** The conversation behind this desk, as the app-server names it. */
+  /** The conversation behind this desk, as loki's daemon names it. */
   const conversationId = scope === SHARED_SCOPE ? null : scope.startsWith("default-") ? "default" : scope;
 
   return {
@@ -388,7 +406,7 @@ export function useDesk() {
       loaded: desksLoaded,
       request: requestDesks,
       switchTo: switchDesk,
-      /** Pin or unpin; the mod rewrites Letta's file and broadcasts the list back. */
+      /** Pin or unpin; the mod rewrites its pins file (mod/pins.ts) and broadcasts the list back. */
       pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agentId, conversationId, pinned }),
     },
     attention,

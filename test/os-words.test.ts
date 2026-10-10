@@ -1,14 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
-import type { BootstrapStatus } from "../app/src/shell/bootstrap.ts";
 import { KEYMAP, keyRows, labelOf } from "../app/src/shell/keymap.ts";
 import { keysFor } from "../app/src/shell/KeysSheet.tsx";
 import { lokiUpgrade, osWords } from "../app/src/shell/osWords.ts";
-import { LettaInstall } from "../app/src/shell/Welcome.tsx";
 import type { Platform } from "../app/src/desk/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
 
@@ -16,39 +12,6 @@ import { machineWord } from "../mod/skill-sources.ts";
  * Words for each system (plan 014 U8): copy that names the machine, its file manager or the way to upgrade reads
  * right on Windows and Linux, and the Mac's reads as it did.
  */
-const base: BootstrapStatus = { letta: null, node: null, explicit: false, installing: false, error: null, log: [], version: null, latest: null, managed: false, node_missing: null };
-const text = (status: BootstrapStatus, os: Platform) => renderToStaticMarkup(createElement(LettaInstall, { status, onRetry: async () => {}, os })).replace(/<[^>]+>/g, "").replace(/&#x27;/g, "'");
-const installing = { ...base, installing: true };
-const failed = { ...base, error: "boom" };
-
-describe("Welcome's Letta Code step names this system's machine", () => {
-  test("the installing line reads this PC on Windows and this computer on Linux", () => {
-    expect(text(installing, "windows")).toContain("This PC has no Letta Code, so loki is installing it with npm");
-    expect(text(installing, "windows")).toContain("npm from the Node already on this PC;");
-    expect(text(installing, "linux")).toContain("This computer has no Letta Code, so loki is installing it with npm");
-    expect(text(installing, "linux")).toContain("npm from the Node already on this computer;");
-    for (const os of ["windows", "linux"] as const) expect(text(installing, os)).not.toContain("Mac");
-  });
-
-  test("a failed install names the system's Node line, not Homebrew; Windows has no sudo", () => {
-    const win = text(failed, "windows");
-    const linux = text(failed, "linux");
-    expect(win).toContain("winget install OpenJS.NodeJS.LTS");
-    expect(linux).toContain("sudo apt install nodejs npm");
-    for (const out of [win, linux]) {
-      expect(out).not.toContain("brew");
-      expect(out).not.toContain("cask");
-    }
-    expect(win).not.toContain("sudo");
-    expect(win).toContain("administrator");
-  });
-
-  test("the Mac's copy is as it was", () => {
-    expect(text(installing, "macos")).toBe("This Mac has no Letta Code, so loki is installing it with npm — the same install a terminal's npm install -g makes, into npm's global folder, so the letta command works there too.npm from the Node already on this Mac; Letta Code from registry.npmjs.org. A few minutes.");
-    expect(text(failed, "macos")).toBe("Installing Letta Code did not finish.boomThe install needs a Node 22 or newer with npm (Homebrew's brew install node; the loki cask brings it) and registry.npmjs.org to be reachable. A global folder npm may not write needs the sudo line above, run in a terminal. Retry below once it is fixed. Every line of every attempt is in ~/.letta/loki/logs/install.log.retry the install");
-  });
-});
-
 describe("the words table", () => {
   test("machine and file manager per system", () => {
     expect([osWords("macos").machine, osWords("windows").machine, osWords("linux").machine]).toEqual(["this Mac", "this PC", "this computer"]);
@@ -70,7 +33,7 @@ describe("the words table", () => {
     const mac = osWords("macos");
     expect(mac.beadsInstall).toBe("brew install beads");
     expect(mac.folderExample).toBe("~/Documents/…");
-    expect(mac.system).toBe("macOS 13 or later; the shell finds Letta Desktop with lsof and picks folders with osascript");
+    expect(mac.system).toBe("macOS 13 or later; the shell picks folders with osascript");
     expect(osWords("windows").folderExample).toBe("~\\Documents\\…");
     for (const os of ["windows", "linux"] as const) {
       expect(osWords(os).beadsInstall).not.toContain("brew");

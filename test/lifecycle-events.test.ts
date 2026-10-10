@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { DeskRegistry } from "../mod/desks.ts";
-import { ScopeDebouncer, runtimeFromEvent } from "../mod/lifecycle-events.ts";
+import { ScopeDebouncer } from "../mod/lifecycle-events.ts";
 import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,19 +9,11 @@ describe("lifecycle event routing", () => {
   test("an agent's main chat resolves to its canonical desk", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-events-"));
     try {
-      const runtime = runtimeFromEvent({ conversationId: "default", agentId: "agent-9" }, {});
-      const desks = new DeskRegistry(join(dir, "desks.json"), dir);
-      expect(desks.remember(runtime.conversationId!, runtime.agentId)).toBe("default-agent-9");
+      const desks = new DeskRegistry(join(dir, "desks.json"), () => null);
+      expect(desks.remember("default", "agent-9")).toBe("default-agent-9");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
-
-  test("event fields take precedence and context supplies missing fields", () => {
-    expect(runtimeFromEvent({ conversationId: "event-conv", agentId: null }, { conversation: { id: "context-conv" } as never, agent: { id: "context-agent" } })).toEqual({
-      conversationId: "event-conv",
-      agentId: "context-agent",
-    });
   });
 
   test("debounces each desk independently and clears pending work", () => {

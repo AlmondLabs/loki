@@ -1,5 +1,6 @@
+import { applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "bun:test";
-import { applyEvent, buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
+import { buildItems, cancelQueued, emptyLive, keyOf, takeQueued, unviewed, viewStamp, type ConversationInfo } from "../core/attention/model.ts";
 
 describe("attention model (browser)", () => {
   test("buildItems classifies approval / question / done / running / idle and orders by score", () => {

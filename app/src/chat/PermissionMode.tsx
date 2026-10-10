@@ -2,8 +2,8 @@ import { useEffect, useRef } from "react";
 import { Chip, Meta, Popover, Row } from "../components";
 
 /**
- * The four permission modes the app-server knows, per conversation. Set with runtime_start { mode }
- * and persisted by Letta; read back from update_device_status (live) or the persisted map (the mod).
+ * The four permission modes loki's daemon knows, per conversation (daemon/approvals.ts). Set with chat_open { mode }
+ * and kept on the chat by the daemon; read back from the chat's device event (live) or its desk info (the mod).
  */
 export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
 

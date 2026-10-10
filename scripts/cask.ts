@@ -1,11 +1,11 @@
 // The Homebrew cask for a release: `bun scripts/cask.ts <owner> <version> <sha256> [stable|nightly]` prints
 // Casks/loki.rb, or Casks/loki-nightly.rb for the rolling nightly. .github/workflows/release.yml runs it after
-// each build and pushes the result to <owner>/homebrew-loki. The two casks conflict: loki shares its state, its
-// mod shim and its harness port between builds, so one loki is installed at a time.
+// each build and pushes the result to <owner>/homebrew-loki. The two casks conflict: loki shares its state
+// (~/.loki), its daemon and the mod's ports between builds, so one loki is installed at a time.
 // The app is not signed, and Homebrew 7 dropped --no-quarantine, so the caveat (and the README) give the one
 // xattr line that lets macOS open it; Settings › Privacy & Security › Open Anyway is the other way.
-// The cask depends on the `node` formula: loki installs Letta Code with `npm install -g` on first launch, so a
-// Mac with nothing on it gets Node (and npm) from Homebrew and Letta Code from npm's newest release.
+// The cask depends on the `node` formula: loki's daemon runs on Node 22.19 or newer, so a Mac with nothing on it
+// gets Node from Homebrew.
 
 export type Channel = "stable" | "nightly";
 export type CaskInput = { owner: string; version: string; sha256: string; channel?: Channel };
@@ -28,7 +28,7 @@ export function renderCask({ owner, version, sha256, channel = "stable" }: CaskI
 
   url "https://github.com/${owner}/loki/releases/download/${tag}/${dmgName("#{version}")}"
   name "${nightly ? "loki nightly" : "loki"}"
-  desc "Desk, inbox, board and recall cards around Letta Code${nightly ? " — built from every merge" : ""}"
+  desc "Agents with a canvas, an inbox, a board and recall cards${nightly ? " — built from every merge" : ""}"
   homepage "https://github.com/${owner}/loki"
 
 ${nightly
@@ -40,19 +40,19 @@ ${nightly
     strategy :github_latest
   end`}
 
-  # One loki at a time: both builds share ~/.letta/loki, the mod shim and the harness port.
+  # One loki at a time: both builds share ~/.loki and the mod's port.
   conflicts_with cask: "${owner}/loki/${nightly ? "loki" : "loki-nightly"}"
 
   depends_on macos: :ventura
-  # Letta Code is installed with npm on first launch (docs/manual.md › Requirements); Node brings npm.
+  # loki's daemon runs on Node 22.19 or newer (docs/manual.md › Requirements).
   depends_on formula: "node"
 
   app "loki.app"
 
   zap trash: [
     "~/.agents/skills/loki",
+    "~/.loki",
     "~/.letta/loki",
-    "~/.letta/mods/loki.ts",
   ]
 
   caveats <<~EOS

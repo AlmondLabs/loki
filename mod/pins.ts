@@ -1,13 +1,12 @@
+import { lokiDir } from "./paths.ts";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 /**
- * Pinned conversations, in the file Letta Desktop keeps: ~/.letta/pinned-conversations.json
+ * Pinned conversations, in <loki>/state/pins.json (the import copied Letta Desktop's pins in once):
  *   { version: 1, agents: { [agentId]: [conversationId, …] } }
- * loki reads and writes the same file, so a pin made here shows in Desktop and vice versa.
  */
-export const pinsFile = (): string => process.env.LOKI_PINS_FILE ?? join(homedir(), ".letta", "pinned-conversations.json");
+export const pinsFile = (): string => process.env.LOKI_PINS_FILE ?? join(lokiDir(), "state", "pins.json");
 
 interface PinsDoc {
   version: number;

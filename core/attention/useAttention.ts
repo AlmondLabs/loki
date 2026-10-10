@@ -1,19 +1,18 @@
 import type { FileRef, ToolStep } from "./transcript.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { historySteps } from "../harness.ts";
-import { AppServerSocket, type Runtime, type ServerEvent } from "./protocol.ts";
+import type { Runtime } from "./protocol.ts";
+import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
-import type { ConnectProvider, Personality, ReflectionMerge, ReflectionSettings, ReflectionTrigger } from "./protocol.ts";
-import { applyEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import type { ConnectProvider, PassSettings } from "./protocol.ts";
+import { applyChatEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
-import { foldSteps, ownSendKey, type HistoryRow } from "./thread.ts";
+import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
 import { createActiveClock, type Activity } from "./activeClock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
-import { allCommands, commandInput, fromAdvertised, type SlashCommand } from "./commands.ts";
-import type { MakeTransport } from "./transport.ts";
+import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
 
 /** An engagement only the app sees (core/frames.ts focus_add): the mod counts messages and opens itself. */
@@ -22,9 +21,9 @@ import { scopeFor } from "../desk-core.ts";
 
 /**
  * Catch Up, client-side: the list of open conversations and who spoke last in each come from the
- * mod's disk scan (every open conversation, main chats included, however old); the app-server,
- * through the mod's tunnel, supplies the live half — approvals, questions, streaming — for the
- * most recent ones, and the seen markers are the mod's too.
+ * mod (inbox_list: every open conversation, main chats included, however old); loki's daemon, through
+ * the mod's chat frames (FrameChatClient), supplies the live half — approvals, questions, streaming —
+ * for the most recent ones, and the seen markers are the mod's too.
  */
 /** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
 export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open";
@@ -42,7 +41,7 @@ export type CardVia = "key" | "click" | "swipe" | "tap";
 /** Where a chat was archived or restored from, for analytics (chat_archived / chat_restored). */
 export type ArchiveOrigin = "inbox" | "inbox_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
 
-/** How long a folder change waits for Letta Code's answer. */
+/** How long a folder change waits for the daemon's answer. */
 const FOLDER_MOVE_MS = 8000;
 
 /** A chat's id in analytics: its desk scope, as the mod's turn events carry it. */
@@ -53,25 +52,22 @@ const minutesSince = (iso: string | null, now: number): number | null => {
 };
 
 export interface UseAttentionOptions {
-  /** The mod says whether an app-server was discovered. */
+  /** Whether the mod's socket is up, which carries the chats. */
   enabled: boolean;
-  tunnelUrl: string;
-  /** How to reach the app-server from here: a WebSocket in a tab or on the phone, the Rust link in the shell. */
-  makeTransport: MakeTransport;
   seen: Record<string, string>;
   /** When each conversation was last looked at (the mod's viewed markers); a look is not done. */
   viewed?: Record<string, string>;
   /** Each chat's focus weight (the mod's, core/attention/focus.ts): what the inbox ranks by after blocked agents. */
   focus?: Record<string, FocusEntry>;
-  /** Tell the mod about an engagement the app-server carries and the mod cannot see (a decision, an answer). */
+  /** Tell the mod about an engagement only the app sees (a decision, an answer). */
   engage?: (agentId: string, conversationId: string, action: EngageAction) => void;
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
-  /** Full transcript from the mod's local log (compaction-proof); may resolve empty. */
+  /** Full transcript from the daemon's store, through the mod (compaction-proof); may resolve empty. */
   loadLocalHistory?: (agentId: string, conversationId: string, limit?: number) => Promise<{ rows: Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep; files?: FileRef[] }>; more: boolean }>;
-  /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the app-server. */
+  /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
-  /** How many of the newest conversations to subscribe to for live events (each costs the app-server a runtime). */
+  /** How many of the newest conversations to subscribe to for live events (each is a chat the daemon follows and pushes to this socket). */
   subscribeLimit?: number;
   /** Analytics (core/analytics.ts): an event this model carried out for the user. */
   capture?: (event: string, properties?: Record<string, unknown>) => void;
@@ -79,16 +75,8 @@ export interface UseAttentionOptions {
   sent?: (rt: Runtime) => void;
   /** When loki's window is in front of you, so a card's dwell counts only that time; left out, always. */
   activity?: Activity;
-}
-
-/** create_agent, then agent_update for a name or description it did not take; the new agent's id and name. */
-async function createNamedAgent(sock: AppServerSocket, opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string; name: string }> {
-  const created = await sock.createAgent({ personality: opts.personality, model: opts.model });
-  const body: Record<string, unknown> = {};
-  if (opts.name.trim() && opts.name.trim() !== created.name) body.name = opts.name.trim();
-  if (opts.description?.trim()) body.description = opts.description.trim();
-  if (Object.keys(body).length) await sock.updateAgent(created.id, body);
-  return { id: created.id, name: (body.name as string | undefined) ?? created.name };
+  /** The chat client for loki's daemon, over the mod's frames (core/attention/chat-client.ts). */
+  makeClient: () => ChatClient;
 }
 
 /** Where a message was typed, for analytics; the phone's sends carry none (its device type says). */
@@ -130,14 +118,14 @@ export function useAttention(opts: UseAttentionOptions) {
   /** The live map as render sees it: a fresh copy each time `bump` fires. The handlers mutate `liveRef` in place. */
   const [live, setLive] = useState<Map<string, Live>>(() => new Map());
   const [status, setStatus] = useState<"off" | "connecting" | "open" | "closed">("off");
-  /** From the harness's app_server_info reply: which Letta Code this is. */
-  const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[] } | null>(null);
+  /** From the chat client's serverInfo: the daemon's name and the commands it runs. */
+  const [server, setServer] = useState<{ version: string | null; protocol: number | null; advertised: SlashCommand[]; only?: string[] } | null>(null);
   /** Chats whose log holds rows older than the ones loaded; the reader reaching the top asks for the next page. */
   const [older, setOlder] = useState<Record<string, true>>({});
   /** How many rows each chat's history was last asked for (HISTORY_PAGE more per page). */
   const historyLimits = useRef(new Map<string, number>());
   const loading = useRef(new Set<string>());
-  const socketRef = useRef<AppServerSocket | null>(null);
+  const socketRef = useRef<ChatClient | null>(null);
   const liveRef = useRef(new Map<string, Live>());
   /** A conversation's live state, made on first use: its thread holds the chat's rows, loaded and live. */
   const liveOf = useCallback((key: string): Live => {
@@ -150,7 +138,7 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
   /** What each chat's agent was last told of the time and the chat: the note goes again only when that changed. */
   const envNotes = useRef(new Map<string, EnvNoteTold>());
-  /** Folder changes waiting on Letta Code's answer, by conversation key (changeFolder). */
+  /** Folder changes waiting on the daemon's answer, by conversation key (changeFolder). */
   const folderMoves = useRef(new Map<string, { from: string | undefined; to: string; done: (err: string | null) => void }>());
   const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Conversations the list knows about; an event from an unknown one means the list is stale (a new desk, an empty conversation that just got its first turn). */
@@ -189,7 +177,8 @@ export function useAttention(opts: UseAttentionOptions) {
       setStatus("off");
       return;
     }
-    const sock = new AppServerSocket(opts.tunnelUrl, opts.makeTransport);
+    // loki's daemon serves chats through the mod's own frames (plan 017, U5).
+    const sock: ChatClient = optsRef.current.makeClient();
     sock.onStatus = (s) => {
       setStatus(s);
       if (s === "closed") linkDropped.current = true;
@@ -203,22 +192,26 @@ export function useAttention(opts: UseAttentionOptions) {
     };
     socketRef.current = sock;
     let reloadTimer: ReturnType<typeof setTimeout> | null = null; // a list refresh waiting on this socket
-    const off = sock.on((ev: ServerEvent) => {
-      const conv = ev.runtime?.conversation_id ?? (typeof ev.conversation_id === "string" ? ev.conversation_id : null);
-      const agent = ev.runtime?.agent_id ?? (typeof ev.agent_id === "string" ? ev.agent_id : null);
-      if (!conv || !agent) return;
+    const off = sock.onChat((rt, events) => {
+      const { conversation_id: conv, agent_id: agent } = rt;
       const key = keyOf(agent, conv);
       const l = liveOf(key);
       const wasInTurn = l.inTurn;
       const asked = { approval: l.pending?.requestId ?? null, question: l.pendingAsk?.requestId ?? null };
       const errorBefore = l.error;
-      const { changed, userSpoke } = applyEvent(l, ev);
+      let changed = false;
+      let userSpoke = false;
+      for (const e of events) {
+        const r = applyChatEvent(l, e);
+        changed ||= r.changed;
+        userSpoke ||= r.userSpoke;
+      }
       // A new permission request or question (approval_requested). Every window and phone sees the same request; the
       // mod keeps the first report of each (`once`).
       const request = l.pending && l.pending.requestId !== asked.approval ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" } : l.pendingAsk && l.pendingAsk.requestId !== asked.question ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" } : null;
       // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
       const move = folderMoves.current.get(key);
-      const answer = move ? folderMoveAnswer(ev, l.cwd, move) : null;
+      const answer = move ? folderMoveAnswer(events, l.cwd, move) : null;
       if (move && answer === "moved") move.done(null);
       else if (move && answer && answer !== "moved") {
         move.done(answer.error);
@@ -230,8 +223,7 @@ export function useAttention(opts: UseAttentionOptions) {
       // The turn just ended and something was typed during it: it goes out now, one per turn end.
       if (wasInTurn && !l.inTurn) {
         const next = takeQueued(l);
-        if (next && ev.runtime) {
-          const rt = ev.runtime;
+        if (next) {
           const out = outgoing(next.text, next.images);
           l.thread.expectEcho(out.key);
           l.inTurn = true; // until the server says so, so a second queued message waits its turn
@@ -252,12 +244,9 @@ export function useAttention(opts: UseAttentionOptions) {
     const subscribeLimit = opts.subscribeLimit ?? 30;
     // Promise-style error handling here: the React Compiler cannot take a loop or a ?? inside a try block.
     const loadOnce = async () => {
-      void sock.request("app_server_info").then((info) => {
-        if (!cancelled) {
-          const ids = Array.isArray(info.supported_commands) ? (info.supported_commands as unknown[]).filter((x): x is string => typeof x === "string") : undefined;
-          const mods = Array.isArray(info.mod_commands) ? (info.mod_commands as Array<{ id: string; description?: string; args?: string }>) : undefined;
-          setServer({ version: typeof info.letta_code_version === "string" ? info.letta_code_version : null, protocol: typeof info.protocol_version === "number" ? info.protocol_version : null, advertised: fromAdvertised(ids, mods) });
-        }
+      void sock.serverInfo().then((info) => {
+        // The daemon runs exactly its own commands; the palette offers those and loki's.
+        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: [], only: info.commands });
       }).catch(() => {});
       const agents = await sock.listAgents();
       const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
@@ -265,7 +254,7 @@ export function useAttention(opts: UseAttentionOptions) {
         setAgents([...names].map(([id, name]) => ({ id, name })));
         setAgentsLoaded(true);
       }
-      // The list and the digests are the mod's, read from disk in one answer: nothing is windowed or capped here.
+      // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
       const rows = await opts.listConversations();
       if (cancelled) return;
       const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
@@ -273,7 +262,7 @@ export function useAttention(opts: UseAttentionOptions) {
       knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
       setConversations(convs);
       setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk }])));
-      // Live events (approvals, questions, streaming) need a runtime per conversation on the app-server; the newest get one.
+      // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
       for (const c of convs.slice(0, subscribeLimit)) {
         const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
         // a conversation we cannot reach still lists; it just has no live half
@@ -294,7 +283,7 @@ export function useAttention(opts: UseAttentionOptions) {
       socketRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.enabled, opts.tunnelUrl]);
+  }, [opts.enabled]);
 
   // The pending tick, if any, has nothing to render into after unmount.
   useEffect(
@@ -331,11 +320,13 @@ export function useAttention(opts: UseAttentionOptions) {
   const [clock] = useState(() => createActiveClock());
   const activity = opts.activity;
   useEffect(() => activity?.((on) => clock.set(on)), [activity, clock]);
+  /** The turn running in a chat, or the last one that ran: what client events join the daemon's turn_finished by. */
+  const turnOf = (agentId: string, conversationId: string) => liveRef.current.get(keyOf(agentId, conversationId))?.turnId ?? null;
   const cardProps = (item: AttentionItem) => {
     const queue = inboxQueue(itemsRef.current);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
     const it = queue[at] ?? item;
-    return { desk: deskOf(item.agentId, item.id), agent: item.agentId, rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
+    return { desk: deskOf(item.agentId, item.id), agent: item.agentId, turn_id: turnOf(item.agentId, item.id), rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
   };
   const shown = useCallback((item: AttentionItem) => {
     shownAt.current.set(idOf(item), clock.now());
@@ -361,17 +352,15 @@ export function useAttention(opts: UseAttentionOptions) {
     optsRef.current.capture?.("inbox_filtered", { agent });
   }, []);
 
-  // The app-server only lists what is still in the agent's context, so a compacted
-  // conversation shows a stub. The mod reads the whole local log; ask it first.
+  // A chat's thread comes from the mod, which reads the whole of it from the daemon's store.
   const loadThread = useCallback(async (rt: Runtime) => {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     if (loading.current.has(key)) return;
     loading.current.add(key);
     const read = async () => {
       const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
-      let rows: HistoryRow[] = page?.rows ?? [];
+      const rows: HistoryRow[] = page?.rows ?? [];
       setOlder((o) => (!!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
-      if (!rows.length && socketRef.current) rows = foldSteps(historySteps(await socketRef.current.listMessages(rt, 60)));
       liveOf(key).thread.load(rows);
       setLive(new Map(liveRef.current));
     };
@@ -391,7 +380,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
   const createDesk = useCallback(async (agentId: string, cwd: string, name?: string): Promise<Runtime> => {
     const sock = socketRef.current;
-    if (!sock) throw new Error("not connected to Letta's app-server");
+    if (!sock) throw new Error("not connected to loki's daemon");
     const rt = await sock.createConversation(agentId, cwd, name);
     const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
     setConversations((c) => [{ id: rt.conversation_id, agentId: rt.agent_id, agentName, title: name?.trim() || null, lastMessageAt: new Date().toISOString(), archived: false }, ...c]);
@@ -430,7 +419,7 @@ export function useAttention(opts: UseAttentionOptions) {
     if (l && was) l.pending = null; // optimistic: the card clears at once
     optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
     optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "decide");
-    optsRef.current.capture?.("approval_decided", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, behavior, wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null });
+    optsRef.current.capture?.("approval_decided", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, turn_id: l?.turnId ?? null, behavior, wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null });
     bump();
     void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
       if (ok || !l || !was) return;
@@ -464,7 +453,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const key = keyOf(rt.agent_id, rt.conversation_id);
     const l = liveOf(key);
     const fileCount = images.filter(isFileAttachment).length;
-    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
+    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, turn_id: l.turnId ?? null, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
     optsRef.current.sent?.(rt);
     // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
     if (l.inTurn) {
@@ -499,9 +488,9 @@ export function useAttention(opts: UseAttentionOptions) {
     optsRef.current.capture?.("command_run", { command: commandId });
     const sock = socketRef.current;
     if (!sock) {
-      l.thread.finishCommand(input, false, "not connected to the app-server", now());
+      l.thread.finishCommand(input, false, "not connected to loki's daemon", now());
       bump();
-      return { success: false, output: "not connected to the app-server" };
+      return { success: false, output: "not connected to loki's daemon" };
     }
     if (!sock.isSubscribed(rt)) l.thread.beginCommand(input, now()); // no deltas will come for this one; show the running row ourselves
     bump();
@@ -522,7 +511,7 @@ export function useAttention(opts: UseAttentionOptions) {
 
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     try {
       await sock.updateAgent(agentId, body);
       if (body.name) setAgents((a) => a.map((x) => (x.id === agentId ? { ...x, name: body.name! } : x)));
@@ -551,7 +540,7 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
   const connectProvider = useCallback(async (providerId: string, fields: Record<string, string>, authMethodId?: string): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     try {
       setProviders(await sock.connectProvider(providerId, fields, authMethodId));
       return null;
@@ -561,7 +550,7 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
   const disconnectProvider = useCallback(async (providerId: string): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     try {
       setProviders(await sock.disconnectProvider(providerId));
       return null;
@@ -569,13 +558,14 @@ export function useAttention(opts: UseAttentionOptions) {
       return err instanceof Error ? err.message : String(err);
     }
   }, []);
-  /** create_agent, then agent_update for the name and description; the agent list reloads. Resolves to the new id. */
-  const createAgent = useCallback(async (opts: { personality: Personality; name: string; description?: string; model?: string }): Promise<{ id: string } | { error: string }> => {
+  /** A new agent with its name, description, persona and model, in one request; the agent list reloads. Resolves to the new id. */
+  const createAgent = useCallback(async (opts: NewAgentOptions): Promise<{ id: string } | { error: string }> => {
     const sock = socketRef.current;
-    if (!sock) return { error: "not connected to the app-server" };
+    if (!sock) return { error: "not connected to loki's daemon" };
     let made: { id: string; name: string };
     try {
-      made = await createNamedAgent(sock, opts);
+      const created = await sock.createAgent(opts);
+      made = { id: created.id, name: created.name };
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
     }
@@ -585,7 +575,7 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
   const deleteAgent = useCallback(async (agentId: string): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     try {
       await sock.deleteAgent(agentId);
     } catch (err) {
@@ -599,12 +589,12 @@ export function useAttention(opts: UseAttentionOptions) {
     () => ({
       write: async (agentId: string, path: string, content: string, message?: string): Promise<string | null> => {
         const sock = socketRef.current;
-        if (!sock) return "not connected to the app-server";
+        if (!sock) return "not connected to loki's daemon";
         return sock.writeMemoryFile(agentId, path, content, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
       },
       remove: async (agentId: string, path: string, message?: string): Promise<string | null> => {
         const sock = socketRef.current;
-        if (!sock) return "not connected to the app-server";
+        if (!sock) return "not connected to loki's daemon";
         return sock.deleteMemoryFile(agentId, path, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
       },
     }),
@@ -614,12 +604,12 @@ export function useAttention(opts: UseAttentionOptions) {
     () => ({
       enable: async (path: string): Promise<string | null> => {
         const sock = socketRef.current;
-        if (!sock) return "not connected to the app-server";
+        if (!sock) return "not connected to loki's daemon";
         return sock.skillEnable(path).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
       },
       disable: async (name: string): Promise<string | null> => {
         const sock = socketRef.current;
-        if (!sock) return "not connected to the app-server";
+        if (!sock) return "not connected to loki's daemon";
         return sock.skillDisable(name).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
       },
     }),
@@ -636,13 +626,13 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
   /** Set a conversation's permission mode (runtime_start with `mode`); resolves to an error message or null. */
   /**
-   * Move a conversation to another folder; resolves to an error or null once Letta Code has answered (a device
-   * status with the new folder, or a loop error), or after FOLDER_MOVE_MS with no answer. Letta Code keeps the
-   * folder (its cwdMap) and tells the agent on its next turn that the working directory changed.
+   * Move a conversation to another folder; resolves to an error or null once the daemon has answered (a device
+   * status with the new folder, or an error), or after FOLDER_MOVE_MS with no answer. The daemon keeps the folder
+   * in the chat's settings (its cwd), where the chat's tools run from its next turn.
    */
   const changeFolder = useCallback(async (rt: Runtime, cwd: string): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     const to = cwd.trim().replace(/(.)\/+$/, "$1");
     if (!to) return "no folder";
     if (!sock.isSubscribed(rt)) {
@@ -656,7 +646,7 @@ export function useAttention(opts: UseAttentionOptions) {
     const from = liveRef.current.get(key)?.cwd;
     folderMoves.current.get(key)?.done("replaced by a newer change");
     return new Promise<string | null>((resolve) => {
-      const timer = setTimeout(() => move.done("Letta Code did not answer; the folder may not have changed"), FOLDER_MOVE_MS);
+      const timer = setTimeout(() => move.done("the daemon did not answer; the folder may not have changed"), FOLDER_MOVE_MS);
       const move = {
         from,
         to,
@@ -674,7 +664,7 @@ export function useAttention(opts: UseAttentionOptions) {
 
   const setMode = useCallback(async (rt: Runtime, mode: string): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     try {
       await sock.runtimeStart(rt, { mode });
     } catch (err) {
@@ -692,11 +682,11 @@ export function useAttention(opts: UseAttentionOptions) {
    */
   const archiveConversation = useCallback(async (conversationId: string, archived: boolean, origin?: ArchiveOrigin): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     if (conversationId === "default") return "a main chat cannot be archived";
     try {
       await sock.updateConversation(conversationId, { archived });
-      if (origin) optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", { desk: scopeFor(conversationId), origin });
+      if (origin) optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", { desk: scopeFor(conversationId), origin, ...(archived ? { turn_id: [...liveRef.current].find(([key]) => key.endsWith(`/${conversationId}`))?.[1].turnId ?? null } : {}) });
       if (archived) setConversations((c) => c.filter((x) => x.id !== conversationId));
       else reloadRef.current?.();
       return null;
@@ -707,7 +697,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** Rename a conversation (a desk); resolves to an error message or null. Main chats are named after their agent and cannot be renamed. */
   const renameConversation = useCallback(async (conversationId: string, name: string): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     if (conversationId === "default") return "a main chat cannot be renamed";
     try {
       await sock.renameConversation(conversationId, name);
@@ -719,10 +709,11 @@ export function useAttention(opts: UseAttentionOptions) {
   /** Stop a conversation's turn (the composer's stop button); resolves to an error message or null. */
   const stop = useCallback(async (rt: Runtime): Promise<string | null> => {
     const sock = socketRef.current;
-    if (!sock) return "not connected to the app-server";
+    if (!sock) return "not connected to loki's daemon";
     try {
+      const turnId = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id))?.turnId ?? null;
       const aborted = await sock.abortTurn(rt);
-      optsRef.current.capture?.("turn_stopped", { aborted });
+      optsRef.current.capture?.("turn_stopped", { aborted, turn_id: turnId });
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : String(err);
@@ -731,7 +722,7 @@ export function useAttention(opts: UseAttentionOptions) {
   /** Switch a conversation's model; returns the applied handle/effort or an error. */
   const updateModel = useCallback(async (rt: Runtime, selection: ModelSelection): Promise<{ applied: AppliedModel | null; error: string | null }> => {
     const sock = socketRef.current;
-    if (!sock) return { applied: null, error: "not connected to the app-server" };
+    if (!sock) return { applied: null, error: "not connected to loki's daemon" };
     let applied: AppliedModel;
     try {
       applied = await sock.updateModel(rt, selection);
@@ -743,25 +734,25 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
 
   /**
-   * Letta's sleep-time reflection for an agent: its settings (per agent, though the protocol addresses a
-   * conversation), and a pass started by hand — the same as /reflect in that conversation's chat.
+   * The background passes (daemon/passes.ts): whether reflection and Learn run, and a reflection pass started by hand
+   * — the same as /reflect in that conversation's chat.
    */
   const reflection = useMemo(
     () => ({
-      get: async (rt: Runtime): Promise<ReflectionSettings | null> => {
+      get: async (): Promise<PassSettings | null> => {
         const sock = socketRef.current;
         if (!sock) return null;
         try {
-          return await sock.getReflectionSettings(rt);
+          return await sock.getPassSettings();
         } catch {
           return null;
         }
       },
-      set: async (rt: Runtime, s: { trigger: ReflectionTrigger; stepCount: number; merge: ReflectionMerge; mergeInstructions?: string }): Promise<string | null> => {
+      set: async (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }): Promise<string | null> => {
         const sock = socketRef.current;
-        if (!sock) return "not connected to the app-server";
+        if (!sock) return "not connected to loki's daemon";
         try {
-          await sock.setReflectionSettings(rt, s);
+          await sock.setPassSettings(s);
           return null;
         } catch (err) {
           return err instanceof Error ? err.message : String(err);
@@ -769,7 +760,7 @@ export function useAttention(opts: UseAttentionOptions) {
       },
       run: async (rt: Runtime): Promise<string> => {
         const sock = socketRef.current;
-        if (!sock) return "not connected to the app-server";
+        if (!sock) return "not connected to loki's daemon";
         let r: { success: boolean; output: string };
         try {
           r = await sock.executeCommand(rt, "reflect");
@@ -794,7 +785,7 @@ export function useAttention(opts: UseAttentionOptions) {
     status,
     server,
     /** Every slash command the box offers: loki's, the harness's, and whatever else this harness advertised. */
-    commands: useMemo(() => allCommands(server?.advertised), [server?.advertised]),
+    commands: useMemo(() => allCommands(server?.advertised, server?.only), [server?.advertised, server?.only]),
     execute,
     agents,
     agentsLoaded,

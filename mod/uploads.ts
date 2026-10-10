@@ -6,16 +6,16 @@ import { log } from "./log.ts";
 
 /**
  * Files you attach to a message (anything but an image, which rides inside the message): the app uploads each
- * one here as soon as it is picked, and the message then carries its path in Letta's own attachment tag
- * (core/attention/content.ts), the way Letta's Slack and Telegram channels hand files over. The agent reads it
- * with its own tools. Files land in <uploads>/<yyyy-mm-dd>/<name> (the day it was attached), a number added
+ * one here as soon as it is picked, and the message then carries its path in an attachment tag
+ * (core/attention/content.ts), the shape Letta's Slack and Telegram channels used to hand files over. The agent
+ * reads it with its own tools. Files land in <uploads>/<yyyy-mm-dd>/<name> (the day it was attached), a number added
  * when the name is taken; nothing outside that folder can be written or removed.
  *
  *   POST   /uploads?name=<file>&type=<mime>   the body is the file   → {path, name, size, mime}
  *   DELETE /uploads?path=<path>               a chip taken off before sending
  */
 
-/** Letta's default for a channel's media (Signal): enough for a deck or a report, not a video. */
+/** 25 MB (Letta's limit for a channel's media, kept): enough for a deck or a report, not a video. */
 export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 export interface Uploaded {

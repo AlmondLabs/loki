@@ -1,7 +1,8 @@
+import { historySteps, applyEvent } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "bun:test";
 import { attachmentTag, withAttachments } from "../core/attention/content.ts";
-import { historySteps, messageFiles, stripHarnessMarkup } from "../core/harness.ts";
-import { applyEvent, emptyLive } from "../core/attention/model.ts";
+import { messageFiles, stripHarnessMarkup } from "../core/harness.ts";
+import { emptyLive } from "../core/attention/model.ts";
 import { foldSteps, ownSendKey } from "../core/attention/thread.ts";
 import { fileSize, isInlineImage } from "../app/src/chat/attachments.ts";
 

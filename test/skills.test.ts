@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { commandFor } from "../mod/programs.ts";
-import { installArgs, installSkill, lettaBinary, listGlobalSkills, skillDescription, validSkillSource } from "../mod/skills.ts";
+import { installSkill, listGlobalSkills, skillDescription, skillOrigin, validSkillSource } from "../mod/skills.ts";
 
 describe("global skills", () => {
   test("lists folders and links that hold a SKILL.md, with a description", () => {
@@ -33,10 +33,16 @@ describe("global skills", () => {
 });
 
 describe("skill install", () => {
-  test("argument shape", () => {
-    expect(installArgs("owner/repo/path", "a1")).toEqual(["install", "owner/repo/path", "--agent", "a1"]);
-    expect(installArgs(" official/finance/stocks ", "a1", { force: true })).toEqual(["install", "official/finance/stocks", "--agent", "a1", "--force"]);
+  test("a source names a folder here, a GitHub path or URL (at a branch, down to a folder), or any git URL", () => {
+    expect(skillOrigin("owner/repo/skills/pdf")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: null, path: "skills/pdf" });
+    expect(skillOrigin("owner/repo")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: null, path: "" });
+    expect(skillOrigin("https://github.com/owner/repo/tree/main/skills/pdf")).toEqual({ kind: "git", url: "https://github.com/owner/repo.git", ref: "main", path: "skills/pdf" });
+    expect(skillOrigin("https://github.com/owner/repo/blob/v2/skills/pdf/SKILL.md")).toMatchObject({ ref: "v2", path: "skills/pdf" });
+    expect(skillOrigin("git@example.com:team/skills.git")).toEqual({ kind: "git", url: "git@example.com:team/skills.git", ref: null, path: "" });
+    expect(skillOrigin("~/skills/mine", "/home/x")).toEqual({ kind: "folder", path: "/home/x/skills/mine" });
+    expect(() => skillOrigin("justaname")).toThrow("GitHub path");
   });
+
   test("rejects bad sources before running anything", async () => {
     expect(validSkillSource("")).toMatch(/required/);
     expect(validSkillSource("a b")).toMatch(/spaces/);
@@ -45,24 +51,26 @@ describe("skill install", () => {
     await expect(installSkill("", "a1", { run: async () => ((ran = true), "") })).rejects.toThrow(/required/);
     expect(ran).toBe(false);
   });
-  test("runs through the injected runner", async () => {
-    const seen: string[][] = [];
-    const out = await installSkill("clawhub/x", "a1", { run: async (args) => (seen.push(args), "installed") });
-    expect(out).toBe("installed");
-    expect(seen).toEqual([["install", "clawhub/x", "--agent", "a1"]]);
-  });
-  test("finds npm's letta.cmd on a Windows PATH and runs it through the shell", () => {
-    const env = { Path: String.raw`C:\Windows\system32;"C:\Program Files\nodejs";C:\Users\someone\AppData\Roaming\npm`, PATHEXT: ".COM;.EXE;.BAT;.CMD" };
-    const shim = String.raw`C:\Users\someone\AppData\Roaming\npm\letta.cmd`;
-    const bin = lettaBinary({ platform: "win32", env, exists: (p) => p === shim });
-    expect(bin).toBe(shim);
-    const c = commandFor(bin!, installArgs("owner/repo", "agent-1"), "win32");
-    expect(c.shell).toBe(true);
-    expect(c.file.startsWith(String.raw`C:\Users\someone\AppData\Roaming\npm\letta.cmd ^^^"install^^^"`)).toBe(true);
-    // LOKI_LETTA_BIN still comes first; nothing found is null.
-    expect(lettaBinary({ platform: "win32", env: { ...env, LOKI_LETTA_BIN: "D:\\letta.exe" }, exists: () => true })).toBe("D:\\letta.exe");
-    expect(lettaBinary({ platform: "win32", env, exists: () => false })).toBeNull();
-    // Elsewhere PATH still splits on ':' and names the bare program.
-    expect(lettaBinary({ platform: "linux", env: { PATH: "/a:/b" }, exists: (p) => p === "/b/letta" })).toBe("/b/letta");
+
+  test("a folder's skill lands in the agent's memory as skills/<name>, committed; again only with force", async () => {
+    const root = mkdtempSync(join(tmpdir(), "loki-install-"));
+    const memory = join(root, "memory");
+    mkdirSync(memory);
+    execFileSync("git", ["init", "--quiet"], { cwd: memory });
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "--quiet", "--allow-empty", "-m", "Begin memory"], { cwd: memory });
+    const skill = join(root, "pdf");
+    mkdirSync(join(skill, "scripts"), { recursive: true });
+    writeFileSync(join(skill, "SKILL.md"), "---\ndescription: PDFs\n---\n");
+    writeFileSync(join(skill, "scripts", "split.py"), "print(1)\n");
+    const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+    const run = (program: string, args: string[], cwd?: string) => Promise.resolve(execFileSync(program, args, { cwd, env, encoding: "utf8" }));
+    expect(await installSkill(skill, "a1", { run, memory })).toBe(`installed pdf from ${skill}`);
+    expect(readFileSync(join(memory, "skills", "pdf", "scripts", "split.py"), "utf8")).toBe("print(1)\n");
+    expect(execFileSync("git", ["log", "--format=%s", "-1"], { cwd: memory, encoding: "utf8" }).trim()).toBe("Install skill: pdf");
+    await expect(installSkill(skill, "a1", { run, memory })).rejects.toThrow("already has a skill named pdf");
+    expect(await installSkill(skill, "a1", { run, memory, force: true })).toBe(`pdf is already installed as it is at ${skill}`);
+    writeFileSync(join(skill, "SKILL.md"), "---\ndescription: PDFs, better\n---\n");
+    expect(await installSkill(skill, "a1", { run, memory, force: true })).toBe(`installed pdf from ${skill}`);
+    await expect(installSkill(root, "a1", { run, memory })).rejects.toThrow("no SKILL.md");
   });
 });

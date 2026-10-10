@@ -75,6 +75,10 @@ export interface Lesson {
 
 /** Learn conversations carry this prefix in their title; the inbox leaves them out, the tree keeps them. */
 export const LEARN_PREFIX = "[Learn]";
+/** Learn's hidden writer chat of an agent on loki's daemon: one per agent, its asks compacted away after each. */
+export const writerChatId = (agentId: string): string => `recall-${agentId}`;
+export const isWriterChat = (chatId: string): boolean => chatId.startsWith("recall-");
+
 export const learnTitle = (title: string): string => `${LEARN_PREFIX} · ${title.trim()}`;
 export const isLearnTitle = (title: string | null | undefined): boolean => typeof title === "string" && title.trimStart().startsWith(LEARN_PREFIX);
 
@@ -89,13 +93,10 @@ export interface RecallSnapshot {
   lessons: Lesson[];
 }
 
+/** Learn's settings and last run (daemon/passes-state.ts), as the Learn section shows them. */
 export interface WorkerStatus {
   enabled: boolean;
-  /** The model handle the worker asks, or null for the harness's default. */
-  model: string | null;
   dailyCap: number;
-  /** Minutes between the writer's sweeps. */
-  tickMinutes: number;
   lastRunAt: string | null;
   lastRunNote: string | null;
   /** Cards written today, against the cap. */

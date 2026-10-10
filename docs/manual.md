@@ -166,12 +166,10 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   (editable), effort and context, where it is working (its live chats, each a link, and its open tasks), and delete at
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
   this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
-  Letta's Reflection Subagent is marked. **reflection**: Letta's sleep-time pass over what happened — when it fires
-  (off, every n steps of a conversation, after a compaction), how its changes land (applied automatically, or handed to
-  the agent to review, edit and merge in a background conversation of its own, with your review notes), the steps each
-  conversation has gathered since its last pass with "reflect now" beside it (the
-  same as `/reflect` in that chat), and the last pass that changed memory. These are Letta's own settings for the
-  agent, the ones its `/sleeptime` overlay shows in a terminal. **skills**:
+  Letta's Reflection Subagent is marked. **reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
+  every agent at once: once a chat has been quiet for half an hour, the agent reads what was said since it last
+  looked and keeps in memory what will matter in later chats (and reads a chat right after its context is
+  compacted) — with the last change reflection made; `/reflect` in a chat does it now. **skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.letta/skills`, a repo the `skills`
@@ -196,10 +194,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
      Mac only for now.
   5. **skills**: the global skills in `~/.letta/skills` that every agent reads, each with disable, and a field
      to enable a folder holding a `SKILL.md`; an agent's own skills are on its Agents page.
-  6. **learn**: the card writer's switch (off until you turn it on), cards a day (a cap on the deck, per
-     calendar day; leads are still looked for once it is reached), sweep every N minutes (how often the writer
-     looks for quiet conversations; ten by default, one to 1440; each sweep that finds some is one model call
-     per agent over the agent's whole fixed prompt), the model it asks, run now, and the leads it proposes.
+  6. **learn**: the card writer's switch (off until you turn it on), cards a day (a ceiling, five by default, per
+     calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
+     something new, at once), and the last run.
   7. **appearance**: system, light or dark (system follows macOS as it changes), and the palette, loki or
      tokyo night; kept per device.
   8. **chat**: where the panel sits on the Canvas tab (left, centre, right) and its side width (narrow, wide).
@@ -328,9 +325,9 @@ Only the things a mod can do:
   whether a turn was typed in Desktop or in the canvas
 - lists every open conversation for the inbox straight from the local backend (`inbox_list`): main chats included,
   however old, with who spoke last read from the tail of each log; a conversation leaves the inbox by being archived
-- keeps the recall cards (`recall_*`) and runs the worker that writes them: every sweep (ten minutes by default) it reads the new
-  stretch of any conversation quiet for ten minutes, asks its agent in its hidden "recall" conversation, and writes
-  cards up to the day's cap; the deleted pile goes back into every prompt as what not to write
+- keeps the recall cards (`recall_*`); the daemon's Learn pass writes them: once a conversation has been quiet for half an
+  hour it reads the new stretch, asks the agent in its hidden "recall" conversation, and writes cards up to the day's
+  cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript from the local backend log (`history_get`), which survives compaction,
   and keeps the read (`seen_mark`), viewed (`viewed_mark`) and focus marks the inbox and the sidebar need
 - keeps each chat's widget change log (`~/.letta/loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
@@ -525,18 +522,13 @@ card (X or ⌫) is the signal.** Deleted cards move to a pile the worker reads b
 not to write, so a rejected card never comes back reworded; a card deleted after many failed reviews reads
 as "badly written", one deleted unseen as "not wanted". Cards you keep failing are offered back to the worker
 for a rewrite. E edits in place, O or ⌘O opens the chat it came from, Z undoes a delete, ⌘R refreshes. **All cards** lists every
-card with search and holds the worker's knobs — on/off, cards a day, sweep every N minutes, the model it asks, run now — and an
-export in Anki's plain-text import format. Everything is files: `~/.letta/loki/recall/{cards,schedule,rejected}/<id>.json`,
-content and review history kept apart so the worker's edits never touch your schedule. The worker's own
-conversation with each agent — one per agent, named "recall", for the life of the agent — is a chat in the
-sidebar (and in ⌘K), so you can read what it asked and what came back; it stays out of the inbox. After each answer the worker
-compacts it (`/compact all`), so the next question starts from a short summary of the earlier ones rather than
-every transcript ever sent, while the transcript on disk keeps everything. Its working directory is
-`~/.letta/loki/recall/` itself: the prompt quotes only the existing cards whose wording overlaps the stretches
-and names the folder for the rest, so the model can grep the deck with its read-only tools before writing, and
-the prompt stops growing with the deck. Letta's project settings there (`.letta/settings.local.json`) keep the
-dreaming pass off: the writer's digests of your conversations are never turned into the agent's memory. The
-settings file is the worker's; it puts the trigger back to off if it finds it changed.
+card with search and holds the writer's knobs — on/off, cards a day, run now — and an
+export in Anki's plain-text import format. Everything is files: `~/.loki/recall/{cards,schedule,rejected}/<id>.json`,
+content and review history kept apart so the writer's edits never touch your schedule. The writer asks each agent in a
+hidden conversation of the agent's own, cleared before each run and with no tools, and only for concepts,
+principles and knowledge of your field that will still be true in months — never a detail of the task at hand;
+most conversations give no card. Reflection never reads that conversation, so the writer's digests of your
+conversations are never turned into the agent's memory.
 
 **Leads.** In the same call, the writer names up to two things per conversation the person could learn
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a

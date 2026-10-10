@@ -9,7 +9,7 @@ import type { CameraTarget, Connection } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
-import type { InputOf, PushFrame, SendName } from "../../../core/frames.ts";
+import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
 
 const NO_YANK_MS = 2000;
 
@@ -50,8 +50,10 @@ export function useDeskSocket() {
   const [models, setModels] = useState<Record<Scope, string>>({});
   const [reasoningEfforts, setReasoningEfforts] = useState<Record<Scope, ReasoningEffort>>({});
   const [modes, setModes] = useState<Record<Scope, string>>({});
-  /** From the mod: is an app-server tunnel available, and which conversations have been seen. */
-  const [appServer, setAppServer] = useState(false);
+  /** Who listens for the chats' events, which loki's daemon sends on this socket. */
+  const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
+  /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
+  const reconnectListeners = useRef(new Set<() => void>());
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
@@ -98,6 +100,8 @@ export function useDeskSocket() {
     let disposed = false;
     let retryMs = 500;
     let retry: ReturnType<typeof setTimeout> | null = null;
+    // A drop, not a chat switch (that opens a socket of its own): the next open is a reconnect.
+    let dropped = false;
     const token = readSession().token;
 
     const connect = () => {
@@ -111,6 +115,8 @@ export function useDeskSocket() {
         setConnection("open");
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
+        if (dropped) for (const fn of reconnectListeners.current) fn();
+        dropped = false;
       };
       ws.onmessage = (ev) => {
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
@@ -167,8 +173,8 @@ export function useDeskSocket() {
             setDeskList((list) => keepSame(list, msg.desks as DeskSummary[]));
             setDesksLoaded(true);
             break;
-          case "config":
-            setAppServer(msg.appServer === true);
+          case "chat_event":
+            for (const listener of chatListeners.current) listener(msg);
             break;
           case "tasks_changed":
             setTasksVersion((v) => v + 1);
@@ -212,7 +218,6 @@ export function useDeskSocket() {
             if (msg.viewed && typeof msg.viewed === "object") setViewedMap((m) => keepSame(m, msg.viewed as Record<string, string>));
             // A mod from before focus sends none: keep what we have.
             if (msg.focus && typeof msg.focus === "object") setFocusMap((m) => keepSame(m, msg.focus as Record<string, FocusEntry>));
-            if (typeof msg.appServer === "boolean") setAppServer(msg.appServer);
             break;
           case "desk_title": {
             // Sent again on every title refresh: a repeat keeps each map as it is.
@@ -236,6 +241,7 @@ export function useDeskSocket() {
       ws.onclose = () => {
         setConnection("closed");
         if (!disposed) {
+          dropped = true;
           retry = setTimeout(connect, retryMs);
           retryMs = Math.min(retryMs * 2, 8000);
         }
@@ -300,7 +306,8 @@ export function useDeskSocket() {
     setReasoningEfforts,
     modes,
     setModes,
-    appServer,
+    chatListeners,
+    reconnectListeners,
     seenMap,
     viewedMap,
     focusMap,

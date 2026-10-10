@@ -69,7 +69,7 @@ export function describeGesture(
   }
 }
 
-export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~/.letta/loki/widgets"): string {
+export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~/.loki/widgets"): string {
   return [
     `<loki-desk desk="${scope}">`,
     "Canvas activity since your last turn (the user's gestures on the loki canvas):",
@@ -79,22 +79,7 @@ export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~
   ].join("\n");
 }
 
-/** Append the block to the last user message in a turn_start input. Approval items are skipped. */
-export function attachDeskContext(
-  input: Array<Record<string, unknown>>,
-  block: string,
-): Array<Record<string, unknown>> {
-  for (let i = input.length - 1; i >= 0; i--) {
-    const item = input[i];
-    if (item.type === "approval" || item.role !== "user") continue;
-    const content = item.content;
-    let next: unknown;
-    if (typeof content === "string") next = `${content}\n\n${block}`;
-    else if (Array.isArray(content)) next = [...content, { type: "text", text: block }];
-    else return input;
-    const out = input.slice();
-    out[i] = { ...item, content: next };
-    return out;
-  }
-  return input;
+/** The person's message with the block after it: a string grows a paragraph, a list of parts gains a text part. */
+export function attachDeskContext(content: string | Array<Record<string, unknown>>, block: string): string | Array<Record<string, unknown>> {
+  return typeof content === "string" ? `${content}\n\n${block}` : [...content, { type: "text", text: block }];
 }

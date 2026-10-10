@@ -1,8 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { WebSocketServer, WebSocket } from "./ws.ts";
-import { log } from "./log.ts";
-import { appServerHeaders } from "./app-server.ts";
 import type { Scope } from "../core/desk-core.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import { uploadRoute } from "./uploads.ts";
@@ -19,7 +17,7 @@ export interface LokiServer {
 }
 
 /**
- * Who may upgrade to /ws or /appserver, or fetch an agent's face. The loopback server
+ * Who may upgrade to /ws, or fetch an agent's face. The loopback server
  * checks `?t=` against the desktop token (tokenAuth); the LAN listener (mod/lan.ts)
  * looks a device cookie or bearer up and names the device, so its sockets can be
  * closed when the device is forgotten.
@@ -116,32 +114,25 @@ export interface Client {
 export interface WsHandlers {
   onConnect(client: Client): void;
   onMessage(client: Client, msg: Record<string, unknown>): void;
-  /**
-   * URL of Letta's app-server, if discovered. Browsers cannot connect to it
-   * directly (it refuses upgrades that carry an Origin header), so the mod
-   * pipes `/appserver` through: a dumb tunnel, frames untouched both ways.
-   */
-  appServerUrl?(): string | null;
 }
 
 export interface WsBridge {
   /** Send to every tab, or only tabs showing `scope`. */
   broadcast(msg: object, scope?: Scope): void;
   clientCount(): number;
-  /** Terminate every socket (/ws and /appserver) a device holds. Returns how many. */
+  /** Terminate every socket a device holds. Returns how many. */
   closeDevice(deviceId: string): number;
   close(): void;
 }
 
 /**
- * WebSocket upgrades on `/ws` (the bridge) and `/appserver` (the tunnel). `auth` is the desktop
+ * WebSocket upgrades on `/ws` (the bridge). `auth` is the desktop
  * token (checked as `?t=`) or an Authorize callback; the handlers are the same for both listeners.
  */
 export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers): WsBridge {
   const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
   const wss = new WebSocketServer({ noServer: true });
   const clients = new Map<WebSocket, Client>();
-  const tunnels = new Map<WebSocket, string | undefined>(); // /appserver sockets → device
 
   server.on("upgrade", (req, socket, head) => {
     let url: URL;
@@ -154,15 +145,6 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
     const who = authorize(req, url);
     if (!who.ok) {
       socket.destroy();
-      return;
-    }
-    if (url.pathname === "/appserver") {
-      const target = handlers.appServerUrl?.() ?? null;
-      wss.handleUpgrade(req, socket, head, (ws) => {
-        tunnels.set(ws, who.deviceId);
-        ws.on("close", () => tunnels.delete(ws));
-        tunnel(ws, target);
-      });
       return;
     }
     if (url.pathname !== "/ws") {
@@ -207,19 +189,11 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
         clients.delete(ws);
         n++;
       }
-      for (const [ws, d] of tunnels) {
-        if (d !== deviceId) continue;
-        ws.terminate();
-        tunnels.delete(ws);
-        n++;
-      }
       return n;
     },
     close: () => {
       for (const ws of clients.keys()) ws.terminate(); // tabs reconnect on their own
-      for (const ws of tunnels.keys()) ws.terminate();
       clients.clear();
-      tunnels.clear();
       wss.close();
     },
   };
@@ -227,33 +201,4 @@ export function attachWs(server: Server, auth: string | Authorize, handlers: WsH
 
 function send(ws: WebSocket, msg: object): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
-}
-
-/** Pipe a browser socket to the app-server. Closing either side closes the other. */
-export function tunnel(browser: WebSocket, target: string | null): void {
-  if (!target) {
-    send(browser, { type: "tunnel_error", error: "no app-server discovered" });
-    browser.close(1011, "no app-server");
-    return;
-  }
-  const upstream = new WebSocket(target, { headers: appServerHeaders() });
-  const queue: string[] = [];
-  upstream.on("open", () => {
-    for (const q of queue) upstream.send(q);
-    queue.length = 0;
-  });
-  browser.on("message", (raw) => {
-    const text = String(raw);
-    if (upstream.readyState === WebSocket.OPEN) upstream.send(text);
-    else if (upstream.readyState === WebSocket.CONNECTING) queue.push(text);
-  });
-  upstream.on("message", (raw) => send(browser, JSON.parse(String(raw)) as object));
-  upstream.on("close", () => browser.close());
-  upstream.on("error", (err) => {
-    log("tunnel:upstream-error", err.message);
-    send(browser, { type: "tunnel_error", error: err.message });
-    browser.close(1011, "upstream error");
-  });
-  browser.on("close", () => upstream.close());
-  browser.on("error", () => upstream.close());
 }

@@ -27,7 +27,7 @@ export const WAITING_POINTS_PER_HOUR = 0.1;
 /** A card whose focus is worth at least this many points says so ("in focus"). */
 export const IN_FOCUS_POINTS = 3;
 
-/** Who sent the last message into a conversation: a person, or Letta's scheduler firing a cron. */
+/** Who sent the last message into a conversation: a person, or the daemon's scheduler firing a cron (daemon/schedule.ts). */
 export type AskedBy = "person" | "schedule";
 
 /** The largest term of a card's score: the one word that explains its place in the list. */

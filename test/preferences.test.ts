@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { afterSegmentKey } from "../app/src/settings/preferences.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PAGES, pageAfterKey, pageTitle } from "../app/src/settings/pages.ts";
+import { PAGES, pageAfterKey, pageTitle, savedPage } from "../app/src/settings/pages.ts";
 import { PageList } from "../app/src/settings/PageList.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/Phone.tsx";
 import { GlobalKeyRow } from "../app/src/settings/Settings.tsx";
@@ -31,18 +31,25 @@ describe("Preferences: the segment keys over the sheet", () => {
 
 describe("Preferences: the section list", () => {
   test("every page has a sentence-case name, loki's proper nouns kept", () => {
-    expect(PAGES.map((p) => pageTitle(p.id))).toEqual(["Letta", "Inbox", "Providers", "Phone", "Skills", "Learn", "Appearance", "Chat", "Files", "Keys"]);
-    for (const p of PAGES) expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
+    expect(PAGES.map((p) => pageTitle(p.id))).toEqual(["loki", "Inbox", "Providers", "Phone", "Skills", "Learn", "Appearance", "Chat", "Files", "Keys"]);
+    for (const p of PAGES) if (p.id !== "loki") expect(pageTitle(p.id)[0]).toBe(pageTitle(p.id)[0].toUpperCase());
+  });
+
+  test("a saved page opens as it was; the old Letta page id opens the loki page", () => {
+    expect(savedPage("skills")).toBe("skills");
+    expect(savedPage("letta")).toBe("loki");
+    expect(savedPage(null)).toBe("loki");
+    expect(savedPage("harness")).toBe("loki");
   });
 });
 
 describe("Preferences: the section list is a vertical tablist (focus follows the chosen page)", () => {
   test("↑↓ step the pages and wrap, Home and End jump; other keys are not the list's", () => {
-    expect(pageAfterKey("letta", "ArrowDown")).toBe("inbox");
-    expect(pageAfterKey("inbox", "ArrowUp")).toBe("letta");
-    expect(pageAfterKey("letta", "ArrowUp")).toBe("keys");
-    expect(pageAfterKey("keys", "ArrowDown")).toBe("letta");
-    expect(pageAfterKey("chat", "Home")).toBe("letta");
+    expect(pageAfterKey("loki", "ArrowDown")).toBe("inbox");
+    expect(pageAfterKey("inbox", "ArrowUp")).toBe("loki");
+    expect(pageAfterKey("loki", "ArrowUp")).toBe("keys");
+    expect(pageAfterKey("keys", "ArrowDown")).toBe("loki");
+    expect(pageAfterKey("chat", "Home")).toBe("loki");
     expect(pageAfterKey("chat", "End")).toBe("keys");
     expect(pageAfterKey("chat", "ArrowRight")).toBeNull();
     expect(pageAfterKey("chat", "Enter")).toBeNull();

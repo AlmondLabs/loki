@@ -10,9 +10,9 @@ type Rt = { agent_id: string; conversation_id: string };
 
 export interface DeskConversationHandlers {
   onLoadModels?: () => void;
-  /** Switch this desk's conversation to a model; the shell talks to the app-server. */
+  /** Switch this desk's conversation to a model; the shell talks to the daemon. */
   onPickModel?: (scope: string, rt: Rt, selection: ModelSelection) => Promise<void>;
-  /** Set this desk's conversation permission mode; the shell talks to the app-server. */
+  /** Set this desk's conversation permission mode; the shell talks to the daemon. */
   onPickMode?: (scope: string, rt: Rt, mode: string) => Promise<void>;
 }
 
@@ -26,7 +26,7 @@ export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: Retu
   const view: ConversationView = {
     rows: deskChat?.rows ?? [],
     status: deskChat?.status ?? "idle",
-    error: !attention.available ? "chat needs Letta's app-server — is a harness running?" : deskChat?.error ?? null,
+    error: !attention.available ? "chat needs loki's daemon — is it running?" : deskChat?.error ?? null,
     model: desk.model,
     reasoningEffort: desk.reasoningEffort,
     mode: deskChat?.mode ?? desk.mode,
@@ -44,7 +44,7 @@ export function deskConversation(desk: ReturnType<typeof useDesk>, catchUp: Retu
     },
     commands: catchUp.commands,
     onCommand: (id, args) => {
-      // loki's own commands are keymap actions; everything else is the harness's, run for this conversation.
+      // loki's own commands are keymap actions; everything else is the daemon's, run for this conversation.
       const local = LOKI_COMMANDS.find((c) => c.id === id);
       if (local?.action) runAction(local.action);
       else if (deskRuntime) void catchUp.execute(deskRuntime, id, args);

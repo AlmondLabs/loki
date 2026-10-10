@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { registerTools, type ToolDeps } from "../mod/tools.ts";
 import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
-import type { LettaMod, ToolDefinition } from "../mod/letta-types.ts";
+import type { ModApi, ModTool } from "../daemon/mods/api.ts";
 import type { WidgetManifestEntry } from "../core/desk-core.ts";
 
 const sleep: WidgetManifestEntry = {
@@ -12,19 +12,24 @@ const sleep: WidgetManifestEntry = {
 const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loki", type: "info-card", data: { lines: ["a"] }, error: undefined };
 
 function harness(deps?: Partial<ToolDeps>) {
-  const tools = new Map<string, ToolDefinition>();
-  const letta = {
-    capabilities: { commands: true, tools: true },
-    tools: { register: (t: ToolDefinition) => void tools.set(t.name, t) },
-    commands: { register: () => {} },
-  } as unknown as LettaMod;
+  /** Each tool as the test calls it: a call's args and, when it has one, its chat and agent. A failed call throws. */
+  type Called = { name: string; description: string; run: (c: { args?: Record<string, unknown>; conversation?: { id: string }; agent?: { id: string; name: string } }) => Promise<unknown> };
+  const tools = new Map<string, Called>();
+  const api = {
+    tools: {
+      register: (t: ModTool) => {
+        tools.set(t.name, { name: t.name, description: t.description, run: async (c) => t.execute(c.args ?? {}, { chatId: c.conversation?.id ?? "", agentId: c.agent?.id ?? "", agentName: c.agent?.name ?? "", signal: new AbortController().signal, output: () => {} }) });
+        return () => tools.delete(t.name);
+      },
+    },
+  } as unknown as ModApi;
   const store = new DeskStore();
   store.gesture("c1", { kind: "set", id: "c1/sleep", path: "value", value: 7 });
   const gestures = new GestureLog();
   gestures.record("c1", "moved something");
   const broadcasts: Array<[unknown, string | undefined]> = [];
   const entries = [sleep, welcome];
-  registerTools(letta, {
+  registerTools(api, {
     store,
     gestures,
     widgets: {
@@ -56,10 +61,10 @@ describe("desk_state", () => {
   test("the desk comes from the calling conversation, not the mod's active desk", async () => {
     const remembered: string[] = [];
     const { tools } = harness({ remember: (id) => (remembered.push(id), id.replace(/[^a-zA-Z0-9_-]/g, "_")) });
-    const out = JSON.parse((await tools.get("desk_state")!.run({ args: {}, conversation: { id: "local-conv-1291", sendMessageStream: async () => (async function* () {})() } })) as string);
+    const out = JSON.parse((await tools.get("desk_state")!.run({ args: {}, conversation: { id: "local-conv-1291" } })) as string);
     expect(out.desk).toBe("local-conv-1291"); // not "c1", the active desk in this harness
     expect(remembered).toEqual(["local-conv-1291"]);
-    const explicit = JSON.parse((await tools.get("desk_state")!.run({ args: { desk: "shared" }, conversation: { id: "local-conv-1291", sendMessageStream: async () => (async function* () {})() } })) as string);
+    const explicit = JSON.parse((await tools.get("desk_state")!.run({ args: { desk: "shared" }, conversation: { id: "local-conv-1291" } })) as string);
     expect(explicit.desk).toBe("shared");
   });
 
@@ -85,8 +90,9 @@ describe("loki_camera", () => {
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep"] }, "c1"]);
     await cam.run({ args: { widgetId: "shared/welcome" } });
     expect(broadcasts[1][1]).toBeUndefined();
-    expect(await cam.run({ args: { widgetId: "nope" } })).toMatchObject({ status: "error" });
-    expect(await cam.run({ args: {} })).toMatchObject({ status: "error" });
+    // A bad call fails, with what to do about it.
+    await expect(cam.run({ args: { widgetId: "nope" } })).rejects.toThrow('no widget "nope" — check desk_state');
+    await expect(cam.run({ args: {} })).rejects.toThrow("give widgetId or widgetIds");
   });
 
   test("frames several widgets and honours dwell", async () => {
@@ -97,10 +103,5 @@ describe("loki_camera", () => {
     expect(Date.now() - t).toBeGreaterThanOrEqual(110);
     expect(out).toMatch(/framing 2 widgets, held 120ms/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep", "shared/welcome"] }, undefined]);
-  });
-  test("no tools capability → nothing registered", () => {
-    const tools = new Map();
-    registerTools({ capabilities: { commands: true }, commands: { register: () => {} } } as unknown as LettaMod, {} as ToolDeps);
-    expect(tools.size).toBe(0);
   });
 });

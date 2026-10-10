@@ -1,13 +1,12 @@
 import { useEffect, useId, useState } from "react";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { Button, Chip, Dot, Field, Row } from "../components";
-import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, needsTerminal, sortProviders } from "./provider-model";
+import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, sortProviders } from "./provider-model";
 
 /**
- * Model providers as rows: connected first, then the usual suspects, then everything the harness
- * knows behind a filter. A row opens into the harness's own field list; the key is checked against
- * the provider before it is saved, and never shown again afterwards. OAuth entries connect in the
- * terminal, the app just says how.
+ * Model providers as rows: connected first, then the usual suspects, then everything the daemon
+ * knows behind a filter. A row opens into the daemon's own field list; the key is checked against
+ * the provider before it is saved, and never shown again afterwards. A sign-in opens the browser.
  */
 export function Providers({
   providers,
@@ -34,7 +33,7 @@ export function Providers({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers === null]);
 
-  if (providers === null) return <div className="loki-meta loki-meta--wrap">asking the harness…</div>;
+  if (providers === null) return <div className="loki-meta loki-meta--wrap">asking loki…</div>;
   const sorted = sortProviders(providers, filter);
   const shown = more || filter ? sorted : sorted.filter((p) => isConnected(p) || SHORTLIST.includes(p.id));
   const connectedCount = providers.filter(isConnected).length;
@@ -112,14 +111,18 @@ function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconne
       setBusy(false);
     }
   };
-  return { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect };
+  /** A sign-in still waiting for its browser: the address the browser ended on finishes it (the wait in connect sees it). */
+  const finish = async (address: string) => {
+    if (!address.trim()) return;
+    setError(await onConnect(p.id, { redirect_url: address.trim() }, "oauth_code"));
+  };
+  return { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect, finish };
 }
 
 type ConnectState = ReturnType<typeof useProviderConnect>;
 
 function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: { p: ConnectProvider; open: boolean; onToggle: () => void; onConnect: ConnectFn; onDisconnect: DisconnectFn; onChanged?: () => void }) {
   const connected = isConnected(p);
-  const terminal = needsTerminal(p);
   const state = useProviderConnect(p, onConnect, onDisconnect, onChanged, onToggle);
 
   return (
@@ -138,28 +141,20 @@ function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: 
       {open && (
         <div style={{ padding: "2px 10px 10px 24px", display: "grid", gap: 8 }}>
           {p.description && <div className="loki-meta loki-meta--wrap">{p.description}</div>}
-          {terminal ? <TerminalNote id={p.id} /> : <ConnectForm p={p} connected={connected} state={state} />}
+          <ConnectForm p={p} connected={connected} state={state} />
         </div>
       )}
     </div>
   );
 }
 
-/** An OAuth provider: the app cannot open the browser flow, so it says which command does. */
-function TerminalNote({ id }: { id: string }) {
-  return (
-    <div style={{ fontSize: 12, color: "var(--loki-fg)", display: "grid", gap: 6 }}>
-      <span>This one signs in through the browser. Connect it from a terminal, then come back:</span>
-      <code style={{ fontFamily: "var(--loki-mono)", fontSize: 12, padding: "6px 10px", background: "var(--loki-well)", borderRadius: "var(--loki-radius-sm)", justifySelf: "start" }}>letta connect {id}</code>
-    </div>
-  );
-}
-
-/** The open row's form: a method picker when the provider has more than one, the harness's fields, connect / disconnect, the error. */
+/** The open row's form: a method picker when the provider has more than one, the daemon's fields, connect / disconnect, the error. */
 function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: boolean; state: ConnectState }) {
-  const { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect } = state;
+  const { authMethodId, fields, setMethod, values, setValues, busy, error, connect, disconnect, finish } = state;
   /** Each field's input is `${fieldId}-${key}`, so its label can name it. */
   const fieldId = useId();
+  const [address, setAddress] = useState("");
+  const signIn = authMethodId === "oauth" ? p.auth_methods?.find((m) => m.id === "oauth") : undefined;
   return (
     <>
       {p.auth_methods && p.auth_methods.length > 1 && (
@@ -185,7 +180,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
             value={values[f.key] ?? ""}
             onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
             onKeyDown={(e) => e.key === "Enter" && void connect()}
-            placeholder={f.placeholder ?? (f.secret ? "pasted here, checked with the provider, then kept by Letta" : "")}
+            placeholder={f.placeholder ?? (f.secret ? "pasted here, checked with the provider, then kept in the keychain" : "")}
             autoComplete="off"
             spellCheck={false}
             data-1p-ignore
@@ -195,7 +190,7 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
       ))}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
-          {busy ? "checking…" : connected ? "replace the key" : "connect"}
+          {signIn ? (busy ? "waiting for the browser…" : connected ? "sign in again" : signIn.label) : busy ? "checking…" : connected ? "replace the key" : "connect"}
         </Button>
         {connected && (
           <Button size="sm" onClick={() => void disconnect()} disabled={busy}>
@@ -204,6 +199,27 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         )}
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
       </div>
+      {signIn && busy && (
+        <label htmlFor={`${fieldId}-address`} style={{ display: "grid", gridTemplateColumns: "140px 1fr auto", gap: 10, alignItems: "center", fontSize: 12 }}>
+          <span style={{ color: "var(--loki-muted)" }}>browser didn't come back?</span>
+          <Field
+            id={`${fieldId}-address`}
+            size="sm"
+            mono
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && void finish(address)}
+            placeholder="paste the address the browser ended on"
+            autoComplete="off"
+            spellCheck={false}
+            data-1p-ignore
+            data-form-type="other"
+          />
+          <Button size="sm" onClick={() => void finish(address)} disabled={!address.trim()}>
+            finish
+          </Button>
+        </label>
+      )}
     </>
   );
 }

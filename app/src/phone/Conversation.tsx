@@ -86,7 +86,7 @@ export function ConversationScreen({
   /** list_models, for the pill's name and Select model; loaded on the first ask. */
   models?: ModelEntry[] | null;
   onLoadModels?: () => void;
-  /** Switch this conversation's model; left out (no app-server), the box has no pill. */
+  /** Switch this conversation's model; left out (no link to the daemon), the box has no pill. */
   onPickModel?: (rt: Runtime, selection: ModelSelection) => Promise<void>;
   /** The conversation's Inbox item, when it has one: its unread boundary, last message day and notice. */
   item?: AttentionItem | null;
@@ -101,11 +101,11 @@ export function ConversationScreen({
   /** The desk's pin state, when the mod knows this conversation as a desk; null hides the action. */
   pinned?: boolean | null;
   onPin?: (pinned: boolean) => void;
-  /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the app-server cannot take it. */
+  /** Rename, when this is a desk of its own (not a main chat); `onRename` null while the daemon cannot take it. */
   rename?: { name: string; onRename: ((name: string) => Promise<string | null>) | null } | null;
-  /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the app-server cannot take it. */
+  /** Archive (done: the chat leaves the Inbox) or restore, when this chat can be archived; `onArchive` null while the daemon cannot take it. */
   archive?: { archived: boolean; onArchive: ((archived: boolean) => Promise<string | null>) | null } | null;
-  /** Change folder: the chat's folder and the agent's recent ones, and the move; null while the app-server cannot take it. */
+  /** Change folder: the chat's folder and the agent's recent ones, and the move; null while the daemon cannot take it. */
   folder?: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null> } | null;
   onBack: () => void;
   onLoad: (rt: Runtime) => void;

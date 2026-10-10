@@ -16,9 +16,9 @@ export interface DesksDeps {
   deskInfo?: (scope: Scope) => DeskInfo;
   /** Delete a widget's file from disk. Returns the removed path, or null. */
   deleteWidgetFile?: (id: string) => string | null;
-  /** Pin / unpin a conversation in Letta's pinned-conversations.json. */
+  /** Pin / unpin a conversation in loki's pins file (mod/pins.ts). */
   setPin?: (agentId: string, conversationId: string, pinned: boolean) => boolean;
-  /** The models used lately, for the picker's quick picks (mod/models.ts): loki's picks, then Letta Code's own. */
+  /** The models used lately, for the picker's quick picks (mod/models.ts). */
   recentModels?: { read: () => string[]; add: (handle: string) => string[] };
 }
 

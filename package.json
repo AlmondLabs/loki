@@ -5,13 +5,14 @@
   "license": "Apache-2.0",
   "repository": "github:AlmondLabs/loki",
   "type": "module",
-  "description": "A memory palace your agent builds \u2014 Letta Code mod + Vite widget desk the agent writes files into",
+  "description": "A memory palace your agent builds — a desktop app running its own agent daemon on Pi, with a live widget canvas the agent writes files into",
   "scripts": {
     "start": "bun scripts/dev.ts",
     "dev": "vite --config app/vite.config.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "bun test",
+    "test:node": "node --experimental-strip-types --no-warnings --test test-node/*.node-test.ts",
     "build:app": "vite build --config app/vite.config.ts",
     "build:mod": "bun scripts/build-mod.ts",
     "tauri": "tauri",
@@ -22,6 +23,10 @@
     "listen": "native/listen/listen.sh"
   },
   "dependencies": {
+    "@earendil-works/chord": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-durable": "1.1.0",
+    "@napi-rs/keyring": "2.1.0",
     "@tailwindcss/vite": "^4.1.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2",

@@ -1,17 +1,17 @@
-import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { execProgram } from "./programs.ts";
+import { memoryRoot } from "./agents.ts";
 import type { GlobalSkill } from "../core/frame-types.ts";
 
 /**
- * Skills outside an agent's memory: the global folder Letta reads for every agent
- * (~/.letta/skills, entries are usually symlinks made by skill_enable), and installing a skill
- * into an agent from a source the CLI understands (`letta install <source> --agent <id>`), which
- * has no app-server request. Per-agent skills themselves are files in the memory repo (agents.ts).
+ * Skills outside an agent's memory: the global folder every agent reads (~/.agents/skills, the folder agent tools
+ * share; entries are usually links made by skill_enable), and installing a skill into an agent. Per-agent skills
+ * themselves are files in the memory repo (agents.ts).
  */
 
-export const globalSkillsDir = (): string => process.env.LETTA_HOME ? join(process.env.LETTA_HOME, "skills") : join(homedir(), ".letta", "skills");
+export const globalSkillsDir = (): string => process.env.LOKI_SKILLS_DIR ?? join(homedir(), ".agents", "skills");
 
 /** The first line worth showing from a SKILL.md: its frontmatter description, else its first heading. */
 export function skillDescription(text: string): string | null {
@@ -54,7 +54,7 @@ export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
   return out;
 }
 
-/** A source the CLI accepts: a URL, `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, or a local path. */
+/** A source loki installs from: a GitHub path (`owner/repo[/path]`), a GitHub or git URL, or a folder on this machine. */
 export function validSkillSource(source: string): string | null {
   const s = source.trim();
   if (!s) return "a source is required";
@@ -63,34 +63,59 @@ export function validSkillSource(source: string): string | null {
   return null;
 }
 
-/** The CLI arguments for one install, without the binary. Exported for tests. */
-export function installArgs(source: string, agentId: string, opts: { force?: boolean } = {}): string[] {
-  const args = ["install", source.trim(), "--agent", agentId];
-  if (opts.force) args.push("--force");
-  return args;
+/** Where a source's files come from: a folder here, or a repository to clone (at a branch) and the folder in it. */
+export type SkillOrigin = { kind: "folder"; path: string } | { kind: "git"; url: string; ref: string | null; path: string };
+
+export function skillOrigin(source: string, home = homedir()): SkillOrigin {
+  const s = source.trim();
+  if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".") || /^[A-Za-z]:[\\/]/.test(s)) return { kind: "folder", path: resolve(s.replace(/^~(?=$|[\\/])/, home)) };
+  const web = s.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/(?:tree|blob)\/([^/]+)(?:\/(.*))?)?\/?$/);
+  if (web) return { kind: "git", url: `https://github.com/${web[1]}/${web[2]}.git`, ref: web[3] ?? null, path: (web[4] ?? "").replace(/\/SKILL\.md$/, "") };
+  if (/^(https?|git|ssh):\/\/|^git@/.test(s)) return { kind: "git", url: s, ref: null, path: "" };
+  const [owner, repo, ...rest] = s.split("/");
+  if (!owner || !repo) throw new Error("a source is a GitHub path (owner/repo/path), a git URL, or a folder");
+  return { kind: "git", url: `https://github.com/${owner}/${repo}.git`, ref: null, path: rest.join("/") };
 }
 
-/** LOKI_LETTA_BIN, then PATH (npm's `letta.cmd` on Windows), then where installers put it on a Mac. */
-export function lettaBinary(look: Look = {}): string | null {
-  return firstExisting([envVar("LOKI_LETTA_BIN", look), ...onPath("letta", look), join(homedir(), ".volta", "bin", "letta"), join(homedir(), ".bun", "bin", "letta"), "/opt/homebrew/bin/letta", "/usr/local/bin/letta"], look);
-}
+export type Runner = (program: string, args: string[], cwd?: string) => Promise<string>;
 
-export type Runner = (args: string[]) => Promise<string>;
+const runProgram: Runner = (program, args, cwd) =>
+  new Promise((done, fail) => {
+    execProgram(program, args, { cwd, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) fail(new Error(String(stderr || stdout || err.message).trim().split("\n").slice(-3).join(" ")));
+      else done(String(stdout).trim());
+    });
+  });
 
-/** Run `letta install`; resolves to the CLI's output, rejects with its message. */
-export function installSkill(source: string, agentId: string, opts: { force?: boolean; run?: Runner } = {}): Promise<string> {
+/**
+ * Install a skill into an agent's memory: its folder (one with a SKILL.md) copied to `skills/<name>` in the memory repo
+ * and committed, where the agent's skills section finds it. A skill of that name already there is replaced only with
+ * `force`. Resolves to a line saying what was installed.
+ */
+export async function installSkill(source: string, agentId: string, opts: { force?: boolean; run?: Runner; memory?: string } = {}): Promise<string> {
   const bad = validSkillSource(source);
-  if (bad) return Promise.reject(new Error(bad));
-  const run: Runner =
-    opts.run ??
-    ((args) =>
-      new Promise((resolve, reject) => {
-        const bin = lettaBinary();
-        if (!bin) return reject(new Error("letta CLI not found"));
-        execProgram(bin, args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024, env: { ...process.env, CI: "1" } }, (err, stdout, stderr) => {
-          if (err) reject(new Error(String(stderr || stdout || err.message).trim().split("\n").slice(-3).join(" ")));
-          else resolve(String(stdout).trim());
-        });
-      }));
-  return run(installArgs(source, agentId, opts));
+  if (bad) throw new Error(bad);
+  const run = opts.run ?? runProgram;
+  const origin = skillOrigin(source);
+  const memory = opts.memory ?? memoryRoot(agentId);
+  const scratch = mkdtempSync(join(tmpdir(), "loki-skill-"));
+  try {
+    let folder = origin.kind === "folder" ? origin.path : join(scratch, "repo", origin.path);
+    if (origin.kind === "git") await run("git", ["clone", "--depth", "1", ...(origin.ref ? ["--branch", origin.ref] : []), origin.url, join(scratch, "repo")]);
+    folder = resolve(folder);
+    if (!existsSync(join(folder, "SKILL.md"))) throw new Error(`no SKILL.md in ${origin.kind === "folder" ? folder : `${origin.url}${origin.path ? ` at ${origin.path}` : ""}`}`);
+    const name = basename(folder) === "repo" && origin.kind === "git" ? basename(origin.url, ".git") : basename(folder);
+    const target = join(memory, "skills", name);
+    if (existsSync(target) && !opts.force) throw new Error(`the agent already has a skill named ${name}; install again with force to replace it`);
+    rmSync(target, { recursive: true, force: true });
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(folder, target, { recursive: true, filter: (p) => basename(p) !== ".git" });
+    await run("git", ["add", "--all", join("skills", name)], memory);
+    // The same skill installed again changes nothing, and is not a commit.
+    if (!(await run("git", ["status", "--porcelain", "--", join("skills", name)], memory)).trim()) return `${name} is already installed as it is at ${source.trim()}`;
+    await run("git", ["commit", "--quiet", "-m", `Install skill: ${name}`, "--", join("skills", name)], memory);
+    return `installed ${name} from ${source.trim()}`;
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }

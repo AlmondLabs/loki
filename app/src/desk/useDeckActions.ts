@@ -66,7 +66,7 @@ export function useDeckActions({
     decide(item, "archived", "archive");
     void onArchive(item).then((err) => {
       if (!err) return;
-      // The app-server refused: the chat is still live, so it comes back on top with the reason.
+      // The daemon refused: the chat is still live, so it comes back on top with the reason.
       setDecided((d) => d.filter((x) => !(x.item === item && x.action === "archived")));
       setQueue((q) => [item, ...q]);
       say("not archived");

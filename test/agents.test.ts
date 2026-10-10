@@ -102,17 +102,3 @@ describe("agents: memory", () => {
     expect(log[1].files).toEqual(["system/persona.md"]);
   });
 });
-
-describe("agents: permission modes", () => {
-  test("reads the persisted map; missing means the default (unrestricted); main chats key by agent", async () => {
-    const { permissionModeKey, permissionModeOf, readPermissionModes } = await import("../mod/agents.ts");
-    const f = join(dir, "remote-settings.json");
-    writeFileSync(f, JSON.stringify({ permissionModeMap: { "conversation:c1": { mode: "standard" }, "agent:a1::conversation:default": { mode: "acceptEdits" }, "conversation:bad": { mode: "bypassPermissions" } } }));
-    expect(readPermissionModes(f)).toEqual({ "conversation:c1": "standard", "agent:a1::conversation:default": "acceptEdits" });
-    expect(permissionModeOf("a1", "c1", f)).toBe("standard");
-    expect(permissionModeOf("a1", "default", f)).toBe("acceptEdits");
-    expect(permissionModeOf("a1", "c-unknown", f)).toBe("unrestricted");
-    expect(permissionModeKey(null, "default")).toBe("agent:__unknown__::conversation:default");
-    expect(readPermissionModes(join(dir, "nope.json"))).toEqual({});
-  });
-});

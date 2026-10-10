@@ -1,50 +1,29 @@
+import { lokiDir } from "./paths.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { clamp } from "../core/range.ts";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
-import type { Card, CardWithSchedule, DismissedLead, Lead, Lesson, Rejected, WorkerStatus } from "../core/recall/model.ts";
+import type { Card, CardWithSchedule, DismissedLead, Lead, Lesson, Rejected } from "../core/recall/model.ts";
 
 /**
- * The Recall files, under ~/.letta/loki/recall (LOKI_RECALL_DIR in tests):
+ * The Recall files, under ~/.loki/recall (LOKI_RECALL_DIR in tests):
  *   cards/<id>.json      the text and its source — the worker's to write and update
  *   schedule/<id>.json   the person's review history (FSRS state) — never touched by the worker
  *   rejected/<id>.json   deleted cards, kept as negative examples the worker reads before writing
  *   leads/<id>.json      things the person could learn, proposed by the worker (core/recall/model.ts Lead)
  *   leads-dismissed/     leads the person said "not this" to — the worker's negative examples for leads
  *   lessons/<id>.json    leads the person started: the [Learn] conversation each became
- *   worker.json          the worker's settings, its per-conversation cursors and its last run
+ *   worker.json          what the mod's Learn worker kept before the background passes (plan 018): read for its old hidden chats only
  * One file per card so an agent, a person or a sync tool can read and edit any of it by hand.
  */
-export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(homedir(), ".letta", "loki", "recall");
+export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
-interface WorkerFile {
-  enabled: boolean;
-  model: string | null;
-  dailyCap: number;
-  /** Minutes between sweeps (the tick, mod/index.ts). The quiet threshold a conversation must pass stays ten minutes. */
-  tickMinutes?: number;
-  lastRunAt: string | null;
-  lastRunNote: string | null;
-  /** ISO day ("2026-09-10") the count belongs to, and the count. */
-  written: { day: string; count: number };
-  /** Per conversation ("agentId/conversationId"): how many transcript lines the worker has already read for cards. */
-  cursors: Record<string, number>;
-  /** Same, for learning leads: on a day whose cards are all written, leads are still looked for and only this cursor moves. */
-  leadCursors?: Record<string, number>;
-  /** Per agent: the hidden conversation the worker asks its questions in. */
-  /** Before 2026-09-14: the hidden conversation per agent the worker cleared before each ask. Still its own (`owns`), no longer asked. */
+/** Learn's settings, cursors and last run are the daemon's now (daemon/passes-state.ts); worker.json is read for this only. */
+interface LegacyWorkerFile {
+  /** Before 2026-09-14: the hidden conversation per agent the worker cleared before each ask. */
   recallConversations?: Record<string, string>;
-  /** The writer's one long-running conversation per agent (recall-worker.ts `writerConversation`), by agent id. */
+  /** The writer's long-running conversation per agent, by agent id (Letta's era). */
   writers?: Record<string, string>;
 }
-export const DEFAULT_TICK_MINUTES = 10;
-/** A sweep at most once a minute, at least once a day. */
-export const TICK_MINUTES_RANGE = { min: 1, max: 24 * 60 } as const;
-export function clampTickMinutes(n: number): number {
-  return clamp(Math.round(n), TICK_MINUTES_RANGE, DEFAULT_TICK_MINUTES);
-}
-const WORKER_DEFAULTS: WorkerFile = { enabled: false, model: null, dailyCap: 25, tickMinutes: DEFAULT_TICK_MINUTES, lastRunAt: null, lastRunNote: null, written: { day: "", count: 0 }, cursors: {}, leadCursors: {}, recallConversations: {}, writers: {} };
 
 function readJson<T>(path: string): T | null {
   try {
@@ -68,7 +47,7 @@ function listJson<T>(dir: string): T[] {
   return names.map((f) => readJson<T>(join(dir, f))).filter((v): v is T => v !== null);
 }
 /** The calendar day where the Mac is ("2026-09-10"): the cap resets at the person's midnight, not UTC's. */
-const isoDay = (now: number): string => {
+export const isoDay = (now: number): string => {
   const d = new Date(now);
   const two = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
@@ -207,28 +186,10 @@ export class RecallStore {
     return lesson;
   }
 
-  worker(): WorkerFile {
-    const file = readJson<Partial<WorkerFile>>(this.p("worker.json")) ?? {};
-    return { ...WORKER_DEFAULTS, ...file, cursors: { ...(file.cursors ?? {}) }, leadCursors: { ...(file.leadCursors ?? {}) }, recallConversations: { ...(file.recallConversations ?? {}) }, writers: { ...(file.writers ?? {}) } };
-  }
-  saveWorker(update: Partial<WorkerFile>): WorkerFile {
-    const next = { ...this.worker(), ...update };
-    writeJson(this.p("worker.json"), next);
-    return next;
-  }
-  /** Cards written today against the cap; the day rolls over on its own. */
-  writtenToday(now = Date.now()): number {
-    const w = this.worker();
-    return w.written.day === isoDay(now) ? w.written.count : 0;
-  }
-  noteWritten(n: number, now = Date.now()): void {
-    const day = isoDay(now);
-    const w = this.worker();
-    this.saveWorker({ written: { day, count: (w.written.day === day ? w.written.count : 0) + n } });
-  }
-  status(now = Date.now()): WorkerStatus {
-    const w = this.worker();
-    return { enabled: w.enabled, model: w.model, dailyCap: w.dailyCap, tickMinutes: w.tickMinutes ?? DEFAULT_TICK_MINUTES, lastRunAt: w.lastRunAt, lastRunNote: w.lastRunNote, writtenToday: this.writtenToday(now) };
+  /** Learn's hidden chats from before the background passes, still its own: never a desk, never an inbox card. */
+  legacyChats(): string[] {
+    const w = readJson<LegacyWorkerFile>(this.p("worker.json")) ?? {};
+    return [...Object.values(w.writers ?? {}), ...Object.values(w.recallConversations ?? {})];
   }
 
   exists(): boolean {

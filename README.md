@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A memory palace your agent builds.</b><br>
-  A canvas for <a href="https://docs.letta.com">Letta Code</a> agents on macOS, with Windows and Linux in preview:
+  Your own AI agents on macOS, with Windows and Linux in preview, each chat with a canvas:
   live widgets the agent writes as files, an inbox of everything waiting on you, a shared task board, flashcards
   from your conversations, and your phone as a remote.
 </p>
@@ -28,24 +28,24 @@ you did rides along on your next message, so the agent sees the canvas the way y
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
-Cloned the repo and want it running on a Mac? Three tools, then two commands (Windows and Linux need other
+Cloned the repo and want it running on a Mac? Four tools, then two commands (Windows and Linux need other
 tools first; see [Development](#development)):
 
 ```bash
-xcode-select --install                                              # Xcode's command line tools, once
+xcode-select --install                                              # Xcode's command line tools (and git), once
+brew install node                                                   # Node 22.19 or newer, for loki's daemon
 curl -fsSL https://bun.sh/install | bash                            # Bun
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh      # Rust; then open a new terminal
 bun install && bun start
 ```
 
-Letta Code need not be installed first: the window uses the `letta` already on your Mac, or installs it with
-`npm install -g @letta-ai/letta-code` using the Node you have (`brew install node` if none; Vite and the Tauri CLI
-themselves run under Bun). `bun start` says what is missing before it builds. The first start compiles the shell,
-a few minutes, and installs Letta Code if need be; the window then asks for a model provider key: one you already
-have with Anthropic, OpenAI, Google, OpenRouter, Ollama for local models, or another of the providers Letta Code
-connects to. Letta checks the key with the provider and keeps it; loki never sees it, and each turn costs whatever
-that provider charges. Everything else, including the Homebrew install of the finished app, is under
-[Install](#install) and [Development](#development).
+loki runs its agents in its own daemon, a Node process the window starts; that is what Node is for (Vite and the
+Tauri CLI themselves run under Bun). git keeps each agent's memory. `bun start` says what is missing before it
+builds. The first start compiles the shell, a few
+minutes; the window then asks for a model provider: an API key you already have with Anthropic, OpenAI, Google,
+OpenRouter, Ollama for local models, or another provider, or signing in with ChatGPT. loki checks the key with the
+provider and keeps it in your system's keychain; each turn costs whatever that provider charges. Everything else,
+including the Homebrew install of the finished app, is under [Install](#install) and [Development](#development).
 
 ## What you get
 
@@ -54,8 +54,8 @@ that provider charges. Everything else, including the Homebrew install of the fi
 | **Chats** | ⌘1 | One chat per conversation, its canvas furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Chats sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Canvas** holds the widgets, to pan, zoom, arrange, undo. ⌘K finds any chat, agent or page. |
 | **Inbox** | ⌘2 | Every chat you haven't archived, as cards, highest score first: blocked agents, then what's new, then the chats you have been working in, learned from what you do (a task you move on from fades on its own). Approve and reply inline; a reply keeps the card while the answer streams in. **Next** moves on and the chat comes back next visit; **Archive** is done. ⌥Space opens it from anywhere on the Mac. |
 | **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a chat, or dispatch so the agent starts now. |
-| **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, Letta's reflection settings, and its skills with one-click refresh from upstream. |
-| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations, and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how often it sweeps and how many cards a day are yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
+| **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, its reflection settings, and its skills with one-click refresh from upstream. |
+| **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations — only concepts and knowledge that last, never the details of a task — and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how many cards a day is yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
 | **Phone** | | The inbox, every chat, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and read agree with the Mac. Mac only for now. |
 
 Keys are written the Mac's way. On Windows and Linux ⌘ is Ctrl and ⌥ is Alt, and loki shows them that way; the
@@ -128,19 +128,27 @@ sudo apt install libfuse2
 chmod +x loki_*_amd64.AppImage && ./loki_*_amd64.AppImage
 ```
 
-On both, upgrades are the next file from the releases page; Settings › letta links the one for your system when a
+On both, upgrades are the next file from the releases page; Settings › loki links the one for your system when a
 newer release carries it. There is no Homebrew, winget or Flatpak package yet.
 
-You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux. The cask brings Node;
-the `.dmg`, Windows and Linux routes need a Node 22.19 or newer (`brew install node`,
-`winget install OpenJS.NodeJS.LTS`, or your distribution's package) only if no `letta` is installed yet. loki
-never downloads Node; Welcome says what to run and checks again. On first launch loki uses the Letta Code already
-on the machine — the same `letta` a terminal runs — or installs it with `npm install -g @letta-ai/letta-code`,
-asks for a model provider key (Anthropic, OpenAI, Google, OpenRouter, Ollama and others; you pay that provider,
-loki never sees the key), and helps you name your first agent. Then ask it to put something on the canvas. If
-Letta Desktop or a `letta server` is already running, loki attaches to that harness instead of launching one.
-loki runs whatever Letta Code is installed; it was last tested with 0.32.10, and Settings › Letta says where
-yours stands against that and offers the update.
+You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop Linux, and:
+
+1. **Node 22.19 or newer**, which runs loki's daemon. The cask brings it; for the `.dmg`, Windows and Linux,
+   install one yourself (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or your distribution's
+   package). loki never downloads Node; if it finds none new enough, Welcome says what to run and checks again.
+2. **git**, which keeps each agent's memory as a repo with history (Xcode's command line tools bring it on a Mac).
+3. **bd** ([beads](https://github.com/steveyegge/beads)), optional, for the board.
+
+On first launch loki asks for a model provider: an API key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
+others) or signing in with ChatGPT. Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
+key is checked with the provider and kept in your system's keychain, and you pay that provider for what you use.
+Then loki helps you name your first agent; ask it to put something on the canvas.
+
+### Coming from Letta
+
+loki used to run on Letta Code. The release dated 2026-10-10 carries a one-time import (Settings › loki › Import)
+that brings Letta's agents, memory, conversations, keys and schedules over; later releases do not. loki's folder
+moves from `~/.letta/loki` to `~/.loki` on its own, with a link left at the old path.
 
 ## Your first widget
 
@@ -151,7 +159,7 @@ Say, in the chat:
 The agent writes one file:
 
 ```json
-// ~/.letta/loki/widgets/<desk>/runs.json   (<desk> is the chat's id)
+// ~/.loki/widgets/<desk>/runs.json   (<desk> is the chat's id)
 { "type": "chart-card", "title": "Runs this week",
   "data": { "kind": "bar", "yLabel": "km", "points": [ { "x": "Mon", "y": 5.2 }, { "x": "Wed", "y": 8.1 } ] } }
 ```
@@ -166,43 +174,48 @@ the agent reads is the whole contract.
 ```mermaid
 flowchart LR
   you([you]) <--> app[loki.app<br/>chats, inbox, board]
-  app <-->|"/appserver tunnel"| mod[loki mod<br/>inside the Letta Code harness]
-  mod <--> harness[Letta Code<br/>agents, memory, tools]
-  harness --> files[("~/.letta/loki/widgets/<br/>.json and .tsx")]
+  app <-->|"/ws frames"| daemon[loki daemon<br/>agents, memory, tools, loki's mod]
+  daemon <-->|HTTPS| provider[(model provider)]
+  daemon --> files[("~/.loki/widgets/<br/>.json and .tsx")]
   files -->|"watched, hot-reloaded"| app
-  app -->|"what you did on the canvas<br/>rides on your next message"| mod
+  app -->|"what you did on the canvas<br/>rides on your next message"| daemon
 ```
 
-Three parts, one repo: a **Letta mod** that runs inside the harness and owns the files, a **Rust shell** that
-finds or installs Letta Code, launches or attaches to the harness and hosts the window, and a **React app** that
-renders the canvas. The mod streams conversations to the app through a tunnel, the app watches the widget files
-through Vite, and your gestures on the canvas go back to the agent as context on the next turn. Every Letta
-harness on the Mac loads the mod, but only the one hosting an app-server serves the app; a terminal `letta`
-session logs one line and stands down. Nothing leaves your machine except your messages to the provider you
-chose. [docs/architecture.md](docs/architecture.md) has the long version.
+Three parts, one repo. A **Rust shell** opens the window and keeps loki's **daemon** running: one Node process,
+built on Earendil's Pi libraries (pi-durable for the agent loop, pi-ai for the models), that holds every agent's
+chats in a SQLite store per agent, runs the tools under your permission mode, keeps memory as git repos, and saves
+each step before it shows it, so a turn cut off by a crash picks up where it stopped. Inside the daemon runs
+**loki's mod**, which owns the canvas, the board and Learn and serves the **React app** over one WebSocket. The app
+watches the widget files, and your gestures on the canvas go back to the agent as context on the next turn.
+Nothing leaves your machine except your messages to the provider you chose. [docs/architecture.md](docs/architecture.md)
+has the long version.
 
 ## Layout
 
 ```text
-mod/            Letta mod, plain TypeScript; boot.ts bundles it fresh on each /reload (no manual build)
-core/           desk-core (types + the pure gesture reducer both halves use), attention, recall, compat (the Letta Code range) — portable, no browser globals
+daemon/         loki's daemon (Node): the agent stores on pi-durable, providers and keychain, approvals, tools, memory,
+                reflection, skills, subagents, background and scheduled tasks, the mod registry
+mod/            loki's own mod, run inside the daemon: canvas, gestures, board, Learn, the sockets for app and phone;
+                boot.ts re-bundles it on each change in a checkout (no manual build)
+core/           desk-core (types + the pure gesture reducer both halves use), the frame table, attention, recall —
+                portable, no browser globals
 app/            Vite + React: the desktop views, the canvas and the phone
 skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
-src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): finds or installs Letta Code, launches or attaches to the harness, hosts the canvas
-scripts/        dev (`bun start`), build-mod (the bundle the app ships), harness (run the mod without Letta), cask (Homebrew),
-                release (date versions, notes), analytics (the local usage report)
-test/           bun tests
+src-tauri/      the desktop shell (Rust; macOS, Windows, Linux): finds Node, starts and supervises the daemon, hosts the
+                canvas
+scripts/        dev (`bun start`), build-mod (the daemon and mod bundles the app ships), trial (the timing trial), cask
+                (Homebrew), release (date versions, notes), analytics (the local usage report)
+test/           bun tests; test-node/ the tests that need Node (SQLite stores, resuming after a crash)
 docs/           the manual, learn (the mental model), architecture, design direction, dated plans and research; CONTRIBUTING, SECURITY and RELEASING
 ```
 
 ## Development
 
 You need [Bun](https://bun.sh), Rust from [rustup](https://rustup.rs) (stable; open a new terminal after installing
-it) and Xcode's command line tools (`xcode-select --install`). Not Letta Code: the window uses the `letta` on
-your Mac or installs it with npm on first launch, the same way the app does (that needs a Node 22 or newer
-somewhere; Vite and the Tauri CLI themselves run under Bun). On a Mac that has never run loki, `bun start`
-also points Letta at your checkout — a shim at `~/.letta/mods/loki.ts` importing `mod/boot.ts`, and
-`~/.agents/skills/loki` as a symlink to `skills/loki` — and leaves anything already there alone.
+it), Xcode's command line tools (`xcode-select --install`), and a Node 22.19 or newer for the daemon (Vite and the
+Tauri CLI themselves run under Bun). A development window runs the checkout's own daemon, `daemon/main.ts` with
+`mod/boot.ts`, so an edit to the mod reloads it in place. On a machine that has never run loki, it also links
+`~/.agents/skills/loki` to `skills/loki`, and leaves anything already there alone.
 
 ```bash
 bun install
@@ -210,14 +223,15 @@ bun start                                         # Vite on 127.0.0.1:5173, the 
 bun run dev                                       # Vite alone, for a browser tab
 bun run desktop:dev                               # the Tauri window against a Vite already running
 bun test && bun run typecheck && bun run lint     # bun tests, tsc, eslint (typescript-eslint + React compiler rules)
+bun run test:node                                 # the tests that need Node: SQLite stores, resuming after a crash, mod reloads
+bun run build:mod                                 # the daemon and mod bundles the app ships (tauri runs it before dev and build)
 cargo test --manifest-path src-tauri/Cargo.toml   # the shell
 bun run desktop:build                             # the .app and .dmg
 ```
 
 The app is built with the React Compiler, so memo boundaries hold without hand-written `useCallback`;
 `LOKI_COMPILER_LOG=1 bun run build:app` lists what it declined to compile. In development, `?scan` on the dev
-URL loads React Scan and outlines every needless re-render. To point a running Letta at your checkout instead
-of the installed mod, see the manual's [Install (development)](docs/manual.md#install-development).
+URL loads React Scan and outlines every needless re-render.
 
 On **Windows**, install the Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the
 WebView2 runtime (Windows 11 has it) in place of Xcode's tools, and run the commands from Git Bash. On
@@ -228,8 +242,8 @@ WebView2 runtime (Windows 11 has it) in place of Xcode's tools, and run the comm
 ## Read on
 
 - [The manual](docs/manual.md): every view, every key, every file loki writes.
-- [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a sweep costs.
-- [Architecture](docs/architecture.md): Letta's four layers and the journey of a message.
+- [Learn](docs/learn.md): the mental model for the card writer, leads and lessons, and what a run costs.
+- [Architecture](docs/architecture.md): the processes that run, what the daemon holds, and the journey of a message.
 - [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/RELEASING.md).
 

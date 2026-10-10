@@ -52,11 +52,11 @@ describe("bridge", () => {
     const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m) });
     const c = client("c1");
     bridge.onConnect(c);
-    expect(c.sent.map((m) => [m.type, m.scope])).toEqual([["config", undefined], ["desk", "c1"], ["desk", "shared"]]);
-    expect((c.sent[1].widgets as unknown[]).length).toBe(1);
+    expect(c.sent.map((m) => [m.type, m.scope])).toEqual([["desk", "c1"], ["desk", "shared"]]);
+    expect((c.sent[0].widgets as unknown[]).length).toBe(1);
     const s = client("shared");
     bridge.onConnect(s);
-    expect(s.sent.map((m) => m.type)).toEqual(["config", "desk"]);
+    expect(s.sent.map((m) => m.type)).toEqual(["desk"]);
   });
 
   test("gesture updates the widget's desk and logs under the widget's desk with before-value", () => {
@@ -120,9 +120,8 @@ describe("bridge", () => {
     });
     const c = client("c1");
     bridge.onConnect(c);
-    expect(c.sent[0]).toMatchObject({ type: "config" });
-    expect(c.sent[1]).toMatchObject({ type: "desk", scope: "c1", title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", reasoningEffort: "high" });
-    expect(c.sent[2]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
+    expect(c.sent[0]).toMatchObject({ type: "desk", scope: "c1", title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", reasoningEffort: "high" });
+    expect(c.sent[1]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
     bridge.onConnect(client("gone"));
     await new Promise((r) => setTimeout(r, 10));
   });
@@ -501,8 +500,9 @@ describe("recall frames", () => {
       const store = new RecallStore(dir);
       store.add({ id: "k1", front: "Q1?", back: "A1", tags: ["t"], source: { agentId: "a", agentName: "ira", conversationId: "c", title: null, at: null }, createdAt: "2026-09-10T08:00:00Z", updatedAt: "2026-09-10T08:00:00Z", updatedBy: "recall", previous: [] });
       const broadcasts: Array<Record<string, unknown>> = [];
-      const rescheduled: number[] = [];
-      const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), recall: { store, run: async () => ({ note: "ran" }), reschedule: (m) => rescheduled.push(m) } });
+      // Learn's settings and status are the daemon's; here a plain object stands in for them.
+      const status = { enabled: true, dailyCap: 25, lastRunAt: null, lastRunNote: null, writtenToday: 0 };
+      const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), recall: { store, status: () => status, setSettings: async (s) => void Object.assign(status, s), run: async () => ({ note: "ran" }) } });
       const c = client("c1");
       bridge.onMessage(c, { type: "recall_list", requestId: "r1" });
       const list = c.sent.pop()!;
@@ -523,20 +523,9 @@ describe("recall frames", () => {
       expect(store.cards()).toEqual([]);
       bridge.onMessage(c, { type: "recall_restore", requestId: "r6", id: "k1" });
       expect((c.sent.pop()!.card as { card: { id: string } }).card.id).toBe("k1");
-      bridge.onMessage(c, { type: "recall_settings", requestId: "r7", dailyCap: 3, model: "anthropic/claude-haiku-4-5", enabled: false });
-      expect((c.sent.pop()!.worker as { dailyCap: number; model: string; enabled: boolean })).toMatchObject({ dailyCap: 3, model: "anthropic/claude-haiku-4-5", enabled: false });
-      // the sweep interval: clamped to [1, 1440] minutes, and the timer is told only when it changes
-      bridge.onMessage(c, { type: "recall_settings", requestId: "r7b", tickMinutes: 45 });
-      expect((c.sent.pop()!.worker as { tickMinutes: number }).tickMinutes).toBe(45);
-      expect(rescheduled).toEqual([45]);
-      bridge.onMessage(c, { type: "recall_settings", requestId: "r7c", tickMinutes: 45 });
-      c.sent.pop();
-      expect(rescheduled).toEqual([45]);
-      bridge.onMessage(c, { type: "recall_settings", requestId: "r7d", tickMinutes: 0.2 });
-      expect((c.sent.pop()!.worker as { tickMinutes: number }).tickMinutes).toBe(1);
-      bridge.onMessage(c, { type: "recall_settings", requestId: "r7e", tickMinutes: 99999 });
-      expect((c.sent.pop()!.worker as { tickMinutes: number }).tickMinutes).toBe(1440);
-      expect(rescheduled).toEqual([45, 1, 1440]);
+      bridge.onMessage(c, { type: "recall_settings", requestId: "r7", dailyCap: 3, enabled: false });
+      await new Promise((r) => setTimeout(r, 0));
+      expect((c.sent.pop()!.worker as { dailyCap: number; enabled: boolean })).toMatchObject({ dailyCap: 3, enabled: false });
       bridge.onMessage(c, { type: "recall_export", requestId: "r8" });
       expect(c.sent.pop()!.tsv).toBe("Q1?\tA1 better\tt\n");
       bridge.onMessage(c, { type: "recall_run", requestId: "r9" });

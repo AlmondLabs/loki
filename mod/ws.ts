@@ -1,11 +1,11 @@
 /**
- * The `ws` the mod uses, chosen at runtime. Letta Code runs under Bun when one is on PATH (its launcher prefers
- * it) and under Node otherwise. Bun ships its own `ws`, and the copy esbuild inlines into the release bundle
- * (~/.letta/loki/mod/loki-mod.mjs) cannot finish a handshake there: the 101 arrives as an "unexpected response"
- * and the socket closes before it opens, so the mod never found the app-server and Catch Up, the card writer and
- * lessons went quietly dark on any Mac with Bun. Under Bun, ask the runtime for its own module (Bun resolves the
- * bare specifier without a node_modules); under Node, the inlined copy is the one that works. The development
- * bundle (mod/boot.ts) leaves packages external, so it always had the runtime's own.
+ * The `ws` the mod uses, chosen at runtime. loki's daemon runs the mod under Node, but the tests and a mod
+ * loaded by hand may run it under Bun. Bun ships its own `ws`, and the copy esbuild inlines into the release
+ * bundle (~/.loki/mod/loki-mod.mjs) cannot finish a handshake there: the 101 arrives as an "unexpected response"
+ * and the socket closes before it opens (it once left the mod's client sockets quietly dark on any Mac with Bun). Under Bun,
+ * ask the runtime for its own module (Bun resolves the bare specifier without a node_modules); under Node, the
+ * inlined copy is the one that works. The development bundle (mod/boot.ts) leaves packages external, so it always
+ * had the runtime's own.
  */
 import { WebSocket as BundledWebSocket, WebSocketServer as BundledWebSocketServer } from "ws";
 

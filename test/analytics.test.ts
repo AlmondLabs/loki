@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EVENTS, analyticsReport, formatAnalyticsReport, isDeviceType, isEventName, makeEvent, parseEvents, type AnalyticsEvent, type DeviceType } from "../core/analytics.ts";
+import { EVENTS, analyticsReport, percentile, formatAnalyticsReport, isDeviceType, isEventName, makeEvent, parseEvents, type AnalyticsEvent, type DeviceType } from "../core/analytics.ts";
 import { createAnalytics } from "../mod/analytics.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
@@ -58,9 +58,9 @@ describe("analytics: the report", () => {
     ev(0, "message_sent", { origin: "desk", images: 0, queued: true }, "mac", "s1"),
     ev(1, "message_sent", { origin: "inbox", images: 0, queued: false }, "mac", "s2"),
     ev(1, "message_sent", { origin: null, images: 0, queued: false }, "phone", "p1"),
-    ev(0, "turn_started", { desk: "a" }, "mod", "m1"),
-    ev(0, "turn_started", { desk: "a" }, "mod", "m1", 3),
-    ev(2, "turn_started", { desk: "b" }, "mod", "m2"),
+    ev(0, "turn_finished", { desk: "a", origin: "message" }, "mod", "m1"),
+    ev(0, "turn_finished", { desk: "a", origin: "message" }, "mod", "m1", 3),
+    ev(2, "turn_finished", { desk: "b", origin: "schedule" }, "mod", "m2"),
     ev(0, "model_switched", { model: "openai/gpt-5", effort: "high" }, "mac", "s1"),
     ev(1, "conversation_marked_seen", {}, "phone", "p1", 4),
     ev(1, "conversation_kept_unread", {}, "phone", "p1", 6),
@@ -82,14 +82,14 @@ describe("analytics: the report", () => {
     const row = (name: string) => r.events.find((e) => e.event === name);
     expect(r.events[0].event).toBe("message_sent");
     expect(row("view_opened")).toEqual({ event: "view_opened", count: 3, sessions: 2, mac: 3, windows: 0, linux: 0, phone: 0, mod: 0 });
-    expect(row("turn_started")).toEqual({ event: "turn_started", count: 3, sessions: 2, mac: 0, windows: 0, linux: 0, phone: 0, mod: 3 });
+    expect(row("turn_finished")).toEqual({ event: "turn_finished", count: 3, sessions: 2, mac: 0, windows: 0, linux: 0, phone: 0, mod: 3 });
     expect(row("conversation_marked_seen")).toEqual({ event: "conversation_marked_seen", count: 2, sessions: 2, mac: 1, windows: 0, linux: 0, phone: 1, mod: 0 });
   });
 
   test("breakdowns follow each event's key property; a null value is left out", () => {
     const by = (name: string) => r.breakdowns.find((b) => b.event === name);
     expect(by("view_opened")).toEqual({ event: "view_opened", property: "view", values: [["inbox", 2], ["desk", 1]] });
-    expect(by("turn_started")?.values).toEqual([["a", 2], ["b", 1]]);
+    expect(by("turn_finished")?.values).toEqual([["message", 2], ["schedule", 1]]);
     expect(by("message_sent")?.values).toEqual([["desk", 2], ["inbox", 1]]);
     expect(by("model_switched")?.values).toEqual([["openai/gpt-5", 1]]);
   });
@@ -123,6 +123,85 @@ describe("analytics: the report", () => {
     const text = formatAnalyticsReport(pc);
     expect(text).toContain("sessions 8 (mac 3 · windows 1 · linux 1 · phone 1 · mod 2)");
     expect(text).toMatch(/event +count +sessions +mac +windows +linux +phone +mod/);
+  });
+});
+
+describe("analytics: the harness, from the daemon's turns", () => {
+  const turn = (over: Record<string, unknown>) => ({ desk: "a", origin: "message", model: "openai/gpt-x", harness_version: "abc1234", ttft_ms: 500, overhead_ms: 40, total_ms: 2000, cost: 0.01, input_tokens: 100, cache_read_tokens: 300, cache_write_tokens: 0, error: false, tool_calls: 2, tool_failures: 0, ...over });
+  const events = [
+    ev(0, "turn_finished", turn({}), "mod", "m1"),
+    ev(0, "turn_finished", turn({ ttft_ms: 900, overhead_ms: 100, total_ms: 6000, cost: 0.03, tool_failures: 1 }), "mod", "m1", 1),
+    ev(0, "turn_finished", turn({ ttft_ms: null, total_ms: 50, overhead_ms: 50, cost: 0, input_tokens: 0, cache_read_tokens: 0, tool_calls: 0, error: true, error_code: "no_model" }), "mod", "m1", 2),
+    ev(0, "turn_finished", turn({ model: "anthropic/claude-x", harness_version: "def5678-dirty", ttft_ms: 300, total_ms: 1000, cost: 0.02, input_tokens: 50, cache_read_tokens: 50 }), "mod", "m1", 3),
+    ev(0, "turn_finished", { desk: "a", duration_ms: 4000 }, "mod", "m1", 4), // the mod's, from before the daemon measured turns
+  ];
+  const r = analyticsReport(events, { now: NOW, days: 30 });
+
+  test("percentiles are nearest-rank", () => {
+    expect(percentile([], 0.5)).toBeNull();
+    expect(percentile([5, 1, 3], 0.5)).toBe(3);
+    expect(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9)).toBe(9);
+  });
+
+  test("by model and by harness version: time spreads, cost a turn, cache share, error and tool-failure rates", () => {
+    expect(r.harness.turns).toBe(4);
+    const gpt = r.harness.byModel.find((row) => row.key === "openai/gpt-x")!;
+    expect(gpt).toEqual({
+      key: "openai/gpt-x",
+      turns: 3,
+      ttftMs: { p50: 500, p90: 900 },
+      overheadMs: { p50: 50, p90: 100 },
+      totalMs: { p50: 2000, p90: 6000 },
+      costPerTurn: 0.04 / 3,
+      cacheShare: 600 / 800,
+      errorRate: 1 / 3,
+      toolFailureRate: 1 / 4,
+    });
+    expect(r.harness.byModel.map((row) => row.key)).toEqual(["openai/gpt-x", "anthropic/claude-x"]);
+    expect(r.harness.byVersion.map((row) => [row.key, row.turns])).toEqual([["abc1234", 3], ["def5678-dirty", 1]]);
+  });
+
+  test("the text report has a harness section, and none without measured turns", () => {
+    const text = formatAnalyticsReport(r);
+    for (const s of ["harness 4 turns", "by model", "by harness version", "openai/gpt-x", "def5678-dirty", "500ms/900ms", "2.0s/6.0s", "75%", "33%", "25%"]) expect(text).toContain(s);
+    expect(formatAnalyticsReport(analyticsReport([ev(0, "view_opened", { view: "inbox" })], { now: NOW, days: 30 }))).not.toContain("harness");
+  });
+
+  test("a helper's, Learn's or reflection's turn is not one you are waiting to answer", () => {
+    const e = (event: string, props: Record<string, unknown>, minute: number) => ev(0, event, props, "mac", "s1", minute);
+    const answered = analyticsReport([e("turn_finished", { desk: "a", origin: "subagent" }, 0), e("message_sent", { desk: "a" }, 10)], { now: NOW, days: 30 });
+    expect(answered.engagement.respondMinutes).toBeNull();
+    const yours = analyticsReport([e("turn_finished", { desk: "a", origin: "message" }, 0), e("message_sent", { desk: "a" }, 10)], { now: NOW, days: 30 });
+    expect(yours.engagement.respondMinutes).toBe(10);
+  });
+});
+
+describe("analytics: the background passes", () => {
+  const run = (over: Record<string, unknown>, minute: number) => ev(0, "pass_finished", { job: "learn", agent: "a1", chat: "c", entries_read: 10, outcome: "changed", items: {}, duration_ms: 900, request_id: null, ...over }, "mod", "m1", minute);
+  const cost = (requestId: string, c: number, minute: number) => ev(0, "turn_finished", { desk: "x", origin: "recall", total_ms: 900, overhead_ms: 10, cost: c, request_id: requestId }, "mod", "m1", minute);
+  const r = analyticsReport(
+    [
+      cost("pass:learn:c1:10", 0.02, 0),
+      run({ request_id: "pass:learn:c1:10", items: { cards: 2, revisions: 1, leads: 0 } }, 1),
+      cost("pass:learn:c2:4", 0.04, 2),
+      run({ request_id: "pass:learn:c2:4", outcome: "nothing", items: { cards: 0, revisions: 0, leads: 0 } }, 3),
+      run({ job: "reflection", request_id: "pass:reflection:c1:10", outcome: "failed" }, 4),
+      run({ job: "reflection", request_id: "pass:reflection:c3:8", items: { memory_changes: 3 } }, 5),
+    ],
+    { now: NOW, days: 30 },
+  );
+
+  test("by job: runs, how they ended, what they wrote, and a run's mean cost from its turn", () => {
+    expect(r.passes).toEqual([
+      { job: "learn", runs: 2, outcomes: { changed: 1, nothing: 1 }, items: { cards: 2, revisions: 1, leads: 0 }, costPerRun: 0.03 },
+      { job: "reflection", runs: 2, outcomes: { failed: 1, changed: 1 }, items: { memory_changes: 3 }, costPerRun: null },
+    ]);
+  });
+
+  test("the text report has a background passes section, and none without runs", () => {
+    const text = formatAnalyticsReport(r);
+    for (const s of ["background passes", "learn", "changed 1 · nothing 1", "cards 2 · revisions 1", "$0.030", "memory_changes 3"]) expect(text).toContain(s);
+    expect(formatAnalyticsReport(analyticsReport([ev(0, "view_opened", { view: "inbox" })], { now: NOW, days: 30 }))).not.toContain("background passes");
   });
 });
 

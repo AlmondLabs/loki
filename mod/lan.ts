@@ -24,7 +24,7 @@ import { isLanVia } from "../core/frames.ts";
  *   POST /unpair                       clears the cookie and forgets the device
  *   GET  /agents/<id>/profile.png      device auth (cookie or bearer), never ?t=
  *   POST/DELETE /uploads               a file attached to a message (mod/uploads.ts), device auth, same-site only
- *   /ws, /appserver                    the same bridge as loopback, device auth only
+ *   /ws                                the same bridge as loopback, device auth only
  *   everything else                    the built canvas as a single-page app (mod/static.ts)
  * The desktop token is refused here even when presented as a bearer.
  */

@@ -30,7 +30,7 @@ export async function imageFromBlob(blob: Blob): Promise<ImageAttachment> {
   return { id: `img-${Math.random().toString(36).slice(2, 9)}`, mediaType, data: url.slice(url.indexOf(",") + 1), url };
 }
 
-/** Letta's default for a channel's media (mod/uploads.ts UPLOAD_MAX_BYTES): checked here too, before a long upload. */
+/** The upload limit (mod/uploads.ts UPLOAD_MAX_BYTES): checked here too, before a long upload. */
 export const FILE_MAX_BYTES = 25 * 1024 * 1024;
 
 /** Every file out of a paste or drop, split into images (sent inside the message) and the rest (uploaded). */

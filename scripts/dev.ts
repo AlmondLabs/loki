@@ -1,19 +1,18 @@
 // One command for a development session: `bun start` (package.json "start").
 //   0. Preflight: the Rust toolchain `tauri dev` needs (on PATH or where rustup puts it) and, on a Mac, Xcode's
 //      command line tools, which cargo links with there.
-//      Node is not required: Vite and the Tauri CLI are Node programs, and a Mac without Node runs them with Bun.
+//      Vite and the Tauri CLI are Node programs, and a Mac without Node runs them with Bun; loki's daemon needs a Node
+//      22.19 or newer, which the window finds itself (Welcome says how to install one when there is none).
 //   1. Vite on 127.0.0.1:5173, unless loki's own Vite already answers there (a `bun run dev` in another terminal).
 //      Another project's dev server on that port is refused rather than shown in the window.
 //   1b. A watching build of the same app into app/dist, which the phone is served (the Mac's window runs from Vite, the
 //      phone from the build): a change reaches the phone about ten seconds later, and it offers a reload.
 //   2. `tauri dev` against it — its beforeDevCommand bundles the mod first — which opens the window.
-//   3. A watch for the mod on its port: the window links to Letta's app-server on its own, but the desk needs the
-//      mod inside the harness, and a harness that never loaded it shows only as Vite's proxy errors. One line says why.
-//      On a Mac with no Letta Code the window installs it with npm first (Welcome shows the progress); the clock for
-//      the mod starts once a `letta` exists where installers put it.
+//   3. A watch for the mod on its port: the window starts loki's daemon, which hosts the mod, and a daemon that never
+//      came up shows only as Vite's proxy errors. One paragraph says why, and where its log is.
 // Ctrl-C (or the window closing) stops what this script started and nothing else. `--check` only reports.
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, watch } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,20 +34,7 @@ const exeNames = (name: string): string[] => (windows ? [`${name}.exe`, `${name}
 const ENTRIES: Record<string, string> = { vite: "../node_modules/vite/bin/vite.js", tauri: "../node_modules/@tauri-apps/cli/tauri.js" };
 const bin = (name: string) => fileURLToPath(new URL(windows ? ENTRIES[name] : `../node_modules/.bin/${name}`, import.meta.url));
 const home = homedir();
-const shimPath = join(home, ".letta", "mods", "loki.ts");
-const harnessLog = join(home, ".letta", "loki", "logs", "harness.log");
-const installLog = join(home, ".letta", "loki", "logs", "install.log");
-/** Where a `letta` may be, beyond PATH (src-tauri/src/bootstrap.rs `bin_dirs`): the window looks in the same places. */
-const lettaDirs = [
-  ...(process.env.PATH ?? "").split(delimiter),
-  ...(windows
-    ? [join(process.env.APPDATA ?? join(home, "AppData", "Roaming"), "npm"), join(process.env.LOCALAPPDATA ?? join(home, "AppData", "Local"), "Volta", "bin")]
-    : [...(mac ? ["/opt/homebrew/bin"] : []), "/usr/local/bin", ...(mac ? [] : ["/usr/bin"]), join(home, ".volta", "bin"), join(home, ".bun", "bin"), join(home, ".npm-global", "bin"), join(home, ".local", "bin")]),
-].filter(Boolean);
-const lettaFound = (): string | null => process.env.LOKI_LETTA_BIN ?? lettaDirs.flatMap((d) => exeNames("letta").map((n) => join(d, n))).find((p) => existsSync(p)) ?? null;
-const firstLaunch = lettaFound() === null;
-/** How long a first launch may take to install Letta Code before the script gives up waiting for it. */
-const INSTALL_WAIT_MS = 30 * 60_000;
+const daemonLog = join(home, ".loki", "logs", "daemon.log");
 
 /** Where `name` is, on PATH; null if nowhere. */
 function onPath(name: string, path = process.env.PATH ?? ""): string | null {
@@ -148,12 +134,11 @@ if (process.argv.includes("--check")) {
   const cargo = onPath("cargo") ?? (homeCargo ? homeCargo + " (not on PATH)" : null);
   console.log(cargo ? `rust: cargo at ${cargo}` : "rust: no cargo — `bun start` would stop and say how to install it");
   if (mac) console.log(xcodeToolsPresent() ? "xcode: command line tools present" : "xcode: no command line tools — `bun start` would stop and say to run `xcode-select --install`");
-  console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; Letta Code's npm install needs a Node 22+ somewhere (brew install node)" : `node: ${onPath("node")}`);
+  console.log(nodeless ? "node: none on PATH — Vite and the Tauri CLI would run with Bun; loki's daemon needs a Node 22.19+ somewhere (brew install node)" : `node: ${onPath("node")}`);
   console.log(vite === "ours" ? `vite: loki's, already answering at ${DEV_URL} — would reuse it` : vite === "other" ? `vite: something else answers at ${DEV_URL} — \`bun start\` would stop` : `vite: not running — would start ${bin("vite")} --config app/vite.config.ts`);
   console.log(`phone: would run ${bin("vite")} build --watch --emptyOutDir=false --config app/vite.config.ts, so app/dist follows the code`);
   console.log(`tauri: would run ${bin("tauri")} dev --config {"build":{"devUrl":"${DEV_URL}"}} (beforeDevCommand bundles the mod)${firstBuild ? "; first build, compiles the shell" : ""}`);
-  console.log(firstLaunch ? "letta: none on PATH or where installers put it — first launch; the window installs it with npm, and the mod wait starts after" : `letta: ${lettaFound()}`);
-  console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts; shim ${existsSync(shimPath) ? "present" : "absent"} at ${shimPath}`);
+  console.log(`mod: ${(await answering(MOD_HEALTH)) ? "answering" : "not answering"} at ${MOD_HEALTH} — would wait up to ${MOD_WAIT_MS / 1000} s after the window starts the daemon`);
   process.exit(0);
 }
 
@@ -164,7 +149,7 @@ if (mac && !xcodeToolsPresent()) {
   process.exit(1);
 }
 env = { ...process.env, PATH: path };
-if (nodeless) console.error("loki dev: no Node on PATH — Vite and the Tauri CLI run with Bun; Letta Code's npm install needs a Node 22+ somewhere (Homebrew's counts)");
+if (nodeless) console.error("loki dev: no Node on PATH — Vite and the Tauri CLI run with Bun; loki's daemon needs a Node 22.19+ somewhere (Homebrew's counts)");
 
 if (vite === "other") {
   console.error([`loki dev: something else is answering at ${DEV_URL} — another project's dev server, not loki's Vite (its page lacks loki's title).`, "  The window would show that page. Stop that server, or start it on another port, then `bun start` again."].join("\n"));
@@ -200,34 +185,43 @@ console.error("loki dev: rebuilding the phone's app (app/dist) as the code chang
 // Not emptied first: the phone keeps being served the last build while the next one is written. Old hashed files pile
 // up until a plain `bun run build:app` clears them. Errors only: its chunk-size and dynamic-import warnings would
 // repeat on every save (a plain `bun run build:app` still shows them).
-const phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
-phoneBuild.on("exit", (code) => {
-  if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
+// A build watch reads its config once (Vite's dev server restarts on a config change; this does not), so a change to
+// app/vite.config.ts starts it afresh; a stale config once left every build failing while the watch looked alive.
+let phoneBuild: ChildProcess;
+let restarting = false;
+const startPhoneBuild = () => {
+  phoneBuild = run(bin("vite"), ["build", "--watch", "--emptyOutDir=false", "--logLevel", "error", "--config", "app/vite.config.ts"]);
+  phoneBuild.on("exit", (code) => {
+    if (restarting) return;
+    if (tauri.exitCode === null) console.error(`loki dev: the phone's build watch exited (${code ?? "signal"}); run \`bun run build:app\` after phone changes`);
+  });
+};
+startPhoneBuild();
+let configTimer: ReturnType<typeof setTimeout> | null = null;
+watch(join(root, "app", "vite.config.ts"), () => {
+  if (configTimer) clearTimeout(configTimer);
+  configTimer = setTimeout(() => {
+    if (tauri.exitCode !== null) return;
+    console.error("loki dev: app/vite.config.ts changed — restarting the phone's build watch");
+    restarting = true;
+    phoneBuild.once("exit", () => {
+      restarting = false;
+      startPhoneBuild();
+    });
+    phoneBuild.kill("SIGTERM");
+  }, 300);
 });
 
-// The mod, once the harness has it. Nothing to say while it comes up; one paragraph if it never does. On a first
-// launch the window installs Letta Code first (npm install -g, with the Node already on the Mac), which takes
-// minutes and shows in Welcome; the clock for the mod starts when a `letta` exists.
+// The mod, once the daemon hosts it. Nothing to say while it comes up; one paragraph if it never does.
 void (async () => {
   const alive = () => tauri.exitCode === null;
-  if (firstLaunch) {
-    console.error("loki dev: first launch — the window is installing Letta Code with npm (Welcome shows the progress); the mod comes up once that finishes");
-    const until = Date.now() + INSTALL_WAIT_MS;
-    while (alive() && Date.now() < until && lettaFound() === null) await new Promise((r) => setTimeout(r, 2000));
-    if (!alive()) return;
-    if (lettaFound() === null) {
-      console.error(`loki dev: Letta Code is still not installed after ${INSTALL_WAIT_MS / 60_000} min — Welcome shows the error and offers a retry; every line is in ${installLog}`);
-      return;
-    }
-  }
   const modUp = await waitFor(MOD_HEALTH, MOD_WAIT_MS, alive);
   if (modUp || !alive()) return;
   console.error(
     [
       `loki dev: the mod is not answering at ${MOD_HEALTH} after ${MOD_WAIT_MS / 1000} s, so the desk has nothing to link to`,
-      "  (Vite's \"ws proxy error\" lines above are that). The mod runs inside the Letta harness; the harness loads it from the shim",
-      `  ${shimPath}${existsSync(shimPath) ? "" : " — which is missing; a dev build writes one pointing at this checkout when the shim is absent, so check the app's own output above"}.`,
-      `  The harness's own log: ${harnessLog}.`,
+      "  (Vite's \"ws proxy error\" lines above are that). The mod runs inside loki's daemon, which the window starts on a Node 22.19+;",
+      `  the window's own output above says whether it found one, and the daemon's log is ${daemonLog}.`,
     ].join("\n"),
   );
 })();

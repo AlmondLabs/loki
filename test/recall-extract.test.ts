@@ -16,7 +16,11 @@ describe("recall prompt", () => {
     expect(p).toContain(`<slice id="s1" conversation="Infra 'AWS'" mode="new" chars="55">\nyou: what does KMS rotation do?`);
     expect(p).toContain('{"cards":[{"slice":"s1"');
     expect(p).not.toContain("keeps failing");
-    expect(p).not.toContain("The deck has");
+    // The objective: concepts, principles and lasting knowledge, never one-off details of the task.
+    expect(p).toContain("a concept or principle the person met");
+    expect(p).toContain("knowledge of their field, business or tools that will still be true in a few months");
+    expect(p).toContain("a one-off detail of the task at hand");
+    expect(p).toContain("zero is the usual answer");
   });
   test("a long slice is cut to its tail", () => {
     const p = buildPrompt({ agentName: null, slices: [{ id: "s1", title: null, mode: "new", text: "x".repeat(30_000) + "END" }], room: 1, existing: [], rejected: [], failing: [] });
@@ -24,7 +28,7 @@ describe("recall prompt", () => {
     expect(p).toContain('conversation="untitled"');
     expect(p.length).toBeLessThan(27_000);
   });
-  test("several slices are read together, a replay says what it is for, and the deck on disk is pointed at", () => {
+  test("several slices are read together, and a replay says what it is for", () => {
     const p = buildPrompt({
       agentName: "ira",
       slices: [
@@ -32,7 +36,7 @@ describe("recall prompt", () => {
         { id: "s2", title: "KMS keys", mode: "new", text: "you: what does KMS rotation do?\nira: …" },
         { id: "s3", title: "Terraform state", mode: "replay", forCard: "c_8f2", text: "you: why is the state locked?\nira: …" },
       ],
-      room: 3, existing: [{ id: "c_8f2", front: "What locks Terraform state?", back: "DynamoDB" }], deck: { path: "/tmp/recall", total: 41 }, rejected: [], failing: [{ id: "c_8f2", front: "What locks Terraform state?", back: "DynamoDB" }],
+      room: 3, existing: [{ id: "c_8f2", front: "What locks Terraform state?", back: "DynamoDB" }], rejected: [], failing: [{ id: "c_8f2", front: "What locks Terraform state?", back: "DynamoDB" }],
       leads: { open: [], started: [], dismissed: [], room: 12 },
     });
     expect(p).toContain("Stretches from 3 conversations follow, labelled s1, s2, s3");
@@ -41,8 +45,6 @@ describe("recall prompt", () => {
     expect(p).toContain('<slice id="s3" conversation="Terraform state" mode="replay" for="c_8f2" chars="');
     expect(p).toContain("here because card c_8f2 keeps failing");
     expect(p).toContain("Existing cards whose wording touches these stretches");
-    expect(p).toContain("The deck has 41 cards in all; 40 are not listed above. Every card is a file under /tmp/recall/cards/");
-    expect(p).toContain("never run shell commands");
     expect(p).toContain("name up to 4 things"); // two per new slice; the replay adds none
     expect(p).toContain('"leads":[{"slice":"s1"');
   });

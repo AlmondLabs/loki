@@ -15,9 +15,9 @@ const names = Object.keys(FRAMES) as FrameName[];
 const parsed = names.filter((n) => FRAMES[n].kind !== "push");
 
 describe("the frame table", () => {
-  test("a paired phone may send exactly the frames it could before the table", () => {
+  test("a paired phone may send exactly the frames it could before the table, and the daemon's chat frames", () => {
     expect([...PHONE_FRAMES].sort() as string[]).toEqual(
-      ["capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add", "desk_get"].sort(),
+      ["chat_open", "chat_approve", "chat_answer", "chat_command", "chat_create", "chat_send", "chat_abort", "chat_update", "chat_folder", "chat_model", "chat_models", "chat_agents", "capture", "list_desks", "seen_list", "seen_mark", "seen_unmark", "viewed_mark", "history_get", "inbox_list", "pin_set", "folders_get", "agent_get", "memory_read", "memory_log", "memory_diff", "recall_list", "recall_grade", "recall_reject", "recall_restore", "recall_edit", "recall_export", "recall_lead_start", "recall_lead_dismiss", "recall_lead_restore", "models_recent_add", "focus_add", "desk_get"].sort(),
     );
   });
 
@@ -46,10 +46,23 @@ describe("the frame table", () => {
     }
   });
 
+  test("the background passes' settings: each part optional, wrong kinds refused", () => {
+    expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: false } })).toEqual({ reflection: { enabled: false } });
+    expect(FRAMES.chat_passes_set.parse({ learn: { enabled: true, dailyCap: 3.7 } })).toEqual({ learn: { enabled: true, dailyCap: 3 } });
+    expect(FRAMES.chat_passes_set.parse({})).toEqual({});
+    expect(FRAMES.chat_passes_set.parse({ learn: { dailyCap: -1 } })).toBe("learn.dailyCap must be a number, 0 or more");
+    expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: "yes" } })).toBe("reflection.enabled must be true or false");
+    expect(FRAMES.recall_settings.parse({ enabled: true, dailyCap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, dailyCap: 3 });
+  });
+
   test("parsers keep today's checks", () => {
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
     expect(FRAMES.history_get.parse({ agentId: "a" })).toBe("conversationId required");
+    // A payload never names its own `requestId`: the app spreads it after the frame's, and its reply would go unmatched.
+    const approve = { requestId: "frame-1", agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true };
+    expect(FRAMES.chat_approve.parse(approve)).toEqual({ agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true, message: null });
+    expect(FRAMES.chat_answer.parse({ requestId: "frame-2", agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} })).toEqual({ agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} });
     expect(FRAMES.history_get.parse({ conversationId: "c", limit: 99999 })).toEqual({ agentId: null, conversationId: "c", limit: 99999 });
     expect(FRAMES.task_assign.parse({ ids: ["t1"], conversationId: "c" })).toBe("assign needs a conversation and a chat");
     expect(FRAMES.task_status.parse({ id: "t1", status: "open" })).toEqual({ ids: ["t1"], status: "open" });
@@ -103,9 +116,9 @@ describe("every frame in the table, through the real router", () => {
     transcript: () => ({ rows: [], more: false }),
     widgetLog: () => [],
     folders: { recent: () => ({ byAgent: {}, byConversation: {} }), complete: () => [], check: (path) => ({ ok: true, path, branch: null }), pick: async () => null },
-    recall: { store: new RecallStore(join(dir, "recall")), run: async () => ({ note: "ran" }), startLesson: async () => ({ agentId: "agent-1", conversationId: "conv-1" }) },
+    recall: { store: new RecallStore(join(dir, "recall")), status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }), setSettings: async () => {}, run: async () => ({ note: "ran" }), startLesson: async () => ({ agentId: "agent-1", conversationId: "conv-1" }) },
     tasks: { list: async () => [], create: async () => ({}), assign: async () => [], close: async () => [], setStatus: async () => [] } as never,
-    agents: { get: () => ({ id: "agent-1" }) as never, tree: () => [], skills: () => [], hasProfile: () => false, read: () => null, log: async () => [], diff: async () => "", reflection: async () => ({ conversations: [], lastCommit: null }), globalSkills: () => [], install: async () => "ok", refreshSkill: async () => ({ outcome: "current", label: "x" }) },
+    agents: { get: () => ({ id: "agent-1" }) as never, tree: () => [], skills: () => [], hasProfile: () => false, read: () => null, log: async () => [], diff: async () => "", reflection: async () => ({ lastCommit: null }), globalSkills: () => [], install: async () => "ok", refreshSkill: async () => ({ outcome: "current", label: "x" }) },
     lan: { status: () => lanStatus, refresh: async () => lanStatus, setEnabled: async () => lanStatus, setVia: () => lanStatus, setServe: async () => lanStatus, pairBegin: () => ({ code: "K9HF6D", url: "http://mac.local:41415/?code=K9HF6D", expiresAt: "" }), devices: () => [], forget: () => true },
   };
   /** The smallest frame each entry accepts. */

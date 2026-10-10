@@ -3,7 +3,7 @@ import { HOME, TABS, backTarget, depthOf, entryState, formatRoute, isOverlay, la
 
 /**
  * The phone's hash routes (app/src/phone/router.ts): every route both ways, file paths with slashes
- * and encoded slashes, conversation ids the app-server mints locally, and the fallback to home.
+ * and encoded slashes, conversation ids as the daemon mints them (local-conv-…), and the fallback to home.
  */
 
 const roundTrip = (r: Route) => expect(parseRoute(formatRoute(r))).toEqual(r);

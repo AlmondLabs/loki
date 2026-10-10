@@ -1,19 +1,4 @@
 import type { Scope } from "../core/desk-core.ts";
-import type { EventContext } from "./letta-types.ts";
-
-interface ConversationEvent {
-  conversationId?: string | null;
-  agentId?: string | null;
-}
-
-/** Resolve the conversation identity carried by lifecycle and turn events. */
-export function runtimeFromEvent(event: ConversationEvent | undefined, ctx: EventContext): { conversationId: string | null; agentId: string | null } {
-  return {
-    conversationId: event?.conversationId ?? ctx.conversation?.id ?? null,
-    agentId: event?.agentId ?? ctx.agent?.id ?? null,
-  };
-}
-
 type Timer = ReturnType<typeof setTimeout>;
 type SetTimer = (callback: () => void, delay: number) => Timer;
 type ClearTimer = (timer: Timer) => void;

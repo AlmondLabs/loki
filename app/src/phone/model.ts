@@ -183,7 +183,7 @@ export function lastSeen(iso: string | null | undefined, now: number = Date.now(
   return unit(Math.floor(hours / 24), "day");
 }
 
-/** An agent's name: the app-server's list first, then any desk of its; null when neither knows it. */
+/** An agent's name: the daemon's list first, then any desk of its; null when neither knows it. */
 export function agentNameOf(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; agentName: string | null }>, id: string): string | null {
   return agents.find((a) => a.id === id)?.name ?? desks.find((d) => d.agentId === id)?.agentName ?? null;
 }
@@ -384,13 +384,12 @@ export function homeSections(desks: DeskSummary[], items: AttentionItem[], agent
 export type LinkState = "online" | "connecting" | "offline";
 
 /**
- * The paired Mac in one word, for Home's presence dot: offline when either socket is closed (the same
- * rule as the "Mac unreachable" banner), online when the mod is up and so is the app-server tunnel — or
- * there is none to reach — and connecting in between.
+ * The paired Mac in one word, for Home's presence dot: the mod's socket, which the chats ride too —
+ * offline when it is closed (the same rule as the "Mac unreachable" banner), online when it is up, and
+ * connecting in between.
  */
-export function linkState(mod: "connecting" | "open" | "closed", appServer: "off" | "connecting" | "open" | "closed", available: boolean): LinkState {
-  if (mod === "closed" || appServer === "closed") return "offline";
-  return mod === "open" && (appServer === "open" || !available) ? "online" : "connecting";
+export function linkState(mod: "connecting" | "open" | "closed"): LinkState {
+  return mod === "open" ? "online" : mod === "closed" ? "offline" : "connecting";
 }
 
 /**
@@ -415,7 +414,7 @@ export interface AgentRowModel {
   waiting: number;
 }
 
-/** The Agents list in the app-server's order, so rows keep their place while states change under them. */
+/** The Agents list in the daemon's order, so rows keep their place while states change under them. */
 export function agentRows(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; status: string }>, items: AttentionItem[]): AgentRowModel[] {
   const ready = catchUpQueue(items);
   return agents.map((a) => ({

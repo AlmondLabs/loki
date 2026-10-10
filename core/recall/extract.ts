@@ -1,8 +1,9 @@
 /**
- * The worker's conversation with the model, as pure text in and text out: the prompt that asks for
- * cards from a stretch of transcript, and the parser for what comes back. What makes a good card
- * lives here as words — one fact, a question that stands alone, an answer that fits on a line — and
- * the rejected pile is quoted back so a deleted card never returns reworded.
+ * Learn's conversation with the model (daemon/learn.ts), as pure text in and text out: the prompt that asks for
+ * cards from a stretch of transcript, and the parser for what comes back. What makes a good card lives here as
+ * words — a concept, a principle or lasting domain knowledge, never a one-off detail of the task; a question that
+ * stands alone; an answer that fits on a line — and the rejected pile is quoted back so a deleted card never
+ * returns reworded.
  */
 export interface Candidate {
   front: string;
@@ -51,10 +52,8 @@ export interface PromptInput {
   agentName: string | null;
   /** The stretches, most worth reading first; at least one. */
   slices: Slice[];
-  /** Existing cards (front + id) so nothing is written twice and revisions can name their target. With `deck`, only the ones that overlap the slices. */
+  /** Existing cards whose wording overlaps the slices (front + id), so nothing is written twice and revisions can name their target. */
   existing: Array<{ id: string; front: string; back: string }>;
-  /** The whole deck on disk, when `existing` is a selection: where the rest is and how many there are. */
-  deck?: { path: string; total: number };
   /** Recently deleted cards: the strongest signal of what is not wanted. */
   rejected: Array<{ front: string; back: string; reps: number }>;
   /** How many new cards may still be written today, across every slice. */
@@ -76,15 +75,19 @@ export function buildPrompt(input: PromptInput): string {
   const fresh = input.slices.filter((s) => s.mode === "new");
   const lines: string[] = [];
   lines.push(
-    `You keep a set of spaced-repetition cards for one person, drawn from their conversations with an AI agent. They never asked for these cards; they only ever see them in a review deck, and delete the ones they do not want. Your job is to write only what they will be glad to be asked about later.`,
-    `This conversation is your working notebook and runs on: whatever stands above this message, summarised or not, is an earlier request already answered. Read only what follows here.`,
+    `You keep a set of spaced-repetition cards for one person, drawn from their conversations with an AI agent. They never asked for these cards; they only ever see them in a review deck, and delete the ones they do not want. Your job is to write only what they will be glad to be asked about months from now.`,
     ``,
-    `What makes a card worth writing:`,
-    `- one fact, concept, command, or decision the person learned or worked out — not chatter, not the agent's plan, not what the person already knew`,
-    `- the front is a question that stands alone without the conversation; the back is the answer in one or two lines`,
-    `- prefer what the person asked about, was surprised by, or got wrong; skip project trivia they will not need in a month`,
-    `- never write a card that is close to a rejected one, or that an existing card already covers`,
-    `- fewer is better: zero is a fine answer`,
+    `Write a card only for one of these:`,
+    `- a concept or principle the person met: how something works, why it is done that way, a mental model`,
+    `- knowledge of their field, business or tools that will still be true in a few months`,
+    ``,
+    `Never write a card for:`,
+    `- a one-off detail of the task at hand: which file was edited, which command failed, an id, a number, what was tried along the way`,
+    `- passing state: what is running, what is broken today, who is doing what this week`,
+    `- how the agent did its work, or its plan`,
+    `- what the person plainly already knew`,
+    ``,
+    `The front is a question that stands alone without the conversation; the back is the answer in one or two lines. Never write a card close to a rejected one, or one an existing card already covers. Fewer is better, and most stretches of work hold nothing worth a card: zero is the usual answer.`,
     ``,
     `The person ("you") was talking with ${who}.`,
     input.room > 0 ? `You may write at most ${input.room} new card${input.room === 1 ? "" : "s"} across everything below.` : `Today's quota of new cards is already written: write no new cards this time. Revisions of existing cards are still welcome.`,
@@ -94,15 +97,8 @@ export function buildPrompt(input: PromptInput): string {
     for (const r of input.rejected.slice(0, 40)) lines.push(`- [${r.reps} reviews] Q: ${oneLine(r.front)} — A: ${oneLine(r.back)}`);
   }
   if (input.existing.length) {
-    lines.push(``, input.deck ? `Existing cards whose wording touches these stretches (do not duplicate; you may revise one when a conversation corrects or sharpens it):` : `Existing cards (do not duplicate; you may revise one when the conversation corrects or sharpens it):`);
+    lines.push(``, `Existing cards whose wording touches these stretches (do not duplicate; you may revise one when a conversation corrects or sharpens it):`);
     for (const c of input.existing.slice(0, 200)) lines.push(`- ${c.id}: Q: ${oneLine(c.front)} — A: ${oneLine(c.back)}`);
-  }
-  if (input.deck) {
-    const unlisted = Math.max(0, input.deck.total - input.existing.length);
-    lines.push(
-      ``,
-      `The deck has ${input.deck.total} card${input.deck.total === 1 ? "" : "s"} in all${unlisted ? `; ${unlisted} ${unlisted === 1 ? "is" : "are"} not listed above` : ""}. Every card is a file under ${input.deck.path}/cards/ (one JSON each: front, back, tags), deleted ones under ${input.deck.path}/rejected/, leads under ${input.deck.path}/leads/. Before writing a card on a topic that is not listed above, look there with a read-only tool such as Grep or Read; never run shell commands, and never edit those files — answer here and the keeper writes them.`,
-    );
   }
   if (input.failing.length) {
     lines.push(``, `Cards the person keeps failing — rewrite the wording, or replace one with two smaller cards (a revision plus a new card):`);

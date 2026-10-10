@@ -13,10 +13,10 @@ describe("the seen push", () => {
       const seen = new SeenStore(join(dir, "attention.json"), { debounceMs: 0 });
       seen.mark("a", "c1");
       seen.engage("a", "c1", "message");
-      const { bridge } = bridgeWith({ seen, appServerAvailable: () => true });
+      const { bridge } = bridgeWith({ seen });
       const c = client("d1");
       bridge.onMessage(c, { type: "seen_list" });
-      expect(seenFrame({ seen, appServerAvailable: () => true })).toEqual(c.sent.at(-1) as never);
+      expect(seenFrame({ seen })).toEqual(c.sent.at(-1) as never);
       expect(Object.keys((c.sent.at(-1) as { focus: object }).focus)).toEqual(["a/c1"]);
       seen.flush();
     } finally {

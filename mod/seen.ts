@@ -5,7 +5,7 @@ import { addFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core
 /**
  * Catch Up state the mod keeps on disk, keyed by agent + conversation (every
  * agent's main chat is called "default"):
- *  - seen:   when the user last finished with a conversation, "done" (Letta has no read marker we can see)
+ *  - seen:   when the user last finished with a conversation, "done" (the daemon keeps no read marker of its own)
  *  - viewed: when the user last looked at it (opened it, a new message arrived while it was open); a look
  *            is not done, so the two move apart: the sidebar's bold follows viewed, the Inbox follows seen
  *  - focus:  each chat's engagement weight, fading by half every 12 hours (core/attention/focus.ts): the

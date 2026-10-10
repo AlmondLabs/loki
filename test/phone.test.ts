@@ -343,18 +343,13 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
   });
 });
 
-describe("Home's presence dot: the paired Mac's two links in one word", () => {
-  test("both up, or the mod up with no app-server to reach: online", () => {
-    expect(linkState("open", "open", true)).toBe("online");
-    expect(linkState("open", "off", false)).toBe("online");
-  });
-  test("either link closed: offline, as the banner says", () => {
-    expect(linkState("closed", "open", true)).toBe("offline");
-    expect(linkState("open", "closed", true)).toBe("offline");
+describe("Home's presence dot: the paired Mac's link in one word", () => {
+  test("the mod's socket, which the chats ride too: up is online, closed is offline, as the banner says", () => {
+    expect(linkState("open")).toBe("online");
+    expect(linkState("closed")).toBe("offline");
   });
   test("otherwise still connecting", () => {
-    expect(linkState("connecting", "open", true)).toBe("connecting");
-    expect(linkState("open", "connecting", true)).toBe("connecting");
+    expect(linkState("connecting")).toBe("connecting");
   });
 });
 
@@ -377,7 +372,7 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
   ];
   const rows = agentRows(agents, desks, items);
 
-  test("each agent in the app-server's order: live desks, a turn running, and what waits on you (a quiet chat left out)", () => {
+  test("each agent in the daemon's order: live desks, a turn running, and what waits on you (a quiet chat left out)", () => {
     expect(rows.map((r) => [r.id, r.live, r.running, r.waiting])).toEqual([
       ["a1", 2, false, 2],
       ["a2", 1, true, 0],

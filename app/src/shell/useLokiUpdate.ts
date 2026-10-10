@@ -61,7 +61,7 @@ export function newestWith(releases: Release[], os: Platform = platform): Releas
 }
 
 /**
- * The only update the app ever offers on its own is loki's (Letta Code moves from Settings › letta alone).
+ * The only update the app ever offers on its own is loki's.
  * There is no signed updater yet, so this asks GitHub on launch and every six hours — a stable build for the
  * latest release (on Windows and Linux the newest release with their file, `newestWith`), a nightly build for the
  * rolling `nightly` prerelease, where any other build is the newer one —

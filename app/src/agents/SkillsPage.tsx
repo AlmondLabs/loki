@@ -145,8 +145,8 @@ function SkillAdd({ mode, onWrite, onInstall, onClose, agentName }: { mode: "wri
         </>
       ) : (
         <>
-          <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · official/finance/stocks · clawhub/<slug> · a GitHub or SKILL.md URL" autoComplete="off" data-form-type="other" />
-          <span className="loki-meta loki-meta--wrap">runs <code style={{ fontFamily: "var(--loki-mono)" }}>letta install</code> for {agentName}; can take a minute</span>
+          <Field size="sm" mono autoFocus value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void go()} placeholder="owner/repo/path · a GitHub or git URL · a folder" autoComplete="off" data-form-type="other" />
+          <span className="loki-meta loki-meta--wrap">copies it into {agentName}'s memory; can take a minute</span>
         </>
       )}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>

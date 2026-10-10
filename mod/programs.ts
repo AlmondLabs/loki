@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { posix, win32 } from "node:path";
 
 /**
- * Finding and running the programs the mod calls (letta, bd, tailscale) on every system. PATH splits on
- * the system's delimiter (`;` on Windows); Windows tries each PATHEXT name (npm's shims are `letta.cmd`),
+ * Finding and running the programs the mod calls (bd, git, tailscale) on every system. PATH splits on
+ * the system's delimiter (`;` on Windows); Windows tries each PATHEXT name (npm's shims are `<name>.cmd`),
  * and a `.cmd` or `.bat` runs through cmd.exe, which Node insists on for those since CVE-2024-27980 —
  * with every character quoted so cmd.exe reads none of them as syntax.
  */

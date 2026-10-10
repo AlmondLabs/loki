@@ -1,6 +1,8 @@
 import { isEventName } from "./analytics.ts";
 import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "./desk-core.ts";
-import type { ReasoningEffort } from "./models.ts";
+import type { ModelEntry, ReasoningEffort } from "./models.ts";
+import type { ChatEvent } from "./attention/model.ts";
+import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
 import type { CardWithSchedule, RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
@@ -28,8 +30,8 @@ const isPoint = (v: unknown): boolean => typeof v === "object" && v !== null && 
 
 /**
  * Agent ids reach the mod from the socket and from the LAN page, then become path segments under the
- * backend's memfs. Only the shape Letta itself produces is allowed: letters, digits, `.`, `_`, `-`, not
- * starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
+ * backend's memfs. Only the shape agent ids take (`agent-…`, as Letta made them and the daemon still does) is
+ * allowed: letters, digits, `.`, `_`, `-`, not starting with a dot. Anything else (`..`, `/`, `%2F`) is refused before it touches a path.
  */
 export function isAgentId(id: unknown): id is string {
   return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
@@ -62,6 +64,8 @@ const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : s
 /** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId } : "conversationId required");
 const agent = (m: Raw) => (isAgentId(m.agentId) ? { agentId: m.agentId } : "agentId required");
+/** A chat on loki's daemon: its agent and its id, both required. */
+const chatRef = (m: Raw) => (isAgentId(m.agentId) && str(m.conversationId) && m.conversationId ? { agentId: m.agentId, conversationId: m.conversationId } : "agentId and conversationId required");
 const nothing = (): Record<never, never> => ({});
 
 /** The answer to a request, by reply name: the payload beside `type` and `requestId`. */
@@ -88,12 +92,34 @@ export interface Replies {
   memory_diff: { agentId: string; sha: string; diff: string };
   inbox: { conversations: InboxRow[] };
   history: { agentId: string | null; conversationId: string; messages: TranscriptRow[]; more: boolean; widgetLog: WidgetLogEntry[] };
+  chat_state: ChatState;
+  chat_created: { agentId: string; conversationId: string };
+  chat_accepted: { accepted: boolean };
+  chat_models: { entries: ModelEntry[] };
+  chat_agents: { agents: Array<{ id: string; name: string }> };
+  chat_agent_created: { id: string; name: string };
+  chat_done: Record<never, never>;
+  chat_providers: { providers: ConnectProvider[] };
+  chat_signin: { url: string; instructions: string | null };
+  chat_command_done: { success: boolean; output: string };
+  chat_skill_enabled: { name: string; linkPath: string };
+  chat_passes: PassSettings;
 }
 export type ReplyName = keyof Replies;
 
+/** Where a chat stands when a client opens it (loki's daemon, plan 017 U5): running or not, its mode and folder. */
+export interface ChatState {
+  agentId: string;
+  conversationId: string;
+  loop: "running" | "idle" | "approval";
+  /** The turn running now (daemon/telemetry.ts), for the app's analytics; null when idle. */
+  turnId?: string | null;
+  mode: string | null;
+  cwd: string | null;
+}
+
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
 export interface Pushes {
-  config: { appServer: boolean };
   desk: { scope: Scope; title: string | null; status: DeskStatus; agentName: string | null; agentId: string | null; model: string | null; reasoningEffort: ReasoningEffort | null; mode: string | null; state: DeskState; widgets: WidgetManifestEntry[] };
   desk_title: { scope: Scope; title: string | null; status: DeskStatus; agentName: string | null; model: string | null; reasoningEffort: ReasoningEffort | null; mode?: string | null };
   state: { scope: Scope; state: DeskState };
@@ -102,7 +128,7 @@ export interface Pushes {
   widget_change: { entry: WidgetLogEntry };
   switch_desk: { scope: Scope };
   desks: { desks: DeskSummary[] };
-  seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry>; appServer: boolean };
+  seen: { seen: Record<string, string>; viewed: Record<string, string>; focus: Record<string, FocusEntry> };
   models_recent: { recent: string[] };
   recall_changed: Record<never, never>;
   tasks_changed: Record<never, never>;
@@ -110,6 +136,8 @@ export interface Pushes {
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expiresAt: string };
   app_build: { build: string };
+  /** What happened in a chat a client has open, in order (core/attention/model.ts ChatEvent). */
+  chat_event: { agentId: string; conversationId: string; events: ChatEvent[] };
   /** A request that failed (with its requestId), or a send or frame the mod could not take (without). */
   error: { message: string; requestId?: string };
 }
@@ -152,7 +180,7 @@ export const FRAMES = {
   widget_status: send("a runtime or reload error from the tab (null clears it)", (m) => (str(m.id) ? { id: m.id, error: str(m.error) && m.error.trim() ? m.error.trim() : null } : "malformed widget_status"), { causes: ["widgets"] }),
   desk_get: send("another desk's state and widgets, for widgets shown inline in a thread; no switch", (m) => (str(m.scope) && m.scope ? { scope: m.scope as Scope } : "scope required"), { phone: PHONE, causes: ["desk"] }),
   list_desks: send("every desk, for the sidebar and search", nothing, { phone: PHONE, causes: ["desks"] }),
-  pin_set: send("pin or unpin a conversation (Letta's pinned-conversations.json)", (m) => (str(m.agentId) && str(m.conversationId) ? { agentId: m.agentId, conversationId: m.conversationId, pinned: m.pinned === true } : "agentId and conversationId required"), { phone: PHONE, causes: ["desks"] }),
+  pin_set: send("pin or unpin a conversation (state/pins.json)", (m) => (str(m.agentId) && str(m.conversationId) ? { agentId: m.agentId, conversationId: m.conversationId, pinned: m.pinned === true } : "agentId and conversationId required"), { phone: PHONE, causes: ["desks"] }),
   models_recent_add: send("a model picked in loki, for the shared quick picks", (m) => (str(m.handle) && m.handle ? { handle: m.handle } : "handle required"), { phone: PHONE, causes: ["models_recent"] }),
 
   // Seen marks and focus
@@ -160,7 +188,7 @@ export const FRAMES = {
   seen_mark: send("mark a conversation done", mark, { phone: PHONE, causes: ["seen"] }),
   seen_unmark: send("mark a conversation not done", mark, { phone: PHONE, causes: ["seen"] }),
   viewed_mark: send("a look, not done (the sidebar's bold, the New line)", mark, { phone: PHONE, causes: ["seen"] }),
-  focus_add: send("an engagement the mod cannot see (it went to the app-server)", (m) => {
+  focus_add: send("an engagement the mod cannot see (a decision, an answer)", (m) => {
     const c = mark(m);
     if (typeof c === "string") return c;
     const action = m.action;
@@ -179,6 +207,81 @@ export const FRAMES = {
     str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId, limit: isNum(m.limit) ? m.limit : null } : "conversationId required", PHONE),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
 
+  // Chats on loki's daemon (plan 017, U5), answered by its ChatBackend (mod/frames/chat.ts)
+  chat_open: request("chat_state", "follow a chat: its state now, then its chat_event pushes; `mode` sets its permission mode", (m) => {
+    const c = chatRef(m);
+    return typeof c === "string" ? c : { ...c, mode: strOr(m.mode, null) };
+  }, PHONE),
+  chat_approve: request("chat_accepted", "the person's decision on a tool call the chat asked about", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    // The approval's own id: `requestId` is the frame's, matched to its reply.
+    return str(m.approvalId) && typeof m.allow === "boolean" ? { ...c, approvalId: m.approvalId, allow: m.allow, message: strOr(m.message, null) } : "approvalId and allow required";
+  }, PHONE),
+  chat_answer: request("chat_accepted", "the person's answers to a question card (the tool input with `answers` filled in)", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.questionId) && m.input && typeof m.input === "object" ? { ...c, questionId: m.questionId, input: m.input as Raw } : "questionId and input required";
+  }, PHONE),
+  chat_create: request("chat_created", "a new chat for an agent, in a folder", (m) =>
+    isAgentId(m.agentId) ? { agentId: m.agentId, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agentId required", PHONE),
+  chat_send: request("chat_accepted", "a message from the person; queued when the chat is busy, sent once per sendId", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    if (!str(m.text)) return "text required";
+    const images = Array.isArray(m.images) ? (m.images as Raw[]).filter((i) => str(i.mediaType) && str(i.data)).map((i) => ({ mediaType: i.mediaType as string, data: i.data as string })) : [];
+    return { ...c, text: m.text, images, sendId: strOr(m.sendId, null), context: strOr(m.context, null) };
+  }, PHONE),
+  chat_abort: request("chat_done", "stop the chat's turn", chatRef, PHONE),
+  chat_update: request("chat_done", "rename, archive or hide a chat", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return { ...c, title: m.title === null || str(m.title) ? (m.title as string | null) : undefined, archived: typeof m.archived === "boolean" ? m.archived : undefined, hidden: typeof m.hidden === "boolean" ? m.hidden : undefined };
+  }, PHONE),
+  chat_folder: request("chat_state", "move a chat to another folder", (m) => {
+    const c = chatRef(m);
+    return typeof c === "string" ? c : str(m.cwd) && m.cwd ? { ...c, cwd: m.cwd } : "cwd required";
+  }, PHONE),
+  chat_model: request("chat_done", "the model and reasoning effort a chat runs with", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.handle) && m.handle ? { ...c, handle: m.handle, reasoningEffort: strOr(m.reasoningEffort, null) as ReasoningEffort | null } : "handle required";
+  }, PHONE),
+  chat_models: request("chat_models", "the models the connected providers offer", nothing, PHONE),
+  chat_agents: request("chat_agents", "the person's agents", nothing, PHONE),
+  chat_agent_create: request("chat_agent_created", "a new agent, with its main chat; `persona` is who it is, written to its memory", (m) =>
+    str(m.name) && m.name.trim() ? { name: m.name.trim(), description: strOr(m.description, null), persona: strOr(m.persona, null), model: strOr(m.model, null) } : "name required"),
+  chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
+    isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
+  chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
+  chat_passes_get: request("chat_passes", "whether reflection and Learn run in the background, and Learn's cards a day", nothing),
+  chat_passes_set: request("chat_passes", "turn reflection or Learn on or off, or set Learn's cards a day", (m) => {
+    const part = (v: unknown) => (v && typeof v === "object" ? (v as Raw) : undefined);
+    const r = part(m.reflection), l = part(m.learn);
+    if (r?.enabled !== undefined && typeof r.enabled !== "boolean") return "reflection.enabled must be true or false";
+    if (l?.enabled !== undefined && typeof l.enabled !== "boolean") return "learn.enabled must be true or false";
+    if (l?.dailyCap !== undefined && !(isNum(l.dailyCap) && l.dailyCap >= 0)) return "learn.dailyCap must be a number, 0 or more";
+    return {
+      ...(r?.enabled !== undefined ? { reflection: { enabled: r.enabled as boolean } } : {}),
+      ...(l ? { learn: { ...(l.enabled !== undefined ? { enabled: l.enabled as boolean } : {}), ...(l.dailyCap !== undefined ? { dailyCap: Math.floor(l.dailyCap as number) } : {}) } } : {}),
+    };
+  }),
+  chat_command: request("chat_command_done", "run a slash command in a chat: compact, clear, remember or reflect", (m) => {
+    const c = chatRef(m);
+    if (typeof c === "string") return c;
+    return str(m.command) && m.command ? { ...c, command: m.command, args: strOr(m.args, null) } : "command required";
+  }, PHONE),
+  chat_memory_write: request("chat_done", "write a memory file (null content removes it), committed as yours", (m) =>
+    isAgentId(m.agentId) && str(m.path) && m.path ? { agentId: m.agentId, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) } : "agentId and path required"),
+  chat_skill_enable: request("chat_skill_enabled", "make a skill folder global: a link to it in the global skills folder", (m) => (str(m.path) && m.path ? { path: m.path } : "path required")),
+  chat_skill_disable: request("chat_done", "take a global skill away: its link in the global skills folder", (m) => (str(m.name) && m.name && !m.name.includes("/") && !m.name.includes("..") ? { name: m.name } : "a skill name required")),
+  chat_providers: request("chat_providers", "the model providers, connected or not", nothing),
+  chat_provider_connect: request("chat_providers", "keep a provider's API key, once the provider accepts it", (m) =>
+    str(m.providerId) && m.providerId && str(m.apiKey) ? { providerId: m.providerId, apiKey: m.apiKey } : "providerId and apiKey required"),
+  chat_provider_disconnect: request("chat_providers", "forget a provider's credential", (m) => (str(m.providerId) && m.providerId ? { providerId: m.providerId } : "providerId required")),
+  chat_provider_signin: request("chat_signin", "start signing in to a provider: the page to open; the credential is kept when the browser comes back. With `code`, the address the browser ended on, for a sign-in still waiting", (m) =>
+    str(m.providerId) && m.providerId ? { providerId: m.providerId, code: strOr(m.code, null) } : "providerId required"),
+
   // Folders
   folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),
   folder_complete: request("folder_matches", "folders completing a typed prefix", (m) => ({ prefix: strOr(m.prefix, null) })),
@@ -194,13 +297,11 @@ export const FRAMES = {
   recall_reject: request("recall_card", "set a card aside (card: null)", (m) => ({ id: strOr(m.id, "") }), PHONE),
   recall_restore: request("recall_card", "bring a set-aside card back", (m) => ({ id: strOr(m.id, "") }), PHONE),
   recall_forget: request("recall_card", "forget a set-aside card for good (card: null)", (m) => ({ id: strOr(m.id, "") })),
-  recall_settings: request("recall", "the writer's settings: on, model, daily cap, minutes between sweeps", (m) => ({
+  recall_settings: request("recall", "Learn's settings: on or off, and the most cards it writes in a day", (m) => ({
     enabled: typeof m.enabled === "boolean" ? m.enabled : undefined,
-    model: m.model === null || str(m.model) ? m.model || null : undefined,
     dailyCap: isNum(m.dailyCap) && m.dailyCap >= 0 ? Math.round(m.dailyCap) : undefined,
-    tickMinutes: isNum(m.tickMinutes) ? m.tickMinutes : undefined,
   })),
-  recall_run: request("recall_ran", "run the writer now", nothing),
+  recall_run: request("recall_ran", "run Learn now over every chat with new material", nothing),
   recall_export: request("recall_export", "every card as Anki TSV", nothing, PHONE),
   recall_lead_dismiss: request("recall", "set a lead aside", (m) => ({ id: strOr(m.id, "") }), PHONE),
   recall_lead_restore: request("recall", "bring a set-aside lead back", (m) => ({ id: strOr(m.id, "") }), PHONE),
@@ -232,8 +333,8 @@ export const FRAMES = {
   memory_log: request("memory_commits", "memory's git log, for a path or all of it", (m) =>
     isAgentId(m.agentId) ? { agentId: m.agentId, path: strOr(m.path, undefined), limit: typeof m.limit === "number" ? m.limit : undefined } : "agentId required", PHONE),
   memory_diff: request("memory_diff", "one memory commit's diff", (m) => (isAgentId(m.agentId) ? (str(m.sha) ? { agentId: m.agentId, sha: m.sha } : "sha required") : "agentId required"), PHONE),
-  reflection_state: request("reflection_state", "Letta's reflection counters per conversation and the last pass that changed memory", agent),
-  skills_global: request("skills_global", "skills outside memory (~/.letta/skills)", nothing),
+  reflection_state: request("reflection_state", "the last reflection pass that changed an agent's memory", agent),
+  skills_global: request("skills_global", "skills outside memory (~/.agents/skills)", nothing),
   skill_install: request("skill_installed", "install a skill into an agent's memory", (m) =>
     isAgentId(m.agentId) && str(m.source) ? { agentId: m.agentId, source: m.source, force: m.force === true } : "agentId and source required"),
   skill_refresh: request("skill_refreshed", "refresh an other skill from its upstream: current, replaced, or staged for the agent to reconcile", (m) =>
@@ -249,7 +350,6 @@ export const FRAMES = {
   device_forget: send("forget a phone and close its sockets", (m) => ({ id: strOr(m.id, null) }), { causes: ["devices"] }),
 
   // Pushes
-  config: push("on connect: whether an app-server was discovered"),
   desk: push("one desk in full (on connect, and for desk_get)"),
   desk_title: push("a desk's conversation was renamed, archived or changed model or mode"),
   state: push("a desk's geometry and overlay changed"),
@@ -266,6 +366,7 @@ export const FRAMES = {
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
   app_build: push("the build a phone is served, so it can offer a reload"),
+  chat_event: push("what happened in a chat a client has open"),
   error: push("a failed request (with its requestId) or a frame the mod could not take"),
 } as const;
 

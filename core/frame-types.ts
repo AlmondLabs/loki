@@ -13,11 +13,11 @@ export interface LocalAgent {
   name: string;
   description: string | null;
   model: string | null;
-  /** Provider, effort, thinking, context window… as Letta stores them. */
+  /** Provider, effort, thinking, context window… as the agent record keeps them (Letta's shape, which imported agents carry). */
   modelSettings: Record<string, unknown>;
   tags: string[];
   favourite: boolean;
-  /** The first line of the system prompt, for orientation; the prompt is Letta Code's, not editable here. */
+  /** The first line of the system prompt, for orientation; the prompt is the agent record's, not editable here. */
   systemHead: string | null;
 }
 
@@ -78,19 +78,7 @@ export interface GlobalSkill {
   source?: string | null;
 }
 
-export interface ReflectionConversation {
-  conversationId: string;
-  title: string | null;
-  /** Steps since the last pass that succeeded: what the step-count trigger compares against. */
-  stepsSince: number;
-  totalSteps: number;
-  lastStartedAt: string | null;
-  lastSucceededAt: string | null;
-}
-
 export interface ReflectionState {
-  /** Most steps since a pass first: the conversations nearest the next one. */
-  conversations: ReflectionConversation[];
   /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
   lastCommit: MemoryCommit | null;
 }
@@ -113,7 +101,7 @@ export interface Task {
 /** The two ways into the listener: the tailnet (a 100.x peer, or `tailscale serve` on loopback) or the Wi‑Fi. */
 export type DeviceVia = "tailscale" | "lan";
 
-/** What the inbox decides on without the app-server: who spoke last, and the assistant's last words. */
+/** What the inbox decides on, from the mod's view of each chat: who spoke last, and the assistant's last words. */
 export interface LocalDigest {
   lastRole: "user" | "assistant" | null;
   lastAssistantText: string | null;
@@ -183,7 +171,7 @@ export interface TailscaleStatus {
   error: string | null;
 }
 
-/** live: conversation exists. archived: Letta archived it. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
+/** live: conversation exists. archived: the chat was archived. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
 export type DeskStatus = "live" | "archived" | "deleted" | "none";
 
 export interface DeskInfo {
@@ -195,14 +183,14 @@ export interface DeskInfo {
   /** The model this conversation runs on: its own override, else the agent's. */
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
-  /** The permission mode Letta persisted for this conversation (default: unrestricted). */
+  /** The permission mode the daemon keeps for this conversation (default: unrestricted). */
   mode?: string | null;
 }
 
 export interface DeskSummary extends DeskInfo {
   scope: Scope;
   conversationId: string | null;
-  /** Pinned in Letta's pinned-conversations.json (shared with Desktop). */
+  /** Pinned in loki's pins file (mod/pins.ts). */
   pinned?: boolean;
   widgets: number;
   active: boolean;

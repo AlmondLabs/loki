@@ -125,7 +125,7 @@ export function Sidebar({
   dueCards?: number;
   /** The mod is reachable on the Wi‑Fi (Settings › phone): a green dot on the settings icon while it is. */
   lanOn?: boolean;
-  /** A newer loki release exists (Settings › letta says which): the same dot. */
+  /** A newer loki release exists (Settings › loki says which): the same dot. */
   updateReady?: boolean;
   /** The showing section's list column (ListColumn), when it has one: a toggle above Settings, pressed while the column shows. */
   column?: { open: boolean; onToggle: () => void } | null;

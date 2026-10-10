@@ -1,15 +1,15 @@
-import { toAnkiTsv, type Lesson, type RecallSnapshot } from "../../core/recall/model.ts";
-import { clampTickMinutes, DEFAULT_TICK_MINUTES, type RecallStore } from "../recall.ts";
+import { toAnkiTsv, type Lesson, type RecallSnapshot, type WorkerStatus } from "../../core/recall/model.ts";
+import type { RecallStore } from "../recall.ts";
 import type { StartLesson } from "../recall-worker.ts";
 import { fail, reply, type FrameContext, type FrameHandlers } from "./context.ts";
 
 export interface RecallDeps {
-  /** Learn (mod/recall.ts, mod/recall-worker.ts): the cards on disk and a way to run the worker now. */
+  /** Learn (mod/recall.ts): the cards on disk; its settings, status and a run now are the daemon's (daemon/learn.ts). */
   recall?: {
     store: RecallStore;
+    status: () => WorkerStatus;
+    setSettings: (s: { enabled?: boolean; dailyCap?: number }) => Promise<void>;
     run: () => Promise<{ note: string }>;
-    /** The sweep timer follows the setting: called with the new interval when `tickMinutes` changes. */
-    reschedule?: (minutes: number) => void;
     startLesson?: StartLesson;
     /** True while the lesson's conversation holds no message: the brief never arrived and the app offers to send it again. */
     lessonEmpty?: (lesson: Lesson) => boolean;
@@ -23,7 +23,7 @@ export function recallFrames({ recall }: RecallDeps): FrameHandlers {
     return { recall_list: off, recall_grade: off, recall_edit: off, recall_reject: off, recall_restore: off, recall_forget: off, recall_settings: off, recall_run: off, recall_export: off, recall_lead_dismiss: off, recall_lead_restore: off, recall_lead_start: off };
   }
   const { store } = recall;
-  const snapshot = (): RecallSnapshot => ({ cards: store.cards(), rejected: store.rejected(), worker: store.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })) });
+  const snapshot = (): RecallSnapshot => ({ cards: store.cards(), rejected: store.rejected(), worker: recall.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })) });
   const changed = (ctx: FrameContext) => ctx.broadcast({ type: "recall_changed" });
   return {
     recall_list: () => reply(snapshot()),
@@ -52,11 +52,8 @@ export function recallFrames({ recall }: RecallDeps): FrameHandlers {
       changed(ctx);
       return reply({ card: null });
     },
-    recall_settings: ({ enabled, model, dailyCap, tickMinutes }, ctx) => {
-      const update = { ...(enabled !== undefined ? { enabled } : {}), ...(model !== undefined ? { model } : {}), ...(dailyCap !== undefined ? { dailyCap } : {}), ...(tickMinutes !== undefined ? { tickMinutes: clampTickMinutes(tickMinutes) } : {}) };
-      const before = store.worker().tickMinutes ?? DEFAULT_TICK_MINUTES;
-      store.saveWorker(update);
-      if (update.tickMinutes !== undefined && update.tickMinutes !== before) recall.reschedule?.(update.tickMinutes);
+    recall_settings: async ({ enabled, dailyCap }, ctx) => {
+      await recall.setSettings({ ...(enabled !== undefined ? { enabled } : {}), ...(dailyCap !== undefined ? { dailyCap } : {}) });
       changed(ctx);
       return reply(snapshot());
     },

@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { attachWs, startServer, type Client } from "../mod/server.ts";
-import { WebSocketServer } from "ws";
 
 describe("loki server", () => {
   test("health, 404s, tokenized WS upgrade, scope from URL", async () => {
@@ -58,42 +57,6 @@ describe("loki server", () => {
     } finally {
       bridge.close();
       await s.close();
-    }
-  });
-});
-
-describe("app-server tunnel", () => {
-  test("pipes frames both ways and closes together; no upstream → tunnel_error", async () => {
-    const upstream = new WebSocketServer({ port: 0 });
-    const upstreamSeen: string[] = [];
-    upstream.on("connection", (ws) => ws.on("message", (raw) => { upstreamSeen.push(String(raw)); ws.send(JSON.stringify({ type: "echo", got: JSON.parse(String(raw)).type })); }));
-    const upstreamUrl = `ws://127.0.0.1:${(upstream.address() as { port: number }).port}/ws`;
-    let target: string | null = upstreamUrl;
-    const s = await startServer({ port: 0 });
-    const bridge = attachWs(s.server, "tok", { onConnect: () => {}, onMessage: () => {}, appServerUrl: () => target });
-    try {
-      const browser = new WebSocket(`ws://127.0.0.1:${s.port}/appserver?t=tok`);
-      const reply = await new Promise<Record<string, unknown>>((resolve) => {
-        browser.onopen = () => browser.send(JSON.stringify({ type: "app_server_info", request_id: "1" }));
-        browser.onmessage = (ev) => resolve(JSON.parse(String(ev.data)));
-      });
-      expect(reply).toEqual({ type: "echo", got: "app_server_info" });
-      expect(upstreamSeen).toEqual([JSON.stringify({ type: "app_server_info", request_id: "1" })]);
-      browser.close();
-
-      target = null;
-      const noTarget = new WebSocket(`ws://127.0.0.1:${s.port}/appserver?t=tok`);
-      const err = await new Promise<Record<string, unknown>>((resolve) => {
-        noTarget.onmessage = (ev) => resolve(JSON.parse(String(ev.data)));
-      });
-      expect(err).toMatchObject({ type: "tunnel_error" });
-
-      const badToken = new WebSocket(`ws://127.0.0.1:${s.port}/appserver?t=nope`);
-      await new Promise<void>((resolve) => { badToken.onerror = () => resolve(); badToken.onclose = () => resolve(); });
-    } finally {
-      bridge.close();
-      await s.close();
-      upstream.close();
     }
   });
 });

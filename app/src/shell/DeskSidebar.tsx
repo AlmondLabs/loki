@@ -23,8 +23,8 @@ function isFolded(pref: SidebarPref, filtering: boolean, id: string): boolean {
   return !filtering && (id === ARCHIVED ? !pref.archivedOpen : pref.collapsed.includes(id));
 }
 
-const NO_ARCHIVE_REASON = "Archiving needs the app-server, which is not connected";
-const NO_MOVE_REASON = "Changing folder needs the app-server, which is not connected";
+const NO_ARCHIVE_REASON = "Archiving needs loki's daemon, which is not connected";
+const NO_MOVE_REASON = "Changing folder needs loki's daemon, which is not connected";
 
 /** localStorage, or nothing (a blocked store only costs the folds and the scroll). */
 const store = (): Pick<Storage, "getItem" | "setItem"> | null => {
@@ -40,16 +40,16 @@ export interface DeskSidebarProps {
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   current: string;
-  /** The app-server link is up; archive and restore wait for it. */
+  /** The link to loki's daemon is up; archive and restore wait for it. */
   connected: boolean;
   onOpen: (scope: string) => void;
-  /** Start a new desk, with this agent or (null) chosen in the sheet; left out while the app-server is off. */
+  /** Start a new desk, with this agent or (null) chosen in the sheet; left out while the daemon is off. */
   onNew?: (agentId: string | null) => void;
   onPin: (desk: DeskSummary, pinned: boolean) => void;
   onArchive: (desk: DeskSummary, archived: boolean) => void;
-  /** Save a new name; resolves to the app-server's error or null. The dialog stays open on an error. */
+  /** Save a new name; resolves to the daemon's error or null. The dialog stays open on an error. */
   onRename: (desk: DeskSummary, name: string) => Promise<string | null>;
-  /** Move a chat to another folder; resolves to Letta Code's refusal or null. Left out with folders, the menu has no Change folder…. */
+  /** Move a chat to another folder; resolves to the daemon's refusal or null. Left out with folders, the menu has no Change folder…. */
   onMove?: (desk: DeskSummary, folder: string) => Promise<string | null>;
   /** The Mac's folders, for the Change folder dialog's field. */
   folders?: FolderApi;
@@ -430,7 +430,7 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
 
 /**
  * The sidebar wired to the window's models, as the tree drawer it replaced was: pin through the mod,
- * archive through the app-server and then a fresh desks list, each with a notice.
+ * archive through loki's daemon and then a fresh desks list, each with a notice.
  */
 export function DeskSidebarView({ desk, catchUp, notice, onOpen, onNew }: { desk: Desk; catchUp: CatchUp; notice: (m: string) => void; onOpen: (scope: string) => void; onNew: (agentId: string | null) => void }) {
   return (

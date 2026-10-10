@@ -32,14 +32,14 @@ export interface TranscriptRow {
   tool?: ToolStep;
   summary?: string | null;
   detail?: string | null;
-  /** Files a user message carried (Letta attachment tags), from the live send and from history alike. */
+  /** Files a user message carried (attachment tags, core/attention/content.ts), from the live send and from history alike. */
   files?: FileRef[];
   /** Data URLs of images sent with a user message (live rows only; history shows a marker). */
   images?: string[];
   /** A user message typed mid-turn that has not gone out yet. */
   queued?: boolean;
   /**
-   * When the message was written, ISO 8601 (Letta's `date`, the local log's `timestamp`, or the moment a
+   * When the message was written, ISO 8601 (the store's time, an imported log's `timestamp`, or the moment a
    * live row arrived). Absent when nobody knows: such a
    * row shows no time and starts no day.
    */

@@ -10,14 +10,17 @@ its canvas is the chat's **Canvas** tab, beside the **Messages** tab that shows 
 conversation. "Desk" is the old name for both; if the user or your memory says desk,
 they mean the chat's canvas. There is no render tool. To put something on the canvas,
 write a file. To change
-it, edit the file. To remove it, delete the file. Vite hot-reloads the tab
+it, edit the file. To remove it, delete the file. The canvas picks up the change
 within a second.
 
 ```text
-~/.letta/loki/widgets/<desk>/<name>.json    # a kit widget
-~/.letta/loki/widgets/<desk>/<name>.tsx     # a custom React widget
-~/.letta/loki/widgets/shared/…              # widgets that belong to no conversation
+~/.loki/widgets/<desk>/<name>.json    # a kit widget
+~/.loki/widgets/<desk>/<name>.tsx     # a custom React widget
+~/.loki/widgets/shared/…              # widgets that belong to no conversation
 ```
+
+Older notes may name `~/.letta/loki/widgets/…`; that path is a link to `~/.loki` and still works, but write new
+files under `~/.loki`.
 
 `<desk>` is this conversation's canvas id (the tool keeps its old name). `desk_state` returns it as `desk` and
 the absolute directory as `widgetsDir`. Call `desk_state` first if you do not

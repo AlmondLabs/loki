@@ -180,7 +180,7 @@ export interface MessageLayout {
   inline?: (widgetId: string) => ReactNode;
 }
 
-/** A widget change in the thread: "friday added Revenue chart" (or "You removed …", "loki added …"), placed before row `before`. */
+/** A widget change in the thread: "atlas added Revenue chart" (or "You removed …", "loki added …"), placed before row `before`. */
 export interface WidgetMark {
   id: string;
   /** The transcript row it sits before; rows.length puts it after the last. */

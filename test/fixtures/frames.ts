@@ -31,12 +31,12 @@ export function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { 
   };
 }
 
-type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; capture?: BridgeDeps["capture"]; appServerUrl?: BridgeDeps["appServerUrl"]; modules?: BridgeDeps["modules"] };
+type BridgeOf = Partial<ModuleDeps> & { broadcast?: BridgeDeps["broadcast"]; capture?: BridgeDeps["capture"]; modules?: BridgeDeps["modules"] };
 
 /** The bridge the mod builds, over in-memory desks unless given others: every module from these deps, or only `modules`. */
 export function bridgeOf(deps: BridgeOf = {}) {
   const full: ModuleDeps = { store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), ...deps };
-  return createBridge({ modules: deps.modules ?? frameModules(full), welcome: welcomeFrames(full), broadcast: deps.broadcast ?? (() => {}), capture: deps.capture, appServerUrl: deps.appServerUrl });
+  return createBridge({ modules: deps.modules ?? frameModules(full), welcome: welcomeFrames(full), broadcast: deps.broadcast ?? (() => {}), capture: deps.capture });
 }
 
 /** A bridge as bridgeOf builds it, and every broadcast it made. */

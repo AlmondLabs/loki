@@ -11,25 +11,28 @@ export const modFile: string = fileURLToPath(new URL(import.meta.url));
 /** Repo root, derived from this file (mod/paths.ts). In the bundle this is <data>, which has no app/ sources; see appDistCandidates. */
 export const projectRoot: string = dirname(dirname(modFile));
 
-const stateDir = process.env.LOKI_STATE_DIR ?? join(homedir(), ".letta", "loki", "state");
+/** Everything loki keeps: ~/.loki (LOKI_DIR overrides it, for tests and a second loki). */
+export const lokiDir = (): string => process.env.LOKI_DIR ?? join(homedir(), ".loki");
+
+const stateDir = process.env.LOKI_STATE_DIR ?? join(lokiDir(), "state");
 
 export const paths = {
   root: projectRoot,
   app: join(projectRoot, "app"),
   /** Agent-owned widget files: <widgets>/<scope>/<name>.json|.tsx — user data, outside the repo. */
-  widgets: process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".letta", "loki", "widgets"),
+  widgets: process.env.LOKI_WIDGETS_DIR ?? join(lokiDir(), "widgets"),
   /** Machine-local runtime data. */
-  data: join(homedir(), ".letta", "loki"),
+  data: lokiDir(),
   /** Files attached to messages (mod/uploads.ts): <uploads>/<chat>/<name>, read by the agent from there. */
-  uploads: process.env.LOKI_UPLOADS_DIR ?? join(homedir(), ".letta", "loki", "uploads"),
+  uploads: process.env.LOKI_UPLOADS_DIR ?? join(lokiDir(), "uploads"),
   state: stateDir,
   /** The phone listener's setting ({ enabled }) and its paired devices (mod/lan.ts, mod/devices.ts). */
   lan: join(stateDir, "lan.json"),
   devices: join(stateDir, "devices.json"),
-  token: join(homedir(), ".letta", "loki", "token"),
-  modLog: join(homedir(), ".letta", "loki", "mod.log"),
+  token: join(lokiDir(), "token"),
+  modLog: join(lokiDir(), "mod.log"),
   /** Product analytics (core/analytics.ts): one event per line, local only; and the install's distinct_id. */
-  events: join(homedir(), ".letta", "loki", "logs", "events.jsonl"),
+  events: join(lokiDir(), "logs", "events.jsonl"),
   analytics: join(stateDir, "analytics.json"),
 } as const;
 

@@ -1,23 +1,17 @@
+import { applyEvent, lettaChatEvents } from "./fixtures/letta-events.ts";
 import { describe, expect, test } from "bun:test";
-import { AppServerSocket } from "../core/attention/protocol.ts";
-import { applyEvent, emptyLive, folderMoveAnswer } from "../core/attention/model.ts";
+import { emptyLive, folderMoveAnswer as answerOf } from "../core/attention/model.ts";
+import type { ServerEvent } from "../core/attention/protocol.ts";
+
+/** The answer a Letta event gives, read through loki's chat events. */
+const folderMoveAnswer = (ev: ServerEvent, cwd: string | undefined, move: { from: string | undefined; to: string }) => answerOf(lettaChatEvents(ev, "2026-10-10T00:00:00.000Z"), cwd, move);
 import { environmentReminder } from "../core/attention/content.ts";
-import type { Transport } from "../core/attention/transport.ts";
 
 /**
- * Change folder (core/attention/protocol.ts changeFolder, useAttention changeFolder): Letta Code's
- * change_device_state with a cwd, answered by a device status carrying the new folder or a loop error.
+ * Change folder (useAttention changeFolder): the move is answered by a device event carrying the new folder, or an
+ * error (events written in Letta's shapes, test/fixtures/letta-events.ts).
  */
 describe("change folder", () => {
-  test("sends change_device_state for the conversation with the folder", async () => {
-    const sent: Array<Record<string, unknown>> = [];
-    const transport: Transport = { open: (h) => queueMicrotask(h.onOpen), send: (raw) => void sent.push(JSON.parse(raw)), close() {} };
-    const socket = new AppServerSocket("ws://test", () => transport);
-    await socket.changeFolder({ agent_id: "a1", conversation_id: "c1" }, "/work/next");
-    expect(sent.at(-1)).toEqual({ type: "change_device_state", runtime: { agent_id: "a1", conversation_id: "c1" }, payload: { cwd: "/work/next" } });
-    socket.close();
-  });
-
   test("a device status carries the conversation's live folder", () => {
     const l = emptyLive();
     expect(applyEvent(l, { type: "update_device_status", device_status: { current_working_directory: "/work/a", current_permission_mode: "default" } }).changed).toBe(true);
@@ -36,7 +30,7 @@ describe("change folder", () => {
     expect(folderMoveAnswer({ type: "stream_delta", delta: { message_type: "assistant_message", content: "hi" } }, "/work/a", move)).toBeNull();
   });
 
-  test("the environment note leaves the folder to Letta Code", () => {
+  test("the environment note leaves the folder out: it is the chat's working directory", () => {
     expect(environmentReminder({ desk: "x" })).not.toContain("working directory");
   });
 });

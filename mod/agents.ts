@@ -1,26 +1,27 @@
+import { lokiDir } from "./paths.ts";
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { backendName } from "../core/desk-core.ts";
 import type { LocalAgent, MemoryCommit, MemoryFile, MemorySkill } from "../core/frame-types.ts";
 import { isAgentId } from "../core/frames.ts";
 
 /**
- * What Letta keeps per agent on this machine, read for the Agents page:
+ * What the daemon keeps per agent on this machine (in Letta's local-backend layout), read for the Agents page:
  *   <backend>/agents/<b64 id>.json          the record: name, description, model, settings, tags
  *   <backend>/memfs/<id>/memory/            the memory filesystem — a git repo: system/{persona,human}.md,
  *                                           reference/**, skills/<name>/SKILL.md, profile.png
- * Everything here is read-only. Changing the record goes through the app-server (agent_update);
+ * Everything here is read-only. Changing the record goes through the daemon (chat_agent_update);
  * changing memory is the agent's job, which the page hands over to the chat.
  */
 
-export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(homedir(), ".letta", "lc-local-backend");
+export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
 
 /**
- * Letta spawns helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
- * history-analyzer), all named "Letta Code". They are the harness's, not the user's: no desk, no tree
- * row, no inbox card. Unknown agents (no record) are not treated as subagents.
+ * Letta spawned helper agents for side work (`role:subagent`, e.g. type:general-purpose, reflection,
+ * history-analyzer), all named "Letta Code", and the import may bring their records over. They were the
+ * harness's, not the user's: no desk, no tree row, no inbox card. Unknown agents (no record) are not treated
+ * as subagents. The daemon's own helpers (daemon/subagents.ts) are not agent records at all.
  */
 export function isSubagent(agentId: string, dir = backendDir()): boolean {
   return readLocalAgent(agentId, dir)?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;
@@ -163,33 +164,3 @@ export async function memoryDiff(agentId: string, sha: string, dir = backendDir(
   return out.length > 200_000 ? `${out.slice(0, 200_000)}\n… (diff truncated)` : out;
 }
 
-// --- permission modes ------------------------------------------------------------------------------
-/**
- * Letta persists each conversation's permission mode in ~/.letta/remote-settings.json under
- * permissionModeMap, keyed "conversation:<id>" (or "agent:<id>::conversation:default" for a main
- * chat). Entries equal to the default are not written, and the default is "unrestricted".
- */
-export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
-export const DEFAULT_PERMISSION_MODE: PermissionMode = "unrestricted";
-
-export function permissionModeKey(agentId: string | null, conversationId: string): string {
-  return conversationId === "default" ? `agent:${agentId ?? "__unknown__"}::conversation:default` : `conversation:${conversationId}`;
-}
-
-export function readPermissionModes(file = join(homedir(), ".letta", "remote-settings.json")): Record<string, PermissionMode> {
-  try {
-    const raw = JSON.parse(readFileSync(file, "utf8")) as { permissionModeMap?: Record<string, { mode?: string }> };
-    const out: Record<string, PermissionMode> = {};
-    for (const [k, v] of Object.entries(raw.permissionModeMap ?? {})) {
-      const m = v?.mode;
-      if (m === "strict" || m === "standard" || m === "acceptEdits" || m === "unrestricted") out[k] = m;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-export function permissionModeOf(agentId: string | null, conversationId: string, file?: string): PermissionMode {
-  return readPermissionModes(file)[permissionModeKey(agentId, conversationId)] ?? DEFAULT_PERMISSION_MODE;
-}

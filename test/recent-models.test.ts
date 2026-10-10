@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addRecentModel, mergeRecent, readRecentModels, RECENT_MODELS_MAX } from "../mod/models.ts";
+import { addRecentModel, readRecentModels, RECENT_MODELS_MAX } from "../mod/models.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
 import { DeskStore } from "../mod/desk-store.ts";
@@ -10,39 +10,24 @@ import { GestureLog } from "../mod/gestures.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import type { Client } from "../mod/server.ts";
 
-const files = () => {
-  const dir = mkdtempSync(join(tmpdir(), "loki-models-"));
-  return { mine: join(dir, "state", "recent-models.json"), letta: join(dir, "settings.json") };
-};
+const file = () => join(mkdtempSync(join(tmpdir(), "loki-models-")), "state", "recent-models.json");
 
 describe("recent models (mod/models.ts)", () => {
-  test("loki's picks come first, then Letta Code's own recent models, each once, at most five", () => {
-    expect(mergeRecent(["a", "b"], ["b", "c", "d", "e", "f"])).toEqual(["a", "b", "c", "d", "e"]);
+  test("with no file there are none; a model picked moves to the front, each once, at most five", () => {
+    const f = file();
+    expect(readRecentModels(f)).toEqual([]);
+    for (const h of ["a", "b", "c", "d", "e", "f"]) addRecentModel(h, f);
+    expect(readRecentModels(f)).toEqual(["f", "e", "d", "c", "b"]);
+    expect(addRecentModel("c", f)).toEqual(["c", "f", "e", "d", "b"]);
+    expect(JSON.parse(readFileSync(f, "utf8")).recent).toEqual(["c", "f", "e", "d", "b"]);
     expect(RECENT_MODELS_MAX).toBe(5);
   });
 
-  test("with no files there are none; Letta's settings are read, never written", () => {
-    const f = files();
-    expect(readRecentModels(f.mine, f.letta)).toEqual([]);
-    writeFileSync(f.letta, JSON.stringify({ recentModels: ["anthropic/opus", "openai/gpt"], other: 1 }));
-    expect(readRecentModels(f.mine, f.letta)).toEqual(["anthropic/opus", "openai/gpt"]);
-    const before = readFileSync(f.letta, "utf8");
-    expect(addRecentModel("letta/x", f.mine, f.letta)).toEqual(["letta/x", "anthropic/opus", "openai/gpt"]);
-    expect(readFileSync(f.letta, "utf8")).toBe(before);
-  });
-
-  test("a model picked again moves to the front of loki's list", () => {
-    const f = files();
-    addRecentModel("a", f.mine, f.letta);
-    addRecentModel("b", f.mine, f.letta);
-    expect(addRecentModel("a", f.mine, f.letta)).toEqual(["a", "b"]);
-    expect(JSON.parse(readFileSync(f.mine, "utf8")).recent).toEqual(["a", "b"]);
-  });
-
   test("a broken file reads as none", () => {
-    const f = files();
-    writeFileSync(f.letta, "{not json");
-    expect(readRecentModels(f.mine, f.letta)).toEqual([]);
+    const f = file();
+    addRecentModel("a", f);
+    writeFileSync(f, "{not json");
+    expect(readRecentModels(f)).toEqual([]);
   });
 });
 

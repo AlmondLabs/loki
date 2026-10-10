@@ -23,7 +23,7 @@ describe("board and Learn frames", () => {
 
   test("a lesson that cannot start answers error with the reason", async () => {
     const store = {} as RecallStore;
-    const { bridge } = bridgeWith({ recall: { store, run: async () => ({ note: "" }), startLesson: async () => { throw new Error("no agent for this lead"); } } });
+    const { bridge } = bridgeWith({ recall: { store, status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }), setSettings: async () => {}, run: async () => ({ note: "" }), startLesson: async () => { throw new Error("no agent for this lead"); } } });
     const c = client("d1");
     bridge.onMessage(c, { type: "recall_lead_start", requestId: "r1", id: "lead-1" });
     await settled();

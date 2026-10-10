@@ -24,7 +24,7 @@ export function SlashPalette({ matches, index, listId, onHover, onPick }: { matc
               {c.args && <span style={{ color: "var(--loki-muted)", marginLeft: 6 }}>{c.args}</span>}
             </span>
             <span style={{ fontSize: 11, color: "var(--loki-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{commandText(c)}</span>
-            <span style={{ fontSize: 9.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>{c.where === "loki" ? "loki" : "letta"}</span>
+            <span style={{ fontSize: 9.5, color: "var(--loki-muted)", marginLeft: "auto", whiteSpace: "nowrap", opacity: 0.8 }}>{c.where === "loki" ? "loki" : "agent"}</span>
           </Row>
         ))}
         {matches.length === 0 && <div role="status" className="loki-meta loki-meta--wrap" style={{ padding: 10 }}>{`no command matches — ${formatKeys("enter")} sends it as a message`}</div>}

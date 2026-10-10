@@ -49,7 +49,6 @@ function fixture(opts: { port?: number; appDist?: string | null; tailscale?: Tai
     onMessage: (c, m) => {
       if (m.type === "list_desks") c.send({ type: "desks", desks: [{ scope: c.scope }] });
     },
-    appServerUrl: () => null,
   };
   const changes: Array<["status" | "devices", LanStatus]> = [];
   writeFileSync(join(dir, "face.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));

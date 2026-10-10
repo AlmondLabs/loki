@@ -136,7 +136,7 @@ export function Conversation({
   draft?: ControlledDraft;
   /** The avatar-led message layout and the unread divider (Transcript's MessageLayout); omitted, bubbles. */
   layout?: MessageLayout;
-  /** A line between the thread and the box: "friday is waiting for your reply", the link state. */
+  /** A line between the thread and the box: "atlas is waiting for your reply", the link state. */
   notice?: ReactNode;
   /** The empty box's words, in place of composerPlaceholder's. */
   placeholder?: string;

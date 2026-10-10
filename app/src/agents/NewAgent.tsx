@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { PERSONALITIES, type Personality } from "../../../core/attention/protocol.ts";
-import { Button, Field, Row } from "../components";
+import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
+import { Button, Field, TextArea } from "../components";
 import { formatKeys } from "../shell/keymap";
 
-/** The form for a new agent: name, description, one of Letta's personality presets, a model. */
-export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { models: string[] | null; onLoadModels: () => void; onCreate: (opts: { personality: Personality; name: string; description?: string; model?: string }) => Promise<string | null>; onCancel: () => void; canCancel: boolean }) {
+/** What the persona box says before anything is typed: what goes there, and where it ends up. */
+export const PERSONA_HINT = "who this agent is and how it works, in your words (optional) — it starts the agent's memory, system/persona.md, which the agent keeps up from there";
+
+/** The form for a new agent: name, description, persona (in the person's own words), a model. */
+export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }: { models: string[] | null; onLoadModels: () => void; onCreate: (opts: NewAgentOptions) => Promise<string | null>; onCancel: () => void; canCancel: boolean }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [personality, setPersonality] = useState<Personality>("memo");
+  const [persona, setPersona] = useState("");
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,27 +20,18 @@ export function NewAgent({ models, onLoadModels, onCreate, onCancel, canCancel }
     setBusy(true);
     setError(null);
     try {
-      const err = await onCreate({ personality, name: name.trim(), description: description.trim() || undefined, model: model.trim() || undefined });
+      const err = await onCreate({ name: name.trim(), description: description.trim() || undefined, persona: persona.trim() || undefined, model: model.trim() || undefined });
       if (err) setError(err);
     } finally {
       setBusy(false);
     }
   };
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }} onKeyDown={(e) => e.key === "Enter" && void submit()}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "24px 28px" }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void submit()}>
       <div style={{ maxWidth: 640, display: "grid", gap: 14 }}>
-        <Labelled label="Name"><Field autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="ira, friday, atlas…" autoComplete="off" data-1p-ignore data-form-type="other" /></Labelled>
+        <Labelled label="Name"><Field autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="atlas, scout, sage…" autoComplete="off" data-1p-ignore data-form-type="other" /></Labelled>
         <Labelled label="Description"><Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" /></Labelled>
-        <Labelled label="Personality">
-          <div role="radiogroup" style={{ display: "grid", gap: 4, width: "100%" }}>
-            {PERSONALITIES.map((p) => (
-              <Row dense key={p.id} role="radio" aria-checked={personality === p.id} selected={personality === p.id} onClick={() => setPersonality(p.id)} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10 }}>
-                <span style={{ fontSize: 13.5 }}>{p.label}</span>
-                <span className="loki-meta loki-meta--wrap">{p.description}</span>
-              </Row>
-            ))}
-          </div>
-        </Labelled>
+        <Labelled label="Persona"><TextArea rows={5} value={persona} onChange={(e) => setPersona(e.target.value)} placeholder={PERSONA_HINT} data-form-type="other" /></Labelled>
         <Labelled label="Model">
           <Field list="loki-new-agent-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models?.length ? "the harness default, or pick one" : "the harness default"} autoComplete="off" data-form-type="other" />
           <datalist id="loki-new-agent-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
