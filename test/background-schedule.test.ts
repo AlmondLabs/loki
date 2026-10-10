@@ -26,7 +26,9 @@ describe("background tasks", () => {
   test("a task takes input, can be stopped, and another agent cannot reach it", async () => {
     const notices: string[] = [];
     const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
-    const id = tasks.start("agent-a", "c", tmpdir(), "read line; echo got $line; sleep 30");
+    // `sleep` stays a child of the shell in every shell (the echo after it keeps zsh from exec'ing it) and holds the
+    // output open: a stop must end it too, not only the shell.
+    const id = tasks.start("agent-a", "c", tmpdir(), "read line; echo got $line; sleep 30; echo after");
     tasks.write(id, "agent-a", "hello\n");
     expect(await tasks.wait(id, "agent-a", "got hello", 2000)).toContain("got hello");
     expect(() => tasks.output(id, "agent-b")).toThrow("no background task");

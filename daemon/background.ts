@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable";
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -26,6 +26,8 @@ type Task = {
   /** How much of the output the agent has read. */
   read: number;
   exit: { code: number | null; signal: string | null } | null;
+  /** The signal a stop sent: Windows ends a tree with none of its own. */
+  stopping?: NodeJS.Signals;
   waiters: Set<() => void>;
 };
 
@@ -56,7 +58,9 @@ export class BackgroundTasks {
 
   start(agentId: string, chatId: string, cwd: string, command: string): string {
     const id = `bg-${randomBytes(3).toString("hex")}`;
-    const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env });
+    // Its own process group off Windows, so stopping it stops what its shell started too (bash keeps `sleep 30`, a dev
+    // server under `npm run`, as children that hold the output open after the shell itself is gone).
+    const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
     const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, waiters: new Set() };
     const take = (chunk: Buffer) => {
       task.output += chunk.toString("utf8");
@@ -70,7 +74,9 @@ export class BackgroundTasks {
     child.stdout?.on("data", take);
     child.stderr?.on("data", take);
     child.on("error", (error) => take(Buffer.from(`\n${error.message}\n`)));
-    child.on("close", (code, signal) => {
+    child.on("close", (code, exitSignal) => {
+      // Windows ends a tree without a signal; a task stopped there still reads as stopped.
+      const signal = exitSignal ?? task.stopping ?? null;
       task.exit = { code, signal };
       for (const w of task.waiters) w();
       const status = signal ? `stopped (${signal})` : code === 0 ? "completed" : `failed (exit ${code})`;
@@ -103,8 +109,23 @@ export class BackgroundTasks {
   }
 
   stop(id: string, agentId: string): void {
-    const task = this.get(id, agentId);
-    if (!task.exit) task.child.kill("SIGTERM");
+    this.kill(this.get(id, agentId));
+  }
+
+  /** End a task and everything its shell started: its process group, or on Windows its process tree. */
+  private kill(task: Task): void {
+    const pid = task.child.pid;
+    if (task.exit || pid === undefined) return;
+    task.stopping = "SIGTERM";
+    if (process.platform === "win32") {
+      execFile("taskkill", ["/PID", String(pid), "/T", "/F"], (error) => error && task.child.kill());
+      return;
+    }
+    try {
+      process.kill(-pid, "SIGTERM");
+    } catch {
+      task.child.kill("SIGTERM"); // the group is gone already; the shell may not be
+    }
   }
 
   /** Wait until the output matches `pattern`, the task ends, or `ms` pass; then its new output. */
@@ -131,7 +152,7 @@ export class BackgroundTasks {
 
   /** End every task (the daemon is stopping). */
   stopAll(): void {
-    for (const task of this.tasks.values()) if (!task.exit) task.child.kill("SIGTERM");
+    for (const task of this.tasks.values()) this.kill(task);
   }
 }
 
