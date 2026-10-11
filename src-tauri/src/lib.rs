@@ -26,7 +26,6 @@ fn loki_dir() -> PathBuf {
     ROOT.get().cloned().unwrap_or_else(|| home_dir().join(".loki"))
 }
 
-
 fn read_token() -> Option<String> {
     std::fs::read_to_string(loki_dir().join("token")).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
@@ -44,7 +43,9 @@ fn new_token() -> Option<String> {
 /// activate, but a first launch starts the daemon *before* any mod ran, so the shell writes it
 /// when it is missing (`new_token`, mode 0600 where the system has modes — the same shape the mod makes).
 fn ensure_token() -> Option<String> {
-    if let Some(t) = read_token() { return Some(t); }
+    if let Some(t) = read_token() {
+        return Some(t);
+    }
     let token = new_token()?;
     let dir = loki_dir();
     std::fs::create_dir_all(&dir).ok()?;
@@ -126,7 +127,9 @@ impl DaemonState {
         self.status.lock().map(|s| s.clone()).unwrap_or_default()
     }
     fn set(&self, f: impl FnOnce(&mut DaemonStatus)) {
-        if let Ok(mut s) = self.status.lock() { f(&mut s); }
+        if let Ok(mut s) = self.status.lock() {
+            f(&mut s);
+        }
     }
 }
 
@@ -142,7 +145,9 @@ async fn retry_daemon(app: tauri::AppHandle) -> Result<DaemonStatus, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<DaemonState>();
         if !state.supervising.load(std::sync::atomic::Ordering::SeqCst) {
-            if let Err(e) = start_daemon(&app) { eprintln!("loki: {e}"); }
+            if let Err(e) = start_daemon(&app) {
+                eprintln!("loki: {e}");
+            }
         }
         state.get()
     })
@@ -241,12 +246,19 @@ fn stop_on_signals(handle: tauri::AppHandle) {
         #[cfg(unix)]
         {
             use tokio::signal::unix::{signal, SignalKind};
-            let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else { return };
+            let (Ok(mut term), Ok(mut int)) = (signal(SignalKind::terminate()), signal(SignalKind::interrupt())) else {
+                return;
+            };
             tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
         }
         #[cfg(not(unix))]
-        let Ok(()) = tokio::signal::ctrl_c().await else { return };
-        if let Some(h) = handle.try_state::<harness::Harness>() { h.stop(); }
+        let Ok(()) = tokio::signal::ctrl_c().await
+        else {
+            return;
+        };
+        if let Some(h) = handle.try_state::<harness::Harness>() {
+            h.stop();
+        }
         handle.exit(0);
     });
 }
@@ -272,7 +284,9 @@ fn home_dir() -> PathBuf {
 
 /// Release builds install on every launch; `tauri dev` runs the checkout instead, unless asked (LOKI_INSTALL=1).
 fn install_wanted() -> bool {
-    if std::env::var_os("LOKI_NO_INSTALL").is_some() { return false; }
+    if std::env::var_os("LOKI_NO_INSTALL").is_some() {
+        return false;
+    }
     !cfg!(debug_assertions) || std::env::var_os("LOKI_INSTALL").is_some()
 }
 
@@ -282,7 +296,9 @@ fn install_wanted() -> bool {
 fn dev_checkout() -> Option<PathBuf> {
     #[cfg(debug_assertions)]
     {
-        if std::env::var_os("LOKI_NO_INSTALL").is_some() { return None; }
+        if std::env::var_os("LOKI_NO_INSTALL").is_some() {
+            return None;
+        }
         return PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().map(Path::to_path_buf);
     }
     #[allow(unreachable_code)]
@@ -293,7 +309,11 @@ fn dev_checkout() -> Option<PathBuf> {
 /// undecorated window on native Wayland still has open resize and unresponsive-button bugs. The value to set, if any.
 #[cfg(any(target_os = "linux", test))]
 fn gdk_backend(current: Option<&std::ffi::OsStr>) -> Option<&'static str> {
-    if current.is_some() { None } else { Some("x11") }
+    if current.is_some() {
+        None
+    } else {
+        Some("x11")
+    }
 }
 
 /// Called first thing in `main`, before GTK or any thread starts (setting the environment later would race them).
@@ -343,7 +363,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // The system's folder dialog: Browse in "new desk" on every OS (the mod's AppleScript chooser serves browser tabs).
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![client_log, install_status, tool_status, daemon_status, retry_daemon, native::set_waiting, native::set_global_shortcut, menu::set_menu])
+        .invoke_handler(tauri::generate_handler![
+            client_log,
+            install_status,
+            tool_status,
+            daemon_status,
+            retry_daemon,
+            native::set_waiting,
+            native::set_global_shortcut,
+            menu::set_menu
+        ])
         // Agent-written widgets, transpiled on request: loki://localhost/widgets/<desk>/<name>.js
         .register_uri_scheme_protocol("loki", |_ctx, request| widgets::respond(request.uri().path()))
         .setup(move |app| {
@@ -356,12 +385,28 @@ pub fn run() {
                 let resources = app.path().resource_dir().ok().and_then(|d| install::find_resources(&d));
                 report = match resources {
                     Some(res) => install::run(&res, &data, &home),
-                    None => install::Report { r#mod: install::State::Error, error: Some("bundled mod not found in the app's resources".into()), ..install::Report::skipped(&home) },
+                    None => install::Report {
+                        r#mod: install::State::Error,
+                        error: Some("bundled mod not found in the app's resources".into()),
+                        ..install::Report::skipped(&home)
+                    },
                 };
-                eprintln!("loki: install: mod {:?} · skill {:?} · app {:?}{}", report.r#mod, report.skill, report.app, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
+                eprintln!(
+                    "loki: install: mod {:?} · skill {:?} · app {:?}{}",
+                    report.r#mod,
+                    report.skill,
+                    report.app,
+                    report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default()
+                );
             } else if let Some(checkout) = dev_checkout() {
                 report = install::link_checkout(&checkout, &home);
-                eprintln!("loki: dev: mod {:?} {} · skill {:?}{}", report.r#mod, report.mod_path, report.skill, report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default());
+                eprintln!(
+                    "loki: dev: mod {:?} {} · skill {:?}{}",
+                    report.r#mod,
+                    report.mod_path,
+                    report.skill,
+                    report.error.as_deref().map(|e| format!(" · {e}")).unwrap_or_default()
+                );
             }
             app.manage(report);
 
@@ -369,7 +414,9 @@ pub fn run() {
             // it once one is installed.
             app.manage(harness::Harness::default());
             app.manage(DaemonState::default());
-            if let Err(e) = start_daemon(app.handle()) { eprintln!("loki: {e}"); }
+            if let Err(e) = start_daemon(app.handle()) {
+                eprintln!("loki: {e}");
+            }
             stop_on_signals(app.handle().clone());
 
             let window = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
@@ -394,13 +441,17 @@ pub fn run() {
             {
                 menu::listen(app.handle());
                 native::setup_tray(app.handle())?;
-                if let Err(e) = native::setup_shortcut(app.handle()) { eprintln!("loki: global shortcut unavailable: {e}"); }
+                if let Err(e) = native::setup_shortcut(app.handle()) {
+                    eprintln!("loki: global shortcut unavailable: {e}");
+                }
             }
             Ok(())
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event {
-                if let Some(h) = window.app_handle().try_state::<harness::Harness>() { h.stop(); }
+                if let Some(h) = window.app_handle().try_state::<harness::Harness>() {
+                    h.stop();
+                }
             }
         })
         .build(tauri::generate_context!())
@@ -408,7 +459,9 @@ pub fn run() {
         .run(|app, event| {
             // Quit from the menu, the dock, or the last window closing: take the daemon down first.
             if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
-                if let Some(h) = app.try_state::<harness::Harness>() { h.stop(); }
+                if let Some(h) = app.try_state::<harness::Harness>() {
+                    h.stop();
+                }
             }
         });
 }
@@ -422,7 +475,10 @@ mod tests {
     fn tokens_are_32_lowercase_hex_chars_and_fresh_each_time() {
         let (a, b) = (new_token().unwrap(), new_token().unwrap());
         assert_eq!(a.len(), 32, "{a}");
-        assert!(a.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)), "the mod's shape, /^[a-f0-9]{{32}}$/: {a}");
+        assert!(
+            a.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+            "the mod's shape, /^[a-f0-9]{{32}}$/: {a}"
+        );
         assert_ne!(a, b);
     }
 
@@ -433,7 +489,11 @@ mod tests {
     #[test]
     fn home_is_the_platforms_own_variable_and_never_slash() {
         assert_eq!(home_from(true, env(&[("USERPROFILE", r"C:\Users\x")])), Some(PathBuf::from(r"C:\Users\x")));
-        assert_eq!(home_from(true, env(&[("USERPROFILE", r"C:\Users\x"), ("HOME", "/c/Users/x")])), Some(PathBuf::from(r"C:\Users\x")), "a Git Bash HOME does not win: os.homedir() reads USERPROFILE");
+        assert_eq!(
+            home_from(true, env(&[("USERPROFILE", r"C:\Users\x"), ("HOME", "/c/Users/x")])),
+            Some(PathBuf::from(r"C:\Users\x")),
+            "a Git Bash HOME does not win: os.homedir() reads USERPROFILE"
+        );
         assert_eq!(home_from(true, env(&[("HOME", "/home/x")])), None);
         assert_eq!(home_from(false, env(&[("HOME", "/Users/x")])), Some(PathBuf::from("/Users/x")));
         assert_eq!(home_from(false, env(&[("USERPROFILE", r"C:\Users\x")])), None);
@@ -454,10 +514,22 @@ mod tests {
         assert_eq!(page_os("windows"), "windows");
         assert_eq!(page_os("linux"), "linux");
         assert_eq!(page_os("freebsd"), "linux");
-        let expected = if cfg!(target_os = "macos") { "macos" } else if cfg!(windows) { "windows" } else { "linux" };
+        let expected = if cfg!(target_os = "macos") {
+            "macos"
+        } else if cfg!(windows) {
+            "windows"
+        } else {
+            "linux"
+        };
         let script = init_script();
-        assert!(script.ends_with(&format!(", os: \"{expected}\" }}; }}")), "the script ends with the os (not printed: it carries the token)");
+        assert!(
+            script.ends_with(&format!(", os: \"{expected}\" }}; }}")),
+            "the script ends with the os (not printed: it carries the token)"
+        );
         // Only the top-level page: a widget's sandboxed frame, which Windows also runs it in, gets nothing.
-        assert!(script.starts_with("if (window.top === window) { window.__LOKI__ = "), "the token is set in the top-level window only");
+        assert!(
+            script.starts_with("if (window.top === window) { window.__LOKI__ = "),
+            "the token is set in the top-level window only"
+        );
     }
 }

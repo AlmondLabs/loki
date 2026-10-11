@@ -32,7 +32,13 @@ pub enum Os {
 }
 
 impl Os {
-    pub const HOST: Os = if cfg!(windows) { Os::Windows } else if cfg!(target_os = "macos") { Os::Macos } else { Os::Linux };
+    pub const HOST: Os = if cfg!(windows) {
+        Os::Windows
+    } else if cfg!(target_os = "macos") {
+        Os::Macos
+    } else {
+        Os::Linux
+    };
 
     /// The file names a program goes by: `.exe` on Windows, the bare name elsewhere.
     fn names(self, program: &str) -> Vec<String> {
@@ -43,21 +49,30 @@ impl Os {
     }
 
     fn path_separator(self) -> char {
-        if self == Os::Windows { ';' } else { ':' }
+        if self == Os::Windows {
+            ';'
+        } else {
+            ':'
+        }
     }
 }
 
 /// Where discovery looks, and with what: the system, the home, PATH, the environment and the way a Node's
 /// version is read. `Host::this` is the machine loki runs on, read afresh at each call — paths are never
 /// cached, so a Node installed while Welcome waits is found by the next look.
+/// Reads an environment variable.
+pub type VarFn = Box<dyn Fn(&str) -> Option<std::ffi::OsString>>;
+/// Reads the version of the Node at a path.
+pub type VersionFn = Box<dyn Fn(&Path) -> Option<Version>>;
+
 pub struct Host {
     pub os: Os,
     pub home: PathBuf,
     /// What the system's absolute folders (`/usr/local/bin`) hang from: `/`, except in tests.
     pub root: PathBuf,
     pub path: Option<String>,
-    pub var: Box<dyn Fn(&str) -> Option<std::ffi::OsString>>,
-    pub version: Box<dyn Fn(&Path) -> Option<Version>>,
+    pub var: VarFn,
+    pub version: VersionFn,
 }
 
 impl Host {
@@ -66,7 +81,14 @@ impl Host {
     }
 
     fn with_path(home: &Path, path: Option<String>) -> Host {
-        Host { os: Os::HOST, home: home.to_path_buf(), root: PathBuf::from("/"), path, var: Box::new(|k| std::env::var_os(k)), version: Box::new(node_version) }
+        Host {
+            os: Os::HOST,
+            home: home.to_path_buf(),
+            root: PathBuf::from("/"),
+            path,
+            var: Box::new(|k| std::env::var_os(k)),
+            version: Box::new(node_version),
+        }
     }
 
     /// An environment folder, when set and not empty.
@@ -123,19 +145,28 @@ pub fn bin_dirs(home: &Path, path: Option<&str>) -> Vec<PathBuf> {
 /// nvm-windows, fnm, scoop), from the environment where Windows keeps them.
 pub fn bin_dirs_for(h: &Host) -> Vec<PathBuf> {
     let home = &h.home;
-    let mut dirs: Vec<PathBuf> = h.path.as_deref().map(|p| p.split(h.os.path_separator()).map(PathBuf::from).collect()).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> =
+        h.path.as_deref().map(|p| p.split(h.os.path_separator()).map(PathBuf::from).collect()).unwrap_or_default();
     match h.os {
         Os::Macos | Os::Linux => {
-            let system: &[&str] = if h.os == Os::Macos { &["opt/homebrew/bin", "usr/local/bin"] } else { &["usr/local/bin", "usr/bin", "home/linuxbrew/.linuxbrew/bin"] };
+            let system: &[&str] = if h.os == Os::Macos {
+                &["opt/homebrew/bin", "usr/local/bin"]
+            } else {
+                &["usr/local/bin", "usr/bin", "home/linuxbrew/.linuxbrew/bin"]
+            };
             dirs.extend(system.iter().map(|d| h.root.join(d)));
             for d in [".volta/bin", ".bun/bin", ".npm-global/bin", ".local/bin"] {
                 dirs.push(home.join(d));
             }
-            if let Some(d) = newest_versioned_node(&home.join(".nvm").join("versions").join("node"), |v| h.program_in(&v.join("bin"), "node")) {
+            if let Some(d) = newest_versioned_node(&home.join(".nvm").join("versions").join("node"), |v| {
+                h.program_in(&v.join("bin"), "node")
+            }) {
                 dirs.push(d);
             }
             let mut fnm = vec![home.join(".local").join("share").join("fnm"), home.join(".fnm")];
-            if h.os == Os::Macos { fnm.insert(0, home.join("Library").join("Application Support").join("fnm")); }
+            if h.os == Os::Macos {
+                fnm.insert(0, home.join("Library").join("Application Support").join("fnm"));
+            }
             for f in fnm {
                 dirs.push(f.join("aliases").join("default").join("bin"));
             }
@@ -148,7 +179,9 @@ pub fn bin_dirs_for(h: &Host) -> Vec<PathBuf> {
             dirs.push(local.join("Volta").join("bin"));
             // nvm-windows: the active version's link, then the newest version it keeps.
             dirs.extend(h.dir("NVM_SYMLINK"));
-            if let Some(d) = newest_versioned_node(&h.dir("NVM_HOME").unwrap_or_else(|| roaming.join("nvm")), |v| h.program_in(v, "node")) {
+            if let Some(d) = newest_versioned_node(&h.dir("NVM_HOME").unwrap_or_else(|| roaming.join("nvm")), |v| {
+                h.program_in(v, "node")
+            }) {
                 dirs.push(d);
             }
             for f in [h.dir("FNM_DIR"), Some(roaming.join("fnm")), Some(local.join("fnm"))].into_iter().flatten() {
@@ -188,7 +221,9 @@ pub fn find_node_for(h: &Host) -> Result<PathBuf, Option<(Version, PathBuf)>> {
     for p in candidates.into_iter().filter(|p| p.is_file()) {
         let Some(v) = (h.version)(&p) else { continue };
         if v >= NODE_MIN {
-            if let Some(d) = p.parent() { return Ok(d.to_path_buf()); }
+            if let Some(d) = p.parent() {
+                return Ok(d.to_path_buf());
+            }
         } else if old.as_ref().map(|(ov, _)| v > *ov).unwrap_or(true) {
             old = Some((v, p));
         }
@@ -267,11 +302,13 @@ mod tests {
         let dirs = bin_dirs(&home, path.to_str());
         assert_eq!(dirs[0], PathBuf::from("/x/bin"));
         assert_eq!(dirs[1], PathBuf::from("/opt/homebrew/bin"), "PATH's own Homebrew comes first and is not repeated");
-        assert_eq!(dirs.iter().filter(|d| **d == PathBuf::from("/opt/homebrew/bin")).count(), 1);
+        assert_eq!(dirs.iter().filter(|d| *d == Path::new("/opt/homebrew/bin")).count(), 1);
         assert!(dirs.contains(&PathBuf::from("/usr/local/bin")));
         assert!(dirs.contains(&home.join(".volta").join("bin")));
         assert!(dirs.contains(&home.join(".bun").join("bin")));
-        assert!(dirs.contains(&home.join("Library").join("Application Support").join("fnm").join("aliases").join("default").join("bin")));
+        assert!(dirs.contains(
+            &home.join("Library").join("Application Support").join("fnm").join("aliases").join("default").join("bin")
+        ));
         // nvm: the newest version's bin, only when it exists
         assert!(!dirs.iter().any(|d| d.to_string_lossy().contains(".nvm")));
         node_file(&home.join(".nvm/versions/node/v22.1.0/bin/node"), "v22.1.0");
@@ -303,13 +340,24 @@ mod tests {
     }
     /// A Windows user's folders, rooted in the fake home: %APPDATA%, %LOCALAPPDATA%, %ProgramFiles%.
     fn windows(home: &Path) -> Vec<(&'static str, PathBuf)> {
-        vec![("APPDATA", home.join("AppData").join("Roaming")), ("LOCALAPPDATA", home.join("AppData").join("Local")), ("ProgramFiles", home.join("Program Files"))]
+        vec![
+            ("APPDATA", home.join("AppData").join("Roaming")),
+            ("LOCALAPPDATA", home.join("AppData").join("Local")),
+            ("ProgramFiles", home.join("Program Files")),
+        ]
     }
 
     #[test]
     fn the_mac_looks_where_it_always_did() {
         let home = PathBuf::from("/Users/someone");
-        let h = Host { os: Os::Macos, home: home.clone(), root: PathBuf::from("/"), path: Some("/x/bin".into()), var: Box::new(|_| None), version: Box::new(|_| None) };
+        let h = Host {
+            os: Os::Macos,
+            home: home.clone(),
+            root: PathBuf::from("/"),
+            path: Some("/x/bin".into()),
+            var: Box::new(|_| None),
+            version: Box::new(|_| None),
+        };
         let fnm = |p: PathBuf| p.join("aliases").join("default").join("bin");
         assert_eq!(
             bin_dirs_for(&h),
@@ -327,7 +375,9 @@ mod tests {
             ]
         );
         // `bin_dirs` is this machine's list, so the entry point matches only when the test runs on a Mac.
-        if cfg!(target_os = "macos") { assert_eq!(bin_dirs(&home, Some("/x/bin")), bin_dirs_for(&h), "the Mac's own entry point is the same list") }
+        if cfg!(target_os = "macos") {
+            assert_eq!(bin_dirs(&home, Some("/x/bin")), bin_dirs_for(&h), "the Mac's own entry point is the same list")
+        }
     }
 
     #[test]
@@ -374,7 +424,10 @@ mod tests {
         let home = fake_home();
         let h = host(Os::Windows, &home, "", vec![]);
         let dirs = bin_dirs_for(&h);
-        assert!(dirs.contains(&home.join("AppData").join("Roaming").join("npm")), "%APPDATA% unset: the home's own AppData");
+        assert!(
+            dirs.contains(&home.join("AppData").join("Roaming").join("npm")),
+            "%APPDATA% unset: the home's own AppData"
+        );
         assert!(dirs.iter().all(|d| d.is_absolute() || d.starts_with(&home)), "{dirs:?}");
         let _ = std::fs::remove_dir_all(&home);
     }
@@ -390,10 +443,19 @@ mod tests {
         assert!(dirs.contains(&home.join(".volta/bin")));
         assert!(dirs.contains(&home.join(".npm-global/bin")));
         assert!(dirs.contains(&home.join(".local/share/fnm/aliases/default/bin")));
-        assert!(!dirs.iter().any(|d| d.to_string_lossy().contains("Library") || d.to_string_lossy().contains("/opt/homebrew")), "no Mac folders on Linux");
+        assert!(
+            !dirs
+                .iter()
+                .any(|d| d.to_string_lossy().contains("Library") || d.to_string_lossy().contains("/opt/homebrew")),
+            "no Mac folders on Linux"
+        );
         assert_eq!(find_node_for(&h), Err(None));
         node_file(&home.join(".nvm/versions/node/v22.19.0/bin/node"), "v22.19.0");
-        assert_eq!(find_node_for(&h), Ok(home.join(".nvm/versions/node/v22.19.0/bin")), "found at the next look: nothing is cached");
+        assert_eq!(
+            find_node_for(&h),
+            Ok(home.join(".nvm/versions/node/v22.19.0/bin")),
+            "found at the next look: nothing is cached"
+        );
         let _ = std::fs::remove_dir_all(&home);
     }
 
@@ -404,10 +466,18 @@ mod tests {
         node_file(&home.join("root/usr/bin/node"), "v20.11.1");
         node_file(&home.join(".volta/bin/node"), "v22.18.0");
         let h = host(Os::Linux, &home, "", vec![]);
-        assert_eq!(find_node_for(&h), Err(Some(((22, 18, 0), home.join(".volta/bin/node")))), "the newest of the old ones is named");
+        assert_eq!(
+            find_node_for(&h),
+            Err(Some(((22, 18, 0), home.join(".volta/bin/node")))),
+            "the newest of the old ones is named"
+        );
         let missing = node_missing(Os::Linux, find_node_for(&h).unwrap_err());
         assert_eq!(missing.found.as_deref(), Some("22.18.0"));
-        assert_eq!(missing.at.as_deref().map(PathBuf::from), Some(home.join(".volta/bin/node")), "compared as paths: on Windows the folder list mixes / and \\");
+        assert_eq!(
+            missing.at.as_deref().map(PathBuf::from),
+            Some(home.join(".volta/bin/node")),
+            "compared as paths: on Windows the folder list mixes / and \\"
+        );
         assert_eq!(missing.needed, "22.19");
         assert_eq!(missing.os, Os::Linux);
         let _ = std::fs::remove_dir_all(&home);
@@ -423,6 +493,10 @@ mod tests {
         assert!(linux.contains("apt") && linux.contains("dnf"), "{linux}");
         let old = node_missing(Os::Linux, Some(((20, 11, 1), PathBuf::from("/usr/bin/node")))).message();
         assert!(old.contains("20.11.1") && old.contains("/usr/bin/node"), "{old}");
-        assert_eq!(node_missing(Os::Macos, None).message(), "no Node 22.19 or newer on this Mac — `brew install node` (the Homebrew cask brings it), then retry", "the Mac's line as it was");
+        assert_eq!(
+            node_missing(Os::Macos, None).message(),
+            "no Node 22.19 or newer on this Mac — `brew install node` (the Homebrew cask brings it), then retry",
+            "the Mac's line as it was"
+        );
     }
 }

@@ -70,7 +70,9 @@ fn split_windows(line: &str) -> Vec<String> {
             quoted = !quoted;
             any = true;
         } else if c.is_whitespace() && !quoted {
-            if any { out.push(std::mem::take(&mut cur)); }
+            if any {
+                out.push(std::mem::take(&mut cur));
+            }
             any = false;
         } else {
             cur.push(c);
@@ -78,7 +80,9 @@ fn split_windows(line: &str) -> Vec<String> {
         }
         i += 1;
     }
-    if any { out.push(cur); }
+    if any {
+        out.push(cur);
+    }
     out
 }
 
@@ -86,13 +90,17 @@ fn split_windows(line: &str) -> Vec<String> {
 /// `--token-file <token_file>`.
 pub fn is_own_daemon(words: &[String], token_file: &std::path::Path) -> bool {
     let after = |flag: &str| words.iter().position(|w| w == flag).and_then(|i| words.get(i + 1));
-    words.iter().any(|w| w == "--loki-daemon") && after("--token-file").is_some_and(|f| same_path(f, &token_file.to_string_lossy()))
+    words.iter().any(|w| w == "--loki-daemon")
+        && after("--token-file").is_some_and(|f| same_path(f, &token_file.to_string_lossy()))
 }
 
 /// loki's daemon left from an earlier run: its loki is gone (a running loki's daemon is that loki's, and is never
 /// stopped). The daemon's own lock keeps a second one from serving; this lets a new loki replace an orphan.
 pub fn daemon_leftover(snap: &Snapshot, token_file: &std::path::Path) -> Option<Leftover> {
-    snap.procs.iter().find(|p| is_own_daemon(&command_words(&p.cmd), token_file) && !has_live_loki_parent(snap, p)).map(|p| Leftover { pid: p.pid, started: p.started })
+    snap.procs
+        .iter()
+        .find(|p| is_own_daemon(&command_words(&p.cmd), token_file) && !has_live_loki_parent(snap, p))
+        .map(|p| Leftover { pid: p.pid, started: p.started })
 }
 
 /// Windows paths match whatever their slashes and case; other systems compare them as written.
@@ -127,11 +135,21 @@ pub mod os {
     /// Every process with its command line.
     pub fn snapshot() -> Snapshot {
         let mut sys = System::new();
-        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always));
+        sys.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always),
+        );
         let procs = sys
             .processes()
             .iter()
-            .map(|(pid, p)| Proc { pid: pid.as_u32(), name: p.name().to_string_lossy().into_owned(), cmd: p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect(), started: p.start_time(), parent: p.parent().map(|pp| pp.as_u32()) })
+            .map(|(pid, p)| Proc {
+                pid: pid.as_u32(),
+                name: p.name().to_string_lossy().into_owned(),
+                cmd: p.cmd().iter().map(|a| a.to_string_lossy().into_owned()).collect(),
+                started: p.start_time(),
+                parent: p.parent().map(|pp| pp.as_u32()),
+            })
             .collect();
         Snapshot { procs }
     }
@@ -142,18 +160,24 @@ pub mod os {
         let mut sys = System::new();
         let pid = Pid::from_u32(pid);
         sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), true, ProcessRefreshKind::nothing());
-        sys.process(pid).filter(|p| !matches!(p.status(), ProcessStatus::Zombie | ProcessStatus::Dead)).map(|p| p.start_time())
+        sys.process(pid)
+            .filter(|p| !matches!(p.status(), ProcessStatus::Zombie | ProcessStatus::Dead))
+            .map(|p| p.start_time())
     }
 
     /// Kill `pid` if it is still the process that started at `started`, and wait (up to 3 s) for it to go, so the
     /// daemon started next finds its folder's lock free. False when it was already gone or is another process now.
     pub fn kill(pid: u32, started: Option<u64>) -> bool {
         let Some(at) = started else { return false };
-        if start_time(pid) != Some(at) { return false; }
+        if start_time(pid) != Some(at) {
+            return false;
+        }
         let mut sys = System::new();
         let p = Pid::from_u32(pid);
         sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[p]), true, ProcessRefreshKind::nothing());
-        if !sys.process(p).is_some_and(|proc| proc.kill()) { return false; }
+        if !sys.process(p).is_some_and(|proc| proc.kill()) {
+            return false;
+        }
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
         while start_time(pid) == Some(at) && std::time::Instant::now() < deadline {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -173,23 +197,61 @@ mod tests {
     #[test]
     fn a_daemon_whose_loki_is_gone_is_a_leftover_and_one_whose_loki_runs_is_not() {
         let tf = std::path::PathBuf::from("/home/x/.loki/token");
-        let daemon = |pid, parent| Proc { pid, name: "node".into(), cmd: s(&["node", "/data/daemon/daemon.mjs", "--loki-daemon", "--dir", "/home/x/.loki", "--mod", "/data/mod/loki-mod.mjs", "--token-file", "/home/x/.loki/token"]), started: 99, parent };
+        let daemon = |pid, parent| Proc {
+            pid,
+            name: "node".into(),
+            cmd: s(&[
+                "node",
+                "/data/daemon/daemon.mjs",
+                "--loki-daemon",
+                "--dir",
+                "/home/x/.loki",
+                "--mod",
+                "/data/mod/loki-mod.mjs",
+                "--token-file",
+                "/home/x/.loki/token",
+            ]),
+            started: 99,
+            parent,
+        };
         let shell = Proc { pid: 5, name: "loki".into(), cmd: vec![], started: 1, parent: Some(1) };
         let orphan = Snapshot { procs: vec![daemon(40, Some(1))] };
         assert_eq!(daemon_leftover(&orphan, &tf), Some(Leftover { pid: 40, started: 99 }));
         let owned = Snapshot { procs: vec![daemon(40, Some(5)), shell] };
         assert_eq!(daemon_leftover(&owned, &tf), None, "a running loki's daemon");
         assert_eq!(daemon_leftover(&orphan, std::path::Path::new("/elsewhere/token")), None, "another folder's daemon");
-        let not_daemon = Snapshot { procs: vec![Proc { pid: 41, name: "node".into(), cmd: s(&["node", "x.mjs", "--token-file", "/home/x/.loki/token"]), started: 1, parent: None }] };
+        let not_daemon = Snapshot {
+            procs: vec![Proc {
+                pid: 41,
+                name: "node".into(),
+                cmd: s(&["node", "x.mjs", "--token-file", "/home/x/.loki/token"]),
+                started: 1,
+                parent: None,
+            }],
+        };
         assert_eq!(daemon_leftover(&not_daemon, &tf), None, "no --loki-daemon marker");
         // Its loki gone: reparented to launchd or init, a subreaper, or (Windows) a pid no process has.
-        for (parent, procs) in [(Some(1), vec![Proc { pid: 1, name: "launchd".into(), cmd: vec![], started: 0, parent: None }]), (Some(900), vec![Proc { pid: 900, name: "systemd".into(), cmd: vec![], started: 0, parent: Some(1) }]), (Some(4321), vec![]), (None, vec![])] {
+        for (parent, procs) in [
+            (Some(1), vec![Proc { pid: 1, name: "launchd".into(), cmd: vec![], started: 0, parent: None }]),
+            (Some(900), vec![Proc { pid: 900, name: "systemd".into(), cmd: vec![], started: 0, parent: Some(1) }]),
+            (Some(4321), vec![]),
+            (None, vec![]),
+        ] {
             let mut all = vec![daemon(40, parent)];
             all.extend(procs);
-            assert_eq!(daemon_leftover(&Snapshot { procs: all }, &tf), Some(Leftover { pid: 40, started: 99 }), "{parent:?}");
+            assert_eq!(
+                daemon_leftover(&Snapshot { procs: all }, &tf),
+                Some(Leftover { pid: 40, started: 99 }),
+                "{parent:?}"
+            );
         }
         for shell in ["loki", "loki.exe", "LOKI.EXE"] {
-            let snap = Snapshot { procs: vec![daemon(40, Some(5)), Proc { pid: 5, name: shell.into(), cmd: vec![], started: 1, parent: Some(1) }] };
+            let snap = Snapshot {
+                procs: vec![
+                    daemon(40, Some(5)),
+                    Proc { pid: 5, name: shell.into(), cmd: vec![], started: 1, parent: Some(1) },
+                ],
+            };
             assert_eq!(daemon_leftover(&snap, &tf), None, "{shell}");
         }
     }
@@ -197,10 +259,13 @@ mod tests {
     #[test]
     fn a_windows_command_line_is_split_the_way_programs_read_it() {
         // sysinfo hands the arguments over already split; quoted paths keep their spaces and backslashes.
-        let split = s(&[r"C:\Program Files\nodejs\node.exe", r"C:\Users\someone\.loki\daemon\daemon.mjs", "--loki-daemon"]);
+        let split =
+            s(&[r"C:\Program Files\nodejs\node.exe", r"C:\Users\someone\.loki\daemon\daemon.mjs", "--loki-daemon"]);
         assert_eq!(command_words(&split), split);
         // …or as one string, the way Windows stores a command line.
-        let one = s(&[r#""C:\Program Files\nodejs\node.exe" "C:\Users\some one\.loki\daemon\daemon.mjs" --loki-daemon --token-file "C:\Users\some one\.loki\token""#]);
+        let one = s(&[
+            r#""C:\Program Files\nodejs\node.exe" "C:\Users\some one\.loki\daemon\daemon.mjs" --loki-daemon --token-file "C:\Users\some one\.loki\token""#,
+        ]);
         let words = command_words(&one);
         assert_eq!(words[0], r"C:\Program Files\nodejs\node.exe");
         assert_eq!(words[1], r"C:\Users\some one\.loki\daemon\daemon.mjs");
@@ -217,7 +282,11 @@ mod tests {
 
     fn sleeper() -> std::process::Child {
         if cfg!(windows) {
-            std::process::Command::new("ping").args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap()
+            std::process::Command::new("ping")
+                .args(["-n", "30", "127.0.0.1"])
+                .stdout(std::process::Stdio::null())
+                .spawn()
+                .unwrap()
         } else {
             std::process::Command::new("sleep").arg("30").spawn().unwrap()
         }

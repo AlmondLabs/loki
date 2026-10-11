@@ -36,16 +36,22 @@ npm run typecheck
 npm run lint
 npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
+cargo fmt --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
 CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
 say something: `.github/workflows/ci.yml` runs types, lint, the suite, the Node runner's tests and both bundles once
 on Ubuntu 22.04, and the suite again on macOS 14 and Windows, where paths, shells and processes differ;
-`shell.yml` runs `cargo test` on all three when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
+`shell.yml` runs clippy and `cargo test` on all three (and `cargo fmt --check` once) when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
 `app/` (advisory). A PR of docs alone starts none of them. A change to the shell or the mod that works on the Mac
 should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
+
+Workflow actions are pinned to a commit with the tag in a comment (`test/workflows.test.ts` checks it); to move one,
+look up the new tag's commit (`gh api repos/<owner>/<action>/commits/<tag> --jq .sha`) and change both. CI installs
+with npm 10 (Node 22's): if you write `package-lock.json` with npm 11, run `npm install` once with npm 10 after, or
+`npm ci` on CI fails on entries npm 11 leaves out.
 
 ## Where things are
 

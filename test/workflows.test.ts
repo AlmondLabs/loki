@@ -49,7 +49,9 @@ describe("shell: the Rust shell's tests", () => {
     expect(steps.some((s) => s.uses?.startsWith("actions/setup-node"))).toBe(false);
     expect(runs(shell.jobs.cargo)).not.toMatch(/npm /);
     expect(runs(shell.jobs.cargo)).toContain("app/dist/index.html");
-    expect(runs(shell.jobs.cargo)).toContain("cargo test --manifest-path src-tauri/Cargo.toml");
+    expect(runs(shell.jobs.cargo)).toContain("cargo test --locked --manifest-path src-tauri/Cargo.toml");
+    expect(runs(shell.jobs.cargo)).toContain("cargo fmt --manifest-path src-tauri/Cargo.toml --check");
+    expect(runs(shell.jobs.cargo)).toContain("cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings");
   });
 });
 
@@ -58,5 +60,27 @@ describe("React Doctor", () => {
     const rd = workflow("react-doctor");
     expect(Object.keys(rd.on)).toEqual(["pull_request"]);
     expect(rd.on.pull_request?.paths).toContain("app/**");
+  });
+});
+
+describe("supply chain", () => {
+  const all = ["ci", "shell", "react-doctor", "release"].map((name) => ({ name, wf: workflow(name) }));
+
+  test("every action is pinned to a commit, not a tag that can move (the build holds the signing secrets)", () => {
+    for (const { name, wf } of all)
+      for (const [job, j] of Object.entries(wf.jobs))
+        for (const s of j.steps) if (s.uses) expect(s.uses, `${name}/${job}`).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
+  });
+
+  test("no runner image that moves under us (ubuntu-latest became Ubuntu 26 on 2026-10-19)", () => {
+    for (const { name, wf } of all) for (const [job, j] of Object.entries(wf.jobs)) expect(j["runs-on"], `${name}/${job}`).not.toMatch(/^ubuntu-latest$/);
+  });
+
+  test("release grants nothing by default; only the jobs that publish or open PRs can write", () => {
+    const rel = workflow("release") as Workflow & { permissions?: unknown; jobs: Record<string, Job & { permissions?: Record<string, string> }> };
+    expect(rel.permissions).toEqual({});
+    const writers = Object.entries(rel.jobs).filter(([, j]) => Object.values(j.permissions ?? {}).includes("write")).map(([k]) => k).sort();
+    expect(writers).toEqual(["attach", "build", "preview-pr-after-stable", "release-prs"]);
+    for (const [k, j] of Object.entries(rel.jobs)) expect(j.permissions, k).toBeDefined();
   });
 });

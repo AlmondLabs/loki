@@ -39,7 +39,11 @@ pub fn move_root(home: &Path) -> Result<RootMove, String> {
         return Ok(RootMove::Fresh);
     }
     if std::fs::symlink_metadata(&new).is_ok() {
-        return Err(format!("both {} and {} exist; neither is moved, and loki runs on the one that holds its data (root_in_use)", old.display(), new.display()));
+        return Err(format!(
+            "both {} and {} exist; neither is moved, and loki runs on the one that holds its data (root_in_use)",
+            old.display(),
+            new.display()
+        ));
     }
     std::fs::rename(&old, &new).map_err(|e| format!("moving {} to {}: {e}", old.display(), new.display()))?;
     if let Err(e) = link(&new, &old) {
@@ -58,13 +62,19 @@ pub fn move_root(home: &Path) -> Result<RootMove, String> {
 pub fn root_in_use(home: &Path, moved: &Result<RootMove, String>) -> PathBuf {
     let (old, new) = roots(home);
     let old_is_dir = std::fs::symlink_metadata(&old).map(|m| m.is_dir()).unwrap_or(false);
-    if moved.is_err() && old_is_dir && !holds_data(&new) { old } else { new }
+    if moved.is_err() && old_is_dir && !holds_data(&new) {
+        old
+    } else {
+        new
+    }
 }
 
 /// Whether `root` holds loki's own data: an agent record, or an agent's chat store.
 fn holds_data(root: &Path) -> bool {
     let any = |dir: PathBuf, ext: &str| {
-        std::fs::read_dir(dir).map(|entries| entries.flatten().any(|e| e.path().extension().is_some_and(|x| x == ext))).unwrap_or(false)
+        std::fs::read_dir(dir)
+            .map(|entries| entries.flatten().any(|e| e.path().extension().is_some_and(|x| x == ext)))
+            .unwrap_or(false)
     };
     any(root.join("backend").join("agents"), "json") || any(root.join("stores"), "sqlite")
 }
@@ -77,11 +87,23 @@ fn link(target: &Path, at: &Path) -> Result<(), String> {
 /// A junction, which needs no privilege (a directory symlink does).
 #[cfg(windows)]
 fn link(target: &Path, at: &Path) -> Result<(), String> {
-    let out = std::process::Command::new("cmd").arg("/C").arg("mklink").arg("/J").arg(at).arg(target).output().map_err(|e| format!("mklink: {e}"))?;
+    let out = std::process::Command::new("cmd")
+        .arg("/C")
+        .arg("mklink")
+        .arg("/J")
+        .arg(at)
+        .arg(target)
+        .output()
+        .map_err(|e| format!("mklink: {e}"))?;
     if out.status.success() {
         Ok(())
     } else {
-        Err(format!("linking {} to {}: {}", at.display(), target.display(), String::from_utf8_lossy(&out.stderr).trim()))
+        Err(format!(
+            "linking {} to {}: {}",
+            at.display(),
+            target.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
     }
 }
 
