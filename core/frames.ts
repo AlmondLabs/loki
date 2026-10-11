@@ -3,7 +3,7 @@ import type { DeskState, Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } f
 import type { ModelEntry, ReasoningEffort } from "./models.ts";
 import type { ChatEvent } from "./attention/model.ts";
 import type { ConnectProvider, PassSettings } from "./attention/protocol.ts";
-import type { CardWithSchedule, RecallSnapshot } from "./recall/model.ts";
+import { isRecallId, type CardWithSchedule, type RecallSnapshot } from "./recall/model.ts";
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import type { DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome, Task } from "./frame-types.ts";
@@ -67,6 +67,11 @@ const agent = (m: Raw) => (isAgentId(m.agentId) ? { agentId: m.agentId } : "agen
 /** A chat on loki's daemon: its agent and its id, both required. */
 const chatRef = (m: Raw) => (isAgentId(m.agentId) && str(m.conversationId) && m.conversationId ? { agentId: m.agentId, conversationId: m.conversationId } : "agentId and conversationId required");
 const nothing = (): Record<never, never> => ({});
+const recallId = <T extends object>(m: Raw, rest: (id: string) => T | string = () => ({}) as T): ({ id: string } & T) | string => {
+  if (!isRecallId(m.id)) return "a card or lead id required";
+  const r = rest(m.id);
+  return typeof r === "string" ? r : { id: m.id, ...r };
+};
 
 /** The answer to a request, by reply name: the payload beside `type` and `requestId`. */
 export interface Replies {
@@ -294,21 +299,21 @@ export const FRAMES = {
   // Learn
   recall_list: request("recall", "the whole Learn section", nothing, PHONE),
   recall_grade: request("recall_card", "grade a card, 1 (again) to 4 (easy)", (m) =>
-    m.grade === 1 || m.grade === 2 || m.grade === 3 || m.grade === 4 ? { id: strOr(m.id, ""), grade: m.grade as 1 | 2 | 3 | 4 } : "a grade is 1 (again) to 4 (easy)", PHONE),
+    recallId(m, () => (m.grade === 1 || m.grade === 2 || m.grade === 3 || m.grade === 4 ? { grade: m.grade as 1 | 2 | 3 | 4 } : "a grade is 1 (again) to 4 (easy)")), PHONE),
   recall_edit: request("recall_card", "edit a card's front, back or tags", (m) =>
-    ({ id: strOr(m.id, ""), front: strOr(m.front, undefined), back: strOr(m.back, undefined), tags: Array.isArray(m.tags) ? strings(m.tags) : undefined }), PHONE),
-  recall_reject: request("recall_card", "set a card aside (card: null)", (m) => ({ id: strOr(m.id, "") }), PHONE),
-  recall_restore: request("recall_card", "bring a set-aside card back", (m) => ({ id: strOr(m.id, "") }), PHONE),
-  recall_forget: request("recall_card", "forget a set-aside card for good (card: null)", (m) => ({ id: strOr(m.id, "") })),
+    recallId(m, () => ({ front: strOr(m.front, undefined), back: strOr(m.back, undefined), tags: Array.isArray(m.tags) ? strings(m.tags) : undefined })), PHONE),
+  recall_reject: request("recall_card", "set a card aside (card: null)", (m) => recallId(m), PHONE),
+  recall_restore: request("recall_card", "bring a set-aside card back", (m) => recallId(m), PHONE),
+  recall_forget: request("recall_card", "forget a set-aside card for good (card: null)", (m) => recallId(m)),
   recall_settings: request("recall", "Learn's settings: on or off, and the most cards it writes in a day", (m) => ({
     enabled: typeof m.enabled === "boolean" ? m.enabled : undefined,
     dailyCap: isNum(m.dailyCap) && m.dailyCap >= 0 ? Math.round(m.dailyCap) : undefined,
   })),
   recall_run: request("recall_ran", "run Learn now over every chat with new material", nothing),
   recall_export: request("recall_export", "every card as Anki TSV", nothing, PHONE),
-  recall_lead_dismiss: request("recall", "set a lead aside", (m) => ({ id: strOr(m.id, "") }), PHONE),
-  recall_lead_restore: request("recall", "bring a set-aside lead back", (m) => ({ id: strOr(m.id, "") }), PHONE),
-  recall_lead_start: request("recall_lesson", "a lead becomes a [Learn] conversation with an info card on its desk; the app then sends the brief", (m) => ({ id: strOr(m.id, "") }), PHONE),
+  recall_lead_dismiss: request("recall", "set a lead aside", (m) => recallId(m), PHONE),
+  recall_lead_restore: request("recall", "bring a set-aside lead back", (m) => recallId(m), PHONE),
+  recall_lead_start: request("recall_lesson", "a lead becomes a [Learn] conversation with an info card on its desk; the app then sends the brief", (m) => recallId(m), PHONE),
 
   // The board
   tasks_list: request("tasks", "the board's tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true })),

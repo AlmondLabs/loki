@@ -57,18 +57,28 @@ export function memorySection(root: string): string | undefined {
   return parts.length ? `This is your memory, kept as files you can change with the memory tools.\n\n${parts.join("\n\n")}` : undefined;
 }
 
-/** A path inside the repo, or an error: memory files cannot reach outside it. */
+/**
+ * Files that steer git itself rather than hold memory: `.git` anywhere (the Mac's disk ignores case, so
+ * `.GIT/config` is the repo's config), and `.gitattributes` / `.gitmodules`, which can name filters and
+ * submodules git would run on the next add.
+ */
+const gitOwned = (segment: string): boolean => [".git", ".gitattributes", ".gitmodules"].includes(segment.toLowerCase());
+
+/** A path inside the repo, or an error: memory files cannot reach outside it, nor into git's own files. */
 function inside(root: string, path: unknown): string {
   if (typeof path !== "string" || !path.trim()) throw new Error("path required");
   const full = resolve(root, path);
   const rel = relative(root, full);
-  if (!rel || rel.startsWith("..") || rel.split(sep)[0] === ".git") throw new Error(`${path} is not a memory file`);
+  if (!rel || rel.startsWith("..") || rel.split(sep).some(gitOwned)) throw new Error(`${path} is not a memory file`);
   return full;
 }
 
+/** git in a memory repo, with no hooks: whatever is in the repo, a commit runs nothing of it. */
+const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", ...args]);
+
 async function commit(root: string, path: string, message: string, author: { name: string; email: string }): Promise<void> {
-  await run("git", ["-C", root, "add", "--", path]);
-  await run("git", ["-C", root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", path]);
+  await git(root, "add", "--", path);
+  await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", path);
 }
 
 /** A memory file changed from the Agents page: written (or removed, with `content` null) and committed as the person's. */
@@ -77,8 +87,8 @@ export async function editMemoryFile(backendDir: string, agentId: string, path: 
   const full = inside(root, path);
   if (content === null) {
     if (!existsSync(full)) return;
-    await run("git", ["-C", root, "rm", "--quiet", "--", full]);
-    await run("git", ["-C", root, "-c", "user.name=You", "-c", "user.email=you@loki.local", "commit", "--quiet", "-m", message?.trim() || `Remove ${path}`, "--", full]);
+    await git(root, "rm", "--quiet", "--", full);
+    await git(root, "-c", "user.name=You", "-c", "user.email=you@loki.local", "commit", "--quiet", "-m", message?.trim() || `Remove ${path}`, "--", full);
     return;
   }
   mkdirSync(dirname(full), { recursive: true });

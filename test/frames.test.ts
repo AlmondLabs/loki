@@ -55,6 +55,14 @@ describe("the frame table", () => {
     expect(FRAMES.recall_settings.parse({ enabled: true, dailyCap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, dailyCap: 3 });
   });
 
+  test("a Learn id must be one: a phone cannot name a file outside the recall folder", () => {
+    for (const name of ["recall_grade", "recall_edit", "recall_reject", "recall_restore", "recall_forget", "recall_lead_dismiss", "recall_lead_restore", "recall_lead_start"] as const)
+      for (const id of ["../../settings", "a/b", "..", "", "x".repeat(65), 7, undefined])
+        expect(FRAMES[name].parse({ id, grade: 3 } as never)).toBe("a card or lead id required");
+    expect(FRAMES.recall_reject.parse({ id: "20261010-abc123" })).toEqual({ id: "20261010-abc123" });
+    expect(FRAMES.recall_edit.parse({ id: "c_1", front: "f" })).toEqual({ id: "c_1", front: "f", back: undefined, tags: undefined });
+  });
+
   test("parsers keep today's checks", () => {
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });

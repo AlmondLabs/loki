@@ -9,7 +9,7 @@ import { PairingCodes } from "../mod/pairing.ts";
 import { LanListener, bonjourHost, crossSite, requestVia, isTailnetAddress } from "../mod/lan.ts";
 import { Tailscale } from "../mod/tailscale.ts";
 import type { Client, WsHandlers } from "../mod/server.ts";
-import type { IncomingMessage } from "node:http";
+import { request as httpRequest, type IncomingMessage } from "node:http";
 import type { networkInterfaces } from "node:os";
 import { SERVE_41415, STATUS_RUNNING } from "./fixtures/tailscale.ts";
 import type { LanStatus } from "../core/frame-types.ts";
@@ -233,6 +233,36 @@ describe("LAN listener", () => {
       for (let i = 0; i < 10; i++) expect((await pair(f.lan, "ZZZZZZ")).res.status).toBe(404);
       const fresh = f.codes.mint().code;
       expect((await pair(f.lan, fresh)).res.status).toBe(429); // blocked even with a valid code
+    } finally {
+      await f.lan.stop();
+      f.cleanup();
+    }
+  });
+
+  test("wrong codes sent all at once are counted too: past the tenth, every one waits, a right code with them", async () => {
+    const f = fixture();
+    try {
+      await f.lan.setEnabled(true);
+      const { code } = f.codes.mint();
+      // Every request's headers reach the listener before any body does: all are past the first check together.
+      const reqs = [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => {
+        const req = httpRequest({ host: "127.0.0.1", port: f.lan.status().port!, path: "/pair", method: "POST", headers: { "content-type": "application/json" } });
+        const status = new Promise<number>((resolve, reject) => {
+          req.on("response", (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          });
+          req.on("error", reject);
+        });
+        req.flushHeaders();
+        return { req, body: JSON.stringify({ code: c, name: "x" }), status };
+      });
+      await new Promise((r) => setTimeout(r, 200));
+      for (const r of reqs) r.req.end(r.body);
+      const statuses = await Promise.all(reqs.map((r) => r.status));
+      expect(statuses.filter((s) => s === 404)).toHaveLength(10);
+      expect(statuses.filter((s) => s === 429)).toHaveLength(21);
+      expect(f.devices.list()).toEqual([]);
     } finally {
       await f.lan.stop();
       f.cleanup();

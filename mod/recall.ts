@@ -2,7 +2,7 @@ import { lokiDir } from "./paths.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
-import type { Card, CardWithSchedule, DismissedLead, Lead, Lesson, Rejected } from "../core/recall/model.ts";
+import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected } from "../core/recall/model.ts";
 
 /**
  * The Recall files, under ~/.loki/recall (LOKI_RECALL_DIR in tests):
@@ -65,18 +65,23 @@ export class RecallStore {
   }
 
   private p = (...parts: string[]) => join(this.dir, ...parts);
+  /** The file a card or lead keeps in `kind`; an id that is not one (see isRecallId) is refused, never joined. */
+  private f = (kind: string, id: unknown) => {
+    if (!isRecallId(id)) throw new Error(`not a card or lead id: ${String(id).slice(0, 80)}`);
+    return join(this.dir, kind, `${id}.json`);
+  };
 
   cards(): CardWithSchedule[] {
     return listJson<Card>(this.p("cards"))
-      .filter((c) => typeof c.id === "string" && typeof c.front === "string" && typeof c.back === "string")
-      .map((card) => ({ card, schedule: readJson<Schedule>(this.p("schedule", `${card.id}.json`)) ?? newSchedule(new Date(card.createdAt).getTime() || Date.now()) }))
+      .filter((c) => isRecallId(c.id) && typeof c.front === "string" && typeof c.back === "string")
+      .map((card) => ({ card, schedule: readJson<Schedule>(this.f("schedule", card.id)) ?? newSchedule(new Date(card.createdAt).getTime() || Date.now()) }))
       .sort((a, b) => a.card.createdAt.localeCompare(b.card.createdAt));
   }
 
   card(id: string): CardWithSchedule | null {
-    const card = readJson<Card>(this.p("cards", `${id}.json`));
+    const card = readJson<Card>(this.f("cards", id));
     if (!card) return null;
-    return { card, schedule: readJson<Schedule>(this.p("schedule", `${id}.json`)) ?? newSchedule() };
+    return { card, schedule: readJson<Schedule>(this.f("schedule", id)) ?? newSchedule() };
   }
 
   rejected(): Rejected[] {
@@ -85,13 +90,13 @@ export class RecallStore {
 
   /** A new card from the worker (or a restore). The schedule starts fresh: due now, unreviewed. */
   add(card: Card, schedule?: Schedule): void {
-    writeJson(this.p("cards", `${card.id}.json`), card);
-    writeJson(this.p("schedule", `${card.id}.json`), schedule ?? newSchedule(new Date(card.createdAt).getTime() || Date.now()));
+    writeJson(this.f("cards", card.id), card);
+    writeJson(this.f("schedule", card.id), schedule ?? newSchedule(new Date(card.createdAt).getTime() || Date.now()));
   }
 
   /** New text for a card; the old wording goes into `previous`. The schedule is untouched. Returns the card, or null when unknown. */
   edit(id: string, text: { front?: string; back?: string; tags?: string[] }, by: "recall" | "you", now = Date.now()): Card | null {
-    const cur = readJson<Card>(this.p("cards", `${id}.json`));
+    const cur = readJson<Card>(this.f("cards", id));
     if (!cur) return null;
     const front = text.front?.trim() || cur.front;
     const back = text.back?.trim() || cur.back;
@@ -104,7 +109,7 @@ export class RecallStore {
       tags,
       ...(changedText ? { updatedAt: new Date(now).toISOString(), updatedBy: by, previous: [...cur.previous, { front: cur.front, back: cur.back, at: cur.updatedAt, by: cur.updatedBy }].slice(-5) } : {}),
     };
-    writeJson(this.p("cards", `${id}.json`), next);
+    writeJson(this.f("cards", id), next);
     return next;
   }
 
@@ -113,7 +118,7 @@ export class RecallStore {
     const cur = this.card(id);
     if (!cur) return null;
     const next = review(cur.schedule, grade, now);
-    writeJson(this.p("schedule", `${id}.json`), next);
+    writeJson(this.f("schedule", id), next);
     return next;
   }
 
@@ -122,37 +127,37 @@ export class RecallStore {
     const cur = this.card(id);
     if (!cur) return null;
     const rec: Rejected = { card: cur.card, at: new Date(now).toISOString(), reps: cur.schedule.reps };
-    writeJson(this.p("rejected", `${id}.json`), rec);
-    rmSync(this.p("cards", `${id}.json`), { force: true });
-    rmSync(this.p("schedule", `${id}.json`), { force: true });
+    writeJson(this.f("rejected", id), rec);
+    rmSync(this.f("cards", id), { force: true });
+    rmSync(this.f("schedule", id), { force: true });
     return rec;
   }
 
   /** Undo a delete: the card comes back with a fresh schedule (its history went with the delete). */
   restore(id: string): Card | null {
-    const rec = readJson<Rejected>(this.p("rejected", `${id}.json`));
-    if (!rec) return null;
+    const rec = readJson<Rejected>(this.f("rejected", id));
+    if (!rec || !isRecallId(rec.card?.id)) return null;
     this.add(rec.card);
-    rmSync(this.p("rejected", `${id}.json`), { force: true });
+    rmSync(this.f("rejected", id), { force: true });
     return rec.card;
   }
 
   /** Drop a rejection for good (the pile is otherwise kept: it is what teaches the worker). */
   forget(id: string): void {
-    rmSync(this.p("rejected", `${id}.json`), { force: true });
+    rmSync(this.f("rejected", id), { force: true });
   }
 
   // --- leads and lessons -------------------------------------------------
   leads(): Lead[] {
     return listJson<Lead>(this.p("leads"))
-      .filter((l) => typeof l.id === "string" && typeof l.title === "string" && typeof l.why === "string")
+      .filter((l) => isRecallId(l.id) && typeof l.title === "string" && typeof l.why === "string")
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   lead(id: string): Lead | null {
-    return readJson<Lead>(this.p("leads", `${id}.json`));
+    return readJson<Lead>(this.f("leads", id));
   }
   addLead(lead: Lead): void {
-    writeJson(this.p("leads", `${lead.id}.json`), lead);
+    writeJson(this.f("leads", lead.id), lead);
   }
   dismissedLeads(): DismissedLead[] {
     return listJson<DismissedLead>(this.p("leads-dismissed")).sort((a, b) => b.at.localeCompare(a.at));
@@ -162,15 +167,15 @@ export class RecallStore {
     const lead = this.lead(id);
     if (!lead) return null;
     const rec: DismissedLead = { lead, at: new Date(now).toISOString() };
-    writeJson(this.p("leads-dismissed", `${id}.json`), rec);
-    rmSync(this.p("leads", `${id}.json`), { force: true });
+    writeJson(this.f("leads-dismissed", id), rec);
+    rmSync(this.f("leads", id), { force: true });
     return rec;
   }
   restoreLead(id: string): Lead | null {
-    const rec = readJson<DismissedLead>(this.p("leads-dismissed", `${id}.json`));
-    if (!rec) return null;
+    const rec = readJson<DismissedLead>(this.f("leads-dismissed", id));
+    if (!rec || !isRecallId(rec.lead?.id)) return null;
     this.addLead(rec.lead);
-    rmSync(this.p("leads-dismissed", `${id}.json`), { force: true });
+    rmSync(this.f("leads-dismissed", id), { force: true });
     return rec.lead;
   }
   lessons(): Lesson[] {
@@ -181,8 +186,8 @@ export class RecallStore {
     const lead = this.lead(id);
     if (!lead) return null;
     const lesson: Lesson = { lead, agentId: conversation.agentId, conversationId: conversation.conversationId, startedAt: new Date(now).toISOString() };
-    writeJson(this.p("lessons", `${id}.json`), lesson);
-    rmSync(this.p("leads", `${id}.json`), { force: true });
+    writeJson(this.f("lessons", id), lesson);
+    rmSync(this.f("leads", id), { force: true });
     return lesson;
   }
 
