@@ -45,7 +45,27 @@ export type ImportReport = {
   notes: string[];
 };
 
-type Done = { agents: string[]; chats: string[]; complete?: boolean };
+/** The last time an import ran, by itself at start or from Settings, and how it went: what Settings shows. */
+export type ImportAttempt = { at: string; ok: boolean; message: string };
+/** Whether Letta is here, whether an import has finished with it, and the last attempt. */
+export type ImportStatus = { letta: boolean; complete: boolean; last: ImportAttempt | null };
+
+type Done = { agents: string[]; chats: string[]; complete?: boolean; last?: ImportAttempt };
+
+export function importStatus(paths: Pick<ImportPaths, "letta" | "doneFile">): ImportStatus {
+  const done = readJson<Done>(paths.doneFile, { agents: [], chats: [] });
+  return { letta: existsSync(join(paths.letta, "lc-local-backend", "agents")), complete: done.complete === true, last: done.last ?? null };
+}
+
+/** Keep how an import went beside what it did, so a refusal at start is not only a line in a log. */
+export function recordAttempt(paths: Pick<ImportPaths, "doneFile">, ok: boolean, message: string, now = new Date()): void {
+  const done = readJson<Done>(paths.doneFile, { agents: [], chats: [] });
+  writeJson(paths.doneFile, { ...done, last: { at: now.toISOString(), ok, message } });
+}
+
+/** The import's report in a line, as the log and Settings say it. */
+export const describeReport = (r: ImportReport): string =>
+  `${r.agents.length} agents, ${r.chats} chats${r.kept ? ` (${r.kept} already here)` : ""}, ${r.credentials.length} keys, ${r.schedules} schedules`;
 
 /** Whether there is a Letta backend here that no import has finished with yet: the daemon then imports at start. */
 export function importNeeded(paths: Pick<ImportPaths, "letta" | "doneFile">): boolean {
@@ -149,6 +169,16 @@ export function lettaSchedules(cronsFile: string, agents: ReadonlySet<string>): 
     }));
 }
 
+const isHelper = (record: Record<string, unknown> | null | undefined) =>
+  (Array.isArray(record?.tags) ? (record.tags as unknown[]) : []).some((t) => typeof t === "string" && (t === "role:subagent" || t.startsWith("role:subagent:")));
+
+/** How many of the person's agents Letta has records of, helpers aside, memory folder or not. */
+function lettaRecords(backend: string): number {
+  const dir = join(backend, "agents");
+  if (!existsSync(dir)) return 0;
+  return readdirSync(dir).filter((f) => f.endsWith(".json") && !isHelper(readJson<Record<string, unknown> | null>(join(dir, f), null))).length;
+}
+
 /** The person's agents in Letta's backend: a record, a memory folder, and not a helper. */
 function lettaAgents(backend: string): Array<{ id: string; record: Record<string, unknown> }> {
   const out: Array<{ id: string; record: Record<string, unknown> }> = [];
@@ -160,9 +190,8 @@ function lettaAgents(backend: string): Array<{ id: string; record: Record<string
   }
   for (const id of existsSync(join(backend, "memfs")) ? readdirSync(join(backend, "memfs")) : []) {
     const record = byId.get(id);
-    const tags = Array.isArray(record?.tags) ? (record.tags as unknown[]) : [];
     if (!record || !existsSync(join(backend, "memfs", id, "memory"))) continue;
-    if (tags.some((t) => typeof t === "string" && (t === "role:subagent" || t.startsWith("role:subagent:")))) continue;
+    if (isHelper(record)) continue;
     out.push({ id, record });
   }
   return out;
@@ -194,6 +223,8 @@ export async function importFromLetta(deps: {
 
   // Agents and their memory.
   const agents = lettaAgents(backend);
+  const records = lettaRecords(backend);
+  if (records > agents.length) report.notes.push(`${records - agents.length} of Letta's ${records} agents have no memory folder (lc-local-backend/memfs/<id>/memory) and were not imported`);
   const ids = new Set(agents.map((a) => a.id));
   for (const { id, record } of agents) {
     if (!existsSync(join(paths.backendDir, "memfs", id, "memory"))) cpSync(join(backend, "memfs", id, "memory"), join(paths.backendDir, "memfs", id, "memory"), { recursive: true, verbatimSymlinks: true });
@@ -275,7 +306,10 @@ export async function importFromLetta(deps: {
   const lettaPins = join(paths.letta, "pinned-conversations.json");
   if (!existsSync(paths.pinsFile) && existsSync(lettaPins)) writeJson(paths.pinsFile, readJson(lettaPins, {}));
 
-  done.complete = true;
+  // Finished, unless Letta has agent records and none of them came over: then something is off (a memory folder not
+  // where it was looked for), and the next start tries again rather than never.
+  if (agents.length > 0 || records === 0) done.complete = true;
+  else report.notes.push("nothing came over, so loki will look again at its next start");
   writeJson(paths.doneFile, done);
   return report;
 }

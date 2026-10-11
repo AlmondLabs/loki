@@ -148,7 +148,8 @@ Then loki helps you name your first agent; ask it to put something on the canvas
 loki used to run on Letta Code. On a Mac that ran it there, the first start brings your agents over by itself:
 each agent with its memory and its history, every conversation under its old id (so canvases, pins and board tasks
 still find it), your provider keys, permission modes, folders and scheduled tasks. Quit Letta first; the import
-refuses while it runs and tries again at the next start, or from Settings › loki › Import. Letta's own files are
+refuses while it runs and tries again at the next start, or from Settings › loki › Import, which also says how the
+last run went. Letta's own files are
 only read, never changed, and the import can run again to pick up what is missing. loki's folder moves from
 `~/.letta/loki` to `~/.loki` on its own, with a link left at the old path.
 
