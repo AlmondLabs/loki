@@ -130,8 +130,10 @@ every chat gets, the chats, then the mods.
     start, before the mod opens its sockets, until one run finishes, and Settings › loki › Import runs it again. It
     copies agents (with their memory's git history), every conversation under its Letta id, keys into the keychain,
     permission modes and folders onto chats, and schedules, and gives each chat its background passes' cursors
-    (Letta's reflection and Learn had read it). It refuses while Letta runs and never writes to Letta's files. A
-    second run imports only what is missing.
+    (Letta's reflection and Learn had read it). It refuses while Letta runs (the letta program itself, not a command
+    line that mentions it) and never writes to Letta's files. A second run imports only what is missing; a run that
+    brought no agent over though Letta has some is not finished, and runs again at the next start. Each run's outcome
+    is kept beside what it did (`state/letta-import.json`, `last`) and shown in Settings › loki › Import.
 
 ## loki's own mod
 

@@ -34,7 +34,7 @@ import { reflectionJob } from "./reflection.ts";
 import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
 import { JOBS, PassState } from "./passes-state.ts";
-import { importFromLetta, importNeeded, type ImportPaths, type ImportReport } from "./import/letta.ts";
+import { describeReport, importFromLetta, importNeeded, importStatus, recordAttempt, type ImportPaths, type ImportReport } from "./import/letta.ts";
 import { readLocalAgent } from "../mod/agents.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
@@ -146,7 +146,7 @@ let importing: Promise<ImportReport> | null = null;
 const importLetta = (): Promise<ImportReport> =>
   (importing ??= (async () => {
     await carryOverPasses();
-    return importFromLetta({
+    return recorded(importFromLetta({
       paths: importPaths,
       stores,
       credentials: credentials ?? new KeychainCredentials(memorySecrets()),
@@ -161,9 +161,20 @@ const importLetta = (): Promise<ImportReport> =>
           passState.setCursor("learn", agentId, chatId, cursors.learn);
         },
       },
-    });
+    }));
   })().finally(() => (importing = null)));
-const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report, importLetta });
+/** Each run's outcome is kept for Settings (daemon/import/letta.ts, recordAttempt), whichever way it went. */
+async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
+  try {
+    const r = await run;
+    recordAttempt(importPaths, true, describeReport(r) + (r.notes.length ? `; ${r.notes.join("; ")}` : ""));
+    return r;
+  } catch (error) {
+    recordAttempt(importPaths, false, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report, importLetta, importStatus: () => importStatus(importPaths) });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
@@ -184,7 +195,7 @@ await Promise.all(
 if (importNeeded(importPaths)) {
   try {
     const r = await importLetta();
-    report(`imported from Letta: ${r.agents.length} agents, ${r.chats} chats (${r.kept} already here), ${r.credentials.length} keys, ${r.schedules} schedules${r.notes.length ? `; ${r.notes.join("; ")}` : ""}`);
+    report(`imported from Letta: ${describeReport(r)}${r.notes.length ? `; ${r.notes.join("; ")}` : ""}`);
   } catch (error) {
     report(`import from Letta not done, tried again at the next start or from Settings › loki › Import: ${error instanceof Error ? error.message : String(error)}`);
   }

@@ -111,6 +111,8 @@ export interface Replies {
   chat_passes: PassSettings;
   /** What the import from Letta brought over (daemon/import/letta.ts). */
   chat_imported: { agents: string[]; chats: number; kept: number; credentials: string[]; schedules: number; notes: string[] };
+  /** Whether Letta is here, whether an import finished with it, and how the last run went (at start or from Settings). */
+  chat_import_status: { letta: boolean; complete: boolean; last: { at: string; ok: boolean; message: string } | null };
 }
 export type ReplyName = keyof Replies;
 
@@ -264,6 +266,7 @@ export const FRAMES = {
     isAgentId(m.agentId) ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) } : "agentId required"),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
   chat_import: request("chat_imported", "import agents, chats, keys and schedules from Letta (again: only what is missing)", nothing),
+  chat_import_status: request("chat_import_status", "whether Letta is here, whether an import finished, and how the last one went", nothing),
   chat_passes_get: request("chat_passes", "whether reflection and Learn run in the background, and Learn's cards a day", nothing),
   chat_passes_set: request("chat_passes", "turn reflection or Learn on or off, or set Learn's cards a day", (m) => {
     const part = (v: unknown) => (v && typeof v === "object" ? (v as Raw) : undefined);

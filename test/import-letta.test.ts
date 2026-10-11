@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { MemoryStorage, createRegistry } from "@earendil-works/pi-durable";
-import { importFromLetta, importNeeded, lettaCredentials, runningLetta, type ImportPaths } from "../daemon/import/letta.ts";
+import { importFromLetta, importNeeded, importStatus, lettaCredentials, recordAttempt, runningLetta, type ImportPaths } from "../daemon/import/letta.ts";
 import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
@@ -211,6 +211,36 @@ describe("importing from Letta", () => {
     expect(runningLetta(() => ["letta.exe"])).toBe("letta.exe");
     // Mentions are not Letta: a shell in a letta-code checkout, an editor, a search, a loki checkout's own scripts.
     expect(runningLetta(() => ["/bin/zsh -c cd ~/code/letta-code && npm test", "/Applications/Cursor.app/Contents/MacOS/Cursor /Users/x/letta-code", "rg letta-code /Users/x", "node /Users/x/letta-code/scripts/dev.ts"])).toBeNull();
+  });
+
+  test("agents with no memory folder: said so, and the import is not marked finished when nothing came over", async () => {
+    rmSync(join(letta, "lc-local-backend", "memfs"), { recursive: true, force: true });
+    const { stores, run } = setup();
+    try {
+      const r = await run();
+      expect(r.agents).toEqual([]);
+      expect(r.notes).toContain("2 of Letta's 2 agents have no memory folder (lc-local-backend/memfs/<id>/memory) and were not imported");
+      expect(importNeeded(paths())).toBe(true); // tried again at the next start, not never
+      expect(importStatus(paths()).complete).toBe(false);
+    } finally {
+      await stores.closeAll();
+    }
+  });
+
+  test("the last run is kept for Settings, a refusal included", async () => {
+    expect(importStatus(paths())).toEqual({ letta: true, complete: false, last: null });
+    recordAttempt(paths(), false, "Letta is running (letta); quit it, then import", new Date("2026-10-11T06:00:00Z"));
+    expect(importStatus(paths()).last).toEqual({ at: "2026-10-11T06:00:00.000Z", ok: false, message: "Letta is running (letta); quit it, then import" });
+    const { stores, run } = setup();
+    try {
+      await run();
+      recordAttempt(paths(), true, "2 agents");
+      const s = importStatus(paths());
+      expect(s.complete).toBe(true);
+      expect(s.last?.ok).toBe(true);
+    } finally {
+      await stores.closeAll();
+    }
   });
 
   test("a second run changes nothing, and a chat the daemon wrote to in between is left alone", async () => {
