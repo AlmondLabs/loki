@@ -39,8 +39,9 @@ goes stale, and nothing runs on a schedule.
 2. **A nightly or a stable** is the Mac's: one `macos-14` job decides its number (`release.ts version`), stamps it
    (`release.ts set`), builds the universal `.dmg` with `tauri-apps/tauri-action@v0` (`--target universal-apple-darwin`),
    publishes it with `release.ts publish`, renders the cask from it, attaches `cask.rb` to the release and pushes it
-   to the tap. A stable then offers **the Windows and Linux PR** for itself. A nightly runs **the release PR** and
-   **the Windows and Linux PR** jobs (`release.ts release-pr`, `release.ts preview-pr`) to refresh them.
+   to the tap. A stable then offers **the Windows and Linux PR** for itself. A nightly runs **the release PRs** job
+   (`release.ts release-pr`, then `release.ts preview-pr`) to refresh both. A merge of docs alone (`docs/**`, the
+   root's `*.md`) starts no release run at all.
 3. **A preview** is two build jobs, each checking out the merge, stamping the stable's version (`release.ts set`) and
    uploading its files as an artifact, then **publish Windows and Linux**:
 
@@ -90,8 +91,8 @@ A nightly is the number of the stable it leads up to plus the merge it was built
 ## The release PR and CI
 
 The workflow pushes the release branch with its own token, and pushes made with that token do not start other
-workflows, so `ci.yml` does not run on the release PR by default. Its content is one marker file on top of `main`,
-which `ci` has already checked, and the stable build compiles and bundles everything before anything is published. If you want CI on it anyway,
+workflows, so `ci.yml` does not run on the release PR by default, and it skips a PR whose only change is the release
+PRs' marker files anyway. Its content is one marker file on top of `main`, which `ci` checked on each PR, and the stable build compiles and bundles everything before anything is published. If you want CI on it anyway,
 add a fine-grained token with *Contents* and *Pull requests* write access to this repository as the
 **`RELEASE_TOKEN`** secret; the workflow prefers it when present.
 

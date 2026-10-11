@@ -1,23 +1,33 @@
 name: ci
+# The checks a PR must pass, on the PR only: GitHub tests its merge with main (refs/pull/N/merge), so the merge itself
+# is not tested again; release.yml's nightly build compiles every merge. A newer push to the PR cancels the run before
+# it. Docs and the two release PRs' marker files change nothing these check, so a PR touching only them starts nothing
+# (skills/loki/SKILL.md ships in the app and is not skipped). The Rust shell's tests are shell.yml, run when it changes.
 on:
-  push:
-    branches: [main]
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/release.txt"
+      - ".github/preview.txt"
+  workflow_dispatch:
 
-# Every job runs on the Mac, Windows and Linux (plan 014 U9, R13). fail-fast off: one system's failure must not hide
-# another's. bash on every system, Windows included (Git Bash on the hosted runner), so a step reads the same on all three.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# bash on every system, Windows included (Git Bash on the hosted runner), so a step reads the same on all three.
 defaults:
   run:
     shell: bash
 
 jobs:
-  test:
-    name: tests, types, daemon and mod bundles (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-14, ubuntu-22.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+  # What does not depend on the system, once: types, lint, the whole suite, the Node runner's tests, both builds.
+  checks:
+    name: types, lint, tests and bundles
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       # Everything runs on Node: the tests, the scripts and loki's daemon (22.19 or newer: node:sqlite, type stripping).
@@ -43,33 +53,24 @@ jobs:
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:mod
 
-  shell:
-    name: tauri shell, cargo test (${{ matrix.os }})
+  # The suite on the Mac and Windows: paths, shells, processes and signals differ there (plan 014). fail-fast off: one
+  # system's failure must not hide the other's.
+  tests:
+    name: tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, ubuntu-22.04, windows-latest]
+        os: [macos-14, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      # Tauri 2's Linux build prerequisites, the Ubuntu 22.04 names (KTD11). No appindicator library: the tray is
-      # Mac-only (KTD3). patchelf is for the AppImage bundler, kept so this list matches the release leg's.
-      - name: linux build packages
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
-            build-essential curl wget file patchelf
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-      - run: npm ci
-      # tauri::generate_context!() needs frontendDist (app/dist) to exist at compile time; build:mod then ships it for phones.
-      - run: npm run build:app
-      - run: npm run build:mod
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+          cache: npm
+      - id: install
+        run: npm ci
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm test
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:node

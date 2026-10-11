@@ -17,7 +17,7 @@ npm run desktop:dev    # the Tauri window against a Vite already running (in a s
 **Windows and Linux** (the preview builds): Node and Rust as above; in place of Xcode's tools, Windows needs the
 Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2 runtime (Windows 11 ships it), and
 Linux needs Tauri's WebKitGTK build packages; the Ubuntu 22.04 list is the `apt-get install` line in
-`.github/workflows/ci.yml`. On Windows run the commands from Git Bash, as CI does; `~` is `%USERPROFILE%`.
+`.github/workflows/shell.yml`. On Windows run the commands from Git Bash, as CI does; `~` is `%USERPROFILE%`.
 `.gitattributes` keeps every checkout LF, so the tests that read source files pass there. The test in
 `test/agents.test.ts` that makes file symlinks needs Developer Mode or an administrator shell on Windows (CI's
 runner is one). `npm run tauri -- build --bundles nsis` on Windows, or `--bundles appimage,deb` on Linux, makes the
@@ -34,14 +34,17 @@ npm test                                          # mod, shared, app logic, desi
 npm run test:node                                 # the tests that need Node's own runner: SQLite stores, a crash and resume
 npm run typecheck
 npm run lint
-npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs both)
+npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
 npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
 
-CI runs all of these but the doctor, on macOS 14, Ubuntu 22.04 and Windows (`.github/workflows/ci.yml`), each
-system as its own leg; a change to the shell or the mod that works on the Mac should be read for the other two,
-since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
+CI runs these on a PR (not again on its merge; a newer push cancels the run before it), each check where it can
+say something: `.github/workflows/ci.yml` runs types, lint, the suite, the Node runner's tests and both bundles once
+on Ubuntu 22.04, and the suite again on macOS 14 and Windows, where paths, shells and processes differ;
+`shell.yml` runs `cargo test` on all three when `src-tauri/` changes; `react-doctor.yml` comments on a PR that touches
+`app/` (advisory). A PR of docs alone starts none of them. A change to the shell or the mod that works on the Mac
+should be read for the other two, since nobody on the project runs them. `test/tokens.test.ts` fails when an inline style leaves the design scales in
 `docs/design.md`; if you need a new value, add it to the scale and the doc, not to the component.
 
 ## Where things are

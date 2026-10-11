@@ -238,8 +238,8 @@ URL loads React Scan and outlines every needless re-render.
 On **Windows**, install the Microsoft C++ Build Tools (the "Desktop development with C++" workload) and the
 WebView2 runtime (Windows 11 has it) in place of Xcode's tools, and run the commands from Git Bash. On
 **Linux**, Tauri's WebKitGTK build packages; on Ubuntu 22.04 the list is the one in
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml). On every system `cargo test` wants
-`npm run build:app && npm run build:mod` first (the shell embeds the built app). [Contributing](docs/CONTRIBUTING.md) has the rest.
+[`.github/workflows/shell.yml`](.github/workflows/shell.yml). On every system `cargo test` wants an `app/dist` to
+exist first (`npm run build:app`; the shell embeds the built app). [Contributing](docs/CONTRIBUTING.md) has the rest.
 
 ## Read on
 

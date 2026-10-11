@@ -7,12 +7,14 @@
 name: React Doctor
 
 on:
-  # Scans the PR's changed files and posts a sticky summary comment listing only the new issues introduced relative to the merge base of the target branch.
+  # Scans the PR's changed files and posts a sticky summary comment listing only the new issues introduced relative to
+  # the merge base of the target branch. Only for a PR that touches the React app: it reads nothing else. Advisory, and
+  # not run on main again (the PR's scan already covered the change).
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  # Scans `main` on every push to track the health-score trend and catch regressions that slipped past PR review.
-  push:
-    branches: ["main"]
+    paths:
+      - "app/**"
+      - ".github/workflows/react-doctor.yml"
 
 permissions:
   contents: read
