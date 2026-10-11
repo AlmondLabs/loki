@@ -1,7 +1,8 @@
 import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import type { Context } from "@earendil-works/chord";
 import { execFile } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
@@ -21,11 +22,14 @@ async function folderOf(api: ToolExecutionApi, context: Context): Promise<string
 
 const at = (cwd: string, p: unknown) => (typeof p === "string" && p ? (isAbsolute(p) ? p : resolve(cwd, p)) : cwd);
 
-/** Files under `dir`, folders like .git and node_modules left out, at most `limit`. */
-function walk(dir: string, limit: number, out: string[] = []): string[] {
+/**
+ * Files under `dir`, folders like .git and node_modules left out, at most `limit`. Asynchronous: a walk of a big
+ * folder (an agent's `find` in ~) used to hold the daemon's one thread for seconds, and every chat with it.
+ */
+async function walk(dir: string, limit: number, out: string[] = []): Promise<string[]> {
   let names: string[];
   try {
-    names = readdirSync(dir);
+    names = await readdir(dir);
   } catch {
     return out;
   }
@@ -35,11 +39,11 @@ function walk(dir: string, limit: number, out: string[] = []): string[] {
     const full = join(dir, name);
     let st;
     try {
-      st = statSync(full);
+      st = await stat(full);
     } catch {
       continue;
     }
-    if (st.isDirectory()) walk(full, limit, out);
+    if (st.isDirectory()) await walk(full, limit, out);
     else out.push(full);
   }
   return out;
@@ -71,7 +75,8 @@ export function fileToolsExtension(): Extension {
         parameters: { type: "object", properties: { path: { type: "string", description: "Default: the chat's folder" } } } as never,
         execute: async (args, api, context) => {
           const dir = at(await folderOf(api, context), (args as { path?: string }).path);
-          const names = readdirSync(dir).filter((n) => !SKIP.has(n)).sort().map((n) => (statSync(join(dir, n)).isDirectory() ? `${n}/` : n));
+          const kept = (await readdir(dir)).filter((n) => !SKIP.has(n)).sort();
+          const names = await Promise.all(kept.map(async (n) => ((await stat(join(dir, n)).catch(() => null))?.isDirectory() ? `${n}/` : n)));
           return text(names.length ? names.join("\n") : "(empty)");
         },
       }),
@@ -83,7 +88,7 @@ export function fileToolsExtension(): Extension {
           const a = args as { pattern: string; path?: string };
           const root = at(await folderOf(api, context), a.path);
           const test = globTest(a.pattern);
-          const hits = walk(root, 20_000).map((f) => relative(root, f).split(sep).join("/")).filter(test);
+          const hits = (await walk(root, 20_000)).map((f) => relative(root, f).split(sep).join("/")).filter(test);
           return text(hits.length ? hits.slice(0, LIMIT).join("\n") + (hits.length > LIMIT ? `\n… and ${hits.length - LIMIT} more` : "") : "no files match");
         },
       }),
@@ -108,13 +113,13 @@ export function fileToolsExtension(): Extension {
           const re = new RegExp(a.pattern);
           const test = a.glob ? globTest(a.glob) : () => true;
           const out: string[] = [];
-          for (const file of walk(root, 20_000)) {
+          for (const file of await walk(root, 20_000)) {
             if (out.length >= LIMIT) break;
             const rel = relative(root, file).split(sep).join("/");
             if (!test(rel)) continue;
             let body: string;
             try {
-              body = readFileSync(file, "utf8");
+              body = await readFile(file, "utf8");
             } catch {
               continue;
             }
@@ -134,7 +139,7 @@ export function fileToolsExtension(): Extension {
           const mimeType = IMAGE_TYPES[extname(file).toLowerCase()];
           if (!mimeType) throw new Error("not an image this tool can show");
           if (!existsSync(file)) throw new Error(`no such file: ${file}`);
-          return { content: [{ type: "image", data: readFileSync(file).toString("base64"), mimeType }] };
+          return { content: [{ type: "image", data: (await readFile(file)).toString("base64"), mimeType }] };
         },
       }),
     ],

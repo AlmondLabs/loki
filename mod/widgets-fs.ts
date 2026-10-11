@@ -94,7 +94,14 @@ function splitName(fileName: string): { stem: string; ext: string } | null {
   return { stem: fileName.slice(0, dot), ext: fileName.slice(dot) };
 }
 
-async function readEntry(root: string, scope: Scope, fileName: string): Promise<WidgetManifestEntry | null> {
+/**
+ * What a scan read of each file, by its path, with the file's mtime and size then: a file that has not changed since
+ * is not read or checked again. Every change to any widget rescans the folder, and each module's esbuild check made
+ * that a recompile of all of them.
+ */
+export type ScanCache = Map<string, { mtime: number; size: number; entry: WidgetManifestEntry }>;
+
+async function readEntry(root: string, scope: Scope, fileName: string, cache?: ScanCache): Promise<WidgetManifestEntry | null> {
   const parts = splitName(fileName);
   if (!parts) return null;
   let kind: WidgetKind;
@@ -105,9 +112,14 @@ async function readEntry(root: string, scope: Scope, fileName: string): Promise<
   const abs = join(root, scope, fileName);
   let text: string;
   let mtime: number;
+  let size: number;
   try {
+    const st = statSync(abs);
+    mtime = st.mtimeMs;
+    size = st.size;
+    const seen = cache?.get(abs);
+    if (seen && seen.mtime === mtime && seen.size === size) return seen.entry;
     text = readFileSync(abs, "utf8");
-    mtime = statSync(abs).mtimeMs;
   } catch {
     return null;
   }
@@ -122,8 +134,24 @@ async function readEntry(root: string, scope: Scope, fileName: string): Promise<
   return { ...base, title: titleFromModule(text) ?? parts.stem, data: {}, ...(error ? { error } : {}) };
 }
 
-/** Read every widget file under root. */
-export async function scanWidgets(root: string): Promise<Map<string, WidgetManifestEntry>> {
+async function readCached(root: string, scope: Scope, fileName: string, cache?: ScanCache): Promise<WidgetManifestEntry | null> {
+  const entry = await readEntry(root, scope, fileName, cache);
+  const abs = join(root, scope, fileName);
+  if (!cache) return entry;
+  if (!entry) cache.delete(abs);
+  else if (cache.get(abs)?.entry !== entry) {
+    try {
+      const st = statSync(abs);
+      cache.set(abs, { mtime: st.mtimeMs, size: st.size, entry });
+    } catch {
+      cache.delete(abs);
+    }
+  }
+  return entry;
+}
+
+/** Read every widget file under root; with a cache, only the files that changed since the last scan with it. */
+export async function scanWidgets(root: string, cache?: ScanCache): Promise<Map<string, WidgetManifestEntry>> {
   const out = new Map<string, WidgetManifestEntry>();
   const list = (dir: string) => {
     try {
@@ -133,11 +161,12 @@ export async function scanWidgets(root: string): Promise<Map<string, WidgetManif
     }
   };
   if (!existsSync(root)) return out;
+  if (cache) for (const abs of cache.keys()) if (!existsSync(abs)) cache.delete(abs);
   for (const scopeDir of list(root)) {
     if (!scopeDir.isDirectory() || scopeDir.name.startsWith(".")) continue;
     for (const f of list(join(root, scopeDir.name))) {
       if (!f.isFile()) continue;
-      const entry = await readEntry(root, scopeDir.name, f.name);
+      const entry = await readCached(root, scopeDir.name, f.name, cache);
       if (entry) out.set(entry.id, entry);
     }
   }
@@ -164,6 +193,7 @@ export function watchWidgets(
   mkdirSync(root, { recursive: true });
 
   let index = new Map<string, WidgetManifestEntry>();
+  const cache: ScanCache = new Map();
   const runtimeErrors = new Map<string, string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let chain: Promise<void> = Promise.resolve();
@@ -178,7 +208,7 @@ export function watchWidgets(
 
   const doScan = async (): Promise<void> => {
     if (closed) return;
-    const next = await scanWidgets(root);
+    const next = await scanWidgets(root, cache);
     const diff: WidgetsDiff = { added: [], changed: [], removed: [], removedEntries: [], initial: first };
     first = false;
     for (const [id, e] of next) {
