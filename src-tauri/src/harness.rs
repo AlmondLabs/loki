@@ -65,7 +65,13 @@ pub fn daemon_command(d: &Daemon, launch: &Launch) -> Command {
     if d.entry.extension().is_some_and(|e| e == "ts") {
         cmd.arg("--experimental-strip-types");
     }
-    cmd.arg(d.entry).args(["--loki-daemon", "--dir"]).arg(d.dir).arg("--mod").arg(d.mod_entry).arg("--token-file").arg(launch.token_file);
+    cmd.arg(d.entry)
+        .args(["--loki-daemon", "--dir"])
+        .arg(d.dir)
+        .arg("--mod")
+        .arg(d.mod_entry)
+        .arg("--token-file")
+        .arg(launch.token_file);
     node::quiet(&mut cmd);
     cmd
 }
@@ -96,10 +102,14 @@ impl Harness {
     fn spawn(&self, mut cmd: Command, log: &Path) -> Result<(), String> {
         use std::sync::atomic::Ordering::SeqCst;
         let stops = self.stops.load(SeqCst);
-        if let Some(dir) = log.parent() { std::fs::create_dir_all(dir).map_err(|e| e.to_string())?; }
+        if let Some(dir) = log.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
         let log = std::fs::OpenOptions::new().create(true).append(true).open(log).map_err(|e| e.to_string())?;
         let name = cmd_name(&cmd);
-        cmd.stdin(Stdio::null()).stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?)).stderr(Stdio::from(log));
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::from(log.try_clone().map_err(|e| e.to_string())?))
+            .stderr(Stdio::from(log));
         #[cfg(target_os = "linux")]
         let child = death::spawn(cmd);
         #[cfg(not(target_os = "linux"))]
@@ -108,7 +118,9 @@ impl Harness {
         #[cfg(windows)]
         let running = {
             let job = job::Job::kill_on_close().and_then(|j| j.assign(&child).map(|_| j));
-            if let Err(e) = &job { eprintln!("loki: harness job object: {e}"); }
+            if let Err(e) = &job {
+                eprintln!("loki: harness job object: {e}");
+            }
             Running { child, _job: job.ok() }
         };
         #[cfg(not(windows))]
@@ -131,7 +143,9 @@ impl Harness {
             self.stopped.store(false, SeqCst);
             g.replace(running)
         };
-        if let Some(old) = previous { terminate(old); }
+        if let Some(old) = previous {
+            terminate(old);
+        }
         Ok(())
     }
 
@@ -143,7 +157,9 @@ impl Harness {
             self.stops.fetch_add(1, SeqCst);
             g.take()
         });
-        if let Some(running) = running { terminate(running); }
+        if let Some(running) = running {
+            terminate(running);
+        }
     }
 }
 
@@ -158,7 +174,9 @@ fn terminate(mut running: Running) {
             if unsafe { libc::kill(pid, libc::SIGTERM) } == 0 {
                 let until = std::time::Instant::now() + STOP_GRACE;
                 while std::time::Instant::now() < until {
-                    if !matches!(child.try_wait(), Ok(None)) { return; }
+                    if !matches!(child.try_wait(), Ok(None)) {
+                        return;
+                    }
                     std::thread::sleep(std::time::Duration::from_millis(25));
                 }
             }
@@ -199,9 +217,13 @@ mod death {
         // Safety: between fork and exec only async-signal-safe calls — prctl, getppid — and no allocation.
         unsafe {
             cmd.pre_exec(move || {
-                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong, 0, 0, 0) == -1 { return Err(io::Error::last_os_error()); }
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong, 0, 0, 0) == -1 {
+                    return Err(io::Error::last_os_error());
+                }
                 // loki already gone: no start (a raw errno, as nothing may allocate here).
-                if libc::getppid() != parent { return Err(io::Error::from_raw_os_error(libc::ESRCH)); }
+                if libc::getppid() != parent {
+                    return Err(io::Error::from_raw_os_error(libc::ESRCH));
+                }
                 Ok(())
             });
         }
@@ -216,13 +238,18 @@ mod death {
             std::thread::Builder::new()
                 .name("loki-harness-spawner".into())
                 .spawn(move || {
-                    for (mut cmd, reply) in rx { let _ = reply.send(cmd.spawn()); }
+                    for (mut cmd, reply) in rx {
+                        let _ = reply.send(cmd.spawn());
+                    }
                 })
                 .expect("the harness spawner thread");
             Mutex::new(tx)
         });
         let (reply, answer) = mpsc::channel();
-        tx.lock().map_err(|_| io::Error::other("harness spawner poisoned"))?.send((cmd, reply)).map_err(|_| io::Error::other("harness spawner gone"))?;
+        tx.lock()
+            .map_err(|_| io::Error::other("harness spawner poisoned"))?
+            .send((cmd, reply))
+            .map_err(|_| io::Error::other("harness spawner gone"))?;
         answer.recv().map_err(|_| io::Error::other("harness spawner gone"))?
     }
 }
@@ -233,7 +260,10 @@ mod death {
 mod job {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-    use windows_sys::Win32::System::JobObjects::{AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
 
     pub struct Job(HANDLE);
     // The handle is an owned kernel object, usable from any thread.
@@ -243,19 +273,32 @@ mod job {
         pub fn kill_on_close() -> Result<Job, String> {
             unsafe {
                 let h = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-                if h.is_null() { return Err(format!("CreateJobObjectW: {}", std::io::Error::last_os_error())); }
+                if h.is_null() {
+                    return Err(format!("CreateJobObjectW: {}", std::io::Error::last_os_error()));
+                }
                 let job = Job(h);
                 let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
                 info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-                let ok = SetInformationJobObject(h, JobObjectExtendedLimitInformation, &info as *const _ as *const core::ffi::c_void, std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32);
-                if ok == 0 { return Err(format!("SetInformationJobObject: {}", std::io::Error::last_os_error())); }
+                let ok = SetInformationJobObject(
+                    h,
+                    JobObjectExtendedLimitInformation,
+                    &info as *const _ as *const core::ffi::c_void,
+                    std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                );
+                if ok == 0 {
+                    return Err(format!("SetInformationJobObject: {}", std::io::Error::last_os_error()));
+                }
                 Ok(job)
             }
         }
 
         pub fn assign(&self, child: &std::process::Child) -> Result<(), String> {
             let ok = unsafe { AssignProcessToJobObject(self.0, child.as_raw_handle() as HANDLE) };
-            if ok == 0 { Err(format!("AssignProcessToJobObject: {}", std::io::Error::last_os_error())) } else { Ok(()) }
+            if ok == 0 {
+                Err(format!("AssignProcessToJobObject: {}", std::io::Error::last_os_error()))
+            } else {
+                Ok(())
+            }
         }
     }
 
@@ -280,7 +323,16 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn on_linux_the_harness_dies_with_loki_but_not_with_the_thread_that_started_it() {
-        let mut child = std::thread::spawn(|| death::spawn({ let mut c = Command::new("sleep"); c.arg("30"); c }).unwrap()).join().unwrap();
+        let mut child = std::thread::spawn(|| {
+            death::spawn({
+                let mut c = Command::new("sleep");
+                c.arg("30");
+                c
+            })
+            .unwrap()
+        })
+        .join()
+        .unwrap();
         std::thread::sleep(std::time::Duration::from_millis(200));
         assert!(child.try_wait().unwrap().is_none(), "alive after the starting thread exited");
         let _ = child.kill();
@@ -289,18 +341,40 @@ mod tests {
 
     #[test]
     fn the_daemon_runs_its_sources_with_type_stripping_and_its_bundle_as_it_is() {
-        let (node, dir, token) = (PathBuf::from("/usr/local/bin/node"), PathBuf::from("/home/x/.loki"), PathBuf::from("/home/x/.loki/token"));
+        let (node, dir, token) = (
+            PathBuf::from("/usr/local/bin/node"),
+            PathBuf::from("/home/x/.loki"),
+            PathBuf::from("/home/x/.loki/token"),
+        );
         let args = |entry: &str, mod_entry: &str| {
             let (entry, mod_entry) = (PathBuf::from(entry), PathBuf::from(mod_entry));
-            let cmd = daemon_command(&Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &dir }, &launch(&token));
+            let cmd = daemon_command(
+                &Daemon { node: &node, entry: &entry, mod_entry: &mod_entry, dir: &dir },
+                &launch(&token),
+            );
             assert_eq!(cmd.get_program(), node.as_os_str());
             cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect::<Vec<_>>()
         };
         assert_eq!(
             args("/src/loki/daemon/main.ts", "/src/loki/mod/boot.ts"),
-            ["--disable-warning=ExperimentalWarning", "--experimental-strip-types", "/src/loki/daemon/main.ts", "--loki-daemon", "--dir", "/home/x/.loki", "--mod", "/src/loki/mod/boot.ts", "--token-file", "/home/x/.loki/token"]
+            [
+                "--disable-warning=ExperimentalWarning",
+                "--experimental-strip-types",
+                "/src/loki/daemon/main.ts",
+                "--loki-daemon",
+                "--dir",
+                "/home/x/.loki",
+                "--mod",
+                "/src/loki/mod/boot.ts",
+                "--token-file",
+                "/home/x/.loki/token"
+            ]
         );
-        assert_eq!(args("/data/daemon/daemon.mjs", "/data/mod/loki-mod.mjs")[..2], ["--disable-warning=ExperimentalWarning", "/data/daemon/daemon.mjs"], "a bundle needs no type stripping");
+        assert_eq!(
+            args("/data/daemon/daemon.mjs", "/data/mod/loki-mod.mjs")[..2],
+            ["--disable-warning=ExperimentalWarning", "/data/daemon/daemon.mjs"],
+            "a bundle needs no type stripping"
+        );
     }
 
     #[test]

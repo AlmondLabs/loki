@@ -56,7 +56,15 @@ pub struct Report {
 
 impl Report {
     pub fn skipped(home: &Path) -> Report {
-        Report { r#mod: State::Skipped, mod_path: String::new(), skill: State::Skipped, skill_path: skill_dir(home).display().to_string(), app: State::Skipped, app_path: String::new(), error: None }
+        Report {
+            r#mod: State::Skipped,
+            mod_path: String::new(),
+            skill: State::Skipped,
+            skill_path: skill_dir(home).display().to_string(),
+            app: State::Skipped,
+            app_path: String::new(),
+            error: None,
+        }
     }
 }
 
@@ -81,17 +89,28 @@ pub fn link_checkout(checkout: &Path, home: &Path) -> Report {
     let dst = skill_dir(home);
     report.skill = match std::fs::symlink_metadata(&dst) {
         Ok(m) if m.file_type().is_symlink() => {
-            if std::fs::read_link(&dst).map(|t| t == skills || (cfg!(windows) && same_dir(&dst, &skills))).unwrap_or(false) { State::Linked } else { State::Custom }
+            if std::fs::read_link(&dst)
+                .map(|t| t == skills || (cfg!(windows) && same_dir(&dst, &skills)))
+                .unwrap_or(false)
+            {
+                State::Linked
+            } else {
+                State::Custom
+            }
         }
         Ok(_) if dst.join(SKILL_MARKER).exists() => State::Skipped,
         Ok(_) => State::Custom,
         Err(_) => {
-            let linked = dst.parent().map(std::fs::create_dir_all).unwrap_or(Ok(())).and_then(|_| link_dir(&skills, &dst));
+            let linked =
+                dst.parent().map(std::fs::create_dir_all).unwrap_or(Ok(())).and_then(|_| link_dir(&skills, &dst));
             match linked {
                 Ok(()) => State::Linked,
                 Err(e) => {
                     let msg = format!("could not link {}: {e}", dst.display());
-                    report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {msg}"), None => msg });
+                    report.error = Some(match report.error.take() {
+                        Some(prev) => format!("{prev}; {msg}"),
+                        None => msg,
+                    });
                     State::Error
                 }
             }
@@ -108,9 +127,15 @@ fn link_dir(target: &Path, dst: &Path) -> std::io::Result<()> {
     return std::os::unix::fs::symlink(target, dst);
     #[cfg(windows)]
     {
-        if std::os::windows::fs::symlink_dir(target, dst).is_ok() { return Ok(()); }
+        if std::os::windows::fs::symlink_dir(target, dst).is_ok() {
+            return Ok(());
+        }
         let out = std::process::Command::new("cmd").args(["/C", "mklink", "/J"]).arg(dst).arg(target).output()?;
-        if out.status.success() { Ok(()) } else { Err(std::io::Error::other(String::from_utf8_lossy(&out.stderr).trim().to_string())) }
+        if out.status.success() {
+            Ok(())
+        } else {
+            Err(std::io::Error::other(String::from_utf8_lossy(&out.stderr).trim().to_string()))
+        }
     }
 }
 
@@ -123,7 +148,9 @@ fn same_dir(a: &Path, b: &Path) -> bool {
 /// Where the bundled resources are, given Tauri's resource directory (the layout differs between
 /// `tauri dev`, which copies them next to the binary, and a bundle).
 pub fn find_resources(resource_dir: &Path) -> Option<PathBuf> {
-    [resource_dir.join("resources"), resource_dir.to_path_buf()].into_iter().find(|d| d.join("mod").join("loki-mod.mjs").is_file())
+    [resource_dir.join("resources"), resource_dir.to_path_buf()]
+        .into_iter()
+        .find(|d| d.join("mod").join("loki-mod.mjs").is_file())
 }
 
 fn write_if_changed(path: &Path, bytes: &[u8]) -> std::io::Result<State> {
@@ -145,9 +172,11 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> std::io::Result<State> {
 
 /// The mod bundle: <resources>/mod/loki-mod.mjs → <data>/mod, where the daemon loads it from.
 fn install_mod(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), String> {
-    let bundle = std::fs::read(resources.join("mod").join("loki-mod.mjs")).map_err(|e| format!("bundled mod unreadable: {e}"))?;
+    let bundle = std::fs::read(resources.join("mod").join("loki-mod.mjs"))
+        .map_err(|e| format!("bundled mod unreadable: {e}"))?;
     let mod_path = data_dir.join("mod").join("loki-mod.mjs");
-    let state = write_if_changed(&mod_path, &bundle).map_err(|e| format!("could not write {}: {e}", mod_path.display()))?;
+    let state =
+        write_if_changed(&mod_path, &bundle).map_err(|e| format!("could not write {}: {e}", mod_path.display()))?;
     Ok((state, mod_path))
 }
 
@@ -155,14 +184,20 @@ fn install_mod(resources: &Path, data_dir: &Path) -> Result<(State, PathBuf), St
 /// (node_modules). A build without it installs nothing.
 fn install_daemon(resources: &Path, data_dir: &Path) -> Result<State, String> {
     let src = resources.join("daemon");
-    if !src.join("daemon.mjs").is_file() { return Ok(State::Skipped) }
+    if !src.join("daemon.mjs").is_file() {
+        return Ok(State::Skipped);
+    }
     let dst = data_dir.join("daemon");
     let mut files = Vec::new();
     walk(&src, Path::new(""), &mut files).map_err(|e| format!("bundled daemon unreadable: {e}"))?;
     let mut state = State::Current;
     for rel in &files {
         let bytes = std::fs::read(src.join(rel)).map_err(|e| e.to_string())?;
-        if write_if_changed(&dst.join(rel), &bytes).map_err(|e| format!("could not write {}: {e}", rel.display()))? != State::Current { state = State::Updated; }
+        if write_if_changed(&dst.join(rel), &bytes).map_err(|e| format!("could not write {}: {e}", rel.display()))?
+            != State::Current
+        {
+            state = State::Updated;
+        }
     }
     Ok(state)
 }
@@ -184,12 +219,14 @@ fn install_skill(resources: &Path, home: &Path) -> Result<(State, PathBuf), Stri
             continue;
         }
         let bytes = std::fs::read(entry.path()).map_err(|e| e.to_string())?;
-        let s = write_if_changed(&dst.join(entry.file_name()), &bytes).map_err(|e| format!("could not write skill: {e}"))?;
+        let s = write_if_changed(&dst.join(entry.file_name()), &bytes)
+            .map_err(|e| format!("could not write skill: {e}"))?;
         if !fresh && s == State::Updated {
             state = State::Updated;
         }
     }
-    std::fs::write(dst.join(SKILL_MARKER), b"files here are written by the loki app on launch\n").map_err(|e| e.to_string())?;
+    std::fs::write(dst.join(SKILL_MARKER), b"files here are written by the loki app on launch\n")
+        .map_err(|e| e.to_string())?;
     Ok((state, dst))
 }
 
@@ -275,11 +312,17 @@ pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
         }
         Err(e) => {
             report.r#mod = State::Error;
-            report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {e}"), None => e });
+            report.error = Some(match report.error.take() {
+                Some(prev) => format!("{prev}; {e}"),
+                None => e,
+            });
         }
     }
     if let Err(e) = install_daemon(resources, data_dir) {
-        report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {e}"), None => e });
+        report.error = Some(match report.error.take() {
+            Some(prev) => format!("{prev}; {e}"),
+            None => e,
+        });
     }
     match install_skill(resources, home) {
         Ok((state, dir)) => {
@@ -288,7 +331,10 @@ pub fn run(resources: &Path, data_dir: &Path, home: &Path) -> Report {
         }
         Err(e) => {
             report.skill = State::Error;
-            report.error = Some(match report.error.take() { Some(prev) => format!("{prev}; {e}"), None => e });
+            report.error = Some(match report.error.take() {
+                Some(prev) => format!("{prev}; {e}"),
+                None => e,
+            });
         }
     }
     report
@@ -307,7 +353,8 @@ pub fn find_program(name: &str, home: &Path) -> Option<PathBuf> {
     if let Some(p) = std::env::var_os(format!("LOKI_{}_BIN", name.to_uppercase())) {
         return Some(PathBuf::from(p));
     }
-    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let mut dirs: Vec<PathBuf> =
+        std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
     for d in [".volta/bin", ".bun/bin", ".local/bin", "go/bin", ".npm-global/bin"] {
         dirs.push(home.join(d));
     }
@@ -364,12 +411,22 @@ mod tests {
         let (_root, resources, data, home) = fixture();
         run(&resources, &data, &home);
         assert!(!data.join("daemon").exists(), "a build without the daemon installs none");
-        std::fs::create_dir_all(resources.join("daemon").join("node_modules").join("@napi-rs").join("keyring")).unwrap();
+        std::fs::create_dir_all(resources.join("daemon").join("node_modules").join("@napi-rs").join("keyring"))
+            .unwrap();
         std::fs::write(resources.join("daemon").join("daemon.mjs"), b"// daemon\n").unwrap();
-        std::fs::write(resources.join("daemon").join("node_modules").join("@napi-rs").join("keyring").join("index.js"), b"// keyring\n").unwrap();
+        std::fs::write(
+            resources.join("daemon").join("node_modules").join("@napi-rs").join("keyring").join("index.js"),
+            b"// keyring\n",
+        )
+        .unwrap();
         let r = run(&resources, &data, &home);
         assert_eq!(std::fs::read(data.join("daemon").join("daemon.mjs")).unwrap(), b"// daemon\n");
-        assert_eq!(std::fs::read(data.join("daemon").join("node_modules").join("@napi-rs").join("keyring").join("index.js")).unwrap(), b"// keyring\n", "the native binding beside it");
+        assert_eq!(
+            std::fs::read(data.join("daemon").join("node_modules").join("@napi-rs").join("keyring").join("index.js"))
+                .unwrap(),
+            b"// keyring\n",
+            "the native binding beside it"
+        );
         assert!(r.error.is_none(), "{:?}", r.error);
     }
 
@@ -453,10 +510,18 @@ mod tests {
         assert_eq!(r.r#mod, State::Linked);
         assert_eq!(r.skill, State::Linked);
         assert!(r.error.is_none());
-        assert_eq!(r.mod_path, c.join("mod").join("boot.ts").display().to_string(), "the daemon runs the checkout's mod");
+        assert_eq!(
+            r.mod_path,
+            c.join("mod").join("boot.ts").display().to_string(),
+            "the daemon runs the checkout's mod"
+        );
         let link = std::fs::read_link(skill_dir(&home)).unwrap();
         // A junction on Windows reads back `\\?\`-prefixed: there, compare the folders the two paths name.
-        if cfg!(windows) { assert!(same_dir(&link, &c.join("skills").join("loki")), "{link:?}") } else { assert_eq!(link, c.join("skills").join("loki")) }
+        if cfg!(windows) {
+            assert!(same_dir(&link, &c.join("skills").join("loki")), "{link:?}")
+        } else {
+            assert_eq!(link, c.join("skills").join("loki"))
+        }
         assert!(skill_dir(&home).join("SKILL.md").is_file());
         // The same again: still linked, nothing rewritten.
         let r = link_checkout(&c, &home);
@@ -502,7 +567,11 @@ mod tests {
         let nested = root.path().join("bundle");
         std::fs::create_dir_all(&nested).unwrap();
         std::fs::create_dir_all(nested.join("resources").join("mod")).unwrap();
-        std::fs::copy(resources.join("mod").join("loki-mod.mjs"), nested.join("resources").join("mod").join("loki-mod.mjs")).unwrap();
+        std::fs::copy(
+            resources.join("mod").join("loki-mod.mjs"),
+            nested.join("resources").join("mod").join("loki-mod.mjs"),
+        )
+        .unwrap();
         assert_eq!(find_resources(&nested), Some(nested.join("resources")));
     }
 

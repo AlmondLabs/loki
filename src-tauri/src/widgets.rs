@@ -16,7 +16,9 @@ use oxc_transformer::{JsxOptions, JsxRuntime, TransformOptions, Transformer};
 const SHARED: &[&str] = &["react", "react/jsx-runtime", "react-dom", "recharts", "@loki/kit"];
 
 pub fn widgets_dir() -> PathBuf {
-    if let Some(p) = std::env::var_os("LOKI_WIDGETS_DIR") { return PathBuf::from(p); }
+    if let Some(p) = std::env::var_os("LOKI_WIDGETS_DIR") {
+        return PathBuf::from(p);
+    }
     crate::loki_dir().join("widgets")
 }
 
@@ -26,11 +28,15 @@ pub fn source_for(request_path: &str, root: &Path) -> Option<PathBuf> {
     let rel = percent_encoding::percent_decode_str(rel).decode_utf8().ok()?;
     // No way out of the root: `..`, a leading `/`, and on Windows a drive (`C:`) or a backslash, either of which
     // makes `root.join` replace the root rather than extend it.
-    if rel.contains("..") || rel.starts_with('/') || (cfg!(windows) && (rel.contains(':') || rel.contains('\\'))) { return None; }
+    if rel.contains("..") || rel.starts_with('/') || (cfg!(windows) && (rel.contains(':') || rel.contains('\\'))) {
+        return None;
+    }
     let stem = rel.strip_suffix(".js")?;
     for ext in ["tsx", "jsx"] {
         let p = root.join(format!("{stem}.{ext}"));
-        if p.is_file() { return Some(p); }
+        if p.is_file() {
+            return Some(p);
+        }
     }
     None
 }
@@ -46,8 +52,10 @@ pub fn transpile(source: &str, path: &Path) -> Result<String, String> {
     }
     let mut program = parsed.program;
     let scoping = SemanticBuilder::new().build(&program).semantic.into_scoping();
-    let mut options = TransformOptions::default();
-    options.jsx = JsxOptions { runtime: JsxRuntime::Automatic, development: false, ..JsxOptions::default() };
+    let options = TransformOptions {
+        jsx: JsxOptions { runtime: JsxRuntime::Automatic, development: false, ..JsxOptions::default() },
+        ..TransformOptions::default()
+    };
     let result = Transformer::new(&allocator, path, &options).build_with_scoping(scoping, &mut program);
     let transform_errors = result.diagnostics.into_vec();
     if !transform_errors.is_empty() {
@@ -73,10 +81,14 @@ pub fn rewrite_shared_imports(code: &str) -> String {
 }
 
 fn rewrite_import_line(line: &str) -> Option<String> {
-    if !line.starts_with("import ") { return None; }
+    if !line.starts_with("import ") {
+        return None;
+    }
     let from = line.rfind(" from ")?;
     let spec = line[from + 6..].trim().trim_end_matches(';').trim_matches(|c| c == '"' || c == '\'');
-    if !SHARED.contains(&spec) { return None; }
+    if !SHARED.contains(&spec) {
+        return None;
+    }
     let clause = line[7..from].trim();
     let table = format!("window.__lokiShared[{}]", serde_json::to_string(spec).ok()?);
     let mut stmts = vec![];
@@ -90,7 +102,12 @@ fn rewrite_import_line(line: &str) -> Option<String> {
             stmts.push(format!("const {default_part} = {table}.default ?? {table};"));
         }
         let names = rest[brace + 1..rest.rfind('}')?].split(',').map(|n| n.trim()).filter(|n| !n.is_empty());
-        let bindings: Vec<String> = names.map(|n| match n.split_once(" as ") { Some((a, b)) => format!("{}: {}", a.trim(), b.trim()), None => n.to_string() }).collect();
+        let bindings: Vec<String> = names
+            .map(|n| match n.split_once(" as ") {
+                Some((a, b)) => format!("{}: {}", a.trim(), b.trim()),
+                None => n.to_string(),
+            })
+            .collect();
         if !bindings.is_empty() {
             stmts.push(format!("const {{ {} }} = {table};", bindings.join(", ")));
         }
@@ -105,7 +122,9 @@ fn rewrite_import_line(line: &str) -> Option<String> {
 /// Serve one request under the `loki` scheme.
 pub fn respond(uri_path: &str) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::{header, Response, StatusCode};
-    let cors = |b: tauri::http::response::Builder| b.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*").header(header::CACHE_CONTROL, "no-store");
+    let cors = |b: tauri::http::response::Builder| {
+        b.header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*").header(header::CACHE_CONTROL, "no-store")
+    };
     eprintln!("loki: widget request {uri_path}");
     let Some(src) = source_for(uri_path, &widgets_dir()) else {
         return cors(Response::builder().status(StatusCode::NOT_FOUND)).body(b"not a widget".to_vec()).unwrap();
@@ -114,13 +133,24 @@ pub fn respond(uri_path: &str) -> tauri::http::Response<Vec<u8>> {
         return cors(Response::builder().status(StatusCode::NOT_FOUND)).body(b"unreadable".to_vec()).unwrap();
     };
     match transpile(&source, &src) {
-        Ok(js) => cors(Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, "text/javascript; charset=utf-8"))
-            .body(rewrite_shared_imports(&js).into_bytes())
-            .unwrap(),
+        Ok(js) => cors(
+            Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+        )
+        .body(rewrite_shared_imports(&js).into_bytes())
+        .unwrap(),
         Err(err) => {
             // Surface the compile error as a module that throws, so the frame shows it like a runtime error.
-            let js = format!("throw new Error({});", serde_json::to_string(&format!("{}: {err}", src.display())).unwrap_or_default());
-            cors(Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, "text/javascript; charset=utf-8")).body(js.into_bytes()).unwrap()
+            let js = format!(
+                "throw new Error({});",
+                serde_json::to_string(&format!("{}: {err}", src.display())).unwrap_or_default()
+            );
+            cors(
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            )
+            .body(js.into_bytes())
+            .unwrap()
         }
     }
 }
