@@ -50,8 +50,13 @@ jobs:
         run: npm run test:node
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:app
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+      - id: bundle
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run build:mod
+      # The bundle people run, started in a scratch home: sign-in, an import from Letta, agents across a restart
+      # (scripts/smoke.ts). Source tests passed while the bundle's sign-in was broken (2026.1011.1).
+      - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
+        run: npm run smoke
 
   # The suite on the Mac and Windows: paths, shells, processes and signals differ there (plan 014). fail-fast off: one
   # system's failure must not hide the other's.
@@ -74,3 +79,9 @@ jobs:
         run: npm test
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:node
+      # The bundle on this system too: the keychain's native module, paths and process handling differ here.
+      - id: bundle
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:mod
+      - if: ${{ !cancelled() && steps.bundle.outcome == 'success' }}
+        run: npm run smoke

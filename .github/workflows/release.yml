@@ -123,6 +123,10 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "this build is $KIND $VERSION"
           npm run release -- set "$VERSION"
+      # The bundle this build ships, started and asked what the app asks (scripts/smoke.ts): a broken one stops here,
+      # before anything is published.
+      - name: smoke-test the bundle
+        run: npm run build:mod && npm run smoke
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
       # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
       # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
@@ -236,6 +240,8 @@ jobs:
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
+      - name: smoke-test the bundle
+        run: npm run build:mod && npm run smoke
       - name: build the installer
         run: npm run tauri -- build --bundles nsis
       - uses: actions/upload-artifact@v4
@@ -271,6 +277,8 @@ jobs:
       - run: npm ci
       - name: stamp the version
         run: npm run release -- set "$VERSION"
+      - name: smoke-test the bundle
+        run: npm run build:mod && npm run smoke
       - name: build the AppImage and .deb
         run: npm run tauri -- build --bundles appimage,deb
       - uses: actions/upload-artifact@v4
