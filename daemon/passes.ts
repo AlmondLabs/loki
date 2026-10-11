@@ -1,4 +1,5 @@
 import type { Context } from "@earendil-works/chord";
+import { withCancel } from "@earendil-works/chord/context";
 import type { Registry } from "@earendil-works/pi-durable";
 import { readLocalAgent } from "../mod/agents.ts";
 import { formatTranscript } from "../mod/recall-worker.ts";
@@ -27,6 +28,8 @@ export const SWEEP_MS = 60_000;
 export const MIN_NEW_CHARS = 300;
 /** The most of a stretch a run reads: its oldest part, up to an entry's end; what does not fit is the next run's. */
 export const MAX_MATERIAL_CHARS = 24_000;
+/** The longest a run may take before its pass chat is stopped and the run counted as failed. */
+export const RUN_TIMEOUT_MS = 10 * 60_000;
 
 export type PassInput = { agentId: string; chatId: string; agentName: string | null; rows: TranscriptRow[]; material: string; now: Date };
 export type PassAnswer = { text: string; toolCalls: string[] };
@@ -65,6 +68,7 @@ type Deps = {
   now?(): Date;
   quietMs?: number;
   sweepMs?: number;
+  runTimeoutMs?: number;
 };
 
 export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped";
@@ -187,32 +191,38 @@ export class PassRunner {
   }
 
   private async run(job: PassJob, agentId: string, chatId: string, force: boolean): Promise<RunOutcome> {
-    // The chat may have woken while the run waited its turn: it waits for the next sweep, its cursor where it was.
-    if (await this.deps.busy(agentId, chatId)) return "skipped";
     const started = this.now();
     const k = `${job.name}\u0000${agentId}\u0000${chatId}`;
     const { state, context } = this.deps;
     const cursor = state.cursor(job.name, agentId, chatId) ?? 0;
-    const record = readLocalAgent(agentId, this.deps.backendDir);
-    const agentName = record?.name ?? null;
-    const { rows, lines, transcript } = this.stretch(chatId, agentId, cursor, agentName);
+    let lines = cursor;
+    let requestId: string | null = null;
     const finish = (outcome: RunOutcome, extra: Record<string, unknown> = {}) => {
-      this.deps.capture?.("pass_finished", { job: job.name, agent: agentId, chat: chatId, entries_read: lines - cursor, outcome, duration_ms: this.now().getTime() - started.getTime(), ...extra });
+      this.deps.capture?.("pass_finished", { job: job.name, agent: agentId, chat: chatId, entries_read: lines - cursor, outcome, duration_ms: this.now().getTime() - started.getTime(), request_id: requestId, items: {}, ...extra });
       return outcome;
     };
-    if (lines <= cursor) return "nothing";
-    if (!transcript.length || (!force && transcript.length < MIN_NEW_CHARS)) {
-      state.setCursor(job.name, agentId, chatId, lines);
-      return "nothing";
-    }
-    const input: PassInput = { agentId, chatId, agentName, rows, material: transcript, now: started };
-    const requestId = `pass:${job.name}:${chatId}:${lines}`;
     try {
+      // The chat may have woken while the run waited its turn: it waits for the next sweep, its cursor where it was.
+      if (await this.deps.busy(agentId, chatId)) return "skipped";
+      const record = readLocalAgent(agentId, this.deps.backendDir);
+      const agentName = record?.name ?? null;
+      const stretch = this.stretch(chatId, agentId, cursor, agentName);
+      const { rows, transcript } = stretch;
+      lines = stretch.lines;
+      if (lines <= cursor) return finish("nothing");
+      if (!transcript.length || (!force && transcript.length < MIN_NEW_CHARS)) {
+        state.setCursor(job.name, agentId, chatId, lines);
+        return finish("nothing");
+      }
+      const input: PassInput = { agentId, chatId, agentName, rows, material: transcript, now: started };
       const prompt = await job.prompt(input);
       if (prompt === null) {
         state.setCursor(job.name, agentId, chatId, lines);
-        return finish("nothing", { request_id: null, items: {} });
+        return finish("nothing");
       }
+      // The pass chat is reset, not recreated, and pi-durable answers a repeated request id with the old submission:
+      // each attempt gets its own id, so a retry (or Learn's capped stretch the next day) is really asked again.
+      requestId = `pass:${job.name}:${chatId}:${lines}:${started.getTime().toString(36)}`;
       const store = await this.deps.stores.get(agentId);
       const model = modelRef(record?.model ?? "");
       const tools = new Set(job.tools(this.deps.registry).map((t) => t.name));
@@ -225,7 +235,20 @@ export class PassRunner {
         await chat.reset(undefined, context);
       }
       const before = (await store.entries(chat, context)).length;
-      const settled = await (await chat.submit({ type: "input", content: prompt, requestId }, context)).wait(context);
+      const submission = await chat.submit({ type: "input", content: prompt, requestId }, context);
+      // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
+      const limited = withCancel(context);
+      const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS);
+      let settled: Awaited<ReturnType<typeof submission.wait>>;
+      try {
+        settled = await submission.wait(limited.context);
+      } catch (error) {
+        if (!limited.context.abortSignal?.aborted) throw error;
+        await chat.abort(context).catch(() => {});
+        throw new Error(`the pass did not finish within ${Math.round((this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS) / 1000)}s`);
+      } finally {
+        clearTimeout(timer);
+      }
       if (settled.status !== "done") throw new Error(`the pass did not finish: ${settled.status}`);
       const answer: PassAnswer = { text: "", toolCalls: [] };
       for (const entry of (await store.entries(chat, context)).slice(before)) {
@@ -239,11 +262,11 @@ export class PassRunner {
       if (!result.capped) state.setCursor(job.name, agentId, chatId, lines);
       this.failedAt.delete(k);
       const wrote = Object.values(result.items).reduce((n, v) => n + v, 0);
-      return finish(result.capped ? "capped" : wrote ? "changed" : "nothing", { request_id: requestId, items: result.items });
+      return finish(result.capped ? "capped" : wrote ? "changed" : "nothing", { items: result.items });
     } catch (error) {
       this.failedAt.set(k, this.now().getTime());
       this.deps.report?.(`${job.name} on ${chatId} failed: ${String(error)}`);
-      return finish("failed", { request_id: requestId, items: {} });
+      return finish("failed");
     }
   }
 

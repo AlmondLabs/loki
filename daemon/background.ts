@@ -4,6 +4,7 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { StringDecoder } from "node:string_decoder";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 
 /**
@@ -15,6 +16,9 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 
 /** The most output a task keeps, from its end. */
 const KEEP = 256 * 1024;
+/** A finished task stays readable this long, and at most this many of them are kept. */
+const KEEP_FINISHED_MS = 60 * 60_000;
+const KEEP_FINISHED = 32;
 
 type Task = {
   id: string;
@@ -26,6 +30,7 @@ type Task = {
   /** How much of the output the agent has read. */
   read: number;
   exit: { code: number | null; signal: string | null } | null;
+  endedAt: number;
   /** The signal a stop sent: Windows ends a tree with none of its own. */
   stopping?: NodeJS.Signals;
   waiters: Set<() => void>;
@@ -67,13 +72,15 @@ export class BackgroundTasks {
   }
 
   start(agentId: string, chatId: string, cwd: string, command: string): string {
+    this.prune();
     const id = `bg-${randomBytes(3).toString("hex")}`;
     // Its own process group off Windows, so stopping it stops what its shell started too (bash keeps `sleep 30`, a dev
     // server under `npm run`, as children that hold the output open after the shell itself is gone).
     const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
-    const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, waiters: new Set() };
-    const take = (chunk: Buffer) => {
-      task.output += chunk.toString("utf8");
+    const task: Task = { id, agentId, chatId, command, child, output: "", read: 0, exit: null, endedAt: 0, waiters: new Set() };
+    const take = (text: string) => {
+      if (!text) return;
+      task.output += text;
       if (task.output.length > KEEP) {
         const cut = task.output.length - KEEP;
         task.output = task.output.slice(cut);
@@ -81,9 +88,14 @@ export class BackgroundTasks {
       }
       for (const w of task.waiters) w();
     };
-    child.stdout?.on("data", take);
-    child.stderr?.on("data", take);
-    child.on("error", (error) => take(Buffer.from(`\n${error.message}\n`)));
+    // One decoder per stream, so a character split across two chunks is not garbled.
+    const out = new StringDecoder("utf8");
+    const err = new StringDecoder("utf8");
+    child.stdout?.on("data", (chunk: Buffer) => take(out.write(chunk)));
+    child.stderr?.on("data", (chunk: Buffer) => take(err.write(chunk)));
+    child.on("error", (error) => take(`\n${error.message}\n`));
+    // A write to a task whose input has closed (EPIPE) is the task's trouble, not the daemon's.
+    child.stdin?.on("error", (error) => take(`\n[input: ${error.message}]\n`));
     child.on("exit", () => {
       if (!task.stopping) return;
       setTimeout(() => {
@@ -94,7 +106,9 @@ export class BackgroundTasks {
     child.on("close", (code, exitSignal) => {
       // Windows ends a tree without a signal; a task stopped there still reads as stopped.
       const signal = exitSignal ?? task.stopping ?? null;
+      take(out.end() + err.end());
       task.exit = { code, signal };
+      task.endedAt = Date.now();
       for (const w of task.waiters) w();
       const status = signal ? `stopped (${signal})` : code === 0 ? "completed" : `failed (exit ${code})`;
       const tail = task.output.slice(-2000).trim();
@@ -154,6 +168,14 @@ export class BackgroundTasks {
     const timers = [setTimeout(() => end(false), RESIGNAL_MS), setTimeout(() => end(true), GRACE_MS)];
     for (const t of timers) t.unref?.();
     task.child.once("close", () => timers.forEach(clearTimeout));
+  }
+
+  /** Forget finished tasks past their time, and the oldest past the count. */
+  private prune(now = Date.now()): void {
+    const finished = [...this.tasks.values()].filter((t) => t.exit).sort((a, b) => b.endedAt - a.endedAt);
+    finished.forEach((t, i) => {
+      if (i >= KEEP_FINISHED || now - t.endedAt > KEEP_FINISHED_MS) this.tasks.delete(t.id);
+    });
   }
 
   /** Wait until the output matches `pattern`, the task ends, or `ms` pass; then its new output. */

@@ -87,6 +87,7 @@ export class Schedules {
   private readonly fire: Fire;
   private readonly report: (message: string) => void;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private ticking = false;
 
   constructor(file: string, fire: Fire, report: (message: string) => void = () => {}) {
     this.file = file;
@@ -127,28 +128,39 @@ export class Schedules {
     return true;
   }
 
-  /** Fire every active task with a slot due since it last fired (or was made), once each. */
+  /**
+   * Fire every active task with a slot due since it last fired (or was made), once each. A firing is written down before
+   * its prompt goes out, against the list as it is then, so a task made or cancelled while another fires is kept. A tick
+   * that starts while one is still firing (a slow chat) does nothing.
+   */
   async tick(now = new Date()): Promise<number> {
-    const tasks = this.list();
-    let fired = 0;
-    for (const task of tasks) {
-      if (task.status !== "active") continue;
-      let due = false;
-      try {
-        due = dueBetween(parseCron(task.cron), task.timezone, new Date(task.last_fired_at ?? task.created_at), now);
-      } catch (error) {
-        this.report(`schedule ${task.name}: ${String(error)}`);
-        continue;
+    if (this.ticking) return 0;
+    this.ticking = true;
+    try {
+      let fired = 0;
+      for (const { id } of this.list()) {
+        const tasks = this.list();
+        const task = tasks.find((t) => t.id === id);
+        if (!task || task.status !== "active") continue;
+        let due = false;
+        try {
+          due = dueBetween(parseCron(task.cron), task.timezone, new Date(task.last_fired_at ?? task.created_at), now);
+        } catch (error) {
+          this.report(`schedule ${task.name}: ${String(error)}`);
+          continue;
+        }
+        if (!due) continue;
+        task.last_fired_at = now.toISOString();
+        task.fire_count += 1;
+        if (!task.recurring) task.status = "done";
+        this.save(tasks);
+        fired++;
+        await this.fire(task.agent_id, task.conversation_id, `Scheduled task "${task.name}": ${task.prompt}`).catch((error: unknown) => this.report(`schedule ${task.name} did not fire: ${String(error)}`));
       }
-      if (!due) continue;
-      task.last_fired_at = now.toISOString();
-      task.fire_count += 1;
-      if (!task.recurring) task.status = "done";
-      fired++;
-      await this.fire(task.agent_id, task.conversation_id, `Scheduled task "${task.name}": ${task.prompt}`).catch((error: unknown) => this.report(`schedule ${task.name} did not fire: ${String(error)}`));
+      return fired;
+    } finally {
+      this.ticking = false;
     }
-    if (fired) this.save(tasks);
-    return fired;
   }
 
   /** Check at start (a slot missed while closed) and then once a minute. */

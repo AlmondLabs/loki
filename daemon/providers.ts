@@ -1,4 +1,4 @@
-import type { CredentialStore } from "@earendil-works/pi-ai";
+import type { Credential, CredentialStore } from "@earendil-works/pi-ai";
 import type { Models } from "@earendil-works/pi-ai/models";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -63,17 +63,28 @@ export class Providers {
     return out;
   }
 
-  /** Keep an API key, once the provider has accepted it. */
+  /**
+   * Keep an API key, once the provider has accepted it. The provider is asked with the new key in place; one it
+   * refuses puts back whatever was kept before (a mistyped replacement does not cost the working key).
+   */
   async connectKey(providerId: string, key: string): Promise<void> {
     const provider = this.models.getProvider(providerId);
     if (!provider?.auth.apiKey) throw new Error(`${providerId} does not take an API key`);
     if (!key.trim()) throw new Error("the key is empty");
-    await this.credentials.modify(providerId, async () => ({ type: "api_key", key: key.trim() }));
+    let previous: Credential | undefined;
+    await this.credentials.modify(providerId, async (current) => {
+      previous = current;
+      return { type: "api_key", key: key.trim() };
+    });
     const refreshed = await this.models.refresh({ providers: [providerId] });
     const error = refreshed.errors.get(providerId);
     if (error) {
-      await this.credentials.delete(providerId);
-      throw new Error(`${provider.name} did not accept the key: ${error.message}`);
+      const kept = previous;
+      if (kept) {
+        await this.credentials.modify(providerId, async () => kept);
+        await this.models.refresh({ providers: [providerId] }).catch(() => undefined);
+      } else await this.credentials.delete(providerId);
+      throw new Error(`${provider.name} did not accept the key${kept ? " (the one kept before is still in use)" : ""}: ${error.message}`);
     }
   }
 
