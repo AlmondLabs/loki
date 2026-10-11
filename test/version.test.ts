@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { isNewerVersion, parseVersion } from "../core/version.ts";
-import { dateVersion, nightlyVersion } from "../scripts/release.ts";
+import { nightlyVersion, stableVersion } from "../scripts/release.ts";
 
 test("release tags and plain versions parse alike", () => {
   expect(parseVersion("v0.3.0")).toEqual([0, 3, 0]);
@@ -15,6 +15,18 @@ test("newer means strictly after, per component", () => {
   expect(isNewerVersion("0.3.0", "0.3.0")).toBe(false);
   expect(isNewerVersion("0.3.1", "0.3.0")).toBe(false);
   expect(isNewerVersion("0.3.0", "garbage")).toBe(false);
+});
+
+test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through months, years and same-day releases", () => {
+  // the last stables of the old scheme, then the first of the new
+  expect(isNewerVersion("2026.10.11", "2026.1011.0")).toBe(true);
+  expect(isNewerVersion("2026.12.31", "2026.1011.0")).toBe(true); // any old-scheme day: a month never reaches 101
+  expect(isNewerVersion("2026.1011.0", "2026.10.31")).toBe(false);
+  const inOrder = ["2026.1011.0", "2026.1011.1", "2026.1011.10", "2026.1012.0", "2026.1031.0", "2026.1101.0", "2026.1231.3", "2027.101.0", "2027.131.0", "2027.201.0"];
+  for (let i = 1; i < inOrder.length; i++) {
+    expect(isNewerVersion(inOrder[i - 1], inOrder[i])).toBe(true);
+    expect(isNewerVersion(inOrder[i], inOrder[i - 1])).toBe(false);
+  }
 });
 
 /**
@@ -36,9 +48,10 @@ test("stable and nightly versions build an NSIS installer as is: semver, no buil
   };
   const days = [new Date("2026-09-24T12:00:00Z"), new Date("2026-12-31T23:59:00Z"), new Date("2099-01-01T00:00:00Z")];
   for (const d of days) {
-    expect(productVersion(dateVersion(d))).toBe(`${dateVersion(d)}.0`);
-    expect(productVersion(nightlyVersion(d, "abc1234def"))).toBe(`${dateVersion(d)}.0`);
-    expect(nightlyVersion(d, "abc1234def")).not.toContain("+");
+    for (const n of [0, 1, 99]) expect(productVersion(stableVersion(d, n))).toBe(`${stableVersion(d, n)}.0`);
+    expect(productVersion(nightlyVersion(d, [], "abc1234def"))).toBe(`${stableVersion(d, 0)}.0`);
+    expect(nightlyVersion(d, [], "abc1234def")).not.toContain("+");
   }
-  expect(productVersion("2026.9.24-nightly.abc1234")).toBe("2026.9.24.0");
+  expect(productVersion("2026.1231.65535")).toBe("2026.1231.65535.0"); // the widest the scheme gets, inside 16 bits
+  expect(productVersion("2026.9.24-nightly.abc1234")).toBe("2026.9.24.0"); // old-scheme nightlies still parse
 });

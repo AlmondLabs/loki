@@ -19,8 +19,8 @@ export function dmgName(version: string): string {
 
 export function renderCask({ owner, version, sha256, channel = "stable" }: CaskInput): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)) throw new Error(`not a GitHub owner: ${owner}`);
-  if (channel === "stable" && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version} (expected 2026.9.28, no v)`);
-  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(version)) throw new Error(`not a nightly version: ${version} (expected 2026.9.28-nightly.a96ee85)`);
+  if (channel === "stable" && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version} (expected 2026.1011.0, no v)`);
+  if (channel === "nightly" && !/^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(version)) throw new Error(`not a nightly version: ${version} (expected 2026.1011.1-nightly.a96ee85)`);
   if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error(`not a sha256: ${sha256}`);
   const nightly = channel === "nightly";
   const tag = nightly ? "nightly" : "v#{version}";

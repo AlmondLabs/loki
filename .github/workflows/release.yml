@@ -1,18 +1,16 @@
 # Releases, two channels, from every push to main (docs/RELEASING.md; scripts/release.ts does the deciding):
 #   nightly  every merge builds the app and replaces the rolling `nightly` prerelease and the loki-nightly cask
-#   stable   merging the release PR (branch release/next) publishes vYYYY.M.D with the .dmg and pushes the loki cask
+#   stable   merging the release PR (branch release/next) publishes vYYYY.MMDD.N with the .dmg and pushes the loki
+#            cask, at once and as often as it is merged; the build decides the number from the date and the tags
 #   preview  merging the Windows and Linux PR (branch release/preview) builds main on Windows and Linux and puts the
-#            files on vYYYY.M.D; no nightly, no cask
-# Both PRs propose the same day's version and are rebuilt from main by every merge, and at midnight UTC so their
-# number is today's date. Whichever is merged first creates the tag and the release; the other adds its files to it.
-# Signing is optional (the Apple secrets); TAP_TOKEN pushes the casks. The Windows and Linux files are unsigned
-# previews (plan 014 R12) and only ever on a stable: nightlies are the Mac's alone.
+#            files on the newest stable; no nightly, no cask
+# Neither PR carries a version, so nothing goes stale and nothing runs on a schedule. Signing is optional (the Apple
+# secrets); TAP_TOKEN pushes the casks. The Windows and Linux files are unsigned previews (plan 014 R12) and only
+# ever on a stable: nightlies are the Mac's alone.
 name: release
 on:
   push:
     branches: [main]
-  schedule:
-    - cron: "5 0 * * *" # refresh the release PR to today's date (UTC)
   workflow_dispatch:
 
 permissions:
@@ -26,7 +24,6 @@ jobs:
     outputs:
       kind: ${{ steps.plan.outputs.kind }}
       version: ${{ steps.plan.outputs.version }}
-      next: ${{ steps.plan.outputs.next }}
       preview: ${{ steps.plan.outputs.preview }}
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +42,7 @@ jobs:
   release-pr:
     name: the release PR
     needs: plan
-    if: needs.plan.outputs.kind == 'nightly' || needs.plan.outputs.kind == 'repush'
+    if: needs.plan.outputs.kind == 'nightly'
     runs-on: ubuntu-latest
     concurrency:
       group: release-pr
@@ -65,14 +62,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm run release -- release-pr "${{ needs.plan.outputs.next }}"
+          npm run release -- release-pr
 
-  # The Windows and Linux PR, on the same runs as the release PR and for the same day; closed while that day's
-  # release has its Windows and Linux files.
+  # The Windows and Linux PR, refreshed on the same runs as the release PR, for the newest stable; closed while that
+  # release has its Windows and Linux files. A new stable offers it again (preview-pr-after-stable, below).
   preview-pr:
     name: the Windows and Linux PR
     needs: plan
-    if: needs.plan.outputs.kind == 'nightly' || needs.plan.outputs.kind == 'repush'
+    if: needs.plan.outputs.kind == 'nightly'
     runs-on: ubuntu-latest
     concurrency:
       group: preview-pr
@@ -94,18 +91,21 @@ jobs:
           npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"
 
   build:
-    name: build and publish (${{ needs.plan.outputs.kind }} ${{ needs.plan.outputs.version }})
+    name: build and publish (${{ needs.plan.outputs.kind }})
     needs: plan
-    # a nightly only from a merge (the midnight run and a manual run refresh the PR, they do not ship); a stable always
+    # a nightly only from a merge (a manual run refreshes the PRs, it does not ship); a stable always
     if: needs.plan.outputs.kind == 'stable' || (needs.plan.outputs.kind == 'nightly' && github.event_name == 'push')
     runs-on: macos-14
     concurrency:
-      # only the newest merge matters for a nightly; a stable is never cancelled
+      # Only the newest merge matters for a nightly. Stables run one at a time and are never cancelled, so each numbers
+      # itself after the one before has tagged (GitHub keeps one waiting run per queue: of three release merges in a
+      # few minutes the middle one may be dropped, and the third, built from a later main, carries its changes).
       group: build-${{ needs.plan.outputs.kind }}
       cancel-in-progress: ${{ needs.plan.outputs.kind == 'nightly' }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       KIND: ${{ needs.plan.outputs.kind }}
-      VERSION: ${{ needs.plan.outputs.version }}
       OWNER: ${{ github.repository_owner }}
     steps:
       - uses: actions/checkout@v4
@@ -122,9 +122,17 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # The version files hold the last stable; the build gets this run's number and nothing is committed.
-      - name: stamp the version
-        run: npm run release -- set "$VERSION"
+      # The number, decided now from the date and the tags (a stable queued behind another sees its tag), stamped on
+      # the runner only: main takes changes through PRs alone.
+      - name: decide and stamp the version
+        id: version
+        run: |
+          set -euo pipefail
+          VERSION="$(npm run --silent release -- version "$KIND" "$GITHUB_SHA")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "this build is $KIND $VERSION"
+          npm run release -- set "$VERSION"
       # Signing and notarization are optional, but Tauri signs whenever APPLE_CERTIFICATE is *set*, and a missing
       # secret written straight into `env:` is set to "" — the first release died on "failed to import keychain
       # certificate" that way. So the six variables exist only when the secrets do; without them the .dmg is
@@ -147,7 +155,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         with:
           args: --target universal-apple-darwin
-      # a new release, or the .dmg onto the one the Windows and Linux PR made first (then latest, with the full notes)
+      # a new release at the merge, marked latest, or the rolling nightly
       - name: publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -188,6 +196,31 @@ jobs:
           if git diff --cached --quiet; then echo "tap already at $VERSION"; exit 0; fi
           git commit --quiet -m "loki ${KIND} ${VERSION}"
           git push --quiet origin main
+
+  # A stable just shipped without Windows and Linux files: offer their PR for it.
+  preview-pr-after-stable:
+    name: the Windows and Linux PR (v${{ needs.build.outputs.version }})
+    needs: [plan, build]
+    if: needs.plan.outputs.kind == 'stable' && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: preview-pr
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm run release -- preview-pr "${{ needs.build.outputs.version }}"
 
   # Windows: the NSIS installer, loki_<version>_x64-setup.exe, of a stable only: main at the merge, stamped with the
   # marker's version like the Mac's build is.
@@ -261,10 +294,8 @@ jobs:
   attach:
     name: publish Windows and Linux (v${{ needs.plan.outputs.version }})
     # Whatever built goes on: one system failing leaves only its files off, with a warning; re-run its job to add them.
-    # The release exists when the Mac merged first (upload); otherwise this creates the tag at the merge and a release
-    # not marked latest. Its own queue, not the Mac stable's: GitHub keeps one waiting job per queue and would drop a
-    # waiting Mac stable for a newer attach. If both merges find no release, the one whose create loses joins the
-    # release the other made (release.ts createOrJoin).
+    # The release is the Mac's stable, which plan checked exists. Its own queue, not the Mac stable's: GitHub keeps one
+    # waiting job per queue and would drop a waiting Mac stable for a newer attach.
     needs: [plan, windows, linux]
     if: always() && needs.plan.outputs.kind == 'preview' && (needs.windows.result == 'success' || needs.linux.result == 'success')
     runs-on: ubuntu-latest
@@ -274,11 +305,7 @@ jobs:
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      # the history and tags too: a release created here gets the notes since the last stable
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
