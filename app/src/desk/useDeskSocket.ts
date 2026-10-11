@@ -3,6 +3,7 @@ import type { DeskState, Gesture, Scope, Size, WidgetManifestEntry } from "../..
 import { scopeFor } from "../../../core/desk-core.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
+import { tokenProtocols } from "../../../core/ws-auth.ts";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection } from "./useDesk";
@@ -120,7 +121,7 @@ export function useDeskSocket() {
 
     const connect = () => {
       if (disposed) return;
-      const ws = new WebSocket(`${modWsBase()}/ws?t=${token}&desk=${encodeURIComponent(scope)}`);
+      const ws = new WebSocket(`${modWsBase()}/ws?desk=${encodeURIComponent(scope)}`, tokenProtocols(token));
       wsRef.current = ws;
       setConnection("connecting");
 

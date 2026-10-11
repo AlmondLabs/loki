@@ -1,5 +1,45 @@
 import { describe, expect, test } from "vitest";
-import { attachWs, startServer, type Client } from "../mod/server.ts";
+import { attachWs, sameSecret, startServer, type Client } from "../mod/server.ts";
+import { WS_PROTOCOL, tokenFromProtocols, tokenProtocols } from "../core/ws-auth.ts";
+
+describe("the token in the subprotocol header, not the URL", () => {
+  test("a tab sends it as a protocol; the server answers loki and lets it in; a wrong one is refused", async () => {
+    const s = await startServer({ port: 0 });
+    const bridge = attachWs(s.server, "0123456789abcdef0123456789abcdef", { onConnect: (c) => c.send({ type: "hello" }), onMessage: () => {} });
+    try {
+      const good = new WebSocket(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols("0123456789abcdef0123456789abcdef"));
+      await new Promise<void>((resolve, reject) => {
+        good.onmessage = () => resolve();
+        good.onerror = () => reject(new Error("refused"));
+      });
+      expect(good.protocol).toBe(WS_PROTOCOL);
+      good.close();
+      const bad = new WebSocket(`ws://127.0.0.1:${s.port}/ws?desk=c1`, tokenProtocols("ffffffffffffffffffffffffffffffff"));
+      let opened = false;
+      bad.onopen = () => (opened = true);
+      await new Promise<void>((resolve) => {
+        bad.onerror = () => resolve();
+        bad.onclose = () => resolve();
+      });
+      expect(opened).toBe(false);
+    } finally {
+      bridge.close();
+      await s.close();
+    }
+  });
+
+  test("reading it back, and comparing in constant time", () => {
+    expect(tokenProtocols("")).toEqual([]); // a phone: its cookie is the credential
+    expect(tokenFromProtocols("loki, loki.t.abc")).toBe("abc");
+    expect(tokenFromProtocols(["loki", "loki.t.abc"])).toBe("abc");
+    expect(tokenFromProtocols("loki")).toBeNull();
+    expect(tokenFromProtocols(undefined)).toBeNull();
+    expect(sameSecret("abc", "abc")).toBe(true);
+    expect(sameSecret("abd", "abc")).toBe(false);
+    expect(sameSecret("ab", "abc")).toBe(false);
+    expect(sameSecret(null, "abc")).toBe(false);
+  });
+});
 
 describe("loki server", () => {
   test("health, 404s, tokenized WS upgrade, scope from URL", async () => {

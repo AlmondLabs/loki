@@ -1,6 +1,7 @@
 import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { MARKDOWN_COMPONENTS } from "./markdownImage";
 
 import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { inTauri } from "../desk/env";
@@ -475,7 +476,7 @@ const LIVE_PLUGINS = [rehypeWords];
 function AssistantBody({ row: m, cursor }: { row: TranscriptRow; cursor: boolean }) {
   return (
     <div className={cursor ? "loki-md loki-md--live" : "loki-md"}>
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={cursor ? LIVE_PLUGINS : undefined}>
+      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={cursor ? LIVE_PLUGINS : undefined} components={MARKDOWN_COMPONENTS}>
         {m.text}
       </Markdown>
       {cursor && <span style={{ opacity: 0.6 }}>▍</span>}
@@ -525,7 +526,7 @@ function UserBody({ row: m }: { row: TranscriptRow }) {
       {/* Your own words get the same markdown as the agent's: pasted prompts and skill text are full of it. */}
       {m.text && (
         <div className="loki-md">
-          <Markdown remarkPlugins={[remarkGfm]}>{m.text}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{m.text}</Markdown>
         </div>
       )}
     </>

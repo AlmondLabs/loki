@@ -1,5 +1,6 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { MARKDOWN_COMPONENTS } from "../chat/markdownImage";
 import { stripFrontmatter } from "../phone/model";
 
 /** A section's head, in the label voice; a right-aligned count or date goes in a span with marginLeft auto. */
@@ -28,7 +29,7 @@ export function Prose({ content, loadingView, empty }: { content: string | null;
       {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">{empty}</div>}
       {content !== null && (
         <div className="loki-md" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
-          <Markdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(content)}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{stripFrontmatter(content)}</Markdown>
         </div>
       )}
     </>

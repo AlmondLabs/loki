@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { MARKDOWN_COMPONENTS } from "../chat/markdownImage";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { Diff, type AgentDetails } from "../agents/Agents";
@@ -216,7 +217,7 @@ function Changes({ log }: { log: ReturnType<typeof useMemoryLog> }) {
 }
 
 /** The file's own headings sit under the page's one h1 (the file name): a "# Persona" becomes an h2. */
-const SHIFTED_HEADINGS = { h1: "h2", h2: "h3", h3: "h4", h4: "h5", h5: "h6" } as const;
+const SHIFTED_HEADINGS = { ...MARKDOWN_COMPONENTS, h1: "h2", h2: "h3", h3: "h4", h4: "h5", h5: "h6" } as const;
 
 /**
  * One memory file. Markdown renders the way the desktop viewer draws it; anything else is shown as code.

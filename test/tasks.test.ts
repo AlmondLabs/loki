@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { INIT_ARGS, TaskBoard, bdBinary, assignArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority } from "../mod/tasks.ts";
+import { INIT_ARGS, TaskBoard, taskIds, bdBinary, assignArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority } from "../mod/tasks.ts";
 import type { Task } from "../core/frame-types.ts";
 
 const raw = (over: Record<string, unknown> = {}) => ({
@@ -34,12 +34,16 @@ describe("tasks: parsing", () => {
 describe("tasks: bd arguments", () => {
   test("create stamps the source and adds the project label", () => {
     const args = createArgs({ title: "  write the quiz plan ", description: "outline first", labels: ["almonds", "plan"], priority: 1, stamp: { by: "agent", agent: "ira", agentId: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" } });
-    expect(args.slice(0, 2)).toEqual(["create", "write the quiz plan"]);
+    expect(args[0]).toBe("create");
+    expect(args.slice(-2)).toEqual(["--", "write the quiz plan"]); // last, after --: never read as an option
     expect(args).toContain("--json");
     const md = JSON.parse(args[args.indexOf("--metadata") + 1]);
     expect(md).toEqual({ by: "agent", agent: "ira", agentId: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" });
     expect(args[args.indexOf("-l") + 1]).toBe("almonds,plan"); // folder label deduped against the agent's
     expect(args[args.indexOf("-p") + 1]).toBe("1");
+  });
+  test("only bd's own ids reach bd: one starting with - would be read as an option", () => {
+    expect(taskIds(["lk-a1", "lk-a1.2", "--help", "-x", "", "a b"])).toEqual(["lk-a1", "lk-a1.2"]);
   });
   test("a task from the app carries by=you and no agent", () => {
     const md = JSON.parse(createArgs({ title: "x", stamp: { by: "you", desk: "shared" } }).find((_, i, a) => a[i - 1] === "--metadata")!);

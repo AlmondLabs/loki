@@ -100,11 +100,16 @@ export function createArgs(t: CreateTask): string[] {
   if (t.stamp.conversation) metadata.conversation = t.stamp.conversation;
   if (t.stamp.desk) metadata.desk = t.stamp.desk;
   if (t.stamp.folder) metadata.folder = t.stamp.folder;
-  const args = ["create", t.title.trim(), "-t", "task", "-p", String(clampPriority(t.priority)), "--metadata", JSON.stringify(metadata), "--json"];
+  const args = ["create", "-t", "task", "-p", String(clampPriority(t.priority)), "--metadata", JSON.stringify(metadata), "--json"];
   if (t.description?.trim()) args.push("-d", t.description.trim());
   if (labels.length) args.push("-l", labels.join(","));
+  // The title last, after `--`: one that starts with "-" (an agent's "--help", say) is a title, not an option.
+  args.push("--", t.title.trim());
   return args;
 }
+
+/** Ids as bd names them (lk-a1, lk-a1.2): anything else, one starting with "-" above all, is not passed to bd. */
+export const taskIds = (ids: string[]): string[] => ids.filter((id) => typeof id === "string" && /^[A-Za-z0-9][\w.-]*$/.test(id));
 
 export function assignArgs(ids: string[], target: AssignTarget, status: "open" | "in_progress" = "open"): string[] {
   const args = ["update", ...ids, "--set-metadata", `assignedTo=${target.conversation}`, "--set-metadata", `assignedDesk=${target.desk}`, "--json"];
@@ -277,6 +282,7 @@ export class TaskBoard {
   }
 
   assign(ids: string[], target: AssignTarget, status: "open" | "in_progress" = "open"): Promise<Task[]> {
+    ids = taskIds(ids);
     if (!ids.length) return Promise.resolve([]);
     return this.serial(async () => {
       const tasks = parseTasks(await this.run(assignArgs(ids, target, status)));
@@ -287,6 +293,7 @@ export class TaskBoard {
   }
 
   close(ids: string[], reason?: string): Promise<Task[]> {
+    ids = taskIds(ids);
     if (!ids.length) return Promise.resolve([]);
     return this.serial(async () => {
       const args = ["close", ...ids, "--json"];
@@ -299,6 +306,7 @@ export class TaskBoard {
   }
 
   reopen(ids: string[]): Promise<Task[]> {
+    ids = taskIds(ids);
     if (!ids.length) return Promise.resolve([]);
     return this.serial(async () => {
       const tasks = parseTasks(await this.run(["reopen", ...ids, "--json"]));
@@ -308,6 +316,7 @@ export class TaskBoard {
   }
 
   setStatus(ids: string[], status: "open" | "in_progress" | "blocked" | "deferred"): Promise<Task[]> {
+    ids = taskIds(ids);
     if (!ids.length) return Promise.resolve([]);
     return this.serial(async () => {
       const tasks = parseTasks(await this.run(["update", ...ids, "--status", status, "--json"]));
