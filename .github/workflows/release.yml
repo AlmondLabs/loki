@@ -19,24 +19,26 @@ on:
       - ".github/ISSUE_TEMPLATE/**"
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+# Nothing by default: each job asks for what it needs, so the build (third-party actions, the signing secrets) and the
+# preview legs cannot open PRs, and the plan cannot write at all.
+permissions: {}
 
 jobs:
   plan:
     name: what this run does
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     outputs:
       kind: ${{ steps.plan.outputs.kind }}
       version: ${{ steps.plan.outputs.version }}
       preview: ${{ steps.plan.outputs.preview }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
       # the releases say which stables the Mac has shipped (a .dmg); a tag alone may be Windows and Linux's
@@ -52,18 +54,21 @@ jobs:
     name: the release PRs
     needs: plan
     if: needs.plan.outputs.kind == 'nightly'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
     concurrency:
       group: release-prs
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           fetch-tags: true
           # RELEASE_TOKEN (optional, see RELEASING.md) makes the PRs' pushes trigger ci.yml; the workflow token cannot.
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
       - run: |
@@ -86,6 +91,8 @@ jobs:
     # a nightly only from a merge (a manual run refreshes the PRs, it does not ship); a stable always
     if: needs.plan.outputs.kind == 'stable' || (needs.plan.outputs.kind == 'nightly' && github.event_name == 'push')
     runs-on: macos-14
+    permissions:
+      contents: write
     concurrency:
       # Only the newest merge matters for a nightly. Stables run one at a time and are never cancelled, so each numbers
       # itself after the one before has tagged (GitHub keeps one waiting run per queue: of three release merges in a
@@ -98,17 +105,17 @@ jobs:
       KIND: ${{ needs.plan.outputs.kind }}
       OWNER: ${{ github.repository_owner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
       - run: npm ci
@@ -142,7 +149,7 @@ jobs:
           done
           echo "signing with $APPLE_SIGNING_IDENTITY"
       - name: build the universal dmg
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         with:
           args: --target universal-apple-darwin
       # a new release at the merge, marked latest, or the rolling nightly
@@ -192,17 +199,20 @@ jobs:
     name: the Windows and Linux PR (v${{ needs.build.outputs.version }})
     needs: [plan, build]
     if: needs.plan.outputs.kind == 'stable' && needs.build.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
     concurrency:
       group: preview-pr
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
       - env:
@@ -219,18 +229,20 @@ jobs:
     needs: plan
     if: needs.plan.outputs.kind == 'preview'
     runs-on: windows-latest
+    permissions:
+      contents: read
     defaults:
       run:
         shell: bash
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
       - run: npm ci
@@ -238,7 +250,7 @@ jobs:
         run: npm run release -- set "$VERSION"
       - name: build the installer
         run: npm run tauri -- build --bundles nsis
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: windows
           path: src-tauri/target/release/bundle/nsis/loki_*_x64-setup.exe
@@ -251,21 +263,23 @@ jobs:
     needs: plan
     if: needs.plan.outputs.kind == 'preview'
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: linux build packages
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
             build-essential curl wget file patchelf
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
       - run: npm ci
@@ -273,7 +287,7 @@ jobs:
         run: npm run release -- set "$VERSION"
       - name: build the AppImage and .deb
         run: npm run tauri -- build --bundles appimage,deb
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: linux
           path: |
@@ -288,18 +302,20 @@ jobs:
     # waiting job per queue and would drop a waiting Mac stable for a newer attach.
     needs: [plan, windows, linux]
     if: always() && needs.plan.outputs.kind == 'preview' && (needs.windows.result == 'success' || needs.linux.result == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     concurrency:
       group: attach-preview
       cancel-in-progress: false
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           path: dist
           merge-multiple: true

@@ -26,7 +26,7 @@ jobs:
         os: [macos-14, ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       # Tauri 2's Linux build prerequisites, the Ubuntu 22.04 names (KTD11). No appindicator library: the tray is
       # Mac-only (KTD3). patchelf is for the AppImage bundler, kept so this list matches the release leg's.
       - name: linux build packages
@@ -36,8 +36,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
             build-essential curl wget file patchelf
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+        with:
+          components: rustfmt, clippy
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: src-tauri
       - name: stand-ins for the app build and the bundled resources
@@ -45,4 +47,11 @@ jobs:
           mkdir -p app/dist src-tauri/resources
           printf '<!doctype html>' > app/dist/index.html
           touch src-tauri/resources/.placeholder
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      # The layout once (it is the same everywhere); clippy on each system, since much of the shell is per-system code.
+      # --locked: Cargo.lock is what ships, and a build must not quietly resolve something else.
+      - if: runner.os == 'Linux'
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - if: ${{ !cancelled() }}
+        run: cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - if: ${{ !cancelled() }}
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
