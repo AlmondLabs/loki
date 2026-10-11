@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,7 +67,8 @@ describe("daemon lock", () => {
     const d = dir();
     try {
       const file = join(d, "daemon.lock");
-      const lock = fileURLToPath(new URL("../daemon/lock.ts", import.meta.url));
+      // A file: URL, not a path: Windows' C:\\… is no import specifier.
+      const lock = new URL("../daemon/lock.ts", import.meta.url).href;
       for (let round = 0; round < 3; round++) {
         writeFileSync(file, "999999999"); // a crashed daemon's
         // All of them reach acquire in the same millisecond, past their start-up, where the race is.
@@ -80,12 +80,14 @@ describe("daemon lock", () => {
             const c = spawn(process.execPath, ["--experimental-strip-types", "--disable-warning=ExperimentalWarning", "--input-type=module", "-e", script]);
             children.push(c);
             let out = "";
+            let err = "";
+            c.stderr!.on("data", (b: Buffer) => (err += b.toString()));
             // Each stays alive until all have answered: a winner that exited would leave a leftover to take over.
             c.stdout!.on("data", (b: Buffer) => {
               out += b.toString();
               if (out.includes("\n")) resolve(out.trim());
             });
-            c.on("exit", () => resolve(out.trim()));
+            c.on("exit", () => resolve(out.trim() || `exited: ${err.trim().split("\n")[0]}`));
           }),
         );
         const results = await Promise.all(runs);
