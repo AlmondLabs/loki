@@ -43,6 +43,8 @@ const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 /** When a stop signals the task's processes again, and when it kills what is left. */
 const RESIGNAL_MS = 150;
 const GRACE_MS = 2_000;
+/** On Windows, how long a stop waits for taskkill before it ends the task's shell itself. */
+const WINDOWS_SHELL_MS = 1_000;
 /**
  * After a stop, how long the task's output may stay open once its shell has gone. Something the stop could not reach
  * holds it then: on Windows, a Git Bash child that taskkill's tree misses (its emulated fork leaves it parentless).
@@ -155,7 +157,15 @@ export class BackgroundTasks {
     const end = (force: boolean) => {
       if (task.exit) return;
       if (process.platform === "win32") {
-        execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {});
+        // taskkill ends the tree; it can take a second or more on a busy machine, so the shell itself is ended once
+        // it answers or after WINDOWS_SHELL_MS, whichever comes first: the task then reads as stopped on time, and a
+        // child taskkill missed is the straggler the exit handler lets go of.
+        const shell = setTimeout(() => !task.exit && task.child.kill(), WINDOWS_SHELL_MS);
+        shell.unref?.();
+        execFile("taskkill", ["/PID", String(pid), "/T", "/F"], () => {
+          clearTimeout(shell);
+          if (!task.exit) task.child.kill();
+        });
         return;
       }
       try {
