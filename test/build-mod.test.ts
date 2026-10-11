@@ -30,3 +30,33 @@ describe("the release bundle's build", () => {
     expect(readFileSync(new URL("../mod/server.ts", import.meta.url), "utf8")).toContain('from "./ws.ts"');
   });
 });
+
+/**
+ * pi-ai loads each sign-in flow through a variable path so a bundler cannot follow it; bundled into daemon.mjs, that
+ * path pointed beside the bundle at files that are not there, and every release build's sign-in failed with "Cannot
+ * find module …/openai-chatgpt.js" (2026.1011.1). The daemon registers the flows statically (daemon/main.ts); this
+ * bundles the same way the release does, runs the bundle from a folder of its own, and asks for the ChatGPT flow.
+ */
+describe("sign-in flows in a bundle", () => {
+  test("load from a bundle once registered, as daemon/main.ts does before anything asks", async () => {
+    const { build } = await import("esbuild");
+    const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { pathToFileURL } = await import("node:url");
+    expect(readFileSync(new URL("../daemon/main.ts", import.meta.url), "utf8")).toMatch(/registerBunOAuthFlows\(\);\s*const models = builtinModels/);
+    const dir = mkdtempSync(join(tmpdir(), "loki-oauth-bundle-"));
+    try {
+      const entry = join(dir, "entry.ts");
+      // the loader the providers call is internal to pi-ai: imported by its file, the one the helper registers into
+      const loader = join(import.meta.dirname, "..", "node_modules", "@earendil-works", "pi-ai", "dist", "auth", "oauth", "load.js");
+      writeFileSync(entry, `import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";\nimport { loadOpenAIChatGPTOAuth } from ${JSON.stringify(loader)};\nregisterBunOAuthFlows();\nexport const flow = await loadOpenAIChatGPTOAuth();\n`);
+      const outfile = join(dir, "out", "bundle.mjs");
+      await build({ entryPoints: [entry], bundle: true, platform: "node", format: "esm", target: "node22", outfile, nodePaths: [join(import.meta.dirname, "..", "node_modules")], banner: { js: 'import { createRequire as __r } from "node:module"; const require = __r(import.meta.url);' }, logLevel: "silent" });
+      const mod = (await import(pathToFileURL(outfile).href)) as { flow: unknown };
+      expect(mod.flow).toBeTruthy();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
