@@ -206,6 +206,11 @@ describe("importing from Letta", () => {
     expect(runningLetta(() => ["/Applications/Letta.app/Contents/MacOS/Letta", "/usr/bin/node /opt/x/bin/loki"])).toContain("Letta.app");
     expect(runningLetta(() => ["node /Users/x/.npm/bin/letta server --listen ws://127.0.0.1:1"])).toContain("bin/letta");
     expect(runningLetta(() => ["node daemon.mjs --loki-daemon --token-file /x/.letta/loki/token", "/bin/zsh"])).toBeNull();
+    expect(runningLetta(() => ["/opt/homebrew/bin/letta-code --yolo"])).toContain("letta-code");
+    expect(runningLetta(() => ["node /opt/homebrew/lib/node_modules/@letta-ai/letta-code/dist/cli.js"])).toContain("letta-code");
+    expect(runningLetta(() => ["letta.exe"])).toBe("letta.exe");
+    // Mentions are not Letta: a shell in a letta-code checkout, an editor, a search, a loki checkout's own scripts.
+    expect(runningLetta(() => ["/bin/zsh -c cd ~/code/letta-code && npm test", "/Applications/Cursor.app/Contents/MacOS/Cursor /Users/x/letta-code", "rg letta-code /Users/x", "node /Users/x/letta-code/scripts/dev.ts"])).toBeNull();
   });
 
   test("a second run changes nothing, and a chat the daemon wrote to in between is left alone", async () => {

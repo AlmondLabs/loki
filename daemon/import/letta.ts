@@ -71,12 +71,18 @@ export function permissionModeKey(agentId: string, conversationId: string): stri
   return conversationId === "default" ? `agent:${agentId}::conversation:default` : `conversation:${conversationId}`;
 }
 
-/** A Letta process that is running now, by its command line, or null: the desktop app or the `letta` CLI. */
+/**
+ * A Letta process that is running now, by its command line, or null: the desktop app or the `letta` CLI. Only the
+ * program, or the script a node or bun runs, counts: a command line that merely mentions Letta (a shell in a
+ * letta-code checkout, an editor with a file of it open, a grep) held the import back for as long as it ran.
+ */
 export function runningLetta(commands: () => string[] = psCommands): string | null {
+  const letta = (word: string | undefined) => !!word && (/(^|[/\\])letta(-code)?(\.(exe|cmd|js|mjs))?$/i.test(word) || /[/\\]@letta-ai[/\\]letta-code[/\\]/i.test(word));
   for (const line of commands()) {
     if (/--loki-daemon\b/.test(line)) continue;
-    const program = line.trim().split(/\s+/)[0] ?? "";
-    if (/(^|\/)letta[^/]*$/i.test(program) || /letta-code|\/bin\/letta(\s|$)/i.test(line)) return line.trim().slice(0, 120);
+    const [program, script] = line.trim().split(/\s+/);
+    if (letta(program)) return line.trim().slice(0, 120);
+    if (/(^|[/\\])(node|bun)(\.exe)?$/i.test(program ?? "") && letta(script)) return line.trim().slice(0, 120);
   }
   return null;
 }
