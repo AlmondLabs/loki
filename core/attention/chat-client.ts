@@ -38,6 +38,7 @@ export type ChatClient = Pick<
   | "writeMemoryFile"
   | "close"
   | "onChat"
+  | "onListsStale"
   | "serverInfo"
 > & { onStatus?: (s: "connecting" | "open" | "closed") => void };
 
@@ -58,6 +59,7 @@ export class FrameChatClient {
   private readonly agentOf: (conversationId: string) => string | null;
   private readonly unsubscribe: () => void;
   private readonly listeners = new Set<(rt: Runtime, events: ChatEvent[]) => void>();
+  private readonly staleListeners = new Set<() => void>();
   private readonly opened = new Set<string>();
   private readonly agents = new Map<string, string>();
   private readonly openUrl: (url: string) => void;
@@ -65,17 +67,22 @@ export class FrameChatClient {
   /**
    * `onReconnect`: told each time the mod's socket opens again. The daemon may have restarted meanwhile and follows
    * none of the chats this client opened, and a turn may have ended unheard: each is opened again, which brings its
-   * state now (a finished turn stops showing as running) and its events from here on.
+   * state now (a finished turn stops showing as running) and its events from here on. `onListsStale`: told when the
+   * lists a client holds may be out of date (an agent changed, the socket came back, the page came back from hiding).
    */
-  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; onReconnect?: (fn: () => void) => () => void; agentOf?: (conversationId: string) => string | null; openUrl?: (url: string) => void }) {
+  constructor(opts: { request: FrameRequest; onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void; onReconnect?: (fn: () => void) => () => void; onListsStale?: (fn: () => void) => () => void; agentOf?: (conversationId: string) => string | null; openUrl?: (url: string) => void }) {
     this.request = opts.request;
     this.openUrl = opts.openUrl ?? (() => {});
     this.agentOf = opts.agentOf ?? (() => null);
     const offEvents = opts.onChatEvent(({ agentId, conversationId, events }) => this.emit({ agent_id: agentId, conversation_id: conversationId }, events));
     const offReconnect = opts.onReconnect?.(() => void this.reopen()) ?? (() => {});
+    const offStale = opts.onListsStale?.(() => {
+      for (const fn of this.staleListeners) fn();
+    }) ?? (() => {});
     this.unsubscribe = () => {
       offEvents();
       offReconnect();
+      offStale();
     };
     queueMicrotask(() => this.onStatus?.("open"));
   }
@@ -99,6 +106,12 @@ export class FrameChatClient {
     const agentId = this.agents.get(conversationId) ?? this.agentOf(conversationId);
     if (!agentId) throw new Error(`which agent's chat is ${conversationId}?`);
     return agentId;
+  }
+
+  /** Told when the agent and chat lists may be out of date, so they are asked for again (useAttention). */
+  onListsStale(fn: () => void): () => void {
+    this.staleListeners.add(fn);
+    return () => this.staleListeners.delete(fn);
   }
 
   onChat(fn: (rt: Runtime, events: ChatEvent[]) => void): () => void {

@@ -139,6 +139,8 @@ export interface Pushes {
   models_recent: { recent: string[] };
   recall_changed: Record<never, never>;
   tasks_changed: Record<never, never>;
+  /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
+  agents_changed: Record<never, never>;
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
   pair_code: { code: string; url: string; expiresAt: string };
@@ -366,6 +368,7 @@ export const FRAMES = {
   widget_change: push("the agent added, changed or removed a widget on any desk (mod/widget-log.ts)"),
   switch_desk: push("the active conversation changed; the tab follows"),
   desks: push("every desk, after list_desks or a pin"),
+  agents_changed: push("an agent was created, renamed or deleted, or agents were imported; clients ask for the agents, chats and desks again"),
   seen: push("the done and viewed marks and the focus weights, after any change"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),

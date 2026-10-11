@@ -273,10 +273,13 @@ export function useAttention(opts: UseAttentionOptions) {
     const load = () => loadOnce().catch((err: unknown) => console.warn("loki catch up:", err));
     reloadRef.current = () => void load();
     void load();
+    // The poll is the fallback; an agent changed elsewhere, a reconnect or a return from the background asks at once.
     const refresh = setInterval(() => void load(), 60_000);
+    const offStale = sock.onListsStale(() => void load());
     return () => {
       cancelled = true;
       clearInterval(refresh);
+      offStale();
       if (reloadTimer) clearTimeout(reloadTimer);
       off();
       sock.close();
