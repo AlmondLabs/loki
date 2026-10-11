@@ -13,13 +13,13 @@ import { Providers } from "../daemon/providers.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
-import type { ChatEvent } from "../core/attention/model.ts";
+import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
-async function setup() {
+async function setup(opts: { tokensPerSecond?: number } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
-  const faux = fauxProvider();
+  const faux = fauxProvider(opts.tokensPerSecond ? { tokensPerSecond: opts.tokensPerSecond, tokenSize: { min: 3, max: 3 } } : {});
   const models = createModels();
   models.setProvider(faux.provider);
   const mods = new ModRegistry(() => {});
@@ -51,6 +51,36 @@ const until = async (check: () => boolean, ms = 2000) => {
 const kinds = (pushed: Array<{ events: ChatEvent[] }>) => pushed.flatMap((p) => p.events.map((e) => (e.kind === "step" ? `step:${e.step.kind}` : e.kind)));
 
 describe("the daemon's chats", () => {
+  test("a client that opens a chat mid-answer gets what was written so far, and draws the reply once, whole", async () => {
+    const s = await setup({ tokensPerSecond: 15 });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      await s.chats.open(agent.id, conversationId);
+      const REPLY = "Keep `farmart-co-read-write-user` for the farmart.co website project. That closes the Dev review.";
+      s.faux.setResponses([s.reply(REPLY)]);
+      await s.chats.send({ agentId: agent.id, conversationId, text: "keep it", images: [], sendId: "s1", context: null });
+      const chunks = () => s.pushed.flatMap((p) => p.events).filter((e) => e.kind === "step" && e.step.kind === "assistant" && e.step.chunk).length;
+      await until(() => chunks() >= 1, 10_000);
+      // A second client opens now: the pieces so far went out before it listened.
+      const at = s.pushed.length;
+      const state = await s.chats.open(agent.id, conversationId);
+      expect(state.loop).toBe("running");
+      expect(state.streaming?.text.length).toBeGreaterThan(0);
+      expect(REPLY.startsWith(state.streaming!.text)).toBe(true);
+      await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
+      // It draws what chat-client makes of the state, then only what was pushed after it opened.
+      const l = emptyLive();
+      applyChatEvent(l, { kind: "streaming", text: state.streaming!.text, at: state.streaming!.at });
+      expect(l.thread.rows()!.at(-1)!.text.startsWith("Keep `farm")).toBe(true); // from its first word, while it streams
+      for (const p of s.pushed.slice(at)) for (const e of p.events) applyChatEvent(l, e);
+      expect(l.thread.rows()!.filter((r) => r.role === "assistant").map((r) => r.text)).toEqual([REPLY]);
+      expect((await s.chats.open(agent.id, conversationId)).streaming).toBeUndefined(); // nothing in flight once done
+    } finally {
+      await s.cleanup();
+    }
+  }, 20_000);
+
   test("a new agent comes with its main chat; a new chat opens idle, and a message streams back to every client", async () => {
     const s = await setup();
     try {

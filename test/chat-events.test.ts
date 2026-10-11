@@ -29,6 +29,35 @@ describe("chat event converter", () => {
     ]);
   });
 
+  test("the answer in flight is known for a client that opens mid-answer, and forgotten when it is written or dropped", () => {
+    const c = new ChatEventConverter();
+    expect(c.inFlight()).toBeNull();
+    c.convert(piece("Keep `fa"), NOW);
+    c.convert(piece("rmart"), "2026-10-10T10:00:01.000Z");
+    expect(c.inFlight()).toEqual({ text: "Keep `farmart", at: NOW });
+    c.convert({ type: "auto_retry_start", attempt: 1, at: 0, errorMessage: "overloaded" } as AgentEvent, NOW);
+    expect(c.inFlight()).toBeNull();
+    c.convert(piece("Keep"), NOW);
+    c.convert(written("Keep it"), NOW);
+    expect(c.inFlight()).toBeNull();
+    // Following starts mid-answer: pi-durable's snapshot carries the partial.
+    const late = new ChatEventConverter();
+    late.convert({ type: "snapshot", entries: [], tools: [], compactions: [], inbox: [], agent: {}, usage: {}, generation: { attempt: 0, message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "text", text: "Keep `far" }] } } } as never, NOW);
+    expect(late.inFlight()).toEqual({ text: "Keep `far", at: NOW });
+    late.convert(piece("mart"), NOW);
+    expect(late.inFlight()?.text).toBe("Keep `farmart");
+    late.convert({ type: "run_end", inputs: [] } as never, NOW);
+    expect(late.inFlight()).toBeNull();
+  });
+
+  test("the app sets its stream from what was written so far, and the pieces after it add on", () => {
+    const l = emptyLive();
+    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "rmart", at: NOW, chunk: true } }, NOW); // a piece that beat the state
+    applyChatEvent(l, { kind: "streaming", text: "Keep `farmart", at: NOW }, NOW);
+    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "-co", at: NOW, chunk: true } }, NOW);
+    expect(l.thread.rows()!.map((r) => r.text)).toEqual(["Keep `farmart-co"]);
+  });
+
   describe("a reply shows once, however its stream went", () => {
     const REPLY = "Keep `farmart-co-read-write-user` for the farmart.co website project. That closes the Dev review.\n\nNext is Stage `Cluster0`.";
     /** What a client draws after these events, and after the history page that follows the turn. */

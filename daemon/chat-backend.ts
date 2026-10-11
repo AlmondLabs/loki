@@ -64,6 +64,8 @@ function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
 export class DaemonChats implements ChatBackend {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly watching = new Map<string, Promise<void>>();
+  /** Each followed chat's event converter, which knows the answer in flight (open hands it to a late client). */
+  private readonly converters = new Map<string, ChatEventConverter>();
   private readonly deps: Deps;
 
   constructor(deps: Deps) {
@@ -122,6 +124,7 @@ export class DaemonChats implements ChatBackend {
   private async follow(store: AgentStore, chat: Conversation, agentId: string, conversationId: string): Promise<void> {
     const stream = await watchEvents(store.harness, chat.id, this.deps.context);
     const converter = new ChatEventConverter(agentId);
+    this.converters.set(`${agentId}\u0000${conversationId}`, converter);
     stream.start(async (batch) => {
       const events = batch.flatMap((ev) => converter.convert(ev));
       if (events.length) this.push(agentId, conversationId, events);
@@ -141,7 +144,9 @@ export class DaemonChats implements ChatBackend {
     const [view, settings] = await Promise.all([store.harness.snapshot(LiveDoc, chat.id, this.deps.context), store.agentSettings(chat.id, this.deps.context)]);
     const info = await store.chatInfo(chat.id, this.deps.context);
     const waiting = this.deps.approvals.waitingIn(agentId, conversationId).length > 0;
-    return { agentId, conversationId, loop: waiting ? "approval" : view?.run ? "running" : "idle", turnId: view?.run ? turnIdOf(agentId, view.run.inputs) : null, mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted", cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null };
+    // The answer in flight so far: the client that opens now missed its first pieces (they went out before it listened).
+    const streaming = view?.run ? (this.converters.get(`${agentId}\u0000${conversationId}`)?.inFlight() ?? null) : null;
+    return { agentId, conversationId, loop: waiting ? "approval" : view?.run ? "running" : "idle", turnId: view?.run ? turnIdOf(agentId, view.run.inputs) : null, mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted", cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null, ...(streaming ? { streaming } : {}) };
   }
 
   async create(agentId: string, cwd: string | null, title: string | null): Promise<{ agentId: string; conversationId: string }> {

@@ -160,6 +160,18 @@ export class ThreadModel {
     return { changed: replaced || t !== "", spoke: null };
   }
 
+  /**
+   * The answer in flight as the daemon has it so far, for a thread that starts listening mid-answer: the stream is
+   * set to it (pieces that came before it are in it), and the pieces after it add on. True when it changed anything.
+   */
+  resume(text: string, at: string | null): boolean {
+    if (!text || this.streamingText === text) return false;
+    this.streamingText = text;
+    this.streamingAt = at;
+    this.touch();
+    return true;
+  }
+
   /** Close the streaming reply into a row. True when there was one. */
   settle(at: string | null = null): boolean {
     const t = this.streamingText.trim();
