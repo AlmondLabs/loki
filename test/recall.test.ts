@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
 import { isLearnTitle, learnTitle, type Card, type Lead, type RecallSnapshot } from "../core/recall/model.ts";
 import { learnViews, parseLearnView, stepLearnView } from "../app/src/recall/views.ts";
@@ -27,7 +27,7 @@ describe("recall store", () => {
     expect(store.legacyChats()).toEqual([]);
   });
   test("an id that is not one never becomes a path: nothing outside the folder is written or removed", () => {
-    const outside = join(dir, "..", `${dir.split("/").pop()}-victim.json`);
+    const outside = join(dir, "..", `${basename(dir)}-victim.json`); // basename: Windows paths use backslashes
     writeFileSync(outside, "{}");
     try {
       for (const id of ["../x", "a/b", "..", ""]) {
@@ -35,7 +35,7 @@ describe("recall store", () => {
         expect(() => store.forget(id)).toThrow("not a card or lead id");
         expect(() => store.reject(id)).toThrow("not a card or lead id");
       }
-      expect(() => store.forget(`../${outside.split("/").pop()!.replace(/\.json$/, "")}`)).toThrow();
+      expect(() => store.forget(`../${basename(outside, ".json")}`)).toThrow();
       expect(readFileSync(outside, "utf8")).toBe("{}");
       // A rejection whose card carries a bad id (a file planted by hand) is not restored.
       mkdirSync(join(dir, "rejected"), { recursive: true });
