@@ -16,7 +16,7 @@ import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay } from "./recall.ts";
-import { isPassChat, ownsRecallChat, startLessonViaChats } from "./recall-worker.ts";
+import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, TasksNotice } from "./tasks.ts";
@@ -86,7 +86,6 @@ export default function activate(api: ModApi, host: Host): () => void {
   const gestures = new GestureLog();
   // Learn's cards (daemon/learn.ts writes them; mod/recall.ts reads them), and which chats are the passes' own.
   const recallStore = new RecallStore();
-  const recall = { owns: (id: string) => ownsRecallChat(recallStore, id) };
   const passChat = (id: string) => isPassChat(recallStore, id);
 
   let activeScope: Scope = SHARED_SCOPE;
@@ -243,7 +242,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- recall -----------------------------------------------------------
   // Cards written in the background by the daemon's Learn pass (daemon/learn.ts) from chats that have gone quiet;
   // the person meets them only in the Learn section. Its settings and last run are the daemon's (daemon/passes-state.ts).
-  // recallStore and recall: above, with the state (the desk listing needs them from the start).
+  // recallStore and passChat: above, with the state (the desk listing needs them from the start).
   const learnStatus = () => {
     const passes = new PassState(paths.state);
     const s = passes.settings().learn;

@@ -46,7 +46,10 @@ describe("file tools", () => {
         t.reply(fauxAssistantMessage("seen")),
       ]);
       await (await t.chat.submit({ type: "input", content: "look" }, ctx)).wait(ctx);
-      const [ls, find, grep] = await t.results();
+      // By name, not position: the three run together and finish in any order (the file tools are asynchronous).
+      const all = await t.results();
+      const named = (tool: string) => all.find((r) => r.includes(`"toolName":"${tool}"`)) ?? "";
+      const [ls, find, grep] = [named("ls"), named("find"), named("grep")];
       expect(ls).toContain("README.md\\nsrc/");
       expect(find).toContain("src/a.ts");
       expect(find).not.toContain("node_modules");
