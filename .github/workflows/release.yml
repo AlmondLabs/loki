@@ -11,6 +11,12 @@ name: release
 on:
   push:
     branches: [main]
+    # A merge of docs alone ships nothing: no nightly, and the release PR waits for the next change that does.
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "LICENSE"
+      - ".github/ISSUE_TEMPLATE/**"
   workflow_dispatch:
 
 permissions:
@@ -39,56 +45,40 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release -- plan
 
-  release-pr:
-    name: the release PR
+  # The release PR and the Windows and Linux PR (for the newest stable; closed while that release has its Windows and
+  # Linux files), refreshed together on an ordinary merge. A new stable offers the Windows and Linux PR again
+  # (preview-pr-after-stable, below).
+  release-prs:
+    name: the release PRs
     needs: plan
     if: needs.plan.outputs.kind == 'nightly'
     runs-on: ubuntu-latest
     concurrency:
-      group: release-pr
+      group: release-prs
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
-          # RELEASE_TOKEN (optional, see RELEASING.md) makes the PR's pushes trigger ci.yml; the workflow token cannot.
+          # RELEASE_TOKEN (optional, see RELEASING.md) makes the PRs' pushes trigger ci.yml; the workflow token cannot.
           token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - env:
+      - run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: the release PR
+        env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm run release -- release-pr
-
-  # The Windows and Linux PR, refreshed on the same runs as the release PR, for the newest stable; closed while that
-  # release has its Windows and Linux files. A new stable offers it again (preview-pr-after-stable, below).
-  preview-pr:
-    name: the Windows and Linux PR
-    needs: plan
-    if: needs.plan.outputs.kind == 'nightly'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: preview-pr
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - env:
+        run: npm run release -- release-pr
+      # Its own step, run whatever the release PR's did: one PR's trouble does not hold the other back.
+      - name: the Windows and Linux PR
+        if: ${{ !cancelled() }}
+        env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"
+        run: npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"
 
   build:
     name: build and publish (${{ needs.plan.outputs.kind }})

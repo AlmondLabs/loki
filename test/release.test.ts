@@ -291,8 +291,12 @@ describe("the workflow: releases on merge, nothing on a schedule", () => {
   type Job = { if?: string; needs?: string | string[]; outputs?: Record<string, string>; concurrency?: { group?: string; "cancel-in-progress"?: unknown }; steps: Step[] };
   const wf = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "release.yml"), "utf8")) as { on: Record<string, unknown>; jobs: Record<string, Job> };
 
-  test("it runs on a push to main and by hand, never on a schedule", () => {
+  test("it runs on a push to main and by hand, never on a schedule; a merge of docs alone ships nothing", () => {
     expect(Object.keys(wf.on).sort()).toEqual(["push", "workflow_dispatch"]);
+    const ignored = (wf.on.push as { "paths-ignore": string[] })["paths-ignore"];
+    expect(ignored).toContain("docs/**");
+    expect(ignored).not.toContain(".github/release.txt"); // the release PR's merge is a stable
+    expect(ignored).not.toContain(".github/preview.txt");
   });
 
   test("the build decides its number when it starts, in the stables' one-at-a-time queue, and stamps it", () => {
@@ -308,9 +312,12 @@ describe("the workflow: releases on merge, nothing on a schedule", () => {
   });
 
   test("the release PR and the Windows and Linux PR are refreshed on an ordinary merge, and a new stable offers the Windows and Linux PR", () => {
-    expect(wf.jobs["release-pr"].if).toBe("needs.plan.outputs.kind == 'nightly'");
-    expect(wf.jobs["preview-pr"].if).toBe(wf.jobs["release-pr"].if);
-    expect(wf.jobs["release-pr"].steps.some((s) => s.run?.includes("npm run release -- release-pr"))).toBe(true);
+    const prs = wf.jobs["release-prs"];
+    expect(prs.if).toBe("needs.plan.outputs.kind == 'nightly'");
+    const release = prs.steps.find((s) => s.run?.includes("npm run release -- release-pr"))!;
+    const preview = prs.steps.find((s) => s.run?.includes('npm run release -- preview-pr "${{ needs.plan.outputs.preview }}"'))!;
+    expect(release).toBeDefined();
+    expect((preview as { if?: string }).if).toBe("${{ !cancelled() }}"); // one PR's trouble does not hold the other back
     const after = wf.jobs["preview-pr-after-stable"];
     expect(after.needs).toEqual(["plan", "build"]);
     expect(after.if).toContain("needs.plan.outputs.kind == 'stable'");

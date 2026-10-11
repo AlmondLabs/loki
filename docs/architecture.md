@@ -301,5 +301,6 @@ place, and the Mac's side of it is what shipped first.
    `PATHEXT` name on Windows.
 7. **Home and folders.** `~` is `USERPROFILE` on Windows (what Node's `os.homedir()` reads), `HOME` elsewhere; the
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.
-8. **Builds.** CI runs the vitest suite, the Node runner's tests and `cargo test` on macOS, Ubuntu and Windows; a release builds
+8. **Builds.** CI runs on a PR: the vitest suite on macOS, Ubuntu and Windows, types, lint and the bundles once, and
+   `cargo test` on all three when the shell changes (`ci.yml`, `shell.yml`); a release builds
    the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner each ([RELEASING.md](RELEASING.md)).

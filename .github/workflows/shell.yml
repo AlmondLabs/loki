@@ -1,0 +1,48 @@
+name: shell
+# The Rust shell's tests (src-tauri), on the three systems, for a PR that changes it. It needs nothing of the app's
+# build: tauri::generate_context!() only wants frontendDist (app/dist) and the bundle's resources to exist when it
+# compiles, so a placeholder of each stands in for them (the release builds bundle the real ones).
+on:
+  pull_request:
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/shell.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: shell-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  cargo:
+    name: cargo test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # Tauri 2's Linux build prerequisites, the Ubuntu 22.04 names (KTD11). No appindicator library: the tray is
+      # Mac-only (KTD3). patchelf is for the AppImage bundler, kept so this list matches the release leg's.
+      - name: linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
+            build-essential curl wget file patchelf
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: stand-ins for the app build and the bundled resources
+        run: |
+          mkdir -p app/dist src-tauri/resources
+          printf '<!doctype html>' > app/dist/index.html
+          touch src-tauri/resources/.placeholder
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
