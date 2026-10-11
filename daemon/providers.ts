@@ -114,6 +114,9 @@ export class Providers {
           signal: entry.abort.signal,
           prompt: (prompt) => {
             if (prompt.type === "select") return Promise.resolve(prompt.options[0]?.id ?? "");
+            // A question with a blank default: GitHub Copilot's first asks for an Enterprise domain, blank for github.com.
+            // Refusing it, as loki did, failed every Copilot sign-in before it began.
+            if (prompt.type === "text") return Promise.resolve("");
             if (prompt.type !== "manual_code") return Promise.reject(new Error("this sign-in asks for something loki cannot answer; use an API key"));
             // The browser's callback usually wins; the redirect URL pasted in Settings is the way when it cannot reach
             // this machine (signing in on another device).

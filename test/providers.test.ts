@@ -134,6 +134,31 @@ describe("signing in through the browser", () => {
     expect(await s.credentials.read("fake-chatgpt")).toMatchObject({ access: "access-for-second" });
   });
 
+  test("a question with a blank default is answered blank: GitHub Copilot's Enterprise domain, then its device code", async () => {
+    const credentials = new KeychainCredentials(memorySecrets());
+    const models = createModels({ credentials });
+    let asked: string | undefined;
+    models.setProvider({
+      ...fauxProvider().provider,
+      id: "fake-copilot",
+      auth: {
+        oauth: {
+          name: "Fake (Copilot)",
+          login: async (interaction: ProviderAuthInteraction) => {
+            asked = await interaction.prompt({ type: "text", message: "GitHub Enterprise URL/domain (blank for github.com)", placeholder: "company.ghe.com" });
+            interaction.notify({ type: "device_code", userCode: "ABCD-1234", verificationUri: "https://github.com/login/device" });
+            return new Promise<never>(() => {});
+          },
+          refresh: async (c: OAuthCredential) => c,
+          toAuth: async (c: OAuthCredential) => ({ apiKey: c.access }),
+        },
+      },
+    } as never);
+    const providers = new Providers(models, credentials, () => {}, () => "0b5a3f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b");
+    expect(await providers.signIn("fake-copilot")).toEqual({ url: "https://github.com/login/device", instructions: "Enter the code ABCD-1234" });
+    expect(asked).toBe("");
+  });
+
   test("an install keeps one device id", () => {
     const file = join(mkdtempSync(join(tmpdir(), "loki-device-")), "state", "device-id");
     const id = deviceIdIn(file);
