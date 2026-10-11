@@ -1,7 +1,6 @@
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import "./shared-modules";
-import { inLan, inTauri, installShellLogging } from "./desk/env";
+import { inLan, installShellLogging, openExternal } from "./desk/env";
 
 installShellLogging();
 import { Shell } from "./shell/Shell";
@@ -24,9 +23,7 @@ document.addEventListener(
     if (!/^https?:$/.test(url.protocol)) return; // mailto:, etc. keep their default
     if (url.origin === location.origin && url.pathname === location.pathname) return; // in-page (#anchors, desk links)
     e.preventDefault();
-    // The Tauri webview blocks window.open; the opener plugin hands the URL to the default browser.
-    if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url.href)).catch((err) => console.warn("loki: open link", err));
-    else window.open(url.href, "_blank", "noopener,noreferrer");
+    openExternal(url.href);
   },
   true,
 );

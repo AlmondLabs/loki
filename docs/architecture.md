@@ -139,7 +139,12 @@ every chat gets, the chats, then the mods.
 any other mod uses, and the daemon hands it the chats as its host (`chats` to read, `chat` to run).
 
 1. **The canvas.** Widget files in `~/.loki/widgets/<desk>/` (`.json` kit widgets and `.tsx` React components),
-   watched and pushed to the app; each chat's geometry and widget change log.
+   watched and pushed to the app; each chat's geometry and widget change log. A `.tsx` widget is agent-written code,
+   so the app runs each in its own sandboxed iframe (`sandbox="allow-scripts"`, an opaque origin, `connect-src
+   'none'`): it never sees the daemon token, the page or the network, and talks to the page only by `postMessage`,
+   which `app/src/desk/widgetBridge.ts` checks (its data, `onSet`, its size, focus, and http(s) links). The frame
+   document is `app/src/frame/`, served as `/widget-frame.html`; the shell sets the token only in the top-level page,
+   since Tauri also runs its init script in subframes on Windows.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
    transform, with any board tasks assigned to the chat.
 3. **The agent's tools.** `desk_state` (the canvas as you left it), `loki_camera` (move your view to a widget) and

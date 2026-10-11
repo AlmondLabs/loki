@@ -80,7 +80,11 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
   `bg-loki-attention text-loki-on-attention` is only for a badge that needs the
   user; green `bg-loki-affirm text-loki-on-affirm` fills the one go button.
   Use the sans reading face; `font-loki-mono` only for code and raw data.
-- No network calls from widgets. Data comes from you, through the file.
+- No network calls from widgets. Data comes from you, through the file. Each
+  `.tsx` widget runs in its own sandboxed frame, so this is enforced: `fetch`,
+  WebSockets, `localStorage`, cookies, popups and reaching the page are all
+  blocked. A widget has its `data`, `onSet`, React, recharts and `@loki/kit`;
+  `https:` images and links work (a link opens in the browser).
 
 ## How you hear back
 

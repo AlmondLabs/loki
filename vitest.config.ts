@@ -6,8 +6,8 @@ import { defineConfig } from "vitest/config";
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
-  // The app's own aliases (app/vite.config.ts); widgets come from an empty folder, so no test reads ~/.loki.
-  resolve: { alias: { "@loki/kit": here("./app/src/kit/index.tsx"), "@desks": here("./test/fixtures/widgets") } },
+  // The app's own alias (app/vite.config.ts).
+  resolve: { alias: { "@loki/kit": here("./app/src/kit/index.tsx") } },
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", ".claude/**"],

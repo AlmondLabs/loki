@@ -27,7 +27,7 @@ function WidgetBody({
   reportError: (id: string, message: string | null) => void;
 }) {
   const { entry, overlay } = w;
-  if (entry.kind === "module") return <ModuleWidget entry={entry} overlay={overlay} gesture={gesture} onError={reportError} />;
+  if (entry.kind === "module") return <ModuleWidget entry={entry} overlay={overlay} gesture={gesture} onError={reportError} fill={w.layout.sized === true} />;
   if (entry.error) return <WidgetError message={entry.error} />;
   const Kit = entry.type ? KIT_COMPONENTS[entry.type] : undefined;
   if (!Kit) return <WidgetError message={`unknown kit type: ${entry.type}`} />;
