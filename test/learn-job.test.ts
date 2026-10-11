@@ -61,6 +61,26 @@ async function setup(opts: { cap?: number } = {}) {
 }
 
 describe("Learn on the background passes", () => {
+  test("an agent's settled chats go in one ask, a slice each, and each card is credited to the chat its slice names", async () => {
+    const s = await setup();
+    try {
+      await s.say("c1", LONG);
+      await s.say("c2", `and later, how tides shape an estuary: ${LONG}`);
+      s.answers.push(json({ cards: [{ slice: "s1", ...card("How does a river delta build land?") }, { slice: "s2", ...card("What shapes an estuary?") }], revisions: [] }));
+      await s.runner.sweep();
+      expect(s.prompts).toHaveLength(1);
+      expect(s.prompts[0]).toContain('id=\\"s1\\"');
+      expect(s.prompts[0]).toContain('id=\\"s2\\"');
+      const byFront = new Map(s.recall.cards().map((c) => [c.card.front, c.card.source.conversationId]));
+      expect(byFront.get("How does a river delta build land?")).toBe("c1");
+      expect(byFront.get("What shapes an estuary?")).toBe("c2");
+      for (const c of ["c1", "c2"]) expect(s.state.cursor("learn", s.agentId, c)).toBe(s.entries(c));
+      expect(s.state.learnLast()?.note).toContain("from 2 chats");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a settled chat gives cards with their source, counted against the day, and its cursor moves on", async () => {
     const s = await setup();
     try {

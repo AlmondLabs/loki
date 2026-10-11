@@ -9,7 +9,8 @@ import type { ReflectionState } from "../../../core/frame-types.ts";
 
 /**
  * The reflection page: whether loki keeps its agents' memory up to date in the background (daemon/passes.ts). Once
- * a chat has been quiet for half an hour, reflection reads what was said since it last read that chat, as the agent,
+ * a chat has been quiet for half an hour, reflection reads what was said since it last read it (a batch of the agent's
+ * quiet chats at once, daemon/passes.ts), as the agent,
  * and keeps what will matter in later chats as memory commits by "Reflection"; it also reads a chat right after its
  * context is compacted. The switch is for every agent at once; /reflect in a chat starts a pass by hand.
  */
@@ -57,7 +58,7 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
             </span>
           )}
           {notice && <Meta wrap>{notice}</Meta>}
-          <Meta wrap>For every agent: once a chat has been quiet for half an hour, the agent reads what was said since it last looked and keeps in memory what will matter in later chats. /reflect in a chat does it now.</Meta>
+          <Meta wrap>For every agent: once chats have been quiet for half an hour, the agent reads what was said in them since it last looked, several together and at most every two hours, and keeps in memory what will matter in later chats, what recurs across them most of all. /reflect in a chat does it now.</Meta>
         </div>
       </ListPane>
       <Pane>

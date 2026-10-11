@@ -9,15 +9,20 @@ import type { ChatProjection } from "./chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { isReflectionChat } from "./memory.ts";
 import { modelRef } from "./chat-backend.ts";
+import { createHash } from "node:crypto";
 import type { JobName, PassSettings, PassState } from "./passes-state.ts";
 
 /**
  * Background passes (plan 018): reflection and Learn are two jobs on one runner, the same process with different
  * objectives. Once a minute the runner looks over the person's chats; a chat that has been quiet for half an hour,
- * and holds new material past a job's cursor, gets a run of that job (reflection also runs on a chat whose context
- * was just compacted, without the wait). Runs go one at a time across all agents, each as the agent itself in that
- * job's hidden chat for the agent, cleared first. A job brings only its instructions, its tools, what it asks, and
- * what it does with the answer. Each run is one `pass_finished` event; its turn is a `turn_finished` like any other.
+ * and holds new material past a job's cursor, is due for that job (reflection also takes a chat whose context was
+ * just compacted, without the wait). A run takes every due chat of one agent at once, each chat's new stretch as its
+ * own labelled part, so a job sees what recurs or conflicts across conversations rather than one at a time. An agent
+ * gets at most one batch per BATCH_EVERY_MS for a job, so more chats gather into each, unless a chat was compacted or
+ * the last batch left chats for later. Runs go one at a time across all agents, each as the agent itself in that
+ * job's hidden chat for the agent, cleared first. Cursors stay per chat and move only when the run succeeds. A job
+ * brings only its instructions, its tools, what it asks, and what it does with the answer. Each run is one
+ * `pass_finished` event; its turn is a `turn_finished` like any other.
  */
 
 /** How long a chat must be quiet before a job reads it. */
@@ -26,12 +31,24 @@ export const QUIET_MS = 30 * 60_000;
 export const SWEEP_MS = 60_000;
 /** New transcript text shorter than this is not worth a model call: a thanks, an acknowledgement. The cursor moves on. */
 export const MIN_NEW_CHARS = 300;
-/** The most of a stretch a run reads: its oldest part, up to an entry's end; what does not fit is the next run's. */
+/** The most of one chat's stretch a run reads: its oldest part, up to an entry's end; the rest is the next run's. */
 export const MAX_MATERIAL_CHARS = 24_000;
+/** The most a batch reads across its chats; a chat whose stretch does not fit whole waits for the next batch. */
+export const MAX_BATCH_CHARS = 80_000;
+/** An agent's batches for a job are at least this far apart, so chats gather into each (not after a compaction). */
+export const BATCH_EVERY_MS = 2 * 60 * 60_000;
 /** The longest a run may take before its pass chat is stopped and the run counted as failed. */
 export const RUN_TIMEOUT_MS = 10 * 60_000;
 
-export type PassInput = { agentId: string; chatId: string; agentName: string | null; rows: TranscriptRow[]; material: string; now: Date };
+/** One chat's new stretch in a run: its transcript from the job's cursor up to `lines`. */
+export type PassPart = { chatId: string; title: string | null; rows: TranscriptRow[]; material: string; from: number; lines: number };
+/** A run's material: one agent's due chats, each a part, and all of them as one labelled text (batchText). */
+export type PassInput = { agentId: string; agentName: string | null; parts: PassPart[]; material: string; now: Date };
+
+/** The parts as one text: each chat in its own tag, named and numbered, so the job can tell them apart and cite them. */
+export function batchText(parts: readonly PassPart[]): string {
+  return parts.map((p, i) => `<conversation n="${i + 1}"${p.title ? ` title=${JSON.stringify(p.title)}` : ""}>\n${p.material}\n</conversation>`).join("\n\n");
+}
 export type PassAnswer = { text: string; toolCalls: string[] };
 /** What a run did: `items` counts what it wrote by kind; `capped` keeps the cursor for another day. */
 export type PassResult = { items: Record<string, number>; capped?: boolean };
@@ -69,17 +86,21 @@ type Deps = {
   quietMs?: number;
   sweepMs?: number;
   runTimeoutMs?: number;
+  batchEveryMs?: number;
 };
 
 export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped";
 
 export class PassRunner {
   private readonly deps: Deps;
-  private readonly queue: Array<{ job: PassJob; agentId: string; chatId: string; force: boolean; done: (outcome: RunOutcome) => void }> = [];
+  private readonly queue: Array<{ job: PassJob; agentId: string; chatIds: string[]; force: boolean; done: (outcome: RunOutcome) => void }> = [];
   /** Queued or running, by job and chat: a sweep during a run does not queue it again. */
   private readonly queued = new Set<string>();
   /** A run that failed waits a quiet spell before it is tried again, so a broken model is not asked every minute. */
   private readonly failedAt = new Map<string, number>();
+  /** When each agent's last batch for a job started, and which left chats for later (those go without the wait). */
+  private readonly lastBatch = new Map<string, number>();
+  private readonly backlog = new Set<string>();
   private draining: Promise<void> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -113,39 +134,57 @@ export class PassRunner {
     return this.deps.chats.list().filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isWriterChat(row.conversationId) && !this.deps.isSubagent(row.agentId));
   }
 
-  /** One look over every chat: queue each run that is due, then work the queue. */
+  /** One look over every chat: queue a batch for each agent with chats due, then work the queue. */
   async sweep(): Promise<void> {
     const settings = this.deps.state.settings();
     const now = this.now();
-    for (const row of this.chats()) {
-      for (const job of this.deps.jobs) {
-        if (!settings[job.name].enabled) continue;
-        if (job.open && !job.open(settings, now)) continue;
-        if (await this.due(job, row.agentId, row.conversationId, row.lastMessageAt, now)) void this.enqueue(job, row.agentId, row.conversationId, false);
+    // Oldest first: the chat that has waited longest is read first, and is first in its batch.
+    const rows = this.chats().sort((a, b) => (a.lastMessageAt ?? "").localeCompare(b.lastMessageAt ?? ""));
+    for (const job of this.deps.jobs) {
+      if (!settings[job.name].enabled) continue;
+      if (job.open && !job.open(settings, now)) continue;
+      const due = new Map<string, { chats: string[]; urgent: boolean }>();
+      for (const row of rows) {
+        const why = await this.due(job, row.agentId, row.conversationId, row.lastMessageAt, now);
+        if (!why) continue;
+        const d = due.get(row.agentId) ?? { chats: [], urgent: false };
+        d.chats.push(row.conversationId);
+        d.urgent ||= why === "compacted";
+        due.set(row.agentId, d);
+      }
+      for (const [agentId, d] of due) {
+        const k = `${job.name}\u0000${agentId}`;
+        const last = this.lastBatch.get(k);
+        const waited = last === undefined || now.getTime() - last >= (this.deps.batchEveryMs ?? BATCH_EVERY_MS) || this.backlog.has(k);
+        if (d.urgent || waited) void this.enqueue(job, agentId, d.chats, false);
       }
     }
     await this.drain();
   }
 
-  private async due(job: PassJob, agentId: string, chatId: string, lastMessageAt: string | null, now: Date): Promise<boolean> {
+  private async due(job: PassJob, agentId: string, chatId: string, lastMessageAt: string | null, now: Date): Promise<"quiet" | "compacted" | null> {
     const k = `${job.name}\u0000${agentId}\u0000${chatId}`;
     const quietMs = this.deps.quietMs ?? QUIET_MS;
     const failed = this.failedAt.get(k);
-    if (failed !== undefined && now.getTime() - failed < quietMs) return false;
+    if (failed !== undefined && now.getTime() - failed < quietMs) return null;
     const cursor = this.deps.state.cursor(job.name, agentId, chatId) ?? 0;
-    if (this.deps.chats.answers(chatId, agentId, 0).entries <= cursor) return false;
+    if (this.deps.chats.answers(chatId, agentId, 0).entries <= cursor) return null;
     const quiet = lastMessageAt !== null && now.getTime() - Date.parse(lastMessageAt) >= quietMs;
     const compacted = job.onCompaction === true && this.deps.chats.compactedSince(chatId, agentId, cursor);
-    if (!quiet && !compacted) return false;
-    return !(await this.deps.busy(agentId, chatId));
+    if (!quiet && !compacted) return null;
+    if (await this.deps.busy(agentId, chatId)) return null;
+    return compacted ? "compacted" : "quiet";
   }
 
-  /** Queue a run; resolves with its outcome, or "skipped" when the same run is already queued or running. */
-  private enqueue(job: PassJob, agentId: string, chatId: string, force: boolean): Promise<RunOutcome> {
-    const k = `${job.name}\u0000${agentId}\u0000${chatId}`;
-    if (this.queued.has(k)) return Promise.resolve("skipped");
-    this.queued.add(k);
-    return new Promise((done) => this.queue.push({ job, agentId, chatId, force, done }));
+  /**
+   * Queue a batch; resolves with its outcome, or "skipped" when every chat in it is already queued or running: a chat
+   * is in one batch at a time, and a batch takes only the chats not already in another.
+   */
+  private enqueue(job: PassJob, agentId: string, chatIds: string[], force: boolean): Promise<RunOutcome> {
+    const fresh = chatIds.filter((c) => !this.queued.has(`${job.name}\u0000${agentId}\u0000${c}`));
+    if (!fresh.length) return Promise.resolve("skipped");
+    for (const c of fresh) this.queued.add(`${job.name}\u0000${agentId}\u0000${c}`);
+    return new Promise((done) => this.queue.push({ job, agentId, chatIds: fresh, force, done }));
   }
 
   /** Work the queue, one run at a time; a second caller waits on the same pass through it. */
@@ -156,9 +195,9 @@ export class PassRunner {
         while (this.queue.length) {
           const next = this.queue.shift()!;
           try {
-            next.done(await this.run(next.job, next.agentId, next.chatId, next.force));
+            next.done(await this.run(next.job, next.agentId, next.chatIds, next.force));
           } finally {
-            this.queued.delete(`${next.job.name}\u0000${next.agentId}\u0000${next.chatId}`);
+            for (const c of next.chatIds) this.queued.delete(`${next.job.name}\u0000${next.agentId}\u0000${c}`);
           }
         }
       } finally {
@@ -174,55 +213,95 @@ export class PassRunner {
    * wait, but never while the chat is busy, and in the same queue as every other run.
    */
   async runNow(name: JobName, agentId: string, chatId: string): Promise<RunOutcome> {
-    const outcome = this.enqueue(this.job(name), agentId, chatId, true);
+    const outcome = this.enqueue(this.job(name), agentId, [chatId], true);
     await this.drain();
     return outcome;
   }
 
-  /** "Run now" over every chat a job has new material in: Learn's button, which names no chat. */
+  /**
+   * "Run now" over every chat a job has new material in: Learn's button, which names no chat. Each agent's chats go
+   * in batches, round after round until none has anything new left (a busy chat is left for the sweep).
+   */
   async runAllNow(name: JobName): Promise<void> {
     const job = this.job(name);
-    for (const row of this.chats()) {
-      const cursor = this.deps.state.cursor(job.name, row.agentId, row.conversationId) ?? 0;
-      if (this.deps.chats.answers(row.conversationId, row.agentId, 0).entries <= cursor) continue;
-      void this.enqueue(job, row.agentId, row.conversationId, true);
+    for (let round = 0; round < 20; round++) {
+      const byAgent = new Map<string, string[]>();
+      for (const row of this.chats()) {
+        const cursor = this.deps.state.cursor(job.name, row.agentId, row.conversationId) ?? 0;
+        if (this.deps.chats.answers(row.conversationId, row.agentId, 0).entries <= cursor) continue;
+        if (await this.deps.busy(row.agentId, row.conversationId)) continue;
+        byAgent.set(row.agentId, [...(byAgent.get(row.agentId) ?? []), row.conversationId]);
+      }
+      if (!byAgent.size) return;
+      const outcomes = [...byAgent].map(([agentId, chats]) => this.enqueue(job, agentId, chats, true));
+      await this.drain();
+      if ((await Promise.all(outcomes)).every((o) => o === "failed" || o === "skipped" || o === "capped")) return;
     }
-    await this.drain();
   }
 
-  private async run(job: PassJob, agentId: string, chatId: string, force: boolean): Promise<RunOutcome> {
+  /** What a batch reads: each chat's stretch in order, within MAX_BATCH_CHARS; a busy chat, or one that does not fit, waits. */
+  private async gather(job: PassJob, agentId: string, chatIds: string[], agentName: string | null, force: boolean) {
+    const { state } = this.deps;
+    const parts: PassPart[] = [];
+    let room = MAX_BATCH_CHARS;
+    let busy = false;
+    let leftover = false;
+    for (const chatId of chatIds) {
+      // The chat may have woken while the run waited its turn: it waits for the next sweep, its cursor where it was.
+      if (await this.deps.busy(agentId, chatId)) {
+        busy = true;
+        continue;
+      }
+      const cursor = state.cursor(job.name, agentId, chatId) ?? 0;
+      const stretch = this.stretch(chatId, agentId, cursor, agentName);
+      if (stretch.lines <= cursor) continue;
+      if (!stretch.transcript.length || (!force && stretch.transcript.length < MIN_NEW_CHARS)) {
+        state.setCursor(job.name, agentId, chatId, stretch.lines);
+        continue;
+      }
+      // Whole or not at all: a stretch cut to fit what is left of the batch would move its cursor past unread text.
+      if (stretch.transcript.length > room && parts.length) {
+        leftover = true;
+        continue;
+      }
+      if (stretch.lines < this.deps.chats.answers(chatId, agentId, 0).entries) leftover = true; // more than one run reads
+      room -= stretch.transcript.length;
+      parts.push({ chatId, title: this.deps.chats.info(chatId, agentId)?.title ?? null, rows: stretch.rows, material: stretch.transcript, from: cursor, lines: stretch.lines });
+    }
+    return { parts, busy, leftover };
+  }
+
+  private async run(job: PassJob, agentId: string, chatIds: string[], force: boolean): Promise<RunOutcome> {
     const started = this.now();
-    const k = `${job.name}\u0000${agentId}\u0000${chatId}`;
+    const agentKey = `${job.name}\u0000${agentId}`;
+    const keyOf = (chatId: string) => `${agentKey}\u0000${chatId}`;
     const { state, context } = this.deps;
-    const cursor = state.cursor(job.name, agentId, chatId) ?? 0;
-    let lines = cursor;
+    let parts: PassPart[] = [];
     let requestId: string | null = null;
     const finish = (outcome: RunOutcome, extra: Record<string, unknown> = {}) => {
-      this.deps.capture?.("pass_finished", { job: job.name, agent: agentId, chat: chatId, entries_read: lines - cursor, outcome, duration_ms: this.now().getTime() - started.getTime(), request_id: requestId, items: {}, ...extra });
+      const read = parts.reduce((n, p) => n + p.lines - p.from, 0);
+      this.deps.capture?.("pass_finished", { job: job.name, agent: agentId, chat: parts[0]?.chatId ?? chatIds[0], chats: parts.map((p) => p.chatId), entries_read: read, outcome, duration_ms: this.now().getTime() - started.getTime(), request_id: requestId, items: {}, ...extra });
       return outcome;
     };
     try {
-      // The chat may have woken while the run waited its turn: it waits for the next sweep, its cursor where it was.
-      if (await this.deps.busy(agentId, chatId)) return "skipped";
       const record = readLocalAgent(agentId, this.deps.backendDir);
       const agentName = record?.name ?? null;
-      const stretch = this.stretch(chatId, agentId, cursor, agentName);
-      const { rows, transcript } = stretch;
-      lines = stretch.lines;
-      if (lines <= cursor) return finish("nothing");
-      if (!transcript.length || (!force && transcript.length < MIN_NEW_CHARS)) {
-        state.setCursor(job.name, agentId, chatId, lines);
-        return finish("nothing");
-      }
-      const input: PassInput = { agentId, chatId, agentName, rows, material: transcript, now: started };
+      const gathered = await this.gather(job, agentId, chatIds, agentName, force);
+      parts = gathered.parts;
+      if (!parts.length) return gathered.busy ? "skipped" : finish("nothing");
+      const input: PassInput = { agentId, agentName, parts, material: batchText(parts), now: started };
+      const advance = () => {
+        for (const p of parts) state.setCursor(job.name, agentId, p.chatId, p.lines);
+      };
       const prompt = await job.prompt(input);
       if (prompt === null) {
-        state.setCursor(job.name, agentId, chatId, lines);
+        advance();
         return finish("nothing");
       }
       // The pass chat is reset, not recreated, and pi-durable answers a repeated request id with the old submission:
       // each attempt gets its own id, so a retry (or Learn's capped stretch the next day) is really asked again.
-      requestId = `pass:${job.name}:${chatId}:${lines}:${started.getTime().toString(36)}`;
+      const which = createHash("sha256").update(parts.map((p) => `${p.chatId}@${p.lines}`).join("\n")).digest("hex").slice(0, 12);
+      requestId = `pass:${job.name}:${agentId}:${which}:${started.getTime().toString(36)}`;
       const store = await this.deps.stores.get(agentId);
       const model = modelRef(record?.model ?? "");
       const tools = new Set(job.tools(this.deps.registry).map((t) => t.name));
@@ -259,13 +338,17 @@ export class PassRunner {
         if (text) answer.text = text;
       }
       const result = await job.apply(input, answer);
-      if (!result.capped) state.setCursor(job.name, agentId, chatId, lines);
-      this.failedAt.delete(k);
+      if (!result.capped) advance();
+      for (const p of parts) this.failedAt.delete(keyOf(p.chatId));
+      this.lastBatch.set(agentKey, started.getTime());
+      if (gathered.leftover) this.backlog.add(agentKey);
+      else this.backlog.delete(agentKey);
       const wrote = Object.values(result.items).reduce((n, v) => n + v, 0);
       return finish(result.capped ? "capped" : wrote ? "changed" : "nothing", { items: result.items });
     } catch (error) {
-      this.failedAt.set(k, this.now().getTime());
-      this.deps.report?.(`${job.name} on ${chatId} failed: ${String(error)}`);
+      // Each chat waits a quiet spell before it is tried again (due); not the batch gap too, or a failure costs hours.
+      for (const c of parts.length ? parts.map((p) => p.chatId) : chatIds) this.failedAt.set(keyOf(c), this.now().getTime());
+      this.deps.report?.(`${job.name} on ${(parts.length ? parts.map((p) => p.chatId) : chatIds).join(", ")} failed: ${String(error)}`);
       return finish("failed");
     }
   }

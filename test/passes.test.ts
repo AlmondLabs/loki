@@ -131,25 +131,58 @@ describe("background passes", () => {
     }
   });
 
-  test("two settled chats are read one after the other, never at once", async () => {
+  test("an agent's settled chats are read in one run, each its own part, and each chat's cursor moves to its end", async () => {
     const s = await setup();
     try {
-      let open = 0;
-      let most = 0;
-      const prompt = s.runner["deps"].jobs[0].prompt;
-      s.runner["deps"].jobs[0].prompt = async (input) => {
-        open++;
-        most = Math.max(most, open);
-        await new Promise((r) => setTimeout(r, 20));
-        open--;
-        return prompt(input);
-      };
-      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept"), fauxAssistantMessage("kept")]);
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
+      await s.say("a", `ALPHA ${LONG}`);
+      await s.say("b", `BRAVO ${LONG}`);
+      await s.runner.sweep();
+      expect(s.seen).toHaveLength(1);
+      expect(s.seen[0].parts.map((p) => p.chatId)).toEqual(["a", "b"]); // the one quiet longest first
+      expect(s.seen[0].material).toMatch(/<conversation n="1">[\s\S]*ALPHA[\s\S]*<\/conversation>\n\n<conversation n="2">[\s\S]*BRAVO/);
+      for (const c of ["a", "b"]) expect(s.state.cursor("reflection", s.agentId, c)).toBe(s.chats.answers(c, s.agentId, 0).entries);
+      expect(s.events.at(-1)).toMatchObject({ outcome: "changed", chats: ["a", "b"] });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("an agent's next batch waits out the gap, so chats gather; one that left chats behind goes again at once", async () => {
+    const s = await setup();
+    try {
+      s.runner["deps"].batchEveryMs = 60 * 60_000;
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("kept"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
       await s.say("a", LONG);
+      await s.runner.sweep();
+      expect(s.seen).toHaveLength(1);
       await s.say("b", LONG);
       await s.runner.sweep();
-      expect(s.seen).toHaveLength(2);
-      expect(most).toBe(1);
+      expect(s.seen).toHaveLength(1); // b waits for the gap
+      s.runner["deps"].batchEveryMs = 0;
+      await s.runner.sweep();
+      expect(s.seen.map((i) => i.parts.map((p) => p.chatId))).toEqual([["a"], ["b"]]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a batch reads whole stretches up to its limit; the chats that do not fit go in the next batch, without the gap", async () => {
+    const s = await setup();
+    try {
+      s.runner["deps"].batchEveryMs = 60 * 60_000;
+      const big = (tag: string) => `${tag} ${"the delta grows where the river slows. ".repeat(560)}`; // about 21k characters
+      s.faux.setResponses(Array.from({ length: 12 }, () => fauxAssistantMessage("kept")));
+      for (const c of ["a", "b", "c", "d", "e"]) await s.say(c, big(c.toUpperCase()));
+      await s.runner.sweep();
+      const first = s.seen[0].parts.map((p) => p.chatId);
+      expect(first.length).toBeGreaterThan(1);
+      expect(first.length).toBeLessThan(5);
+      expect(s.seen[0].material.length).toBeLessThanOrEqual(80_000 + 500);
+      await s.runner.sweep(); // the rest at once: the last batch left them
+      const read = s.seen.flatMap((i) => i.parts.map((p) => p.chatId));
+      expect(read.sort()).toEqual(["a", "b", "c", "d", "e"]);
+      for (const c of ["a", "b", "c", "d", "e"]) expect(s.state.cursor("reflection", s.agentId, c)).toBe(s.chats.answers(c, s.agentId, 0).entries);
     } finally {
       await s.cleanup();
     }
@@ -191,7 +224,7 @@ describe("background passes", () => {
   });
 
   test("a run that hangs is stopped past its limit and counted as failed, and the queue moves on", async () => {
-    const s = await setup();
+    const s = await setup({ quietMs: 60 * 60_000 });
     try {
       s.runner["deps"].runTimeoutMs = 100;
       const hang = (_c: unknown, options: { signal?: AbortSignal } | undefined) =>
@@ -199,7 +232,8 @@ describe("background passes", () => {
       s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), hang, fauxAssistantMessage("kept")]);
       await s.say("a", LONG);
       await s.say("b", LONG);
-      await s.runner.sweep();
+      const outcomes = await Promise.all([s.runner.runNow("reflection", s.agentId, "a"), s.runner.runNow("reflection", s.agentId, "b")]);
+      expect(outcomes).toEqual(["failed", "changed"]);
       expect(s.events.map((e) => [e.chat, e.outcome])).toEqual([["a", "failed"], ["b", "changed"]]);
       expect(s.reports.some((r) => r.includes("did not finish within"))).toBe(true);
     } finally {
@@ -310,7 +344,7 @@ describe("background passes", () => {
 
   test("a chat that wakes while its run waits in the queue is left for later, its cursor where it was", async () => {
     let busyChat: string | null = null;
-    const s = await setup({ busy: () => false });
+    const s = await setup({ quietMs: 60 * 60_000, busy: () => false });
     try {
       s.runner["deps"].busy = async (_a: string, chat: string) => chat === busyChat;
       const prompt = s.runner["deps"].jobs[0].prompt;
@@ -321,8 +355,9 @@ describe("background passes", () => {
       s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), fauxAssistantMessage("kept")]);
       await s.say("a", LONG);
       await s.say("b", LONG);
-      await s.runner.sweep();
-      expect(s.seen.map((i) => i.chatId)).toEqual(["a"]);
+      const outcomes = await Promise.all([s.runner.runNow("reflection", s.agentId, "a"), s.runner.runNow("reflection", s.agentId, "b")]);
+      expect(outcomes).toEqual(["changed", "skipped"]);
+      expect(s.seen.map((i) => i.parts.map((p) => p.chatId))).toEqual([["a"]]);
       expect(s.state.cursor("reflection", s.agentId, "b")).toBeUndefined();
     } finally {
       await s.cleanup();
@@ -356,7 +391,7 @@ describe("background passes", () => {
       await s.say("a", LONG);
       await s.say("b", LONG);
       await s.runner.runAllNow("reflection");
-      expect(s.seen.map((i) => i.chatId)).toEqual(["a"]);
+      expect(s.seen.map((i) => i.parts.map((p) => p.chatId))).toEqual([["a"]]);
       expect(s.state.cursor("reflection", s.agentId, "a")).toBe(s.chats.answers("a", s.agentId, 0).entries);
       expect(s.state.cursor("reflection", s.agentId, "b")).toBeUndefined();
     } finally {
