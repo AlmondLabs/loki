@@ -39,6 +39,11 @@
 .loki-md hr { border: 0; border-top: 1px solid var(--loki-border); margin: 10px 0; }
 .loki-md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; max-width: 100%; overflow-x: auto; }
 .loki-md th, .loki-md td { border: 1px solid var(--loki-border); padding: 4px 8px; text-align: left; }
+/* A message wraps anywhere (overflow-wrap: anywhere, above), which also tells a table its cells can be one letter
+   wide: a narrow column ("#", 10, 11, 12) was squeezed until its numbers broke digit by digit. In a cell words break
+   only when nothing else fits; a link or code, which can be one long run, still breaks anywhere. */
+.loki-md th, .loki-md td { overflow-wrap: break-word; }
+.loki-md th :is(a, code), .loki-md td :is(a, code) { overflow-wrap: anywhere; }
 .loki-md th { color: var(--loki-muted); font-weight: 600; }
 .loki-md strong { color: var(--loki-fg); }
 
