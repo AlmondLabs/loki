@@ -5,7 +5,7 @@ import type { ChatBackend } from "../mod/frames/chat.ts";
 import { scopeFor } from "../core/desk-core.ts";
 import { join } from "node:path";
 import { RecallStore } from "../mod/recall.ts";
-import { formatTranscript, lessonCard, overlappingCards, ownsRecallChat, startLessonViaChats } from "../mod/recall-worker.ts";
+import { formatTranscript, isPassChat, lessonCard, overlappingCards, ownsRecallChat, startLessonViaChats } from "../mod/recall-worker.ts";
 
 let dir: string;
 let store: RecallStore;
@@ -39,6 +39,13 @@ describe("Learn's shared pieces", () => {
     expect(ownsRecallChat(store, "local-conv-old-writer")).toBe(true);
     expect(ownsRecallChat(store, "local-conv-older")).toBe(true);
     expect(ownsRecallChat(store, "local-conv-person")).toBe(false);
+  });
+
+  test("the background passes' chats, reflection's and Learn's, are none of the person's chats", () => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "worker.json"), JSON.stringify({ writers: { a1: "local-conv-old-writer" } }));
+    for (const id of ["recall-a1", "reflection-a1", "local-conv-old-writer"]) expect(isPassChat(store, id), id).toBe(true);
+    for (const id of ["default", "local-conv-person", "reflections-on-design"]) expect(isPassChat(store, id), id).toBe(false);
   });
 });
 

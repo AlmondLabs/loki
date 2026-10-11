@@ -81,6 +81,18 @@ export class DeskRegistry {
     return [...this.byScope.entries()].map(([scope, rt]) => ({ scope, ...rt }));
   }
 
+  /** Drop every desk whose conversation `test` names (the background passes' own). Returns how many went. */
+  forgetConversations(test: (conversationId: string) => boolean): number {
+    let n = 0;
+    for (const [scope, rt] of this.byScope) {
+      if (!test(rt.conversation_id)) continue;
+      this.byScope.delete(scope);
+      n++;
+    }
+    if (n) this.persist();
+    return n;
+  }
+
   /** Drop every desk of an agent (a subagent that slipped in through turn_start). Returns how many went. */
   forgetAgent(agentId: string): number {
     let n = 0;
