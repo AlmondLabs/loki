@@ -76,9 +76,27 @@ function inside(root: string, path: unknown): string {
 /** git in a memory repo, with no hooks: whatever is in the repo, a commit runs nothing of it. */
 const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", ...args]);
 
-async function commit(root: string, path: string, message: string, author: { name: string; email: string }): Promise<void> {
-  await git(root, "add", "--", path);
-  await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", path);
+/**
+ * One git command sequence at a time per memory repo. A chat's memory_write, a reflection pass and an edit from the
+ * Agents page can land together; two `git add`/`commit`s at once in one repo fail on its index.lock, and the write
+ * that lost was on disk but never committed.
+ */
+const queues = new Map<string, Promise<unknown>>();
+export function serial<T>(root: string, work: () => Promise<T>): Promise<T> {
+  const next = (queues.get(root) ?? Promise.resolve()).then(work, work);
+  const settled = next.catch(() => {});
+  queues.set(root, settled);
+  void settled.then(() => {
+    if (queues.get(root) === settled) queues.delete(root);
+  });
+  return next;
+}
+
+function commit(root: string, path: string, message: string, author: { name: string; email: string }): Promise<void> {
+  return serial(root, async () => {
+    await git(root, "add", "--", path);
+    await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", path);
+  });
 }
 
 /** A memory file changed from the Agents page: written (or removed, with `content` null) and committed as the person's. */
@@ -87,8 +105,10 @@ export async function editMemoryFile(backendDir: string, agentId: string, path: 
   const full = inside(root, path);
   if (content === null) {
     if (!existsSync(full)) return;
-    await git(root, "rm", "--quiet", "--", full);
-    await git(root, "-c", "user.name=You", "-c", "user.email=you@loki.local", "commit", "--quiet", "-m", message?.trim() || `Remove ${path}`, "--", full);
+    await serial(root, async () => {
+      await git(root, "rm", "--quiet", "--", full);
+      await git(root, "-c", "user.name=You", "-c", "user.email=you@loki.local", "commit", "--quiet", "-m", message?.trim() || `Remove ${path}`, "--", full);
+    });
     return;
   }
   mkdirSync(dirname(full), { recursive: true });

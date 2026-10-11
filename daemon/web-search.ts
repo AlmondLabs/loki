@@ -8,11 +8,14 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
 export type SearchResult = { title: string; url: string; snippet: string };
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'", "&#39;": "'", "&nbsp;": " " };
+/** A numeric entity's character; one past Unicode (a malformed page) stays as written rather than throwing. */
+const codePoint = (n: number, entity: string) => (Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : entity);
 const plain = (html: string) =>
   html
     .replace(/<[^>]+>/g, "")
     .replace(/&(?:amp|lt|gt|quot|#x27|#39|nbsp);/g, (e) => ENTITIES[e] ?? e)
-    .replace(/&#(\d+);/g, (_m, n: string) => String.fromCodePoint(Number(n)))
+    .replace(/&#(\d+);/g, (m, n: string) => codePoint(Number(n), m))
+    .replace(/&#x([0-9a-f]+);/gi, (m, n: string) => codePoint(Number.parseInt(n, 16), m))
     .replace(/\s+/g, " ")
     .trim();
 

@@ -92,6 +92,19 @@ describe("an agent's memory", () => {
     }
   });
 
+  test("edits landing at once are each committed: one git at a time per repo, not a lost index.lock race", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
+    try {
+      const agentId = await createAgent(dir, { name: "Ada" });
+      await Promise.all(Array.from({ length: 12 }, (_, i) => editMemoryFile(dir, agentId, `reference/n${i}.md`, `note ${i}`, `Add n${i}`)));
+      const commits = log(memoryRoot(dir, agentId));
+      expect(commits).toHaveLength(13);
+      for (let i = 0; i < 12; i++) expect(commits).toContain(`You|Add n${i}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test("git's own files are not memory files, in any case, at any depth", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
     try {
