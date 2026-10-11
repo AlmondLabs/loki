@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { checkModule, parseJsonWidget, scanWidgets, titleFromModule, watchWidgets, type WidgetsDiff } from "../mod/widgets-fs.ts";
+import { checkModule, parseJsonWidget, scanWidgets, titleFromModule, watchWidgets, type ScanCache, type WidgetsDiff } from "../mod/widgets-fs.ts";
 
 describe("parseJsonWidget", () => {
   test("valid kit widget", () => {
@@ -86,6 +86,37 @@ describe("scan + watch", () => {
       writeFileSync(join(root, "d", "bad.tsx"), "export default function B() { return <div> }");
       const scanned = await scanWidgets(root);
       expect(scanned.get("d/bad")!.error).toMatch(/d\/bad\.tsx:1/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a scan with a cache", () => {
+  test("reads again only the files that changed: an unchanged file is not read or checked again", async () => {
+    const root = mkdtempSync(join(tmpdir(), "loki-wcache-"));
+    try {
+      mkdirSync(join(root, "shared"));
+      const a = join(root, "shared", "a.tsx");
+      writeFileSync(a, 'export const title = "One";\nexport default () => null');
+      writeFileSync(join(root, "shared", "b.json"), '{"type":"stat","title":"B","data":{"value":1}}');
+      const when = new Date("2026-10-01T10:00:00Z"); // whole seconds: set back exactly below
+      utimesSync(a, when, when);
+      const cache: ScanCache = new Map();
+      const first = await scanWidgets(root, cache);
+      expect(first.get("shared/a")?.title).toBe("One");
+      // Same size and mtime, different text: a scan that trusts the cache keeps what it read (it did not read it).
+      writeFileSync(a, 'export const title = "Two";\nexport default () => null');
+      utimesSync(a, when, when);
+      const second = await scanWidgets(root, cache);
+      expect(second.get("shared/a")).toBe(first.get("shared/a"));
+      // A real change (a new mtime) is read.
+      utimesSync(a, when, new Date(when.getTime() + 5000));
+      expect((await scanWidgets(root, cache)).get("shared/a")?.title).toBe("Two");
+      // A removed file leaves the cache and the manifest.
+      rmSync(join(root, "shared", "b.json"));
+      expect((await scanWidgets(root, cache)).has("shared/b")).toBe(false);
+      expect([...cache.keys()].some((k) => k.endsWith("b.json"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
