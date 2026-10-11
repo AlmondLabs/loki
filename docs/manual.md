@@ -53,10 +53,10 @@ The second line matters. loki is not signed with an Apple Developer ID, and macO
 download as "damaged"; Homebrew quarantines cask downloads like a browser would, and Homebrew 7 no longer has
 a flag to skip that (`--no-quarantine` is gone), so the flag is cleared by hand once per install. The cask's
 own caveat says the same. Upgrades are `brew upgrade --cask loki`, then the `xattr` line again; the cask
-follows each release. Versions are dates (`2026.9.28` shipped on that day, UTC).
+follows each release. Versions are the UTC day and that day's count: `2026.1011.0` is the first stable of October 11, `2026.1011.1` the second (before October 2026, `2026.9.28` was simply the day).
 
 **Nightly**: `brew install --cask almondlabs/loki/loki-nightly` is every merge to `main`, built about twenty
-minutes after it lands, versioned `2026.9.28-nightly.a96ee85` after the day and the commit. The two casks
+minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
 conflict — both builds share `~/.letta/loki`, the mod shim and the harness port — so switching channels is an
 uninstall and an install. Settings › letta shows which channel a build is on and names the right cask in its
 upgrade line. How releases are cut: [docs/RELEASING.md](RELEASING.md).

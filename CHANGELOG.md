@@ -1,6 +1,7 @@
 # Changelog
 
-Every stable, newest first. The version is the day it shipped (UTC); nightlies are not listed.
+Every stable up to 2026.10.11, newest first. Releases since ship when the release PR merges, numbered `YYYY.MMDD.N`
+at the build, and their notes are on each GitHub release: https://github.com/AlmondLabs/loki/releases
 
 ## 2026.10.11
 

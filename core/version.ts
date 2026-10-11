@@ -1,4 +1,8 @@
-/** Version strings as loki uses them: a stable "2026.9.28" (the day it shipped, UTC), a release tag "v2026.9.28", a nightly "2026.9.28-nightly.a96ee85". */
+/**
+ * Version strings as loki uses them: a stable "2026.1011.0" (the UTC day, then that day's count; "2026.9.28" before
+ * October 2026), a release tag "v2026.1011.0", a nightly "2026.1011.1-nightly.a96ee85". Compared part by part as numbers,
+ * so every YYYY.MMDD.N stable is newer than every YYYY.M.D one.
+ */
 export function parseVersion(v: string): [number, number, number] | null {
   const m = v.trim().replace(/^v/, "").match(/^(\d+)\.(\d+)\.(\d+)/);
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
@@ -8,7 +12,7 @@ export function parseVersion(v: string): [number, number, number] | null {
 export type Channel = "stable" | "nightly";
 export const channelOf = (version: string): Channel => (/-nightly\./.test(version) ? "nightly" : "stable");
 
-/** The nightly version inside a release title such as "loki 2026.9.28-nightly.a96ee85", or null. */
+/** The nightly version inside a release title such as "loki 2026.1011.1-nightly.a96ee85", or null. */
 export const nightlyVersionIn = (text: string | null | undefined): string | null => text?.match(/\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}/)?.[0] ?? null;
 
 /** True when `candidate` is a release after `current`; false for equal, older, or unparsable input. */

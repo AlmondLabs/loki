@@ -79,8 +79,8 @@ brew install --cask almondlabs/loki/loki
 xattr -dr com.apple.quarantine /Applications/loki.app
 ```
 
-Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line. Versions are dates: `2026.9.28` is
-the stable that shipped on that day.
+Upgrades are `brew upgrade --cask loki`, followed by the same `xattr` line. Versions are dates and a count: `2026.1011.0` is
+the first stable of October 11 (UTC), `2026.1011.1` the second.
 
 **Nightly**, if you want every merge about twenty minutes after it lands (Mac only; one loki at a time, so this
 replaces the stable install; `brew uninstall --cask loki` first, or the other way round to go back):
