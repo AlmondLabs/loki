@@ -11,6 +11,9 @@ import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
 import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
 
+/** Hidden at least this long, the page asks for its lists again when it is shown: anything shorter is a glance away. */
+const STALE_AFTER_HIDDEN_MS = 5_000;
+
 const NO_YANK_MS = 2000;
 
 /**
@@ -54,6 +57,17 @@ export function useDeskSocket() {
   const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
   /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
   const reconnectListeners = useRef(new Set<() => void>());
+  /**
+   * Who hears that the lists a client holds (agents, chats) may be out of date: an agent changed (agents_changed),
+   * the socket came back after a drop, or the page came back after being hidden (a phone's home-screen app sleeps in
+   * the background, and polls nothing meanwhile). The desk list is asked for again at the same time.
+   */
+  const staleListeners = useRef(new Set<() => void>());
+  const listsStale = useCallback(() => {
+    for (const fn of staleListeners.current) fn();
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "list_desks" }));
+  }, []);
   const [seenMap, setSeenMap] = useState<Record<string, string>>({});
   /** When each conversation was last looked at: apart from seen, which is "done". */
   const [viewedMap, setViewedMap] = useState<Record<string, string>>({});
@@ -115,7 +129,10 @@ export function useDeskSocket() {
         setConnection("open");
         ws.send(JSON.stringify({ type: "seen_list" }));
         for (const s of watchedRef.current) ws.send(JSON.stringify({ type: "desk_get", scope: s }));
-        if (dropped) for (const fn of reconnectListeners.current) fn();
+        if (dropped) {
+          for (const fn of reconnectListeners.current) fn();
+          listsStale();
+        }
         dropped = false;
       };
       ws.onmessage = (ev) => {
@@ -178,6 +195,9 @@ export function useDeskSocket() {
             break;
           case "tasks_changed":
             setTasksVersion((v) => v + 1);
+            break;
+          case "agents_changed":
+            listsStale();
             break;
           case "recall_changed":
             setRecallVersion((v) => v + 1);
@@ -254,7 +274,21 @@ export function useDeskSocket() {
       if (retry) clearTimeout(retry); // a reconnect scheduled for the old desk must not open a socket after the switch
       wsRef.current?.close();
     };
-  }, [scope, switchDesk]);
+  }, [scope, switchDesk, listsStale]);
+
+  // Back from the background (a phone's home-screen app, a hidden tab): what changed meanwhile was never polled.
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (hiddenAt !== null && Date.now() - hiddenAt >= STALE_AFTER_HIDDEN_MS) {
+        hiddenAt = null;
+        listsStale();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [listsStale]);
 
   /** Any frame as it is: `request()`'s, which carry a requestId. False while the socket is not open. */
   const sendRaw = useCallback((msg: object): boolean => {
@@ -308,6 +342,7 @@ export function useDeskSocket() {
     setModes,
     chatListeners,
     reconnectListeners,
+    staleListeners,
     seenMap,
     viewedMap,
     focusMap,

@@ -1,6 +1,6 @@
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf, Replies } from "../../core/frames.ts";
-import { errorMessage, fail, reply, type FrameHandlers, type Outcome } from "./context.ts";
+import { errorMessage, fail, reply, type FrameContext, type FrameHandlers, type Outcome } from "./context.ts";
 
 /**
  * Chats on loki's daemon (plan 017, U5), as frames on the mod's socket: the app's FrameChatClient asks, and the
@@ -54,6 +54,17 @@ async function served<R>(backend: ChatBackend | undefined, work: (b: ChatBackend
   }
 }
 
+/**
+ * A change to the agents, told to every client once it is done. Only the client that made it knew before, so another
+ * window or a paired phone kept the old list (an agent shown as "Agent", a renamed one under its old name) until its
+ * next poll.
+ */
+async function agentsChange<R>(work: Promise<Outcome<R>>, ctx: FrameContext): Promise<Outcome<R>> {
+  const out = await work;
+  if (out.ok) ctx.broadcast({ type: "agents_changed" });
+  return out;
+}
+
 export function chatFrames(deps: ChatDeps): FrameHandlers {
   const b = deps.chat;
   return {
@@ -68,10 +79,10 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_model: (p) => served(b, async (x) => (await x.model(p), DONE)),
     chat_models: () => served(b, async (x) => ({ entries: await x.models() })),
     chat_agents: () => served(b, async (x) => ({ agents: await x.agents() })),
-    chat_agent_create: (p) => served(b, (x) => x.createAgent(p)),
-    chat_agent_update: (p) => served(b, async (x) => (await x.updateAgent(p), DONE)),
-    chat_agent_delete: ({ agentId }) => served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
-    chat_import: () => served(b, (x) => x.importLetta()),
+    chat_agent_create: (p, ctx) => agentsChange(served(b, (x) => x.createAgent(p)), ctx),
+    chat_agent_update: (p, ctx) => agentsChange(served(b, async (x) => (await x.updateAgent(p), DONE)), ctx),
+    chat_agent_delete: ({ agentId }, ctx) => agentsChange(served(b, async (x) => (await x.deleteAgent(agentId), DONE)), ctx),
+    chat_import: (_p, ctx) => agentsChange(served(b, (x) => x.importLetta()), ctx),
     chat_passes_get: () => served(b, (x) => x.passes()),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
