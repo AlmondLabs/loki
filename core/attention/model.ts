@@ -184,6 +184,8 @@ export type ChatEvent =
   | { kind: "command"; phase: "start" | "end"; input: string; output?: string; success?: boolean }
   /** The reply in progress is complete. */
   | { kind: "settle" }
+  /** The answer in flight as written so far, for a client that starts listening mid-answer: the stream starts from it. */
+  | { kind: "streaming"; text: string; at: string | null }
   /** The turn ended. */
   | { kind: "turn_end"; turnId?: string };
 
@@ -257,6 +259,8 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
     case "settle":
       l.thread.settle(now);
       return { changed: true, userSpoke: false };
+    case "streaming":
+      return { changed: l.thread.resume(e.text, e.at), userSpoke: false };
     case "turn_end":
       if (e.turnId) l.turnId = e.turnId;
       l.thread.settle(now);

@@ -9,24 +9,87 @@ import { applyChatEvent, chatStatusOf, emptyLive, type ChatEvent } from "../core
 
 const ctx = BACKGROUND_CONTEXT;
 const NOW = "2026-10-10T10:00:00.000Z";
+const piece = (delta: string) => ({ type: "message_update", usage: {} as never, changes: [{ type: "text_delta", contentIndex: 0, delta }] }) as AgentEvent;
+const written = (text: string) => ({ type: "message_end", entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text }] } as never] } }) as AgentEvent;
 
 describe("chat event converter", () => {
-  test("streamed pieces go out as they come, and only the unsent rest when the answer is written", () => {
+  test("streamed pieces go out as they come, and the answer goes out whole when written, as history has it", () => {
     const c = new ChatEventConverter();
-    const piece = (delta: string) => ({ type: "message_update", usage: {} as never, changes: [{ type: "text_delta", contentIndex: 0, delta }] }) as AgentEvent;
     expect(c.convert(piece("Hel"), NOW)).toEqual([{ kind: "step", step: { kind: "assistant", text: "Hel", at: NOW, chunk: true } }]);
     c.convert(piece("lo"), NOW);
-    const end = c.convert({ type: "message_end", entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text: "Hello there" }] } as never] } }, NOW);
-    expect(end).toEqual([{ kind: "step", step: { kind: "assistant", text: " there", at: NOW, chunk: true } }]);
+    expect(c.convert(written("Hello there"), NOW)).toEqual([{ kind: "step", step: { kind: "assistant", text: "Hello there", at: NOW } }]);
   });
 
   test("an answer written whole sends all its words, then its tool calls", () => {
     const c = new ChatEventConverter();
     const end = c.convert({ type: "message_end", entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text: "Let me look." }, { type: "toolCall", id: "t1", name: "read", arguments: { path: "a" } }] } as never] } }, NOW);
     expect(end).toEqual([
-      { kind: "step", step: { kind: "assistant", text: "Let me look.", at: NOW, chunk: true } },
+      { kind: "step", step: { kind: "assistant", text: "Let me look.", at: NOW } },
       { kind: "step", step: { kind: "call", name: "read", args: { path: "a" }, id: "t1", at: NOW } },
     ]);
+  });
+
+  test("the answer in flight is known for a client that opens mid-answer, and forgotten when it is written or dropped", () => {
+    const c = new ChatEventConverter();
+    expect(c.inFlight()).toBeNull();
+    c.convert(piece("Keep `fa"), NOW);
+    c.convert(piece("rmart"), "2026-10-10T10:00:01.000Z");
+    expect(c.inFlight()).toEqual({ text: "Keep `farmart", at: NOW });
+    c.convert({ type: "auto_retry_start", attempt: 1, at: 0, errorMessage: "overloaded" } as AgentEvent, NOW);
+    expect(c.inFlight()).toBeNull();
+    c.convert(piece("Keep"), NOW);
+    c.convert(written("Keep it"), NOW);
+    expect(c.inFlight()).toBeNull();
+    // Following starts mid-answer: pi-durable's snapshot carries the partial.
+    const late = new ChatEventConverter();
+    late.convert({ type: "snapshot", entries: [], tools: [], compactions: [], inbox: [], agent: {}, usage: {}, generation: { attempt: 0, message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "text", text: "Keep `far" }] } } } as never, NOW);
+    expect(late.inFlight()).toEqual({ text: "Keep `far", at: NOW });
+    late.convert(piece("mart"), NOW);
+    expect(late.inFlight()?.text).toBe("Keep `farmart");
+    late.convert({ type: "run_end", inputs: [] } as never, NOW);
+    expect(late.inFlight()).toBeNull();
+  });
+
+  test("the app sets its stream from what was written so far, and the pieces after it add on", () => {
+    const l = emptyLive();
+    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "rmart", at: NOW, chunk: true } }, NOW); // a piece that beat the state
+    applyChatEvent(l, { kind: "streaming", text: "Keep `farmart", at: NOW }, NOW);
+    applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "-co", at: NOW, chunk: true } }, NOW);
+    expect(l.thread.rows()!.map((r) => r.text)).toEqual(["Keep `farmart-co"]);
+  });
+
+  describe("a reply shows once, however its stream went", () => {
+    const REPLY = "Keep `farmart-co-read-write-user` for the farmart.co website project. That closes the Dev review.\n\nNext is Stage `Cluster0`.";
+    /** What a client draws after these events, and after the history page that follows the turn. */
+    const drawn = (events: AgentEvent[], from = 0) => {
+      const c = new ChatEventConverter();
+      const out = events.flatMap((e) => c.convert(e, NOW));
+      const l = emptyLive();
+      for (const e of out.slice(from)) applyChatEvent(l, e, NOW);
+      applyChatEvent(l, { kind: "settle" }, NOW);
+      const live = l.thread.rows()!.filter((r) => r.role === "assistant").map((r) => r.text);
+      l.thread.load([{ role: "user", text: "farmart-co-read-write-user is needed" }, { role: "assistant", text: REPLY }]);
+      const after = l.thread.rows()!.filter((r) => r.role === "assistant").map((r) => r.text);
+      return { live, after, last: l.lastAssistantText };
+    };
+    const pieces = (text: string, size = 10) => Array.from({ length: Math.ceil(text.length / size) }, (_, i) => piece(text.slice(i * size, (i + 1) * size)));
+
+    test("streamed cleanly", () => {
+      expect(drawn([...pieces(REPLY), written(REPLY)])).toEqual({ live: [REPLY], after: [REPLY], last: REPLY });
+    });
+
+    test("an attempt that failed part way and was tried again: its pieces are dropped", () => {
+      const retry = { type: "auto_retry_start", attempt: 1, at: 0, errorMessage: "overloaded" } as AgentEvent;
+      expect(drawn([...pieces(REPLY).slice(0, 3), retry, ...pieces(REPLY), written(REPLY)])).toEqual({ live: [REPLY], after: [REPLY], last: REPLY });
+    });
+
+    test("a client that joined after the first piece (an Inbox card opened mid-answer)", () => {
+      expect(drawn([...pieces(REPLY), written(REPLY)], 1)).toEqual({ live: [REPLY], after: [REPLY], last: REPLY });
+    });
+
+    test("a stream that is not the start of what was written", () => {
+      expect(drawn([...pieces(REPLY.replace("Keep", "Kept")), written(REPLY)])).toEqual({ live: [REPLY], after: [REPLY], last: REPLY });
+    });
   });
 
   test("a message the agent could not take up (no model) ends the turn with why, and the live state settles", async () => {

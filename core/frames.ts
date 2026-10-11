@@ -125,6 +125,8 @@ export interface ChatState {
   turnId?: string | null;
   mode: string | null;
   cwd: string | null;
+  /** The answer in flight as written so far, when one is: a client opening mid-answer streams on from it. */
+  streaming?: { text: string; at: string | null } | null;
 }
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
