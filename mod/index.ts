@@ -353,12 +353,14 @@ export default function activate(api: ModApi, host: Host): () => void {
     profile: (agentId) => profilePath(agentId),
     uploads: paths.uploads,
     health: () => ({ phones: lan?.clientCount() ?? 0 }),
+    // The listener's status (addresses, the Tailscale name) and the paired devices are the desktop's settings: they
+    // go to its tabs, not to the phones themselves, which never read them.
     onChange: (what, status) => {
       if (what === "status") {
         log("lan:status", status);
-        broadcast({ type: "lan_status", ...status });
+        ws?.broadcast({ type: "lan_status", ...status });
       } else {
-        broadcast({ type: "devices", devices: devices.list() });
+        ws?.broadcast({ type: "devices", devices: devices.list() });
       }
     },
   });

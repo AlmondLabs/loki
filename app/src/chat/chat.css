@@ -29,6 +29,13 @@
 .loki-md blockquote { margin: 6px 0; padding: 2px 10px; border-left: 2px solid var(--loki-border); color: var(--loki-muted); }
 .loki-md a { color: var(--loki-accent); text-decoration: none; }
 .loki-md a:hover { text-decoration: underline; }
+.loki-md-img { max-width: 100%; height: auto; border-radius: var(--loki-radius-sm); }
+.loki-md-remote {
+  font: inherit; font-size: 12px; color: var(--loki-muted); background: transparent; cursor: pointer;
+  border: 1px dashed var(--loki-border); border-radius: var(--loki-radius-sm); padding: 2px 8px; margin: 2px 0;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.loki-md-remote:hover { color: var(--loki-fg); border-color: var(--loki-muted); }
 .loki-md hr { border: 0; border-top: 1px solid var(--loki-border); margin: 10px 0; }
 .loki-md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; max-width: 100%; overflow-x: auto; }
 .loki-md th, .loki-md td { border: 1px solid var(--loki-border); padding: 4px 8px; text-align: left; }

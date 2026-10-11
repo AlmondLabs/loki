@@ -1,5 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
+import { timingSafeEqual } from "node:crypto";
+import { WS_PROTOCOL, tokenFromProtocols } from "../core/ws-auth.ts";
 import { WebSocketServer, WebSocket } from "./ws.ts";
 import type { Scope } from "../core/desk-core.ts";
 import { scopeFor } from "../core/desk-core.ts";
@@ -18,7 +20,8 @@ export interface LokiServer {
 
 /**
  * Who may upgrade to /ws, or fetch an agent's face. The loopback server
- * checks `?t=` against the desktop token (tokenAuth); the LAN listener (mod/lan.ts)
+ * checks the desktop token (tokenAuth): from the subprotocol header on /ws (core/ws-auth.ts), from `?t=` on what an
+ * <img> fetches, compared in constant time; the LAN listener (mod/lan.ts)
  * looks a device cookie or bearer up and names the device, so its sockets can be
  * closed when the device is forgotten.
  */
@@ -26,7 +29,15 @@ export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; devic
 
 export const tokenAuth =
   (token: string | undefined): Authorize =>
-  (_req, url) => ({ ok: !!token && url.searchParams.get("t") === token });
+  (req, url) => ({ ok: !!token && sameSecret(tokenFromProtocols(req.headers["sec-websocket-protocol"]) ?? url.searchParams.get("t"), token) });
+
+/** Whether `given` is `secret`, in time that does not depend on where they first differ. */
+export function sameSecret(given: string | null | undefined, secret: string): boolean {
+  if (typeof given !== "string") return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 export async function startServer(opts: { port: number; health?: () => object; token?: string; profile?: (agentId: string) => string | null; authorize?: Authorize; uploads?: string }): Promise<LokiServer> {
   const authorize = opts.authorize ?? tokenAuth(opts.token);
@@ -131,7 +142,8 @@ export interface WsBridge {
  */
 export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers): WsBridge {
   const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
-  const wss = new WebSocketServer({ noServer: true });
+  // A tab that sent its token in the subprotocol header is answered `loki`; one that sent none is asked nothing.
+  const wss = new WebSocketServer({ noServer: true, handleProtocols: (protocols) => (protocols.has(WS_PROTOCOL) ? WS_PROTOCOL : false) });
   const clients = new Map<WebSocket, Client>();
 
   server.on("upgrade", (req, socket, head) => {
