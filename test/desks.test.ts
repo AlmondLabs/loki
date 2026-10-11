@@ -72,4 +72,19 @@ describe("DeskRegistry: one scope per conversation", () => {
     expect(Object.keys(JSON.parse(r(file, "utf8"))).sort()).toEqual(["default-agent-1", "local-conv-9"]);
     rmSync(dir, { recursive: true, force: true });
   });
+
+  test("desks an earlier loki kept for the passes' chats are dropped, and only those", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-desks-"));
+    try {
+      const path = join(dir, "desks.json");
+      const reg = new DeskRegistry(path, () => null);
+      reg.remember("recall-a1", "a1");
+      reg.remember("reflection-a1", "a1");
+      reg.remember("local-conv-1", "a1");
+      expect(reg.forgetConversations((id) => id.startsWith("recall-") || id.startsWith("reflection-"))).toBe(2);
+      expect(new DeskRegistry(path, () => null).all().map((d) => d.conversation_id)).toEqual(["local-conv-1"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

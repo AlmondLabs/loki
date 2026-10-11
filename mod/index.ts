@@ -16,7 +16,7 @@ import type { ChatSource } from "./chat-source.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import { SeenStore } from "./seen.ts";
 import { RecallStore, isoDay } from "./recall.ts";
-import { ownsRecallChat, startLessonViaChats } from "./recall-worker.ts";
+import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
 import { TaskBoard, TasksNotice } from "./tasks.ts";
@@ -84,6 +84,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   loadDesks(store, paths.state);
   const stopPersist = persistDesks(store, paths.state);
   const gestures = new GestureLog();
+  // Learn's cards (daemon/learn.ts writes them; mod/recall.ts reads them), and which chats are the passes' own.
+  const recallStore = new RecallStore();
+  const passChat = (id: string) => isPassChat(recallStore, id);
 
   let activeScope: Scope = SHARED_SCOPE;
 
@@ -157,6 +160,9 @@ export default function activate(api: ModApi, host: Host): () => void {
   const listDesks = (): DeskSummary[] => {
     // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
     for (const agentId of new Set(desks.all().map((d) => d.agent_id))) if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
+    // And the background passes' chats, which an earlier loki listed (Learn's) and kept as desks.
+    const evicted = desks.forgetConversations(passChat);
+    if (evicted) log("desks:evict-pass-chats", { evicted });
     const scopes = new Set<Scope>([SHARED_SCOPE, ...store.scopes(), ...desks.all().map((d) => d.scope)]);
     for (const e of widgets.entries()) scopes.add(e.scope);
     const pins = readPins();
@@ -164,8 +170,9 @@ export default function activate(api: ModApi, host: Host): () => void {
     const ownAgents = new Set(desks.all().map((d) => d.agent_id));
     for (const c of chats.list()) {
       // A deleted agent leaves its memory repo behind: its record must still exist too. Hidden conversations stay
-      // out, except the recall worker's: those are desks you can open to read what it asked and what the agent said.
-      if ((c.hidden && !recall.owns(c.conversationId)) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
+      // out, the background passes' among them (reflection's and Learn's): what they did shows as memory changes
+      // and cards, not as chats.
+      if (c.hidden || passChat(c.conversationId) || !(ownAgents.has(c.agentId) || (agentHasMemory(c.agentId) && readLocalAgent(c.agentId)))) continue;
       // Helper agents have memory folders too: without this, the eviction above was undone on every listing.
       if (isSubagent(c.agentId)) continue;
       scopes.add(desks.remember(c.conversationId, c.agentId));
@@ -235,8 +242,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- recall -----------------------------------------------------------
   // Cards written in the background by the daemon's Learn pass (daemon/learn.ts) from chats that have gone quiet;
   // the person meets them only in the Learn section. Its settings and last run are the daemon's (daemon/passes-state.ts).
-  const recallStore = new RecallStore();
-  const recall = { owns: (id: string) => ownsRecallChat(recallStore, id) };
+  // recallStore and passChat: above, with the state (the desk listing needs them from the start).
   const learnStatus = () => {
     const passes = new PassState(paths.state);
     const s = passes.settings().learn;
@@ -371,8 +377,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   const titleRefreshes = new ScopeDebouncer();
   /** What each conversation was last told about its board tasks: the block rides along only when it changes. */
   const tasksNotice = new TasksNotice();
-  /** Helper agents' chats and the recall worker's own get no desk, and the tab does not follow them. */
-  const ignored = (e: ChatRef) => isSubagent(e.agentId) || recall.owns(e.chatId);
+  /** Helper agents' chats and the background passes' own get no desk, and the tab does not follow them. */
+  const ignored = (e: ChatRef) => isSubagent(e.agentId) || passChat(e.chatId);
 
   eventDisposers.push(
     api.events.on("chat_open", (e) => {
@@ -391,12 +397,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   eventDisposers.push(
     api.message.transform((m) => {
       if (isSubagent(m.agentId)) return undefined;
-      // The recall worker's conversation is a desk you can open, but its turns are the worker's: nothing rides along,
-      // the tab does not follow it, and it is never marked seen.
-      if (recall.owns(m.chatId)) {
-        desks.remember(m.chatId, m.agentId);
-        return undefined;
-      }
+      // A background pass's turn is the pass's: no desk, nothing rides along, the tab does not follow it.
+      if (passChat(m.chatId)) return undefined;
       const scope = desks.remember(m.chatId, m.agentId);
       activeScope = scope;
       const lines = [...gestures.drain(scope), ...(scope !== SHARED_SCOPE ? gestures.drain(SHARED_SCOPE) : [])];

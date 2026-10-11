@@ -27,6 +27,15 @@ export function ownsRecallChat(store: RecallStore, conversationId: string): bool
 }
 
 /**
+ * A background pass's own chat, which is never a desk, an inbox card or a chat in the list: Learn's (above) or
+ * reflection's (`reflection-<agent>`, daemon/memory.ts isReflectionChat). What they did shows as cards and memory
+ * changes instead.
+ */
+export function isPassChat(store: RecallStore, conversationId: string): boolean {
+  return ownsRecallChat(store, conversationId) || conversationId.startsWith("reflection-");
+}
+
+/**
  * The cards worth quoting to the model: those whose front, back or tags share a word of five letters or more
  * with the slices (tags of three or more), most shared words first, MAX_QUOTED_CARDS at most. The rest are on
  * disk for the model to grep — the prompt tells it where — so the quoted list stops growing with the deck.
