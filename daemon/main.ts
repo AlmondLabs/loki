@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
@@ -88,6 +89,11 @@ const credentials = await keychain().then(
   (backend) => new KeychainCredentials(backend),
   (error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined),
 );
+// The sign-in flows (ChatGPT, OpenRouter, GitHub Copilot…), imported statically. pi-ai loads each through a variable
+// path so a bundler cannot follow it, and in the release bundle (daemon.mjs) that path pointed beside the bundle at
+// files that are not there: every sign-in failed with "Cannot find module …/openai-chatgpt.js". Its Bun helper is
+// plain static imports, which suits Node and the bundle alike.
+registerBunOAuthFlows();
 const models = builtinModels(credentials ? { credentials } : {});
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
 // The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).

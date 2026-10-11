@@ -258,10 +258,18 @@ describe("LAN listener", () => {
         return { req, body: JSON.stringify({ code: c, name: "x" }), status };
       });
       await new Promise((r) => setTimeout(r, 200));
-      for (const r of reqs) r.req.end(r.body);
-      const statuses = await Promise.all(reqs.map((r) => r.status));
+      // The wrong codes' bodies all at once; the right one's only after they are answered, so it is the 31st attempt
+      // whatever order the listener reads bodies in (sent together, it was sometimes read before the tenth wrong one
+      // failed, and was rightly let in: macOS CI, 2026-10-11). It passed the first check with the others all the same.
+      const wrong = reqs.slice(0, -1);
+      const right = reqs[reqs.length - 1];
+      for (const r of wrong) r.req.end(r.body);
+      const statuses = await Promise.all(wrong.map((r) => r.status));
+      right.req.end(right.body);
+      statuses.push(await right.status);
       expect(statuses.filter((s) => s === 404)).toHaveLength(10);
       expect(statuses.filter((s) => s === 429)).toHaveLength(21);
+      expect(statuses.at(-1)).toBe(429); // the right code, past the tenth, waits too
       expect(f.devices.list()).toEqual([]);
     } finally {
       await f.lan.stop();
