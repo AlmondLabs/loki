@@ -131,9 +131,7 @@ export class ThreadModel {
           this.touch();
           return { changed: true, spoke: null };
         }
-        this.settle(step.at);
-        if (step.text.trim()) this.push({ role: "assistant", text: step.text.trim(), ...rowAt(step.at) });
-        return { changed: true, spoke: null };
+        return this.written(step.text, step.at);
       case "call":
         return { changed: this.call(step.name, step.args, step.id, step.at), spoke: null };
       case "approval":
@@ -143,6 +141,23 @@ export class ThreadModel {
       case "result":
         return { changed: this.result(step.id, step.output, step.failed), spoke: null };
     }
+  }
+
+  /**
+   * An answer as written (a history page's, or the daemon's when a live one is done): it takes the place of whatever
+   * streamed of it, never sits beside it. What streamed may differ from it (a retried attempt's pieces, a start this
+   * client joined too late to see), and kept as its own row it showed the reply twice. Empty, it clears the stream:
+   * the daemon's word that an attempt was dropped.
+   */
+  private written(text: string, at: string | null): { changed: boolean; spoke: string | null } {
+    const replaced = this.streamingText !== "";
+    this.streamingText = "";
+    this.streamingAt = null;
+    const t = text.trim();
+    if (t) this.push({ role: "assistant", text: t, ...rowAt(at) });
+    else if (replaced) this.touch();
+    if (t) this.settled?.(t); // live only: a history page comes through load, not here
+    return { changed: replaced || t !== "", spoke: null };
   }
 
   /** Close the streaming reply into a row. True when there was one. */
