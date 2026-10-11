@@ -39,6 +39,29 @@ describe("providers on the daemon", () => {
     expect(secrets.entries.has("provider:anthropic")).toBe(false);
   });
 
+  test("a key the provider refuses puts back the one kept before, or nothing when there was none", async () => {
+    const secrets = memorySecrets();
+    const credentials = new KeychainCredentials(secrets);
+    const models = createModels({ credentials });
+    const base = fauxProvider().provider;
+    models.setProvider({
+      ...base,
+      id: "fake-key",
+      name: "Fake",
+      auth: { apiKey: { name: "Fake key", login: async () => ({ type: "api_key", key: "" }), resolve: async ({ credential }: { credential?: { key?: string } }) => (credential?.key ? { auth: { apiKey: credential.key } } : undefined) } },
+      refreshModels: async (context: { credential?: unknown }) => {
+        const credential = context.credential as { key?: string } | undefined;
+        if (credential?.key !== "good") throw new Error("401 invalid key");
+      },
+    } as never);
+    const providers = new Providers(models, credentials);
+    await expect(providers.connectKey("fake-key", "typo")).rejects.toThrow("did not accept the key");
+    expect(secrets.entries.has("provider:fake-key")).toBe(false);
+    await providers.connectKey("fake-key", "good");
+    await expect(providers.connectKey("fake-key", "typo")).rejects.toThrow("the one kept before is still in use");
+    expect(JSON.parse(secrets.entries.get("provider:fake-key")!)).toEqual({ type: "api_key", key: "good" });
+  });
+
   test("an empty key, or one for a provider that takes none, is refused", async () => {
     const { providers } = setup();
     await expect(providers.connectKey("anthropic", "   ")).rejects.toThrow("empty");

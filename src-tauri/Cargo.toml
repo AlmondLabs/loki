@@ -49,6 +49,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 [target.'cfg(any(windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
 
-# Linux only: PR_SET_PDEATHSIG, so the daemon dies with loki (harness.rs `die_with_loki`).
-[target.'cfg(target_os = "linux")'.dependencies]
+# Unix: SIGTERM to the daemon on stop (harness.rs `terminate`); on Linux also PR_SET_PDEATHSIG, so the daemon dies
+# with loki (harness.rs `die_with_loki`).
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"

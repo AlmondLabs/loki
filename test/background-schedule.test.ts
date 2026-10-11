@@ -39,6 +39,33 @@ describe("background tasks", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(notices[0]).toContain("<status>stopped (SIGTERM)</status>");
   });
+  test("writing to a task whose input has closed does not take the daemon down", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const id = tasks.start("agent-a", "c", tmpdir(), "sleep 30");
+    // An EPIPE from a write arrives as an 'error' on the input stream; with no listener it would be thrown.
+    tasks["tasks"].get(id)!.child.stdin!.emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+    expect(await tasks.wait(id, "agent-a", "EPIPE", 2000)).toContain("EPIPE");
+    tasks.stop(id, "agent-a");
+  });
+
+
+  test("a character split across two chunks of output arrives whole", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const id = tasks.start("agent-a", "c", tmpdir(), "printf '\\303'; sleep 0.1; printf '\\251\\n'");
+    expect(await tasks.wait(id, "agent-a", undefined, 3000)).toContain("é");
+  });
+
+
+  test("finished tasks are forgotten after a while; a running one is kept", async () => {
+    const tasks = new BackgroundTasks(() => {});
+    const done = tasks.start("agent-a", "c", tmpdir(), "true");
+    const running = tasks.start("agent-a", "c", tmpdir(), "sleep 30");
+    await tasks.wait(done, "agent-a", undefined, 3000);
+    tasks["prune"](Date.now() + 2 * 60 * 60_000);
+    expect(() => tasks.output(done, "agent-a")).toThrow("no background task");
+    expect(tasks.output(running, "agent-a")).toContain("[running]");
+    tasks.stopAll();
+  });
 });
 
 describe("a stop the task's processes cannot all hear", () => {
@@ -121,6 +148,34 @@ describe("scheduled tasks", () => {
       expect(() => schedules.create({ ...base, cron: "every day", timezone: "UTC" })).toThrow();
       expect(() => schedules.create({ ...base, cron: "0 9 * * *", timezone: "Mars/Olympus" })).toThrow();
       expect(schedules.list()).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("a task made or cancelled while another fires is kept, and a tick during a slow firing does not fire twice", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
+    try {
+      const fired: string[] = [];
+      let release = () => {};
+      const base = { agent_id: "agent-a", conversation_id: "c", description: null, timezone: "UTC", recurring: true };
+      const schedules: Schedules = new Schedules(join(dir, "crons.json"), async (_a, _c, text) => {
+        fired.push(text);
+        // The agent, in the fired turn, makes a new task and cancels another before the tick ends.
+        schedules.create({ ...base, name: "later", cron: "0 18 * * *", prompt: "evening" }, new Date("2026-10-10T09:00:00Z"));
+        schedules.cancel("agent-a", "other");
+        await new Promise<void>((r) => (release = r));
+      });
+      const made = new Date("2026-10-10T00:00:00Z");
+      schedules.create({ ...base, name: "standup", cron: "0 9 * * *", prompt: "post" }, made);
+      schedules.create({ ...base, name: "other", cron: "0 12 * * *", prompt: "noon" }, made);
+      const first = schedules.tick(new Date("2026-10-10T09:00:00Z"));
+      await new Promise((r) => setTimeout(r, 10));
+      expect(await schedules.tick(new Date("2026-10-10T09:00:30Z"))).toBe(0);
+      release();
+      expect(await first).toBe(1);
+      expect(fired).toHaveLength(1);
+      expect(schedules.list().map((t) => [t.name, t.status, t.fire_count])).toEqual([["standup", "active", 1], ["other", "cancelled", 0], ["later", "active", 0]]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

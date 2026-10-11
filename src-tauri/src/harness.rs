@@ -1,6 +1,7 @@
 //! loki's daemon (plan 017): `node <daemon> --loki-daemon …` on the machine's Node (node.rs), hosting the mod and
 //! serving the app, with loki's token file as its capability token. Started at launch, restarted when it dies
-//! (supervise_daemon in lib.rs), killed when the app quits.
+//! (supervise_daemon in lib.rs), stopped when the app quits: SIGTERM first, so the daemon closes its stores and ends
+//! the agents' background tasks (daemon/main.ts `stop`), then SIGKILL if it has not gone within STOP_GRACE.
 //!
 //! On Windows it runs with no console window, inside a Job Object that kills the whole tree when loki's handle
 //! closes — quitting, or loki dying, never leaves a node holding the daemon's folder. On Linux it is started with
@@ -18,7 +19,13 @@ pub struct Harness {
     slot: Mutex<Option<Running>>,
     /// Set by `stop`: the supervisor (supervise_daemon in lib.rs) does not restart a child loki stopped itself.
     stopped: std::sync::atomic::AtomicBool,
+    /// Counts `stop`s: a start that a stop overtook (loki quitting while a daemon was being spawned) ends the child it
+    /// made instead of keeping it.
+    stops: std::sync::atomic::AtomicU64,
 }
+
+/// How long a daemon asked to stop has to close its stores before it is killed.
+pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The daemon loki started: the child, and on Windows the Job Object that owns its process tree.
 pub struct Running {
@@ -87,6 +94,8 @@ impl Harness {
     }
 
     fn spawn(&self, mut cmd: Command, log: &Path) -> Result<(), String> {
+        use std::sync::atomic::Ordering::SeqCst;
+        let stops = self.stops.load(SeqCst);
         if let Some(dir) = log.parent() { std::fs::create_dir_all(dir).map_err(|e| e.to_string())?; }
         let log = std::fs::OpenOptions::new().create(true).append(true).open(log).map_err(|e| e.to_string())?;
         let name = cmd_name(&cmd);
@@ -104,24 +113,59 @@ impl Harness {
         };
         #[cfg(not(windows))]
         let running = Running { child };
-        self.kill_child();
-        self.stopped.store(false, std::sync::atomic::Ordering::SeqCst);
-        if let Ok(mut g) = self.slot.lock() { *g = Some(running); }
+        self.install(running, stops, &name)
+    }
+
+    /// Put a just-spawned child in the slot, unless a `stop` came after the start read the stop count (`stops`). The
+    /// slot and the count are checked together, so a `stop` lands either before (this child is ended here) or after
+    /// (it finds this child in the slot) — never in between, leaving it running with no owner.
+    fn install(&self, running: Running, stops: u64, name: &str) -> Result<(), String> {
+        use std::sync::atomic::Ordering::SeqCst;
+        let previous = {
+            let mut g = self.slot.lock().map_err(|_| "the harness slot is poisoned".to_string())?;
+            if self.stops.load(SeqCst) != stops {
+                drop(g);
+                terminate(running);
+                return Err(format!("{name} was stopped while it started"));
+            }
+            self.stopped.store(false, SeqCst);
+            g.replace(running)
+        };
+        if let Some(old) = previous { terminate(old); }
         Ok(())
     }
 
-    /// Kill the daemon and wait for it; on Windows closing the job then takes the rest of its tree.
+    /// Stop the daemon and wait for it; on Windows closing the job then takes the rest of its tree.
     pub fn stop(&self) {
-        self.stopped.store(true, std::sync::atomic::Ordering::SeqCst);
-        self.kill_child();
+        use std::sync::atomic::Ordering::SeqCst;
+        let running = self.slot.lock().ok().and_then(|mut g| {
+            self.stopped.store(true, SeqCst);
+            self.stops.fetch_add(1, SeqCst);
+            g.take()
+        });
+        if let Some(running) = running { terminate(running); }
     }
+}
 
-    fn kill_child(&self) {
-        if let Some(Running { mut child, .. }) = self.slot.lock().ok().and_then(|mut g| g.take()) {
-            let _ = child.kill();
-            let _ = child.wait();
+/// End a daemon: SIGTERM and up to STOP_GRACE for it to go on its own (closing its stores, stopping its background
+/// tasks), then SIGKILL. Windows has no SIGTERM to send; there the kill and the job take the tree at once.
+fn terminate(mut running: Running) {
+    let child = &mut running.child;
+    #[cfg(unix)]
+    {
+        if let Ok(pid) = libc::pid_t::try_from(child.id()) {
+            // Safety: a plain kill(2) on the child we own and have not yet waited on, so the pid is still ours.
+            if unsafe { libc::kill(pid, libc::SIGTERM) } == 0 {
+                let until = std::time::Instant::now() + STOP_GRACE;
+                while std::time::Instant::now() < until {
+                    if !matches!(child.try_wait(), Ok(None)) { return; }
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                }
+            }
         }
     }
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 /// The program a command runs, for an error message.
@@ -263,6 +307,46 @@ mod tests {
     fn a_daemon_that_keeps_dying_is_restarted_ever_more_slowly_up_to_thirty_seconds() {
         let secs: Vec<u64> = (0..8).map(|n| restart_delay(n).as_secs()).collect();
         assert_eq!(secs, [1, 2, 4, 8, 16, 30, 30, 30]);
+    }
+
+    /// A child asked to stop gets SIGTERM and the chance to finish; one that ignores it is killed after the grace.
+    #[cfg(unix)]
+    #[test]
+    fn stopping_asks_the_daemon_to_go_before_it_kills_it() {
+        let dir = std::env::temp_dir().join(format!("loki-harness-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let marker = dir.join("terminated");
+        let _ = std::fs::remove_file(&marker);
+        let h = Harness::default();
+        let mut polite = Command::new("sh");
+        polite.arg("-c").arg(format!("trap 'touch {}; exit 0' TERM; while :; do sleep 0.05; done", marker.display()));
+        h.spawn(polite, &dir.join("polite.log")).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        h.stop();
+        assert!(marker.exists(), "the daemon's SIGTERM handler ran");
+        let started = std::time::Instant::now();
+        let mut stubborn = Command::new("sh");
+        stubborn.arg("-c").arg("trap '' TERM; while :; do sleep 0.05; done");
+        h.spawn(stubborn, &dir.join("stubborn.log")).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        h.stop();
+        assert!(started.elapsed() >= STOP_GRACE, "killed only after the grace");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_start_that_a_stop_overtook_ends_its_child_instead_of_keeping_it() {
+        let h = Harness::default();
+        let seen = h.stops.load(std::sync::atomic::Ordering::SeqCst);
+        // The stop lands while the child is being spawned: after the start read the count, before it filled the slot.
+        h.stop();
+        let child = Command::new("sleep").arg("30").spawn().unwrap();
+        let pid = child.id() as libc::pid_t;
+        assert!(h.install(Running { child }, seen, "sleep").is_err());
+        assert!(h.was_stopped(), "the stop still holds: the supervisor leaves it down");
+        assert!(h.exited().is_none(), "nothing kept in the slot");
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1, "the child is gone");
     }
 
     #[test]

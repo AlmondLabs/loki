@@ -173,6 +173,68 @@ describe("background passes", () => {
     }
   });
 
+  test("a failed run tried again asks the model again rather than getting the old submission back", async () => {
+    const s = await setup();
+    try {
+      s.faux.setResponses([fauxAssistantMessage("one")]);
+      await s.say("c", LONG);
+      await s.runner.sweep();
+      expect(s.events.at(-1)).toMatchObject({ outcome: "failed" });
+      s.faux.appendResponses([fauxAssistantMessage("kept")]);
+      await s.runner.sweep();
+      expect(s.events.at(-1)).toMatchObject({ outcome: "changed", items: { kept: 1 } });
+      expect(s.events.at(-1)!.request_id).not.toBe(s.events.at(-2)!.request_id);
+      expect(s.faux.getPendingResponseCount()).toBe(0);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a run that hangs is stopped past its limit and counted as failed, and the queue moves on", async () => {
+    const s = await setup();
+    try {
+      s.runner["deps"].runTimeoutMs = 100;
+      const hang = (_c: unknown, options: { signal?: AbortSignal } | undefined) =>
+        new Promise<never>((_r, reject) => options?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+      s.faux.setResponses([fauxAssistantMessage("one"), fauxAssistantMessage("two"), hang, fauxAssistantMessage("kept")]);
+      await s.say("a", LONG);
+      await s.say("b", LONG);
+      await s.runner.sweep();
+      expect(s.events.map((e) => [e.chat, e.outcome])).toEqual([["a", "failed"], ["b", "changed"]]);
+      expect(s.reports.some((r) => r.includes("did not finish within"))).toBe(true);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a run whose checks throw still settles its caller, as failed", async () => {
+    const s = await setup();
+    try {
+      s.faux.setResponses([fauxAssistantMessage("one")]);
+      await s.say("c", LONG);
+      s.runner["deps"].busy = async () => {
+        throw new Error("no doc");
+      };
+      expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("failed");
+      expect(s.events.at(-1)).toMatchObject({ outcome: "failed" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a run with nothing new still records how it ended", async () => {
+    const s = await setup();
+    try {
+      s.faux.setResponses([fauxAssistantMessage("one")]);
+      await s.say("c", LONG);
+      s.state.setCursor("reflection", s.agentId, "c", s.chats.answers("c", s.agentId, 0).entries);
+      expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("nothing");
+      expect(s.events.at(-1)).toMatchObject({ outcome: "nothing", entries_read: 0 });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a new runner over the same state neither rereads a finished stretch nor loses an unread one", async () => {
     const s = await setup();
     try {
