@@ -39,7 +39,7 @@ pub fn move_root(home: &Path) -> Result<RootMove, String> {
         return Ok(RootMove::Fresh);
     }
     if std::fs::symlink_metadata(&new).is_ok() {
-        return Err(format!("both {} and {} exist; loki runs on {} until {} is moved aside", old.display(), new.display(), old.display(), new.display()));
+        return Err(format!("both {} and {} exist; neither is moved, and loki runs on the one that holds its data (root_in_use)", old.display(), new.display()));
     }
     std::fs::rename(&old, &new).map_err(|e| format!("moving {} to {}: {e}", old.display(), new.display()))?;
     if let Err(e) = link(&new, &old) {
@@ -51,12 +51,22 @@ pub fn move_root(home: &Path) -> Result<RootMove, String> {
 }
 
 /// The root loki runs on once `move_root` has had its turn: the new one, unless the move failed with the old folder
-/// still a real folder (not the link a finished move leaves) — then the old one, so a failed move never starts loki
-/// on an empty root beside the person's data.
+/// still a real folder (not the link a finished move leaves). Then it is the new one if that holds loki's data (an
+/// earlier loki moved or imported there, and something made a real folder at the old path again since), else the old
+/// one, so a failed move never starts loki on an empty root beside the person's data. (2026.1011.2 chose the old one
+/// whenever both were real folders, and a Mac whose agents were in ~/.loki opened on an empty stale ~/.letta/loki.)
 pub fn root_in_use(home: &Path, moved: &Result<RootMove, String>) -> PathBuf {
     let (old, new) = roots(home);
     let old_is_dir = std::fs::symlink_metadata(&old).map(|m| m.is_dir()).unwrap_or(false);
-    if moved.is_err() && old_is_dir { old } else { new }
+    if moved.is_err() && old_is_dir && !holds_data(&new) { old } else { new }
+}
+
+/// Whether `root` holds loki's own data: an agent record, or an agent's chat store.
+fn holds_data(root: &Path) -> bool {
+    let any = |dir: PathBuf, ext: &str| {
+        std::fs::read_dir(dir).map(|entries| entries.flatten().any(|e| e.path().extension().is_some_and(|x| x == ext))).unwrap_or(false)
+    };
+    any(root.join("backend").join("agents"), "json") || any(root.join("stores"), "sqlite")
 }
 
 #[cfg(unix)]
@@ -155,15 +165,39 @@ mod tests {
     }
 
     #[test]
-    fn two_roots_are_left_alone() {
+    fn two_roots_are_left_alone_and_loki_runs_on_the_one_with_its_data() {
         let home = tmp("both");
         let (old, new) = roots(&home);
         std::fs::create_dir_all(&old).unwrap();
         std::fs::create_dir_all(&new).unwrap();
         let moved = move_root(&home);
-        assert!(moved.as_ref().unwrap_err().contains(&format!("loki runs on {}", old.display())));
-        assert!(std::fs::symlink_metadata(&old).unwrap().is_dir());
-        assert_eq!(root_in_use(&home, &moved), old, "the old folder, as the message says");
+        assert!(moved.as_ref().unwrap_err().contains("both"));
+        assert!(std::fs::symlink_metadata(&old).unwrap().is_dir(), "neither is moved");
+        // neither holds loki's data: the old folder, as before
+        assert_eq!(root_in_use(&home, &moved), old);
+        // the new one holds the agents (an earlier loki imported there): the new one, whatever the old holds
+        let put = |root: &Path, rel: &str| {
+            let file = root.join(rel);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, "{}").unwrap();
+        };
+        put(&new, "backend/agents/YWdlbnQ.json");
+        assert_eq!(root_in_use(&home, &moved), new);
+        put(&old, "backend/agents/dGVzdA.json"); // an agent made on the old folder meanwhile does not win
+        assert_eq!(root_in_use(&home, &moved), new);
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn a_chat_store_counts_as_data_too() {
+        let home = tmp("stores");
+        let (old, new) = roots(&home);
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::create_dir_all(new.join("stores")).unwrap();
+        let moved = move_root(&home);
+        assert_eq!(root_in_use(&home, &moved), old, "an empty stores folder is not data");
+        std::fs::write(new.join("stores").join("agent-local-a.sqlite"), "").unwrap();
+        assert_eq!(root_in_use(&home, &moved), new);
         let _ = std::fs::remove_dir_all(&home);
     }
 }
