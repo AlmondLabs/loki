@@ -1,25 +1,41 @@
-import { Component, useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
-import { getPath, mergeData } from "../../../core/desk-core.ts";
-import type { KitProps } from "../kit";
+import { WIDGET_MAX_WIDTH, getPath, mergeData } from "../../../core/desk-core.ts";
+import { inTauri, openExternal, platform } from "./env";
+import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widgetBridge";
 
 /**
- * Mounts an agent-authored module from app/src/widgets/<desk>/<name>.tsx.
- * Vite's glob knows every widget file; HMR swaps the module when the agent
- * edits it. Runtime errors land in an in-frame boundary and go back to the
- * mod so desk_state (and the next turn) can report them.
+ * Mounts an agent-authored module from ~/.loki/widgets/<desk>/<name>.tsx in a sandboxed iframe
+ * (`allow-scripts` only: an opaque origin). Agent-written code never runs in the page: there it could read the
+ * daemon token and approve its own commands. The frame (app/src/frame/) has its own React and kit; this side
+ * hands it the module, the data overlay, the page's styles and theme, and reads back only what widgetBridge.ts
+ * lets through. A new hash reloads the module in place; load and render errors show here and go back to the mod
+ * so desk_state (and the next turn) can report them.
  */
-declare const __LOKI_WIDGETS_DIR__: string;
-import { inTauri } from "./env";
-// "@desks" is aliased to the widgets dir in vite.config.ts. Keys come back in whatever form Vite
-// resolves them to, so lookups match on the "<desk>/<name>.ext" suffix.
-// Dev only: Vite pre-registers the agent's widget files so HMR reaches them. A production build
-// must not bundle files from ~/.loki; there widgets arrive compiled from the shell (loki://) instead.
-const loaders: Record<string, () => Promise<Record<string, unknown>>> = import.meta.env.DEV ? import.meta.glob<Record<string, unknown>>("@desks/*/*.{tsx,jsx}") : {};
-const loaderFor = (file: string) => {
-  const suffix = `/${file}`;
-  const key = Object.keys(loaders).find((k) => k.endsWith(suffix));
-  return key ? loaders[key] : undefined;
+
+/** The frame body's padding and border, inside WidgetFrame's reading width. */
+const CHROME = 26;
+/** A frame that has not said it started by now never will (its script was blocked, say). */
+const BOOT_TIMEOUT_MS = 10_000;
+/** At most one link opened per this long: a widget cannot flood the browser. */
+const OPEN_EVERY_MS = 1500;
+
+/** The page's stylesheets as text, for the frame: the tokens, the kit's classes and Tailwind's utilities. */
+function pageCss(): string {
+  let out = "";
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      for (const rule of Array.from(sheet.cssRules)) out += `${rule.cssText}\n`;
+    } catch {
+      // a sheet from another origin: not ours to copy
+    }
+  }
+  return out;
+}
+
+const themeOf = () => {
+  const d = document.documentElement.dataset;
+  return { theme: d.theme ?? "dark", palette: d.palette ?? "loki" };
 };
 
 export function ModuleWidget({
@@ -27,85 +43,159 @@ export function ModuleWidget({
   overlay,
   gesture,
   onError,
+  fill = false,
 }: {
   entry: WidgetManifestEntry;
   overlay: Record<string, unknown> | undefined;
   gesture: (g: Gesture) => void;
   onError: (id: string, message: string | null) => void;
+  /** Fill the width it is given (a frame the human sized, a card in the thread) rather than size to the content. */
+  fill?: boolean;
 }) {
-  const [Comp, setComp] = useState<ComponentType<KitProps> | null>(null);
-  const [moduleData, setModuleData] = useState<Record<string, unknown>>({});
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  /** Bumped each time the frame (re)starts, so everything it needs is sent again. */
+  const [boot, setBoot] = useState(0);
+  const [loaded, setLoaded] = useState<{ hash: string; data: Record<string, unknown> } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+
+  // The latest of everything the message handler reads, without re-subscribing on each render.
+  const live = useRef({ entry, overlay, gesture, onError, moduleData: loaded?.data ?? {}, lastOpen: 0 });
+  useEffect(() => {
+    live.current = { ...live.current, entry, overlay, gesture, onError, moduleData: loaded?.data ?? {} };
+  });
+
+  const send = (msg: { type: ToFrame["type"] } & Record<string, unknown>) => {
+    // The frame's origin is opaque ("null"), which postMessage cannot name: "*". Nothing sent here is secret.
+    frameRef.current?.contentWindow?.postMessage({ bridge: BRIDGE, ...msg }, "*");
+  };
 
   useEffect(() => {
-    let alive = true;
-    let attempt = 0;
-    let retry: ReturnType<typeof setTimeout> | null = null;
-
-    // The mod's manifest and Vite's HMR race by a few hundred ms. A failed ES import is cached by
-    // URL, so after the glob loader rejects we fall back to a hash-busted direct import, and retry.
-    const load = async (): Promise<Record<string, unknown>> => {
-      const viaGlob = loaderFor(entry.file);
-      if (viaGlob) {
-        try {
-          return await viaGlob();
-        } catch {
-          // fall through
+    const onMessage = (e: MessageEvent) => {
+      const m = readFrameMessage(e, frameRef.current?.contentWindow);
+      if (!m) return;
+      const { entry, gesture, onError } = live.current;
+      switch (m.type) {
+        case "ready":
+          setBoot((b) => b + 1);
+          return;
+        case "loaded":
+          if (m.hash !== entry.hash) return;
+          setLoaded({ hash: m.hash, data: m.data });
+          setError(null);
+          onError(entry.id, null);
+          if (inTauri) console.info(`widget loaded: ${entry.id}`);
+          return;
+        case "error":
+          // "boot": the frame itself failed to start (app/src/frame/build.ts, BOOT_REPORTER), whatever module it was to run
+          if (m.hash !== entry.hash && m.hash !== "boot") return;
+          setError(m.message);
+          onError(entry.id, m.message);
+          return;
+        case "set": {
+          const data = mergeData(live.current.moduleData, live.current.overlay);
+          gesture({ kind: "set", id: entry.id, path: m.path, value: m.value, prev: getPath(data, m.path) });
+          return;
+        }
+        case "size":
+          setSize((s) => (s && s.width === m.width && s.height === m.height ? s : { width: m.width, height: m.height }));
+          return;
+        case "focus":
+          gesture({ kind: "focus", id: entry.id });
+          return;
+        case "open": {
+          const now = Date.now();
+          if (now - live.current.lastOpen < OPEN_EVERY_MS) return;
+          live.current.lastOpen = now;
+          openExternal(m.url);
+          return;
         }
       }
-      // Tauri: the Rust core transpiles the file on request and rewrites its bare imports to the
-      // app's shared copies (window.__lokiShared). Browser: Vite serves the file from disk.
-      const direct = inTauri
-        ? `loki://localhost/widgets/${entry.file.replace(/\.(tsx|jsx)$/, ".js")}?v=${entry.hash}`
-        : `/@fs${__LOKI_WIDGETS_DIR__}/${entry.file}?v=${entry.hash}`;
-      return (await import(/* @vite-ignore */ direct)) as Record<string, unknown>;
     };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
-    const tryLoad = () => {
-      load()
-        .then((mod) => {
-          if (!alive) return;
-          const C = mod.default as ComponentType<KitProps> | undefined;
-          if (typeof C !== "function") {
-            const msg = "module has no default-exported component";
-            setLoadError(msg);
-            onError(entry.id, msg);
-            return;
-          }
-          if (inTauri) console.info(`widget loaded: ${entry.id}`);
-          setComp(() => C);
-          setModuleData(typeof mod.data === "object" && mod.data !== null ? (mod.data as Record<string, unknown>) : {});
-          setLoadError(null);
-          onError(entry.id, null);
-        })
-        .catch((err) => {
-          if (!alive) return;
-          if (attempt++ < 3) {
-            retry = setTimeout(tryLoad, 400);
-            return;
-          }
-          const msg = err instanceof Error ? err.message : String(err);
-          setLoadError(msg);
-          onError(entry.id, msg);
-        });
+  // A frame that never starts says so, rather than "loading…" for ever.
+  useEffect(() => {
+    if (boot > 0) return;
+    const t = setTimeout(() => {
+      const msg = "widget frame did not start";
+      setError(msg);
+      live.current.onError(live.current.entry.id, msg);
+    }, BOOT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [boot]);
+
+  // Styles and theme: once per start, and again whenever the page's theme changes.
+  useEffect(() => {
+    if (!boot) return;
+    send({ type: "style", css: pageCss(), ...themeOf() });
+    const mo = new MutationObserver(() => send({ type: "style", css: pageCss(), ...themeOf() }));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette"] });
+    return () => mo.disconnect();
+  }, [boot]);
+
+  useEffect(() => {
+    if (boot) send({ type: "layout", fill, maxWidth: WIDGET_MAX_WIDTH - CHROME });
+  }, [boot, fill]);
+
+  // The module: on start and on every new hash (the agent rewrote the file).
+  useEffect(() => {
+    if (!boot) return;
+    let alive = true;
+    const fail = (msg: string) => {
+      if (!alive) return;
+      setError(msg);
+      live.current.onError(entry.id, msg);
     };
-    tryLoad();
+    const source = widgetSource(entry.file, entry.hash, { tauri: inTauri, os: platform, dev: import.meta.env.DEV });
+    if (!source) fail("custom widgets run in the loki app");
+    else if ("url" in source) send({ type: "load", hash: entry.hash, url: source.url });
+    else {
+      fetch(source.fetch)
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`${entry.file}: ${r.status} ${await r.text()}`);
+          return r.text();
+        })
+        .then((code) => alive && send({ type: "load", hash: entry.hash, code }))
+        .catch((err) => fail(err instanceof Error ? err.message : String(err)));
+    }
     return () => {
       alive = false;
-      if (retry) clearTimeout(retry);
     };
-  }, [entry.id, entry.file, entry.hash, onError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot, entry.file, entry.hash]);
 
-  if (entry.error && !Comp) return <WidgetError message={entry.error} />;
-  if (loadError) return <WidgetError message={loadError} />;
-  if (!Comp) return <div className="loki-muted" style={{ fontSize: 12 }}>loading…</div>;
+  useEffect(() => {
+    if (boot) send({ type: "data", overlay: overlay ?? null });
+  }, [boot, overlay]);
 
-  const data = mergeData(moduleData, overlay);
-  const onSet = (path: string, value: unknown) => gesture({ kind: "set", id: entry.id, path, value, prev: getPath(data, path) });
+  const current = loaded?.hash === entry.hash;
+  const shown = error ?? (entry.error && !current ? entry.error : null);
+  const visible = !shown && !!loaded;
   return (
-    <WidgetErrorBoundary key={entry.hash} id={entry.id} onError={onError}>
-      <Comp data={data} onSet={onSet} />
-    </WidgetErrorBoundary>
+    <>
+      {shown && <WidgetError message={shown} />}
+      {!shown && !loaded && <div className="loki-muted" style={{ fontSize: 12 }}>loading…</div>}
+      <iframe
+        ref={frameRef}
+        src={FRAME_PATH}
+        sandbox={WIDGET_SANDBOX}
+        title={entry.title}
+        referrerPolicy="no-referrer"
+        data-widget-frame={entry.id}
+        style={{
+          display: "block",
+          border: 0,
+          background: "transparent",
+          width: fill ? "100%" : (size?.width ?? 0),
+          maxWidth: "100%",
+          height: visible ? (size?.height ?? 0) : 0,
+          visibility: visible ? "visible" : "hidden",
+        }}
+      />
+    </>
   );
 }
 

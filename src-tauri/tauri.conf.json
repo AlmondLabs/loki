@@ -11,8 +11,8 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self' loki: ipc: http://ipc.localhost; script-src 'self' loki:; style-src 'self' 'unsafe-inline'; img-src 'self' loki: data: blob: http://127.0.0.1:* https:; font-src 'self' data:; connect-src 'self' loki: ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https: wss:; media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'",
-      "devCsp": "default-src 'self' loki: http://127.0.0.1:5173 ipc: http://ipc.localhost; script-src 'self' loki: http://127.0.0.1:5173 'unsafe-inline' 'unsafe-eval'; style-src 'self' http://127.0.0.1:5173 'unsafe-inline'; img-src 'self' loki: data: blob: http://127.0.0.1:* https:; font-src 'self' data:; connect-src 'self' loki: ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https: wss:; media-src 'self' blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'"
+      "csp": "default-src 'self' loki: ipc: http://ipc.localhost; script-src 'self' loki: http://loki.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' loki: data: blob: http://127.0.0.1:* https:; font-src 'self' data:; connect-src 'self' loki: ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https: wss:; media-src 'self' blob: data:; frame-src tauri://localhost/widget-frame.html http://tauri.localhost/widget-frame.html; object-src 'none'; base-uri 'none'",
+      "devCsp": "default-src 'self' loki: http://127.0.0.1:5173 ipc: http://ipc.localhost; script-src 'self' loki: http://loki.localhost http://127.0.0.1:5173 'unsafe-inline' 'unsafe-eval'; style-src 'self' http://127.0.0.1:5173 'unsafe-inline'; img-src 'self' loki: data: blob: http://127.0.0.1:* https:; font-src 'self' data:; connect-src 'self' loki: ipc: http://ipc.localhost http://127.0.0.1:* ws://127.0.0.1:* https: wss:; media-src 'self' blob: data:; frame-src http://127.0.0.1:5173/widget-frame.html; object-src 'none'; base-uri 'none'"
     }
   },
   "bundle": {

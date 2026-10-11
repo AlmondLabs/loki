@@ -69,12 +69,15 @@ fn page_os(os: &str) -> &'static str {
     }
 }
 
+/// What the page is told before its scripts run: the daemon token, the mod's port, the desk to open and the system.
+/// Only the app's own top-level page gets it: Tauri adds initialization scripts to subframes on Windows, and an
+/// agent-written widget runs in a sandboxed subframe that must never see the token (app/src/desk/widgetBridge.ts).
 fn init_script() -> String {
     let token = read_token().unwrap_or_default();
     let mod_port: u16 = std::env::var("LOKI_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(41414);
     let desk = std::env::var("LOKI_DESK").ok();
     format!(
-        "window.__LOKI__ = {{ token: {token}, modPort: {port}, desk: {desk}, os: \"{os}\" }};",
+        "if (window.top === window) {{ window.__LOKI__ = {{ token: {token}, modPort: {port}, desk: {desk}, os: \"{os}\" }}; }}",
         token = serde_json::to_string(&token).unwrap_or_else(|_| "\"\"".into()),
         port = mod_port,
         desk = serde_json::to_string(&desk).unwrap_or_else(|_| "null".into()),
@@ -452,6 +455,9 @@ mod tests {
         assert_eq!(page_os("linux"), "linux");
         assert_eq!(page_os("freebsd"), "linux");
         let expected = if cfg!(target_os = "macos") { "macos" } else if cfg!(windows) { "windows" } else { "linux" };
-        assert!(init_script().ends_with(&format!(", os: \"{expected}\" }};")), "the script ends with the os (not printed: it carries the token)");
+        let script = init_script();
+        assert!(script.ends_with(&format!(", os: \"{expected}\" }}; }}")), "the script ends with the os (not printed: it carries the token)");
+        // Only the top-level page: a widget's sandboxed frame, which Windows also runs it in, gets nothing.
+        assert!(script.starts_with("if (window.top === window) { window.__LOKI__ = "), "the token is set in the top-level window only");
     }
 }

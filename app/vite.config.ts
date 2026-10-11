@@ -2,9 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
-import { mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
+import { transform } from "esbuild";
+import { buildFrameHtml } from "./src/frame/build.ts";
+import { rewriteSharedImports } from "./src/frame/rewrite.ts";
 
 /**
  * The canvas dev server. The loki mod adopts or spawns it and passes its own
@@ -19,9 +22,28 @@ const repo = (repository ?? "").replace(/^github:/, "").replace(/^https?:\/\/git
 /** The agent's widget files: user data outside the repo (the mod passes the same path). */
 const widgetsDir = process.env.LOKI_WIDGETS_DIR ?? join(homedir(), ".loki", "widgets");
 mkdirSync(widgetsDir, { recursive: true });
-/** The same folder by its real path: Rollup names a file by where a link leads (~/.letta/loki → ~/.loki), not by the link. */
-const widgetsReal = realpathSync(widgetsDir);
-const inWidgets = (id: string) => id.startsWith(widgetsDir) || id.startsWith(widgetsReal);
+
+/**
+ * `/@loki-widget/<desk>/<name>.js` in the dev server: the Vite tab's twin of src-tauri/src/widgets.rs. The
+ * widget's .tsx/.jsx, transpiled and with its shared imports pointed at the widget frame's copies. Same-origin
+ * only (no CORS header): the page fetches it and hands the code to the widget's sandboxed frame.
+ */
+async function widgetModule(rel: string): Promise<string | null> {
+  if (rel.includes("..") || rel.startsWith("/") || rel.includes("\\") || rel.includes(":") || !rel.endsWith(".js")) return null;
+  const stem = rel.slice(0, -3);
+  for (const ext of ["tsx", "jsx"] as const) {
+    const file = join(widgetsDir, `${stem}.${ext}`);
+    if (!existsSync(file)) continue;
+    try {
+      const out = await transform(readFileSync(file, "utf8"), { loader: ext, jsx: "automatic", format: "esm", target: "es2022", sourcefile: file });
+      return rewriteSharedImports(out.code);
+    } catch (err) {
+      // A compile error becomes a module that throws, so the frame shows it like a runtime error (as widgets.rs does).
+      return `throw new Error(${JSON.stringify(`${file}: ${err instanceof Error ? err.message : String(err)}`)});`;
+    }
+  }
+  return null;
+}
 
 function compilerOptions() {
   const base = {
@@ -51,8 +73,6 @@ export default defineConfig({
   build: {
     outDir: here("dist"),
     emptyOutDir: true,
-    // The agent's widget files are dev-time HMR targets only; a production build must not pull them in.
-    rollupOptions: { external: inWidgets },
   },
   plugins: [
     {
@@ -70,6 +90,44 @@ export default defineConfig({
         server.watcher.add(widgetsDir);
       },
     },
+    {
+      // The widget frame (app/src/frame/build.ts) and the widget modules it runs: served in dev, emitted in a build.
+      name: "loki:widget-frame",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const url = new URL(req.url ?? "/", "http://x");
+          const send = (type: string, body: string) => {
+            res.statusCode = 200;
+            res.setHeader("Content-Type", type);
+            res.setHeader("Cache-Control", "no-store");
+            res.end(body);
+          };
+          if (url.pathname === "/widget-frame.html") {
+            buildFrameHtml(false).then((html) => send("text/html; charset=utf-8", html), next);
+            return;
+          }
+          if (url.pathname.startsWith("/@loki-widget/")) {
+            let rel: string;
+            try {
+              rel = decodeURIComponent(url.pathname.slice("/@loki-widget/".length));
+            } catch {
+              rel = "";
+            }
+            widgetModule(rel).then((js) => {
+              if (js === null) {
+                res.statusCode = 404;
+                res.end("not a widget");
+              } else send("text/javascript; charset=utf-8", js);
+            }, next);
+            return;
+          }
+          next();
+        });
+      },
+      async generateBundle() {
+        this.emitFile({ type: "asset", fileName: "widget-frame.html", source: await buildFrameHtml(true) });
+      },
+    },
     // React Compiler: callbacks, JSX and derived values are memoised at build time, so a prop that is a fresh
     // closure on every render no longer defeats a memo further down (the transcript once re-parsed a whole
     // thread's markdown per keystroke that way). LOKI_COMPILER_LOG=1 lists what it declined to compile and why.
@@ -77,13 +135,14 @@ export default defineConfig({
     tailwindcss(),
   ],
   clearScreen: false,
-  define: { __LOKI_WIDGETS_DIR__: JSON.stringify(widgetsDir), __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify(repo) },
+  define: { __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify(repo) },
   resolve: {
     // Authored widgets import the kit by this name; keep it stable in docs.
-    alias: { "@loki/kit": here("./src/kit/index.tsx"), "@desks": widgetsDir },
+    alias: { "@loki/kit": here("./src/kit/index.tsx") },
   },
   server: {
-    fs: { allow: [here(".."), widgetsDir, widgetsReal] },
+    // Not the widgets folder: widget code reaches the page only through /@loki-widget/, into a sandboxed frame.
+    fs: { allow: [here("..")] },
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,

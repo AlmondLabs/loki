@@ -86,6 +86,12 @@ export function injectedDesk(): string | null {
   return window.__LOKI__?.desk ?? null;
 }
 
+/** A web link, out to the default browser: the opener plugin in the shell (its webview blocks window.open), a new tab otherwise. */
+export function openExternal(href: string): void {
+  if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(href)).catch((err) => console.warn("loki: open link", err));
+  else window.open(href, "_blank", "noopener,noreferrer");
+}
+
 /** In the shell, mirror console warnings and errors (and a few milestones) to the Rust side's stderr. */
 export function installShellLogging(): void {
   if (!inTauri) return;

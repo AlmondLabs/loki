@@ -20,7 +20,7 @@ export function InlineWidget({ entry, overlay, gesture, onOpen }: { entry: Widge
   const send = gesture ?? quiet;
   let body: ReactNode;
   if (entry.kind === "module" && !gesture) body = <p className="loki-inline-widget-note">This widget runs on the Mac: open the chat there to use it.</p>;
-  else if (entry.kind === "module") body = <ModuleWidget entry={entry} overlay={overlay} gesture={send} onError={quiet} />;
+  else if (entry.kind === "module") body = <ModuleWidget entry={entry} overlay={overlay} gesture={send} onError={quiet} fill />;
   else if (entry.error) body = <WidgetError message={entry.error} />;
   else {
     const Kit = entry.type ? KIT_COMPONENTS[entry.type] : undefined;
