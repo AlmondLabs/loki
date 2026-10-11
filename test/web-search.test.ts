@@ -31,6 +31,11 @@ describe("web search", () => {
     expect(parseResults("<html>nothing</html>")).toEqual([]);
   });
 
+  test("numeric entities decode, and one past Unicode on a malformed page stays as written instead of throwing", () => {
+    const page = `<div class="result results_links"><h2><a class="result__a" href="https://x.example/">caf&#233; &#x2014; ok &#99999999; &#xFFFFFFF;</a></h2><a class="result__snippet">s</a></div>`;
+    expect(parseResults(page)[0].title).toBe("café — ok &#99999999; &#xFFFFFFF;");
+  });
+
   test("the tool hands the model numbered results, or says there were none", async () => {
     const ctx = BACKGROUND_CONTEXT;
     const faux = fauxProvider();
