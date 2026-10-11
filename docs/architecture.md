@@ -108,10 +108,14 @@ every chat gets, the chats, then the mods.
    once a minute; a slot missed while loki was closed fires once at the next start.
 9. **The background passes (`daemon/passes.ts`).** Reflection (`daemon/reflection.ts`) keeps each agent's memory;
    Learn (`daemon/learn.ts`) writes the person's cards. Same process, different objectives: once a minute the runner
-   looks over the chats, and a chat quiet for half an hour with new material past a pass's cursor gets a run of it
-   (reflection also reads a chat right after its context is compacted). A run works as the agent in that pass's
-   hidden chat for the agent, cleared first, never while the chat is busy, one run at a time across all agents, and
-   is measured (`pass_finished`). Their settings and cursors are in `~/.loki/state/passes.json` and
+   looks over the chats, and a chat quiet for half an hour with new material past a pass's cursor is due for it
+   (reflection also takes a chat right after its context is compacted). A run takes all of one agent's due chats at
+   once, each chat's new stretch its own part (up to 80,000 characters; a chat that does not fit whole waits for the
+   next batch), so a pass sees what recurs or conflicts across conversations; an agent gets a batch at most every two
+   hours, so chats gather, unless a chat was compacted or the last batch left some behind. Cursors stay per chat and
+   move only when a run succeeds. A run works as the agent in that pass's hidden chat for the agent, cleared first,
+   never while a chat in it is busy, one run at a time across all agents, and is measured (`pass_finished`, with the
+   chats it read). Their settings and cursors are in `~/.loki/state/passes.json` and
    `pass-cursors.json`.
 10. **The mod registry (`daemon/mods/`).** loki's mod API, version 1 (`daemon/mods/api.ts`): a mod registers tools
     and prompt sections, gets a say before a tool runs, transforms the person's message before it is sent, and

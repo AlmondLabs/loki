@@ -167,9 +167,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
   this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
   Letta's Reflection Subagent is marked. **reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
-  every agent at once: once a chat has been quiet for half an hour, the agent reads what was said since it last
-  looked and keeps in memory what will matter in later chats (and reads a chat right after its context is
-  compacted) — with the last change reflection made; `/reflect` in a chat does it now. **skills**:
+  every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
+  last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
+  chats, counting what recurs across them (and reads a chat right after its context is compacted) — with the last change reflection made; `/reflect` in a chat does it now. **skills**:
   one line each in two groups — **self**, the ones the agent (or you) wrote ("write" adds one here, "install" takes a
   source the CLI knows: `owner/repo/path`, `official/<path>`, `clawhub/<slug>`, a GitHub or SKILL.md URL), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.letta/skills`, a repo the `skills`

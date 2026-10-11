@@ -9,8 +9,9 @@ import { MIN_NEW_CHARS } from "./passes.ts";
 import type { PassState } from "./passes-state.ts";
 
 /**
- * Learn (plan 018): one of the background passes (daemon/passes.ts). From a chat that has gone quiet it writes the
- * person a few spaced-repetition cards, only for concepts, principles and knowledge of their field that will still be
+ * Learn (plan 018): one of the background passes (daemon/passes.ts). From an agent's chats that have gone quiet, a
+ * batch of them at once (each a slice, so a concept that comes up in several is seen as one), it writes the person a
+ * few spaced-repetition cards, only for concepts, principles and knowledge of their field that will still be
  * true in months, never for one-off details of the task; up to the day's cap (`learn.dailyCap`) across all agents.
  * The same answer carries revisions of cards the person keeps failing and learning leads. It works as the agent in
  * its hidden chat `recall-<agent>`, with no tools: it answers, and the runner writes the files through Learn's store
@@ -40,11 +41,12 @@ export function learnJob(deps: Deps): PassJob {
       const failing = cards
         .filter((c) => c.card.source.agentId === input.agentId && keepsFailing(c.schedule) && (!c.schedule.lastReview || c.card.updatedAt < c.schedule.lastReview))
         .slice(0, FAILING_PER_RUN);
-      const title = chats.info(input.chatId, input.agentId)?.title ?? null;
-      const slices: Slice[] = [{ id: "s1", title, mode: "new", text: input.material }];
+      // Each chat of the batch is a new slice (s1, s2 …), in the batch's order; replays of failing cards come after.
+      const slices: Slice[] = input.parts.map((part, i) => ({ id: `s${i + 1}`, title: part.title, mode: "new", text: part.material }));
+      const inBatch = new Set(input.parts.map((part) => part.chatId));
       for (const f of failing) {
         const src = f.card.source;
-        if (!src.conversationId || src.conversationId === input.chatId) continue;
+        if (!src.conversationId || inBatch.has(src.conversationId)) continue;
         const text = formatTranscript(chats.since(src.conversationId, src.agentId, 0).rows, input.agentName).slice(-REPLAY_CHARS);
         if (text.length < MIN_NEW_CHARS) continue;
         slices.push({ id: `s${slices.length + 1}`, title: src.title, mode: "replay", forCard: f.card.id, text });
@@ -66,10 +68,15 @@ export function learnJob(deps: Deps): PassJob {
       const cards = store.cards();
       const byId = new Map(cards.map((c) => [c.card.id, c]));
       const ext = parseExtraction(answer.text, new Set(byId.keys()), { maxLeads: LEADS_PER_CONVERSATION });
-      const info = chats.info(input.chatId, input.agentId);
-      const source = { agentId: input.agentId, agentName: input.agentName, conversationId: input.chatId, title: info?.title ?? null, at: info?.lastMessageAt ?? null };
-      // A replay yields no new cards or leads: only what names the new stretch (or names none) is taken.
-      const fromHere = (slice: string | undefined) => !slice || slice === "s1";
+      // Where a card or lead came from: the batch's chat its slice names; one that names none (or a replay) the first.
+      const sourceOf = (slice: string | undefined) => {
+        const part = input.parts[Number(/^s(\d+)$/.exec(slice ?? "")?.[1] ?? 1) - 1] ?? input.parts[0];
+        const info = chats.info(part.chatId, input.agentId);
+        return { agentId: input.agentId, agentName: input.agentName, conversationId: part.chatId, title: info?.title ?? null, at: info?.lastMessageAt ?? null };
+      };
+      // A replay yields no new cards or leads: only what names one of the batch's chats (or names none) is taken.
+      const fresh = new Set(input.parts.map((_, i) => `s${i + 1}`));
+      const fromHere = (slice: string | undefined) => !slice || fresh.has(slice);
       const fronts = [...cards.map((c) => c.card.front), ...store.rejected().map((r) => r.card.front)];
       const space = room(input.now);
       let written = 0;
@@ -80,7 +87,7 @@ export function learnJob(deps: Deps): PassJob {
           capped = true; // the rest wait for tomorrow: the cursor stays and this stretch is read again
           break;
         }
-        const card: Card = { id: newCardId(now), front: cand.front, back: cand.back, tags: cand.tags, source, createdAt: at, updatedAt: at, updatedBy: "recall", previous: [] };
+        const card: Card = { id: newCardId(now), front: cand.front, back: cand.back, tags: cand.tags, source: sourceOf(cand.slice), createdAt: at, updatedAt: at, updatedBy: "recall", previous: [] };
         store.add(card);
         fronts.push(card.front);
         written += 1;
@@ -99,14 +106,15 @@ export function learnJob(deps: Deps): PassJob {
       for (const cand of ext.leads) {
         if (openLeads.length + leads >= MAX_OPEN_LEADS) break;
         if (!fromHere(cand.slice) || leadTitles.some((t) => similarFront(t, cand.title))) continue;
-        const lead: Lead = { id: newCardId(now), title: cand.title, why: cand.why, depth: cand.depth, source, createdAt: at };
+        const lead: Lead = { id: newCardId(now), title: cand.title, why: cand.why, depth: cand.depth, source: sourceOf(cand.slice), createdAt: at };
         store.addLead(lead);
         leadTitles.push(lead.title);
         leads += 1;
       }
       if (written) state.noteWritten(isoDay(now), written);
       const parts = [written && `${written} new`, revised && `${revised} revised`, leads && `${leads} lead${leads === 1 ? "" : "s"}`].filter(Boolean);
-      state.noteLearnRun(at, parts.length ? `${parts.join(" · ")} from "${source.title ?? "a chat"}"${capped ? " · cards at the day's cap" : ""}` : "nothing worth a card");
+      const from = input.parts.length === 1 ? `"${sourceOf("s1").title ?? "a chat"}"` : `${input.parts.length} chats`;
+      state.noteLearnRun(at, parts.length ? `${parts.join(" · ")} from ${from}${capped ? " · cards at the day's cap" : ""}` : "nothing worth a card");
       return { items: { cards: written, revisions: revised, leads }, capped };
     },
   };

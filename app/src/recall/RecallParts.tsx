@@ -181,8 +181,8 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
     <section aria-label="about learn" style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", padding: "22px 24px", display: "grid", gap: 14, fontSize: 13.5, lineHeight: 1.55 }}>
       <div style={{ fontSize: 17, fontWeight: 500 }}>Flashcards from your conversations — when you want them.</div>
       <p style={{ margin: 0 }}>
-        Learn is a writer that runs in the background. Once a conversation has been quiet for half an hour, it hands what was new in it to
-        the agent, in a hidden conversation of its own, and keeps what comes back as cards — only concepts, principles and knowledge of
+        Learn is a writer that runs in the background. Once conversations have been quiet for half an hour, it hands what was new in them to
+        the agent, several at a time, in a hidden conversation of its own, and keeps what comes back as cards — only concepts, principles and knowledge of
         your field that will still be true in months, never the details of a task: a question that stands alone, an answer in a line or two. Most
         conversations give none. You meet them here, on a schedule that spaces the ones you know and brings back the ones you miss.
         Deleting a card is the feedback — the writer reads the pile of deleted ones before writing again.
@@ -216,7 +216,7 @@ export function RecallSettings({ worker, onSettings, onRun, running }: { worker:
     <div style={{ display: "grid", gap: 12 }}>
       <Line label="Writer">
         <span style={{ display: "inline-grid", gap: 4 }}>
-          <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? "on — reads a conversation once it has been quiet for half an hour, and writes the cards worth keeping" : "off — no conversation is read, nothing is written"} />
+          <Switch on={worker.enabled} onToggle={() => onSettings({ enabled: !worker.enabled })} label={worker.enabled ? "on — reads conversations once they have been quiet for half an hour, several at a time, and writes the cards worth keeping" : "off — no conversation is read, nothing is written"} />
           <Meta wrap>each run asks the agent's model, so it spends a little of your provider budget; off by default for that reason</Meta>
         </span>
       </Line>

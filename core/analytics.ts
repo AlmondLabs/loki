@@ -66,7 +66,7 @@ export const EVENTS: Record<string, string> = {
   widget_trashed: "a widget deleted",
   turn_finished:
     "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
-  pass_finished: "a background pass ran on a chat (daemon/passes.ts) { job: reflection | learn, agent, chat, entries_read, outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
+  pass_finished: "a background pass ran on a batch of an agent's chats (daemon/passes.ts) { job: reflection | learn, agent, chat (the first), chats, entries_read (across them), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
   turn_stopped: "a turn stopped from loki's Stop button { aborted, turn_id }",
   tool_used: "the agent called a desk tool { tool }",
 };
