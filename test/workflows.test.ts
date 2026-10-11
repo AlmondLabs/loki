@@ -27,11 +27,12 @@ describe("ci: a PR's checks", () => {
 
   test("types, lint, the Node runner's tests and both bundles once, on Linux; the suite on all three systems", () => {
     const checks = runs(ci.jobs.checks);
-    for (const c of ["npm run typecheck", "npm run lint", "npm test", "npm run test:node", "npm run build:app", "npm run build:mod"]) expect(checks).toContain(c);
+    for (const c of ["npm run typecheck", "npm run lint", "npm test", "npm run test:node", "npm run build:app", "npm run build:mod", "npm run smoke"]) expect(checks).toContain(c);
     expect(ci.jobs.tests.strategy?.matrix?.os?.sort()).toEqual(["macos-14", "windows-latest"]);
     const tests = runs(ci.jobs.tests);
     expect(tests).toContain("npm test");
-    for (const once of ["typecheck", "lint", "build:app", "build:mod"]) expect(tests).not.toContain(once);
+    for (const once of ["typecheck", "lint", "build:app"]) expect(tests).not.toContain(once);
+    expect(tests).toContain("npm run smoke"); // the bundle on each system: the keychain module, paths, processes
     expect(Object.keys(ci.jobs).sort()).toEqual(["checks", "tests"]); // the Rust shell is shell.yml's
   });
 });

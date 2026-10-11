@@ -35,6 +35,7 @@ npm run test:node                                 # the tests that need Node's o
 npm run typecheck
 npm run lint
 npm run build:app && npm run build:mod            # the canvas build and the mod bundle (cargo test needs app/dist to exist)
+npm run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, Letta import, restart
 cargo test --manifest-path src-tauri/Cargo.toml   # shell
 cargo fmt --manifest-path src-tauri/Cargo.toml && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 npm run doctor                                    # optional: react-doctor's report on the React code (not in CI)

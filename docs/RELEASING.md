@@ -37,13 +37,14 @@ goes stale, and nothing runs on a schedule.
    does not). Everything else with commits since the last stable is a nightly. Commits titled `release: …`, the two
    PRs' own, do not count as something to ship. A manual run only refreshes the two PRs.
 2. **A nightly or a stable** is the Mac's: one `macos-14` job decides its number (`release.ts version`), stamps it
-   (`release.ts set`), builds the universal `.dmg` with `tauri-apps/tauri-action@v0` (`--target universal-apple-darwin`),
+   (`release.ts set`), smoke-tests the bundle (`npm run smoke`: it starts and signs in, or nothing ships), builds the
+   universal `.dmg` with `tauri-apps/tauri-action` (`--target universal-apple-darwin`),
    publishes it with `release.ts publish`, renders the cask from it, attaches `cask.rb` to the release and pushes it
    to the tap. A stable then offers **the Windows and Linux PR** for itself. A nightly runs **the release PRs** job
    (`release.ts release-pr`, then `release.ts preview-pr`) to refresh both. A merge of docs alone (`docs/**`, the
    root's `*.md`) starts no release run at all.
-3. **A preview** is two build jobs, each checking out the merge, stamping the stable's version (`release.ts set`) and
-   uploading its files as an artifact, then **publish Windows and Linux**:
+3. **A preview** is two build jobs, each checking out the merge, stamping the stable's version (`release.ts set`),
+   smoke-testing the bundle and uploading its files as an artifact, then **publish Windows and Linux**:
 
    | job | runner | how | files |
    |---|---|---|---|
