@@ -1,4 +1,5 @@
 import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { contentText } from "../core/harness.ts";
 import { messageAt, messageSteps, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
@@ -9,6 +10,15 @@ function unanswered(reason: string | undefined): string {
   if (reason === "no_model") return "this chat's model is not available — connect its provider in Settings › Providers, or pick another model for the chat";
   if (reason === "model_error") return "the model could not be reached — is its provider connected in Settings › Providers? Or pick another model for the chat";
   return `the agent could not take this message up${reason ? ` (${reason})` : ""}`;
+}
+
+/** A message's text blocks by content index. */
+function textBlocks(message: AssistantMessage | undefined): Map<number, string> {
+  const out = new Map<number, string>();
+  (Array.isArray(message?.content) ? message.content : []).forEach((block, i) => {
+    if (block.type === "text") out.set(i, block.text);
+  });
+  return out;
 }
 
 /**
@@ -22,6 +32,8 @@ function unanswered(reason: string | undefined): string {
 export class ChatEventConverter {
   /** The answer in flight as streamed so far, for a client that opens the chat mid-answer (DaemonChats.open). */
   private partial: { text: string; at: string | null } | null = null;
+  /** The in-flight message's text blocks by content index: what `partial` is joined from. */
+  private blocks = new Map<number, string>();
   /** The turn in flight (daemon/telemetry.ts names it the same), for the app's analytics to carry. */
   private turnId: string | null = null;
   private readonly agentId: string;
@@ -39,8 +51,8 @@ export class ChatEventConverter {
     switch (ev.type) {
       // Where the chat stands when following starts: an answer already under way is the partial to start from.
       case "snapshot": {
-        const m = ev.generation?.message as PiMessage | undefined;
-        const text = m ? contentText((Array.isArray(m.content) ? m.content : []).filter((p) => (p as { type?: string }).type === "text")) : "";
+        this.blocks = textBlocks(ev.generation?.message);
+        const text = this.joined();
         this.partial = text ? { text, at: now } : null;
         return [];
       }
@@ -51,27 +63,43 @@ export class ChatEventConverter {
         const turnId = turnIdOf(this.agentId, ev.inputs) ?? this.turnId;
         this.turnId = null;
         this.partial = null;
+        this.blocks.clear();
         return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turnId } : {}) }];
       }
       case "message_start":
-        if (ev.message.role !== "user") return [];
-        return [{ kind: "step", step: { kind: "user", raw: contentText(ev.message.content), at: messageAt(ev.message) ?? now } }];
-      case "message_update": {
-        const out: ChatEvent[] = [];
-        for (const change of ev.changes) {
-          if (change.type !== "text_delta") continue;
-          this.partial = { text: (this.partial?.text ?? "") + change.delta, at: this.partial?.at ?? now };
-          out.push({ kind: "step", step: { kind: "assistant", text: change.delta, at: now, chunk: true } });
+        if (ev.message.role !== "user") {
+          this.blocks.clear();
+          return [];
         }
-        return out;
+        return [{ kind: "step", step: { kind: "user", raw: contentText(ev.message.content), at: messageAt(ev.message) ?? now } }];
+      // The in-flight message changes in batches, and a batch's words can come in any of four shapes: a text block
+      // begun (holding all it has so far: an answer's first words, often), words added to one, a block or the whole
+      // message rewritten. Taking only the added words lost the first ones until the written answer replaced them.
+      case "message_update": {
+        for (const change of ev.changes) {
+          if (change.type === "text_start" || change.type === "block") {
+            if (change.block.type === "text") this.blocks.set(change.contentIndex, change.block.text);
+          } else if (change.type === "text_delta") this.blocks.set(change.contentIndex, (this.blocks.get(change.contentIndex) ?? "") + change.delta);
+          else if (change.type === "message") this.blocks = textBlocks(change.message);
+        }
+        const was = this.partial?.text ?? "";
+        const text = this.joined();
+        if (text === was) return [];
+        const at = this.partial?.at ?? now;
+        this.partial = text ? { text, at } : null;
+        // What was shown still leads: the rest goes as a piece. Otherwise the client is handed the answer so far.
+        if (text.startsWith(was)) return [{ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } }];
+        return [{ kind: "streaming", text, at }];
       }
       // The attempt failed and pi-durable tries again: what it streamed is not the answer. An empty written answer
       // clears it on the client (ThreadModel), and the next attempt streams afresh.
       case "auto_retry_start":
         this.partial = null;
+        this.blocks.clear();
         return [{ kind: "step", step: { kind: "assistant", text: "", at: now } }];
       case "message_end":
         this.partial = null;
+        this.blocks.clear();
         return this.answered(ev.entry, now);
       case "tool_execution_end": {
         const result = ev.entry?.model?.[0] as { content?: unknown; isError?: boolean } | undefined;
@@ -87,6 +115,11 @@ export class ChatEventConverter {
       default:
         return [];
     }
+  }
+
+  /** The text blocks joined as the written answer joins them (contentText). */
+  private joined(): string {
+    return [...this.blocks.entries()].sort((a, b) => a[0] - b[0]).map(([, text]) => text).join("\n");
   }
 
   /** An answer written: the stored message as a history page has it (its words whole, then its tool calls). */
