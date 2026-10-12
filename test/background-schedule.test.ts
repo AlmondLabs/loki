@@ -7,7 +7,7 @@ import { dueBetween, matches, parseCron, Schedules } from "../daemon/schedule.ts
 import { extractHarnessEvents } from "../core/harness.ts";
 
 describe("background tasks", () => {
-  test("a task's output is read in pieces, and its end sends one notice the thread shows as an event", async () => {
+  test("a task's output is read in pieces; an agent waiting on it when it ends is told by the wait, not a notice", async () => {
     const notices: Array<{ chatId: string; text: string }> = [];
     const tasks = new BackgroundTasks((_a, chatId, text) => notices.push({ chatId, text }));
     // The second line waits for input rather than a sleep, so a busy machine cannot deliver both before the first read.
@@ -19,6 +19,17 @@ describe("background tasks", () => {
     expect(rest).toContain("second");
     expect(rest).not.toContain("first");
     await new Promise((r) => setTimeout(r, 50));
+    expect(notices).toEqual([]);
+  });
+
+  test("a task that ends with no one waiting sends one notice the thread shows as an event", async () => {
+    const notices: Array<{ chatId: string; text: string }> = [];
+    const tasks = new BackgroundTasks((_a, chatId, text) => notices.push({ chatId, text }));
+    const id = tasks.start("agent-a", "c", tmpdir(), "echo done");
+    // A wait that a pattern ends before the task does leaves it unwatched.
+    expect(await tasks.wait(id, "agent-a", "done", 2000)).toContain("done");
+    const until = Date.now() + 3000;
+    while (!notices.length && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
     expect(notices).toHaveLength(1);
     expect(notices[0].chatId).toBe("c");
     const [event] = extractHarnessEvents(notices[0].text);
@@ -35,9 +46,10 @@ describe("background tasks", () => {
     expect(await tasks.wait(id, "agent-a", "got hello", 2000)).toContain("got hello");
     expect(() => tasks.output(id, "agent-b")).toThrow("no background task");
     tasks.stop(id, "agent-a");
-    expect(await tasks.wait(id, "agent-a", undefined, 3000)).toContain("[stopped (SIGTERM)]");
-    await new Promise((r) => setTimeout(r, 50));
+    const until = Date.now() + 3000;
+    while (!notices.length && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
     expect(notices[0]).toContain("<status>stopped (SIGTERM)</status>");
+    expect(tasks.output(id, "agent-a")).toContain("[stopped (SIGTERM)]");
   });
   test("writing to a task whose input has closed does not take the daemon down", async () => {
     const tasks = new BackgroundTasks(() => {});

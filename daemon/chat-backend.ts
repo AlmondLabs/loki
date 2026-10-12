@@ -178,11 +178,15 @@ export class DaemonChats implements ChatBackend {
   }
 
   /** A message from loki itself (a finished background task, a scheduled prompt): it waits its turn like yours. */
-  async deliver(agentId: string, conversationId: string, text: string): Promise<void> {
+  /**
+   * A message from loki itself (a background task's notice, a schedule's prompt). `steer` puts it into a running turn
+   * at its next step, where the work it reports on is; otherwise it waits for the turn to end and starts its own.
+   */
+  async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<void> {
     const { store, chat } = await this.chat(agentId, conversationId);
     await this.healModel(store, chat);
     await this.watch(store, chat, agentId, conversationId);
-    await chat.submit({ type: "input", content: text }, this.deps.context);
+    await chat.submit({ type: "input", content: text, whenBusy }, this.deps.context);
   }
 
   importLetta(): Promise<ImportReport> {

@@ -11,7 +11,7 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
  * Background tasks (plan 017, U11, KTD13): a shell command that keeps running after the turn that started it. The
  * agent reads its output so far, writes to its input, waits on it, or stops it; when it ends, its chat gets a
  * `<task-notification>` (the format the thread shows as an event row, core/harness.ts), which starts the agent's next
- * turn. The processes are the daemon's: they end with it, and a task from before a restart is gone.
+ * turn, or goes into the one running at its next step. An agent that was waiting on it when it ended is not told. The processes are the daemon's: they end with it, and a task from before a restart is gone.
  */
 
 /** The most output a task keeps, from its end. */
@@ -111,7 +111,11 @@ export class BackgroundTasks {
       take(out.end() + err.end());
       task.exit = { code, signal };
       task.endedAt = Date.now();
+      // An agent waiting on it (Monitor) learns how it ended from the wait itself. Told again, the notice came after
+      // its answer, as a turn of its own: the run had moved on by the time the queued message could go in.
+      const watched = task.waiters.size > 0;
       for (const w of task.waiters) w();
+      if (watched) return;
       const status = signal ? `stopped (${signal})` : code === 0 ? "completed" : `failed (exit ${code})`;
       const tail = task.output.slice(-2000).trim();
       this.notify(agentId, chatId, `<task-notification>\n<task-id>${id}</task-id>\n<status>${status}</status>\n<summary>${escape(command)}</summary>\n<result>${escape(tail)}</result>\n</task-notification>`);

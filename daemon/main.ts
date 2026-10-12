@@ -112,7 +112,7 @@ mods.registry.install(webSearchExtension());
 // daemon/schedule.ts).
 const schedulesFile = join(args.dir, "state", "crons.json");
 const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);
-const background = new BackgroundTasks((agentId, chatId, text) => void deliver(agentId, chatId, text).catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)));
+const background = new BackgroundTasks((agentId, chatId, text) => void chat.deliver(agentId, chatId, text, "steer").catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)));
 mods.registry.install(backgroundExtension(background));
 const schedules = new Schedules(schedulesFile, deliver, report);
 mods.registry.install(scheduleExtension(schedules));
