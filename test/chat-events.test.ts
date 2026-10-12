@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { fauxAssistantMessage, fauxProvider, fauxText, fauxThinking, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { createRegistry, defineExtension, defineTool, MemoryStorage, watchEvents, type AgentEvent } from "@earendil-works/pi-durable";
 import { ChatEventConverter } from "../daemon/chat-events.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
@@ -9,7 +9,8 @@ import { applyChatEvent, chatStatusOf, emptyLive, type ChatEvent } from "../core
 
 const ctx = BACKGROUND_CONTEXT;
 const NOW = "2026-10-10T10:00:00.000Z";
-const piece = (delta: string) => ({ type: "message_update", usage: {} as never, changes: [{ type: "text_delta", contentIndex: 0, delta }] }) as AgentEvent;
+const piece = (delta: string, contentIndex = 0) => ({ type: "message_update", usage: {} as never, changes: [{ type: "text_delta", contentIndex, delta }] }) as AgentEvent;
+const update = (...changes: unknown[]) => ({ type: "message_update", usage: {} as never, changes }) as AgentEvent;
 const written = (text: string) => ({ type: "message_end", entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text }] } as never] } }) as AgentEvent;
 
 describe("chat event converter", () => {
@@ -44,10 +45,47 @@ describe("chat event converter", () => {
     const late = new ChatEventConverter();
     late.convert({ type: "snapshot", entries: [], tools: [], compactions: [], inbox: [], agent: {}, usage: {}, generation: { attempt: 0, message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "text", text: "Keep `far" }] } } } as never, NOW);
     expect(late.inFlight()).toEqual({ text: "Keep `far", at: NOW });
-    late.convert(piece("mart"), NOW);
+    late.convert(piece("mart", 1), NOW);
     expect(late.inFlight()?.text).toBe("Keep `farmart");
     late.convert({ type: "run_end", inputs: [] } as never, NOW);
     expect(late.inFlight()).toBeNull();
+  });
+
+  describe("an answer's words in every shape a batch brings them", () => {
+    const fold = (events: AgentEvent[]) => {
+      const c = new ChatEventConverter();
+      const l = emptyLive();
+      for (const e of events) for (const out of c.convert(e, NOW)) applyChatEvent(l, out, NOW);
+      return { shown: l.thread.rows()?.map((r) => r.text) ?? [], inFlight: c.inFlight()?.text ?? null };
+    };
+
+    test("a text block begun with its first words already in it, then words added", () => {
+      // The screenshot's case: "Yes. Skills give townhall a way" came in the block's start and never showed.
+      const events = [update({ type: "text_start", contentIndex: 0, block: { type: "text", text: "Yes. Skills give townhall a way" } }), piece(" to preserve how")];
+      expect(fold(events)).toEqual({ shown: ["Yes. Skills give townhall a way to preserve how"], inFlight: "Yes. Skills give townhall a way to preserve how" });
+    });
+
+    test("a block after thinking: only the text shows, and a second text block joins as the written answer joins them", () => {
+      const events = [
+        update({ type: "thinking_start", contentIndex: 0, block: { type: "thinking", thinking: "hm" } }, { type: "text_start", contentIndex: 1, block: { type: "text", text: "One" } }),
+        update({ type: "thinking_delta", contentIndex: 0, delta: " more" }, { type: "text_delta", contentIndex: 1, delta: " two" }),
+        update({ type: "text_start", contentIndex: 2, block: { type: "text", text: "Three" } }),
+      ];
+      expect(fold(events).shown).toEqual(["One two\nThree"]);
+    });
+
+    test("a block or the whole message rewritten: the client is handed the answer so far in place of what it had", () => {
+      const rewritten = [piece("Kept it"), update({ type: "block", contentIndex: 0, block: { type: "text", text: "Keep it short" } })];
+      expect(fold(rewritten).shown).toEqual(["Keep it short"]);
+      const replaced = [piece("Kept it"), update({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "Keep" }] } }), piece(" going")];
+      expect(fold(replaced)).toEqual({ shown: ["Keep going"], inFlight: "Keep going" });
+    });
+
+    test("a batch that changes no words sends nothing", () => {
+      const c = new ChatEventConverter();
+      c.convert(piece("Hi"), NOW);
+      expect(c.convert(update({ type: "thinking_delta", contentIndex: 1, delta: "hm" }), NOW)).toEqual([]);
+    });
   });
 
   test("the app sets its stream from what was written so far, and the pieces after it add on", () => {
@@ -127,6 +165,38 @@ describe("chat event converter", () => {
 
   test("a tool with no result entry shows as failed", () => {
     expect(new ChatEventConverter().convert({ type: "tool_execution_end", toolCallId: "t1", toolName: "bash" }, NOW)).toEqual([{ kind: "step", step: { kind: "result", id: "t1", output: "the tool did not finish", failed: true } }]);
+  });
+
+  test("a real streamed answer shows from its first word while it streams, after thinking", async () => {
+    // Fast enough that pi-durable saves several words per batch: the text block then begins with its first words in it.
+    const faux = fauxProvider({ tokensPerSecond: 40, tokenSize: { min: 3, max: 3 } });
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry: createRegistry() }, ctx);
+    try {
+      const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+      const stream = await watchEvents(store.harness, chat.id, ctx);
+      const converter = new ChatEventConverter();
+      const live = emptyLive();
+      const seen: string[] = [];
+      stream.start(async (batch) => {
+        for (const ev of batch)
+          for (const e of converter.convert(ev, NOW)) {
+            applyChatEvent(live, e, NOW);
+            if (live.thread.streaming) seen.push(live.thread.rows()!.at(-1)!.text);
+          }
+      });
+      const ANSWER = "Yes. Skills give townhall a way to preserve how the organisation does things, not just what people discussed.";
+      faux.setResponses([fauxAssistantMessage([fauxThinking("Let me think about skills for a moment here."), fauxText(ANSWER)])]);
+      await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
+      await new Promise((r) => setTimeout(r, 50));
+      await stream.stop();
+      expect(seen.length).toBeGreaterThan(1);
+      for (const text of seen) expect(text).toBe(ANSWER.slice(0, text.length));
+      expect(seen[0]).toMatch(/^Yes/);
+    } finally {
+      await store.close(ctx);
+    }
   });
 
   test("a real run, folded into a chat's live state, reads as the thread the app shows", async () => {
