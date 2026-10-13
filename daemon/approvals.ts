@@ -38,6 +38,7 @@ const KINDS: Record<string, ToolKind> = {
   memory_read: "read",
   memory_write: "read",
   memory_edit: "read",
+  memory_delete: "read",
   write: "edit",
   edit: "edit",
 };

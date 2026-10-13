@@ -104,7 +104,7 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
       onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
       onAskToUpdate={onAskToUpdate}
       onUpdateAgent={catchUp.updateAgent}
-      write={{ createAgent: catchUp.createAgent, deleteAgent: catchUp.deleteAgent, writeMemory: catchUp.memory.write, removeMemory: catchUp.memory.remove }}
+      write={{ createAgent: catchUp.createAgent, deleteAgent: catchUp.deleteAgent, writeMemory: catchUp.memory.write, removeMemory: catchUp.memory.remove, revertMemory: catchUp.memory.revert }}
       reflect={catchUp.reflection}
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}

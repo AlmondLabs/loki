@@ -65,8 +65,8 @@ export const EVENTS: Record<string, string> = {
   desk_arranged: "a desk tidied",
   widget_trashed: "a widget deleted",
   turn_finished:
-    "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
-  pass_finished: "a background pass ran on a batch of an agent's chats (daemon/passes.ts) { job: reflection | learn, agent, chat (the first), chats, entries_read (across them), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
+    "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection | doctor, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
+  pass_finished: "a background pass ran on a batch of an agent's chats, or a memory review on its memory (daemon/passes.ts) { job: reflection | learn | doctor, agent, chat (the first), chats, entries_read (across them), files, chars (a review's memory), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
   task_confirmed: "a task an agent said was done, answered in Tasks { action: confirm | reopen }",
   turn_stopped: "a turn stopped from loki's Stop button { aborted, turn_id }",
   tool_used: "the agent called a desk tool { tool }",
@@ -281,8 +281,8 @@ function passRows(runs: Array<{ job: string; outcome: string; items: Record<stri
   return [...byJob.values()].map(({ costed, spent, ...row }) => ({ ...row, costPerRun: costed ? spent / costed : null })).sort((a, b) => a.job.localeCompare(b.job));
 }
 
-/** Turns nobody waits on: a helper's, Learn's writer's and reflection's. They are measured, but no one answers them. */
-const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection"]);
+/** Turns nobody waits on: a helper's, Learn's writer's, reflection's and a memory review's. They are measured, but no one answers them. */
+const UNATTENDED_ORIGINS: ReadonlySet<string> = new Set(["subagent", "recall", "reflection", "doctor"]);
 
 const DAY_MS = 86_400_000;
 /** What counts as engaging with an Inbox card: acting on it or opening it, rather than moving past or archiving it. */

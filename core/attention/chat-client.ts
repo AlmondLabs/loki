@@ -18,6 +18,7 @@ export type ChatClient = Pick<
   | "createConversation"
   | "deleteAgent"
   | "deleteMemoryFile"
+  | "revertMemoryCommit"
   | "disconnectProvider"
   | "executeCommand"
   | "getPassSettings"
@@ -121,7 +122,7 @@ export class FrameChatClient {
 
   /** The daemon's commands: the palette offers these and loki's own (core/attention/commands.ts). */
   async serverInfo() {
-    return { version: "loki daemon", protocol: null, commands: ["compact", "clear", "remember", "reflect"], exclusive: true };
+    return { version: "loki daemon", protocol: null, commands: ["compact", "clear", "remember", "reflect", "doctor"], exclusive: true };
   }
 
   close(): void {
@@ -275,6 +276,9 @@ export class FrameChatClient {
   async deleteMemoryFile(agentId: string, path: string, commitMessage?: string): Promise<void> {
     await this.call("chat_memory_write", { agentId, path, content: null, message: commitMessage });
   }
+  async revertMemoryCommit(agentId: string, sha: string): Promise<void> {
+    await this.call("chat_memory_revert", { agentId, sha });
+  }
   async skillEnable(skillPath: string): Promise<{ name: string; linkPath: string }> {
     return this.call("chat_skill_enable", { path: skillPath });
   }
@@ -286,7 +290,8 @@ export class FrameChatClient {
   async executeCommand(rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> {
     const input = `/${commandId}${args ? ` ${args}` : ""}`;
     this.emit(rt, [{ kind: "command", phase: "start", input }]);
-    const r = await this.call("chat_command", { agentId: rt.agent_id, conversationId: rt.conversation_id, command: commandId, args: args ?? null }, 180_000).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
+    // A memory review reads all of memory and may edit a lot of it: it gets the pass's own time limit (daemon/passes.ts), and a little more.
+    const r = await this.call("chat_command", { agentId: rt.agent_id, conversationId: rt.conversation_id, command: commandId, args: args ?? null }, commandId === "doctor" ? 11 * 60_000 : 180_000).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
     this.emit(rt, [{ kind: "command", phase: "end", input, success: r.success, output: r.output }]);
     return r;
   }

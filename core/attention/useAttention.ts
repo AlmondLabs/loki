@@ -600,6 +600,11 @@ export function useAttention(opts: UseAttentionOptions) {
         if (!sock) return "not connected to loki's daemon";
         return sock.deleteMemoryFile(agentId, path, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
       },
+      revert: async (agentId: string, sha: string): Promise<string | null> => {
+        const sock = socketRef.current;
+        if (!sock) return "not connected to loki's daemon";
+        return sock.revertMemoryCommit(agentId, sha).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+      },
     }),
     [],
   );

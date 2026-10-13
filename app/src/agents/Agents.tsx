@@ -183,7 +183,7 @@ export function Agents({
   const pages: Record<AgentPage, React.ReactNode> = {
     profile: <ProfilePage d={d} selected={selected} avatar={avatar(selected)} models={models} onLoadModels={loadModels} onSave={store.save} desks={desks} tasks={tasks} onOpenDesk={onOpenDesk} onShowDesks={onShowDesks} onShowTasks={onShowTasks} confirmDelete={store.confirmDelete} setConfirmDelete={store.setConfirmDelete} onRemove={store.remove} />,
     memory: <MemoryPage d={d} selected={selected} filePath={filePath} onPickFile={setFilePath} reading={reading} onAskToUpdate={onAskToUpdate} />,
-    changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} />,
+    changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} onRevert={store.revertCommit} />,
     reflection: <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} api={api} reflect={reflect} />,
     skills: <SkillsPage d={d} store={store} viewSkill={shownSkill} onPickSkill={setSkillName} adding={adding} setAdding={setAdding} reading={reading} />,
   };

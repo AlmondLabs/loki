@@ -1,12 +1,15 @@
 
-import { Row } from "../components";
+import { Button, Row } from "../components";
 import { ago } from "../shared/ago";
 import { Head, ListPane, Pane } from "./bits";
 import type { ReadingState } from "./useReading";
 import type { MemoryCommit } from "../../../core/frame-types.ts";
 
-/** The changes page: the memory's git log on the left, newest first; the picked commit's diff on the right. */
-export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: MemoryCommit[]; shownSha: string | null; onPickSha: (sha: string) => void; reading: ReadingState }) {
+/** Who made a commit, when it was a pass rather than the agent or you: Reflection, or the Doctor (/doctor). */
+export const passAuthor = (author: string | null | undefined): string | null => (/reflection/i.test(author ?? "") ? "reflection" : /doctor/i.test(author ?? "") ? "doctor" : null);
+
+/** The changes page: the memory's git log on the left, newest first; the picked commit's diff on the right, with Revert. */
+export function ChangesPage({ log, shownSha, onPickSha, reading, onRevert }: { log: MemoryCommit[]; shownSha: string | null; onPickSha: (sha: string) => void; reading: ReadingState; onRevert: (sha: string) => void }) {
   return (
     <div style={{ minHeight: 0, display: "grid", gridTemplateColumns: "minmax(320px, 440px) 1fr" }}>
       <ListPane>
@@ -20,7 +23,7 @@ export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: Memory
                 <span className="loki-meta loki-meta--wrap">{ago(c.at)}</span>
                 <span style={{ lineHeight: 1.4 }}>
                   {c.message}
-                  {/reflection/i.test(c.author ?? "") && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>reflection</span>}
+                  {passAuthor(c.author) && <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>{passAuthor(c.author)}</span>}
                 </span>
                 <span />
                 <span className="loki-meta">{c.files.length === 0 ? "merge" : c.files.length === 1 ? c.files[0] : `${c.files.length} files`}</span>
@@ -30,14 +33,17 @@ export function ChangesPage({ log, shownSha, onPickSha, reading }: { log: Memory
         </div>
       </ListPane>
       <Pane>
-        <CommitView shownSha={shownSha} reading={reading} />
+        <CommitView shownSha={shownSha} reading={reading} onRevert={onRevert} canRevert={log.find((c) => c.sha === shownSha)?.files.length !== 0} />
       </Pane>
     </div>
   );
 }
 
-/** The picked commit: its short sha above, the diff below; a line when there is no commit or nothing to show. */
-function CommitView({ shownSha, reading }: { shownSha: string | null; reading: ReadingState }) {
+/**
+ * The picked commit: its short sha and Revert above, the diff below; a line when there is no commit or nothing to show.
+ * Revert undoes the commit with a new one (it can be reverted in turn); a merge has no single change to undo.
+ */
+function CommitView({ shownSha, reading, onRevert, canRevert }: { shownSha: string | null; reading: ReadingState; onRevert: (sha: string) => void; canRevert: boolean }) {
   const { content, loadingView } = reading;
   if (!shownSha) return <div className="loki-meta loki-meta--wrap">nothing learned yet</div>;
   return (
@@ -45,6 +51,12 @@ function CommitView({ shownSha, reading }: { shownSha: string | null; reading: R
       <div className="loki-label" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <span style={{ color: "var(--loki-fg)" }}>Commit <span style={{ fontFamily: "var(--loki-mono)" }}>{shownSha.slice(0, 8)}</span></span>
         {loadingView && <span>Loading…</span>}
+        <span style={{ flex: 1 }} />
+        {canRevert && (
+          <Button size="sm" tone="paper" onClick={() => onRevert(shownSha)} title="undo this change with a new commit">
+            revert
+          </Button>
+        )}
       </div>
       {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">nothing to show here</div>}
       {content !== null && <Diff text={content} />}

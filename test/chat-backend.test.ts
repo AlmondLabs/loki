@@ -17,7 +17,7 @@ import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/mod
 
 const ctx = BACKGROUND_CONTEXT;
 
-async function setup(opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void> } = {}) {
+async function setup(opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void>; passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
   const faux = fauxProvider(opts.tokensPerSecond ? { tokensPerSecond: opts.tokensPerSecond, tokenSize: { min: 3, max: 3 } } : {});
   const models = createModels();
@@ -29,7 +29,7 @@ async function setup(opts: { tokensPerSecond?: number; tool?: (done: () => void)
   const stores = new StoreManager(join(dir, "stores"), { models, registry: mods.registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx));
   const approvals = new Approvals();
   const providers = new Providers(models, new KeychainCredentials(memorySecrets()));
-  const chats = new DaemonChats({ stores, mods, approvals, providers, models, backendDir: join(dir, "backend"), context: ctx });
+  const chats = new DaemonChats({ stores, mods, approvals, providers, models, backendDir: join(dir, "backend"), context: ctx, ...(opts.passes ? { passes: opts.passes } : {}) });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
   const sent: string[] = [];
@@ -191,7 +191,27 @@ describe("the daemon's chats", () => {
       await until(() => s.sent.length === 2);
       expect(s.sent[1]).toContain("hello again");
       expect(s.sent[1]).not.toContain("I like tea");
-      expect(await run("doctor")).toEqual({ success: false, output: "/doctor is not a command loki's daemon runs" });
+      expect(await run("frobnicate")).toEqual({ success: false, output: "/frobnicate is not a command loki's daemon runs" });
+      expect(await run("doctor")).toEqual({ success: false, output: "the background passes are not running" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("/doctor waits for the memory review and answers with its report, and where to see and undo each change", async () => {
+    const reviewed: string[] = [];
+    const results = [{ outcome: "changed" as const, changes: 2, report: "- merged two deploy notes\n- the launch has passed" }, { outcome: "skipped" as const, changes: 0, report: "a memory review of this agent is already running" }];
+    const runner = { runDoctor: async (agentId: string) => (reviewed.push(agentId), results.shift()!) };
+    const s = await setup({ passes: { runner: runner as never, state: {} as never } });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, null, null);
+      const run = () => s.chats.command({ agentId: agent.id, conversationId, command: "doctor", args: null });
+      const done = await run();
+      expect(done.success).toBe(true);
+      expect(done.output).toBe("- merged two deploy notes\n- the launch has passed\n\n2 changes committed by Doctor; Agents › Changes shows each, and Revert undoes one.");
+      expect(await run()).toEqual({ success: false, output: "a memory review of this agent is already running" });
+      expect(reviewed).toEqual([agent.id, agent.id]);
     } finally {
       await s.cleanup();
     }
