@@ -34,6 +34,7 @@ export interface ChatBackend {
   runLearn(): Promise<void>;
   command(p: PayloadOf<"chat_command">): Promise<Replies["chat_command_done"]>;
   writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void>;
+  revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;
   disableSkill(name: string): Promise<void>;
   importLetta(): Promise<Replies["chat_imported"]>;
@@ -91,6 +92,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_skill_enable: ({ path }) => served(b, (x) => x.enableSkill(path)),
     chat_skill_disable: ({ name }) => served(b, async (x) => (await x.disableSkill(name), DONE)),
     chat_memory_write: (p) => served(b, async (x) => (await x.writeMemory(p), DONE)),
+    chat_memory_revert: (p) => served(b, async (x) => (await x.revertMemory(p), DONE)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
     chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
     chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),

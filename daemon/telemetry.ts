@@ -19,8 +19,8 @@ import { turnTimings, type Span } from "./timing.ts";
  * the answer in flight, and it ends when the run ends. Ids, counts and fixed words only, never what was said.
  */
 
-/** Where a turn came from: you, a scheduled prompt, a background task's notice, a helper, Learn's writer, reflection. */
-export type TurnOrigin = "message" | "schedule" | "background" | "subagent" | "recall" | "reflection";
+/** Where a turn came from: you, a scheduled prompt, a background task's notice, a helper, Learn's writer, reflection, a memory review. */
+export type TurnOrigin = "message" | "schedule" | "background" | "subagent" | "recall" | "reflection" | "doctor";
 
 /** The turn's id: its agent and the submission that opened its run. The app gets the same id on the chat's events. */
 export function turnIdOf(agentId: string, inputs: readonly unknown[]): string | null {
@@ -81,6 +81,7 @@ export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "
   // A background pass's run (daemon/passes.ts) says which job it is in its request id.
   if (t.requestId?.startsWith("pass:learn:")) return "recall";
   if (t.requestId?.startsWith("pass:reflection:")) return "reflection";
+  if (t.requestId?.startsWith("pass:doctor:") || t.chatId.startsWith("doctor-")) return "doctor";
   if (isWriterChat(t.chatId) || (t.hidden && t.title === "recall")) return "recall";
   if (t.chatId.startsWith("reflection-")) return "reflection";
   const first = t.entries.find((e) => e.kind === "pi.user")?.model?.[0] as Message | undefined;

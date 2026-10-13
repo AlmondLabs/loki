@@ -22,6 +22,7 @@ export const HARNESS_COMMANDS: SlashCommand[] = [
   { id: "clear", description: "start the agent afresh in this chat; what was said stays in the thread", where: "harness" },
   { id: "remember", description: "remember something from this conversation", args: "[what]", where: "harness" },
   { id: "reflect", description: "reflect on this conversation now: a pass that commits what it keeps to memory", where: "harness" },
+  { id: "doctor", description: "review the agent's memory and clean it up: duplicates, stale facts, contradictions", where: "harness" },
 ];
 
 /** loki's own: things the header chips and the rail already do, reachable from the box. */

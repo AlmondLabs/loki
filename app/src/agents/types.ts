@@ -41,6 +41,8 @@ export interface AgentsWrite {
   deleteAgent: (agentId: string) => Promise<string | null>;
   writeMemory: (agentId: string, path: string, content: string, message?: string) => Promise<string | null>;
   removeMemory: (agentId: string, path: string, message?: string) => Promise<string | null>;
+  /** Undo one memory commit, by a new commit as yours. */
+  revertMemory: (agentId: string, sha: string) => Promise<string | null>;
 }
 
 /** An edit to the agent's identity, as the daemon takes it (chat_agent_update): any of name, description, model. */

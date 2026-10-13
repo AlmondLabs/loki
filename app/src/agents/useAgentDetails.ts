@@ -128,7 +128,15 @@ export function useAgentDetails({
     return null;
   };
 
-  return { d, log, notice, flash, save, confirmDelete, setConfirmDelete, remove, removeSkill, addSkill, installSkill, refreshing, needsSource, setNeedsSource, refreshSkill };
+  /** Undo a memory commit (the Changes page's Revert): the undo is a commit of its own, newest in the log. */
+  const revertCommit = async (sha: string) => {
+    if (!selected) return;
+    const err = await write.revertMemory(selected, sha);
+    if (err) return flash(err);
+    flash(`reverted ${sha.slice(0, 8)}: the undo is the newest commit`);
+    void load(selected);
+  };
+  return { d, log, notice, flash, save, confirmDelete, setConfirmDelete, remove, removeSkill, addSkill, installSkill, refreshing, needsSource, setNeedsSource, refreshSkill, revertCommit };
 }
 
 export type AgentStore = ReturnType<typeof useAgentDetails>;

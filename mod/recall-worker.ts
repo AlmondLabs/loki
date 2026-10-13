@@ -32,7 +32,7 @@ export function ownsRecallChat(store: RecallStore, conversationId: string): bool
  * changes instead.
  */
 export function isPassChat(store: RecallStore, conversationId: string): boolean {
-  return ownsRecallChat(store, conversationId) || conversationId.startsWith("reflection-");
+  return ownsRecallChat(store, conversationId) || conversationId.startsWith("reflection-") || conversationId.startsWith("doctor-");
 }
 
 /**

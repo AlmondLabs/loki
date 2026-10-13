@@ -7,7 +7,8 @@ import { isWriterChat } from "../core/recall/model.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
 import type { StoreManager } from "./kernel/stores.ts";
-import { isReflectionChat } from "./memory.ts";
+import { isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS } from "./memory.ts";
+import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from "./doctor.ts";
 import { modelRef } from "./chat-backend.ts";
 import { createHash } from "node:crypto";
 import type { JobName, PassSettings, PassState } from "./passes-state.ts";
@@ -22,8 +23,12 @@ import type { JobName, PassSettings, PassState } from "./passes-state.ts";
  * the last batch left chats for later. Runs go one at a time across all agents, each as the agent itself in that
  * job's hidden chat for the agent, cleared first. Cursors stay per chat and move only when the run succeeds. A job
  * brings only its instructions, its tools, what it asks, and what it does with the answer. Each run is one
- * `pass_finished` event; its turn is a `turn_finished` like any other.
+ * `pass_finished` event; its turn is a `turn_finished` like any other. The memory review (/doctor, daemon/doctor.ts)
+ * reads memory rather than chats, but goes through the same queue and the same hidden-chat run.
  */
+
+/** A memory review's result: how it ended, what it changed, and its report for the person. */
+export type DoctorResult = { outcome: RunOutcome; changes: number; report: string };
 
 /** How long a chat must be quiet before a job reads it. */
 export const QUIET_MS = 30 * 60_000;
@@ -93,7 +98,8 @@ export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped"
 
 export class PassRunner {
   private readonly deps: Deps;
-  private readonly queue: Array<{ job: PassJob; agentId: string; chatIds: string[]; force: boolean; done: (outcome: RunOutcome) => void }> = [];
+  /** Runs waiting their turn, each under the keys it holds while queued or running (a job's chats, a review's agent). */
+  private readonly queue: Array<{ keys: string[]; work: () => Promise<void> }> = [];
   /** Queued or running, by job and chat: a sweep during a run does not queue it again. */
   private readonly queued = new Set<string>();
   /** A run that failed waits a quiet spell before it is tried again, so a broken model is not asked every minute. */
@@ -131,7 +137,7 @@ export class PassRunner {
 
   /** The person's chats: not hidden (a pass's own chats among them), not a helper's. */
   private chats() {
-    return this.deps.chats.list().filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isWriterChat(row.conversationId) && !this.deps.isSubagent(row.agentId));
+    return this.deps.chats.list().filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isDoctorChat(row.conversationId) && !isWriterChat(row.conversationId) && !this.deps.isSubagent(row.agentId));
   }
 
   /** One look over every chat: queue a batch for each agent with chats due, then work the queue. */
@@ -183,8 +189,13 @@ export class PassRunner {
   private enqueue(job: PassJob, agentId: string, chatIds: string[], force: boolean): Promise<RunOutcome> {
     const fresh = chatIds.filter((c) => !this.queued.has(`${job.name}\u0000${agentId}\u0000${c}`));
     if (!fresh.length) return Promise.resolve("skipped");
-    for (const c of fresh) this.queued.add(`${job.name}\u0000${agentId}\u0000${c}`);
-    return new Promise((done) => this.queue.push({ job, agentId, chatIds: fresh, force, done }));
+    return this.schedule(fresh.map((c) => `${job.name}\u0000${agentId}\u0000${c}`), () => this.run(job, agentId, fresh, force));
+  }
+
+  /** Put a run in the queue under its keys; it resolves with the run's own result once its turn has come and gone. */
+  private schedule<T>(keys: string[], work: () => Promise<T>): Promise<T> {
+    for (const k of keys) this.queued.add(k);
+    return new Promise<T>((resolve, reject) => this.queue.push({ keys, work: () => work().then(resolve, reject) }));
   }
 
   /** Work the queue, one run at a time; a second caller waits on the same pass through it. */
@@ -195,9 +206,9 @@ export class PassRunner {
         while (this.queue.length) {
           const next = this.queue.shift()!;
           try {
-            next.done(await this.run(next.job, next.agentId, next.chatIds, next.force));
+            await next.work();
           } finally {
-            for (const c of next.chatIds) this.queued.delete(`${next.job.name}\u0000${next.agentId}\u0000${c}`);
+            for (const k of next.keys) this.queued.delete(k);
           }
         }
       } finally {
@@ -275,7 +286,7 @@ export class PassRunner {
     const started = this.now();
     const agentKey = `${job.name}\u0000${agentId}`;
     const keyOf = (chatId: string) => `${agentKey}\u0000${chatId}`;
-    const { state, context } = this.deps;
+    const { state } = this.deps;
     let parts: PassPart[] = [];
     let requestId: string | null = null;
     const finish = (outcome: RunOutcome, extra: Record<string, unknown> = {}) => {
@@ -302,41 +313,7 @@ export class PassRunner {
       // each attempt gets its own id, so a retry (or Learn's capped stretch the next day) is really asked again.
       const which = createHash("sha256").update(parts.map((p) => `${p.chatId}@${p.lines}`).join("\n")).digest("hex").slice(0, 12);
       requestId = `pass:${job.name}:${agentId}:${which}:${started.getTime().toString(36)}`;
-      const store = await this.deps.stores.get(agentId);
-      const model = modelRef(record?.model ?? "");
-      const tools = new Set(job.tools(this.deps.registry).map((t) => t.name));
-      const agent = { tools: this.deps.registry.snapshot().tools().filter((t) => tools.has(t.tool.name)).map((t) => t.tool), instructions: job.instructions, ...(model ? { model } : {}) };
-      const id = job.chatId(agentId);
-      let chat = await store.chat(id, context);
-      if (!chat) chat = await store.createChat(id, { title: job.title, hidden: true, agent }, context);
-      else {
-        await chat.configure(agent, context);
-        await chat.reset(undefined, context);
-      }
-      const before = (await store.entries(chat, context)).length;
-      const submission = await chat.submit({ type: "input", content: prompt, requestId }, context);
-      // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
-      const limited = withCancel(context);
-      const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS);
-      let settled: Awaited<ReturnType<typeof submission.wait>>;
-      try {
-        settled = await submission.wait(limited.context);
-      } catch (error) {
-        if (!limited.context.abortSignal?.aborted) throw error;
-        await chat.abort(context).catch(() => {});
-        throw new Error(`the pass did not finish within ${Math.round((this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS) / 1000)}s`);
-      } finally {
-        clearTimeout(timer);
-      }
-      if (settled.status !== "done") throw new Error(`the pass did not finish: ${settled.status}`);
-      const answer: PassAnswer = { text: "", toolCalls: [] };
-      for (const entry of (await store.entries(chat, context)).slice(before)) {
-        const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
-        if (entry.kind !== "pi.assistant" || m?.role !== "assistant") continue;
-        for (const part of m.content ?? []) if (part.type === "toolCall" && part.name) answer.toolCalls.push(part.name);
-        const text = (m.content ?? []).filter((p) => p.type === "text").map((p) => p.text).join("").trim();
-        if (text) answer.text = text;
-      }
+      const answer = await this.ask(agentId, record?.model ?? "", { chatId: job.chatId(agentId), title: job.title, instructions: job.instructions, tools: job.tools(this.deps.registry).map((t) => t.name), prompt, requestId });
       const result = await job.apply(input, answer);
       if (!result.capped) advance();
       for (const p of parts) this.failedAt.delete(keyOf(p.chatId));
@@ -350,6 +327,82 @@ export class PassRunner {
       for (const c of parts.length ? parts.map((p) => p.chatId) : chatIds) this.failedAt.set(keyOf(c), this.now().getTime());
       this.deps.report?.(`${job.name} on ${(parts.length ? parts.map((p) => p.chatId) : chatIds).join(", ")} failed: ${String(error)}`);
       return finish("failed");
+    }
+  }
+
+  /**
+   * Ask the agent something in a pass's hidden chat, cleared first and set up with the pass's instructions and tools,
+   * and read back what it said and which tools it called. A run past the time limit is stopped and fails.
+   */
+  private async ask(agentId: string, agentModel: string, spec: { chatId: string; title: string; instructions: string; tools: readonly string[]; prompt: string; requestId: string }): Promise<PassAnswer> {
+    const { context } = this.deps;
+    const store = await this.deps.stores.get(agentId);
+    const model = modelRef(agentModel);
+    const tools = new Set(spec.tools);
+    const agent = { tools: this.deps.registry.snapshot().tools().filter((t) => tools.has(t.tool.name)).map((t) => t.tool), instructions: spec.instructions, ...(model ? { model } : {}) };
+    let chat = await store.chat(spec.chatId, context);
+    if (!chat) chat = await store.createChat(spec.chatId, { title: spec.title, hidden: true, agent }, context);
+    else {
+      await chat.configure(agent, context);
+      await chat.reset(undefined, context);
+    }
+    const before = (await store.entries(chat, context)).length;
+    const submission = await chat.submit({ type: "input", content: spec.prompt, requestId: spec.requestId }, context);
+    // One hung run must not hold every other pass behind it: past the limit the pass chat is stopped and the run fails.
+    const limited = withCancel(context);
+    const timer = setTimeout(() => limited.cancel(new Error("timed out")), this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS);
+    let settled: Awaited<ReturnType<typeof submission.wait>>;
+    try {
+      settled = await submission.wait(limited.context);
+    } catch (error) {
+      if (!limited.context.abortSignal?.aborted) throw error;
+      await chat.abort(context).catch(() => {});
+      throw new Error(`the pass did not finish within ${Math.round((this.deps.runTimeoutMs ?? RUN_TIMEOUT_MS) / 1000)}s`);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (settled.status !== "done") throw new Error(`the pass did not finish: ${settled.status}`);
+    const answer: PassAnswer = { text: "", toolCalls: [] };
+    for (const entry of (await store.entries(chat, context)).slice(before)) {
+      const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
+      if (entry.kind !== "pi.assistant" || m?.role !== "assistant") continue;
+      for (const part of m.content ?? []) if (part.type === "toolCall" && part.name) answer.toolCalls.push(part.name);
+      const text = (m.content ?? []).filter((p) => p.type === "text").map((p) => p.text).join("").trim();
+      if (text) answer.text = text;
+    }
+    return answer;
+  }
+
+  /**
+   * The memory review (/doctor): the agent reads all of its memory and cleans it up (daemon/doctor.ts), in the same
+   * queue as every pass. A second review of the same agent while one is queued or running is not started.
+   */
+  async runDoctor(agentId: string): Promise<DoctorResult> {
+    const key = `doctor\u0000${agentId}`;
+    if (this.queued.has(key)) return { outcome: "skipped", changes: 0, report: "a memory review of this agent is already running" };
+    const result = this.schedule([key], () => this.doctor(agentId));
+    await this.drain();
+    return result;
+  }
+
+  private async doctor(agentId: string): Promise<DoctorResult> {
+    const started = this.now();
+    const requestId = `pass:doctor:${agentId}:${started.getTime().toString(36)}`;
+    const finish = (result: DoctorResult, extra: Record<string, unknown> = {}) => {
+      this.deps.capture?.("pass_finished", { job: "doctor", agent: agentId, outcome: result.outcome, duration_ms: this.now().getTime() - started.getTime(), request_id: requestId, items: { memory_changes: result.changes }, ...extra });
+      return result;
+    };
+    try {
+      const record = readLocalAgent(agentId, this.deps.backendDir);
+      const dump = memoryDump(memoryRoot(this.deps.backendDir, agentId));
+      if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
+      const answer = await this.ask(agentId, record?.model ?? "", { chatId: doctorChatId(agentId), title: "doctor", instructions: DOCTOR_INSTRUCTIONS, tools: DOCTOR_TOOLS, prompt: doctorPrompt(dump, started), requestId });
+      const changes = answer.toolCalls.filter((t) => t !== "memory_read" && MEMORY_TOOLS.includes(t)).length;
+      const report = answer.text || (changes ? `${changes} change${changes === 1 ? "" : "s"} to memory` : "memory looks healthy");
+      return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars });
+    } catch (error) {
+      this.deps.report?.(`memory review of ${agentId} failed: ${String(error)}`);
+      return finish({ outcome: "failed", changes: 0, report: `the memory review did not finish: ${error instanceof Error ? error.message : String(error)}` });
     }
   }
 

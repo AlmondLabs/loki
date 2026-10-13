@@ -288,6 +288,8 @@ export const FRAMES = {
   }, PHONE),
   chat_memory_write: request("chat_done", "write a memory file (null content removes it), committed as yours", (m) =>
     isAgentId(m.agentId) && str(m.path) && m.path ? { agentId: m.agentId, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) } : "agentId and path required"),
+  chat_memory_revert: request("chat_done", "undo one memory commit with a new commit, as yours", (m) =>
+    isAgentId(m.agentId) && str(m.sha) && /^[0-9a-f]{7,40}$/i.test(m.sha) ? { agentId: m.agentId, sha: m.sha } : "agentId and a commit sha required"),
   chat_skill_enable: request("chat_skill_enabled", "make a skill folder global: a link to it in the global skills folder", (m) => (str(m.path) && m.path ? { path: m.path } : "path required")),
   chat_skill_disable: request("chat_done", "take a global skill away: its link in the global skills folder", (m) => (str(m.name) && m.name && !m.name.includes("/") && !m.name.includes("..") ? { name: m.name } : "a skill name required")),
   chat_providers: request("chat_providers", "the model providers, connected or not", nothing),

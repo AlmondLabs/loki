@@ -19,7 +19,7 @@ import type { ImportReport, ImportStatus } from "./import/letta.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
 import type { PassState } from "./passes-state.ts";
-import { editMemoryFile } from "./memory.ts";
+import { editMemoryFile, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import type { ModRegistry } from "./mods/registry.ts";
@@ -285,7 +285,7 @@ export class DaemonChats implements ChatBackend {
     await this.deps.passes.runner.runAllNow("learn");
   }
 
-  /** The slash commands the daemon runs: /compact [instructions], /clear, /remember [what], /reflect. */
+  /** The slash commands the daemon runs: /compact [instructions], /clear, /remember [what], /reflect, /doctor. */
   async command(p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
     const { chat } = await this.chat(p.agentId, p.conversationId);
     switch (p.command) {
@@ -306,6 +306,13 @@ export class DaemonChats implements ChatBackend {
         // The pass runs on its own, even with reflection off; its memory changes show on the agent's page when it is done.
         void this.deps.passes.runner.runNow("reflection", p.agentId, p.conversationId).catch(() => {});
         return { success: true, output: "reflecting on this chat; its memory changes show on the agent's page" };
+      case "doctor": {
+        if (!this.deps.passes) return { success: false, output: "the background passes are not running" };
+        // Waits for the review: its report is the command's answer, and each change is a commit on the agent's Changes page.
+        const r = await this.deps.passes.runner.runDoctor(p.agentId);
+        const tail = r.changes ? `\n\n${r.changes} change${r.changes === 1 ? "" : "s"} committed by Doctor; Agents › Changes shows each, and Revert undoes one.` : "";
+        return { success: r.outcome !== "failed" && r.outcome !== "skipped", output: `${r.report}${tail}` };
+      }
       default:
         return { success: false, output: `/${p.command} is not a command loki's daemon runs` };
     }
@@ -331,6 +338,11 @@ export class DaemonChats implements ChatBackend {
 
   async writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void> {
     await editMemoryFile(this.deps.backendDir, p.agentId, p.path, p.content, p.message);
+  }
+
+  /** One memory commit undone, by a new commit as yours (the Agents page's Revert). */
+  async revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void> {
+    await revertMemoryCommit(this.deps.backendDir, p.agentId, p.sha);
   }
 
   async deleteAgent(agentId: string): Promise<void> {

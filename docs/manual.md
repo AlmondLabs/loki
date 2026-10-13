@@ -165,8 +165,9 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   a tab per page (a first visit lands on memory); the "+" at the top of the sidebar makes a new agent. **profile**: face, name, description and model
   (editable), effort and context, where it is working (its live chats, each a link, and its open tasks), and delete at
   the bottom. **memory**: the files as a tree on the left, the one you picked on the right, with "ask <agent> to update
-  this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a pass by
-  Letta's Reflection Subagent is marked. **reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
+  this". **changes**: what it learned as a timeline of memory commits, newest first, the diff on the right; a commit by
+  reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
+  as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
   every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
   last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
   chats, counting what recurs across them (and reads a chat right after its context is compacted) — with the last change reflection made; `/reflect` in a chat does it now. **skills**:
@@ -490,13 +491,21 @@ speaks Letta's app-server protocol through the mod's `/appserver` tunnel, which 
 refuses browser origins. The read (`seen`), viewed and focus marks live in
 `~/.letta/loki/state/attention.json`, so the phone and the Mac share them.
 
-Slash commands work in the message box, and in the reply box of an inbox card, as they do in Letta Desktop: type `/` and a palette lists what the box can
-run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K search) and the harness's (`/reload`, `/compact`, `/clear`,
-`/remember`, `/reflect`, `/init`, `/doctor`, `/context-limit`, `/channels`, `/upgrade-letta-code`, plus whatever this Letta Code
-advertises). ↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away.
-Harness commands go over the app-server socket as `execute_command`, the path Desktop and the channels use, and
-land in the transcript as one quiet row: the command line, then its outcome. `core/attention/commands.ts`
-is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
+Slash commands work in the message box, and in the reply box of an inbox card: type `/` and a palette lists what the
+box can run — loki's own (`/model`, `/mode`, `/inbox`, `/chats` for ⌘K search) and the daemon's:
+
+- `/compact [instructions]` summarises the conversation so far; `/clear` starts the agent afresh in the same chat (the
+  thread stays).
+- `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
+- `/doctor` reviews the agent's whole memory and cleans it up, Letta's /doctor on loki. It tidies (merges what says the
+  same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
+  calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
+  from the rest of memory). It edits directly, each change a commit by "Doctor"; the command's row shows its report,
+  one line per change, and Agents › changes lists the commits, each with revert. It runs in the agent's hidden
+  `doctor-<agent>` chat, in the same queue as reflection and Learn, and only when you ask.
+
+↑↓ move, ↵ runs (or fills in a command that takes arguments), ⇥ fills in, esc puts the palette away. A command lands
+in the transcript as one quiet row: the command line, then its outcome. `core/attention/commands.ts` is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
 message on the clipboard as the markdown it was written in, not the rendering.
 
 ### Learn (⌘5)

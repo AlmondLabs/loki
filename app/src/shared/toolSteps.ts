@@ -14,7 +14,7 @@ import type { IconName } from "./icons";
 /** Tools that run a shell command: they count as commands, the rest as tools. */
 const SHELL = new Set(["Bash", "bash_background", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
 /** Tools that change files: Claude-style edits and Codex-style patches (the agent's memory files too). */
-const EDITS = new Set(["Edit", "MultiEdit", "NotebookEdit", "Write", "ApplyPatch", "apply_patch", "memory_apply_patch", "memory"]);
+const EDITS = new Set(["Edit", "MultiEdit", "NotebookEdit", "Write", "ApplyPatch", "apply_patch", "memory_apply_patch", "memory", "memory_write", "memory_edit", "memory_delete"]);
 /** Tools that hand work to another agent. */
 const AGENTS = new Set(["Task", "Agent", "SendAgentMessage"]);
 
@@ -35,7 +35,12 @@ export function stepVerb(name: string): string {
       return "Edited";
     case "memory_apply_patch":
     case "memory":
+    case "memory_write":
+    case "memory_edit":
+    case "memory_delete":
       return "Updated memory";
+    case "memory_read":
+      return "Read memory";
     case "Write":
       return "Wrote";
     case "Grep":

@@ -115,7 +115,8 @@ every chat gets, the chats, then the mods.
    hours, so chats gather, unless a chat was compacted or the last batch left some behind. Cursors stay per chat and
    move only when a run succeeds. A run works as the agent in that pass's hidden chat for the agent, cleared first,
    never while a chat in it is busy, one run at a time across all agents, and is measured (`pass_finished`, with the
-   chats it read). Their settings and cursors are in `~/.loki/state/passes.json` and
+   chats it read). The memory review (`/doctor`, `daemon/doctor.ts`) shares the queue and the hidden-chat run but reads
+   the agent's whole memory instead of chats, and runs only when asked; its commits are authored "Doctor". Their settings and cursors are in `~/.loki/state/passes.json` and
    `pass-cursors.json`.
 10. **The mod registry (`daemon/mods/`).** loki's mod API, version 1 (`daemon/mods/api.ts`): a mod registers tools
     and prompt sections, gets a say before a tool runs, transforms the person's message before it is sent, and
