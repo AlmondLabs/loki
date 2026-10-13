@@ -6,7 +6,7 @@ import { learnTitle, updatedSinceReview, type CardSource, type CardWithSchedule,
 import { lessonBrief } from "../../../core/recall/extract.ts";
 import type { Recall as RecallModel } from "../shell/useRecall";
 import type { useDeckPass } from "../recall/useDeckPass";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { avatarUrl } from "../desk/env";
 import { Button } from "../components";
 import { useLeave, type LeaveFrames } from "../kit/leave";

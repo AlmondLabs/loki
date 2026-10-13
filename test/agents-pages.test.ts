@@ -167,7 +167,7 @@ describe("agents column", () => {
 
 /** The Agents pane (Agents.tsx) with its column outside, in the Shell's ListColumn. */
 describe("agents pane", () => {
-  const props = (agents: Array<{ id: string; name: string }>) => ({ agents, api: {}, avatar: () => "", desks: [], items: [], tasks: null, initialAgentId: null, onOpenDesk: () => {}, onAskToUpdate: () => {}, onUpdateAgent: async () => null, write: {}, reflect: {}, listModels: async () => [], onShowDesks: () => {}, onShowBoard: () => {} });
+  const props = (agents: Array<{ id: string; name: string }>) => ({ agents, api: {}, avatar: () => "", desks: [], items: [], tasks: null, initialAgentId: null, onOpenDesk: () => {}, onAskToUpdate: () => {}, onUpdateAgent: async () => null, write: {}, reflect: {}, listModels: async () => [], onShowDesks: () => {}, onShowTasks: () => {} });
   test("no agents: the invitation, as an empty pane, with its new agent button", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");

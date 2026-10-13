@@ -367,7 +367,7 @@ export interface ListRowProps {
   /** The start: an agent's face (AgentFace at 20) or a ListIcon. */
   lead?: ReactNode;
   title: ReactNode;
-  /** One muted line under the title. Sidebar rows leave it out; list-and-detail lists (agents, board, learn) use it. */
+  /** One muted line under the title. Sidebar rows leave it out; list-and-detail lists (agents, tasks, learn) use it. */
   preview?: ReactNode;
   /** Quiet text on the right ("3h"); the badge takes its place when there is one. */
   time?: string | null;

@@ -9,9 +9,9 @@ import { chatKeyTarget, sidebarHidden } from "../desk/pane";
 import { useDesk } from "../desk/useDesk";
 import { avatarUrl, inTauri } from "../desk/env";
 import { AgentsColumn } from "../agents/Agents";
-import { BoardColumn } from "../board/BoardColumn";
+import { TasksColumn } from "../tasks/TasksColumn";
 import { LearnColumn } from "../recall/LearnColumn";
-import { TaskCapture } from "../board/TaskCapture";
+import { TaskCapture } from "../tasks/TaskCapture";
 import { useDaemonStatus, type DaemonStatus } from "./bootstrap";
 import { welcomeStep } from "../settings/provider-model";
 import { afterSegmentKey } from "../settings/preferences";
@@ -21,7 +21,7 @@ import { useNotice } from "./useNotice";
 import { useModelList } from "./useModelList";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
-import { useBoard } from "./useBoard";
+import { useTasks } from "./useTasks";
 import { useRecall } from "./useRecall";
 import { useLokiUpdate } from "./useLokiUpdate";
 import { useGlobalShortcut } from "./useGlobalShortcut";
@@ -30,7 +30,7 @@ import { KeysSheet } from "./KeysSheet";
 import { useColumn } from "./useColumn";
 import { ListColumn } from "./ListColumn";
 import { DeskSidebarView } from "./DeskSidebar";
-import { AgentsView, BoardView, InboxView, NewDeskSheet, PickerTree, SettingsView, WelcomeView, type Picker, RecallView } from "./views";
+import { AgentsView, TasksView, InboxView, NewDeskSheet, PickerTree, SettingsView, WelcomeView, type Picker, RecallView } from "./views";
 import { SearchSheet } from "./SearchSheet";
 import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./searchModel";
 import { agentsSelection } from "../agents/selection";
@@ -45,7 +45,9 @@ const SEGMENT_KEY = "loki.segment";
 /** The segment survives a reload of the same window; a refresh mid-pass reopens the inbox. Settings is a sheet now, not a segment: a saved "settings" lands on the desk. */
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
-  return s === "inbox" || s === "board" || s === "agents" || s === "learn" ? s : "desk";
+  // "board" is Tasks from before it was renamed.
+  if (s === "board") return "tasks";
+  return s === "inbox" || s === "tasks" || s === "agents" || s === "learn" ? s : "desk";
 }
 
 /** First launch: nothing to talk to yet. Only while the daemon could not start, or has answered and lists no agents. */
@@ -59,7 +61,7 @@ function welcomeFor(daemon: DaemonStatus | null, catchUp: Pick<CatchUp, "status"
 
 /**
  * The window: loki's own top strip (the native title bar is hidden), a rail of segments under it, the
- * section's list column (ListColumn; Desk, Board, Agents, Learn) and one view in the space they leave. The desk and attention models live here so the desk view, the
+ * section's list column (ListColumn; Desk, Tasks, Agents, Learn) and one view in the space they leave. The desk and attention models live here so the desk view, the
  * inbox, ⌘K search and settings all read the same state.
  */
 export function Shell() {
@@ -85,7 +87,7 @@ export function Shell() {
     sent: (rt) => desk.models.sentIn(rt.conversation_id, rt.agent_id),
     activity: pageActivity,
   });
-  const { message: boardNotice, notice } = useNotice();
+  const { message: taskNotice, notice } = useNotice();
   // The inbox lists what is open on disk; when the sidebar or the desk header archives or restores a conversation, re-read it now rather than at the next minute.
   const archivedKey = desk.desks.list.filter((d) => d.status === "archived").map((d) => d.scope).sort().join("\n");
   const reloadInbox = catchUp.reload;
@@ -196,8 +198,8 @@ export function Shell() {
     setSegment("desk");
   };
 
-  // --- the board -------------------------------------------------------
-  const board = useBoard(desk, segment, notice, { send: catchUp.send, openDesk });
+  // --- tasks ---------------------------------------------------------------
+  const tasks = useTasks(desk, segment, notice, { send: catchUp.send, openDesk }, capture);
   const recall = useRecall(desk, segment, notice);
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
@@ -212,9 +214,9 @@ export function Shell() {
     const pending = pendingAssign.current;
     pendingAssign.current = null;
     if (pending) {
-      // The board asked for a new desk as the target: assign (or dispatch) there, then go.
+      // The task list asked for a new desk as the target: assign (or dispatch) there, then go.
       const agentName = catchUp.agents.find((a) => a.id === rt.agent_id)?.name ?? null;
-      await board.assignTo({ scope: scopeFor(rt.conversation_id, rt.agent_id), agentId: rt.agent_id, agentName, conversationId: rt.conversation_id, title: name || null }, pending.ids, pending.start);
+      await tasks.assignTo({ scope: scopeFor(rt.conversation_id, rt.agent_id), agentId: rt.agent_id, agentName, conversationId: rt.conversation_id, title: name || null }, pending.ids, pending.start);
       return;
     }
     openDesk(rt.agent_id, rt.conversation_id, { chat: true });
@@ -238,7 +240,7 @@ export function Shell() {
   useEffect(() => {
     sessionStorage.setItem(SEGMENT_KEY, segment);
   }, [segment]);
-  useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, board.openTasks, recall.due);
+  useWindowTitle(desk, prefsOpen ? "settings" : segment, waiting, tasks.openTasks, recall.due);
 
   // The desks list feeds the sidebar, search and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
   // status too, so the rail's green dot is right before Settings is ever opened.
@@ -255,7 +257,7 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  // The list column between the rail and the main pane (Desk, Board, Agents, Learn); the pane starts where it ends.
+  // The list column between the rail and the main pane (Desk, Tasks, Agents, Learn); the pane starts where it ends.
   const column = useColumn(segment);
   // The Desk tab gives the canvas the window: the column hides (its bodies stay mounted, scroll kept), the rail stays.
   const immersive = sidebarHidden(segment, pane.tab);
@@ -278,7 +280,7 @@ export function Shell() {
     {
       "segment.desk": () => segmentKey("segment.desk"),
       "segment.inbox": () => segmentKey("segment.inbox"),
-      "segment.board": () => segmentKey("segment.board"),
+      "segment.tasks": () => segmentKey("segment.tasks"),
       "segment.learn": () => segmentKey("segment.learn"),
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
@@ -337,7 +339,7 @@ export function Shell() {
     <div style={{ position: "relative", height: "100%", overflow: "hidden", background: "var(--loki-bg)" }}>
       <div style={{ position: "absolute", inset: 0 }}>
         <TitleStrip />
-        <Sidebar segment={segment} onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))} waiting={waiting} tick={tick} openTasks={board.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null} />
+        <Sidebar segment={segment} onSelect={(s) => (s === "settings" ? setPrefsOpen(true) : setSegment(s))} waiting={waiting} tick={tick} openTasks={tasks.openTasks} dueCards={recall.due} lanOn={desk.phone.status?.enabled === true} updateReady={update.newer} column={column.has && !immersive ? { open: column.open, onToggle: column.toggle } : null} />
 
         <ListColumn
           segment={segment}
@@ -346,7 +348,7 @@ export function Shell() {
           onWidth={column.setWidth}
           sections={{
             desk: <DeskSidebarView desk={desk} catchUp={catchUp} notice={notice} onOpen={switchDesk} onNew={(agentId) => setNewDesk({ open: true, name: "", agentId })} />,
-            board: <BoardColumn tasks={board.tasks} onNew={() => setCaptureOpen(true)} />,
+            tasks: <TasksColumn tasks={tasks.list} onNew={() => setCaptureOpen(true)} />,
             agents: <AgentsColumn agents={catchUp.agents} desks={desk.desks.list} items={catchUp.items} avatar={avatarUrl} initialAgentId={desk.agentId} />,
             learn: <LearnColumn recall={recall} />,
           }}
@@ -383,16 +385,16 @@ export function Shell() {
 
           {segment === "inbox" && <InboxView desk={desk} catchUp={catchUp} models={modelList} onLoadModels={loadModels} onPickModel={pickModel} onPickMode={pickMode} onOpenDesk={openDesk} onClose={() => setSegment("desk")} onPass={(pass) => capture("inbox_pass_completed", pass)} />}
 
-          {segment === "board" && (
-            <BoardView
-              board={board}
+          {segment === "tasks" && (
+            <TasksView
+              tasks={tasks}
               desks={desk.desks.list}
               onAssign={(ids, start) => {
                 desk.desks.request();
                 setPicker({ ids, start });
               }}
               onNew={() => setCaptureOpen(true)}
-              active={segment === "board" && !picker && !captureOpen && !searchOpen}
+              active={segment === "tasks" && !picker && !captureOpen && !searchOpen}
             />
           )}
 
@@ -402,30 +404,30 @@ export function Shell() {
             <AgentsView
               desk={desk}
               catchUp={catchUp}
-              tasks={board.tasks}
+              tasks={tasks.list}
               onOpenDesk={openDesk}
               onAskToUpdate={(agentId, text) => {
                 openDesk(agentId, "default", { chat: true });
                 setChatPrefill({ text, tick: Date.now() });
               }}
               onShowDesks={() => setSegment("desk")}
-              onShowBoard={() => setSegment("board")}
+              onShowTasks={() => setSegment("tasks")}
             />
           )}
 
           {welcome && !prefsOpen && <WelcomeView step={welcome} catchUp={catchUp} daemon={daemon.status} onRetryDaemon={daemon.retry} models={modelList} onLoadModels={loadModels} onModelsChanged={forgetModels} onDone={(agentId) => openDesk(agentId, "default", { chat: true })} />}
 
-          <PickerTree picker={picker} onClose={() => setPicker(null)} desk={desk} catchUp={catchUp} onAssign={board.assignTo} pendingAssignRef={pendingAssign} onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })} />
+          <PickerTree picker={picker} onClose={() => setPicker(null)} desk={desk} catchUp={catchUp} onAssign={tasks.assignTo} pendingAssignRef={pendingAssign} onNewDesk={(agentId, name) => setNewDesk({ open: true, name, agentId })} />
 
         </main>
       </div>
 
-      <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={board.createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
+      <TaskCapture open={captureOpen} onClose={() => setCaptureOpen(false)} onCreate={tasks.createTask} context={{ desk: desk.scope, agentName: desk.agentName }} />
       {searchOpen && <SearchSheet sources={searchSources} here={segment === "desk" ? deskPlace(desk.scope) : segment === "settings" ? null : sectionPlace(segment)} avatar={avatarUrl} onOpen={openHit} onClose={() => setSearchOpen(false)} />}
       {keysOpen && <KeysSheet segment={segment} onClose={() => setKeysOpen(false)} onSettings={() => (setKeysOpen(false), sessionStorage.setItem(SETTINGS_PAGE_KEY, "keys"), setPrefsOpen(true))} />}
       {/* Preferences covers the whole window, rail included, like Slack's. */}
       {prefsOpen && <SettingsView onClose={() => setPrefsOpen(false)} update={update} shortcut={shortcut} recall={recall} desk={desk} catchUp={catchUp} daemon={daemon.status} chatWidth={chat.chatWidth} onChatWidth={chat.setChatWidth} chatPlacement={chat.chatPlacement} onChatPlacement={chat.setChatPlacement} onModelsChanged={forgetModels} />}
-      {boardNotice && <Toast>{boardNotice}</Toast>}
+      {taskNotice && <Toast>{taskNotice}</Toast>}
 
       <NewDeskSheet
         state={newDesk}

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { Button, Row } from "../components";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { Head, ListPane, Pane, Prose } from "./bits";
 import type { AgentDetails } from "./types";
 import type { ReadingState } from "./useReading";

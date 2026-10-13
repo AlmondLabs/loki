@@ -96,7 +96,7 @@ previews, like the Mac's `.dmg`. No other downloads.
 
 - Letta's local backend under `~/.letta/` (agents, conversations, memory filesystems, pins,
   permission modes), read-only except for pins and the files it owns under `~/.letta/loki/`.
-- The board in `~/.letta/loki/board` through the `bd` binary.
+- Tasks in `~/.loki/tasks` through the `bd` binary.
 - Nothing is uploaded, logged remotely, or telemetered. The mod keeps a local usage log
   (`~/.letta/loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only
   `npm run analytics` on this machine reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is

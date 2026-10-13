@@ -1,6 +1,6 @@
 /**
  * The loki daemon (plan 017): the one long-running process the shell starts and supervises. It holds the lock, opens
- * every agent's store and runs every chat, and loads the mods: loki's own (canvas, board, Learn, the phone listener)
+ * every agent's store and runs every chat, and loads the mods: loki's own (canvas, Tasks, Learn, the phone listener)
  * and any in the `mods` folder beside its state, on loki's mod API (daemon/mods).
  *
  *   node daemon.mjs --loki-daemon --dir <loki folder> --mod <mod entry> [--token-file <file>]

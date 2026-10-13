@@ -59,7 +59,7 @@ export function isGesture(v: unknown): v is Gesture {
   }
 }
 
-/** The task ids a board frame names: `ids`, or a single `id`. */
+/** The task ids a task list frame names: `ids`, or a single `id`. */
 const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : str(m.id) ? [m.id] : []);
 /** A conversation mark: which conversation, and its agent when the app knows it. */
 const mark = (m: Raw) => (str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId } : "conversationId required");
@@ -322,8 +322,8 @@ export const FRAMES = {
   recall_lead_restore: request("recall", "bring a set-aside lead back", (m) => recallId(m), PHONE),
   recall_lead_start: request("recall_lesson", "a lead becomes a [Learn] conversation with an info card on its desk; the app then sends the brief", (m) => recallId(m), PHONE),
 
-  // The board
-  tasks_list: request("tasks", "the board's tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true })),
+  // The task list
+  tasks_list: request("tasks", "the tasks in Tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true })),
   task_create: request("task_created", "a task filed from the app, stamped with its chat and folder", (m) => ({
     title: String(m.title ?? ""),
     description: strOr(m.description, undefined),
@@ -339,6 +339,7 @@ export const FRAMES = {
       ? { ids: taskIds(m), conversationId: m.conversationId, desk: m.desk, agentId: strOr(m.agentId, null), agentName: strOr(m.agentName, null), start: m.start === true }
       : "assign needs a conversation and a chat"),
   task_close: request("tasks_updated", "close tasks, with a reason", (m) => ({ ids: taskIds(m), reason: strOr(m.reason, undefined) })),
+  task_reopen: request("tasks_updated", "not done after all: an agent's done? taken back, or done tasks opened again", (m) => ({ ids: taskIds(m) })),
   task_status: request("tasks_updated", "move tasks to open, in progress, blocked or deferred", (m) =>
     m.status === "open" || m.status === "in_progress" || m.status === "blocked" || m.status === "deferred" ? { ids: taskIds(m), status: m.status as "open" | "in_progress" | "blocked" | "deferred" } : `unknown status ${String(m.status)}`),
 
@@ -377,7 +378,7 @@ export const FRAMES = {
   seen: push("the done and viewed marks and the focus weights, after any change"),
   models_recent: push("the models used lately (on connect, and after a pick)"),
   recall_changed: push("Learn changed: other tabs and phones refetch"),
-  tasks_changed: push("the board changed: other tabs refetch"),
+  tasks_changed: push("Tasks changed: other tabs refetch"),
   lan_status: push("the phone listener's status"),
   devices: push("the paired phones"),
   pair_code: push("a pairing code, its URL and when it expires"),
@@ -417,6 +418,6 @@ export function requestResult<R>(answer: Record<string, unknown> | null): Reques
  * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
  * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
  * and a model picked there, for the shared quick picks.
- * Never gestures, the board, skills, the writer's settings, or the pairing and device frames.
+ * Never gestures, the task list, skills, the writer's settings, or the pairing and device frames.
  */
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set((Object.keys(FRAMES) as FrameName[]).filter((n) => FRAMES[n].kind !== "push" && (FRAMES[n] as { phone: boolean }).phone));

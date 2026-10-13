@@ -188,19 +188,20 @@ export function useDesk() {
     return true;
   };
 
-  /** The board, through the mod. Every call resolves to tasks or an error message; never throws. */
-  const boardCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_status">(type: N, payload: InputOf<N>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
+  /** The task list, through the mod. Every call resolves to tasks or an error message; never throws. */
+  const taskCall = <N extends "tasks_list" | "task_create" | "task_assign" | "task_close" | "task_reopen" | "task_status">(type: N, payload: InputOf<N>): Promise<{ ok: true; tasks: Task[] } | { ok: false; message: string }> =>
     request(type, payload, 25_000).then((r) => {
       if (!r.ok) return { ok: false, message: r.error };
       const reply = r.reply as Replies["tasks"] | Replies["task_created"];
       return { ok: true, tasks: "tasks" in reply ? reply.tasks : [reply.task] };
     });
-  const board = {
-    list: (all = true) => boardCall("tasks_list", { all }),
-    create: (t: { title: string; description?: string; labels?: string[]; priority?: number; desk?: string | null; agentId?: string | null; agentName?: string | null; conversationId?: string | null }) => boardCall("task_create", t),
-    assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) => boardCall("task_assign", { ids, ...target, start }),
-    close: (ids: string[], reason?: string) => boardCall("task_close", { ids, reason }),
-    setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => boardCall("task_status", { ids, status }),
+  const tasks = {
+    list: (all = true) => taskCall("tasks_list", { all }),
+    create: (t: { title: string; description?: string; labels?: string[]; priority?: number; desk?: string | null; agentId?: string | null; agentName?: string | null; conversationId?: string | null }) => taskCall("task_create", t),
+    assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) => taskCall("task_assign", { ids, ...target, start }),
+    close: (ids: string[], reason?: string) => taskCall("task_close", { ids, reason }),
+    reopen: (ids: string[]) => taskCall("task_reopen", { ids }),
+    setStatus: (ids: string[], status: "open" | "in_progress" | "blocked" | "deferred") => taskCall("task_status", { ids, status }),
   };
 
   /** Recall, through the mod (mod/recall.ts): the cards, a review, a delete and its undo, the worker's knobs. */
@@ -431,7 +432,7 @@ export function useDesk() {
         if (model && recentModels[0] !== model) send({ type: "models_recent_add", handle: model });
       },
     },
-    board,
+    tasks,
     tasksVersion,
     recall,
     recallVersion,

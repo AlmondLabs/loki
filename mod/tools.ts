@@ -6,7 +6,8 @@ import type { WidgetsWatcher } from "./widgets-fs.ts";
 import type { GestureLog } from "./gestures.ts";
 import { scopeOfId } from "../core/desk-core.ts";
 import { log, withTimeout } from "./log.ts";
-import type { TaskBoard } from "./tasks.ts";
+import type { TaskStore } from "./tasks.ts";
+import type { Task } from "../core/frame-types.ts";
 
 /**
  * Two tools. Rendering and authoring are file writes, not tool calls — the
@@ -24,10 +25,13 @@ export interface ToolDeps {
   /** Bind a conversation to its desk and return the scope. */
   remember?: (conversationId: string, agentId?: string | null) => Scope;
   broadcast(msg: object, scope?: Scope): void;
-  /** The shared board (beads) and the folder a conversation works in, for the task stamp. */
-  tasks?: TaskBoard;
+  /** The shared task list (beads) and the folder a conversation works in, for the task stamp. */
+  tasks?: TaskStore;
   folderFor?: (agentId: string | null, conversationId: string | null) => string | null;
 }
+
+/** A conversation's own tasks, the ones it may comment on and close: assigned to it, or filed from it and assigned nowhere. */
+export const ownTask = (t: Task, conversation: string | null): boolean => !!conversation && (t.metadata.assignedTo === conversation || (t.metadata.conversation === conversation && !t.metadata.assignedTo));
 
 /**
  * The desk a tool call is about: the explicit `desk` argument, else the desk of
@@ -168,17 +172,20 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   );
 
   if (deps.tasks) {
-    const board = deps.tasks;
+    const store = deps.tasks;
     disposers.push(
       tools.register({
         name: "loki_task",
         description:
-          "The user's board of tasks for later (beads, shared by every agent and folder). Use it when the user asks to " +
+          "The user's Tasks: one task list shared by the user and every agent (beads). Use it when the user asks to " +
           "note, park, or file something for later, or when you wrap up with explicit follow-ups — never on your own " +
           "initiative mid-task. `create` files a task (title, description, labels, priority 0–4; the source conversation, " +
-          "desk and folder are stamped automatically) and returns its id: tell the user the id. `list` shows tasks assigned " +
-          "to this conversation (or every open task with all:true). `comment` adds progress; `close` finishes one with a " +
-          "reason. When the tasks assigned to this conversation change, the new list is attached to the user's next message inside <loki-tasks>.",
+          "desk and folder are stamped automatically) and returns its id: tell the user the id. `list` shows this " +
+          "conversation's tasks (or every open task with all:true). `comment` adds progress and `close` finishes one with a " +
+          "reason, on this conversation's tasks only: those assigned to it, or filed from it and not assigned elsewhere. " +
+          "Only the user closes a task the user filed: your `close` marks it done and waiting for the user to confirm, " +
+          "so say what you did in the reason. Comment on small steps; close only when the whole task is done. " +
+          "When the tasks assigned to this conversation change, the new list is attached to the user's next message inside <loki-tasks>.",
         parameters: {
           type: "object",
           properties: {
@@ -189,8 +196,8 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
             priority: { type: "number", description: "create: 0 (urgent) to 4 (someday); default 2." },
             id: { type: "string", description: "comment / close: the task id (lk-…)." },
             text: { type: "string", description: "comment: the progress note." },
-            reason: { type: "string", description: "close: what was done, one line." },
-            all: { type: "boolean", description: "list: every open task on the board, not just this conversation's." },
+            reason: { type: "string", description: "close: what was done, one line; the user reads it when confirming a task they filed." },
+            all: { type: "boolean", description: "list: every open task in Tasks, not just this conversation's." },
           },
           required: ["action"],
           additionalProperties: false,
@@ -204,7 +211,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
           log("tool:loki_task", { action, agent, conversation });
           try {
             if (action === "create") {
-              const task = await board.create({
+              const task = await store.create({
                 title: String(args.title ?? ""),
                 description: typeof args.description === "string" ? args.description : undefined,
                 labels: Array.isArray(args.labels) ? (args.labels as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
@@ -215,18 +222,29 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
               return JSON.stringify({ filed: task.id, title: task.title, priority: task.priority, labels: task.labels });
             }
             if (action === "list") {
-              const tasks = await board.list();
-              const mine = args.all === true ? tasks : tasks.filter((t) => t.metadata.assignedTo === conversation || (t.metadata.conversation === conversation && !t.metadata.assignedTo));
+              const tasks = await store.list();
+              const mine = args.all === true ? tasks : tasks.filter((t) => ownTask(t, conversation));
               return JSON.stringify(mine.map((t) => ({ id: t.id, title: t.title, status: t.status, priority: t.priority, labels: t.labels, assignedTo: t.metadata.assignedTo ?? null, description: t.description })), null, 2);
             }
-            if (action === "comment") {
-              if (typeof args.id !== "string" || typeof args.text !== "string") return { status: "error", content: "comment needs id and text" };
-              await board.comment(args.id, args.text);
-              return `noted on ${args.id}`;
-            }
-            if (action === "close") {
-              if (typeof args.id !== "string") return { status: "error", content: "close needs id" };
-              await board.close([args.id], typeof args.reason === "string" ? args.reason : undefined);
+            if (action === "comment" || action === "close") {
+              if (typeof args.id !== "string") return { status: "error", content: `${action} needs id` };
+              if (action === "comment" && typeof args.text !== "string") return { status: "error", content: "comment needs id and text" };
+              const task = await store.find(args.id);
+              if (!task) return { status: "error", content: `no task ${args.id} in Tasks` };
+              if (!ownTask(task, conversation)) return { status: "error", content: `${args.id} is not this conversation's task${task.metadata.assignedTo ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here` };
+              if (action === "comment") {
+                await store.comment(args.id, String(args.text));
+                return `noted on ${args.id}`;
+              }
+              if (task.status === "closed") return `${args.id} is already closed`;
+              const reason = typeof args.reason === "string" ? args.reason : undefined;
+              if (task.metadata.by === "you") {
+                // The user's own task: done when the user says so (Tasks › Waiting for you).
+                await store.askDone(args.id, { reason, by: agent });
+                deps.broadcast({ type: "tasks_changed" });
+                return `${args.id} was filed by the user: it is marked done and waits for the user to confirm (or reopen it). It stays open until then.`;
+              }
+              await store.close([args.id], reason, { actor: task.assignee ?? agent });
               deps.broadcast({ type: "tasks_changed" });
               return `${args.id} closed`;
             }

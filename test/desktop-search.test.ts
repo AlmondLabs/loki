@@ -50,7 +50,7 @@ describe("desktop search: what it finds (AE5)", () => {
   test("archived desks show, quieter; pages open the section or Preferences on the page", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];
     expect(old.dim).toBe(true);
-    expect(topHit(search(buildIndex(src), "board"))?.target).toEqual({ kind: "section", segment: "board" });
+    expect(topHit(search(buildIndex(src), "tasks"))?.target).toEqual({ kind: "section", segment: "tasks" });
     expect(topHit(search(buildIndex(src), "providers"))?.target).toEqual({ kind: "preferences", page: "providers" });
     expect(topHit(search(buildIndex(src), "preferences"))?.target).toEqual({ kind: "preferences", page: null });
     expect(topHit(search(buildIndex(src), "ira"))?.target).toEqual({ kind: "agent", agentId: "a2" });
@@ -73,8 +73,8 @@ describe("desktop search: recent places", () => {
     expect(PLACES_KEY.startsWith("loki.desktop.")).toBe(true);
     let t = 0;
     const r = createRecents({ storage: memory(), key: PLACES_KEY, max: 3, now: () => ++t });
-    for (const k of ["page:inbox", "desk:a1/c-rev", "page:board", "desk:a1/c-rev", "agent:a2"]) r.add(k);
-    expect(r.read()).toEqual(["agent:a2", "desk:a1/c-rev", "page:board"]);
+    for (const k of ["page:inbox", "desk:a1/c-rev", "page:tasks", "desk:a1/c-rev", "agent:a2"]) r.add(k);
+    expect(r.read()).toEqual(["agent:a2", "desk:a1/c-rev", "page:tasks"]);
   });
   test("desks and agents that are gone drop at read; junk drops; the rest become rows", () => {
     const hits = recentPlaceHits(["desk:a1/c-rev", "desk:a1/c-gone", "agent:a9", "agent:a2", "page:learn", "prefs:keys", "prefs:nope", "nonsense"], src);

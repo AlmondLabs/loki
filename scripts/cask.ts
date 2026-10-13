@@ -30,7 +30,7 @@ export function renderCask({ owner, version, sha256, channel = "stable" }: CaskI
 
   url "https://github.com/${owner}/loki/releases/download/${tag}/${dmgName("#{version}")}"
   name "${nightly ? "loki nightly" : "loki"}"
-  desc "Agents with a canvas, an inbox, a board and recall cards${nightly ? " — built from every merge" : ""}"
+  desc "Agents with a canvas, an inbox, a task list and recall cards${nightly ? " — built from every merge" : ""}"
   homepage "https://github.com/${owner}/loki"
 
 ${nightly

@@ -38,7 +38,7 @@ describe("analytics: the shape", () => {
   });
 
   test("parsing skips what is not an event and keeps the rest", () => {
-    const good = ev(0, "view_opened", { view: "board" });
+    const good = ev(0, "view_opened", { view: "tasks" });
     const text = [JSON.stringify(good), "not json", '{"event":"View","timestamp":"2026-09-22T12:00:00Z","distinct_id":"x","properties":{"$device_type":"mac"}}', '{"event":"view_opened","timestamp":"nope","distinct_id":"x","properties":{"$device_type":"mac"}}', '{"event":"view_opened","timestamp":"2026-09-22T12:00:00Z","distinct_id":"x","properties":{"$device_type":"tv"}}', "", JSON.stringify(ev(0, "conversation_marked_seen", {}, "phone"))].join("\n");
     expect(parseEvents(text).map((e) => [e.properties.$device_type, e.event])).toEqual([["mac", "view_opened"], ["phone", "conversation_marked_seen"]]);
   });

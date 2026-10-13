@@ -80,7 +80,7 @@ export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, 
 export { deskMark, type MarkKind } from "./sidebarModel";
 
 /**
- * The desks tree, now only the Board's assign-to-desk picker (PickerTree in views.tsx): the desk sidebar
+ * The desks tree, now only Tasks' assign-to-desk picker (PickerTree in views.tsx): the desk sidebar
  * lists desks and ⌘K searches them (plan 013), so switching, pinning and archiving from here went with the
  * drawer. Nothing typed: sections — waiting on you, pinned, everything else — and the highlight starts on the
  * current desk. Type to filter into one flat list. ↑↓ move, ↵ choose, Tab / ⇧Tab cycle the agent chips, esc

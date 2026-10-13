@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { PassSettings } from "../../../core/attention/protocol.ts";
 
 import { Chip, Meta } from "../components";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { Head, ListPane, Pane } from "./bits";
 import type { AgentsApi, ReflectionControls } from "./types";
 import type { ReflectionState } from "../../../core/frame-types.ts";

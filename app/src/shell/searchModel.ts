@@ -86,7 +86,7 @@ const PREF_WORDS: Partial<Record<SettingsPage, string[]>> = {
 export const DESTINATIONS: readonly Page[] = [
   { key: "page:desk", target: { kind: "section", segment: "desk" }, icon: "desk", label: "Chats", line: "The chat you were on", keywords: ["chats", "desks", "desk", "canvas", "home"] },
   { key: "page:inbox", target: { kind: "section", segment: "inbox" }, icon: "inbox", label: "Inbox", line: "What waits on you", keywords: ["catch up", "waiting", "approvals"] },
-  { key: "page:board", target: { kind: "section", segment: "board" }, icon: "check", label: "Board", line: "Tasks for your agents", keywords: ["tasks", "todo", "kanban"] },
+  { key: "page:tasks", target: { kind: "section", segment: "tasks" }, icon: "check", label: "Tasks", line: "Tasks for your agents", keywords: ["tasks", "todo", "kanban"] },
   { key: "page:agents", target: { kind: "section", segment: "agents" }, icon: "agents", label: "Agents", line: `Every agent on ${osWords().machine}`, keywords: ["dms", "people", "memory"] },
   { key: "page:learn", target: { kind: "section", segment: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
   { key: "prefs", target: { kind: "preferences", page: null }, icon: "settings", label: "Preferences", line: "Settings", keywords: ["settings"] },

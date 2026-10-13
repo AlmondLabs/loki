@@ -14,7 +14,7 @@ import { lettaLogCwd, lettaLogEntries } from "./convert.ts";
 /**
  * The one-time import from Letta (plan 017, U14): the person's agents (those with a memory folder; helper agents
  * left out), their memory repos with git history, and every conversation of theirs, each a chat under its Letta id,
- * so widgets, Inbox marks, pins and board stamps keyed by those ids still find it. Keys move into the keychain,
+ * so widgets, Inbox marks, pins and task stamps keyed by those ids still find it. Keys move into the keychain,
  * permission modes and folders onto the chats, schedules into loki's file, and the background passes' cursors onto
  * the converted chats (Letta's reflection and Learn had read them). It refuses while Letta runs, never writes to
  * Letta's files, and can run again: a second run imports only what is missing and never touches a chat the daemon

@@ -13,7 +13,7 @@ export function stripHarnessMarkup(text: string): string {
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
     .replace(/<system-alert>[\s\S]*?<\/system-alert>/g, "")
     .replace(/<lo[ck]i-desk[^>]*>[\s\S]*?<\/lo[ck]i-desk>/g, "") // the mod's desk-activity block (older builds wrote "loci")
-    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the board's tasks assigned to this conversation, from the mod
+    .replace(/<loki-tasks>[\s\S]*?<\/loki-tasks>/g, "") // the tasks assigned to this conversation in Tasks, from the mod
     .replace(/<attachment\b[^>]*\/>/g, "") // a file the message carried (loki's uploads, Letta's channels): a chip, not words
     .replace(/<attachment\b[^>]*>[\s\S]*?<\/attachment>/g, "")
     .replace(/<skill_content[^>]*>[\s\S]*?<\/skill_content>/g, "") // a skill's body, injected by the harness when the agent loads it
@@ -44,7 +44,7 @@ export interface HarnessEvent {
 
 /**
  * Pull the harness-injected events out of a user message: task notifications, compaction notes, the
- * desk-activity and board-tasks blocks the mod appends, and skill bodies the harness loads. Each becomes a quiet event
+ * desk-activity and assigned-tasks blocks the mod appends, and skill bodies the harness loads. Each becomes a quiet event
  * row instead of words in the user's bubble.
  */
 export function extractHarnessEvents(text: string): HarnessEvent[] {
@@ -61,7 +61,7 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   for (const m of text.matchAll(/<loki-tasks>([\s\S]*?)<\/loki-tasks>/g)) {
     const lines = m[1].split("\n").filter((l) => l.startsWith("- ")).map((l) => l.slice(2).trim());
     out.push({
-      text: "board tasks",
+      text: "assigned tasks",
       summary: lines.length ? `${lines.length} assigned to this chat` : "none assigned any more",
       detail: lines.length ? lines.join("\n") : null,
     });

@@ -105,3 +105,65 @@ describe("loki_camera", () => {
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep", "shared/welcome"] }, undefined]);
   });
 });
+
+describe("loki_task: a chat's own tasks, and only you close yours", () => {
+  const task = (id: string, metadata: Record<string, string>, status = "open") => ({ id, title: id, description: "", status, priority: 2, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata });
+  function withTasks() {
+    const tasks = [
+      task("lk-mine", { by: "you", assignedTo: "c1" }),
+      { ...task("lk-agent", { by: "agent", agent: "friday", conversation: "c1" }), assignee: "friday-old-name" },
+      task("lk-other", { by: "you", assignedTo: "c2" }),
+      task("lk-loose", { by: "you" }),
+      task("lk-done", { by: "agent", assignedTo: "c1" }, "closed"),
+    ];
+    const calls: string[] = [];
+    const store = {
+      find: async (id: string) => tasks.find((t) => t.id === id) ?? null,
+      list: async () => tasks.filter((t) => t.status !== "closed"),
+      comment: async (id: string) => void calls.push(`comment ${id}`),
+      close: async (ids: string[], reason?: string, as?: { actor?: string | null }) => (calls.push(`close ${ids.join(",")} ${reason ?? ""}${as?.actor ? ` as ${as.actor}` : ""}`), []),
+      askDone: async (id: string, ask: { reason?: string | null; by?: string | null }) => (calls.push(`askDone ${id} ${ask.reason} by ${ask.by}`), []),
+    };
+    const h = harness({ tasks: store as unknown as ToolDeps["tasks"] });
+    const run = (args: Record<string, unknown>, conversation = "c1") => h.tools.get("loki_task")!.run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
+    return { run, calls, broadcasts: h.broadcasts };
+  }
+
+  test("closing a task the user filed marks it done? for the user to confirm; it stays open", async () => {
+    const { run, calls, broadcasts } = withTasks();
+    const out = String(await run({ action: "close", id: "lk-mine", reason: "migrated staging and prod" }));
+    expect(out).toContain("waits for the user to confirm");
+    expect(calls).toEqual(["askDone lk-mine migrated staging and prod by friday"]);
+    expect(broadcasts.map(([m]) => m)).toContainEqual({ type: "tasks_changed" });
+  });
+
+  test("a task an agent filed from this chat closes outright, as its assignee (beads refuses anyone else)", async () => {
+    const { run, calls } = withTasks();
+    expect(String(await run({ action: "close", id: "lk-agent", reason: "done" }))).toBe("lk-agent closed");
+    expect(calls).toEqual(["close lk-agent done as friday-old-name"]);
+  });
+
+  test("another chat's task, or one this chat never had, is refused for close and comment", async () => {
+    const { run, calls } = withTasks();
+    await expect(run({ action: "close", id: "lk-other" })).rejects.toThrow(/assigned to another chat/);
+    await expect(run({ action: "comment", id: "lk-other", text: "hi" })).rejects.toThrow(/not this conversation's task/);
+    await expect(run({ action: "close", id: "lk-loose" })).rejects.toThrow(/not this conversation's task/);
+    await expect(run({ action: "close", id: "lk-nope" })).rejects.toThrow(/no task lk-nope/);
+    expect(calls).toEqual([]);
+  });
+
+  test("a comment on this chat's task goes through; a closed one is not closed twice", async () => {
+    const { run, calls } = withTasks();
+    expect(String(await run({ action: "comment", id: "lk-mine", text: "staging done" }))).toBe("noted on lk-mine");
+    expect(String(await run({ action: "close", id: "lk-done" }))).toBe("lk-done is already closed");
+    expect(calls).toEqual(["comment lk-mine"]);
+  });
+
+  test("list shows this chat's tasks; the description tells the agent the rule", async () => {
+    const { run } = withTasks();
+    const listed = JSON.parse(String(await run({ action: "list" }))) as Array<{ id: string }>;
+    expect(listed.map((t) => t.id)).toEqual(["lk-mine", "lk-agent"]);
+    const h = harness({ tasks: {} as ToolDeps["tasks"] });
+    expect(h.tools.get("loki_task")!.description).toMatch(/Only the user closes a task the user filed/);
+  });
+});

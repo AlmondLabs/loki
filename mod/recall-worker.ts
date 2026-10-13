@@ -72,7 +72,7 @@ export type StartLesson = (leadId: string) => Promise<{ agentId: string; convers
 /**
  * The first thing on a lesson's desk: an info card with the lead, so the desk is furnished before the agent says a
  * word. The agent's outline joins it once the brief lands (the app sends the brief over its own live socket, the way
- * the board's dispatch does — a message fired from a socket that closes right after never reaches the agent).
+ * the task list's dispatch does — a message fired from a socket that closes right after never reaches the agent).
  */
 export function lessonCard(lead: Lead): { type: "info-card"; title: string; data: { lines: string[] } } {
   const who = lead.source.agentName ?? "the agent";

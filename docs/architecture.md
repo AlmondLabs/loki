@@ -27,7 +27,7 @@ knowing which job a piece of code does tells you where it runs.
    scheduled tasks. They run inside the daemon (or as its child processes) on your machine, under the chat's
    permission mode, because this is the machine that has your files.
 4. **The canvas: what you see.** loki's own mod, running inside the daemon, owns each chat's widgets, gestures, the
-   board, Learn and the sockets the app connects to. The React app renders it in three clients: the desktop window, a
+   Tasks, Learn and the sockets the app connects to. The React app renders it in three clients: the desktop window, a
    browser tab on the same machine, and a paired phone.
 
 Only the first lives elsewhere. The memory, the hands and the canvas are all on your machine, in one process.
@@ -40,7 +40,7 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
       --dir ~/.loki --mod …/loki-mod.mjs
       --token-file ~/.loki/token
     ├── pi-durable Harness per agent              ~/.loki/stores/<agentId>.sqlite
-    ├── loki's mod (canvas, board, Learn, /ws)    listens on 127.0.0.1:41414, and 0.0.0.0:41415 when the phone is on
+    ├── loki's mod (canvas, Tasks, Learn, /ws)    listens on 127.0.0.1:41414, and 0.0.0.0:41415 when the phone is on
     └── children: bash commands, background tasks, git, bd, ripgrep
 ```
 
@@ -61,7 +61,7 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    tree when loki's handle closes. On Linux it is started with the parent-death signal. On the Mac, where neither
    exists, a leftover from a crash is found and stopped at the next launch.
 5. **There are no other long-lived processes.** No Letta, no app-server, no port 41600. The children are short-lived
-   or belong to a chat: an agent's bash commands and background tasks, `git` for memory commits, `bd` for the board,
+   or belong to a chat: an agent's bash commands and background tasks, `git` for memory commits, `bd` for Tasks,
    `rg` for search when it is installed.
 
 The model is a remote service, not a process on your machine.
@@ -77,7 +77,7 @@ every chat gets, the chats, then the mods.
    store reopens. One file per agent spreads the writes, and a storage failure closes only that agent's chats; the
    store manager reopens it. pi-durable numbers its own conversations, so a document in each store maps loki's chat
    ids (`local-conv-…`, and `default` for an agent's main chat) to them. Keeping the old id format means chats
-   imported from Letta keep their ids, and with them their widgets, Inbox marks, pins and board stamps.
+   imported from Letta keep their ids, and with them their widgets, Inbox marks, pins and task stamps.
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`, in the
    layout Letta's local backend used: `agents/<id>.json` for the record, `memfs/<id>/memory/` for the memory repo.
    Keeping the layout let agents imported from Letta come over as they were and let the Agents page read them unchanged. The
@@ -152,10 +152,10 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
    document is `app/src/frame/`, served as `/widget-frame.html`; the shell sets the token only in the top-level page,
    since Tauri also runs its init script in subframes on Windows.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
-   transform, with any board tasks assigned to the chat.
+   transform, with any tasks assigned to the chat.
 3. **The agent's tools.** `desk_state` (the canvas as you left it), `loki_camera` (move your view to a widget) and
-   `loki_task` (the board).
-4. **The board.** Tasks for later in beads, through `bd`.
+   `loki_task` (Tasks).
+4. **Tasks.** The shared task list in beads, through `bd`.
 5. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
 6. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
@@ -211,7 +211,7 @@ You type in the chat box and press Enter.
 2. It sends a `chat_send` request on `/ws` with your text, any images, and a context note with the local time and
    working folder.
 3. The mod's router hands it to `DaemonChats.send`. Every mod's message transform runs; loki's own appends what you
-   did on the canvas since the last turn and the board tasks assigned to this chat.
+   did on the canvas since the last turn and the tasks assigned to this chat.
 4. The kernel submits the message to the agent's Harness. pi-durable saves it, renders the prompt sections
    (instructions, mod sections, the agent's memory, then history, in that order so the provider's prompt cache
    holds), and streams a request to the provider through pi-ai.
@@ -254,11 +254,11 @@ and provider credentials in the OS keychain.
    (approvals, providers, memory, tools, skills, subagents, background, schedule, the passes, reflection, Learn, chats).
 2. `mod/`: loki's own mod. `index.ts` wires it; `server.ts` and `lan.ts` hold the ports; `bridge.ts` routes each
    frame to its handler under `frames/` (one module per feature: chats, desks, seen marks, history, folders, Learn,
-   the board, agents, the phone listener); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas
+   Tasks, agents, the phone listener); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas
    and watch widget files; `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the
    daemon's projection; `seen.ts` keeps the done and viewed marks and the focus weights; `gestures.ts` turns what you
    did into the message note; `tasks.ts`, `pins.ts`, `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and
-   `recall.ts` back the board, pins, folders, the Agents pages and Learn; `pairing.ts`, `devices.ts`,
+   `recall.ts` back Tasks, pins, folders, the Agents pages and Learn; `pairing.ts`, `devices.ts`,
    `tailscale.ts` and `static.ts` are the phone listener; `boot.ts` re-bundles the mod on each reload in a checkout.
 3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `harness.ts` (recognising harness markup in transcripts,
@@ -267,7 +267,7 @@ and provider credentials in the OS keychain.
    `recall/` (Learn's cards and scheduling).
 4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (rail, Chats sidebar, ⌘K
    search, keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages and Canvas tabs, widget frames);
-   `chat/` the thread and composer; `board/`, `agents/`, `recall/` (Learn) and `settings/` the other sections;
+   `chat/` the thread and composer; `tasks/`, `agents/`, `recall/` (Learn) and `settings/` the other sections;
    `phone/` the phone; `shared/` logic both surfaces share; `components/` the chrome primitives; `kit/` the tokens
    and the widget kit (`@loki/kit`).
 5. `src-tauri/src/`: the Rust shell. `lib.rs` wires it and supervises the daemon; `harness.rs` starts and stops it;

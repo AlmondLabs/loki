@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails, AgentsApi } from "../agents/Agents";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { avatarUrl } from "../desk/env";
 
 import { AGENT_FILTERS, agentLine, agentRows, agentsShown, type AgentFilter, type AgentRowModel, type LinkState } from "./model";

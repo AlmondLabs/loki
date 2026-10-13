@@ -119,7 +119,7 @@ export function Sidebar({
   onSelect: (s: Segment) => void;
   waiting: number;
   tick: boolean;
-  /** Open tasks on the board, shown quietly under its icon. */
+  /** Open tasks in Tasks, shown quietly under its icon. */
   openTasks?: number;
   /** Cards due in Learn, the same quiet way. */
   dueCards?: number;
@@ -160,7 +160,7 @@ export function Sidebar({
             <span style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" && !column ? "auto" : 0 }}>
               <button
                 onClick={() => onSelect(s.id)}
-                aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "board" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "learn" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
+                aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "tasks" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "learn" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
                 aria-pressed={active}
                 title={`${s.label} (${s.key})`}
                 className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
@@ -179,9 +179,9 @@ export function Sidebar({
                 }}
               >
                 <Icon id={s.id} />
-                {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (board). */}
+                {/* Badges like the Dock's: the red attention badge when something needs you (inbox), quiet for a count you chose to keep (tasks). */}
                 {isInbox && waiting > 0 && <Badge n={waiting} tone="attention" />}
-                {s.id === "board" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
+                {s.id === "tasks" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
                 {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
                 {/* A newer loki is out (the accent), or the listener is on and the page is reachable from the Wi‑Fi (a green dot, D11). */}
                 {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color={updateReady ? "var(--loki-accent)" : "var(--loki-positive)"} style={{ position: "absolute", top: 3, right: 3 }} />}
@@ -269,7 +269,7 @@ function Icon({ id }: { id: Segment }) {
       </svg>
     );
   }
-  if (id === "board") {
+  if (id === "tasks") {
     // three columns of cards
     return (
       <svg {...common} aria-hidden>

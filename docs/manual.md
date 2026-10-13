@@ -37,7 +37,7 @@ tour; this is the reference. Paths are the defaults; the Files page in Settings 
   scratch folder, under the system temp directory, is refused, so every pass failed before its first command.
   Settings › letta shows the folder, lets you change it, and gives the line for a `letta` you run in a terminal
   (a different folder: Letta names the files inside by a per-process counter, so two harnesses must not share one).
-- **beads** (`brew install beads`, or `npm install -g @beads/bd` on Windows and Linux) for the board. Optional;
+- **beads** (`brew install beads`, or `npm install -g @beads/bd` on Windows and Linux) for Tasks. Optional;
   everything else works without it.
 
 ## Install
@@ -113,8 +113,8 @@ Requirements); the harness loki launches never updates itself.
 
 The native title bar is hidden: the traffic lights sit over the rail, and a thin strip along the top drags the
 window (double-click zooms). The window title still names what shows — the chat's name, "Inbox · n waiting",
-"Board · n open", "Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of six
-sections with a red count on what needs you; beside it, for Chats, Board, Agents and Learn, a **sidebar** listing
+"Tasks · n open", "Agents", "Settings" — for the Window menu and Mission Control. On the left, a rail of six
+sections with a red count on what needs you; beside it, for Chats, Tasks, Agents and Learn, a **sidebar** listing
 that section's items; the chosen item fills the rest. ⌘⇧D (or the rail's sidebar button) shows or hides the
 sidebar (in the Inbox, which has none, ⌘⇧D is Deny); drag its edge (or focus it and use the arrows) for a
 width between 220 and 420. A window under 1100 wide starts with it hidden. ⌘⇧W hides loki. On Windows and
@@ -159,7 +159,7 @@ Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and
   row. ⌘[ and ⌘] step through live chats, each on the tab you left it on.
 - **Inbox** (⌘2, or ⌥Space from anywhere on the Mac): Catch Up as a full view, see below. The rail icon carries
   the waiting count, the same number the tray title and dock badge show.
-- **Board** (⌘3): tasks for later, see below.
+- **Tasks** (⌘3): the shared task list, see below.
 - **Agents** (⌘4): the sidebar lists your agents like Slack's direct messages — face, name, a green dot while
   one works, the last thing it said, a red count of what waits on you — and the chosen agent fills the pane with
   a tab per page (a first visit lands on memory); the "+" at the top of the sidebar makes a new agent. **profile**: face, name, description and model
@@ -212,18 +212,18 @@ in a message box opens it too. ⌘K used to open the chats tree; the sidebar hol
 `?` (outside a text box) opens a sheet of the keys that work in the view showing, its own first, then the ones
 that work everywhere (less any the view takes for itself, such as ⌘⇧D in the Inbox; Settings › keys says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: chats in Chats, cards in the inbox, columns
-on the board, views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump
+in Tasks, views in Learn, agents in Agents, pages in Preferences — the same two keys everywhere, never a jump
 back to Chats. Esc peels one layer: a sheet or menu, then the Canvas tab back to Messages, then a view back to Chats. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, the Settings page, and the native menu bar (the ☰ menu
 on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
-Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the board, the
+Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (Tasks, the
 sheet); where a text box has focus (the inbox, the chat) the same actions are ⌘ chords, and chords the text
 itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Windows and Linux
 
 A preview: built and tested in CI, not yet tried on real machines; problems go to the repository's issues, which
-Settings › letta links. Chats, Inbox, Board, Agents, Learn, Preferences, search and the mod are the Mac's. What
+Settings › letta links. Chats, Inbox, Tasks, Agents, Learn, Preferences, search and the mod are the Mac's. What
 differs:
 
 1. **The window.** No system title bar: loki draws a 32px strip with ☰ at the left and minimise, maximise (restore
@@ -288,7 +288,7 @@ knobs stay on the Mac. A tap on a chat or a card opens the conversation: the tra
 question card, and a reply box. Opening a conversation marks it viewed, not read, as on the Mac: a chat's name
 on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
 came since your last look on either device. The conversation's actions sheet has **Mark as read** and, once
-read, **Mark as unread**, and pin. No board on the phone.
+read, **Mark as unread**, and pin. No Tasks on the phone.
 
 The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
@@ -589,25 +589,41 @@ into the card, and a follow-up typed then goes out while the conversation's prom
 is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
 its chat's focus — behind whatever you are reading then.
 
-## Board (tasks for later)
+## Tasks
 
-Tasks you or an agent want to come back to live on one shared board, backed by
-[beads](https://github.com/steveyegge/beads) (`bd`, embedded Dolt) at
-`~/.letta/loki/board`. Agents file tasks only when asked, through the `loki_task`
-tool, which stamps the source chat and its folder; you file them from
-the board's "+" or ⌘T anywhere. The Board segment (⌘3) lists its views in the sidebar —
-all tasks, each status with its count, each agent — and "all tasks" shows open, in progress, blocked and
-recently done columns; any other view is one list. A remembered agent view whose agent has no tasks
-left says so ("<agent> isn't here any more — pick an agent") and lists the agents to pick again. Select tasks
-(X or space, ⇧X or ⇧-click for a range) and press ⏎ to
-**assign** them to a chat: the agent becomes the assignee and the tasks ride
-along inside `<loki-tasks>` on your next message in that conversation, and again only
-when that chat's list changes (hidden in the chat, shown as a quiet "board tasks" row); nothing is
-sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent
-starts now. New chat is a target too. ⌫ marks done, ⇧⌫ toggles blocked, ⌘R
-refreshes, / filters. Agents close tasks through the tool.
+One task list shared by you and every agent, backed by
+[beads](https://github.com/steveyegge/beads) (`bd`, embedded Dolt) at `~/.loki/tasks`. (Tasks was called the Board
+until October 2026; its list in `~/.loki/board` moves to `~/.loki/tasks` the first time the new version starts, and
+stays where it is if it cannot move.) A task is work to be done: you do it yourself, or hand it to an agent. Agents
+file tasks only when asked, through the `loki_task` tool, which stamps the source chat and its folder; you file them
+from the "+" in Tasks or ⌘T anywhere.
 
-Setup: `brew install beads`. The mod creates the board (`bd init --prefix lk`) the first time it is used.
+**Views.** The Tasks segment (⌘3) lists its built-in views in the sidebar, each with its count:
+
+- **All**: every open task, and the ones done in the last week.
+- **Mine**: tasks you filed that no chat has been assigned: yours to do.
+- **Waiting for you**: tasks you filed that an agent says are done (below).
+- **One per agent**: the tasks assigned to that agent's chats. A remembered agent view whose agent has no tasks left
+  says so ("<agent> isn't here any more — pick an agent") and lists the agents to pick again.
+
+**Layouts.** Each view shows as a **Board** (columns) or a **Table** (L switches; each view remembers its own). The
+Board groups by **status** (Open, In progress, Blocked, Done · 7d), **assignee** or **folder** (G cycles). The Table has
+a column each for the title, status, assignee, who filed it, the chat it came from, its folder and when it last moved;
+click a column's name to sort by it, again to reverse.
+
+**Moving tasks.** Select tasks (X or space, ⇧X or ⇧-click for a range) and press ⏎ to **assign** them to a chat: the
+agent becomes the assignee and the tasks ride along inside `<loki-tasks>` on your next message in that conversation,
+and again only when that chat's list changes (hidden in the chat, shown as a quiet "assigned tasks" row); nothing is
+sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent starts now. New chat is a target too.
+⌫ marks done, ⇧⌫ toggles blocked, R reopens, ⌘R refreshes, / filters.
+
+**Only you close your tasks.** An agent comments on a task as it makes progress and closes it when the whole task is
+done, but only on its own chat's tasks: those assigned to it, or filed from it and not assigned elsewhere. When the
+task is one *you* filed, the agent's close does not close it: the task shows **done? · waiting for you** with the
+agent's one-line reason, in Waiting for you and on its card. **Confirm** (or ⌫) closes it; **Reopen** (or R) takes the
+agent's word back and the task stays open. Tasks an agent filed for itself close when it closes them.
+
+Setup: `brew install beads`. The mod creates the list (`bd init --prefix lk`) the first time it is used.
 
 ## Widget frame controls
 

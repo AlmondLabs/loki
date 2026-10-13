@@ -7,7 +7,7 @@
 <p align="center">
   <b>A memory palace your agent builds.</b><br>
   Your own AI agents on macOS, with Windows and Linux in preview, each chat with a canvas:
-  live widgets the agent writes as files, an inbox of everything waiting on you, a shared task board, flashcards
+  live widgets the agent writes as files, an inbox of everything waiting on you, a shared task list, flashcards
   from your conversations, and your phone as a remote.
 </p>
 
@@ -52,7 +52,7 @@ including the Homebrew install of the finished app, is under [Install](#install)
 |---|---|---|
 | **Chats** | ⌘1 | One chat per conversation, its canvas furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Chats sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Canvas** holds the widgets, to pan, zoom, arrange, undo. ⌘K finds any chat, agent or page. |
 | **Inbox** | ⌘2 | Every chat you haven't archived, as cards, highest score first: blocked agents, then what's new, then the chats you have been working in, learned from what you do (a task you move on from fades on its own). Approve and reply inline; a reply keeps the card while the answer streams in. **Next** moves on and the chat comes back next visit; **Archive** is done. ⌥Space opens it from anywhere on the Mac. |
-| **Board** | ⌘3 | Tasks for later on one board shared by you and every agent. Select, assign to a chat, or dispatch so the agent starts now. |
+| **Tasks** | ⌘3 | One task list shared by you and every agent, as a Board or a Table. Assign to a chat, or dispatch so the agent starts now; an agent's done on your task waits for you to confirm. |
 | **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, its reflection settings, and its skills with one-click refresh from upstream. |
 | **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations — only concepts and knowledge that last, never the details of a task — and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how many cards a day is yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
 | **Phone** | | The inbox, every chat, your agents and Learn on your phone, in Slack's mobile layout, over Wi‑Fi or Tailscale, nothing to install: scan a QR, add to the home screen. Viewed and read agree with the Mac. Mac only for now. |
@@ -62,7 +62,7 @@ phone, ⌥Space, dictation and the menu-bar item are not there yet ([the manual]
 lists what differs).
 
 <p align="center">
-  <img src="docs/images/board.png" width="900" alt="The board: a sidebar of views and agents, then open, in progress, blocked and done columns, each task stamped with who filed it and which chat holds it">
+  <img src="docs/images/tasks.png" width="900" alt="Tasks: a sidebar of views (All, Mine, Waiting for you) and agents, then the Board layout's open, in progress, blocked and done columns; one task an agent says is done waits with confirm and reopen">
 </p>
 
 <p align="center">
@@ -136,7 +136,7 @@ You need macOS 13 or later, 64-bit Windows 10 or 11, or a current 64-bit desktop
    install one yourself (`brew install node`, `winget install OpenJS.NodeJS.LTS`, or your distribution's
    package). loki never downloads Node; if it finds none new enough, Welcome says what to run and checks again.
 2. **git**, which keeps each agent's memory as a repo with history (Xcode's command line tools bring it on a Mac).
-3. **bd** ([beads](https://github.com/steveyegge/beads)), optional, for the board.
+3. **bd** ([beads](https://github.com/steveyegge/beads)), optional, for Tasks.
 
 On first launch loki asks for a model provider: an API key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
 others) or signing in with ChatGPT. Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
@@ -146,7 +146,7 @@ Then loki helps you name your first agent; ask it to put something on the canvas
 ### Coming from Letta
 
 loki used to run on Letta Code. On a Mac that ran it there, the first start brings your agents over by itself:
-each agent with its memory and its history, every conversation under its old id (so canvases, pins and board tasks
+each agent with its memory and its history, every conversation under its old id (so canvases, pins and tasks
 still find it), your provider keys, permission modes, folders and scheduled tasks. Quit Letta first; the import
 refuses while it runs and tries again at the next start, or from Settings › loki › Import, which also says how the
 last run went. Letta's own files are
@@ -176,7 +176,7 @@ the agent reads is the whole contract.
 
 ```mermaid
 flowchart LR
-  you([you]) <--> app[loki.app<br/>chats, inbox, board]
+  you([you]) <--> app[loki.app<br/>chats, inbox, tasks]
   app <-->|"/ws frames"| daemon[loki daemon<br/>agents, memory, tools, loki's mod]
   daemon <-->|HTTPS| provider[(model provider)]
   daemon --> files[("~/.loki/widgets/<br/>.json and .tsx")]
@@ -188,7 +188,7 @@ Three parts, one repo. A **Rust shell** opens the window and keeps loki's **daem
 built on Earendil's Pi libraries (pi-durable for the agent loop, pi-ai for the models), that holds every agent's
 chats in a SQLite store per agent, runs the tools under your permission mode, keeps memory as git repos, and saves
 each step before it shows it, so a turn cut off by a crash picks up where it stopped. Inside the daemon runs
-**loki's mod**, which owns the canvas, the board and Learn and serves the **React app** over one WebSocket. The app
+**loki's mod**, which owns the canvas, Tasks and Learn and serves the **React app** over one WebSocket. The app
 watches the widget files, and your gestures on the canvas go back to the agent as context on the next turn.
 Nothing leaves your machine except your messages to the provider you chose. [docs/architecture.md](docs/architecture.md)
 has the long version.
@@ -198,7 +198,7 @@ has the long version.
 ```text
 daemon/         loki's daemon (Node): the agent stores on pi-durable, providers and keychain, approvals, tools, memory,
                 reflection, skills, subagents, background and scheduled tasks, the mod registry, the import from Letta
-mod/            loki's own mod, run inside the daemon: canvas, gestures, board, Learn, the sockets for app and phone;
+mod/            loki's own mod, run inside the daemon: canvas, gestures, Tasks, Learn, the sockets for app and phone;
                 boot.ts re-bundles it on each change in a checkout (no manual build)
 core/           desk-core (types + the pure gesture reducer both halves use), the frame table, attention, recall —
                 portable, no browser globals

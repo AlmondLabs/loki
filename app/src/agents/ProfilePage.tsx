@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AgentFace } from "../desk/AgentChip";
 import { Button, Field, Row } from "../components";
 
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { Head } from "./bits";
 import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit } from "./types";
@@ -21,7 +21,7 @@ export function ProfilePage({
   tasks,
   onOpenDesk,
   onShowDesks,
-  onShowBoard,
+  onShowTasks,
   confirmDelete,
   setConfirmDelete,
   onRemove,
@@ -36,7 +36,7 @@ export function ProfilePage({
   tasks: Task[] | null;
   onOpenDesk: (agentId: string, conversationId: string) => void;
   onShowDesks: () => void;
-  onShowBoard: () => void;
+  onShowTasks: () => void;
   confirmDelete: boolean;
   setConfirmDelete: (v: boolean) => void;
   onRemove: () => Promise<void>;
@@ -48,7 +48,7 @@ export function ProfilePage({
       <div style={{ maxWidth: 760, display: "grid", gap: 28 }}>
         <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} />
         <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
-        <TasksSection count={myTasks.length} onShowBoard={onShowBoard} />
+        <TasksSection count={myTasks.length} onShowTasks={onShowTasks} />
         <div style={{ paddingTop: 8 }}>
           {confirmDelete ? <ConfirmDelete d={d} myDesks={myDesks} taskCount={myTasks.length} onRemove={onRemove} onKeep={() => setConfirmDelete(false)} /> : <Button tone="negative" onClick={() => setConfirmDelete(true)}>delete this agent…</Button>}
         </div>
@@ -80,15 +80,15 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
   );
 }
 
-function TasksSection({ count, onShowBoard }: { count: number; onShowBoard: () => void }) {
+function TasksSection({ count, onShowTasks }: { count: number; onShowTasks: () => void }) {
   return (
     <section>
       <Head>
         Tasks <span style={{ marginLeft: "auto", fontWeight: 400 }}>{count ? `${count} open` : ""}</span>
       </Head>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 8px", fontSize: 13.5, color: "var(--loki-muted)" }}>
-        <span>{count === 0 ? "nothing assigned" : `${count} assigned on the board`}</span>
-        <Button onClick={onShowBoard} kbd={keyFor("segment.board")}>board</Button>
+        <span>{count === 0 ? "nothing assigned" : `${count} assigned in Tasks`}</span>
+        <Button onClick={onShowTasks} kbd={keyFor("segment.tasks")}>tasks</Button>
       </div>
     </section>
   );
@@ -100,7 +100,7 @@ function ConfirmDelete({ d, myDesks, taskCount, onRemove, onKeep }: { d: AgentDe
     <div role="alertdialog" aria-label={`delete ${d.agent.name}`} style={{ display: "grid", gap: 8, padding: "10px 12px", border: "1px solid var(--loki-negative)", borderRadius: "var(--loki-radius-md)", fontSize: 12, color: "var(--loki-fg)", lineHeight: 1.5 }}>
       <span>
         Delete <b>{d.agent.name}</b> and its memory. {myDesks.length ? `${myDesks.length} live chat${myDesks.length === 1 ? "" : "s"} (${myDesks.slice(0, 3).map((x) => x.title ?? "main chat").join(", ")}${myDesks.length > 3 ? ", …" : ""}) close.` : ""}
-        {taskCount ? ` ${taskCount} open task${taskCount === 1 ? "" : "s"} stay on the board, unassigned.` : ""}
+        {taskCount ? ` ${taskCount} open task${taskCount === 1 ? "" : "s"} stay in Tasks, unassigned.` : ""}
       </span>
       <div style={{ display: "flex", gap: 8 }}>
         <Button tone="negative" onClick={() => void onRemove()}>delete {d.agent.name}</Button>
