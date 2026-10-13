@@ -67,6 +67,7 @@ export const EVENTS: Record<string, string> = {
   turn_finished:
     "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
   pass_finished: "a background pass ran on a batch of an agent's chats (daemon/passes.ts) { job: reflection | learn, agent, chat (the first), chats, entries_read (across them), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
+  task_confirmed: "a task an agent said was done, answered in Tasks { action: confirm | reopen }",
   turn_stopped: "a turn stopped from loki's Stop button { aborted, turn_id }",
   tool_used: "the agent called a desk tool { tool }",
 };
@@ -90,6 +91,7 @@ export const BREAKDOWN: Record<string, string> = {
   inbox_filtered: "agent",
   chat_archived: "origin",
   chat_restored: "origin",
+  task_confirmed: "action",
 };
 
 export function isDeviceType(value: unknown): value is DeviceType {
@@ -104,6 +106,14 @@ export function makeEvent(event: string, distinctId: string, properties: EventPr
   return { event, timestamp: now.toISOString(), distinct_id: distinctId, properties };
 }
 
+/** Tasks was the Board until 2026-10-13: a view_opened from then reads as Tasks, so the counts stay one row. */
+function renamedViews(p: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (p.view === "board") out.view = "tasks";
+  if (p.from === "board") out.from = "tasks";
+  return out;
+}
+
 /** Parse the file's text; a line that is not an event (cut short, hand-edited) is skipped, not fatal. */
 export function parseEvents(text: string): AnalyticsEvent[] {
   const out: AnalyticsEvent[] = [];
@@ -114,7 +124,7 @@ export function parseEvents(text: string): AnalyticsEvent[] {
       const p = v.properties as Record<string, unknown> | undefined;
       if (!isEventName(v.event) || typeof v.timestamp !== "string" || Number.isNaN(Date.parse(v.timestamp)) || typeof v.distinct_id !== "string") continue;
       if (!p || typeof p !== "object" || !isDeviceType(p.$device_type)) continue;
-      out.push({ event: v.event, timestamp: v.timestamp, distinct_id: v.distinct_id, properties: { ...p, $device_type: p.$device_type, $lib: "loki" } });
+      out.push({ event: v.event, timestamp: v.timestamp, distinct_id: v.distinct_id, properties: { ...p, ...renamedViews(p), $device_type: p.$device_type, $lib: "loki" } });
     } catch {
       // not ours
     }

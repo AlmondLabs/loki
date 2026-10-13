@@ -119,7 +119,7 @@ section). Two levers:
 - **Start** creates the `[Learn] · <title>` conversation for the agent that was there, puts an info card with
   the lead on its desk, opens the desk on Messages, and sends the brief as your first message: open with why
   this matters to you, furnish the desk with the outline as a list you can tick, ask before telling, one idea
-  at a time, a cold quiz at the end. The brief is a user message, sent only on your click, the way the board's
+  at a time, a cold quiz at the end. The brief is a user message, sent only on your click, the way Tasks'
   dispatch posts a task. A lesson whose brief never arrived is listed under "lessons under way" with
   **send the brief**.
 - **Not this** moves the lead to the dismissed pile, which the writer reads before proposing again. Restore is

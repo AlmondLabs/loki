@@ -6,7 +6,7 @@
    interactive blue (accent ink on a hairline; no longer "needs you") · positive → Slack's green affirmative,
    filled · negative (red ink). Needs-you is the red attention badge (Chip `attention`), never a button tone.
    The type is the sans reading face throughout; mono is left for key hints and fields that hold code.
-   Widgets keep their own kit (kit/index.tsx); this file is for the shell, the chat, the inbox, the board,
+   Widgets keep their own kit (kit/index.tsx); this file is for the shell, the chat, the inbox, the task list,
    the agents pages, settings and the phone (which restyles some of it under .loki-phone). */
 
 /* ---- Button -------------------------------------------------------------------------------------- */
@@ -115,7 +115,7 @@
 .loki-chip--float { background: var(--loki-panel); box-shadow: var(--loki-shadow-low); }
 /* Mid-change ("switching…"): quiet and waiting, never dimmed text. */
 .loki-chip[aria-busy="true"] { color: var(--loki-muted); border-color: var(--loki-control-border); cursor: progress; }
-/* A name chip (the board picker's agents, Settings' choices): the chip, a touch bolder. It was condensed caps until 2026-09-23. */
+/* A name chip (the task list picker's agents, Settings' choices): the chip, a touch bolder. It was condensed caps until 2026-09-23. */
 .loki-chip--label { font-weight: 600; }
 
 /* ---- Field --------------------------------------------------------------------------------------- */

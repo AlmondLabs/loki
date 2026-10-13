@@ -13,7 +13,7 @@
 import { keyboard, type Platform } from "../desk/env";
 
 export type { Platform };
-export type Segment = "desk" | "inbox" | "board" | "learn" | "agents" | "settings";
+export type Segment = "desk" | "inbox" | "tasks" | "learn" | "agents" | "settings";
 export type Where = "anywhere" | Segment | "chat" | "global";
 
 export interface Binding {
@@ -39,20 +39,20 @@ export interface Binding {
   was?: string;
 }
 
-export const MENUS = ["Go", "Chat", "Inbox", "Board", "Learn", "View"] as const;
+export const MENUS = ["Go", "Chat", "Inbox", "Tasks", "Learn", "View"] as const;
 
 export const KEYMAP: Binding[] = [
   // --- anywhere ------------------------------------------------------
   { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
   { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Inbox", typing: true, menu: "View/segments" },
-  { id: "segment.board", keys: ["cmd+3"], where: "anywhere", label: "Board", typing: true, menu: "View/segments" },
+  { id: "segment.tasks", keys: ["cmd+3"], where: "anywhere", label: "Tasks", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "View/segments" },
   // Slack's ⌘K: search desks, agents, waiting items and pages; it toggles, so ⌘K again closes it.
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
   { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat…", typing: true, menu: "Go" },
-  { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Board" },
+  { id: "task.new", keys: ["cmd+t"], where: "anywhere", label: "New Task…", typing: true, menu: "Tasks" },
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
   { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
   // Off the Mac there is no hidden window to bring back from the dock: the key minimises (useWindowChrome).
@@ -62,7 +62,7 @@ export const KEYMAP: Binding[] = [
 
   // --- desk ----------------------------------------------------------
   // ⌘[ and ⌘] step through what a section is made of: desks here, cards in the inbox, columns on the
-  // board, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
+  // Tasks, views in Learn, agents in Agents, pages in Settings. Never "the next desk" from somewhere else.
   { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Chat", typing: true, menu: "Go/step" },
   { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Chat", typing: true, menu: "Go/step" },
   // Read is the Inbox's clear (seen); opening a chat only views it, and only archiving is done. The header menu offers it too, and Mark as Unread.
@@ -98,22 +98,25 @@ export const KEYMAP: Binding[] = [
   { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
   { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Inbox/go", menuAccel: false },
 
-  // --- board (nothing has focus by default: plain keys) ------------------
-  { id: "board.up", keys: ["up"], where: "board", label: "move up" },
-  { id: "board.down", keys: ["down"], where: "board", label: "move down" },
-  { id: "board.left", keys: ["left"], where: "board", label: "previous column" },
-  { id: "board.right", keys: ["right"], where: "board", label: "next column" },
-  { id: "board.select", keys: ["x", "space"], where: "board", label: "select" },
-  { id: "board.selectRange", keys: ["shift+x"], where: "board", label: "select a range" },
-  { id: "board.assign", keys: ["enter"], where: "board", label: "Assign to a Chat…", menu: "Board/act" },
-  { id: "board.dispatch", keys: ["cmd+enter"], where: "board", label: "Dispatch (assign and start now)…", typing: true, menu: "Board/act" },
-  { id: "board.done", keys: ["backspace"], where: "board", label: "Done (strike from the board)", menu: "Board/act", menuAccel: false },
-  { id: "board.blocked", keys: ["shift+backspace"], where: "board", label: "Blocked / Unblocked", menu: "Board/act", menuAccel: false },
-  { id: "board.prevColumn", keys: ["cmd+["], where: "board", label: "Previous Column", typing: true, menu: "Board/step" },
-  { id: "board.nextColumn", keys: ["cmd+]"], where: "board", label: "Next Column", typing: true, menu: "Board/step" },
-  { id: "board.filter", keys: ["/"], where: "board", label: "filter" },
-  { id: "board.refresh", keys: ["cmd+r"], where: "board", label: "Refresh Board", typing: true, menu: "Board" },
-  { id: "board.clear", keys: ["escape"], where: "board", label: "clear the selection", note: "handled by the board" },
+  // --- tasks (nothing has focus by default: plain keys) ------------------
+  { id: "tasks.up", keys: ["up"], where: "tasks", label: "move up" },
+  { id: "tasks.down", keys: ["down"], where: "tasks", label: "move down" },
+  { id: "tasks.left", keys: ["left"], where: "tasks", label: "previous column" },
+  { id: "tasks.right", keys: ["right"], where: "tasks", label: "next column" },
+  { id: "tasks.select", keys: ["x", "space"], where: "tasks", label: "select" },
+  { id: "tasks.selectRange", keys: ["shift+x"], where: "tasks", label: "select a range" },
+  { id: "tasks.assign", keys: ["enter"], where: "tasks", label: "Assign to a Chat…", menu: "Tasks/act" },
+  { id: "tasks.dispatch", keys: ["cmd+enter"], where: "tasks", label: "Dispatch (assign and start now)…", typing: true, menu: "Tasks/act" },
+  { id: "tasks.done", keys: ["backspace"], where: "tasks", label: "Done (confirms an agent’s done?)", menu: "Tasks/act", menuAccel: false },
+  { id: "tasks.reopen", keys: ["r"], where: "tasks", label: "Reopen (not done yet)", menu: "Tasks/act", menuAccel: false },
+  { id: "tasks.blocked", keys: ["shift+backspace"], where: "tasks", label: "Blocked / Unblocked", menu: "Tasks/act", menuAccel: false },
+  { id: "tasks.prevColumn", keys: ["cmd+["], where: "tasks", label: "Previous Column", typing: true, menu: "Tasks/step" },
+  { id: "tasks.nextColumn", keys: ["cmd+]"], where: "tasks", label: "Next Column", typing: true, menu: "Tasks/step" },
+  { id: "tasks.filter", keys: ["/"], where: "tasks", label: "filter" },
+  { id: "tasks.layout", keys: ["l"], where: "tasks", label: "Board / Table", menu: "Tasks/view", menuAccel: false },
+  { id: "tasks.groupBy", keys: ["g"], where: "tasks", label: "Group the Board by status, assignee or folder", menu: "Tasks/view", menuAccel: false },
+  { id: "tasks.refresh", keys: ["cmd+r"], where: "tasks", label: "Refresh Tasks", typing: true, menu: "Tasks" },
+  { id: "tasks.clear", keys: ["escape"], where: "tasks", label: "clear the selection", note: "handled by the task list" },
 
   // --- learn: one card at a time; the two answers only once the answer shows -------------------------
   { id: "recall.reveal", keys: ["space", "enter", "down"], where: "learn", label: "show the answer (then: got it)" },
@@ -374,7 +377,7 @@ export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): Menu
 /**
  * The dialogs up, for the shell's keys: none, only Preferences (the sheet marked data-preferences), only
  * search (data-search), or some other dialog, which wins over both (a sheet opened from a settings page).
- * The Board's desk picker is not a dialog here: it owns its keys (data-tree).
+ * Tasks' desk picker is not a dialog here: it owns its keys (data-tree).
  */
 export type DialogState = "none" | "preferences" | "search" | "other";
 export function dialogState(root: ParentNode = document): DialogState {
@@ -402,7 +405,7 @@ export function keySegment(segment: Segment, dialog: DialogState): Segment {
 }
 
 /** Rows for Settings, grouped by scope in display order. */
-export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "board", "learn", "agents", "settings", "global"];
+export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "tasks", "learn", "agents", "settings", "global"];
 
 /** Preferences › keys' table: every binding in WHERE_ORDER with this system's keys, less the ones it has no key for. */
 export function keyRows(os: Platform = keyboard, map: Binding[] = KEYMAP): Binding[] {

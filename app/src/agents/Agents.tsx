@@ -49,7 +49,7 @@ export function Agents({
   reflect,
   listModels,
   onShowDesks,
-  onShowBoard,
+  onShowTasks,
   columnOutside = false,
   selection = agentsSelection,
 }: {
@@ -71,7 +71,7 @@ export function Agents({
   reflect: ReflectionControls;
   listModels: () => Promise<Array<{ handle: string }>>;
   onShowDesks: () => void;
-  onShowBoard: () => void;
+  onShowTasks: () => void;
   /** The Shell's list column holds AgentsColumn (plan 013 U10): draw only the pane. Otherwise the column sits inside, at the left. */
   columnOutside?: boolean;
   /** The chosen agent, page and new-agent form, shared with AgentsColumn; the window's one by default. */
@@ -181,7 +181,7 @@ export function Agents({
 
   /** The five pages, by name; only the current one is mounted. */
   const pages: Record<AgentPage, React.ReactNode> = {
-    profile: <ProfilePage d={d} selected={selected} avatar={avatar(selected)} models={models} onLoadModels={loadModels} onSave={store.save} desks={desks} tasks={tasks} onOpenDesk={onOpenDesk} onShowDesks={onShowDesks} onShowBoard={onShowBoard} confirmDelete={store.confirmDelete} setConfirmDelete={store.setConfirmDelete} onRemove={store.remove} />,
+    profile: <ProfilePage d={d} selected={selected} avatar={avatar(selected)} models={models} onLoadModels={loadModels} onSave={store.save} desks={desks} tasks={tasks} onOpenDesk={onOpenDesk} onShowDesks={onShowDesks} onShowTasks={onShowTasks} confirmDelete={store.confirmDelete} setConfirmDelete={store.setConfirmDelete} onRemove={store.remove} />,
     memory: <MemoryPage d={d} selected={selected} filePath={filePath} onPickFile={setFilePath} reading={reading} onAskToUpdate={onAskToUpdate} />,
     changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} />,
     reflection: <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} api={api} reflect={reflect} />,

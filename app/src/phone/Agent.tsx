@@ -5,7 +5,7 @@ import { MARKDOWN_COMPONENTS } from "../chat/markdownImage";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { Diff, type AgentDetails } from "../agents/Agents";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { avatarUrl } from "../desk/env";
 
 import { useAgentDetails, type PhoneAgentsApi } from "./Agents";

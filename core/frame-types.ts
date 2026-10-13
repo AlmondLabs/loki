@@ -4,7 +4,7 @@ import type { AskedBy } from "./attention/priority.ts";
 
 /**
  * The shapes frames carry (core/frames.ts) that the mod produces and the app reads: desks, the Inbox's rows, the
- * board's tasks, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
+ * tasks, agents and their memory and skills, folders, and the phone listener. Plain data, no behaviour; the
  * mod modules that build them import them from here.
  */
 

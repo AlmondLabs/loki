@@ -5,7 +5,7 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
- * The desk tree's order (app/src/shell/DeskTree.tsx), now only the Board's assign-to-desk picker (the
+ * The desk tree's order (app/src/shell/DeskTree.tsx), now only Tasks' assign-to-desk picker (the
  * sidebar lists desks, ⌘K searches them): waiting on you, pinned, the rest by last message — each desk
  * once — and the picker's keys.
  */

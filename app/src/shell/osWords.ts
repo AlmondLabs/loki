@@ -17,7 +17,7 @@ export interface OsWords {
   fileManager: string;
   /** The folder field's example path. */
   folderExample: string;
-  /** The line that installs beads (bd), the board's task tracker. */
+  /** The line that installs beads (bd), the task list's task tracker. */
   beadsInstall: string;
   /** Settings › loki's System fact, under runsOn: what loki needs of the system. */
   system: string;

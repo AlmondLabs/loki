@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { INIT_ARGS, TaskBoard, taskIds, bdBinary, assignArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority } from "../mod/tasks.ts";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { INIT_ARGS, TaskStore, taskIds, bdBinary, assignArgs, askDoneArgs, closeArgs, createArgs, formatTasksContext, TASKS_CLEARED, TasksNotice, parseTasks, projectLabel, clampPriority, tasksDir } from "../mod/tasks.ts";
 import type { Task } from "../core/frame-types.ts";
 
 const raw = (over: Record<string, unknown> = {}) => ({
@@ -26,7 +29,7 @@ describe("tasks: parsing", () => {
   test("a warning line before the JSON is skipped", () => {
     expect(parseTasks("warning: beads.role not configured\n" + JSON.stringify([raw()]))).toHaveLength(1);
   });
-  test("empty output is an empty board", () => {
+  test("empty output is an empty task list", () => {
     expect(parseTasks("")).toEqual([]);
   });
 });
@@ -119,12 +122,12 @@ describe("tasks: told once, again only on a change", () => {
   });
 });
 
-describe("tasks: board", () => {
+describe("tasks: the store", () => {
   test("calls run serially and keeps a cache for synchronous readers", async () => {
     const calls: string[][] = [];
     let inFlight = 0;
     let maxInFlight = 0;
-    const board = new TaskBoard({
+    const store = new TaskStore({
       dir: "/nonexistent",
       run: async (args) => {
         calls.push(args);
@@ -138,21 +141,21 @@ describe("tasks: board", () => {
         return "[]";
       },
     });
-    const [list, created] = await Promise.all([board.list(), board.create({ title: "new one", stamp: { by: "you" } })]);
+    const [list, created] = await Promise.all([store.list(), store.create({ title: "new one", stamp: { by: "you" } })]);
     expect(maxInFlight).toBe(1);
     expect(list).toHaveLength(2);
     expect(created.id).toBe("lk-new");
-    expect(board.cached().map((x) => x.id)).toEqual(["lk-a1", "lk-b2", "lk-new"]);
-    await board.close(["lk-a1"], "done");
-    expect(board.cached().map((x) => x.id)).toEqual(["lk-b2", "lk-new"]);
+    expect(store.cached().map((x) => x.id)).toEqual(["lk-a1", "lk-b2", "lk-new"]);
+    await store.close(["lk-a1"], "done");
+    expect(store.cached().map((x) => x.id)).toEqual(["lk-b2", "lk-new"]);
     expect(calls.map((c) => c[0])).toEqual(["list", "create", "close"]);
   });
   test("a title is required", async () => {
-    await expect(new TaskBoard({ dir: "/nonexistent", run: async () => "[]" }).create({ title: "  ", stamp: { by: "you" } })).rejects.toThrow(/title/);
+    await expect(new TaskStore({ dir: "/nonexistent", run: async () => "[]" }).create({ title: "  ", stamp: { by: "you" } })).rejects.toThrow(/title/);
   });
 });
 
-describe("board setup", () => {
+describe("task store setup", () => {
   test("init is non-interactive with the lk prefix", () => {
     expect(INIT_ARGS).toEqual(["init", "--prefix", "lk", "--non-interactive"]);
   });
@@ -172,5 +175,82 @@ describe("board setup", () => {
     expect(bdBinary({ platform: "win32", env, exists: (p) => p === want })).toBe(want);
     expect(bdBinary({ platform: "win32", env, exists: () => false })).toBeNull();
     expect(bdBinary({ platform: "win32", env: { ...env, LOKI_BD: "D:\\bd.exe" }, exists: (p) => p === "D:\\bd.exe" || p === want })).toBe("D:\\bd.exe");
+  });
+});
+
+describe("tasks: the folder, from when Tasks was the Board", () => {
+  test("a list in <loki>/board moves to <loki>/tasks once, and is found there after", () => {
+    const home = mkdtempSync(join(tmpdir(), "loki-tasks-dir-"));
+    try {
+      mkdirSync(join(home, "board", ".beads"), { recursive: true });
+      writeFileSync(join(home, "board", ".beads", "marker"), "kept");
+      expect(tasksDir(home, {})).toBe(join(home, "tasks"));
+      expect(existsSync(join(home, "board"))).toBe(false);
+      expect(readFileSync(join(home, "tasks", ".beads", "marker"), "utf8")).toBe("kept");
+      expect(tasksDir(home, {})).toBe(join(home, "tasks"));
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test("a new install gets <loki>/tasks; an existing tasks folder wins over a stray board one; the env var wins over both", () => {
+    const home = mkdtempSync(join(tmpdir(), "loki-tasks-dir-"));
+    try {
+      expect(tasksDir(home, {})).toBe(join(home, "tasks"));
+      mkdirSync(join(home, "tasks"));
+      mkdirSync(join(home, "board"));
+      expect(tasksDir(home, {})).toBe(join(home, "tasks"));
+      expect(existsSync(join(home, "board"))).toBe(true); // left alone
+      expect(tasksDir(home, { LOKI_TASKS_DIR: "/x/t" })).toBe("/x/t");
+      expect(tasksDir(home, { LOKI_BOARD_DIR: "/x/b" })).toBe("/x/b");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(process.platform === "win32")("a board folder that cannot move is used where it is", () => {
+    // A read-only <loki> folder: the rename inside it fails.
+    const home = mkdtempSync(join(tmpdir(), "loki-tasks-dir-"));
+    mkdirSync(join(home, "board"));
+    chmodSync(home, 0o500);
+    try {
+      expect(tasksDir(home, {})).toBe(join(home, "board"));
+    } finally {
+      chmodSync(home, 0o700);
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("tasks: an agent's done?, and reopening", () => {
+  test("a close goes as the assignee (an agent's own task) or forced (yours, from Tasks): beads refuses anyone else", () => {
+    expect(closeArgs(["lk-a1"], "spec written", { actor: "friday" })).toEqual(["close", "lk-a1", "--actor", "friday", "--json", "--reason", "spec written"]);
+    expect(closeArgs(["lk-a1", "lk-b2"], undefined, { force: true })).toEqual(["close", "lk-a1", "lk-b2", "--force", "--json"]);
+    expect(closeArgs(["lk-a1"])).toEqual(["close", "lk-a1", "--json"]);
+  });
+
+  test("done? sets the agent's reason, who and when; no reason reads yes", () => {
+    const now = new Date("2026-10-13T10:00:00Z");
+    expect(askDoneArgs("lk-a1", { reason: "migrated staging", by: "friday" }, now)).toEqual(["update", "lk-a1", "--set-metadata", "doneAsked=migrated staging", "--set-metadata", "doneAskedAt=2026-10-13T10:00:00.000Z", "--set-metadata", "doneAskedBy=friday", "--json"]);
+    expect(askDoneArgs("lk-a1", {}, now)).toContain("doneAsked=yes");
+  });
+
+  test("reopen clears an agent's done? and reopens only what is closed", async () => {
+    const calls: string[][] = [];
+    const store = new TaskStore({
+      dir: "/tmp/nowhere",
+      run: async (args) => {
+        calls.push(args);
+        if (args[0] === "update") return JSON.stringify([raw({ id: "lk-a1", status: "in_progress" }), raw({ id: "lk-b2", status: "closed" })]);
+        if (args[0] === "reopen") return JSON.stringify([raw({ id: "lk-b2", status: "open" })]);
+        return "[]";
+      },
+    });
+    const tasks = await store.reopen(["lk-a1", "lk-b2"]);
+    expect(calls).toEqual([
+      ["update", "lk-a1", "lk-b2", "--unset-metadata", "doneAsked", "--unset-metadata", "doneAskedBy", "--unset-metadata", "doneAskedAt", "--json"],
+      ["reopen", "lk-b2", "--json"],
+    ]);
+    expect(tasks.map((t) => [t.id, t.status])).toEqual([["lk-a1", "in_progress"], ["lk-b2", "open"]]);
   });
 });

@@ -13,13 +13,13 @@ import { notYetOn } from "../app/src/desk/env.ts";
 
 describe("Preferences: the segment keys over the sheet", () => {
   test("⌘, (and ⌘6, the same binding) opens Preferences over any section and closes it when open; the section stays", () => {
-    for (const s of ["desk", "inbox", "board", "agents", "learn"] as const) {
+    for (const s of ["desk", "inbox", "tasks", "agents", "learn"] as const) {
       expect(afterSegmentKey("segment.settings", { segment: s, preferences: false })).toEqual({ segment: s, preferences: true });
       expect(afterSegmentKey("segment.settings", { segment: s, preferences: true })).toEqual({ segment: s, preferences: false });
     }
   });
   test("⌘2 while Preferences is open closes it and shows the Inbox; ⌘1-5 likewise go to their section", () => {
-    expect(afterSegmentKey("segment.inbox", { segment: "board", preferences: true })).toEqual({ segment: "inbox", preferences: false });
+    expect(afterSegmentKey("segment.inbox", { segment: "tasks", preferences: true })).toEqual({ segment: "inbox", preferences: false });
     expect(afterSegmentKey("segment.desk", { segment: "learn", preferences: true })).toEqual({ segment: "desk", preferences: false });
     expect(afterSegmentKey("segment.agents", { segment: "agents", preferences: false })).toEqual({ segment: "agents", preferences: false });
   });

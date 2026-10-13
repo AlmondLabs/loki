@@ -52,7 +52,7 @@ describe("desk pane: the sidebar", () => {
   test("the Desk tab hides the sidebar; Messages and other sections keep it (AE6)", () => {
     expect(sidebarHidden("desk", "desk")).toBe(true);
     expect(sidebarHidden("desk", "messages")).toBe(false);
-    expect(sidebarHidden("board", "desk")).toBe(false);
+    expect(sidebarHidden("tasks", "desk")).toBe(false);
   });
 });
 
@@ -177,7 +177,7 @@ describe("messages: copy under every message", () => {
 });
 
 describe("desk pane: hidden behind other sections", () => {
-  // The shell hides the whole pane with visibility while the Inbox or Board shows; a panel that set itself
+  // The shell hides the whole pane with visibility while the Inbox or Tasks shows; a panel that set itself
   // "visible" overrode that, and the thread's day pills showed through the Inbox (U13).
   test("the tab panels inherit visibility, never force it on", async () => {
     const src = readFileSync(new URL("../app/src/desk/DeskPane.tsx", import.meta.url), "utf8");

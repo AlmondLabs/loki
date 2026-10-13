@@ -1,6 +1,6 @@
 
 import { Row } from "../components";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { Head, ListPane, Pane } from "./bits";
 import type { ReadingState } from "./useReading";
 import type { MemoryCommit } from "../../../core/frame-types.ts";

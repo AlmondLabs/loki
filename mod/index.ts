@@ -19,7 +19,7 @@ import { RecallStore, isoDay } from "./recall.ts";
 import { isPassChat, startLessonViaChats } from "./recall-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { isLearnTitle } from "../core/recall/model.ts";
-import { TaskBoard, TasksNotice } from "./tasks.ts";
+import { TaskStore, TasksNotice } from "./tasks.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { installSkill, listGlobalSkills } from "./skills.ts";
@@ -51,7 +51,7 @@ import type { DeskInfo, DeskSummary, InboxRow } from "../core/frame-types.ts";
  * The desk is a directory the agent writes into (<widgets>/<desk>/), compiled into the open tab. This mod is loki's
  * own, hosted by loki's daemon (daemon/main.ts) through the mod API (daemon/mods/api.ts): it owns geometry and gesture
  * state, serves the app and the phone over its sockets, tells the agent what the person did on the canvas, and gives
- * the agent its canvas and board tools. The daemon hands it the chats (`chats`, read; `chat`, run).
+ * the agent its canvas and task tools. The daemon hands it the chats (`chats`, read; `chat`, run).
  */
 
 function loadOrCreateToken(): string {
@@ -132,8 +132,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agentId, conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
-  // The board (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
-  const tasks = new TaskBoard();
+  // The task list (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
+  const tasks = new TaskStore();
   const folderFor = (agentId: string | null, conversationId: string | null): string | null => (conversationId ? chats.folders().byConversation[conversationDirName(conversationId, agentId)] ?? null : null);
   const refreshTasks = () => {
     if (!tasks.ready()) return;
@@ -141,7 +141,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   };
   refreshTasks();
   const tasksTimer = setInterval(refreshTasks, 60_000);
-  log("tasks:board", { dir: tasks.dir, ready: tasks.ready() });
+  log("tasks:store", { dir: tasks.dir, ready: tasks.ready() });
 
   // --- transport -------------------------------------------------------
   const deskInfo = (scope: Scope): DeskInfo & { lastActive: string | null } => {
@@ -375,7 +375,7 @@ export default function activate(api: ModApi, host: Host): () => void {
   // --- events ----------------------------------------------------------
   const eventDisposers: Array<() => void> = [];
   const titleRefreshes = new ScopeDebouncer();
-  /** What each conversation was last told about its board tasks: the block rides along only when it changes. */
+  /** What each conversation was last told about its assigned tasks: the block rides along only when it changes. */
   const tasksNotice = new TasksNotice();
   /** Helper agents' chats and the background passes' own get no desk, and the tab does not follow them. */
   const ignored = (e: ChatRef) => isSubagent(e.agentId) || passChat(e.chatId);
@@ -392,7 +392,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     }),
   );
 
-  // The person's message, about to be sent: two riders go with it — what they did on the canvas, and the board's tasks
+  // The person's message, about to be sent: two riders go with it — what they did on the canvas, and the task list's tasks
   // assigned to this conversation (only when those changed since the agent was last told).
   eventDisposers.push(
     api.message.transform((m) => {

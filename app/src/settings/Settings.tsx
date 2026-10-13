@@ -187,7 +187,7 @@ function LokiPage({ update, harness, daemon, modConnection, deskCount, importLet
       </Section>
       <Section title="Requirements" hint="what loki needs on this machine, and where it found it">
         {inTauri && <NodeFact daemon={daemon} />}
-        <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (the board needs it; everything else works without)`}</Note> : "—"} mono />
+        <Fact label="bd (beads)" value={harness.tools ? harness.tools.bd ?? <Note tone="warn">{`not found — ${osWords().beadsInstall} (Tasks needs it; everything else works without)`}</Note> : "—"} mono />
         <SystemFact />
       </Section>
       {inTauri && <InstallSection install={harness.install} />}
@@ -385,7 +385,7 @@ function FilesPage() {
       <Fact label="Widgets" value={`${HOME}/widgets/<chat>/`} mono />
       <Fact label="Layout" value={`${HOME}/state/<chat>.json`} mono />
       <Fact label="Inbox marks" value={`${HOME}/state/attention.json`} mono />
-      <Fact label="Board" value={`${HOME}/board  (beads · bd, embedded Dolt, prefix lk)`} mono />
+      <Fact label="Tasks" value={`${HOME}/tasks  (beads · bd, embedded Dolt, prefix lk)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />
       <Fact label="Logs" value={`${HOME}/mod.log · ${HOME}/logs/daemon.log`} mono />
       <Fact label="Mod · canvas" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />

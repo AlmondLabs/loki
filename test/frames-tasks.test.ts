@@ -1,16 +1,16 @@
 import { describe, expect, test } from "vitest";
 import type { Task } from "../core/frame-types.ts";
-import type { TaskBoard } from "../mod/tasks.ts";
+import type { TaskStore } from "../mod/tasks.ts";
 import type { RecallStore } from "../mod/recall.ts";
 import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 
 const task = (id: string, status = "open"): Task => ({ id, title: id, description: "", status, priority: 2, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata: {} });
 
-describe("board and Learn frames", () => {
+describe("tasks and Learn frames", () => {
   test("an assign without its chat is refused; one with it replies the tasks and tells other tabs", async () => {
     const assigned: Array<{ ids: string[]; status: string }> = [];
-    const board = { assign: async (ids: string[], _t: unknown, status: string) => (assigned.push({ ids, status }), ids.map((id) => task(id, status))) } as unknown as TaskBoard;
-    const { bridge, broadcasts } = bridgeWith({ tasks: board });
+    const store = { assign: async (ids: string[], _t: unknown, status: string) => (assigned.push({ ids, status }), ids.map((id) => task(id, status))) } as unknown as TaskStore;
+    const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
     bridge.onMessage(c, { type: "task_assign", requestId: "r1", ids: ["t1"], conversationId: "conv-1" });
     expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r1", message: "assign needs a conversation and a chat" });
@@ -18,6 +18,18 @@ describe("board and Learn frames", () => {
     await settled();
     expect(c.sent.at(-1)).toMatchObject({ type: "tasks_updated", requestId: "r2", tasks: [{ id: "t1", status: "in_progress" }] });
     expect(assigned).toEqual([{ ids: ["t1"], status: "in_progress" }]);
+    expect(broadcasts.at(-1)?.frame).toEqual({ type: "tasks_changed" });
+  });
+
+  test("reopen takes back an agent's done? (or a done task) and tells other tabs", async () => {
+    const reopened: string[][] = [];
+    const store = { reopen: async (ids: string[]) => (reopened.push(ids), ids.map((id) => task(id))) } as unknown as TaskStore;
+    const { bridge, broadcasts } = bridgeWith({ tasks: store });
+    const c = client("d1");
+    bridge.onMessage(c, { type: "task_reopen", requestId: "r1", ids: ["lk-a1", "lk-b2"] });
+    await settled();
+    expect(c.sent.at(-1)).toMatchObject({ type: "tasks_updated", requestId: "r1", tasks: [{ id: "lk-a1" }, { id: "lk-b2" }] });
+    expect(reopened).toEqual([["lk-a1", "lk-b2"]]);
     expect(broadcasts.at(-1)?.frame).toEqual({ type: "tasks_changed" });
   });
 

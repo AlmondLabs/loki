@@ -51,7 +51,7 @@ phone may send it, and the parser that turns the raw object into a typed payload
 `request()`, the phone allow-list and the protocol's documentation all read it. _Avoid_: REPLY_FRAMES,
 PHONE_FRAMES (now derived from it).
 
-**Frame handler**: the mod module for one feature (Learn, the board, agents, folders, the phone listener, …) that
+**Frame handler**: the mod module for one feature (Learn, Tasks, agents, folders, the phone listener, …) that
 answers that feature's frames; a request handler returns its reply or an error, and the router sends it.
 
 **Chat event** (`core/attention/model.ts`, `ChatEvent`): what happens in a chat while it runs, in loki's own words:

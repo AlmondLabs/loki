@@ -5,7 +5,7 @@ import { runAction } from "./keymap";
 import { lastInput } from "../kit/motion";
 import { CatchUp as Inbox, type PassSummaryHandler } from "../desk/CatchUp";
 import { NewDesk } from "../desk/NewDesk";
-import { Board } from "../board/Board";
+import { TasksPane } from "../tasks/TasksPane";
 import { Agents } from "../agents/Agents";
 import { Recall } from "../recall/Recall";
 import type { Recall as RecallModel } from "./useRecall";
@@ -19,7 +19,7 @@ import { Welcome } from "./Welcome";
 import type { DaemonStatus } from "./bootstrap";
 import type { LokiUpdate } from "./useLokiUpdate";
 import type { GlobalShortcut } from "./useGlobalShortcut";
-import type { AssignTarget, useBoard } from "./useBoard";
+import type { AssignTarget, useTasks } from "./useTasks";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { DeskSummary } from "../../../core/frame-types.ts";
@@ -85,13 +85,13 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
   );
 }
 
-/** The board: the task list from useBoard, with its moves; ⏎ / ⌘⏎ ask the picker for a target. */
-export function BoardView({ board, desks, onAssign, onNew, active }: { board: ReturnType<typeof useBoard>; desks: DeskSummary[]; onAssign: (ids: string[], start: boolean) => void; onNew: () => void; active: boolean }) {
-  return <Board tasks={board.tasks} loading={board.loading} error={board.error} desks={desks} onRefresh={() => void board.refresh()} onAssign={onAssign} onClose={(ids) => void board.closeTasks(ids)} onStatus={(ids, status) => void board.setTaskStatus(ids, status)} onNew={onNew} active={active} />;
+/** Tasks: the list from useTasks, with its moves; ⏎ / ⌘⏎ ask the picker for a target. */
+export function TasksView({ tasks, desks, onAssign, onNew, active }: { tasks: ReturnType<typeof useTasks>; desks: DeskSummary[]; onAssign: (ids: string[], start: boolean) => void; onNew: () => void; active: boolean }) {
+  return <TasksPane tasks={tasks.list} loading={tasks.loading} error={tasks.error} desks={desks} onRefresh={() => void tasks.refresh()} onAssign={onAssign} onClose={(ids) => void tasks.closeTasks(ids)} onReopen={(ids) => void tasks.reopenTasks(ids)} onStatus={(ids, status) => void tasks.setTaskStatus(ids, status)} onNew={onNew} active={active} />;
 }
 
 /** The agents: profile, memory, changes and skills per agent; "ask to update" opens the main chat with a request typed in. */
-export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, onShowDesks, onShowBoard }: { desk: Desk; catchUp: CatchUp; tasks: ReturnType<typeof useBoard>["tasks"]; onOpenDesk: OpenDesk; onAskToUpdate: (agentId: string, text: string) => void; onShowDesks: () => void; onShowBoard: () => void }) {
+export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, onShowDesks, onShowTasks }: { desk: Desk; catchUp: CatchUp; tasks: ReturnType<typeof useTasks>["list"]; onOpenDesk: OpenDesk; onAskToUpdate: (agentId: string, text: string) => void; onShowDesks: () => void; onShowTasks: () => void }) {
   return (
     <Agents
       columnOutside
@@ -108,7 +108,7 @@ export function AgentsView({ desk, catchUp, tasks, onOpenDesk, onAskToUpdate, on
       reflect={catchUp.reflection}
       listModels={catchUp.listModels}
       onShowDesks={onShowDesks}
-      onShowBoard={onShowBoard}
+      onShowTasks={onShowTasks}
     />
   );
 }
@@ -139,10 +139,10 @@ export function WelcomeView({ step, catchUp, daemon, onRetryDaemon, models, onLo
   );
 }
 
-/** ⏎ / ⌘⏎ on the board: which tasks, and whether to dispatch. Consumed by the picker (or a new desk). */
+/** ⏎ / ⌘⏎ in Tasks: which tasks, and whether to dispatch. Consumed by the picker (or a new desk). */
 export type Picker = { ids: string[]; start: boolean };
 
-/** The board's target picker: the desks tree (DeskTree), choosing a target. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
+/** The task list's target picker: the desks tree (DeskTree), choosing a target. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
 export function PickerTree({ picker, onClose, desk, catchUp, onAssign, pendingAssignRef, onNewDesk }: { picker: Picker | null; onClose: () => void; desk: Desk; catchUp: CatchUp; onAssign: (target: AssignTarget, ids: string[], start: boolean) => Promise<void>; pendingAssignRef: MutableRefObject<Picker | null>; onNewDesk: (agentId: string | null, name: string) => void }) {
   return (
     <DeskTree

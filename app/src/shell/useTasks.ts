@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { dispatchMessage } from "../board/model";
+import { dispatchMessage, isWaiting } from "../tasks/model";
 
 import type { Segment } from "./keymap";
 import type { CatchUp, Desk } from "./types";
 import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
-/** A desk the board can hand tasks to: the picker's row, or the desk just created for them. */
+/** A desk the task list can hand tasks to: the picker's row, or the desk just created for them. */
 export type AssignTarget = Pick<DeskSummary, "scope" | "agentId" | "conversationId" | "title"> & { agentName: string | null };
 
 /**
- * The board as the window sees it: the task list with its loading and error flags, and the moves — assign
- * or dispatch to a desk, close, set a status, file a new one. Refreshes when the mod says the board
+ * The task list as the window sees it: the task list with its loading and error flags, and the moves — assign
+ * or dispatch to a desk, close (or confirm an agent's done?), reopen, set a status, file a new one. Refreshes when the mod says the task list
  * changed, when the segment opens, and slowly while it shows (Dolt has no file to watch). Every move
  * reports through `notice` and refreshes the list afterwards.
  */
-export function useBoard(desk: Desk, segment: Segment, notice: (m: string) => void, link: { send: CatchUp["send"]; openDesk: (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void }) {
+export function useTasks(desk: Desk, segment: Segment, notice: (m: string) => void, link: { send: CatchUp["send"]; openDesk: (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void }, capture?: (event: string, properties?: Record<string, unknown>) => void) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export function useBoard(desk: Desk, segment: Segment, notice: (m: string) => vo
     if (desk.connection !== "open") return;
     setLoading(true);
     try {
-      const r = await desk.board.list(true);
+      const r = await desk.tasks.list(true);
       if (r.ok) {
         setTasks(r.tasks);
         setError(null);
@@ -36,7 +36,7 @@ export function useBoard(desk: Desk, segment: Segment, notice: (m: string) => vo
     if (desk.connection === "open") void refresh();
   }, [desk.tasksVersion, desk.connection, refresh]);
   useEffect(() => {
-    if (segment !== "board") return;
+    if (segment !== "tasks") return;
     void refresh();
     const t = setInterval(() => void refresh(), 20_000);
     return () => clearInterval(t);
@@ -49,7 +49,7 @@ export function useBoard(desk: Desk, segment: Segment, notice: (m: string) => vo
    */
   const assignTo = async (target: AssignTarget, ids: string[], start: boolean) => {
     if (!target.conversationId) return notice("that chat has no conversation to assign to");
-    const r = await desk.board.assign(ids, { agentId: target.agentId, agentName: target.agentName, conversationId: target.conversationId, desk: target.scope }, start);
+    const r = await desk.tasks.assign(ids, { agentId: target.agentId, agentName: target.agentName, conversationId: target.conversationId, desk: target.scope }, start);
     if (!r.ok) return notice(r.message);
     const assigned = r.tasks.length ? r.tasks : (tasks ?? []).filter((t) => ids.includes(t.id));
     if (start && target.agentId) {
@@ -61,22 +61,36 @@ export function useBoard(desk: Desk, segment: Segment, notice: (m: string) => vo
     }
     void refresh();
   };
+  /** The tasks an agent said were done, among these: closing them is your confirmation, reopening them your no. */
+  const waitingAmong = (ids: string[]) => (tasks ?? []).filter((t) => ids.includes(t.id) && isWaiting(t)).length;
   const closeTasks = async (ids: string[]) => {
-    const r = await desk.board.close(ids, "done from the board");
+    const confirmed = waitingAmong(ids);
+    const r = await desk.tasks.close(ids, confirmed === ids.length ? "confirmed done in Tasks" : "done in Tasks");
     if (!r.ok) notice(r.message);
+    else for (let i = 0; i < confirmed; i++) capture?.("task_confirmed", { action: "confirm" });
+    void refresh();
+  };
+  const reopenTasks = async (ids: string[]) => {
+    const waiting = waitingAmong(ids);
+    const r = await desk.tasks.reopen(ids);
+    if (!r.ok) notice(r.message);
+    else {
+      for (let i = 0; i < waiting; i++) capture?.("task_confirmed", { action: "reopen" });
+      notice(`${ids.length === 1 ? "task" : `${ids.length} tasks`} reopened`);
+    }
     void refresh();
   };
   const setTaskStatus = async (ids: string[], status: "open" | "blocked") => {
-    const r = await desk.board.setStatus(ids, status);
+    const r = await desk.tasks.setStatus(ids, status);
     if (!r.ok) notice(r.message);
     void refresh();
   };
   const createTask = async (t: { title: string; description?: string; labels?: string[]; priority: number }): Promise<string | null> => {
-    const r = await desk.board.create({ ...t, desk: desk.scope, agentId: desk.agentId, agentName: desk.agentName, conversationId: desk.conversationId });
+    const r = await desk.tasks.create({ ...t, desk: desk.scope, agentId: desk.agentId, agentName: desk.agentName, conversationId: desk.conversationId });
     if (!r.ok) return r.message;
     notice(`filed ${r.tasks[0]?.id ?? "the task"}`);
     void refresh();
     return null;
   };
-  return { tasks, loading, error, refresh, openTasks, assignTo, closeTasks, setTaskStatus, createTask };
+  return { list: tasks, loading, error, refresh, openTasks, assignTo, closeTasks, reopenTasks, setTaskStatus, createTask };
 }

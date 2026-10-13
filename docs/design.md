@@ -133,7 +133,7 @@ stays mono. Selection and hover use distinct neutral steps; neither the accent n
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
 Button and Field share one height scale (sm 28 · md 36 · touch 44); a field and the button beside it always
 share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into that surface. What stays
-hand-built: the rail (`.loki-rail`), the chat bubble, the board picker's rows, the phone's tab bar, the switch.
+hand-built: the rail (`.loki-rail`), the chat bubble, the Tasks picker's rows, the phone's tab bar, the switch.
 The Slack layout added its own blocks (2026-09-23): **ListRow** (a lead, the title bold when unread, a preview,
 the time or the red badge, hover actions; `aria-current` on the chosen one), **ListSection** (a folding
 heading with a count and actions), **TabRow** (an ARIA tablist with roving focus, the underline tabs),
@@ -145,7 +145,7 @@ The window has no native title bar (2026-09-23): the title bar is an overlay wit
 traffic lights sit over the rail, and loki draws the top edge itself — a 28px **title strip** that drags the
 window and zooms on a double click, with nothing interactive in it (`TitleStrip`, 0px in a browser tab). The
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
-"· archived" or "· deleted"), "Inbox · n waiting", "Board · n open", "Agents", or "Settings" while Preferences
+"· archived" or "· deleted"), "Inbox · n waiting", "Tasks · n open", "Agents", or "Settings" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead, Slack's: a 48px name
 line (a `#` and the chat's name, or the agent's face and name) with a quiet aside and the actions on the
 right, and under it a tab row. The name line drags the window too, so anything clickable in it is a real
@@ -204,10 +204,10 @@ List and detail, as Slack's desktop: a 48px **rail**, a **list column** beside i
 Vocabulary (2026-09-27): a conversation in the list is a chat; the widget surface inside it is its Canvas tab.
 Internals keep the name desk.
 
-- **Rail.** Six sections in Slack's labelled-icon style (Chats, Inbox, Board, Agents, Learn, Settings), a red
+- **Rail.** Six sections in Slack's labelled-icon style (Chats, Inbox, Tasks, Agents, Learn, Settings), a red
   count badge on what needs you (the inbox's waiting count, open tasks, due cards), and at the foot the column
   toggle and Settings. The pane is the window's one `main`; the rail is its navigation.
-- **List column.** Chats, Board, Agents and Learn list their items in a second column (`ListColumn`), 260px by
+- **List column.** Chats, Tasks, Agents and Learn list their items in a second column (`ListColumn`), 260px by
   default, dragged or arrowed on its edge between 220 and 420, shown or hidden with ⌘⇧D (in the Inbox, which has
   no column, ⌘⇧D stays Deny) or the rail's toggle.
   A window under 1100 wide folds it away until asked for, without touching the saved choice. Each section's
@@ -224,7 +224,7 @@ Internals keep the name desk.
   through the mod. Hover shows pin and archive; a right click opens the row menu (open, Mark as read or unread,
   Rename…, Change folder…, pin, archive or restore). When a chat that waits on you is scrolled out of view, a red "Needs you"
   pill at the top or bottom edge scrolls it back. Scroll and folds are kept across restarts. The sidebar
-  replaced the desks tree drawer (2026-09-23, approved by the user); the tree lives on only as the Board's
+  replaced the desks tree drawer (2026-09-23, approved by the user); the tree lives on only as Tasks'
   assign-to-chat picker.
 - **Chat pane.** A chat opens on **Messages** with the composer focused, from anywhere (the sidebar, search,
   the Inbox's Enter or O, Agents, Learn). **Canvas** is the tab beside it: today's sheet edge to edge with the
@@ -237,9 +237,9 @@ Internals keep the name desk.
   thread's scroll keep their state; its panels inherit that hiding and never set themselves visible.
 - **Agents** is Slack's DMs: the column lists agents (face, name, live dot, the last thing it said, a red badge
   for what waits in the Inbox); the pane shows the chosen agent with a tab row for its pages (Profile, Memory,
-  Changes, Reflection, Skills). **Board** lists its views (all tasks, each status with its count, each agent);
-  "all" is the four-column board, the rest a single list, with today's keys; a remembered agent view whose agent
-  is gone says so and asks for a new pick. **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick.
+  Changes, Reflection, Skills). **Tasks** lists its built-in views (All, Mine, Waiting for you, each agent) with
+  counts; each shows as a Board (columns by status, assignee or folder) or a Table (sortable columns), with the same
+  keys; a remembered agent view whose agent is gone says so and asks for a new pick. **Learn** lists Review, Leads, All cards and Deleted. With nothing chosen, a pane shows one quiet line saying what to pick.
 - **Search (⌘K).** A sheet from anywhere over chats, agents, waiting Inbox items and the app's pages
   (sections and each Preferences page), from what the app already has; it does not search message text, and
   says so. An empty query lists recent places; ↑↓ move, ↵ opens the top result, Esc or ⌘K closes it.
@@ -330,7 +330,7 @@ box is one for both, its sizes set by `touch`.
 - The desks tree as a drawer over the sheet (2026-09-06 to 2026-09-23): ⌘K or the rail's desk icon opened a
   centred list of every desk (waiting, pinned, recent, the rest), filtered by agent chips, with ⌘P pin, ⌘E
   archive and ⇧↵ open-with-chat. Replaced by the always-there sidebar, now Chats (grouped by agent, pinned on top) and
-  ⌘K search; the tree survives only as the Board's picker, without the switching, pinning or archiving.
+  ⌘K search; the tree survives only as Tasks' picker, without the switching, pinning or archiving.
 - A desk that opened on its canvas (to 2026-09-23): the conversation floated on the widgets and switching
   desks meant summoning the drawer. A chat now opens on Messages; the canvas is its Canvas tab (called the Desk tab until 2026-09-27).
 
@@ -343,5 +343,5 @@ sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on
 picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
 nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
 forget / remove / disable and an undo on archive; the jargon and error-string pass; the archive fold inside
-the board picker's listbox is still unreachable while its search box owns Tab. The desktop's 1100-wide floor
-(R31 of plan 013) now holds: the inbox card and the four board columns fit beside the rail and the list column.
+the Tasks picker's listbox is still unreachable while its search box owns Tab. The desktop's 1100-wide floor
+(R31 of plan 013) now holds: the inbox card and the four Tasks columns fit beside the rail and the list column.

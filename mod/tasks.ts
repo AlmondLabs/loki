@@ -1,5 +1,5 @@
 import { lokiDir } from "./paths.ts";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync } from "node:fs";
 import { basename, join } from "node:path";
 import { homedir } from "node:os";
 import { log } from "./log.ts";
@@ -7,7 +7,7 @@ import { envVar, execProgram, firstExisting, onPath, type Look } from "./program
 import type { Task } from "../core/frame-types.ts";
 
 /**
- * The board: tasks for later, kept by beads (`bd`, embedded Dolt) in ONE shared
+ * Tasks: the shared task list, kept by beads (`bd`, embedded Dolt) in ONE shared
  * database for every agent and folder. Agents reach it through the `loki_task`
  * tool and the app through bridge frames; both land here, and every bd call runs
  * through a single serial queue (the embedded engine wants one writer).
@@ -43,15 +43,45 @@ export interface AssignTarget {
 
 export type Runner = (args: string[]) => Promise<string>;
 
-/** Where the shared board lives; LOKI_BOARD_DIR for tests and experiments. */
-export const boardDir = (): string => process.env.LOKI_BOARD_DIR ?? join(lokiDir(), "board");
+/**
+ * Where the shared task list lives: <loki>/tasks, or LOKI_TASKS_DIR (LOKI_BOARD_DIR, its name from before Tasks, still
+ * counts) for tests and experiments. A list from when Tasks was the Board, in <loki>/board, moves here once; if it
+ * cannot move (the folder is held, a permission), it is used where it is, and the move is tried again next start.
+ */
+export function tasksDir(home = lokiDir(), env: NodeJS.ProcessEnv = process.env): string {
+  const set = env.LOKI_TASKS_DIR ?? env.LOKI_BOARD_DIR;
+  if (set) return set;
+  const dir = join(home, "tasks");
+  const old = join(home, "board");
+  if (existsSync(dir) || !existsSync(old)) return dir;
+  try {
+    renameSync(old, dir);
+    log("tasks:moved", { from: old, to: dir });
+    return dir;
+  } catch (err) {
+    log("tasks:move-failed", { from: old, to: dir, error: err instanceof Error ? err.message : String(err) });
+    return old;
+  }
+}
+
+/**
+ * An agent's word that a task the person filed is done, kept on the task until the person answers: the agent's reason
+ * (or "yes"), who said it, and when. Confirm closes the task; Reopen clears these (TaskStore.reopen).
+ */
+export const DONE_ASKED = ["doneAsked", "doneAskedBy", "doneAskedAt"] as const;
+
+export function askDoneArgs(id: string, ask: { reason?: string | null; by?: string | null }, now = new Date()): string[] {
+  const args = ["update", id, "--set-metadata", `doneAsked=${ask.reason?.trim() || "yes"}`, "--set-metadata", `doneAskedAt=${now.toISOString()}`];
+  if (ask.by) args.push("--set-metadata", `doneAskedBy=${ask.by}`);
+  return [...args, "--json"];
+}
 
 /** LOKI_BD, then PATH (`bd.exe` on Windows), then Homebrew, /usr/local, Go's and ~/.local's bin. */
 export function bdBinary(look: Look = {}): string | null {
   return firstExisting([envVar("LOKI_BD", look), ...onPath("bd", look), "/opt/homebrew/bin/bd", "/usr/local/bin/bd", join(homedir(), "go", "bin", "bd"), join(homedir(), ".local", "bin", "bd")], look);
 }
 
-/** The one-time `bd init` for the shared board. Exported for tests. */
+/** The one-time `bd init` for the shared task list. Exported for tests. */
 export const INIT_ARGS = ["init", "--prefix", "lk", "--non-interactive"];
 
 /** A label for the project a task came from: the folder's name, lower-cased, safe for bd. */
@@ -108,6 +138,22 @@ export function createArgs(t: CreateTask): string[] {
   return args;
 }
 
+/**
+ * Who closes: beads refuses to close a task assigned to someone other than the one closing it ("reclaim or use
+ * --force"), and the mod runs bd as the computer's user, never the agent. An agent closing its own chat's task closes
+ * as its assignee (`actor`); the person closing from Tasks has decided, so it is forced.
+ */
+export type CloseAs = { actor?: string | null; force?: boolean };
+
+export function closeArgs(ids: string[], reason?: string, as: CloseAs = {}): string[] {
+  const args = ["close", ...ids];
+  if (as.actor) args.push("--actor", as.actor);
+  if (as.force) args.push("--force");
+  args.push("--json");
+  if (reason?.trim()) args.push("--reason", reason.trim());
+  return args;
+}
+
 /** Ids as bd names them (lk-a1, lk-a1.2): anything else, one starting with "-" above all, is not passed to bd. */
 export const taskIds = (ids: string[]): string[] => ids.filter((id) => typeof id === "string" && /^[A-Za-z0-9][\w.-]*$/.test(id));
 
@@ -143,21 +189,21 @@ export function formatTasksContext(tasks: Task[], opts: { conversation: string }
   });
   return [
     "<loki-tasks>",
-    `Tasks assigned to this conversation on the user's board (${mine.length}):`,
+    `Tasks assigned to this conversation in the user's Tasks (${mine.length}):`,
     ...lines,
-    "Pick one up when the user's message is about it or when asked to work the board; otherwise acknowledge briefly and carry on.",
-    "When you finish one, call loki_task {action:\"close\", id, reason}. Add progress with {action:\"comment\", id, text}.",
+    "Pick one up when the user's message is about it or when asked to work through Tasks; otherwise acknowledge briefly and carry on.",
+    "Add progress with loki_task {action:\"comment\", id, text}. When the whole task is done, call {action:\"close\", id, reason}: one the user filed then waits for the user to confirm.",
     "</loki-tasks>",
   ].join("\n");
 }
 
 /** Sent once when the last of a conversation's tasks is closed or moved elsewhere. */
-export const TASKS_CLEARED = "<loki-tasks>\nNo tasks are assigned to this conversation on the user's board any more.\n</loki-tasks>";
+export const TASKS_CLEARED = "<loki-tasks>\nNo tasks are assigned to this conversation in the user's Tasks any more.\n</loki-tasks>";
 
 /**
  * What each conversation was last told about its tasks. The block rides along only when it would say something
  * new (a task assigned, closed, edited or started), not on every message: the agent keeps the earlier one in
- * its history, and `loki_task list` reads the board whenever it wants. Held in memory, so a restart of the mod
+ * its history, and `loki_task list` reads the task list whenever it wants. Held in memory, so a restart of the mod
  * tells each conversation once more.
  */
 export class TasksNotice {
@@ -183,8 +229,8 @@ export class TasksNotice {
   }
 }
 
-/** Runs bd against the shared board, one call at a time. */
-export class TaskBoard {
+/** Runs bd against the shared task list, one call at a time. */
+export class TaskStore {
   private queue: Promise<unknown> = Promise.resolve();
   private cache: Task[] = [];
   private cacheAt = 0;
@@ -192,28 +238,28 @@ export class TaskBoard {
   private readonly run: Runner;
 
   constructor(opts: { dir?: string; run?: Runner } = {}) {
-    this.dir = opts.dir ?? boardDir();
+    this.dir = opts.dir ?? tasksDir();
     this.run = opts.run ?? ((args) => this.exec(args));
   }
 
-  /** The board exists when `bd init` has been run in its directory. */
+  /** The task list exists when `bd init` has been run in its directory. */
   ready(): boolean {
     return existsSync(join(this.dir, ".beads"));
   }
 
   private initialising: Promise<void> | null = null;
 
-  /** The board exists when `bd init` has been run in its directory; the first call creates it. */
+  /** The task list exists when `bd init` has been run in its directory; the first call creates it. */
   private ensure(bin: string): Promise<void> {
     if (this.ready()) return Promise.resolve();
     if (!this.initialising) {
-      log("board:init", { dir: this.dir });
+      log("tasks:init", { dir: this.dir });
       mkdirSync(this.dir, { recursive: true });
       this.initialising = this.spawn(bin, INIT_ARGS).then(
         () => undefined,
         (err) => {
           this.initialising = null; // try again next time
-          throw new Error(`could not create the board at ${this.dir}: ${err instanceof Error ? err.message : String(err)}`);
+          throw new Error(`could not create the task list at ${this.dir}: ${err instanceof Error ? err.message : String(err)}`);
         },
       );
     }
@@ -292,27 +338,47 @@ export class TaskBoard {
     });
   }
 
-  close(ids: string[], reason?: string): Promise<Task[]> {
+  close(ids: string[], reason?: string, as: CloseAs = {}): Promise<Task[]> {
     ids = taskIds(ids);
     if (!ids.length) return Promise.resolve([]);
     return this.serial(async () => {
-      const args = ["close", ...ids, "--json"];
-      if (reason?.trim()) args.push("--reason", reason.trim());
-      const tasks = parseTasks(await this.run(args));
+      const tasks = parseTasks(await this.run(closeArgs(ids, reason, as)));
       log("tasks:close", { ids, reason });
       this.cache = this.cache.filter((c) => !ids.includes(c.id));
       return tasks;
     });
   }
 
+  /** An agent says a task the person filed is done: it waits for the person (DONE_ASKED), still open. */
+  askDone(id: string, ask: { reason?: string | null; by?: string | null }): Promise<Task[]> {
+    const [one] = taskIds([id]);
+    if (!one) return Promise.resolve([]);
+    return this.serial(async () => {
+      const tasks = parseTasks(await this.run(askDoneArgs(one, ask)));
+      log("tasks:ask-done", { id: one, by: ask.by });
+      this.merge(tasks);
+      return tasks;
+    });
+  }
+
+  /** Not done after all: an agent's done? is cleared, and a closed task opens again. */
   reopen(ids: string[]): Promise<Task[]> {
     ids = taskIds(ids);
     if (!ids.length) return Promise.resolve([]);
     return this.serial(async () => {
-      const tasks = parseTasks(await this.run(["reopen", ...ids, "--json"]));
+      const cleared = parseTasks(await this.run(["update", ...ids, ...DONE_ASKED.flatMap((k) => ["--unset-metadata", k]), "--json"]));
+      const closed = cleared.filter((t) => t.status === "closed").map((t) => t.id);
+      const reopened = closed.length ? parseTasks(await this.run(["reopen", ...closed, "--json"])) : [];
+      const tasks = cleared.map((t) => reopened.find((r) => r.id === t.id) ?? t);
+      log("tasks:reopen", { ids, reopened: closed });
       this.merge(tasks);
       return tasks;
     });
+  }
+
+  /** One task as the list has it now, closed or not; null when there is no such task. */
+  async find(id: string): Promise<Task | null> {
+    return (await this.list({ all: true })).find((t) => t.id === id) ?? null;
   }
 
   setStatus(ids: string[], status: "open" | "in_progress" | "blocked" | "deferred"): Promise<Task[]> {

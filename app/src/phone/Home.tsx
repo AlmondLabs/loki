@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { previewLine } from "../shared/preview";
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
-import { ago } from "../board/model";
+import { ago } from "../shared/ago";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 
