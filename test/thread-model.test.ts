@@ -223,9 +223,13 @@ describe("slash command rows", () => {
     applyEvent(l, d({ message_type: "slash_command_start", command_id: "compact", input: "/compact all" }));
     applyEvent(l, d({ message_type: "slash_command_end", command_id: "compact", input: "/compact all", output: "line one\nline two", success: false }));
     expect(l.thread.rows()![1]).toMatchObject({ role: "event", text: "/compact all", summary: "failed", detail: "line one\nline two" });
+    // A short failure says why on the row itself.
+    applyEvent(l, d({ message_type: "slash_command_start", command_id: "doctor", input: "/doctor" }));
+    applyEvent(l, d({ message_type: "slash_command_end", command_id: "doctor", input: "/doctor", output: "a memory review of this agent is already running", success: false }));
+    expect(l.thread.rows()!.find((r) => r.text === "/doctor")).toMatchObject({ summary: "failed: a memory review of this agent is already running", detail: null });
     // An end without a start still lands as a row.
     applyEvent(l, d({ message_type: "slash_command_end", command_id: "clear", input: "/clear", output: "Cleared.", success: true }));
-    expect(l.thread.rows()![2]).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
+    expect(l.thread.rows()!.find((r) => r.text === "/clear")).toMatchObject({ role: "event", text: "/clear", summary: "Cleared.", detail: null });
   });
 });
 
