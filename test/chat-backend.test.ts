@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
-import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
-import { MemoryStorage } from "@earendil-works/pi-durable";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { defineExtension, defineTool, MemoryStorage } from "@earendil-works/pi-durable";
 import { DaemonChats, modelRef } from "../daemon/chat-backend.ts";
 import { Approvals } from "../daemon/approvals.ts";
 import { KeychainCredentials, memorySecrets } from "../daemon/credentials.ts";
@@ -17,12 +17,14 @@ import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/mod
 
 const ctx = BACKGROUND_CONTEXT;
 
-async function setup(opts: { tokensPerSecond?: number } = {}) {
+async function setup(opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void> } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
   const faux = fauxProvider(opts.tokensPerSecond ? { tokensPerSecond: opts.tokensPerSecond, tokenSize: { min: 3, max: 3 } } : {});
   const models = createModels();
   models.setProvider(faux.provider);
   const mods = new ModRegistry(() => {});
+  const tool = opts.tool;
+  if (tool) mods.registry.install(defineExtension({ name: "t", tools: [defineTool({ name: "slow", description: "slow", parameters: { type: "object", properties: {} } as never, execute: async () => (await tool(() => {}), { content: [{ type: "text", text: "slow done" }] }) })] }));
   await mods.load({ name: "rider", apiVersion: 1, activate: (api) => void api.message.transform((m) => (typeof m.content === "string" ? `${m.content}\n<loki-desk/>` : m.content)) });
   const stores = new StoreManager(join(dir, "stores"), { models, registry: mods.registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx));
   const approvals = new Approvals();
@@ -51,6 +53,29 @@ const until = async (check: () => boolean, ms = 2000) => {
 const kinds = (pushed: Array<{ events: ChatEvent[] }>) => pushed.flatMap((p) => p.events.map((e) => (e.kind === "step" ? `step:${e.step.kind}` : e.kind)));
 
 describe("the daemon's chats", () => {
+  test("loki's own message steered in while a turn works goes in at its next step, not as a turn after the answer", async () => {
+    // A background task ends while the agent is still at work (here, inside a tool call): its notice is delivered then.
+    let notice: () => Promise<void> = async () => {};
+    const s = await setup({ tool: async () => void (await notice(), await new Promise((r) => setTimeout(r, 200))) });
+    try {
+      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
+      const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
+      await s.chats.open(agent.id, conversationId);
+      notice = () => s.chats.deliver(agent.id, conversationId, "<task-notification>\n<task-id>bg-1</task-id>\n<status>completed</status>\n</task-notification>", "steer");
+      let asked = 0;
+      s.faux.setResponses([() => (asked++, fauxAssistantMessage(fauxToolCall("slow", {}), { stopReason: "toolUse" })), () => (asked++, fauxAssistantMessage("Done.")), () => (asked++, fauxAssistantMessage("Extra."))]);
+      await s.chats.send({ agentId: agent.id, conversationId, text: "go", images: [], sendId: "s1", context: null });
+      await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
+      await new Promise((r) => setTimeout(r, 300));
+      const steps = s.pushed.flatMap((p) => p.events).flatMap((e) => (e.kind === "step" && (e.step.kind === "user" || (e.step.kind === "assistant" && !e.step.chunk)) ? [e.step.kind === "user" ? e.step.raw.split("\n")[0] : e.step.text] : []));
+      expect(steps.filter((t) => t)).toEqual(["go", "<task-notification>", "Done."]);
+      expect(kinds(s.pushed).filter((k) => k === "turn_end")).toHaveLength(1);
+      expect(asked).toBe(2);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
   test("a client that opens a chat mid-answer gets what was written so far, and draws the reply once, whole", async () => {
     const s = await setup({ tokensPerSecond: 15 });
     try {

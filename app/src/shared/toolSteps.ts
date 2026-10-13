@@ -12,7 +12,7 @@ import type { IconName } from "./icons";
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */
-const SHELL = new Set(["Bash", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
+const SHELL = new Set(["Bash", "bash_background", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
 /** Tools that change files: Claude-style edits and Codex-style patches (the agent's memory files too). */
 const EDITS = new Set(["Edit", "MultiEdit", "NotebookEdit", "Write", "ApplyPatch", "apply_patch", "memory_apply_patch", "memory"]);
 /** Tools that hand work to another agent. */
@@ -21,6 +21,7 @@ const AGENTS = new Set(["Task", "Agent", "SendAgentMessage"]);
 /** What a step did, as the list's first line. */
 export function stepVerb(name: string): string {
   if (name === "Background task") return "Ran in background";
+  if (name === "bash_background") return "Started in background";
   if (name === "Skill") return "Loaded skill";
   if (SHELL.has(name)) return "Ran";
   switch (name) {
@@ -109,7 +110,9 @@ export const stepName = (row: TranscriptRow): string => (row.role === "event" ? 
 
 /** The step's second line: what the agent said it is for, else what it was done to (the label's tail), or nothing. */
 export function stepTarget(row: TranscriptRow): string | null {
-  if (isBackgroundTask(row)) return row.summary?.match(/"([^"]+)"/)?.[1] ?? row.summary ?? null;
+  // Letta's notice names the command (`Background command "Re-auth dev" completed`); loki's is the command itself,
+  // whose own quotes are not a name.
+  if (isBackgroundTask(row)) return row.summary?.match(/^\w+ command "(.+)" \w+(?: \(.*\))?$/)?.[1] ?? row.summary ?? null;
   if (row.role === "event") return row.summary ?? null;
   if (row.tool?.description) return row.tool.description;
   const i = row.text.indexOf(" · ");

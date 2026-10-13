@@ -22,6 +22,15 @@ describe("the line for a run of tools", () => {
     expect(stepVerb("mcp_thing")).toBe("Used mcp_thing");
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
+    expect(stepVerb("bash_background")).toBe("Started in background");
+  });
+
+  test("a background task reads by the name Letta gave it, or by loki's command as written, quotes and all", () => {
+    const notice = (summary: string): TranscriptRow => ({ role: "event", text: "background task bg-1 completed", summary });
+    expect(stepTarget(notice('Background command "Re-auth dev" completed'))).toBe("Re-auth dev");
+    expect(stepTarget(notice('Exec command "Deploy" failed (exit 1)'))).toBe("Deploy");
+    const command = `python3 -c "import re; print(re.findall(r'href=\\'([^\\']+)', open('a.html').read()))"`;
+    expect(stepTarget(notice(command))).toBe(command);
   });
 
   test("a described command reads by its description; the command stays the step's input", () => {
