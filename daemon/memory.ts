@@ -75,8 +75,12 @@ function inside(root: string, path: unknown): string {
   return full;
 }
 
-/** git in a memory repo, with no hooks: whatever is in the repo, a commit runs nothing of it. */
-const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", ...args]);
+/**
+ * git in a memory repo, with no hooks (whatever is in the repo, a commit runs nothing of it) and no line-ending
+ * conversion: Windows' git turns LF into CRLF on checkout by default, and a revert checks files out, so a reverted
+ * file came back with CRLF and the agent's memory_edit of an LF passage no longer matched it.
+ */
+const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "core.hooksPath=/dev/null", "-c", "core.autocrlf=false", ...args]);
 
 /**
  * One git command sequence at a time per memory repo. A chat's memory_write, a reflection pass and an edit from the

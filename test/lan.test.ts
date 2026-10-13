@@ -511,10 +511,13 @@ describe("LAN listener", () => {
   });
 
   test("behind tailscale serve: /pair from the tailnet origin reaches the code check; a stranger is still 403", async () => {
-    const port = await freePort();
-    const f = fixture({ port, tailscale: fakeTailscale({ port }) });
+    // Port 0, read back once bound: a port probed free first can be taken by another listener before this one binds it
+    // (it was, on macOS CI), and a failed bind returns before Tailscale is read.
+    const f = fixture({ tailscale: fakeTailscale() });
     try {
       await f.lan.setEnabled(true);
+      expect(f.lan.status().error).toBeNull();
+      const port = f.lan.status().port;
       expect(f.lan.status().tailscale?.name).toBe(TAILNET); // start() refreshed
       const post = (origin: string, extra: Record<string, string> = {}) => fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin, ...extra }, body: JSON.stringify({ code: "ZZZZZZ", name: "x" }) });
       expect((await post(`https://${TAILNET}`)).status).toBe(404); // past the origin check, the code is wrong
