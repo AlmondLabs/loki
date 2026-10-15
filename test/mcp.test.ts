@@ -1,0 +1,298 @@
+import { describe, expect, test } from "vitest";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { InMemoryTransport, type Transport } from "@modelcontextprotocol/client";
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { createModels } from "@earendil-works/pi-ai/models";
+import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
+import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
+import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
+import { parseConfig, readConfig, serverKey } from "../daemon/mcp/config.ts";
+import { backoffMs, McpServers, toolKey, type Connector, type McpTool } from "../daemon/mcp/servers.ts";
+import { rank, selected, words } from "../daemon/mcp/search.ts";
+import { ERROR_KEEP, mapResult, START_CHARS } from "../daemon/mcp/results.ts";
+import { McpTools } from "../daemon/mcp/index.ts";
+import { AgentStore } from "../daemon/kernel/index.ts";
+import { kindOf } from "../daemon/approvals.ts";
+import { serve, TOOLS } from "./fixtures/fake-mcp.mjs";
+
+const ctx = BACKGROUND_CONTEXT;
+const until = async (check: () => boolean, ms = 3000) => {
+  const end = Date.now() + ms;
+  while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+};
+
+/** Servers that connect in memory to the fake; `drop(name)` closes a server's end, as a crash would. */
+function inMemory(opts: { tools?: unknown[] } = {}) {
+  const ends = new Map<string, Transport>();
+  const connect: Connector = async (config, client) => {
+    const [mine, theirs] = InMemoryTransport.createLinkedPair();
+    ends.set(config.name, await serve(theirs, { tools: opts.tools }));
+    await client.connect(mine);
+  };
+  return { connect, drop: (name: string) => ends.get(name)?.close() };
+}
+
+describe("MCP config", () => {
+  test("local and remote servers in the mcpServers shape; broken entries are named, not fatal", () => {
+    const c = parseConfig(
+      JSON.stringify({
+        mcpServers: {
+          github: { command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: "t" }, alwaysLoad: ["list_issues"] },
+          "my linear": { url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer x" } },
+          off: { command: "x", disabled: true },
+          nothing: {},
+          ftp: { url: "ftp://nope" },
+        },
+      }),
+    );
+    expect(c.servers).toEqual([
+      { kind: "local", name: "github", command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: "t" }, cwd: null, alwaysLoad: ["list_issues"] },
+      { kind: "remote", name: "my_linear", url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer x" }, alwaysLoad: [] },
+    ]);
+    expect(c.problems).toEqual(['nothing: needs a "command" (a local server) or a "url" (a remote one)', 'ftp: "ftp://nope" is not an http(s) URL']);
+    expect(parseConfig("{not json").problems[0]).toMatch(/not valid JSON/);
+    expect(readConfig(join(tmpdir(), "no-such-loki-mcp.json"))).toEqual({ servers: [], problems: [] });
+    expect(serverKey("a b/c")).toBe("a_b_c");
+  });
+});
+
+describe("MCP tool names, search and results", () => {
+  const tool = (server: string, name: string, description: string, props: string[] = []): McpTool => ({ key: toolKey(server, name), server, name, title: null, description, inputSchema: { type: "object", properties: Object.fromEntries(props.map((p) => [p, { type: "string" }])) }, readOnly: false, destructive: false });
+  const tools = [
+    tool("github", "list_pull_requests", "List pull requests of a repository", ["owner", "repo", "state"]),
+    tool("github", "create_issue", "Open an issue", ["owner", "repo", "title"]),
+    tool("linear", "update_issue", "Change a Linear issue: its state, assignee or title", ["id", "state"]),
+    tool("linear", "list_issues", "List Linear issues"),
+  ];
+
+  test("a tool's key is mcp__server__tool, safe for every provider, and at most 64 characters", () => {
+    expect(toolKey("github", "list_issues")).toBe("mcp__github__list_issues");
+    const long = toolKey("server", "a".repeat(80));
+    expect(long.length).toBe(64);
+    expect(long).toMatch(/^mcp__server__a+_[0-9a-f]{6}$/);
+    expect(toolKey("s", "get.thing")).toMatch(/^mcp__s__get_thing_[0-9a-f]{6}$/); // changed names keep a hash, never clash
+    expect(toolKey("s", "get.thing")).not.toBe(toolKey("s", "get_thing"));
+  });
+
+  test("words split on case and separators; ranking finds by name, description, server and parameters", () => {
+    expect(words("listPullRequests open_PRs")).toEqual(["list", "pull", "requests", "open", "prs"]);
+    expect(rank("open pull requests on github", tools).map((t) => t.name)[0]).toBe("list_pull_requests");
+    expect(rank("change the state of a linear ticket", tools).map((t) => t.name)[0]).toBe("update_issue");
+    expect(rank("zebra", tools)).toEqual([]);
+    expect(rank("issue", tools, 2)).toHaveLength(2);
+  });
+
+  test("select: picks exactly, by server.tool, bare name or key", () => {
+    expect(selected("select:linear.update_issue, github.create_issue", tools)?.map((t) => t.key)).toEqual(["mcp__linear__update_issue", "mcp__github__create_issue"]);
+    expect(selected("select:list_issues", tools)?.map((t) => t.key)).toEqual(["mcp__linear__list_issues"]);
+    expect(selected("select:mcp__github__create_issue", tools)?.map((t) => t.name)).toEqual(["create_issue"]);
+    expect(selected("list issues", tools)).toBeNull();
+  });
+
+  test("text, images and resources map across; a big result spills to a file, an error is cut at both ends", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-results-"));
+    try {
+      const small = mapResult({ content: [{ type: "text", text: "hi" }, { type: "image", data: "AAAA", mimeType: "image/png" }, { type: "resource_link", uri: "file:///a", name: "a" }] } as never, { spillDir: dir, name: "x" });
+      expect(small.content).toEqual([{ type: "text", text: "hi" }, { type: "image", data: "AAAA", mimeType: "image/png" }, { type: "text", text: "[resource] a file:///a" }]);
+      expect(mapResult({ content: [], structuredContent: { n: 1 } } as never, { spillDir: dir, name: "x" }).content[0]).toEqual({ type: "text", text: '{\n  "n": 1\n}' });
+      const text = "0123456789".repeat(6000);
+      const big = mapResult({ content: [{ type: "text", text }] } as never, { spillDir: dir, name: "mcp__github__search" });
+      expect(big.spilled).not.toBeNull();
+      expect(readFileSync(big.spilled!, "utf8")).toBe(text);
+      const note = (big.content[0] as { text: string }).text;
+      expect(note).toContain("60,000 characters");
+      expect(note).toContain(big.spilled!);
+      expect(note.endsWith(text.slice(0, START_CHARS))).toBe(true);
+      const err = mapResult({ isError: true, content: [{ type: "text", text: `${"a".repeat(ERROR_KEEP)}${"m".repeat(20000)}${"z".repeat(ERROR_KEEP)}` }] } as never, { spillDir: dir, name: "x" });
+      const errText = (err.content[0] as { text: string }).text;
+      expect(err.isError).toBe(true);
+      expect(errText.startsWith("a".repeat(ERROR_KEEP))).toBe(true);
+      expect(errText.endsWith("z".repeat(ERROR_KEEP))).toBe(true);
+      expect(errText).toContain("20000 characters cut");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("MCP servers", () => {
+  test("a server connects, lists its tools with their hints, is called, and comes back after it drops", async () => {
+    const mem = inMemory();
+    const servers = new McpServers({ connect: mem.connect });
+    try {
+      servers.configure([{ kind: "local", name: "fake", command: "x", args: [], env: {}, cwd: null, alwaysLoad: ["list_issues"] }]);
+      await until(() => servers.status()[0]?.state === "connected");
+      expect(servers.status()[0]).toMatchObject({ name: "fake", state: "connected", tools: TOOLS.length, purpose: "A fake issue tracker for tests" });
+      const list = servers.tools().find((t) => t.name === "list_issues")!;
+      expect(list).toMatchObject({ key: "mcp__fake__list_issues", readOnly: true, destructive: false });
+      expect(servers.tools().find((t) => t.name === "delete_repo")).toMatchObject({ readOnly: false, destructive: true });
+      expect([...servers.alwaysLoaded()]).toEqual(["mcp__fake__list_issues"]);
+      const r = await servers.call("mcp__fake__list_issues", { repo: "loki" });
+      expect(r.content).toEqual([{ type: "text", text: 'list_issues {"repo":"loki"}' }]);
+      await mem.drop("fake");
+      await until(() => servers.status()[0]?.state === "down");
+      expect(servers.status()[0].error).toMatch(/stopped/);
+      expect(servers.tools()).toEqual([]);
+      await expect(servers.call("mcp__fake__list_issues", {})).rejects.toThrow(/not available/);
+      await until(() => servers.status()[0]?.state === "connected", 4000); // the first retry waits a second
+      expect(servers.tools()).toHaveLength(TOOLS.length);
+    } finally {
+      await servers.close();
+    }
+  });
+
+  test("the pause before a retry grows to a minute", () => {
+    expect([1, 2, 3, 4, 10].map(backoffMs)).toEqual([1000, 2000, 4000, 8000, 60_000]);
+  });
+
+  test("a real local server over stdio: started, listed, called; one that cannot start is down with its reason", async () => {
+    const script = join(import.meta.dirname, "fixtures", "fake-mcp.mjs");
+    const servers = new McpServers();
+    try {
+      servers.configure([
+        { kind: "local", name: "fake", command: process.execPath, args: [script], env: {}, cwd: null, alwaysLoad: [] },
+        { kind: "local", name: "missing", command: join(tmpdir(), "no-such-mcp-server"), args: [], env: {}, cwd: null, alwaysLoad: [] },
+      ]);
+      await until(() => servers.status().every((s) => s.state !== "starting"), 10_000);
+      const [fake, missing] = servers.status();
+      expect(fake).toMatchObject({ state: "connected", tools: TOOLS.length });
+      expect(missing.state).toBe("down");
+      expect(missing.error).toBeTruthy();
+      expect((await servers.call("mcp__fake__create_issue", { repo: "loki", title: "t" })).content).toEqual([{ type: "text", text: 'create_issue {"repo":"loki","title":"t"}' }]);
+      // A crash mid-call: the server is down, the call fails, and the stderr it printed is in the reason.
+      await expect(servers.call("mcp__fake__crash", {})).rejects.toThrow();
+      await until(() => servers.status()[0].state === "down", 5000);
+      expect(servers.status()[0].error).toMatch(/fake mcp server ready/);
+    } finally {
+      await servers.close();
+    }
+  });
+});
+
+describe("loki.mcp in a chat", () => {
+  async function setup(opts: { alwaysLoad?: string[] } = {}) {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mcp-chat-"));
+    writeFileSync(join(dir, "mcp.json"), JSON.stringify({ mcpServers: { fake: { command: "x", alwaysLoad: opts.alwaysLoad ?? [] } } }));
+    const mem = inMemory();
+    const registry = createRegistry();
+    const mcp = new McpTools({ registry, configPath: join(dir, "mcp.json"), lokiDir: dir, servers: new McpServers({ connect: mem.connect }) });
+    const captured: Array<[string, Record<string, unknown>]> = [];
+    mcp.setCapture((e, p) => captured.push([e, p]));
+    mcp.reload();
+    await until(() => mcp.servers.status()[0]?.state === "connected");
+    await until(() => registry.snapshot().tools().some(({ tool }) => tool.name === "mcp__fake__list_issues"));
+    const faux = fauxProvider();
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
+    const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+    const asked: string[] = [];
+    // The tools a request offers travel in the transcript's system messages (pi-ai's transcript context).
+    const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { messages: unknown[] }) => (asked.push(getCurrentTools(c.messages as never).map((t) => t.name).join(",")), m);
+    const results = async () => (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model?.[0]));
+    const cleanup = async () => {
+      await mcp.close();
+      await store.close(ctx);
+      rmSync(dir, { recursive: true, force: true });
+    };
+    return { dir, mcp, store, chat, faux, reply, asked, results, captured, cleanup };
+  }
+
+  test("the section names every server and tool; no MCP tool is offered until mcp_search loads it, then it is a real tool", async () => {
+    const s = await setup();
+    try {
+      expect(s.mcp.sectionText()).toContain("- fake: A fake issue tracker for tests (6 tools): list_issues, create_issue, delete_repo, dump_logs, always_fails, crash");
+      await s.mcp.prepare(s.store, s.chat, ctx);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("mcp_search", { query: "list open issues of a repository" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__list_issues", { repo: "loki" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("two open issues")),
+      ]);
+      await (await s.chat.submit({ type: "input", content: "what's open on loki?" }, ctx)).wait(ctx);
+      // The first request offered the search and no fake tool; the next one offered what it found.
+      expect(s.asked[0]).toContain("mcp_search");
+      expect(s.asked[0]).not.toContain("mcp__fake__");
+      expect(s.asked[1]).toContain("mcp__fake__list_issues");
+      expect(s.asked[1]).not.toContain("mcp__fake__delete_repo");
+      const r = await s.results();
+      expect(r[0]).toContain("Loaded");
+      expect(r[1]).toContain('list_issues {\\"repo\\":\\"loki\\"}');
+      expect(s.captured.map(([e]) => e)).toEqual(["mcp_search", "mcp_call"]);
+      expect(s.captured[1][1]).toMatchObject({ server: "fake", tool: "list_issues", error: false, spilled: false });
+      // Loaded tools stay for the chat: the next turn offers it from the start, and the filter keeps it after a prepare.
+      await s.mcp.prepare(s.store, s.chat, ctx);
+      s.faux.setResponses([s.reply(fauxAssistantMessage("still here"))]);
+      await (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
+      expect(s.asked[3]).toContain("mcp__fake__list_issues");
+      // /clear (and a compaction) unload them.
+      await s.mcp.forget(s.chat, ctx);
+      await s.mcp.prepare(s.store, s.chat, ctx);
+      s.faux.setResponses([s.reply(fauxAssistantMessage("gone"))]);
+      await (await s.chat.submit({ type: "input", content: "and now" }, ctx)).wait(ctx);
+      expect(s.asked[4]).not.toContain("mcp__fake__");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a hidden tool called by name without searching is refused, and the server is never asked", async () => {
+    const s = await setup();
+    try {
+      await s.mcp.prepare(s.store, s.chat, ctx);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__create_issue", { repo: "loki", title: "sneaky" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("could not")),
+      ]);
+      await (await s.chat.submit({ type: "input", content: "open an issue" }, ctx)).wait(ctx);
+      const [r] = await s.results();
+      expect(r).not.toContain("create_issue {");
+      expect(JSON.parse(r)).toMatchObject({ isError: true });
+      expect(s.captured.filter(([e]) => e === "mcp_call")).toEqual([]);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a server's alwaysLoad tools are offered from the start; a tool that appears later starts hidden", async () => {
+    const s = await setup({ alwaysLoad: ["list_issues"] });
+    try {
+      await s.mcp.prepare(s.store, s.chat, ctx);
+      s.faux.setResponses([s.reply(fauxAssistantMessage("ok"))]);
+      await (await s.chat.submit({ type: "input", content: "hi" }, ctx)).wait(ctx);
+      expect(s.asked[0]).toContain("mcp__fake__list_issues");
+      expect(s.asked[0]).not.toContain("mcp__fake__create_issue");
+      // Known tools stay known: a prepare with nothing new writes nothing.
+      const before = await s.store.chatInfo(s.chat.id, ctx);
+      expect(before?.mcpKnown).toHaveLength(6);
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("a big result spills to the chat's folder; a failing tool says why; permissions follow the tools' hints", async () => {
+    const s = await setup({ alwaysLoad: ["dump_logs", "always_fails"] });
+    try {
+      await s.mcp.prepare(s.store, s.chat, ctx);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__dump_logs", {}), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage(fauxToolCall("mcp__fake__always_fails", {}), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
+      await (await s.chat.submit({ type: "input", content: "logs?" }, ctx)).wait(ctx);
+      const [dump, fail] = await s.results();
+      expect(dump).toContain("too large for the conversation");
+      const spilled = dump.match(/(\/[^"\\]+?\.txt)/)?.[1];
+      expect(spilled && existsSync(spilled)).toBe(true);
+      expect(spilled).toContain(join(s.dir, "tool-results", "c"));
+      expect(fail).toContain("the tracker is read-only today");
+      expect(kindOf("mcp__fake__list_issues", s.mcp.annotations("mcp__fake__list_issues"))).toBe("read");
+      expect(kindOf("mcp__fake__create_issue", s.mcp.annotations("mcp__fake__create_issue"))).toBe("command");
+      expect(kindOf("mcp__fake__delete_repo", s.mcp.annotations("mcp__fake__delete_repo"))).toBe("command");
+      expect(kindOf("mcp_search", s.mcp.annotations("mcp_search"))).toBe("read");
+    } finally {
+      await s.cleanup();
+    }
+  });
+});

@@ -37,6 +37,12 @@ export type ChatInfo = {
   createdAt: string;
   /** Which tool calls ask the person first (daemon/approvals.ts); absent, unrestricted. */
   mode?: string;
+  /**
+   * The MCP tools that existed when loki last set this chat's tool filter (daemon/mcp/index.ts). One missing from the
+   * filter's hidden list and in here was loaded by mcp_search; one not in here is new, and starts hidden. Emptied by
+   * /clear and a compaction, which unloads every MCP tool the chat had.
+   */
+  mcpKnown?: string[];
 };
 
 export const ChatDoc = defineDoc<ChatInfo>({

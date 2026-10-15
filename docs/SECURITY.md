@@ -67,6 +67,18 @@ Mac's MagicDNS name. The model changes in one place:
   serve status --json`, and `tailscale serve` on and off for the switch). loki does not install Tailscale,
   sign in, or change the tailnet's settings.
 
+## MCP servers
+
+- **What loki starts.** Exactly the local servers listed in `~/.loki/mcp.json` (`command` and `args`, run as you,
+  with the usual environment plus the entry's `env`), for as long as the daemon runs, and nothing else. A server is
+  as trusted as any program you run: it gets your permissions and whatever its `env` holds. loki installs none.
+- **Where secrets live.** In `~/.loki/mcp.json` itself, as you write them (a token in `env` or `headers`); keep the
+  file to yourself (`chmod 600`). Keychain-held secrets come with the Settings page.
+- **What reaches a server.** Only the arguments of the tool calls your agents make to it. A remote server is
+  reached only at the `url` you gave.
+- **Permissions.** A tool runs without asking in standard mode only when its server marks it read-only; a server
+  can mislabel a tool, so treat a server you do not trust as you would its shell commands, and use strict mode.
+
 ## Agent-written code
 
 The point of loki is that your agent writes widgets: `.tsx` files under `~/.letta/loki/widgets/`. The
@@ -100,7 +112,7 @@ previews, like the Mac's `.dmg`. No other downloads.
 - Nothing is uploaded, logged remotely, or telemetered. The mod keeps a local usage log
   (`~/.letta/loki/logs/events.jsonl`: ids and counts, never message text, titles or paths) that only
   `npm run analytics` on this machine reads; `LOKI_ANALYTICS=0` turns it off. The only other network traffic is
-  the two checks above and what your agent's provider connection and widgets initiate.
+  the two checks above and what your agent's provider connection, its MCP servers and widgets initiate.
 
 ## Reporting
 

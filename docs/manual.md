@@ -634,6 +634,44 @@ agent's word back and the task stays open. Tasks an agent filed for itself close
 
 Setup: `brew install beads`. The mod creates the list (`bd init --prefix lk`) the first time it is used.
 
+## MCP servers
+
+loki connects your agents to MCP (Model Context Protocol) servers listed in `~/.loki/mcp.json`, in the same
+`mcpServers` shape Claude Code, Claude Desktop and Cursor use, so an entry copies across as it is:
+
+```json
+{
+  "mcpServers": {
+    "github": { "command": "github-mcp-server", "args": ["stdio"], "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "…" } },
+    "linear": { "url": "https://mcp.linear.app/mcp", "headers": { "Authorization": "Bearer …" }, "alwaysLoad": ["list_issues"] }
+  }
+}
+```
+
+A **local** server (`command`, `args`, `env`, `cwd`) is a program loki starts with the daemon and starts again, after
+a growing pause, when it exits; its `env` adds to the usual environment (PATH, HOME…). A **remote** server (`url`,
+`headers`) is reached over Streamable HTTP with the token in its headers; servers that need an OAuth sign-in are not
+supported yet. `"disabled": true` skips an entry. loki reads the file again when it changes and reconnects only the
+servers whose entry changed.
+
+**Tools wait until they are needed.** Every agent sees one short list: each server, what it is for, and the names of
+its tools. None of the tools themselves is in the agent's context until it asks for them with `mcp_search` (a
+description of what it wants, or `select:server.tool` for exact ones); the few best matches are loaded, as ordinary
+tools named `mcp__<server>__<tool>`, from its next step, and stay for the rest of the chat. `/clear` and a compaction
+unload them. A server's `alwaysLoad` tools skip the search. So adding servers costs a line or two each, not their
+tools' full definitions on every turn (the approach Claude Code and Cursor took after many MCP tools crowded out the
+work).
+
+**Permissions** follow the tools' own hints: one marked read-only runs freely in standard mode; any other is a
+command and asks, as a shell command does.
+
+**Big results** (past about 25,000 tokens, or 50,000 characters) are saved whole to `~/.loki/tool-results/<chat>/`;
+the agent gets the path, the size and the start, and reads more with its file tools when it needs to. An error keeps
+its first and last 5,000 characters.
+
+A server that cannot start, or stops, shows as down (with its last error output) in the list the agent sees, and is
+tried again. `mcp_search` and `mcp_call` are counted in the local analytics.
+
 ## Widget frame controls
 
 Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise** (to the tray at the bottom-left; the file stays), and **trash** (deletes the file after a confirm). The agent hears about all three on your next turn.

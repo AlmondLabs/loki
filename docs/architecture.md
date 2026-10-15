@@ -62,7 +62,8 @@ loki (Rust shell, Tauri)                          the window, tray, dock badge, 
    exists, a leftover from a crash is found and stopped at the next launch.
 5. **There are no other long-lived processes.** No Letta, no app-server, no port 41600. The children are short-lived
    or belong to a chat: an agent's bash commands and background tasks, `git` for memory commits, `bd` for Tasks,
-   `rg` for search when it is installed.
+   `rg` for search when it is installed. The exception is the MCP servers you list in `~/.loki/mcp.json`: each local
+   one runs as long as the daemon does, restarted with backoff if it exits.
 
 The model is a remote service, not a process on your machine.
 
@@ -124,14 +125,21 @@ every chat gets, the chats, then the mods.
     reaches every chat. loki's own mod (`mod/index.ts`) is loaded first; then any file in `~/.loki/mods`. Editing a
     mod reloads it in place: work already under way finishes on the old code and the next step uses the new. A mod
     built for a newer major API version is refused.
-11. **The chats (`daemon/chat-backend.ts`, `daemon/chats.ts`, `daemon/chat-events.ts`).** `DaemonChats` runs chats
+11. **MCP (`daemon/mcp/`).** One `@modelcontextprotocol/client` per server in `~/.loki/mcp.json` (`servers.ts`: local
+    over stdio, remote over Streamable HTTP, restarted with backoff, tools re-read when a server says they changed).
+    `index.ts` registers every tool as `mcp__<server>__<tool>` in one `loki.mcp` extension, with an `mcp` prompt
+    section (servers and tool names) and `mcp_search` (`search.ts`, BM25 over names, descriptions and parameters,
+    or `select:`). A chat's pi-durable tool filter hides every MCP tool until `mcp_search` returns `addTools` for it;
+    `DaemonChats` sets the filter before each run (the chat's `mcpKnown` tells a loaded tool from a new one) and
+    empties it on /clear and compaction. Results map to text and images; big ones spill to files (`results.ts`).
+12. **The chats (`daemon/chat-backend.ts`, `daemon/chats.ts`, `daemon/chat-events.ts`).** `DaemonChats` runs chats
     for the mod's chat frames: open, send, steer, abort, approve, answer, models, agents, providers, the passes,
     memory and skills. A message sent while the chat is busy waits its turn. pi-durable's events become loki's chat
     events and are pushed to every socket. `ChatProjection` keeps a synchronous view of every chat (its details and
     its entries as thread steps), kept current from each store's commits. It exists because the mod asks about
     chats often and needs an answer at once (the chat list, the Inbox, a thread's page, Learn's cursor), while
     pi-durable answers asynchronously.
-12. **The import from Letta (`daemon/import/`).** For a Mac that ran loki on Letta Code: the daemon runs it at
+13. **The import from Letta (`daemon/import/`).** For a Mac that ran loki on Letta Code: the daemon runs it at
     start, before the mod opens its sockets, until one run finishes, and Settings › loki › Import runs it again. It
     copies agents (with their memory's git history), every conversation under its Letta id, keys into the keychain,
     permission modes and folders onto chats, and schedules, and gives each chat its background passes' cursors
