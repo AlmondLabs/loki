@@ -84,7 +84,7 @@ describe("tasks: dispatch message", () => {
     expect(msg).toContain("Please pick up this task from my task list:");
     expect(msg).toContain("- lk-a1 · P2 · rotate SSO creds (filed by friday, in /Users/x/infra)");
     expect(msg).toContain("  before the audit\n  see the runbook");
-    expect(msg).toContain("loki_task");
+    expect(msg).toContain("tasks");
   });
   test("several tasks are numbered as a batch and filed-by-me reads naturally", () => {
     const msg = dispatchMessage([t({ metadata: { by: "you" } }), t({ id: "lk-b2", title: "second", priority: 0 })]);

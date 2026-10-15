@@ -190,6 +190,9 @@ const argOf = (args: Record<string, unknown>): string | undefined => {
   return key ? (args[key] as string).trim() : undefined;
 };
 
+/** The question card's tool: `ask_user`, or `AskUserQuestion` in chats from before October 2026 and from Letta. */
+const isQuestionTool = (name: string): boolean => name === "ask_user" || name === "AskUserQuestion";
+
 /**
  * What a step shows as the tool's input: the part a reader recognises in full (the shell command, the path, the
  * pattern), else the whole input as JSON; nothing when it has none, or it has not finished arriving.
@@ -197,7 +200,7 @@ const argOf = (args: Record<string, unknown>): string | undefined => {
 export function toolInput(name: string, input: unknown): string | undefined {
   const args = argsOf(input);
   if (!args) return undefined;
-  const pick = name === "AskUserQuestion" ? undefined : argOf(args);
+  const pick = isQuestionTool(name) ? undefined : argOf(args);
   if (pick) return cap(pick);
   const json = JSON.stringify(args, null, 2);
   return json === "{}" ? undefined : cap(json);
@@ -245,7 +248,7 @@ export function withResult(step: ToolStep, raw: unknown, failed: boolean): ToolS
 export function toolLabel(name: string, input: unknown): string {
   const args = argsOf(input);
   if (!args) return name;
-  const question = name === "AskUserQuestion" ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
+  const question = isQuestionTool(name) ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
   const target = question || argOf(args)?.split("\n")[0];
   if (!target) return name;
   return `${name} · ${target.length > 80 ? target.slice(0, 77) + "…" : target}`;

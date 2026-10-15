@@ -130,7 +130,7 @@ function localTime(now: Date, locale?: string): string {
   });
 }
 
-/** One question from the AskUserQuestion tool (daemon/ask.ts, in the shape Letta's used). */
+/** One question from the ask_user tool (daemon/ask.ts, in the shape Letta's used). */
 export interface AskQuestion {
   question: string;
   header?: string;
@@ -138,7 +138,10 @@ export interface AskQuestion {
   multiSelect: boolean;
 }
 
-/** Read the tool's input defensively: only questions with text and at least one option count. */
+/**
+ * Read the tool's input defensively: only questions with text and at least one option count. `multi_select` is the
+ * ask_user tool's; `multiSelect` is how older chats and Letta's logs wrote it.
+ */
 export function askQuestions(input: unknown): AskQuestion[] {
   const qs = (input as { questions?: unknown } | null)?.questions;
   if (!Array.isArray(qs)) return [];
@@ -150,7 +153,12 @@ export function askQuestions(input: unknown): AskQuestion[] {
           .filter((o): o is Record<string, unknown> => typeof o?.label === "string" && o.label.trim() !== "")
           .map((o) => ({ label: o.label as string, description: typeof o.description === "string" ? o.description : undefined }))
       : [];
-    out.push({ question: q.question, header: typeof q.header === "string" ? q.header : undefined, options, multiSelect: q.multiSelect === true });
+    out.push({
+      question: q.question,
+      header: typeof q.header === "string" ? q.header : undefined,
+      options,
+      multiSelect: q.multi_select === true || q.multiSelect === true,
+    });
   }
   return out;
 }

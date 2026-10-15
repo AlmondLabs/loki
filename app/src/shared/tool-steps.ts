@@ -12,7 +12,19 @@ import type { IconName } from "./icons";
  */
 
 /** Tools that run a shell command: they count as commands, the rest as tools. */
-const SHELL = new Set(["Bash", "bash_background", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
+// loki's tools under their names before October 2026 (bash_background, Agent, Skill…) stay here for old chats.
+const SHELL = new Set([
+  "Bash",
+  "background_run",
+  "bash_background",
+  "BashOutput",
+  "Shell",
+  "run_command",
+  "execute_command",
+  "exec_command",
+  "shell",
+  "local_shell",
+]);
 /** Tools that change files: Claude-style edits and Codex-style patches (the agent's memory files too). */
 const EDITS = new Set([
   "Edit",
@@ -27,8 +39,21 @@ const EDITS = new Set([
   "memory_edit",
   "memory_delete",
 ]);
+/** The background-task tools beside the one that starts a command: they read, type into, wait on and stop it. */
+const BACKGROUND = new Set([
+  "background_write",
+  "background_output",
+  "background_watch",
+  "background_stop",
+  "write_stdin",
+  "TaskOutput",
+  "Monitor",
+  "TaskStop",
+]);
+/** The tool that loads a skill: `skill`, or `Skill` in older chats. */
+const isSkillTool = (name: string): boolean => name === "skill" || name === "Skill";
 /** Tools that hand work to another agent. */
-const AGENTS = new Set(["Task", "Agent", "SendAgentMessage"]);
+const AGENTS = new Set(["Task", "subagent", "Agent", "SendAgentMessage"]);
 
 /** What a step did, as the list's first line. */
 export function stepVerb(name: string): string {
@@ -37,8 +62,8 @@ export function stepVerb(name: string): string {
   // mcp__<server>__<tool> (daemon/mcp/servers.ts toolKey): the server and the tool, as the person named them.
   const mcp = /^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/.exec(name);
   if (mcp) return `Used ${mcp[1]}.${mcp[2]}`;
-  if (name === "bash_background") return "Started in background";
-  if (name === "Skill") return "Loaded skill";
+  if (name === "background_run" || name === "bash_background") return "Started in background";
+  if (isSkillTool(name)) return "Loaded skill";
   if (SHELL.has(name)) return "Ran";
   switch (name) {
     case "Read":
@@ -68,6 +93,7 @@ export function stepVerb(name: string): string {
     case "WebFetch":
       return "Fetched";
     case "Task":
+    case "subagent":
     case "Agent":
       return "Asked an agent";
     case "SendAgentMessage":
@@ -75,10 +101,19 @@ export function stepVerb(name: string): string {
     case "TodoWrite":
     case "UpdatePlan":
       return "Updated the plan";
+    case "background_write":
     case "write_stdin":
       return "Typed into a command";
-    case "Skill":
-      return "Used a skill";
+    case "background_output":
+    case "TaskOutput":
+      return "Read a command's output";
+    case "background_watch":
+    case "Monitor":
+      return "Waited on a command";
+    case "background_stop":
+    case "TaskStop":
+      return "Stopped a command";
+    case "ask_user":
     case "AskUserQuestion":
       return "Asked you";
     default:
@@ -89,15 +124,13 @@ export function stepVerb(name: string): string {
 /** The step's icon in the list. */
 export function stepIcon(name: string): IconName {
   if (name === "Background task") return "terminal";
-  if (name === "Skill") return "skill";
-  if (SHELL.has(name)) return "terminal";
+  if (isSkillTool(name)) return "skill";
+  if (SHELL.has(name) || BACKGROUND.has(name)) return "terminal";
   if (name === "Read" || name === "Write") return "file";
   if (EDITS.has(name)) return "compose";
   if (name === "Grep" || name === "Glob" || name === "WebSearch" || name === "web_search") return "search";
   if (name === "WebFetch") return "link";
   if (AGENTS.has(name)) return "agents";
-  if (name === "write_stdin") return "terminal";
-  if (name === "Skill") return "skill";
   return "widget";
 }
 
@@ -221,5 +254,5 @@ export function lastFailure(rows: TranscriptRow[]): number | null {
  */
 export function withoutSkillCalls(rows: TranscriptRow[]): TranscriptRow[] {
   const loaded = new Set(rows.filter((r) => r.role === "event" && r.text === "skill loaded").map((r) => r.summary ?? ""));
-  return rows.filter((r) => !(r.role === "tool" && stepName(r) === "Skill" && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));
+  return rows.filter((r) => !(r.role === "tool" && isSkillTool(stepName(r)) && !r.tool?.failed && loaded.has(stepTarget(r) ?? "")));
 }

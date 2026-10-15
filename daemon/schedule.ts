@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { withKind } from "./tool-kinds.ts";
 
 /**
  * Scheduled tasks (plan 017, U11): a prompt the agent sets to arrive in a chat on a cron schedule, in a timezone, once
@@ -222,61 +223,70 @@ export function scheduleExtension(schedules: Schedules): Extension {
   return defineExtension({
     name: "loki.schedule",
     tools: [
-      defineTool({
-        name: "schedule_create",
-        description:
-          "Schedule a prompt to arrive in this chat on a cron schedule (minute hour day month weekday), in a timezone such as Asia/Kolkata; once (recurring false) or every time it comes due.",
-        parameters: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            cron: { type: "string" },
-            prompt: { type: "string" },
-            timezone: { type: "string" },
-            recurring: { type: "boolean" },
-            description: { type: "string" },
+      withKind(
+        "command",
+        defineTool({
+          name: "schedule_create",
+          description:
+            "Schedule a prompt to arrive in this chat on a cron schedule (minute hour day month weekday), in a timezone such as Asia/Kolkata; once (recurring false) or every time it comes due.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              cron: { type: "string" },
+              prompt: { type: "string" },
+              timezone: { type: "string" },
+              recurring: { type: "boolean" },
+              description: { type: "string" },
+            },
+            required: ["name", "cron", "prompt"],
+          } as never,
+          execute: async (args, api, context) => {
+            const a = args as { name: string; cron: string; prompt: string; timezone?: string; recurring?: boolean; description?: string };
+            const { agentId, chatId } = await caller(api, context);
+            const task = schedules.create({
+              agent_id: agentId,
+              conversation_id: chatId,
+              name: a.name,
+              description: a.description ?? null,
+              cron: a.cron,
+              timezone: a.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+              recurring: a.recurring !== false,
+              prompt: a.prompt,
+            });
+            return text(`scheduled "${task.name}" (${task.cron}, ${task.timezone}${task.recurring ? "" : ", once"})`);
           },
-          required: ["name", "cron", "prompt"],
-        } as never,
-        execute: async (args, api, context) => {
-          const a = args as { name: string; cron: string; prompt: string; timezone?: string; recurring?: boolean; description?: string };
-          const { agentId, chatId } = await caller(api, context);
-          const task = schedules.create({
-            agent_id: agentId,
-            conversation_id: chatId,
-            name: a.name,
-            description: a.description ?? null,
-            cron: a.cron,
-            timezone: a.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-            recurring: a.recurring !== false,
-            prompt: a.prompt,
-          });
-          return text(`scheduled "${task.name}" (${task.cron}, ${task.timezone}${task.recurring ? "" : ", once"})`);
-        },
-      }),
-      defineTool({
-        name: "schedule_list",
-        description: "Your scheduled tasks that are still active.",
-        parameters: { type: "object", properties: {} } as never,
-        execute: async (_args, api, context) => {
-          const { agentId } = await caller(api, context);
-          const mine = schedules.list().filter((t) => t.agent_id === agentId && t.status === "active");
-          return text(
-            mine.length
-              ? mine.map((t) => `- ${t.name} (${t.id}): ${t.cron} ${t.timezone}${t.recurring ? "" : ", once"}; fired ${t.fire_count}×`).join("\n")
-              : "no scheduled tasks",
-          );
-        },
-      }),
-      defineTool({
-        name: "schedule_delete",
-        description: "Cancel one of your scheduled tasks by its name or id.",
-        parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } as never,
-        execute: async (args, api, context) => {
-          const { agentId } = await caller(api, context);
-          return text(schedules.cancel(agentId, (args as { name: string }).name) ? "cancelled" : "no such scheduled task");
-        },
-      }),
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "schedule_list",
+          description: "Your scheduled tasks that are still active.",
+          parameters: { type: "object", properties: {} } as never,
+          execute: async (_args, api, context) => {
+            const { agentId } = await caller(api, context);
+            const mine = schedules.list().filter((t) => t.agent_id === agentId && t.status === "active");
+            return text(
+              mine.length
+                ? mine.map((t) => `- ${t.name} (${t.id}): ${t.cron} ${t.timezone}${t.recurring ? "" : ", once"}; fired ${t.fire_count}×`).join("\n")
+                : "no scheduled tasks",
+            );
+          },
+        }),
+      ),
+      withKind(
+        "command",
+        defineTool({
+          name: "schedule_delete",
+          description: "Cancel one of your scheduled tasks by its name or id.",
+          parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } as never,
+          execute: async (args, api, context) => {
+            const { agentId } = await caller(api, context);
+            return text(schedules.cancel(agentId, (args as { name: string }).name) ? "cancelled" : "no such scheduled task");
+          },
+        }),
+      ),
     ],
   });
 }

@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { withKind } from "./tool-kinds.ts";
 
 /**
  * Background tasks (plan 017, U11, KTD13): a shell command that keeps running after the turn that started it. The
@@ -120,7 +121,7 @@ export class BackgroundTasks {
       take(out.end() + err.end());
       task.exit = { code, signal };
       task.endedAt = Date.now();
-      // An agent waiting on it (Monitor) learns how it ended from the wait itself. Told again, the notice came after
+      // An agent waiting on it (background_watch) learns how it ended from the wait itself. Told again, the notice came after
       // its answer, as a turn of its own: the run had moved on by the time the queued message could go in.
       const watched = task.waiters.size > 0;
       for (const w of task.waiters) w();
@@ -245,64 +246,86 @@ async function caller(api: ToolExecutionApi, context: Context) {
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const idParam = { task_id: { type: "string" } };
 
-/** The background-task tools (`bash_background`, TaskOutput, `write_stdin`, Monitor, TaskStop), as an extension over `tasks`. */
+/**
+ * The background-task tools, as an extension over `tasks`: `background_run` starts one, `background_output` reads it,
+ * `background_write` types into it, `background_watch` waits on it, `background_stop` ends it.
+ */
 export function backgroundExtension(tasks: BackgroundTasks): Extension {
   return defineExtension({
     name: "loki.background",
     tools: [
-      defineTool({
-        name: "bash_background",
-        description:
-          "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
-        parameters: { type: "object", properties: { command: { type: "string" }, description: { type: "string" } }, required: ["command"] } as never,
-        execute: async (args, api, context) => {
-          const { agentId, chatId, cwd } = await caller(api, context);
-          const id = tasks.start(agentId, chatId, cwd, (args as { command: string }).command);
-          return text(`started background task ${id}`);
-        },
-      }),
-      defineTool({
-        name: "TaskOutput",
-        description: "A background task's output since you last read it, and whether it is still running.",
-        parameters: { type: "object", properties: idParam, required: ["task_id"] } as never,
-        execute: async (args, api, context) => text(tasks.output((args as { task_id: string }).task_id, (await caller(api, context)).agentId)),
-      }),
-      defineTool({
-        name: "write_stdin",
-        description: "Write to a running background task's input (add \\n to end a line).",
-        parameters: { type: "object", properties: { ...idParam, text: { type: "string" } }, required: ["task_id", "text"] } as never,
-        execute: async (args, api, context) => {
-          const a = args as { task_id: string; text: string };
-          tasks.write(a.task_id, (await caller(api, context)).agentId, a.text);
-          return text("written");
-        },
-      }),
-      defineTool({
-        name: "Monitor",
-        description: "Wait for a background task: until its output matches a pattern (a regular expression), it ends, or the time runs out.",
-        parameters: { type: "object", properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" } }, required: ["task_id"] } as never,
-        execute: async (args, api, context) => {
-          const a = args as { task_id: string; pattern?: string; timeout_ms?: number };
-          return text(
-            await tasks.wait(
-              a.task_id,
-              (await caller(api, context)).agentId,
-              a.pattern,
-              Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000),
-              context.abortSignal,
-            ),
-          );
-        },
-      }),
-      defineTool({
-        name: "TaskStop",
-        description: "Stop a background task.",
-        parameters: { type: "object", properties: idParam, required: ["task_id"] } as never,
-        execute: async (args, api, context) => {
-          tasks.stop((args as { task_id: string }).task_id, (await caller(api, context)).agentId);
-          return text("stopping");
-        },
-      }),
+      withKind(
+        "command",
+        defineTool({
+          name: "background_run",
+          description:
+            "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
+          parameters: { type: "object", properties: { command: { type: "string" }, description: { type: "string" } }, required: ["command"] } as never,
+          execute: async (args, api, context) => {
+            const { agentId, chatId, cwd } = await caller(api, context);
+            const id = tasks.start(agentId, chatId, cwd, (args as { command: string }).command);
+            return text(`started background task ${id}`);
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "background_output",
+          description: "A background task's output since you last read it, and whether it is still running.",
+          parameters: { type: "object", properties: idParam, required: ["task_id"] } as never,
+          execute: async (args, api, context) => text(tasks.output((args as { task_id: string }).task_id, (await caller(api, context)).agentId)),
+        }),
+      ),
+      withKind(
+        "command",
+        defineTool({
+          name: "background_write",
+          description: "Write to a running background task's input (add \\n to end a line).",
+          parameters: { type: "object", properties: { ...idParam, text: { type: "string" } }, required: ["task_id", "text"] } as never,
+          execute: async (args, api, context) => {
+            const a = args as { task_id: string; text: string };
+            tasks.write(a.task_id, (await caller(api, context)).agentId, a.text);
+            return text("written");
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "background_watch",
+          description: "Wait for a background task: until its output matches a pattern (a regular expression), it ends, or the time runs out.",
+          parameters: {
+            type: "object",
+            properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" } },
+            required: ["task_id"],
+          } as never,
+          execute: async (args, api, context) => {
+            const a = args as { task_id: string; pattern?: string; timeout_ms?: number };
+            return text(
+              await tasks.wait(
+                a.task_id,
+                (await caller(api, context)).agentId,
+                a.pattern,
+                Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000),
+                context.abortSignal,
+              ),
+            );
+          },
+        }),
+      ),
+      withKind(
+        "command",
+        defineTool({
+          name: "background_stop",
+          description: "Stop a background task.",
+          parameters: { type: "object", properties: idParam, required: ["task_id"] } as never,
+          execute: async (args, api, context) => {
+            tasks.stop((args as { task_id: string }).task_id, (await caller(api, context)).agentId);
+            return text("stopping");
+          },
+        }),
+      ),
     ],
   });
 }

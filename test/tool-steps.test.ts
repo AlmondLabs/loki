@@ -7,6 +7,7 @@ import {
   isWorkRow,
   lastFailure,
   stepFailed,
+  stepIcon,
   stepTarget,
   stepVerb,
   toolRuns,
@@ -75,6 +76,30 @@ describe("the line for a run of tools", () => {
       [5, 7],
     ]);
     expect([...toolRuns(rows, 5)]).toEqual([[5, 7]]); // a window starting mid-run starts the run there
+  });
+});
+
+describe("loki's tools under their names since October 2026, and before", () => {
+  test("each reads the same under either name, so old chats still read well", () => {
+    for (const [now, before, verb] of [
+      ["background_run", "bash_background", "Started in background"],
+      ["background_write", "write_stdin", "Typed into a command"],
+      ["background_output", "TaskOutput", "Read a command's output"],
+      ["background_watch", "Monitor", "Waited on a command"],
+      ["background_stop", "TaskStop", "Stopped a command"],
+      ["subagent", "Agent", "Asked an agent"],
+      ["skill", "Skill", "Loaded skill"],
+      ["ask_user", "AskUserQuestion", "Asked you"],
+    ] as const) {
+      expect(stepVerb(now), now).toBe(verb);
+      expect(stepVerb(before), before).toBe(verb);
+      expect(stepIcon(now), now).toBe(stepIcon(before));
+    }
+  });
+
+  test("the question card's tool shows its first question, under either name", () => {
+    const input = { questions: [{ question: "Which colour?", options: [{ label: "Red" }], multi_select: false }] };
+    expect(toolInput("ask_user", input)).toBe(toolInput("AskUserQuestion", input));
   });
 });
 

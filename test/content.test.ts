@@ -17,7 +17,7 @@ describe("user message content", () => {
   });
 });
 
-describe("AskUserQuestion", () => {
+describe("the question card's input (ask_user; AskUserQuestion in Letta's logs and older chats)", () => {
   const input = {
     questions: [
       { question: "Which db?", header: "DB", options: [{ label: "Postgres", description: "boring" }, { label: "Mongo" }], multiSelect: false },
@@ -31,6 +31,8 @@ describe("AskUserQuestion", () => {
     expect(qs[0].options[0]).toEqual({ label: "Postgres", description: "boring" });
     expect(qs[1].multiSelect).toBe(true);
     expect(askQuestions(null)).toEqual([]);
+    // ask_user's own spelling, snake_case like every tool argument; the older camelCase above still reads.
+    expect(askQuestions({ questions: [{ question: "Regions?", options: [{ label: "eu" }], multi_select: true }] })[0]?.multiSelect).toBe(true);
   });
   test("buildQuestionAnswer fills answers keyed by question text, joining multi-select with commas", () => {
     const out = buildQuestionAnswer(input, { "Which db?": "Postgres", "Regions?": ["eu", "us"] });

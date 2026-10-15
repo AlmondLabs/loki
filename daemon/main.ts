@@ -19,17 +19,11 @@ import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { homedir } from "node:os";
 import { DaemonChats } from "./chat-backend.ts";
 import { Approvals, kindOf } from "./approvals.ts";
-import { askExtension } from "./ask.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
-import { memoryExtension } from "./memory.ts";
-import { fileToolsExtension } from "./tools.ts";
-import { skillsExtension } from "./skills.ts";
-import { subagentExtension } from "./subagents.ts";
-import { webSearchExtension } from "./web-search.ts";
-import { BackgroundTasks, backgroundExtension } from "./background.ts";
-import { Schedules, scheduleExtension } from "./schedule.ts";
-import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { BackgroundTasks } from "./background.ts";
+import { Schedules } from "./schedule.ts";
+import { builtinExtensions, builtinKinds } from "./extensions.ts";
 import { reflectionJob } from "./reflection.ts";
 import { learnJob } from "./learn.ts";
 import { PassRunner } from "./passes.ts";
@@ -105,7 +99,6 @@ const stores = new StoreManager(
   context,
   report,
 );
-// The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).
 // MCP servers (daemon/mcp/): their tools wait behind mcp_search, and their own hints say which only read.
 const mcp = new McpTools({
   registry: mods.registry,
@@ -115,22 +108,6 @@ const mcp = new McpTools({
   version: appVersion(paths.root) ?? undefined,
   ...(secrets ? { secrets } : {}),
 });
-// "Always allow" answers are kept beside the other state, for every chat.
-const approvals = new Approvals({
-  widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
-  kindOfTool: (name) => kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
-  alwaysPath: join(args.dir, "state", "approvals.json"),
-});
-mods.registry.install(approvals.extension());
-mods.registry.install(askExtension(approvals));
-// The tools every chat has: pi-durable's own (read, write, edit, bash), loki's file tools, memory, skills and the
-// agent's project instructions, and helpers (subagents).
-mods.registry.install(CodingTools);
-mods.registry.install(fileToolsExtension());
-mods.registry.install(memoryExtension(backend));
-mods.registry.install(skillsExtension(backend));
-mods.registry.install(subagentExtension());
-mods.registry.install(webSearchExtension());
 // Background tasks and scheduled prompts deliver into their chat through `chat`, made below (daemon/background.ts,
 // daemon/schedule.ts).
 const schedulesFile = join(args.dir, "state", "crons.json");
@@ -138,9 +115,19 @@ const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(
 const background = new BackgroundTasks(
   (agentId, chatId, text) => void chat.deliver(agentId, chatId, text, "steer").catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)),
 );
-mods.registry.install(backgroundExtension(background));
 const schedules = new Schedules(schedulesFile, deliver, report);
-mods.registry.install(scheduleExtension(schedules));
+// The approval gate asks by each tool's kind: loki's own declare theirs (builtinToolKinds, filled below, before any
+// chat runs); a mod's or an MCP server's tools say so in their annotations. "Always allow" answers are kept beside the
+// other state, for every chat.
+const approvals = new Approvals({
+  widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
+  kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
+  alwaysPath: join(args.dir, "state", "approvals.json"),
+});
+// Every chat's built-in tools, in order, the permission gate first (daemon/extensions.ts).
+const builtins = builtinExtensions({ approvals, backendDir: backend, background, schedules });
+const builtinToolKinds = builtinKinds(builtins);
+for (const extension of builtins) mods.registry.install(extension);
 const providers = new Providers(models, credentials ?? new KeychainCredentials(memorySecrets()), report, deviceIdIn(join(args.dir, "state", "device-id")));
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null);
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.

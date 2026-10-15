@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { withKind } from "./tool-kinds.ts";
 
 /**
  * An agent's memory on loki's daemon (plan 017, U9): the git repo at `<backend>/memfs/<agentId>/memory`, Letta's
@@ -200,90 +201,102 @@ export function memoryExtension(backendDir: string): Extension {
       }),
     ],
     tools: [
-      defineTool({
-        name: "memory_read",
-        description: "Read one of your memory files by its path.",
-        parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } as never,
-        execute: async (args, api, context) => {
-          const { root } = await who(api, api.conversationId, context);
-          const full = inside(root, (args as { path?: string }).path);
-          if (!existsSync(full)) throw new Error(`no memory file ${(args as { path: string }).path}`);
-          return { content: [{ type: "text", text: readFileSync(full, "utf8") }] };
-        },
-      }),
-      defineTool({
-        name: "memory_write",
-        description: "Write a whole memory file (created if new); the change is committed with your message.",
-        parameters: {
-          type: "object",
-          properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
-          required: ["path", "content"],
-        } as never,
-        execute: async (args, api, context) => {
-          const a = args as { path: string; content: string; message?: string };
-          const { root, author } = await who(api, api.conversationId, context);
-          const full = inside(root, a.path);
-          mkdirSync(dirname(full), { recursive: true });
-          writeFileSync(full, a.content);
-          await commit(root, full, a.message?.trim() || `Update ${a.path}`, author);
-          return { content: [{ type: "text", text: `wrote ${a.path}` }] };
-        },
-      }),
-      defineTool({
-        name: "memory_edit",
-        description: "Replace one exact passage of a memory file with another; the change is committed with your message.",
-        parameters: {
-          type: "object",
-          properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" }, message: { type: "string" } },
-          required: ["path", "old_text", "new_text"],
-        } as never,
-        execute: async (args, api, context) => {
-          const a = args as { path: string; old_text: string; new_text: string; message?: string };
-          const { root, author } = await who(api, api.conversationId, context);
-          const full = inside(root, a.path);
-          const text = existsSync(full) ? readFileSync(full, "utf8") : null;
-          if (text === null) throw new Error(`no memory file ${a.path}`);
-          const at = text.indexOf(a.old_text);
-          if (at < 0) throw new Error("that passage is not in the file");
-          if (text.includes(a.old_text, at + 1)) throw new Error("that passage is in the file more than once; quote more of it");
-          writeFileSync(full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
-          await commit(root, full, a.message?.trim() || `Edit ${a.path}`, author);
-          return { content: [{ type: "text", text: `edited ${a.path}` }] };
-        },
-      }),
-      defineTool({
-        name: "memory_delete",
-        description:
-          "Delete a memory file that is no longer needed (merged into another, or no longer true); the change is committed with your message and can be undone.",
-        parameters: {
-          type: "object",
-          properties: { path: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
-          required: ["path"],
-        } as never,
-        execute: async (args, api, context) => {
-          const a = args as { path: string; message?: string };
-          const { root, author } = await who(api, api.conversationId, context);
-          const full = inside(root, a.path);
-          if (!existsSync(full)) throw new Error(`no memory file ${a.path}`);
-          await serial(root, async () => {
-            await git(root, "rm", "--quiet", "--", full);
-            await git(
-              root,
-              "-c",
-              `user.name=${author.name}`,
-              "-c",
-              `user.email=${author.email}`,
-              "commit",
-              "--quiet",
-              "-m",
-              a.message?.trim() || `Remove ${a.path}`,
-              "--",
-              full,
-            );
-          });
-          return { content: [{ type: "text", text: `deleted ${a.path}` }] };
-        },
-      }),
+      withKind(
+        "read",
+        defineTool({
+          name: "memory_read",
+          description: "Read one of your memory files by its path.",
+          parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } as never,
+          execute: async (args, api, context) => {
+            const { root } = await who(api, api.conversationId, context);
+            const full = inside(root, (args as { path?: string }).path);
+            if (!existsSync(full)) throw new Error(`no memory file ${(args as { path: string }).path}`);
+            return { content: [{ type: "text", text: readFileSync(full, "utf8") }] };
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "memory_write",
+          description: "Write a whole memory file (created if new); the change is committed with your message.",
+          parameters: {
+            type: "object",
+            properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
+            required: ["path", "content"],
+          } as never,
+          execute: async (args, api, context) => {
+            const a = args as { path: string; content: string; message?: string };
+            const { root, author } = await who(api, api.conversationId, context);
+            const full = inside(root, a.path);
+            mkdirSync(dirname(full), { recursive: true });
+            writeFileSync(full, a.content);
+            await commit(root, full, a.message?.trim() || `Update ${a.path}`, author);
+            return { content: [{ type: "text", text: `wrote ${a.path}` }] };
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "memory_edit",
+          description: "Replace one exact passage of a memory file with another; the change is committed with your message.",
+          parameters: {
+            type: "object",
+            properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" }, message: { type: "string" } },
+            required: ["path", "old_text", "new_text"],
+          } as never,
+          execute: async (args, api, context) => {
+            const a = args as { path: string; old_text: string; new_text: string; message?: string };
+            const { root, author } = await who(api, api.conversationId, context);
+            const full = inside(root, a.path);
+            const text = existsSync(full) ? readFileSync(full, "utf8") : null;
+            if (text === null) throw new Error(`no memory file ${a.path}`);
+            const at = text.indexOf(a.old_text);
+            if (at < 0) throw new Error("that passage is not in the file");
+            if (text.includes(a.old_text, at + 1)) throw new Error("that passage is in the file more than once; quote more of it");
+            writeFileSync(full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
+            await commit(root, full, a.message?.trim() || `Edit ${a.path}`, author);
+            return { content: [{ type: "text", text: `edited ${a.path}` }] };
+          },
+        }),
+      ),
+      withKind(
+        "read",
+        defineTool({
+          name: "memory_delete",
+          description:
+            "Delete a memory file that is no longer needed (merged into another, or no longer true); the change is committed with your message and can be undone.",
+          parameters: {
+            type: "object",
+            properties: { path: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
+            required: ["path"],
+          } as never,
+          execute: async (args, api, context) => {
+            const a = args as { path: string; message?: string };
+            const { root, author } = await who(api, api.conversationId, context);
+            const full = inside(root, a.path);
+            if (!existsSync(full)) throw new Error(`no memory file ${a.path}`);
+            await serial(root, async () => {
+              await git(root, "rm", "--quiet", "--", full);
+              await git(
+                root,
+                "-c",
+                `user.name=${author.name}`,
+                "-c",
+                `user.email=${author.email}`,
+                "commit",
+                "--quiet",
+                "-m",
+                a.message?.trim() || `Remove ${a.path}`,
+                "--",
+                full,
+              );
+            });
+            return { content: [{ type: "text", text: `deleted ${a.path}` }] };
+          },
+        }),
+      ),
     ],
   });
 }

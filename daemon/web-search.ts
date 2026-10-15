@@ -1,4 +1,5 @@
 import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-durable";
+import { withKind } from "./tool-kinds.ts";
 
 /**
  * Web search (plan 017, U12): DuckDuckGo's plain HTML results, which need no key and are what Letta Code's web_search
@@ -71,19 +72,22 @@ export function webSearchExtension(search: (query: string, signal?: AbortSignal)
   return defineExtension({
     name: "loki.web",
     tools: [
-      defineTool({
-        name: "web_search",
-        description: "Search the web; you get titles, links and short snippets of the top results.",
-        parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } as never,
-        execute: async (args, _api, context) => {
-          const query = (args as { query: string }).query;
-          const results = await search(query, context.abortSignal);
-          const text = results.length
-            ? results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ""}`).join("\n")
-            : `No results from duckduckgo for: ${query}`;
-          return { content: [{ type: "text", text }] };
-        },
-      }),
+      withKind(
+        "read",
+        defineTool({
+          name: "web_search",
+          description: "Search the web; you get titles, links and short snippets of the top results.",
+          parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } as never,
+          execute: async (args, _api, context) => {
+            const query = (args as { query: string }).query;
+            const results = await search(query, context.abortSignal);
+            const text = results.length
+              ? results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ""}`).join("\n")
+              : `No results from duckduckgo for: ${query}`;
+            return { content: [{ type: "text", text }] };
+          },
+        }),
+      ),
     ],
   });
 }
