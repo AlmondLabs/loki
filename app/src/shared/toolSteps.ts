@@ -21,6 +21,10 @@ const AGENTS = new Set(["Task", "Agent", "SendAgentMessage"]);
 /** What a step did, as the list's first line. */
 export function stepVerb(name: string): string {
   if (name === "Background task") return "Ran in background";
+  if (name === "mcp_search") return "Loaded MCP tools";
+  // mcp__<server>__<tool> (daemon/mcp/servers.ts toolKey): the server and the tool, as the person named them.
+  const mcp = name.match(/^mcp__([^_]+(?:_[^_]+)*?)__(.+)$/);
+  if (mcp) return `Used ${mcp[1]}.${mcp[2]}`;
   if (name === "bash_background") return "Started in background";
   if (name === "Skill") return "Loaded skill";
   if (SHELL.has(name)) return "Ran";

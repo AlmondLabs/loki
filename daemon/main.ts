@@ -45,6 +45,7 @@ import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
 import type { Host } from "../mod/index.ts";
 import { ModRegistry } from "./mods/registry.ts";
 import { appVersion, createAnalytics } from "../mod/analytics.ts";
+import { McpTools } from "./mcp/index.ts";
 import { isSubagent } from "../mod/agents.ts";
 import { paths } from "../mod/paths.ts";
 import { RecallStore, recallDir } from "../mod/recall.ts";
@@ -97,7 +98,9 @@ registerBunOAuthFlows();
 const models = builtinModels(credentials ? { credentials } : {});
 const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
 // The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).
-const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mods.annotations(name)) });
+// MCP servers (daemon/mcp/): their tools wait behind mcp_search, and their own hints say which only read.
+const mcp = new McpTools({ registry: mods.registry, configPath: join(args.dir, "mcp.json"), lokiDir: args.dir, report, version: appVersion(paths.root) ?? undefined });
+const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mcp.annotations(name) ?? mods.annotations(name)) });
 mods.registry.install(approvals.extension());
 mods.registry.install(askExtension(approvals));
 // The tools every chat has: pi-durable's own (read, write, edit, bash), loki's file tools, memory, skills and the
@@ -174,11 +177,13 @@ async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
     throw error;
   }
 }
-const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, models, backendDir: backend, context, report, importLetta, importStatus: () => importStatus(importPaths) });
+const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, mcp, models, backendDir: backend, context, report, importLetta, importStatus: () => importStatus(importPaths) });
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
 const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
+mcp.setCapture((event, properties) => analytics.capture("mod", event, properties));
+mcp.start();
 const telemetry = new TurnTelemetry({ capture: (event, properties) => analytics.capture("mod", event, properties), harnessVersion: harnessVersion(paths.root), isSubagent: (id) => isSubagent(id, backend), context, report });
 telemetry.follow(stores);
 // An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
@@ -231,6 +236,7 @@ function stop(signal: string) {
     schedules.stop();
     passes.stop();
     background.stopAll();
+    void mcp.close();
     for (const name of mods.names()) mods.unload(name);
   } finally {
     void stores.closeAll().finally(() => {

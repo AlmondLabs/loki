@@ -18,6 +18,7 @@ import { isPermissionMode, type Approvals } from "./approvals.ts";
 import type { ImportReport, ImportStatus } from "./import/letta.ts";
 import type { Providers } from "./providers.ts";
 import type { PassRunner } from "./passes.ts";
+import type { McpTools } from "./mcp/index.ts";
 import type { PassState } from "./passes-state.ts";
 import { editMemoryFile, revertMemoryCommit } from "./memory.ts";
 import type { AgentStore } from "./kernel/index.ts";
@@ -38,6 +39,8 @@ type Deps = {
   providers: Providers;
   /** The background passes (daemon/passes.ts): reflection and Learn. Absent in tests that run none. */
   passes?: { runner: PassRunner; state: PassState };
+  /** MCP's tools (daemon/mcp/): each chat's filter is set before it runs, and emptied by /clear and a compaction. */
+  mcp?: Pick<McpTools, "prepare" | "forget">;
   mods: ModRegistry;
   models: Models;
   /** The daemon's agents, in Letta's backend layout (daemon/store/agents.ts). */
@@ -128,6 +131,8 @@ export class DaemonChats implements ChatBackend {
     stream.start(async (batch) => {
       const events = batch.flatMap((ev) => converter.convert(ev));
       if (events.length) this.push(agentId, conversationId, events);
+      // A compaction drops what the chat had loaded from MCP with the rest of its context.
+      if (batch.some((ev) => ev.type === "compaction_end")) await this.deps.mcp?.forget(chat, this.deps.context).catch(() => {});
     });
   }
 
@@ -168,6 +173,7 @@ export class DaemonChats implements ChatBackend {
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
     const { store, chat } = await this.chat(p.agentId, p.conversationId);
     await this.healModel(store, chat);
+    await this.deps.mcp?.prepare(store, chat, this.deps.context);
     await this.watch(store, chat, p.agentId, p.conversationId);
     const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mediaType }));
     const parts = [...(p.context ? [{ type: "text" as const, text: p.context }] : []), ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []), ...images];
@@ -177,7 +183,6 @@ export class DaemonChats implements ChatBackend {
     return true;
   }
 
-  /** A message from loki itself (a finished background task, a scheduled prompt): it waits its turn like yours. */
   /**
    * A message from loki itself (a background task's notice, a schedule's prompt). `steer` puts it into a running turn
    * at its next step, where the work it reports on is; otherwise it waits for the turn to end and starts its own.
@@ -185,6 +190,7 @@ export class DaemonChats implements ChatBackend {
   async deliver(agentId: string, conversationId: string, text: string, whenBusy: "steer" | "followUp" = "followUp"): Promise<void> {
     const { store, chat } = await this.chat(agentId, conversationId);
     await this.healModel(store, chat);
+    await this.deps.mcp?.prepare(store, chat, this.deps.context);
     await this.watch(store, chat, agentId, conversationId);
     await chat.submit({ type: "input", content: text, whenBusy }, this.deps.context);
   }
@@ -294,10 +300,12 @@ export class DaemonChats implements ChatBackend {
         return { success: true, output: "summarising the conversation so far" };
       case "clear":
         await chat.reset(undefined, this.deps.context);
+        await this.deps.mcp?.forget(chat, this.deps.context);
         return { success: true, output: "the agent starts this chat afresh; what was said stays in the thread" };
       case "remember": {
         const what = p.args?.trim();
         const text = what ? `Please remember this in your memory: ${what}` : "Look back over this conversation and save to your memory whatever is worth keeping.";
+        await this.deps.mcp?.prepare(await this.deps.stores.get(p.agentId), chat, this.deps.context);
         await chat.submit({ type: "input", content: text }, this.deps.context);
         return { success: true, output: "asked the agent to remember" };
       }
