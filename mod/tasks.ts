@@ -389,7 +389,8 @@ export class TaskStore {
       if (opts.all) args.push("--all");
       const out = await this.run(args);
       const tasks = parseTasks(out);
-      // Tasks still on their camelCase metadata keys move to the new ones, one bd call each, the first time they are seen.
+      // Tasks still on their camelCase metadata keys move to the new ones the first time they are seen: one bd call each,
+      // one at a time, since the embedded engine takes one writer (each task's values differ, so they cannot share a call).
       for (const migrateArgs of rawTasks(out)
         .map((r) => metadataMigrationArgs(r))
         .filter((a): a is string[] => a !== null))
