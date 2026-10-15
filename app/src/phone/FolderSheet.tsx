@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button, Chip, Sheet } from "../components";
 import { folderName, shownFolders } from "./newChatFolders";
 
@@ -25,9 +25,10 @@ export function FolderSheet({
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const read = useEffectEvent(() => load());
   useEffect(() => {
     let live = true;
-    load()
+    read()
       .then((s) => live && setState(s))
       .catch(() => live && setState({ current: null, choices: [] }));
     return () => {

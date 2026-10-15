@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { PassSettings } from "../../../core/attention/protocol.ts";
 
 import { Chip, Meta } from "../components";
@@ -21,10 +21,12 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
   const [notice, setNotice] = useState<string | null>(null);
 
   // Mounted per agent (Agents.tsx keys this page by the agent id), so the state above starts fresh with each tab.
+  const readState = useEffectEvent((id: string) => api.reflection(id));
+  const readSettings = useEffectEvent(() => reflect.get());
   useEffect(() => {
     let gone = false;
-    void api.reflection(agentId).then((s) => !gone && setState(s));
-    void reflect.get().then((s) => !gone && setSettings(s));
+    void readState(agentId).then((s) => !gone && setState(s));
+    void readSettings().then((s) => !gone && setSettings(s));
     return () => {
       gone = true;
     };

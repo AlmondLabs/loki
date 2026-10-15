@@ -169,7 +169,10 @@ export function labelOf(r: Route): string {
 // ---- History entries ------------------------------------------------------------------------------
 
 /** What navigate() stamps on the entry it pushes, beside whatever state was there. */
-type Stamp = { lokiFrom: string; lokiDepth: number };
+interface Stamp {
+  lokiFrom: string;
+  lokiDepth: number;
+}
 
 const stampOf = (state: unknown): Stamp | null => {
   if (!state || typeof state !== "object") return null;
@@ -236,7 +239,11 @@ export function back(r: Route): void {
   else replace(backTarget(r, null), "pop");
 }
 
-export type RouteState = { route: Route; from: Route | null; arrival: Arrival };
+export interface RouteState {
+  route: Route;
+  from: Route | null;
+  arrival: Arrival;
+}
 
 const read = (arrival: Arrival): RouteState => ({ route: parseRoute(location.hash), from: originOf(history.state), arrival });
 

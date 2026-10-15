@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { Button, Field } from "../components";
 import type { GlobalSkill } from "../../../core/frame-types.ts";
@@ -20,7 +20,8 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
   const [skills, setSkills] = useState<GlobalSkill[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const load = () => void api.list().then(setSkills);
-  useEffect(load, []);
+  const loadOnOpen = useEffectEvent(load);
+  useEffect(() => loadOnOpen(), []);
   const flash = (m: string) => {
     setNotice(m);
     setTimeout(() => setNotice(null), 2500);

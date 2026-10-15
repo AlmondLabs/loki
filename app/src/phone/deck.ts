@@ -188,7 +188,7 @@ export function cardsToDraw(visible: AttentionItem[], leaving: AttentionItem | n
     ...visible
       .slice(0, 3)
       .filter((i) => !leaving || idOf(i) !== idOf(leaving))
-      .map((item, index) => ({ item, role: (index === 0 ? "top" : "shell") as Role, index })),
+      .map((item, index): { item: AttentionItem; role: Role; index: number } => ({ item, role: index === 0 ? "top" : "shell", index })),
   ];
 }
 
@@ -210,7 +210,7 @@ export interface DeckState {
   held: AttentionItem | null;
   pass: PassSummary;
 }
-export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS }) as DeckState;
+export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS });
 
 /** The ways off a card: an approval only by its decision, anything else by Next or Archive; a main chat cannot be archived. */
 export function canCommit(item: AttentionItem, via: Via): boolean {
@@ -249,7 +249,7 @@ export function reconcileDeck(s: DeckState, items: AttentionItem[]): DeckState {
   const dismissed = pruned.size === s.dismissed.size ? s.dismissed : pruned;
   const held = s.held && items.some(same(s.held)) ? s.held : null;
   const next = dismissed === s.dismissed && held === s.held ? s : { ...s, dismissed, held };
-  const top = deckQueue(items, next)[0];
+  const top = deckQueue(items, next).at(0);
   const topId = top ? idOf(top) : null;
   return topId === next.topId ? next : { ...next, topId };
 }

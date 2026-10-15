@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import QRCode from "qrcode";
 import { Button, Chip, Dot, Row as PickRow, Switch } from "../components";
 import { notYetOn, platform, type Platform } from "../desk/env";
@@ -32,8 +32,9 @@ const ROUTE_NAME: Record<LanVia, string> = { tailscale: "Tailscale", lan: "this 
 export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; connected: boolean; os?: Platform }) {
   const { status, devices, lastCode } = phone;
   const here = os === "macos";
+  const refresh = useEffectEvent(() => phone.refresh());
   useEffect(() => {
-    if (connected && here) phone.refresh();
+    if (connected && here) refresh();
   }, [connected, here]);
 
   // Pairing, the LAN listener and Tailscale are the Mac's for now (R3, AE4): a line in their place, no controls.
@@ -167,7 +168,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
         )}
         <RouteRow via="lan" lit={status.via === "lan"} address={wifiAddress(status)} hint="the same Wi‑Fi only" onPick={onVia} />
       </div>
-      {running && status.via === "tailscale" && <ServeSwitch ts={ts!} onServe={onServe} />}
+      {running && status.via === "tailscale" && <ServeSwitch ts={ts} onServe={onServe} />}
       {!ts?.installed && !running && <NoTailscale />}
     </div>
   );
@@ -249,7 +250,7 @@ function PairPlate({ code, status, onNew }: { code: PairCode; status: PhoneLanSt
     // Dark on light, whatever the page: cameras read that; the SVG carries its own quiet zone as the plate.
     void QRCode.toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 2 })
       .then((s) => live && setSvg(s))
-      .catch((err) => console.warn("loki: qr", err));
+      .catch((err: unknown) => console.warn("loki: qr", err));
     return () => {
       live = false;
     };

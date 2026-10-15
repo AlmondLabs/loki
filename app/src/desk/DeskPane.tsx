@@ -227,7 +227,11 @@ function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | 
 }
 
 /** A line of the header's menu: a keymap action, run through runAction, its key shown. */
-type MenuItem = { id: string; label: string; keys?: string };
+interface MenuItem {
+  id: string;
+  label: string;
+  keys?: string;
+}
 const DONE = "desk.done";
 
 /** Read by hand, the Inbox's own path: Mark as read clears what is new (seen_mark). A chat is done only when archived. */

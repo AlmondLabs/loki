@@ -13,8 +13,8 @@ export async function imageFromBlob(blob: Blob): Promise<ImageAttachment> {
   if (keepPng) {
     url = await new Promise<string>((resolve, reject) => {
       const r = new FileReader();
-      r.onload = () => resolve(String(r.result));
-      r.onerror = () => reject(r.error);
+      r.onload = () => (typeof r.result === "string" ? resolve(r.result) : reject(new Error("the image did not read as a data URL")));
+      r.onerror = () => reject(r.error ?? new Error("could not read the image"));
       r.readAsDataURL(blob);
     });
     mediaType = "image/png";
@@ -22,7 +22,9 @@ export async function imageFromBlob(blob: Blob): Promise<ImageAttachment> {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bitmap.width * scale);
     canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("no 2D canvas to shrink the image on");
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     url = canvas.toDataURL("image/jpeg", 0.85);
     mediaType = "image/jpeg";
   }
@@ -37,12 +39,12 @@ export const FILE_MAX_BYTES = 25 * 1024 * 1024;
 export function droppedFiles(dt: DataTransfer | null): { images: Blob[]; files: File[] } {
   if (!dt) return { images: [], files: [] };
   const all: File[] = [];
-  for (const item of Array.from(dt.items ?? [])) {
+  for (const item of Array.from(dt.items)) {
     if (item.kind !== "file") continue;
     const f = item.getAsFile();
     if (f) all.push(f);
   }
-  if (!all.length) all.push(...Array.from(dt.files ?? []));
+  if (!all.length) all.push(...Array.from(dt.files));
   return { images: all.filter(isInlineImage), files: all.filter((f) => !isInlineImage(f)) };
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useInlineWidgets } from "../chat/useInlineWidgets";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { AttentionItem, PendingApproval, PendingQuestion } from "../../../core/attention/model.ts";
@@ -104,11 +104,10 @@ export interface Deck {
 export function useDeck(items: AttentionItem[]): Deck {
   const [state, setState] = useState<DeckState>(EMPTY_DECK);
   const visible = useMemo(() => deckQueue(items, state), [items, state]);
-  const current: AttentionItem | undefined = visible[0];
+  const current = visible.at(0);
   // Pin whatever is on top, drop dismissals the live list has outgrown (the same state when nothing moved).
-  useEffect(() => {
-    setState((s) => reconcileDeck(s, items));
-  }, [items, state]);
+  const reconciled = useMemo(() => reconcileDeck(state, items), [state, items]);
+  if (reconciled !== state) setState(reconciled);
   return {
     visible,
     current,
@@ -161,9 +160,16 @@ function useDeckWidth(on: boolean) {
   return { deckRef, width };
 }
 
-type Undo = { item: AttentionItem; via: Swipe; held: boolean };
+interface Undo {
+  item: AttentionItem;
+  via: Swipe;
+  held: boolean;
+}
 /** The card on its way off, and which way it goes. */
-type Leaving = { item: AttentionItem; dir: 1 | -1 };
+interface Leaving {
+  item: AttentionItem;
+  dir: 1 | -1;
+}
 
 /** Undo in the top bar: it springs in (phone.css) and, when its seconds run out or it is used, shrinks away. */
 function UndoButton({ via, onUndo }: { via: Swipe; onUndo: () => void }) {
@@ -278,7 +284,7 @@ function useSwipe({
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
     const s = start.current;
-    if (!s || s.id !== e.pointerId) return;
+    if (s?.id !== e.pointerId) return;
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
     if (!s.dragging) {
@@ -298,7 +304,7 @@ function useSwipe({
   };
   const finish = (e: ReactPointerEvent<HTMLElement>, cancelled: boolean) => {
     const s = start.current;
-    if (!s || s.id !== e.pointerId) return;
+    if (s?.id !== e.pointerId) return;
     start.current = null;
     if (!s.dragging) return;
     const dx = e.clientX - s.x + s.base;
@@ -320,7 +326,12 @@ function useSwipe({
 }
 
 /** A drag let go: which card, whether it went, where it was (px) and how fast it was going (px per ms). */
-type Release = { id: string; committed: boolean; dx: number; v: number };
+interface Release {
+  id: string;
+  committed: boolean;
+  dx: number;
+  v: number;
+}
 
 /** The card's translateX as it is drawn right now, mid-spring included. */
 function currentOffset(el: Element): number {
@@ -410,9 +421,10 @@ export function Inbox({
   const { leaving, undo, refused, said, commit, undoLast, flashRefused } = usePass({ deck, reduced, onSeen, onArchive, onUndo, onCommit: () => swipe.clear() });
   const swipe = useSwipe({ width, approval, current, onCommit: (item, via) => commit(item, via, "swipe"), onRefuse: flashRefused });
   const currentId = current ? idOf(current) : null;
-  useEffect(() => {
+  const shown = useEffectEvent(() => {
     if (current && !hidden) onShown?.(current);
-  }, [currentId, hidden]);
+  });
+  useEffect(() => shown(), [currentId, hidden]);
 
   // What needs you (the badge's count), and every chat still in the Inbox: a chat stays until it is archived, so there is no pass to count down.
   const needYou = catchUpQueue(items).length;
@@ -657,7 +669,7 @@ function Stack({
           role={role}
           style={{
             zIndex: 3,
-            transform: `translateX(${flyTo}px) rotate(${leaving!.dir * 12}deg)`,
+            transform: `translateX(${flyTo}px) rotate(${(leaving?.dir ?? 0) * 12}deg)`,
             opacity: 0,
             transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in`,
           }}
@@ -805,6 +817,8 @@ export function CardConversation({
       </div>
     ));
   const model = card.model;
+  const onPick = model?.onPick;
+  const onStop = card.onStop;
   const message = useMessageActions({ user: "You", assistant: item.agentName ?? "Agent" });
   return message.wrap(
     <>
@@ -825,7 +839,7 @@ export function CardConversation({
         models={model?.models ?? null}
         actions={{
           onLoadModels: model?.onLoad,
-          onPickModel: model?.onPick ? (selection) => model.onPick!(item, selection) : undefined,
+          onPickModel: onPick ? (selection) => onPick(item, selection) : undefined,
           onSend: (text, images = []) => card.onSend(item, text, images),
           onAnswer: question
             ? (answers) => {
@@ -834,7 +848,7 @@ export function CardConversation({
               }
             : undefined,
           onCancelQueued: (text) => card.onCancelQueued(item, text),
-          onStop: card.onStop ? () => card.onStop!(item) : undefined,
+          onStop: onStop ? () => onStop(item) : undefined,
         }}
         agentName={agentName}
         layout={layout}
@@ -868,14 +882,14 @@ export function Decisions({
   onSeen: () => void;
   onApprove: (behavior: "allow" | "deny" | "always") => void;
 }) {
-  const approval = !!item.pendingApproval;
+  const approval = item.pendingApproval;
   return (
     <div className="loki-phone-decide">
       <button
         type="button"
         className={approval ? "loki-phone-decide-btn loki-phone-decide-btn--deny" : "loki-phone-decide-btn"}
         onClick={approval ? () => onApprove("deny") : onOpen}
-        aria-label={approval ? `Deny ${item.pendingApproval!.toolName}` : "Open chat"}
+        aria-label={approval ? `Deny ${approval.toolName}` : "Open chat"}
       >
         {approval ? "Deny" : "Open chat"}
       </button>
@@ -883,18 +897,13 @@ export function Decisions({
         type="button"
         className="loki-phone-decide-btn loki-phone-decide-btn--affirm"
         onClick={approval ? () => onApprove("allow") : onSeen}
-        aria-label={approval ? `Approve ${item.pendingApproval!.toolName}` : undefined}
+        aria-label={approval ? `Approve ${approval.toolName}` : undefined}
       >
         {approval ? "Approve" : "Next"}
       </button>
       {approval && (
-        <button
-          type="button"
-          className="loki-phone-decide-always"
-          onClick={() => onApprove("always")}
-          aria-label={`Always allow ${item.pendingApproval!.toolName}`}
-        >
-          Always allow {item.pendingApproval!.toolName}
+        <button type="button" className="loki-phone-decide-always" onClick={() => onApprove("always")} aria-label={`Always allow ${approval.toolName}`}>
+          Always allow {approval.toolName}
         </button>
       )}
     </div>

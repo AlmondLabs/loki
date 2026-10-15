@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useEffectEvent, useId, useState } from "react";
 import { Button, Chip, Dot, Field, Row, TextArea } from "../components";
 import type { McpServerView, McpView } from "../../../core/frame-types.ts";
 import { openExternal } from "../desk/env";
@@ -62,9 +62,10 @@ export function Mcp({ api }: { api: McpApi }) {
     setView(r);
   };
   // The list follows the servers while the page shows: a server connecting or going down changes it.
+  const read = useEffectEvent(() => api.get());
   useEffect(() => {
     let live = true;
-    const load = () => void api.get().then((r) => live && apply(r));
+    const load = () => void read().then((r) => live && apply(r));
     load();
     const t = setInterval(load, 3000);
     return () => {
@@ -174,7 +175,7 @@ function ServerRow({
       {open && (
         <div style={{ display: "grid", gap: 8, padding: "4px 8px 10px 28px" }}>
           {s.error && s.state !== "signin" && <div className="loki-meta loki-meta--negative loki-meta--wrap">{s.error}</div>}
-          {s.signIn && <SignIn s={s} onSignOut={() => void api.signOut(s.name).then(apply)} />}
+          {s.signIn && <SignIn s={s} signIn={s.signIn} onSignOut={() => void api.signOut(s.name).then(apply)} />}
           {s.tools.length > 0 && (
             <div role="group" aria-label={`${s.name} tools`} style={{ display: "grid", gap: 4 }}>
               {s.tools.map((t) => (
@@ -236,16 +237,16 @@ function ServerRow({
  * A remote server's OAuth sign-in: "sign in" opens its authorization page in the browser, which comes back to loki
  * and connects the server; "sign out" forgets the tokens. A page that went stale is made again by restart.
  */
-function SignIn({ s, onSignOut }: { s: McpServerView; onSignOut: () => void }) {
-  const signIn = s.signIn!;
+function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullable<McpServerView["signIn"]>; onSignOut: () => void }) {
+  const url = signIn.url;
   if (s.state === "signin")
     return (
       <div style={{ display: "grid", gap: 6 }}>
         <span className="loki-meta loki-meta--wrap">
           {s.entry} needs you to sign in before its tools can be used. Your browser opens its sign-in page and comes back to loki.
         </span>
-        {signIn.url ? (
-          <Button size="sm" tone="positive" onClick={() => openExternal(signIn.url!)} style={{ justifySelf: "start" }}>
+        {url ? (
+          <Button size="sm" tone="positive" onClick={() => openExternal(url)} style={{ justifySelf: "start" }}>
             sign in to {s.entry}
           </Button>
         ) : (
@@ -266,7 +267,16 @@ function SignIn({ s, onSignOut }: { s: McpServerView; onSignOut: () => void }) {
 }
 
 /** The add/edit form's fields, as text; `kind` picks which half is saved. */
-type Form = { kind: "local" | "remote"; name: string; command: string; args: string; env: string; cwd: string; url: string; headers: string };
+interface Form {
+  kind: "local" | "remote";
+  name: string;
+  command: string;
+  args: string;
+  env: string;
+  cwd: string;
+  url: string;
+  headers: string;
+}
 type SetField = <K extends keyof Form>(key: K, value: Form[K]) => void;
 
 /** A server's config as the form's text (a new server: an empty local one). */
@@ -461,7 +471,8 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
   const [tools, setTools] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const apply = (r: string[] | string) => (typeof r === "string" ? setError(r) : (setError(null), setTools(r)));
-  useEffect(() => void api.list().then(apply), []);
+  const load = useEffectEvent(() => void api.list().then(apply));
+  useEffect(() => load(), []);
   if (tools === null) return <div className="loki-meta loki-meta--wrap">{error ?? "asking loki…"}</div>;
   return (
     <div style={{ display: "grid", gap: 4 }}>

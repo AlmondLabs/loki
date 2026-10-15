@@ -129,10 +129,10 @@ export const DESTINATIONS: readonly Page[] = [
     keywords: ["recall", "cards", "lessons", "review"],
   },
   { key: "prefs", target: { kind: "preferences", page: null }, icon: "settings", label: "Preferences", line: "Settings", keywords: ["settings"] },
-  ...PAGES.map(({ id }) => ({
+  ...PAGES.map(({ id }): Page => ({
     key: `prefs:${id}`,
-    target: { kind: "preferences", page: id } as SearchTarget,
-    icon: "settings" as IconName,
+    target: { kind: "preferences", page: id },
+    icon: "settings",
     label: pageTitle(id),
     line: "Preferences",
     keywords: PREF_WORDS[id] ?? [],

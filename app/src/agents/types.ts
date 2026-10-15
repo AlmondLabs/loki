@@ -1,12 +1,27 @@
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
 import type { PassSettings, Runtime } from "../../../core/attention/protocol.ts";
-import type { GlobalSkill, LocalAgent, MemoryCommit, MemoryFile, MemorySkillInfo, ReflectionState, RefreshOutcome } from "../../../core/frame-types.ts";
+import type {
+  GlobalSkill,
+  LocalAgent,
+  MemoryCommit,
+  MemoryFile,
+  MemorySkill,
+  ReflectionState,
+  RefreshOutcome,
+  SkillProvenance,
+} from "../../../core/frame-types.ts";
+
+/**
+ * A memory skill as agent_get sends it: with its provenance when the mod could work it out, else the bare skill
+ * (mod/frames/agents.ts falls back to `skills` when `skillsInfo` is missing or fails).
+ */
+export type AgentSkill = MemorySkill & Partial<SkillProvenance>;
 
 export interface AgentDetails {
   agent: LocalAgent;
   files: MemoryFile[];
-  skills: MemorySkillInfo[];
+  skills: AgentSkill[];
   hasProfile: boolean;
   lastCommit: MemoryCommit | null;
 }
@@ -45,4 +60,8 @@ export interface AgentsWrite {
 }
 
 /** An edit to the agent's identity, as the daemon takes it (chat_agent_update): any of name, description, model. */
-export type AgentEdit = { name?: string; description?: string; model?: string };
+export interface AgentEdit {
+  name?: string;
+  description?: string;
+  model?: string;
+}

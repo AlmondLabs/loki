@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { dispatchMessage, isWaiting } from "../tasks/model";
 
 import type { Segment } from "./keymap";
@@ -23,21 +23,28 @@ export function useTasks(
   capture?: (event: string, properties?: Record<string, unknown>) => void,
 ) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(async () => {
-    if (desk.connection !== "open") return;
-    setLoading(true);
-    try {
-      const r = await desk.tasks.list(true);
-      if (r.ok) {
-        setTasks(r.tasks);
-        setError(null);
-      } else setError(r.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [desk.connection]);
+  // Reads in flight, outside React state: a refresh that an effect starts can say so without setting state in the effect.
+  const [inFlight] = useState(createCounter);
+  const loading = useSyncExternalStore(inFlight.subscribe, inFlight.get) > 0;
+  // `refresh` changes with the link only; desk.tasks is a fresh object every render.
+  const tasksApi = useRef(desk.tasks);
+  useEffect(() => {
+    tasksApi.current = desk.tasks;
+  });
+  const refresh = useCallback((): Promise<void> => {
+    if (desk.connection !== "open") return Promise.resolve();
+    inFlight.start();
+    return tasksApi.current
+      .list(true)
+      .then((r) => {
+        if (r.ok) {
+          setTasks(r.tasks);
+          setError(null);
+        } else setError(r.message);
+      })
+      .finally(inFlight.end);
+  }, [desk.connection, inFlight]);
   useEffect(() => {
     if (desk.connection === "open") void refresh();
   }, [desk.tasksVersion, desk.connection, refresh]);
@@ -114,4 +121,28 @@ export function useTasks(
     return null;
   };
   return { list: tasks, loading, error, refresh, openTasks, assignTo, closeTasks, reopenTasks, setTaskStatus, createTask, addFromMessage };
+}
+
+/** A count that components read with useSyncExternalStore: how many of something are under way. */
+function createCounter() {
+  let n = 0;
+  const listeners = new Set<() => void>();
+  const emit = () => {
+    for (const l of listeners) l();
+  };
+  return {
+    get: () => n,
+    start: () => {
+      n += 1;
+      emit();
+    },
+    end: () => {
+      n -= 1;
+      emit();
+    },
+    subscribe: (l: () => void) => {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
 }

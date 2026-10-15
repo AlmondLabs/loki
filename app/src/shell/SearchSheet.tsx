@@ -51,7 +51,8 @@ export function SearchSheet({
   );
   const rows = typed ? flatHits(groups) : places;
   const found = groups.reduce((n, g) => n + g.total, 0);
-  const current = rows[Math.min(active, rows.length - 1)] ?? null;
+  const at = Math.min(active, rows.length - 1);
+  const current = at >= 0 ? rows[at] : null;
 
   // A new query starts at the top result (the highlight resets as it is typed, below).
   useEffect(() => {

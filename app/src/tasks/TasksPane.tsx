@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 
 import { Button, Chip, Field, ListIcon, ListRow, ListSection } from "../components";
@@ -47,6 +47,26 @@ const TABLE_COLUMNS: Array<[SortKey, string]> = [
   ["updated", "Updated"],
 ];
 const TABLE_GRID = "minmax(220px, 2.4fr) 104px minmax(90px, 1fr) minmax(80px, 0.8fr) minmax(110px, 1.2fr) minmax(90px, 1fr) 64px";
+/** The keymap actions the task list registers while it shows. */
+const TASK_ACTIONS = [
+  "tasks.up",
+  "tasks.down",
+  "tasks.left",
+  "tasks.right",
+  "tasks.select",
+  "tasks.selectRange",
+  "tasks.assign",
+  "tasks.dispatch",
+  "tasks.done",
+  "tasks.reopen",
+  "tasks.blocked",
+  "tasks.prevColumn",
+  "tasks.nextColumn",
+  "tasks.filter",
+  "tasks.refresh",
+  "tasks.layout",
+  "tasks.groupBy",
+] as const;
 
 /**
  * Tasks: the shared task list, as the view chosen in the sidebar (useTaskView) lays it out. Board shows columns by
@@ -241,50 +261,60 @@ export function TasksPane({
   const nextGroup = (): GroupBy => GROUPS[(GROUPS.findIndex(([g]) => g === prefs.groupBy) + 1) % GROUPS.length][0];
 
   // The task list's actions, by keymap id. Nothing here has focus by default, so plain keys work; the shell dispatches.
-  useEffect(() => {
-    if (!active) return;
-    return registerActions({
-      "tasks.up": () => move("up"),
-      "tasks.down": () => move("down"),
-      "tasks.left": () => move("left"),
-      "tasks.right": () => move("right"),
-      "tasks.select": () => {
-        if (cursor) toggle(cursor, false);
-      },
-      "tasks.selectRange": () => {
-        if (cursor) toggle(cursor, true);
-      },
-      "tasks.assign": () => {
+  // Each handler reaches the latest state; they register again as the list or the selection changes, as they always have.
+  const taskAction = useEffectEvent((id: (typeof TASK_ACTIONS)[number]) => {
+    switch (id) {
+      case "tasks.up":
+        return move("up");
+      case "tasks.down":
+        return move("down");
+      case "tasks.left":
+      case "tasks.prevColumn":
+        return move("left");
+      case "tasks.right":
+      case "tasks.nextColumn":
+        return move("right");
+      case "tasks.select":
+      case "tasks.selectRange":
+        if (cursor) toggle(cursor, id === "tasks.selectRange");
+        return;
+      case "tasks.assign":
+      case "tasks.dispatch": {
         const ids = actionable(targets());
-        if (ids.length) onAssign(ids, false);
-      },
-      "tasks.dispatch": () => {
-        const ids = actionable(targets());
-        if (ids.length) onAssign(ids, true);
-      },
-      "tasks.done": () => {
+        if (ids.length) onAssign(ids, id === "tasks.dispatch");
+        return;
+      }
+      case "tasks.done": {
         const ids = actionable(targets());
         if (ids.length) onClose(ids);
-      },
-      "tasks.reopen": () => {
+        return;
+      }
+      case "tasks.reopen": {
         const ids = reopenable(targets());
         if (ids.length) onReopen(ids);
-      },
-      "tasks.blocked": () => {
+        return;
+      }
+      case "tasks.blocked": {
         const ids = actionable(targets());
         if (!ids.length) return;
-        const blocked = ids.every((id) => byId.get(id)?.status === "blocked");
+        const blocked = ids.every((t) => byId.get(t)?.status === "blocked");
         onStatus(ids, blocked ? "open" : "blocked");
-      },
-      "tasks.prevColumn": () => move("left"),
-      "tasks.nextColumn": () => move("right"),
-      "tasks.filter": () => filterRef.current?.focus(),
-      "tasks.refresh": () => onRefresh(),
-      "tasks.layout": () => setPrefs({ layout: prefs.layout === "board" ? "table" : "board" }),
-      "tasks.groupBy": () => {
+        return;
+      }
+      case "tasks.filter":
+        return filterRef.current?.focus();
+      case "tasks.refresh":
+        return onRefresh();
+      case "tasks.layout":
+        return setPrefs({ layout: prefs.layout === "board" ? "table" : "board" });
+      case "tasks.groupBy":
         if (prefs.layout === "board") setPrefs({ groupBy: nextGroup() });
-      },
-    });
+        return;
+    }
+  });
+  useEffect(() => {
+    if (!active) return;
+    return registerActions(Object.fromEntries(TASK_ACTIONS.map((id) => [id, () => taskAction(id)])));
   }, [active, cursor, selected, columns, anchor, prefs.layout, prefs.groupBy, view]);
   // Esc: out of the filter box, else clear the selection.
   useEffect(() => {
@@ -304,14 +334,17 @@ export function TasksPane({
   const openCount = tasks?.filter((t) => t.status !== "closed").length ?? 0;
   const sel = actionable([...selected]);
   const selReopen = reopenable([...selected]);
-  const selWaiting = sel.filter((id) => isWaiting(byId.get(id)!));
+  const selWaiting = sel.filter((id) => {
+    const t = byId.get(id);
+    return !!t && isWaiting(t);
+  });
 
-  const cardProps = (t: Task) => ({
+  const cardProps = (t: Task): CardProps => ({
     task: t,
     selected: selected.has(t.id),
     focused: cursor === t.id,
     // Roving tabindex: the cursor card is the Tab stop; before there is one, the first card is.
-    tabIndex: (cursor ? (cursor === t.id ? 0 : -1) : t.id === all[0]?.id ? 0 : -1) as 0 | -1,
+    tabIndex: cursor ? (cursor === t.id ? 0 : -1) : t.id === all[0]?.id ? 0 : -1,
     onClick: (e: React.MouseEvent) => toggle(t.id, e.shiftKey),
     onFocus: () => cursor !== t.id && setCursor(t.id),
     onKeyDown: onCardKey,
@@ -558,7 +591,7 @@ function emptyColumn(col: Column, query: string): string {
   }
 }
 
-type CardProps = {
+interface CardProps {
   task: Task;
   selected: boolean;
   focused: boolean;
@@ -570,7 +603,7 @@ type CardProps = {
   onReopen: () => void;
   /** Filed from a chat message: open the chat at it. */
   onOpenSource?: () => void;
-};
+}
 
 /** The Table: a header of sortable columns over one listbox of rows. */
 function TaskTable({
@@ -759,7 +792,7 @@ function TaskCard({
         </div>
       )}
       <TaskMeta id={`${uid}-meta`} task={t} done={done} showStatus={showStatus} />
-      {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle!} />}
+      {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle} />}
     </div>
   );
 }

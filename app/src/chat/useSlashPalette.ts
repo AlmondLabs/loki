@@ -27,9 +27,12 @@ export function useSlashPalette({
   const listId = useId();
   const matches = query !== null && commands.length && dismissed !== draft ? matchCommands(query, commands) : [];
   const open = query !== null && dismissed !== draft && commands.length > 0;
-  useEffect(() => {
+  // A new query lights its first row.
+  const [indexQuery, setIndexQuery] = useState(query);
+  if (query !== indexQuery) {
+    setIndexQuery(query);
     setIndex(0);
-  }, [query]);
+  }
   useEffect(() => {
     if (!open) return;
     document.getElementById(`${listId}-opt-${index}`)?.scrollIntoView({ block: "nearest" });

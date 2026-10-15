@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useEffectEvent, useId, useState } from "react";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { Button, Chip, Dot, Field, Row } from "../components";
 import { SHORTLIST, canConnect, fieldValues, fieldsFor, isConnected, sortProviders } from "./provider-model";
@@ -28,9 +28,11 @@ export function Providers({
   const [filter, setFilter] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [more, setMore] = useState(!shortlist);
+  const loading = providers === null;
+  const load = useEffectEvent(() => void onLoad());
   useEffect(() => {
-    if (providers === null) void onLoad();
-  }, [providers === null]);
+    if (loading) load();
+  }, [loading]);
 
   if (providers === null) return <div className="loki-meta loki-meta--wrap">asking loki…</div>;
   const sorted = sortProviders(providers, filter);

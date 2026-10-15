@@ -171,7 +171,7 @@ export function Chip({
   if (isStatic || tone) {
     const { onClick: _onClick, disabled: _disabled, ...span } = rest as ButtonHTMLAttributes<HTMLButtonElement>;
     return (
-      <span className={cls} style={st} {...(span as HTMLAttributes<HTMLSpanElement>)}>
+      <span className={cls} style={st} {...span}>
         {children}
       </span>
     );
@@ -183,7 +183,7 @@ export function Chip({
   );
 }
 
-type FieldMods = {
+interface FieldMods {
   /** sm 28 · md 32 (default) · touch 44 with 15px type. */
   size?: Size;
   mono?: boolean;
@@ -193,7 +193,7 @@ type FieldMods = {
   large?: boolean;
   /** Editable text that shows its box on hover and focus. */
   inline?: boolean;
-};
+}
 const FIELD_SIZE: Record<Size, string | null> = { sm: "loki-field--sm", md: null, touch: "loki-field--touch" };
 const fieldClass = ({ size = "md", mono, bare, large, inline }: FieldMods, className?: string) =>
   cx(

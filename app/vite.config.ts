@@ -64,11 +64,11 @@ function compilerOptions() {
         event: {
           kind: string;
           fnLoc?: { start?: { line: number } } | null;
-          detail?: { reason?: string; description?: string | null } | { options?: { reason?: string } };
+          detail?: { reason?: string; description?: string | null; options?: { reason?: string; description?: string | null } };
         },
       ) {
         if (event.kind !== "CompileError") return;
-        const d = event.detail as { reason?: string; description?: string | null; options?: { reason?: string; description?: string | null } } | undefined;
+        const d = event.detail;
         const reason = d?.reason ?? d?.options?.reason ?? "";
         const description = d?.description ?? d?.options?.description ?? "";
         console.error(

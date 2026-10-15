@@ -29,7 +29,7 @@ function QuestionCardFor({
   touch?: boolean;
 }) {
   const [picked, setPicked] = useState<Record<string, string[]>>({});
-  const [other, setOther] = useState<Record<string, string>>({});
+  const [other, setOther] = useState<Partial<Record<string, string>>>({});
   const [peek, setPeek] = useState<string | null>(null); // hovered option label, for its description
 
   const many = question.questions.length > 1;
@@ -46,7 +46,10 @@ function QuestionCardFor({
   const submit = () => {
     if (!complete) return;
     const answers: Record<string, string | string[]> = {};
-    for (const q of question.questions) answers[q.question] = answerFor(q)!;
+    for (const q of question.questions) {
+      const answer = answerFor(q);
+      if (answer !== null) answers[q.question] = answer;
+    }
     onAnswer(answers);
   };
   const toggle = (q: PendingQuestion["questions"][number], label: string) =>

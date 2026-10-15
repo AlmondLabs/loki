@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { Toast } from "../components";
 import { scopeFor } from "../../../core/desk-core.ts";
 import { useAttention } from "../../../core/attention/useAttention.ts";
@@ -150,9 +150,11 @@ export function Shell() {
   } = useModelList({ open: catchUp.status === "open", version: catchUp.server?.version ?? "", listModels: catchUp.listModels, recent: desk.models.recent });
   const daemon = useDaemonStatus();
   const welcome = welcomeFor(daemon.status, catchUp);
-  useEffect(() => {
+  const noProviders = catchUp.providers === null;
+  const loadProviders = useEffectEvent(() => {
     if (catchUp.status === "open" && catchUp.agentsLoaded && catchUp.agents.length === 0 && catchUp.providers === null) void catchUp.loadProviders();
-  }, [catchUp.status, catchUp.agentsLoaded, catchUp.agents.length, catchUp.providers === null]);
+  });
+  useEffect(() => loadProviders(), [catchUp.status, catchUp.agentsLoaded, catchUp.agents.length, noProviders]);
   // The first agent's form offers the model list; ask for it as soon as that step shows (Welcome's "skip" asks too).
   useEffect(() => {
     if (welcome === "agent") loadModels();
@@ -295,11 +297,12 @@ export function Shell() {
 
   // The desks list feeds the sidebar, search and ⌘[ ⌘]; ask for it once the mod link is up. The LAN listener's
   // status too, so the rail's green dot is right before Settings is ever opened.
+  const linkUp = useEffectEvent(() => {
+    desk.desks.request();
+    desk.phone.refresh();
+  });
   useEffect(() => {
-    if (desk.connection === "open") {
-      desk.desks.request();
-      desk.phone.refresh();
-    }
+    if (desk.connection === "open") linkUp();
   }, [desk.connection]);
   // Search's recent places: every desk opened and every section visited, not only what search opened.
   useEffect(() => {
@@ -480,13 +483,11 @@ export function Shell() {
               onNew={() => setCaptureOpen(true)}
               focus={taskFocus}
               onOpenSource={openTaskSource}
-              active={segment === "tasks" && !picker && !captureOpen && !searchOpen}
+              active={!picker && !captureOpen && !searchOpen}
             />
           )}
 
-          {segment === "learn" && (
-            <RecallView recall={recall} active={segment === "learn" && !picker && !captureOpen && !searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />
-          )}
+          {segment === "learn" && <RecallView recall={recall} active={!picker && !captureOpen && !searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />}
 
           {segment === "agents" && (
             <AgentsView

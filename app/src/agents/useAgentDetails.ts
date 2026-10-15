@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
-import type { AgentDetails, AgentEdit, AgentsApi, AgentsWrite } from "./types";
-import type { MemoryCommit, MemorySkill, MemorySkillInfo } from "../../../core/frame-types.ts";
+import type { AgentDetails, AgentEdit, AgentSkill, AgentsApi, AgentsWrite } from "./types";
+import type { MemoryCommit, MemorySkill } from "../../../core/frame-types.ts";
 
 /**
  * The selected agent's record and memory log, loaded once per agent and kept by id, and the writes
@@ -32,14 +32,19 @@ export function useAgentDetails({
   const [commits, setCommits] = useState<Record<string, MemoryCommit[]>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = async (id: string) => {
-    const d = await api.get(id);
-    setDetails((x) => ({ ...x, [id]: d }));
-    const log = await api.log(id, undefined, 40);
-    setCommits((x) => ({ ...x, [id]: log }));
-  };
+  const load = (id: string) =>
+    api
+      .get(id)
+      .then((d) => {
+        setDetails((x) => ({ ...x, [id]: d }));
+        return api.log(id, undefined, 40);
+      })
+      .then((log) => setCommits((x) => ({ ...x, [id]: log })));
+  const loadIfUnseen = useEffectEvent((id: string) => {
+    if (details[id] === undefined) void load(id);
+  });
   useEffect(() => {
-    if (selected && details[selected] === undefined) void load(selected);
+    if (selected) loadIfUnseen(selected);
   }, [selected]);
 
   const d = selected ? details[selected] : undefined;
@@ -102,7 +107,7 @@ export function useAgentDetails({
    */
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [needsSource, setNeedsSource] = useState<string | null>(null);
-  const refreshSkill = async (skill: MemorySkillInfo, source?: string): Promise<string | null> => {
+  const refreshSkill = async (skill: AgentSkill, source?: string): Promise<string | null> => {
     if (!selected || !d) return "no agent selected";
     if (!source && !skill.source) {
       setNeedsSource(skill.name);

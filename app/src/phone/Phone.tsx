@@ -1,5 +1,5 @@
 import { useTaskList, type TaskApi } from "../tasks/messageTasks";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/useInlineWidgets";
 import { useAttention } from "../../../core/attention/useAttention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
@@ -62,19 +62,24 @@ const closeInbox = () => {
 
 export function Phone() {
   const [gate, setGate] = useState<Gate>({ kind: "checking" });
-  const check = useCallback(async () => {
-    setGate({ kind: "checking" });
-    try {
-      const r = await fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" });
-      if (r.ok) setGate({ kind: "paired", me: (await r.json()) as Me });
-      else setGate({ kind: "unpaired" }); // 401: no cookie, or a forgotten one
-    } catch {
-      setGate({ kind: "unreachable" });
-    }
-  }, []);
+  /** Ask the mod who this phone is; the gate says "checking" meanwhile. */
+  const probe = useCallback(
+    () =>
+      fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" })
+        .then(async (r) => {
+          if (r.ok) setGate({ kind: "paired", me: (await r.json()) as Me });
+          else setGate({ kind: "unpaired" }); // 401: no cookie, or a forgotten one
+        })
+        .catch(() => setGate({ kind: "unreachable" })),
+    [],
+  );
   useEffect(() => {
-    void check();
-  }, [check]);
+    void probe();
+  }, [probe]);
+  const check = () => {
+    setGate({ kind: "checking" });
+    void probe();
+  };
 
   if (gate.kind === "checking")
     return (
@@ -87,7 +92,7 @@ export function Phone() {
       <Splash>
         <h1 className="loki-phone-large-title">The Mac did not answer</h1>
         <p className="loki-phone-body loki-phone-splash-line">Same Wi‑Fi, and loki open on the Mac with Settings › phone switched on.</p>
-        <Button size="touch" tone="paper" onClick={() => void check()} className="loki-phone-splash-action">
+        <Button size="touch" tone="paper" onClick={check} className="loki-phone-splash-action">
           Try again
         </Button>
       </Splash>
@@ -108,8 +113,10 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
   const linked = desk.connection === "open" && (catchUp.status === "open" || !available);
   const [lastLinked, setLastLinked] = useState<string | null>(null);
   const [, setTickNow] = useState(0);
+  // The link's last moment up is when it drops: the cleanup runs then (and on leaving), never while it holds.
   useEffect(() => {
-    if (linked) setLastLinked(new Date().toISOString());
+    if (!linked) return;
+    return () => setLastLinked(new Date().toISOString());
   }, [linked]);
   useEffect(() => {
     const t = setInterval(() => setTickNow((n) => n + 1), 30_000);
@@ -121,11 +128,12 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
 
 /** A closed mod socket may mean this phone was forgotten in Settings: ask /me once; a 401 sends us back to Pair. */
 function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => void) {
+  const unpaired = useEffectEvent(() => onUnpaired());
   useEffect(() => {
     if (connection !== "closed") return;
     void fetch(`${modBase()}/me`, { credentials: "same-origin", cache: "no-store" })
       .then((r) => {
-        if (r.status === 401) onUnpaired();
+        if (r.status === 401) unpaired();
       })
       .catch(() => {});
   }, [connection]);
@@ -138,14 +146,22 @@ function useUnpairWatch(connection: DeskApi["connection"], onUnpaired: () => voi
  */
 function usePrefill(conv: ConversationRoute | null) {
   const convKey = conv ? draftKey(conv.agentId, conv.conversationId) : null;
-  // The route arriving is the event: it becomes the prefill (with a fresh tick) and leaves the address.
+  const prefillText = conv?.prefill ?? null;
+  // The route arriving is the event: it becomes the prefill, its tick one more than the last route's, from the
+  // render that sees it; the effect below then leaves the address.
   const [held, setHeld] = useState<Prefill | null>(null);
-  useEffect(() => {
-    setHeld((h) => nextPrefill(h, conv, Date.now()));
+  const [arrived, setArrived] = useState<{ key: string | null; prefill: string | null; tick: number } | null>(null);
+  if (arrived?.key !== convKey || arrived.prefill !== prefillText) {
+    const tick = (arrived?.tick ?? 0) + 1;
+    setArrived({ key: convKey, prefill: prefillText, tick });
+    setHeld((h) => nextPrefill(h, conv, tick));
+  }
+  const tidyAddress = useEffectEvent(() => {
     if (conv?.prefill) replace({ ...conv, prefill: null });
-  }, [convKey, conv?.prefill]);
-  // Checked at render too: a newly opened conversation's page applies prefill before this effect drops it.
-  return held && held.key === convKey ? held : null;
+  });
+  useEffect(() => tidyAddress(), [convKey, prefillText]);
+  // Held for its own conversation only: any other conversation sees null.
+  return held?.key === convKey ? held : null;
 }
 
 function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
@@ -192,8 +208,9 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   }, []);
 
   // The desks list feeds Home and the conversation titles; ask for it whenever the mod link comes up.
+  const requestDesks = useEffectEvent(() => desk.desks.request());
   useEffect(() => {
-    if (desk.connection === "open") desk.desks.request();
+    if (desk.connection === "open") requestDesks();
   }, [desk.connection]);
 
   const banner = useLinkBanner(desk, catchUp, attention.available);
@@ -224,9 +241,10 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     const t = setTimeout(() => setRecallNote(null), 4000);
     return () => clearTimeout(t);
   }, [recallNote]);
-  useEffect(() => {
+  const loadTopThread = useEffectEvent(() => {
     if (deck.current) void catchUp.loadHistory(deck.current);
-  }, [deck.currentId]);
+  });
+  useEffect(() => loadTopThread(), [deck.currentId]);
 
   // A lesson begun from Learn: its conversation opens and the brief goes out as the person's first message, the way the desktop begins one.
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
@@ -267,7 +285,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
   useEffect(() => {
     if (route.kind !== "tab" && route.kind !== "search") recentPlaces.add(place);
-  }, [place]);
+  }, [place, route.kind]);
 
   // Archive and restore go through the daemon, the way the desktop tree does; null while it cannot take them.
   const onArchive: ArchiveDesk | null =
@@ -478,7 +496,7 @@ function ConversationPage({
       banner={note ? <Banner>{note}</Banner> : banner}
       backLabel={backLabel}
       prefill={prefill}
-      pinned={convDesk && convDesk.status === "live" ? !!convDesk.pinned : null}
+      pinned={convDesk?.status === "live" ? !!convDesk.pinned : null}
       onPin={(p) => desk.desks.pin(thread.agentId, thread.conversationId, p)}
       rename={convDesk && canRename(convDesk) ? { name: convDesk.title ?? "", onRename: onRename ? (name) => onRename(convDesk, name) : null } : null}
       archive={
@@ -502,9 +520,11 @@ function ConversationPage({
               // The live folder (the daemon's word) first, else what the Mac's records say; the agent's recent folders to choose from.
               load: async () => {
                 const r = await attention.folders.recent();
+                // A chat the mod has no folder for is missing from the map.
+                const byConversation: Partial<Record<string, string>> = r.byConversation;
                 const current =
                   catchUp.conversation(thread.agentId, thread.conversationId).cwd ??
-                  r.byConversation[conversationDirName(thread.conversationId, thread.agentId)] ??
+                  byConversation[conversationDirName(thread.conversationId, thread.agentId)] ??
                   null;
                 return { current, choices: r.byAgent[thread.agentId] ?? [] };
               },

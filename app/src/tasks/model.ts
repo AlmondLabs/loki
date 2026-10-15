@@ -140,8 +140,11 @@ export const folderName = (folder: string | undefined): string | null =>
         .pop() || folder
     : null;
 
+/** A task's metadata as the mod keeps it: any key may be missing. */
+const meta = (t: Task): Partial<Record<string, string>> => t.metadata;
+
 /** Who filed it: you, or the agent by name. */
-export const filedBy = (t: Task): string => (t.metadata.by === "you" ? "you" : (t.metadata.agent ?? "an agent"));
+export const filedBy = (t: Task): string => (t.metadata.by === "you" ? "you" : (meta(t).agent ?? "an agent"));
 
 /**
  * The Board's columns for a view's tasks. By status, always the four (an empty one says so). By assignee or folder,
@@ -157,7 +160,9 @@ export function boardColumns(tasks: Task[], groupBy: GroupBy, now = Date.now()):
   const groups = new Map<string, Task[]>();
   for (const t of shownTasks(tasks, now)) {
     const key = keyOf(t) ?? "";
-    (groups.get(key) ?? groups.set(key, []).get(key)!).push(t);
+    const group = groups.get(key);
+    if (group) group.push(t);
+    else groups.set(key, [t]);
   }
   return [...groups]
     .sort(([a], [b]) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b)))
@@ -235,13 +240,13 @@ export function stepCursor(columns: Column[], cursor: string | null, dir: Dir): 
   const col = columns[ci];
   const i = col.tasks.findIndex((t) => t.id === cursor);
   if (dir === "up" || dir === "down") {
-    const next = col.tasks[Math.max(0, Math.min(col.tasks.length - 1, i + (dir === "down" ? 1 : -1)))];
+    const next = col.tasks.at(Math.max(0, Math.min(col.tasks.length - 1, i + (dir === "down" ? 1 : -1))));
     return next && next.id !== cursor ? next.id : null;
   }
   let j = ci;
   do j += dir === "right" ? 1 : -1;
   while (j >= 0 && j < columns.length && columns[j].tasks.length === 0);
-  const target = columns[j];
+  const target = j >= 0 && j < columns.length ? columns[j] : undefined;
   return target ? target.tasks[Math.min(i, target.tasks.length - 1)].id : null;
 }
 
@@ -254,7 +259,7 @@ export function filterTasks(tasks: Task[], query: string): Task[] {
       t.title.toLowerCase().includes(q) ||
       t.id.toLowerCase().includes(q) ||
       t.labels.some((l) => l.toLowerCase().includes(q)) ||
-      (t.metadata.agent ?? "").toLowerCase().includes(q),
+      (meta(t).agent ?? "").toLowerCase().includes(q),
   );
 }
 

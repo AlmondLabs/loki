@@ -115,7 +115,7 @@ export function useShellKeys(
   useEffect(() => {
     if (!inTauri) return;
     let off: (() => void) | null = null;
-    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e) => console.warn("loki: menu", e));
+    void import("@tauri-apps/api/core").then(({ invoke }) => invoke("set_menu", { menus: menuSpec() })).catch((e: unknown) => console.warn("loki: menu", e));
     void import("@tauri-apps/api/event").then(async ({ listen }) => {
       off = await listen<string>("loki:menu", (ev) => {
         const id = ev.payload === "app.settings" ? "segment.settings" : ev.payload;

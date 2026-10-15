@@ -51,7 +51,9 @@ export interface Indexed<H> {
 }
 
 /** Entries with their fields folded: build once per sources, query per keystroke. */
-export type SearchIndex<H> = { readonly entries: ReadonlyArray<Indexed<H>> };
+export interface SearchIndex<H> {
+  readonly entries: ReadonlyArray<Indexed<H>>;
+}
 
 export function buildSearchIndex<H>(entries: ReadonlyArray<Indexed<H>>): SearchIndex<H> {
   return { entries: entries.map((e) => ({ ...e, fields: e.fields.map(foldField) })) };

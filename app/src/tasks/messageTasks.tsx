@@ -177,7 +177,10 @@ const drawnText = new Map<string, string>();
 export function rememberMessage(conversationId: string, key: string, text: string): void {
   drawnText.set(`${conversationId}:${key}`, text);
   // A long session draws many threads: keep the newest few thousand.
-  if (drawnText.size > 4000) drawnText.delete(drawnText.keys().next().value!);
+  if (drawnText.size > 4000) {
+    const oldest = drawnText.keys().next();
+    if (!oldest.done) drawnText.delete(oldest.value);
+  }
 }
 
 /** The selection, when it sits inside one message of this conversation: that message and the selected words. */
@@ -189,9 +192,9 @@ function selectedMessage(conversationId: string): { role: "user" | "assistant"; 
   const el = msgOf(sel.anchorNode);
   if (!el || el !== msgOf(sel.focusNode) || el.dataset.conversation !== conversationId) return null;
   const role = el.dataset.row;
-  const key = el.dataset.msgKey!;
-  const text = drawnText.get(`${conversationId}:${key}`);
-  if ((role !== "user" && role !== "assistant") || !text) return null;
+  const key = el.dataset.msgKey;
+  const text = key === undefined ? undefined : drawnText.get(`${conversationId}:${key}`);
+  if ((role !== "user" && role !== "assistant") || !key || !text) return null;
   return { role, text, at: el.dataset.msgAt ?? null, selection };
 }
 
@@ -241,7 +244,7 @@ export function useRevealMessage(
 /** A message's tasks and, when it is the one being added to, the editor; drawn under the message. */
 export function MessageTaskArea({ row, ctx }: { row: TranscriptRow; ctx: MessageTasksValue }) {
   const tasks = ctx.tasksFor(row);
-  const editing = ctx.adding && ctx.adding.role === row.role && ctx.adding.key === messageKey(row.role, row.text) ? ctx.adding : null;
+  const editing = ctx.adding?.role === row.role && ctx.adding.key === messageKey(row.role, row.text) ? ctx.adding : null;
   if (!tasks.length && !editing) return null;
   return (
     <div className="loki-msg-tasks">
@@ -324,6 +327,7 @@ const CHIP_LABEL = { open: "task · open", waiting: "done? · waiting for you", 
 
 /** A task on its message: its state, the agent's newest note while open, Confirm and Reopen while it waits for you. */
 export function TaskChip({ task: t, api }: { task: Task; api: TaskApi }) {
+  const { open, confirm, reopen } = api;
   const state = chipState(t);
   const note = state === "open" ? t.metadata.lastNote : state === "waiting" && t.metadata.doneAsked !== "yes" ? t.metadata.doneAsked : null;
   const body = (
@@ -338,11 +342,11 @@ export function TaskChip({ task: t, api }: { task: Task; api: TaskApi }) {
   );
   return (
     <div className="loki-msg-task" data-state={state}>
-      {api.open ? (
+      {open ? (
         <button
           type="button"
           className="loki-msg-task-open"
-          onClick={() => api.open!(t)}
+          onClick={() => open(t)}
           aria-label={`${CHIP_LABEL[state]}: ${t.title}${note ? ` — ${note}` : ""}. Open in Tasks`}
         >
           {body}
@@ -350,12 +354,12 @@ export function TaskChip({ task: t, api }: { task: Task; api: TaskApi }) {
       ) : (
         <span className="loki-msg-task-open">{body}</span>
       )}
-      {state === "waiting" && api.confirm && api.reopen && (
+      {state === "waiting" && confirm && reopen && (
         <span className="loki-msg-task-answer">
-          <Button size="sm" tone="positive" onClick={() => api.confirm!(t)}>
+          <Button size="sm" tone="positive" onClick={() => confirm(t)}>
             confirm
           </Button>
-          <Button size="sm" tone="paper" onClick={() => api.reopen!(t)}>
+          <Button size="sm" tone="paper" onClick={() => reopen(t)}>
             reopen
           </Button>
         </span>

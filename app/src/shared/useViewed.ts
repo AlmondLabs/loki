@@ -50,7 +50,7 @@ export function nextLook(
   const send: LookTarget[] = [];
   let { sent, held } = prev;
   const here = now.agentId && now.conversationId ? { agentId: now.agentId, conversationId: now.conversationId } : null;
-  if (held && (!now.looking || !here || held.agentId !== here.agentId || held.conversationId !== here.conversationId)) {
+  if (held && (!now.looking || held.agentId !== here?.agentId || held.conversationId !== here.conversationId)) {
     if (held.stamp !== sent) send.push({ agentId: held.agentId, conversationId: held.conversationId });
     sent = held.stamp;
     held = null;

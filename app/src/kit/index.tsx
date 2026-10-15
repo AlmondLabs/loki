@@ -12,8 +12,13 @@ export interface KitProps {
   onSet: (path: string, value: unknown) => void;
 }
 
+/** A value from the widget's data as text: an object or array in its JSON form, anything else as JavaScript writes it. */
+function asText(v: unknown): string {
+  return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
+}
+
 export function InfoCard({ data }: KitProps) {
-  const lines = (data.lines as string[]) ?? [];
+  const lines = (data.lines as string[] | undefined) ?? [];
   return (
     <div className="loki-widget-body" style={{ display: "grid", gap: 6 }}>
       {lines.map((line, i) => (
@@ -24,11 +29,11 @@ export function InfoCard({ data }: KitProps) {
 }
 
 export function Stat({ data }: KitProps) {
-  const delta = typeof data.delta === "number" ? (data.delta as number) : null;
+  const delta = typeof data.delta === "number" ? data.delta : null;
   return (
     <div className="loki-widget-body">
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 28, fontWeight: 600, fontFamily: "var(--loki-mono)" }}>{String(data.value ?? "—")}</span>
+        <span style={{ fontSize: 28, fontWeight: 600, fontFamily: "var(--loki-mono)" }}>{asText(data.value ?? "—")}</span>
         {typeof data.unit === "string" && <span className="loki-muted">{data.unit}</span>}
         {delta !== null && (
           <span
@@ -65,7 +70,7 @@ export function SliderControl({ data, onSet }: KitProps) {
   return (
     <div className="loki-widget-body" style={{ display: "grid", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span>{String(data.label ?? "value")}</span>
+        <span>{asText(data.label ?? "value")}</span>
         <span style={{ fontFamily: "var(--loki-mono)" }}>
           {shown}
           {typeof data.unit === "string" ? ` ${data.unit}` : ""}
@@ -74,7 +79,7 @@ export function SliderControl({ data, onSet }: KitProps) {
       <input
         className="loki-slider"
         type="range"
-        aria-label={String(data.label ?? "value")}
+        aria-label={asText(data.label ?? "value")}
         min={Number(data.min ?? 0)}
         max={Number(data.max ?? 100)}
         step={Number(data.step ?? 1)}
@@ -106,7 +111,7 @@ export function SliderControl({ data, onSet }: KitProps) {
 }
 
 export function ListCard({ data, onSet }: KitProps) {
-  const items = (data.items as Array<{ text: string; done?: boolean }>) ?? [];
+  const items = (data.items as Array<{ text: string; done?: boolean }> | undefined) ?? [];
   return (
     <div className="loki-widget-body" style={{ display: "grid", gap: 6 }}>
       {items.map((item, i) => (
@@ -133,8 +138,8 @@ export function ListCard({ data, onSet }: KitProps) {
 }
 
 export function ChartCard({ data }: KitProps) {
-  const points = useMemo(() => ((data.points as Array<{ x: string | number; y: number }>) ?? []).map((p) => ({ ...p })), [data.points]);
-  const kind = (data.kind as string) ?? "line";
+  const points = useMemo(() => ((data.points as Array<{ x: string | number; y: number }> | undefined) ?? []).map((p) => ({ ...p })), [data.points]);
+  const kind = (data.kind as string | undefined) ?? "line";
   const common = {
     data: points,
     margin: { top: 8, right: 8, bottom: 0, left: -18 },

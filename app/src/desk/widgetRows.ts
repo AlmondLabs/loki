@@ -96,7 +96,7 @@ export function widgetMarks(
   if (rows.length && !times.some(Number.isFinite)) {
     const older = sorted.filter((e) => e.at < liveSince);
     const live = sorted.filter((e) => e.at >= liveSince).map((e) => mark(e, rows.length));
-    const last = older[older.length - 1];
+    const last = older.at(-1);
     return last ? [{ ...mark(last, rows.length), id: "earlier", earlier: older.length }, ...live] : live;
   }
   return sorted.map((e) => {

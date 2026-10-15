@@ -20,12 +20,12 @@ const MIN_GRID_PX = 18;
 /** Per-event zoom factor clamp: a mouse-wheel notch must not jump more than ~18%. */
 const MAX_STEP = 1.18;
 
-export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; onScale?: (scale: number) => void }>(function Viewport(
+export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: ReactNode; onScale?: (scale: number) => void }>(function Viewport(
   { children, onScale },
   ref,
 ) {
   const inner = useRef<ReactZoomPanPinchRef | null>(null);
-  useImperativeHandle(ref, () => inner.current!, []);
+  useImperativeHandle<ReactZoomPanPinchRef | null, ReactZoomPanPinchRef | null>(ref, () => inner.current, []);
   const host = useRef<HTMLDivElement>(null);
   const grid = useRef<HTMLDivElement>(null);
 
@@ -81,7 +81,7 @@ export const Viewport = forwardRef<ReactZoomPanPinchRef, { children: ReactNode; 
       }
       dx = dy = 0;
       zoom = 1;
-      api.setTransform(x, y, s, 0);
+      void api.setTransform(x, y, s, 0);
       paintGrid(x, y, s);
     };
     const schedule = () => {

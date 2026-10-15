@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails, AgentsApi } from "../agents/Agents";
 import { ago } from "../shared/ago";
@@ -24,17 +24,13 @@ const inflight = new Map<string, Promise<AgentDetails | null>>();
 export const knownDescription = (agentId: string): string | null => cache.get(agentId)?.agent.description ?? null;
 export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): AgentDetails | null | undefined {
   const [d, setD] = useState<AgentDetails | null | undefined>(() => (agentId ? cache.get(agentId) : undefined));
+  const fetchDetails = useEffectEvent((id: string) => api.get(id));
   useEffect(() => {
-    if (!agentId) return;
-    const hit = cache.get(agentId);
-    if (hit !== undefined) {
-      setD(hit);
-      return;
-    }
+    if (!agentId || cache.get(agentId) !== undefined) return;
     let live = true;
     let p = inflight.get(agentId);
     if (!p) {
-      p = api.get(agentId).then((r) => {
+      p = fetchDetails(agentId).then((r) => {
         cache.set(agentId, r);
         inflight.delete(agentId);
         return r;
@@ -46,7 +42,9 @@ export function useAgentDetails(api: PhoneAgentsApi, agentId: string | null): Ag
       live = false;
     };
   }, [agentId]);
-  return d;
+  // A record already here wins over what this hook last heard: it is what the hook would have been told.
+  const hit = agentId ? cache.get(agentId) : undefined;
+  return hit !== undefined ? hit : d;
 }
 
 /**

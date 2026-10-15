@@ -8,8 +8,6 @@ import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
 import { withHistoryLog } from "./widgetRows";
 
-import type { AgentDetails } from "../agents/Agents";
-
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/useAttention.ts";
@@ -45,17 +43,19 @@ export type { VisibleWidget } from "./view";
  * reducer the mod uses, then go up the wire.
  */
 /** A `recall` reply as the snapshot the view holds, or null when the mod refused or did not answer. */
-const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null =>
-  r.ok
-    ? {
-        cards: r.reply.cards,
-        rejected: r.reply.rejected,
-        worker: r.reply.worker,
-        leads: r.reply.leads ?? [],
-        dismissedLeads: r.reply.dismissedLeads ?? [],
-        lessons: r.reply.lessons ?? [],
-      }
-    : null;
+const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null => {
+  if (!r.ok) return null;
+  // The reply as a mod of any age sends it: leads and lessons may be missing.
+  const reply: Partial<RecallSnapshot> & Pick<RecallSnapshot, "cards" | "rejected" | "worker"> = r.reply;
+  return {
+    cards: reply.cards,
+    rejected: reply.rejected,
+    worker: reply.worker,
+    leads: reply.leads ?? [],
+    dismissedLeads: reply.dismissedLeads ?? [],
+    lessons: reply.lessons ?? [],
+  };
+};
 
 /** Captures kept while the socket is closed; the oldest go first. */
 const CAPTURES_HELD = 50;
@@ -123,7 +123,7 @@ export function useDesk() {
     };
     hot.on("vite:error", onError);
     return () => hot.off("vite:error", onError);
-  }, []);
+  }, [reportWidgetError]);
 
   const requestDesks = () => {
     send({ type: "list_desks" });
@@ -191,8 +191,8 @@ export function useDesk() {
     const inv = inverseOf(g);
     if (inv) {
       // Drags arrive as a stream of moves; keep one undo step per widget per burst.
-      const top = undoStack.current[undoStack.current.length - 1];
-      if (!(top && top.kind === inv.kind && top.id === inv.id && Date.now() - lastInteractionRef.current < 400)) undoStack.current.push(inv);
+      const top = undoStack.current.at(-1);
+      if (!(top?.kind === inv.kind && top.id === inv.id && Date.now() - lastInteractionRef.current < 400)) undoStack.current.push(inv);
       if (undoStack.current.length > 60) undoStack.current.shift();
     }
     apply(g);
@@ -269,13 +269,13 @@ export function useDesk() {
     get: (agentId: string) =>
       request("agent_get", { agentId }, 10_000).then((r) =>
         r.ok
-          ? ({
+          ? {
               agent: r.reply.agent,
               files: r.reply.files,
               skills: r.reply.skills,
               hasProfile: r.reply.hasProfile,
               lastCommit: r.reply.lastCommit,
-            } as AgentDetails)
+            }
           : null,
       ),
     read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
@@ -340,7 +340,8 @@ export function useDesk() {
         agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
         // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
         openUrl: (url) => {
-          if (inTauri) void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err) => console.warn("loki: open sign-in", err));
+          if (inTauri)
+            void import("@tauri-apps/plugin-opener").then(({ openUrl }) => openUrl(url)).catch((err: unknown) => console.warn("loki: open sign-in", err));
           else window.open(url, "_blank", "noopener,noreferrer");
         },
       }),
@@ -483,7 +484,9 @@ export function useDesk() {
     /** The models used lately, for the picker's quick picks; `used` records a pick (the mod keeps the list for every window and phone). */
     models: {
       recent: recentModels,
-      used: (handle: string) => void (recentModels[0] !== handle && send({ type: "models_recent_add", handle })),
+      used: (handle: string) => {
+        if (recentModels[0] !== handle) send({ type: "models_recent_add", handle });
+      },
       /** A message went into a chat: its model moves to the front of the recent list (least recently used). */
       sentIn: (conversationId: string, agentId: string) => {
         const model = modelOf(scopeFor(conversationId, agentId));

@@ -1,6 +1,6 @@
 import { AlwaysAllowed, Mcp, type McpApi } from "./Mcp";
 import type { Replies, RequestResult } from "../../../core/frames.ts";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { inTauri, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { lokiUpgrade, osWords, runsOn } from "../shell/osWords";
@@ -355,9 +355,10 @@ function ImportFact({
   const [state, setState] = useState<Replies["chat_import_status"] | null>(null);
   const [asked, setAsked] = useState(0);
   // When the page opens and after each run below; not on `status` itself, a new function on every render of the desk.
+  const readStatus = useEffectEvent(() => status?.());
   useEffect(() => {
     let alive = true;
-    void status?.().then((r) => {
+    void readStatus()?.then((r) => {
       if (alive && r.ok) setState(r.reply);
     });
     return () => {

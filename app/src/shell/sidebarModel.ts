@@ -161,11 +161,11 @@ export function sidebarModel(
   if (pinned.length) sections.push(section("pinned", "Pinned", null, pinned.map(row)));
   const groups = new Map<string, DeskSummary[]>();
   for (const d of shown) if (!d.pinned) groups.set(d.agentId ?? "", [...(groups.get(d.agentId ?? "") ?? []), d]);
-  const order = [...groups.keys()].sort(
-    (a, b) => (latest.get(b) ?? "").localeCompare(latest.get(a) ?? "") || agentName(groups.get(a)![0]).localeCompare(agentName(groups.get(b)![0])),
+  const order = [...groups].sort(
+    ([a, listA], [b, listB]) => (latest.get(b) ?? "").localeCompare(latest.get(a) ?? "") || agentName(listA[0]).localeCompare(agentName(listB[0])),
   );
-  for (const k of order) {
-    const list = groups.get(k)!.sort((a, b) => Number(b.conversationId === "default") - Number(a.conversationId === "default") || byRecent(a, b));
+  for (const [k, desksOfAgent] of order) {
+    const list = desksOfAgent.sort((a, b) => Number(b.conversationId === "default") - Number(a.conversationId === "default") || byRecent(a, b));
     sections.push(section(`agent:${k}`, agentName(list[0]), k || null, list.map(row)));
   }
   const archived = desks.filter((d) => d.status !== "live" && matches(d)).map(row);

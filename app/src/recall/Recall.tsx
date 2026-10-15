@@ -229,10 +229,11 @@ function ListsView({
           lessons={snap.lessons}
           worker={snap.worker}
           starting={recall.starting}
-          onStart={async (id) => {
-            const lesson = await recall.startLead(id);
-            if (lesson) onBegin(lesson.agentId, lesson.conversationId, lesson.brief, lesson.title);
-          }}
+          onStart={(id) =>
+            void recall.startLead(id).then((lesson) => {
+              if (lesson) onBegin(lesson.agentId, lesson.conversationId, lesson.brief, lesson.title);
+            })
+          }
           onResume={(s) => onBegin(s.agentId, s.conversationId, lessonBrief(s.lead), learnTitle(s.lead.title))}
           onDismiss={(id) => void recall.dismissLead(id)}
           onOpen={onOpenDesk}

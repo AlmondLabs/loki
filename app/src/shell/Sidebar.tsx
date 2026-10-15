@@ -49,7 +49,7 @@ const currentWindow = () => import("@tauri-apps/api/window").then(({ getCurrentW
 function windowAction(action: WindowAction) {
   void currentWindow()
     .then((win) => win[action]())
-    .catch((e) => console.warn(`loki: window ${action}`, e));
+    .catch((e: unknown) => console.warn(`loki: window ${action}`, e));
 }
 
 /** Whether the window is maximised, read at mount and again on every resize (maximising, restoring, a snap). */
@@ -66,7 +66,7 @@ function useMaximized(): boolean {
         if (live) off = unlisten;
         else unlisten();
       })
-      .catch((e) => console.warn("loki: window maximised", e));
+      .catch((e: unknown) => console.warn("loki: window maximised", e));
     return () => {
       live = false;
       off?.();

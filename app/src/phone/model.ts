@@ -256,7 +256,7 @@ export function liveDesksLabel(n: number): string {
 export function modelBits(model: string | null | undefined, settings: Record<string, unknown>): string[] {
   return [
     model ?? null,
-    settings.effort ? `effort ${String(settings.effort)}` : null,
+    settings.effort ? `effort ${typeof settings.effort === "string" ? settings.effort : JSON.stringify(settings.effort)}` : null,
     settings.thinking ? "thinking" : null,
     settings.context_window_limit ? `${Math.round(Number(settings.context_window_limit) / 1000)}k context` : null,
   ].filter(Boolean) as string[];
@@ -278,8 +278,12 @@ export function memoryFolders(files: Array<{ path: string; bytes: number; modifi
     if (f.path.startsWith("skills/") || f.path === "profile.png") continue;
     const i = f.path.indexOf("/");
     const g = i >= 0 ? f.path.slice(0, i) : "";
-    if (!m.has(g)) m.set(g, { name: g, files: [] });
-    m.get(g)!.files.push({ path: f.path, name: g ? f.path.slice(g.length + 1) : f.path, bytes: f.bytes, modifiedAt: f.modifiedAt });
+    let group = m.get(g);
+    if (!group) {
+      group = { name: g, files: [] };
+      m.set(g, group);
+    }
+    group.files.push({ path: f.path, name: g ? f.path.slice(g.length + 1) : f.path, bytes: f.bytes, modifiedAt: f.modifiedAt });
   }
   const rank = (g: string) => (g === "system" ? 0 : g === "" ? 2 : 1);
   return [...m.values()].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));

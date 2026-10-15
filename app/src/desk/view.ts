@@ -14,7 +14,7 @@ export interface VisibleWidget {
  * first-run hint. `loaded` says the desk frame for this scope has arrived; before that ownCount is not
  * meaningful.
  */
-export function deskView(scope: Scope, desks: Record<Scope, DeskState>, widgets: Record<Scope, WidgetManifestEntry[]>) {
+export function deskView(scope: Scope, desks: Partial<Record<Scope, DeskState>>, widgets: Partial<Record<Scope, WidgetManifestEntry[]>>) {
   const visible: VisibleWidget[] = [];
   const closed: WidgetManifestEntry[] = [];
   const scopes = scope === SHARED_SCOPE ? [SHARED_SCOPE] : [SHARED_SCOPE, scope];

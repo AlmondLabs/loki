@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { modBase } from "../desk/env";
 import { CODE_LENGTH, codeFromUrl, deviceName, normalizeCode } from "./model";
 import { Button, Field } from "../components";
@@ -14,41 +14,43 @@ export interface Me {
  * from "/" with no query, so the field is always there. Six characters typed is the tap.
  */
 export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
-  /** The field starts with the code the QR put in the address; the mount effect below redeems it. */
-  const [code, setCode] = useState(() => codeFromUrl(location.href) ?? "");
-  const [busy, setBusy] = useState(false);
+  /** The field starts with the code the QR put in the address; the mount effect below redeems it, busy from the start. */
+  const [fromUrl] = useState(() => codeFromUrl(location.href));
+  const [code, setCode] = useState(fromUrl ?? "");
+  const [busy, setBusy] = useState(fromUrl?.length === CODE_LENGTH);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const submit = async (c: string) => {
+  /** Ask the Mac to pair this phone with the code; the caller has set `busy`. */
+  const redeem = (c: string) =>
+    fetch(`${modBase()}/pair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ code: c, name: deviceName(navigator.userAgent, new Date(), navigator.maxTouchPoints) }),
+    })
+      .then(async (r) => {
+        if (r.ok) {
+          history.replaceState(null, "", location.pathname); // the code is spent; a reload must not redeem it again
+          onPaired((await r.json()) as Me);
+          return;
+        }
+        if (r.status === 404) setError("That code has expired. Open Settings › phone on the Mac for a new one.");
+        else setError(`The Mac answered ${r.status}. Try again from Settings › phone.`);
+      })
+      .catch(() => setError("The Mac did not answer. Same Wi‑Fi, and is it awake?"))
+      .finally(() => setBusy(false));
+  const submit = (c: string) => {
     if (c.length !== CODE_LENGTH || busy) return;
     setBusy(true);
     setError(null);
-    try {
-      const r = await fetch(`${modBase()}/pair`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ code: c, name: deviceName(navigator.userAgent, new Date(), navigator.maxTouchPoints) }),
-      });
-      if (r.ok) {
-        history.replaceState(null, "", location.pathname); // the code is spent; a reload must not redeem it again
-        onPaired((await r.json()) as Me);
-        return;
-      }
-      if (r.status === 404) setError("That code has expired. Open Settings › phone on the Mac for a new one.");
-      else setError(`The Mac answered ${r.status}. Try again from Settings › phone.`);
-    } catch {
-      setError("The Mac did not answer. Same Wi‑Fi, and is it awake?");
-    } finally {
-      setBusy(false);
-    }
+    return redeem(c);
   };
+  const redeemFromUrl = useEffectEvent((c: string) => void redeem(c));
   useEffect(() => {
-    const fromUrl = codeFromUrl(location.href);
-    if (fromUrl) void submit(fromUrl);
-    else inputRef.current?.focus();
-  }, []);
+    if (!fromUrl) inputRef.current?.focus();
+    else if (fromUrl.length === CODE_LENGTH) redeemFromUrl(fromUrl);
+  }, [fromUrl]);
 
   const onChange = (raw: string) => {
     const next = normalizeCode(raw);

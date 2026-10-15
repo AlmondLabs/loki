@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, type RefObject } from "react";
 import { draftKey } from "../shared/drafts";
 import { createRecents } from "../shared/recents";
 
@@ -20,7 +20,11 @@ export { EMPTY_DRAFT, createDrafts, draftKey, drafts, useDraft, type Draft, type
 // ---- Prefill --------------------------------------------------------------------------------------
 
 /** A `?prefill=` held for the one conversation it was addressed to. */
-export type Prefill = { key: string; text: string; tick: number };
+export interface Prefill {
+  key: string;
+  text: string;
+  tick: number;
+}
 
 /**
  * The held prefill after the route changes: a new `?prefill=` replaces it (with a fresh tick); the same
@@ -115,7 +119,7 @@ export function createFocusMemory() {
       // the id first; a remounted screen may give it a new id, so data-launch is the fallback, not an alternative
       const byId = hit.id ? document.getElementById(hit.id) : null;
       if (byId || !hit.launch) return byId;
-      const launch = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(hit.launch) : hit.launch.replace(/["\\]/g, "\\$&");
+      const launch = typeof CSS !== "undefined" ? CSS.escape(hit.launch) : hit.launch.replace(/["\\]/g, "\\$&");
       return document.querySelector(`[data-launch="${launch}"]`);
     },
   };
@@ -152,11 +156,14 @@ export function restoreFocus(root: Element, hash: string, returning: boolean, me
 /** Runs restoreFocus when `routeKey` changes, after the new screen has rendered; not on first load. */
 export function useFocusOnRoute(root: RefObject<HTMLElement | null>, routeKey: string, returning: boolean) {
   const first = useRef(true);
+  const restore = useEffectEvent((key: string) => {
+    if (root.current) restoreFocus(root.current, key, returning);
+  });
   useEffect(() => {
     if (first.current) {
       first.current = false;
       return;
     }
-    if (root.current) restoreFocus(root.current, routeKey, returning);
+    restore(routeKey);
   }, [routeKey]);
 }

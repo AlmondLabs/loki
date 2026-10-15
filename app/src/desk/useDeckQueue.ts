@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { inboxQueue, mergeQueue, type Decision } from "../../../core/attention/queue.ts";
 
@@ -14,10 +14,11 @@ export function useDeckQueue(items: AttentionItem[], filter: string | null = nul
   const filterRef = useRef(filter);
 
   // Live merge while open.
+  const merge = useEffectEvent((refilter: boolean) => setQueue((q) => mergeQueue(refilter ? [] : q, items, decided)));
   useEffect(() => {
     const refilter = filterRef.current !== filter;
     filterRef.current = filter;
-    setQueue((q) => mergeQueue(refilter ? [] : q, items, decided));
+    merge(refilter);
   }, [items, filter]);
 
   return { queue, setQueue, decided, setDecided };

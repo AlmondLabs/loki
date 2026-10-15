@@ -40,20 +40,20 @@ export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
  */
 export function useDeskSocket() {
   const [scope, setScope] = useState<Scope>(() => scopeFor(readSession().desk));
-  const [desks, setDesks] = useState<Record<Scope, DeskState>>({});
-  const [widgets, setWidgets] = useState<Record<Scope, WidgetManifestEntry[]>>({});
+  const [desks, setDesks] = useState<Partial<Record<Scope, DeskState>>>({});
+  const [widgets, setWidgets] = useState<Partial<Record<Scope, WidgetManifestEntry[]>>>({});
   const [connection, setConnection] = useState<Connection>("connecting");
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null);
   const [deskList, setDeskList] = useState<DeskSummary[]>([]);
   /** A desks frame has arrived: an empty list is then "no desks", not "not asked yet" (the phone's Home says which). */
   const [desksLoaded, setDesksLoaded] = useState(false);
-  const [titles, setTitles] = useState<Record<Scope, string>>({});
-  const [statuses, setStatuses] = useState<Record<Scope, DeskStatus>>({});
-  const [agentNames, setAgentNames] = useState<Record<Scope, string>>({});
-  const [agentIds, setAgentIds] = useState<Record<Scope, string>>({});
-  const [models, setModels] = useState<Record<Scope, string>>({});
-  const [reasoningEfforts, setReasoningEfforts] = useState<Record<Scope, ReasoningEffort>>({});
-  const [modes, setModes] = useState<Record<Scope, string>>({});
+  const [titles, setTitles] = useState<Partial<Record<Scope, string>>>({});
+  const [statuses, setStatuses] = useState<Partial<Record<Scope, DeskStatus>>>({});
+  const [agentNames, setAgentNames] = useState<Partial<Record<Scope, string>>>({});
+  const [agentIds, setAgentIds] = useState<Partial<Record<Scope, string>>>({});
+  const [models, setModels] = useState<Partial<Record<Scope, string>>>({});
+  const [reasoningEfforts, setReasoningEfforts] = useState<Partial<Record<Scope, ReasoningEffort>>>({});
+  const [modes, setModes] = useState<Partial<Record<Scope, string>>>({});
   /** Who listens for the chats' events, which loki's daemon sends on this socket. */
   const chatListeners = useRef(new Set<(p: Pushes["chat_event"]) => void>());
   /** Who hears that the socket opened again after it dropped (the daemon may have restarted meanwhile). */
@@ -149,18 +149,18 @@ export function useDeskSocket() {
         const msg = raw as PushFrame;
         switch (msg.type) {
           case "desk": {
-            const s = msg.scope as Scope;
+            const s = msg.scope;
             console.info(`desk frame: ${s} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
             const { title, status, agentName, agentId, model, mode } = msg;
             if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
-            if (typeof status === "string") setStatuses((t) => withScope(t, s, status as DeskStatus));
+            if (typeof status === "string") setStatuses((t) => withScope(t, s, status));
             if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
             if (typeof agentId === "string" && agentId) setAgentIds((t) => withScope(t, s, agentId));
             if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
             setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
             if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
-            setDesks((d) => ({ ...d, [s]: msg.state as DeskState }));
-            setWidgets((w) => ({ ...w, [s]: msg.widgets as WidgetManifestEntry[] }));
+            setDesks((d) => ({ ...d, [s]: msg.state }));
+            setWidgets((w) => ({ ...w, [s]: msg.widgets }));
             const pending = pendingRef.current;
             pendingRef.current = [];
             for (const g of pending) ws.send(JSON.stringify({ type: "gesture", gesture: g }));
@@ -170,25 +170,25 @@ export function useDeskSocket() {
             break;
           }
           case "state":
-            setDesks((d) => ({ ...d, [msg.scope as Scope]: msg.state as DeskState }));
+            setDesks((d) => ({ ...d, [msg.scope]: msg.state }));
             break;
           case "widgets":
-            setWidgets((w) => ({ ...w, [msg.scope as Scope]: msg.widgets as WidgetManifestEntry[] }));
+            setWidgets((w) => ({ ...w, [msg.scope]: msg.widgets }));
             break;
           case "camera":
             if (typeof msg.widgetId === "string" && Date.now() - lastInteractionRef.current > NO_YANK_MS) {
               const widgetId = msg.widgetId;
-              const widgetIds = Array.isArray(msg.widgetIds) && msg.widgetIds.length ? (msg.widgetIds as string[]) : [widgetId];
+              const widgetIds = Array.isArray(msg.widgetIds) && msg.widgetIds.length ? msg.widgetIds : [widgetId];
               setCameraTarget((t) => ({ widgetId, widgetIds, nonce: (t?.nonce ?? 0) + 1 }));
             }
             break;
           case "switch_desk": {
-            const next = msg.scope as Scope;
+            const next = msg.scope;
             if (next && next !== scope) switchDesk(next);
             break;
           }
           case "desks":
-            setDeskList((list) => keepSame(list, msg.desks as DeskSummary[]));
+            setDeskList((list) => keepSame(list, msg.desks));
             setDesksLoaded(true);
             break;
           case "chat_event":
@@ -214,7 +214,7 @@ export function useDeskSocket() {
               setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expiresAt });
             break;
           case "devices":
-            setDevices(Array.isArray(msg.devices) ? (msg.devices as PairedDevice[]) : []);
+            setDevices(Array.isArray(msg.devices) ? msg.devices : []);
             break;
           case "app_build":
             if (typeof msg.build === "string") setServedBuild(msg.build);
@@ -233,20 +233,23 @@ export function useDeskSocket() {
             if (entry && watchedRef.current.has(entry.scope)) ws.send(JSON.stringify({ type: "desk_get", scope: entry.scope }));
             break;
           }
-          case "seen":
+          case "seen": {
+            // A mod of any age: one from before the viewed marker or focus sends neither.
+            const { seen, viewed, focus } = msg as Partial<Pushes["seen"]>;
             // Every mark anywhere broadcasts the whole frame: a map it repeats keeps its object, so nothing re-renders on it.
-            setSeenMap((m) => keepSame(m, (msg.seen as Record<string, string>) ?? {}));
+            setSeenMap((m) => keepSame(m, seen ?? {}));
             // A mod from before the viewed marker sends none: keep what we have rather than forget every look.
-            if (msg.viewed && typeof msg.viewed === "object") setViewedMap((m) => keepSame(m, msg.viewed as Record<string, string>));
+            if (viewed && typeof viewed === "object") setViewedMap((m) => keepSame(m, viewed));
             // A mod from before focus sends none: keep what we have.
-            if (msg.focus && typeof msg.focus === "object") setFocusMap((m) => keepSame(m, msg.focus as Record<string, FocusEntry>));
+            if (focus && typeof focus === "object") setFocusMap((m) => keepSame(m, focus));
             break;
+          }
           case "desk_title": {
             // Sent again on every title refresh: a repeat keeps each map as it is.
-            const s = msg.scope as Scope;
+            const s = msg.scope;
             const { title, status, agentName, model, mode } = msg;
             if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
-            if (typeof status === "string") setStatuses((t) => withScope(t, s, status as DeskStatus));
+            if (typeof status === "string") setStatuses((t) => withScope(t, s, status));
             if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
             if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
             setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
@@ -373,7 +376,7 @@ export function useDeskSocket() {
 }
 
 /** The map with one scope set; the same object when it already holds that value. */
-export function withScope<T>(current: Record<Scope, T>, scope: Scope, value: T): Record<Scope, T> {
+export function withScope<T>(current: Partial<Record<Scope, T>>, scope: Scope, value: T): Partial<Record<Scope, T>> {
   return current[scope] === value ? current : { ...current, [scope]: value };
 }
 
@@ -393,10 +396,9 @@ export function keepSame<T>(prev: T, next: T): T {
 }
 
 /** The efforts map with one scope set, or cleared when the value is not a level. */
-export function withReasoningEffort(current: Record<Scope, ReasoningEffort>, scope: Scope, value: unknown): Record<Scope, ReasoningEffort> {
+export function withReasoningEffort(current: Partial<Record<Scope, ReasoningEffort>>, scope: Scope, value: unknown): Partial<Record<Scope, ReasoningEffort>> {
   if (isReasoningEffort(value)) return current[scope] === value ? current : { ...current, [scope]: value };
   if (!(scope in current)) return current;
-  const next = { ...current };
-  delete next[scope];
+  const { [scope]: _cleared, ...next } = current;
   return next;
 }

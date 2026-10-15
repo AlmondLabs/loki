@@ -48,7 +48,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
       g = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, samples: [{ x: e.clientX, t: e.timeStamp }] };
     };
     const move = (e: PointerEvent) => {
-      if (!g || g.id !== e.pointerId) return;
+      if (g?.id !== e.pointerId) return;
       const dx = e.clientX - g.x;
       const dy = e.clientY - g.y;
       if (!g.on) {
@@ -70,7 +70,7 @@ export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolea
     };
     const up = (e: PointerEvent) => {
       const d = g;
-      if (!d || d.id !== e.pointerId) return;
+      if (d?.id !== e.pointerId) return;
       g = null;
       if (!d.on) return;
       const dx = Math.max(0, e.clientX - d.x);

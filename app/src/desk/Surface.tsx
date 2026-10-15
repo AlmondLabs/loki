@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import type { ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
+import type { ModelEntry } from "../chat/ModelPicker";
 import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { getPath, mergeData } from "../../../core/desk-core.ts";
 import { KIT_COMPONENTS } from "../kit";
@@ -64,7 +65,7 @@ interface SurfaceProps extends DeskConversationHandlers {
   /** Bumped by the shell (⌘F) to open the chat's find bar. */
   findChat?: number;
   chatPrefill?: { text: string; tick: number } | null;
-  models?: Array<import("../chat/ModelPicker").ModelEntry> | null;
+  models?: ModelEntry[] | null;
   modelPickerTick?: number;
   modeMenuTick?: number;
 }
@@ -83,10 +84,11 @@ export function Surface(props: SurfaceProps) {
   // centres it). Not while the Messages tab shows: a hidden chat is neither opened nor centred.
   const autoOpened = useRef(new Set<string>());
   const emptyDesk = loaded && connection === "open" && ownCount === 0;
+  const openChat = useEffectEvent(() => onChatOpen(true));
   useEffect(() => {
     if (!active || !emptyDesk || autoOpened.current.has(scope)) return;
     autoOpened.current.add(scope);
-    onChatOpen(true);
+    openChat();
   }, [active, emptyDesk, scope]);
   const toggleChatWidth = () => onChatWidth(chatWidth === "wide" ? "narrow" : "wide");
 
@@ -99,9 +101,13 @@ export function Surface(props: SurfaceProps) {
   // A frame request (a widget row chosen in the thread): once the Desk tab shows and its layout has settled
   // (the sidebar hides, so the canvas is wider than it was), frame the widget; it may mount a beat later.
   const framed = useRef(0);
+  const frameNonce = frameRequest?.nonce;
+  const frameWidgetId = frameRequest?.widgetId;
+  const frameWidget = useEffectEvent((id: string) => focusWidget(id));
   useEffect(() => {
-    if (!active || !frameRequest || frameRequest.nonce === framed.current) return;
-    const { widgetId, nonce } = frameRequest;
+    if (!active || frameNonce === undefined || frameWidgetId === undefined || frameNonce === framed.current) return;
+    const widgetId = frameWidgetId;
+    const nonce = frameNonce;
     // One timer, cleared on the way out: the first look after the settle, then every 100ms for two seconds.
     const started = Date.now();
     const timer = setInterval(() => {
@@ -111,10 +117,10 @@ export function Surface(props: SurfaceProps) {
       if (!found && waited < FRAME_SETTLE_MS + 2000) return;
       clearInterval(timer);
       framed.current = nonce;
-      if (found) focusWidget(widgetId);
+      if (found) frameWidget(widgetId);
     }, 60);
     return () => clearInterval(timer);
-  }, [active, frameRequest?.nonce]);
+  }, [active, frameNonce, frameWidgetId]);
 
   const trashWidget = (id: string) => {
     const w = visible.find((v) => v.entry.id === id);

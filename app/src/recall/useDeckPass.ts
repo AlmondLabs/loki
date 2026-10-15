@@ -13,13 +13,13 @@ export function useDeckPass(cards: CardWithSchedule[]) {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const queue = useMemo(() => reviewQueue(cards).filter((c) => !passed.has(c.card.id)), [cards, passed]);
-  const current = queue.find((c) => c.card.id === currentId) ?? queue[0];
+  const current = queue.find((c) => c.card.id === currentId) ?? queue.at(0);
   const revealed = !!current && revealedId === current.card.id;
   const reveal = () => current && setRevealedId(current.card.id);
   /** Leave the current card behind; the one after it in the queue is next. */
   const advance = () => {
     if (!current) return;
-    const next = queue[queue.indexOf(current) + 1] ?? queue.find((c) => c !== current);
+    const next = queue.at(queue.indexOf(current) + 1) ?? queue.find((c) => c !== current);
     setPassed((p) => new Set(p).add(current.card.id));
     setCurrentId(next?.card.id ?? null);
   };

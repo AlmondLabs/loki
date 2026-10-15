@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { runAction } from "./keymap";
@@ -303,7 +303,10 @@ export function WelcomeView({
 }
 
 /** ⏎ / ⌘⏎ in Tasks: which tasks, and whether to dispatch. Consumed by the picker (or a new desk). */
-export type Picker = { ids: string[]; start: boolean };
+export interface Picker {
+  ids: string[];
+  start: boolean;
+}
 
 /** The task list's target picker: the desks tree (DeskTree), choosing a target. A new desk carries the tasks along through `pendingAssignRef` (named as a ref so the compiler accepts the write in the handler). */
 export function PickerTree({
@@ -320,7 +323,7 @@ export function PickerTree({
   desk: Desk;
   catchUp: CatchUp;
   onAssign: (target: AssignTarget, ids: string[], start: boolean) => Promise<void>;
-  pendingAssignRef: MutableRefObject<Picker | null>;
+  pendingAssignRef: RefObject<Picker | null>;
   onNewDesk: (agentId: string | null, name: string) => void;
 }) {
   return (

@@ -195,7 +195,7 @@ export function RowSection({
       {lead ?? <Icon name={icon} size={18} />}
       <span className="loki-phone-section-title">{title}</span>
       {count != null && count > 0 && <span className="loki-phone-section-count">{badgeCount(count)}</span>}
-      {(onTitle || onToggle) && (
+      {(onTitle ?? onToggle) && (
         <Icon
           name={onTitle ? "chevron-right" : "chevron-down"}
           size={18}

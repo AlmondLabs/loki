@@ -40,7 +40,7 @@ export function useChatInset({
     const api = viewportRef.current;
     if (!delta || !api) return;
     const { positionX, positionY, scale: s } = api.instance.state;
-    api.setTransform(positionX + delta, positionY, s, glide(220), "easeOut");
+    void api.setTransform(positionX + delta, positionY, s, glide(220), "easeOut");
   }, [inset, viewportRef]);
 
   // Each desk starts at 1:1 with the sheet's origin at the chat's edge, so a layout that
@@ -49,7 +49,7 @@ export function useChatInset({
   useEffect(() => {
     if (!loaded || cameraReset.current === scope) return;
     cameraReset.current = scope;
-    viewportRef.current?.setTransform(insetRef.current.left, 0, 1, 0);
+    void viewportRef.current?.setTransform(insetRef.current.left, 0, 1, 0);
   }, [loaded, scope, viewportRef]);
 
   /** The reopen bubble sits on the chat's side; the minimised tray keeps clear of both. */

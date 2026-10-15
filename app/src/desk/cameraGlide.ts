@@ -32,7 +32,7 @@ export function glideTo(api: ReactZoomPanPinchRef, x: number, y: number, scale: 
   const step = (now: number) => {
     const t = Math.min(total, now - start);
     const p = t >= total ? 1 : springAt(spring, t / 1000);
-    api.setTransform(x0 + (x - x0) * p, y0 + (y - y0) * p, s0 + (scale - s0) * p, 0);
+    void api.setTransform(x0 + (x - x0) * p, y0 + (y - y0) * p, s0 + (scale - s0) * p, 0);
     frame = t >= total ? 0 : requestAnimationFrame(step);
   };
   frame = requestAnimationFrame(step);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
@@ -73,12 +73,18 @@ export function folderLabel(path: string, os: Platform = platform): string {
 }
 
 type FolderStatus = { ok: boolean; branch: string | null; reason?: string } | null;
-type FolderOption = { path: string; group: "match" | "mine" | "others" };
-type FolderSuggestion = { path: string; source: "current" | "recent" };
+interface FolderOption {
+  path: string;
+  group: "match" | "mine" | "others";
+}
+interface FolderSuggestion {
+  path: string;
+  source: "current" | "recent";
+}
 
 /** The predictable hierarchy for an untouched folder field. */
 export function suggestedFolder(
-  recent: Record<string, string[]>,
+  recent: Partial<Record<string, string[]>>,
   currentFolder: string | null,
   agentId: string | null,
   currentAgentId: string | null,
@@ -126,8 +132,8 @@ export function useFolderField({
   currentAgentId: string | null;
   currentConversationKey: string | null;
 }) {
-  const [folder, setFolder] = useState("");
-  const [source, setSource] = useState<FolderSuggestion["source"] | null>(null);
+  /** What you typed or chose; until then the field shows the suggestion. */
+  const [ownFolder, setOwnFolder] = useState("");
   const [touched, setTouched] = useState(false);
   const [recent, setRecent] = useState<Record<string, string[]>>({});
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
@@ -139,14 +145,19 @@ export function useFolderField({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Open: every agent's recent folders, and the folder of the chat this opened from.
+  const readRecent = useEffectEvent(() =>
+    folders.recent().then((r) => ({
+      byAgent: r.byAgent,
+      current: currentConversationKey ? (r.byConversation[currentConversationKey] ?? null) : null,
+    })),
+  );
   useEffect(() => {
     let gone = false;
-    void folders
-      .recent()
+    void readRecent()
       .then((r) => {
         if (gone) return;
         setRecent(r.byAgent);
-        setCurrentFolder(currentConversationKey ? (r.byConversation[currentConversationKey] ?? null) : null);
+        setCurrentFolder(r.current);
       })
       .catch(() => {}) // no recent folders to offer; Browse still works
       .finally(() => {
@@ -158,39 +169,35 @@ export function useFolderField({
   }, []);
 
   // The folder follows context until you edit it: the current chat first, then this agent's latest.
-  useEffect(() => {
-    if (touched) return;
-    const suggestion = suggestedFolder(recent, currentFolder, agentId, currentAgentId);
-    setFolder(suggestion?.path ?? "");
-    setSource(suggestion?.source ?? null);
-  }, [agentId, recent, currentFolder]);
+  const suggestion = touched ? null : suggestedFolder(recent, currentFolder, agentId, currentAgentId);
+  const folder = touched ? ownFolder : (suggestion?.path ?? "");
+  const source = suggestion?.source ?? null;
 
-  // Validate (and complete) as you type, debounced.
+  // Validate (and complete) as you type, debounced; an empty field has nothing to check or offer.
+  const trimmed = folder.trim();
+  if (!trimmed && (status !== null || matches.length > 0)) {
+    setStatus(null);
+    setMatches([]);
+  }
+  const validate = useEffectEvent((f: string) => {
+    void folders.check(f).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
+    if (touched) void folders.complete(f).then(setMatches);
+  });
   useEffect(() => {
-    const f = folder.trim();
-    if (!f) {
-      setStatus(null);
-      setMatches([]);
-      return;
-    }
-    const t = setTimeout(() => {
-      void folders.check(f).then((r) => setStatus({ ok: r.ok, branch: r.branch, reason: r.reason }));
-      if (touched) void folders.complete(f).then(setMatches);
-    }, 160);
+    if (!trimmed) return;
+    const t = setTimeout(() => validate(trimmed), 160);
     return () => clearTimeout(t);
-  }, [folder]);
+  }, [trimmed, folder]);
 
   const options = useMemo(() => folderOptions(recent, matches, agentId, touched), [recent, matches, agentId, touched]);
   /** A folder chosen from the list (or the chooser) is yours: it stops following the agent and the list closes. */
   const choose = (path: string) => {
-    setFolder(path);
-    setSource(null);
+    setOwnFolder(path);
     setTouched(true);
     setListOpen(false);
   };
   const type = (value: string) => {
-    setFolder(value);
-    setSource(null);
+    setOwnFolder(value);
     setTouched(true);
     setListOpen(true);
   };
@@ -208,7 +215,7 @@ export function useFolderField({
 }
 
 function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, currentConversationKey, initialName = "", folders, onCreate }: NewDeskProps) {
-  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents[0]?.id ?? null);
+  const [agentId, setAgentId] = useState<string | null>(defaultAgentId ?? agents.at(0)?.id ?? null);
   const [name, setName] = useState(initialName);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -218,8 +225,9 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
   const nameRef = useRef<HTMLInputElement>(null);
 
   // Open: the caret in the first field still to fill.
+  const focusFirst = useEffectEvent(() => (initialName ? field.inputRef : nameRef).current?.focus());
   useEffect(() => {
-    const t = setTimeout(() => (initialName ? field.inputRef : nameRef).current?.focus(), 0);
+    const t = setTimeout(() => focusFirst(), 0);
     return () => clearTimeout(t);
   }, []);
 
@@ -333,10 +341,11 @@ export function ChangeFolder({
   const [moving, setMoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const busy: false | "creating" | "picking" = moving ? "creating" : field.picking ? "picking" : false;
+  const folderInput = field.inputRef;
   useEffect(() => {
-    const t = setTimeout(() => field.inputRef.current?.select(), 0);
+    const t = setTimeout(() => folderInput.current?.select(), 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [folderInput]);
   const target = folder.trim();
   const canMove = !!target && target !== currentFolder && status?.ok === true && !busy;
   const move = async () => {

@@ -9,7 +9,11 @@ import { spring } from "../kit/spring";
  * layout itself, or there is no visualViewport, nothing changes and 100dvh does the work.
  */
 
-type VisualViewportLike = { height: number; offsetTop: number; scale: number };
+interface VisualViewportLike {
+  height: number;
+  offsetTop: number;
+  scale: number;
+}
 
 /**
  * How many CSS pixels of the layout the keyboard takes: the layout height the visual viewport no longer
