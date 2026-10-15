@@ -18,7 +18,7 @@ import {
   type TaskSource,
 } from "../core/task-source.ts";
 import { createArgs, noteArgs, TaskStore } from "../mod/tasks.ts";
-import { MessageTasks, addingFrom, type MessageTasksValue, type TaskApi } from "../app/src/tasks/messageTasks.tsx";
+import { MessageTasks, addingFrom, type MessageTasksValue, type TaskApi } from "../app/src/tasks/message-tasks.tsx";
 import { Transcript } from "../app/src/chat/Transcript.tsx";
 import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 

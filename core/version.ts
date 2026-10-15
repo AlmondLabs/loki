@@ -10,6 +10,7 @@ export function parseVersion(v: string): [number, number, number] | null {
 
 /** Which channel a build is on, read off its version: a nightly carries the merge it was built from. */
 export type Channel = "stable" | "nightly";
+/** The channel a version string is on: nightly when it carries a `-nightly.` merge, stable otherwise. */
 export const channelOf = (version: string): Channel => (version.includes("-nightly.") ? "nightly" : "stable");
 
 /** The nightly version inside a release title such as "loki 2026.1011.1-nightly.a96ee85", or null. */

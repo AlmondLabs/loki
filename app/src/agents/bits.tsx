@@ -1,6 +1,6 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MARKDOWN_COMPONENTS } from "../chat/markdownImage";
+import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
 import { stripFrontmatter } from "../phone/model";
 
 /** A section's head, in the label voice; a right-aligned count or date goes in a span with marginLeft auto. */

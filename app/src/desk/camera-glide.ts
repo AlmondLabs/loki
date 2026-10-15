@@ -19,6 +19,10 @@ export function stopGlide(): void {
   frame = 0;
 }
 
+/**
+ * Glide the camera to a transform (the library's x and y offsets in screen pixels, and its scale), stopping any glide
+ * under way first; with reduced motion it jumps.
+ */
 export function glideTo(api: ReactZoomPanPinchRef, x: number, y: number, scale: number): void {
   stopGlide();
   const from = api.instance.state;

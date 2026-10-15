@@ -8,7 +8,8 @@ import { dirname, join, relative, resolve } from "node:path";
  * extension so Node (the mod) and Metro (the phone) can both resolve them from source.
  */
 const CORE = resolve(import.meta.dirname, "..", "core");
-const LEAKS = /window\.|document\.|localStorage|navigator\.|@tauri-apps/;
+// The globals themselves, not a file name that ends in the word (`transcript-window.ts`).
+const LEAKS = /(?<![\w-])window\.|(?<![\w-])document\.|localStorage|(?<![\w-])navigator\.|@tauri-apps/;
 /** Bare specifiers the package may import: the hook layer needs React; everything else is its own. */
 const ALLOWED_BARE = new Set(["react"]);
 

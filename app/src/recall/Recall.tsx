@@ -6,10 +6,23 @@ import { Button, Empty, Meta, Title } from "../components";
 import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
-import { CardEditor, CardList, DismissedLeadList, LeadList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
+import {
+  CardEditor,
+  CardList,
+  DismissedLeadList,
+  LeadList,
+  PreviousText,
+  RecallIntro,
+  RecallKeys,
+  RejectedList,
+  SourceLine,
+  WorkerStrip,
+} from "./recall-parts";
 import { useDeckPass } from "./useDeckPass";
 import { useLearnView } from "./useLearnView";
 import { stepLearnView, type LearnView as View } from "./views";
+
+const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
 
 /**
  * Recall: the cards the worker wrote, one at a time. The front, then the answer on space, then one of two
@@ -19,8 +32,6 @@ import { stepLearnView, type LearnView as View } from "./views";
  * it out. Beside the deck: the leads (things worth learning properly, each a lesson away), every card with
  * search, and the deleted pile with restore. The view is chosen in Learn's list column (useLearnView) or by ⌘[ ⌘].
  */
-const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
-
 export function Recall({
   recall,
   active,

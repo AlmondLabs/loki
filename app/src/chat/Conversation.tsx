@@ -26,16 +26,17 @@ import { FindBar } from "./FindBar";
 import { SlashPalette } from "./SlashPalette";
 import { Transcript, useArrivedFrom, type MessageLayout, type TranscriptRow } from "./Transcript";
 import { ModelPicker, ModelPill, effortEntriesFor, modelName, type ModelEntry } from "./ModelPicker";
-import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./PermissionMode";
+import { ModeChip, ModeMenu, isPermissionMode, type PermissionMode } from "./permission-mode";
 import { useChatTicks } from "./useChatTicks";
 import { useDraft, type ControlledDraft } from "./useDraft";
 import { useModelAndMode } from "./useModelAndMode";
 import { useSlashPalette } from "./useSlashPalette";
 import { useTranscriptScroll } from "./useTranscriptScroll";
 import { StepsTouch } from "./ToolSteps";
-import { readTurnError, retryMessage } from "./turnError";
-import { useRevealMessage } from "../tasks/messageTasks";
+import { readTurnError, retryMessage } from "./turn-error";
+import { useRevealMessage } from "../tasks/message-tasks";
 
+/** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
 
 /** What a conversation looks like right now. `rows` is undefined until the transcript has loaded. */
@@ -437,6 +438,7 @@ export function ConversationHeader({
   );
 }
 
+/** What a conversation can ask of its thread, for find in page. */
 export interface ThreadHandle {
   /** Stop following the bottom (find moved the selection into view; the next delta must not pull it away). */
   unpin: () => void;
@@ -490,7 +492,7 @@ export const Thread = forwardRef<
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
-  // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
+  // A long thread mounts its newest rows and reveals older ones as you scroll up (transcript-window.ts).
   const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(
     scrollRef,
     list,
@@ -500,7 +502,7 @@ export const Thread = forwardRef<
     older,
   );
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
-  // "Open the message" from a task in Tasks: scroll to the message it came from (tasks/messageTasks.tsx).
+  // "Open the message" from a task in Tasks: scroll to the message it came from (tasks/message-tasks.tsx).
   useRevealMessage(scrollRef, rows, reveal, unpin);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.

@@ -66,7 +66,7 @@ const TYPES: Record<string, string> = {
   ".map": "application/json; charset=utf-8",
 };
 
-/** The first candidate directory that holds an index.html, or null. */
+/** The first candidate directory that holds a build (an index.html and assets/), or null. */
 export function resolveAppDist(candidates: string[] = appDistCandidates): string | null {
   for (const dir of candidates) {
     try {
@@ -79,8 +79,13 @@ export function resolveAppDist(candidates: string[] = appDistCandidates): string
   return null;
 }
 
+/** Answers one request for the canvas; it always answers, so it is the listener's last route. */
 export type StaticHandler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 
+/**
+ * The canvas handler over a dist: GET and HEAD only, routes and /index.html as the page with its boot script, other
+ * files from inside the dist. With no dist, every request gets a 503 page saying the canvas is not built.
+ */
 export function createStaticApp(dist: string | null): StaticHandler {
   if (!dist) return serveMissing;
   const root = resolve(dist);

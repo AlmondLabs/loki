@@ -1073,7 +1073,7 @@ button.loki-file-chip:hover {
   }
 }
 
-/* Add task (tasks/messageTasks.tsx): under a message, its tasks' chips and the editor; both phone and desktop. */
+/* Add task (tasks/message-tasks.tsx): under a message, its tasks' chips and the editor; both phone and desktop. */
 /* One column that can shrink below its content, so a long title ellipsises inside the message instead of pushing out. */
 .loki-msg-tasks {
   display: grid;

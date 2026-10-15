@@ -1,7 +1,7 @@
 import { Fragment, createContext, memo, useContext, useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MARKDOWN_COMPONENTS } from "./markdownImage";
+import { MARKDOWN_COMPONENTS } from "./markdown-image";
 
 import type { FileRef, TranscriptRow } from "../../../core/attention/transcript.ts";
 import { inTauri } from "../desk/env";
@@ -10,11 +10,11 @@ import { Button, IconButton } from "../components";
 import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { clockLabel, dayPills } from "../shared/thread";
-import { threadId } from "./transcriptWindow";
+import { threadId } from "./transcript-window";
 import { ToolSteps } from "./ToolSteps";
-import { isWorkRow, toolRuns } from "../shared/toolSteps";
+import { isWorkRow, toolRuns } from "../shared/tool-steps";
 import { messageKey } from "../../../core/task-source.ts";
-import { MessageTaskArea, rememberMessage, useMessageTasks } from "../tasks/messageTasks";
+import { MessageTaskArea, rememberMessage, useMessageTasks } from "../tasks/message-tasks";
 
 /** The row shape is core's (the phone renders the same rows); re-exported so chat code keeps one import. */
 export type { TranscriptRow };
@@ -24,7 +24,7 @@ export type { TranscriptRow };
  * the message box made typing lag. A row re-renders only when its own text,
  * its last-ness, or (on the last row alone) the streaming cursor changes. The take-back handler reaches only queued rows,
  * and the host must keep its identity stable (ChatWindow does), or every row re-renders with it.
- * `from` is the first row drawn (the Thread's window, transcriptWindow.ts); rows keep their thread-wide indexes.
+ * `from` is the first row drawn (the Thread's window, transcript-window.ts); rows keep their thread-wide indexes.
  */
 export const Transcript = memo(function Transcript({
   rows,
@@ -212,7 +212,7 @@ export interface MessageLayout {
   people?: { user: Person; assistant: Person };
   dividerAt?: number | null;
   dividerDay?: string | null;
-  /** The desk's widget changes among the messages (desk/widgetRows.ts widgetMarks); the host keeps the array stable. */
+  /** The desk's widget changes among the messages (desk/widget-rows.ts widgetMarks); the host keeps the array stable. */
   widgets?: WidgetMark[];
   /** Choosing a widget row that is still on the desk: open the Desk tab framed on it. */
   onFrameWidget?: (widgetId: string) => void;
@@ -406,7 +406,7 @@ function Message({
   const hold = useMessageHold(m);
   // Copy waits for a streaming reply to finish; its time is there from the start.
   const copyable = !!m.text && !(last && streaming);
-  // Add task (tasks/messageTasks.tsx), where the host gives the conversation's tasks: a finished message, not a queued one.
+  // Add task (tasks/message-tasks.tsx), where the host gives the conversation's tasks: a finished message, not a queued one.
   const tasks = useMessageTasks();
   const key = tasks && copyable ? messageKey(m.role, m.text) : undefined;
   if (tasks && key) rememberMessage(tasks.conversationId, key, m.text);

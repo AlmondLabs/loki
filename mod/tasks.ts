@@ -18,6 +18,7 @@ import { NOTE_MAX, oneLine, sourceMetadata, type TaskSource } from "../core/task
  * and — once assigned — which conversation should do it.
  */
 
+/** The stamp every task carries in beads' metadata: who filed it, from which chat, desk and folder. */
 export interface TaskStamp {
   by: "agent" | "you";
   agent?: string | null;
@@ -29,6 +30,7 @@ export interface TaskStamp {
   source?: TaskSource;
 }
 
+/** A task to file: its title, optional description, labels and priority (0 to 4, clamped), and its stamp. */
 export interface CreateTask {
   title: string;
   description?: string;
@@ -37,6 +39,7 @@ export interface CreateTask {
   stamp: TaskStamp;
 }
 
+/** The chat a task is assigned to: its conversation and desk, and the agent's name and id when known. */
 export interface AssignTarget {
   agent: string | null;
   agentId: string | null;
@@ -44,6 +47,7 @@ export interface AssignTarget {
   desk: string;
 }
 
+/** Runs bd with the given arguments, without the binary, and resolves to its stdout; TaskStore takes one so tests need no bd. */
 export type Runner = (args: string[]) => Promise<string>;
 
 /**
@@ -73,6 +77,10 @@ export function tasksDir(home = lokiDir(), env: NodeJS.ProcessEnv = process.env)
  */
 export const DONE_ASKED = ["doneAsked", "doneAskedBy", "doneAskedAt"] as const;
 
+/**
+ * The bd arguments that record an agent's word that a task is done (DONE_ASKED), stamped with the time and, when
+ * known, who said it.
+ */
 export function askDoneArgs(id: string, ask: { reason?: string | null; by?: string | null }, now = new Date()): string[] {
   const args = ["update", id, "--set-metadata", `doneAsked=${ask.reason?.trim() || "yes"}`, "--set-metadata", `doneAskedAt=${now.toISOString()}`];
   if (ask.by) args.push("--set-metadata", `doneAskedBy=${ask.by}`);
@@ -82,6 +90,7 @@ export function askDoneArgs(id: string, ask: { reason?: string | null; by?: stri
 /** The newest progress note, on the task itself: its opening on one line, and when. */
 export const LAST_NOTE = ["lastNote", "lastNoteAt"] as const;
 
+/** The bd arguments that keep a progress note on the task (LAST_NOTE): its opening on one line, and the time. */
 export function noteArgs(id: string, text: string, now = new Date()): string[] {
   return ["update", id, "--set-metadata", `lastNote=${oneLine(text, NOTE_MAX)}`, "--set-metadata", `lastNoteAt=${now.toISOString()}`, "--json"];
 }
@@ -142,6 +151,10 @@ export function parseTask(raw: Record<string, unknown>): Task {
   };
 }
 
+/**
+ * Tasks from bd's JSON output, a list or a single object; empty for no output. Text before the JSON is skipped, and
+ * anything else that is not JSON throws.
+ */
 export function parseTasks(stdout: string): Task[] {
   const text = stdout.trim();
   if (!text) return [];
@@ -180,6 +193,7 @@ export interface CloseAs {
   force?: boolean;
 }
 
+/** The bd arguments that close tasks, as `as` says (CloseAs), with the reason when one is given. */
 export function closeArgs(ids: string[], reason?: string, as: CloseAs = {}): string[] {
   const args = ["close", ...ids];
   if (as.actor) args.push("--actor", as.actor);
@@ -192,6 +206,10 @@ export function closeArgs(ids: string[], reason?: string, as: CloseAs = {}): str
 /** Ids as bd names them (lk-a1, lk-a1.2): anything else, one starting with "-" above all, is not passed to bd. */
 export const taskIds = (ids: string[]): string[] => ids.filter((id) => typeof id === "string" && /^[A-Za-z0-9][\w.-]*$/.test(id));
 
+/**
+ * The bd arguments that assign tasks to a chat (assignedTo, assignedDesk, the agent and the time), and start them when
+ * the status is in_progress.
+ */
 export function assignArgs(ids: string[], target: AssignTarget, status: "open" | "in_progress" = "open"): string[] {
   const args = ["update", ...ids, "--set-metadata", `assignedTo=${target.conversation}`, "--set-metadata", `assignedDesk=${target.desk}`, "--json"];
   if (target.agent) args.push("--assignee", target.agent, "--set-metadata", `assignedAgent=${target.agent}`);
@@ -201,6 +219,7 @@ export function assignArgs(ids: string[], target: AssignTarget, status: "open" |
   return args;
 }
 
+/** A priority as bd takes it: rounded into 0 to 4, and 2 when missing. */
 export function clampPriority(p: number | undefined): number {
   if (p === undefined || Number.isNaN(p)) return 2;
   return Math.max(0, Math.min(4, Math.round(p)));

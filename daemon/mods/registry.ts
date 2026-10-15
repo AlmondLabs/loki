@@ -50,6 +50,7 @@ interface Loaded {
   dispose?: () => void;
 }
 
+/** How a load went: loaded, or refused with the line also reported (a mod API too new, or an `activate` that threw). */
 export type LoadResult = { loaded: true } | { refused: string };
 
 const NO_SIGNAL = new AbortController().signal;
@@ -66,6 +67,7 @@ function resultText(value: unknown): string | undefined {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
 
+/** The daemon's mods, by name, each as one pi-durable extension in the shared `registry`. */
 export class ModRegistry {
   /** The pi-durable registry every agent's store is opened with. */
   readonly registry: Registry = createRegistry();
@@ -76,7 +78,10 @@ export class ModRegistry {
     this.report = report;
   }
 
-  /** Activate a mod and install it; a mod of the same name is replaced. A mod that is refused or throws changes nothing. */
+  /**
+   * Activate a mod and install it; a mod of the same name is replaced. A refused mod changes nothing; one whose
+   * `activate` throws is not loaded, and the copy it was replacing is unloaded too.
+   */
   async load(mod: LokiMod): Promise<LoadResult> {
     if (!Number.isInteger(mod.apiVersion) || mod.apiVersion < 1 || mod.apiVersion > MOD_API_VERSION) {
       const refused = `mod ${mod.name} needs mod API ${mod.apiVersion}; this loki has ${MOD_API_VERSION}`;

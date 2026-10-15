@@ -13,9 +13,12 @@ import { dirname } from "node:path";
 let target: string | null = null;
 let sinceCheck = 0;
 
+/** The size, in bytes, past which mod.log is rotated to mod.log.1. */
 export const LOG_MAX_BYTES = 5 * 1024 * 1024;
+/** How many lines pass between checks of the log's size. */
 export const LOG_CHECK_EVERY = 200;
 
+/** Points the trace log at `path`, creating its folder; when the folder cannot be made, logging stays off. */
 export function initLog(path: string): void {
   target = path;
   sinceCheck = 0;
@@ -37,6 +40,7 @@ export function rotateIfLarge(path: string, max = LOG_MAX_BYTES): boolean {
   }
 }
 
+/** One line in the trace log: a timestamp, the event, and the detail as a string or JSON. Does nothing before initLog. */
 export function log(event: string, detail?: unknown): void {
   if (!target) return;
   try {

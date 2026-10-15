@@ -73,6 +73,10 @@ function effortOf(level: string | undefined): ReasoningEffort | null {
 
 const DIGEST_TEXT_LIMIT = 700;
 
+/**
+ * The projection: every chat's details and its entries as thread steps, kept in memory and current
+ * from each store's commits, so the mod's reads (the ChatSource) answer synchronously. `follow` starts it on a StoreManager.
+ */
 export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
   private readonly listeners = new Set<(agentId: string, chatId: string, kind: "answer" | "compaction") => void>();

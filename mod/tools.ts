@@ -10,11 +10,15 @@ import type { TaskStore } from "./tasks.ts";
 import type { Task } from "../core/frame-types.ts";
 
 /**
- * Two tools. Rendering and authoring are file writes, not tool calls — the
- * agent uses its own Write/Edit on <widgetsDir>/<desk>/. These exist for
+ * Two desk tools, and loki_task when Tasks is ready. Rendering and authoring are file writes, not tool calls — the
+ * agent uses its own Write/Edit on <widgetsDir>/<desk>/. The desk tools exist for
  * reading back and for directing attention.
  */
 
+/**
+ * What the agent's tools need from the mod: the desk state, widget files and gestures, how to find a call's desk, the
+ * broadcast, and Tasks when it is ready.
+ */
 export interface ToolDeps {
   store: DeskStore;
   widgets: WidgetsWatcher;
@@ -48,6 +52,10 @@ export function scopeForCall(deps: ToolDeps, ctx: { args?: Record<string, unknow
   return deps.activeScope();
 }
 
+/**
+ * A desk's widgets as desk_state answers: each one's file, kind, title and data with the person's edits merged in, its
+ * place on the desk when it has one, and any error.
+ */
 export function deskSnapshot(deps: ToolDeps, scope: Scope) {
   const state = deps.store.get(scope);
   return deps.widgets.entries(scope).map((w) => {
@@ -82,6 +90,10 @@ interface LokiTool {
 /** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
 const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
+/**
+ * Registers the agent's tools with the daemon (desk_state, loki_camera, and loki_task when Tasks is ready); returns
+ * the functions that unregister them.
+ */
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
   /** One tool through the mod API; a result of `{ status: "error", content }` is a failed call with that message. */
   const tools = {

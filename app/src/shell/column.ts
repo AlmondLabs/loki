@@ -8,13 +8,18 @@ import type { Segment } from "./keymap";
  * again brings back what the person chose.
  */
 
+/** The column's narrowest width in px. */
 export const COLUMN_MIN = 220;
+/** The column's widest width in px. */
 export const COLUMN_MAX = 420;
+/** The column's width in px until the person drags it. */
 export const COLUMN_DEFAULT = 260;
 /** Windows narrower than this fold the column away until asked for. */
 export const NARROW_BELOW = 1100;
+/** The localStorage key the column's width and fold are kept under. */
 export const COLUMN_KEY = "loki.desktop.column";
 
+/** The column as the person left it: its width in px and whether they folded it away. */
 export interface ColumnPref {
   width: number;
   collapsed: boolean;
@@ -25,6 +30,7 @@ export function hasColumn(segment: Segment): boolean {
   return segment === "desk" || segment === "tasks" || segment === "agents" || segment === "learn";
 }
 
+/** A width the column may take, in px: rounded and kept within COLUMN_MIN and COLUMN_MAX; anything not a number is the default. */
 export function clampColumn(w: number): number {
   if (!Number.isFinite(w)) return COLUMN_DEFAULT;
   return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.round(w)));
@@ -41,6 +47,7 @@ export function columnStore(): Store | null {
   }
 }
 
+/** The column as saved in `store`; the default width, unfolded, when nothing is saved or it cannot be read. */
 export function loadColumn(store: Store | null): ColumnPref {
   try {
     const raw = store?.getItem(COLUMN_KEY);
@@ -52,6 +59,7 @@ export function loadColumn(store: Store | null): ColumnPref {
   }
 }
 
+/** Save the column to `store`, its width clamped; a blocked store saves nothing and does not throw. */
 export function saveColumn(store: Store | null, pref: ColumnPref): void {
   try {
     store?.setItem(COLUMN_KEY, JSON.stringify({ width: clampColumn(pref.width), collapsed: pref.collapsed }));

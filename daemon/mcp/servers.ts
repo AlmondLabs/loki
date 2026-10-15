@@ -32,6 +32,7 @@ export interface McpTool {
 
 /** `signin`: a remote server that wants an OAuth sign-in, which waits for the person rather than retrying. */
 export type ServerState = "starting" | "connected" | "down" | "signin";
+/** One server's state as Settings and the `mcp` section show it: `tools` is how many it offers, `purpose` the first line of its own description or instructions. */
 export interface ServerStatus {
   name: string;
   kind: ServerConfig["kind"];
@@ -98,6 +99,7 @@ interface Entry {
   generation: number;
 }
 
+/** The servers and their connections, by name: `configure` makes them match mcp.json, a server that fails is retried after backoffMs, and `close` stops them all. */
 export class McpServers {
   private readonly entries = new Map<string, Entry>();
   private readonly listeners = new Set<() => void>();

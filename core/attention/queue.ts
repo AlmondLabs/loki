@@ -3,6 +3,7 @@ import { byScore } from "./priority.ts";
 
 /** What needs you: an agent stopped on you, a failed turn, or something new from the agent. The badges count these. */
 const NEEDS_YOU: AttentionStatus[] = ["approval", "question", "failed", "done"];
+/** A card's identity in the Inbox and a visit's decisions: "agentId/conversationId". */
 export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
 /**
  * What about this item you would be deciding on. Keyed on content — the last
@@ -31,6 +32,7 @@ export function inboxQueue(items: AttentionItem[]): AttentionItem[] {
   return items.filter((i) => i.status !== "running");
 }
 
+/** What you did with one card on an Inbox visit, kept so the visit can summarise itself and bring a card back when its chat moves on. */
 export interface Decision {
   item: AttentionItem;
   /** Next marks the chat read and moves on; Archive is done, and the chat leaves the Inbox. */

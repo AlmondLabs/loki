@@ -9,12 +9,18 @@ import type { CallToolResult } from "@modelcontextprotocol/client";
  * Cursor's file instead of a cut. An error keeps its first and last ERROR_KEEP characters.
  */
 
+/** A text result estimated past this many tokens spills to a file. */
 export const SPILL_TOKENS = 25_000;
+/** A text result past this many characters spills to a file. */
 export const SPILL_CHARS = 50_000;
+/** How much of a spilled result's start the model gets with its path. */
 export const START_CHARS = 4_000;
+/** How many characters a long error keeps from each end. */
 export const ERROR_KEEP = 5_000;
 
+/** One piece of a mapped result: text, or a base64 image. */
 export type Part = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+/** A result as mapped: `spilled` is the file a too-big one was saved to (null when it fit or could not be saved), and `chars` its text's whole length, for analytics. */
 export interface Mapped {
   content: Part[];
   isError: boolean;

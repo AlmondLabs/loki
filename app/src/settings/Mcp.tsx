@@ -17,6 +17,10 @@ export interface McpApi {
   approvals: { list: () => Promise<string[] | string>; set: (tool: string, on: boolean) => Promise<string[] | string> };
 }
 
+/**
+ * A server's entry as the MCP page writes it to ~/.loki/mcp.json: a local server's command, arguments, environment and
+ * folder, or a remote server's URL and headers.
+ */
 export type McpEdit = { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
 
 const STATE_TONE: Record<McpServerView["state"], string> = {
@@ -41,6 +45,7 @@ export function parsePairs(text: string, sep: "=" | ":"): Record<string, string>
   }
   return out;
 }
+/** A map as `KEY=value` lines (env) or `Name: value` lines (headers), the reverse of `parsePairs`. */
 export const pairsText = (pairs: Record<string, string>, sep: "=" | ":"): string =>
   Object.entries(pairs)
     .map(([k, v]) => `${k}${sep === ":" ? ": " : "="}${v}`)

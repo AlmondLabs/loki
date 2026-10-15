@@ -14,8 +14,11 @@ export type { ChatStatus } from "./Conversation";
  * widths and are viewport insets for the sheet; the centre floats over it.
  */
 export type ChatWidth = "narrow" | "wide";
+/** The panel's side widths in pixels. */
 export const CHAT_WIDTHS: Record<ChatWidth, number> = { narrow: 400, wide: 640 };
+/** Where the chat panel sits on the sheet: stacked on the left or right edge, or floating centred. */
 export type ChatPlacement = "left" | "center" | "right";
+/** The placements in the order ⌘← and ⌘→ step through them, and Settings lists them. */
 export const CHAT_PLACEMENTS: ChatPlacement[] = ["left", "center", "right"];
 /** The centred chat has the inbox card's footprint (CatchUp.tsx): the same width and the same insets. */
 export const CHAT_CENTER_WIDTH = 1100;
@@ -157,6 +160,7 @@ function panelStyle(placement: ChatPlacement, width: ChatWidth, attentive: boole
   };
 }
 
+/** The round button in a desk's bottom corner that opens and closes the chat panel, with a dot when an approval or a question waits. */
 export function ChatBubble({
   open,
   onToggle,

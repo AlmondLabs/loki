@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { motionFor } from "../app/src/phone/transitions.ts";
-import { edgeCommits } from "../app/src/phone/edgeSwipe.ts";
-import { dismisses, rubberBand } from "../app/src/components/sheetMotion.ts";
+import { edgeCommits } from "../app/src/phone/edge-swipe.ts";
+import { dismisses, rubberBand } from "../app/src/components/sheet-motion.ts";
 import { armed, flingVelocity } from "../app/src/phone/deck.ts";
 import type { Route } from "../app/src/phone/router.ts";
 import { must } from "./fixtures/must.ts";

@@ -20,9 +20,13 @@ import type { AttentionItem } from "./model.ts";
  * so the deck, the phone and the card's label all read the same instant.
  */
 export const BLOCKED_POINTS = 100;
+/** Points for something new from the agent since you last looked. */
 export const NEW_POINTS = 10;
+/** Points for a chat with all of your recent engagement; a chat scores this times its focus share. */
 export const FOCUS_POINTS = 15;
+/** Points a card loses for each hour since its last message, when no agent is stopped on it. */
 export const AGE_POINTS_PER_HOUR = 0.1;
+/** Points a stopped agent's card gains for each hour it has waited on you. */
 export const WAITING_POINTS_PER_HOUR = 0.1;
 /** A card whose focus is worth at least this many points says so ("in focus"). */
 export const IN_FOCUS_POINTS = 3;
@@ -32,13 +36,16 @@ export type AskedBy = "person" | "schedule";
 
 /** The largest term of a card's score: the one word that explains its place in the list. */
 export type Reason = "blocked" | "new" | "focus" | "other";
+/** The label a card shows for its reason after its time; empty for every reason but focus. */
 export const REASON_LABEL: Record<Reason, string> = { blocked: "", new: "", focus: "in focus", other: "" };
 
 /** An item before its score and reason are stamped. */
 export type Unscored = Omit<AttentionItem, "score" | "reason" | "focus">;
 
+/** Whether an agent is stopped until you answer: an approval or a question. */
 export const isBlocked = (i: Unscored): boolean => i.status === "approval" || i.status === "question";
 
+/** A card's score at `now` given its chat's focus share, by the formula above. */
 export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
   const hours = i.lastMessageAt ? Math.max(0, now - new Date(i.lastMessageAt).getTime()) / 3_600_000 : 0;
   const blocked = isBlocked(i);
@@ -50,6 +57,7 @@ export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
   );
 }
 
+/** The term that explains a card's score; a new card whose focus outweighs its newness says focus. */
 export function reasonOf(i: Unscored, focus = 0): Reason {
   if (isBlocked(i)) return "blocked";
   if (i.unread && NEW_POINTS >= FOCUS_POINTS * focus) return "new";

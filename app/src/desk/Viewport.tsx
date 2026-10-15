@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, type ReactNode } from "react";
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
-import { stopGlide } from "./cameraGlide";
+import { stopGlide } from "./camera-glide";
 
 /**
  * Pannable/zoomable surface with Figma's input model:
@@ -10,7 +10,7 @@ import { stopGlide } from "./cameraGlide";
  * The library's own wheel handling is off; we apply transforms directly,
  * coalescing all input that arrives within one animation frame. Widgets carry
  * `.loki-no-pan` so dragging one never pans the canvas.
- * Camera glides to widgets are springs (cameraGlide.ts); a wheel, pinch or drag stops one where it is.
+ * Camera glides to widgets are springs (camera-glide.ts); a wheel, pinch or drag stops one where it is.
  */
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;
@@ -20,6 +20,7 @@ const MIN_GRID_PX = 18;
 /** Per-event zoom factor clamp: a mouse-wheel notch must not jump more than ~18%. */
 const MAX_STEP = 1.18;
 
+/** The canvas's pan-and-zoom surface, with its dot grid; the ref is the pan-zoom library's handle, and `onScale` hears every change of zoom. */
 export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: ReactNode; onScale?: (scale: number) => void }>(function Viewport(
   { children, onScale },
   ref,

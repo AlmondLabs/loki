@@ -4,7 +4,7 @@ import type { Gesture } from "../../../core/desk-core.ts";
 import type { CameraTarget, VisibleWidget } from "./useDesk";
 import { registerActions } from "../shell/keymap";
 import { glide } from "../kit/motion";
-import { glideTo, stopGlide } from "./cameraGlide";
+import { glideTo, stopGlide } from "./camera-glide";
 
 /** The mounted frames for these widget ids (a frame's element id is `widget-<desk>--<name>`). */
 const widgetEls = (ids: string[]) => ids.map((id) => document.getElementById(`widget-${id.replace("/", "--")}`)).filter((e): e is HTMLElement => !!e);

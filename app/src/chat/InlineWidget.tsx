@@ -5,6 +5,9 @@ import { KIT_COMPONENTS } from "../kit";
 import { ModuleWidget, WidgetError, WidgetErrorBoundary } from "../desk/ModuleWidget";
 import { Icon } from "../shared/icons";
 
+/** Errors are the canvas copy's to report: two copies reporting would clear each other's. Also the read-only gesture. */
+const quiet = () => {};
+
 /**
  * A widget drawn inside the thread, live, where the agent made it: the same kit component or module the canvas
  * draws, without the canvas's frame (no drag, resize or close), in a card as wide as the thread allows. Using it
@@ -13,9 +16,6 @@ import { Icon } from "../shared/icons";
  * On the phone a custom (module) widget cannot load yet, so the card says where it runs; kit widgets draw there,
  * but read only: the phone may not change a desk.
  */
-/** Errors are the canvas copy's to report: two copies reporting would clear each other's. Also the read-only gesture. */
-const quiet = () => {};
-
 export function InlineWidget({
   entry,
   overlay,

@@ -3,16 +3,16 @@ import { ListIcon, Sheet } from "../components";
 import { AgentFace } from "../desk/AgentChip";
 import { Icon } from "../shared/icons";
 import { cleanQuery } from "../shared/search";
-import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./searchModel";
+import { COVERAGE, buildIndex, flatHits, recentPlaceHits, recentPlaces, search, type SearchHit, type SearchSources } from "./search-model";
 import { formatKeys } from "./keymap";
-import "./searchSheet.css";
+import "./search-sheet.css";
 
 const LIST_ID = "loki-search-results";
 const optionId = (key: string) => `loki-search-opt-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
 /**
  * ⌘K, Slack's switcher (plan 013 U9): a sheet near the top of the window, the field focused at once. Before
- * typing, the recent places (searchModel.ts drops ones that no longer resolve); while typing, Desks,
+ * typing, the recent places (search-model.ts drops ones that no longer resolve); while typing, Desks,
  * Agents, Waiting and Pages, each group placed by its best hit, so the first row is the top result.
  * ↑ ↓ move the highlight (focus stays in the field: a combobox over one listbox), Enter opens it, Esc and
  * ⌘K again close. The line at the foot says what is searched, so no one takes it for message search.

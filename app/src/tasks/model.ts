@@ -1,5 +1,6 @@
 import type { Task } from "../../../core/frame-types.ts";
 
+/** The Board's status columns: open, in progress, blocked, and done. */
 export type ColumnId = "open" | "in_progress" | "blocked" | "done";
 
 /** One column of the Board layout: a status, an assignee or a folder, and its tasks in order. */
@@ -9,6 +10,7 @@ export interface Column {
   tasks: Task[];
 }
 
+/** Priority labels by priority number, P0 the most urgent. */
 export const PRIORITY_LABEL = ["P0", "P1", "P2", "P3", "P4"] as const;
 
 /** The status a task counts as: open takes deferred and pinned, in progress takes hooked, closed is done whatever its age. Any other status is off the list. */
@@ -20,6 +22,7 @@ export function columnOf(t: Task): ColumnId | null {
   return null;
 }
 
+/** Each status column's heading; done shows only the last seven days. */
 export const STATUS_LABEL: Record<ColumnId, string> = { open: "Open", in_progress: "In progress", blocked: "Blocked", done: "Done · 7d" };
 const COLUMN_IDS: ColumnId[] = ["open", "in_progress", "blocked", "done"];
 const DONE_WINDOW_MS = 7 * 24 * 3600_000;
@@ -60,6 +63,7 @@ export function columnsOf(tasks: Task[], now = Date.now()): Column[] {
  */
 export type TaskViewId = "all" | "mine" | "waiting" | `agent:${string}`;
 
+/** One view in the Tasks sidebar, with how many tasks it shows. */
 export interface ViewRow {
   view: TaskViewId;
   label: string;
@@ -100,7 +104,9 @@ export function taskViews(tasks: Task[], now = Date.now()): { views: ViewRow[]; 
 export type Layout = "board" | "table";
 /** What the Board's columns are. */
 export type GroupBy = "status" | "assignee" | "folder";
+/** What the Table can sort by. */
 export type SortKey = "title" | "status" | "assignee" | "by" | "chat" | "folder" | "updated";
+/** The Table's sort: a column and its direction. */
 export interface Sort {
   key: SortKey;
   dir: "asc" | "desc";
@@ -111,6 +117,7 @@ export interface ViewPrefs {
   groupBy: GroupBy;
   sort: Sort;
 }
+/** A view's settings before the person changes them: the Board, grouped by status, the latest moved first. */
 export const DEFAULT_PREFS: ViewPrefs = { layout: "board", groupBy: "status", sort: { key: "updated", dir: "desc" } };
 
 const LAYOUTS: Layout[] = ["board", "table"];
@@ -227,6 +234,7 @@ export function parseTaskView(raw: string | null | undefined): TaskViewId {
   return "all";
 }
 
+/** An arrow key's direction, for moving the cursor between cards. */
 export type Dir = "up" | "down" | "left" | "right";
 
 /**

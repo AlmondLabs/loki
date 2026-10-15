@@ -11,6 +11,7 @@ import type { GlobalSkill } from "../core/frame-types.ts";
  * themselves are files in the memory repo (agents.ts).
  */
 
+/** The global skills folder, ~/.agents/skills unless LOKI_SKILLS_DIR says otherwise. */
 export const globalSkillsDir = (): string => process.env.LOKI_SKILLS_DIR ?? join(homedir(), ".agents", "skills");
 
 /** The first line worth showing from a SKILL.md: its frontmatter description, else its first heading. */
@@ -21,6 +22,10 @@ export function skillDescription(text: string): string | null {
   return /^#+\s*(.+)$/m.exec(text.replace(/^---[\s\S]*?---/, ""))?.[1]?.trim() ?? null;
 }
 
+/**
+ * The skills in the global folder, by name: each entry (a link is followed) that holds a SKILL.md, with its description.
+ * Empty when the folder cannot be read.
+ */
 export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
   let names: string[];
   try {
@@ -54,7 +59,10 @@ export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
   return out;
 }
 
-/** A source loki installs from: a GitHub path (`owner/repo[/path]`), a GitHub or git URL, or a folder on this machine. */
+/**
+ * Why a source cannot be installed from, or null when it may be. A source is a GitHub path (`owner/repo[/path]`), a
+ * GitHub or git URL, or a folder on this machine; here it is only checked to be present, without spaces, and not an option.
+ */
 export function validSkillSource(source: string): string | null {
   const s = source.trim();
   if (!s) return "a source is required";
@@ -66,6 +74,11 @@ export function validSkillSource(source: string): string | null {
 /** Where a source's files come from: a folder here, or a repository to clone (at a branch) and the folder in it. */
 export type SkillOrigin = { kind: "folder"; path: string } | { kind: "git"; url: string; ref: string | null; path: string };
 
+/**
+ * Where a source's files come from. A path starting with /, ~, . or a drive letter is a folder; a GitHub web URL is
+ * split into its repository, branch and folder; any other URL is cloned whole; anything else is read as
+ * owner/repo[/path] on GitHub, and throws when it has no repo.
+ */
 export function skillOrigin(source: string, home = homedir()): SkillOrigin {
   const s = source.trim();
   if (s.startsWith("/") || s.startsWith("~") || s.startsWith(".") || /^[A-Za-z]:[\\/]/.test(s))
@@ -79,6 +92,7 @@ export function skillOrigin(source: string, home = homedir()): SkillOrigin {
   return { kind: "git", url: `https://github.com/${owner}/${repo}.git`, ref: null, path: rest.join("/") };
 }
 
+/** Runs a program and resolves to its trimmed output; installSkill takes one, and tests pass their own. */
 export type Runner = (program: string, args: string[], cwd?: string) => Promise<string>;
 
 const runProgram: Runner = (program, args, cwd) =>

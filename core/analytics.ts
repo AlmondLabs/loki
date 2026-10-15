@@ -10,8 +10,10 @@
 
 /** Where it happened: the desktop window (on a Mac, Windows or Linux), a paired phone, or the mod itself (turns and tools, whichever client began them). */
 export type DeviceType = "mac" | "windows" | "linux" | "phone" | "mod";
+/** Every device type, for checking a value read from a client or the file. */
 export const DEVICE_TYPES: readonly DeviceType[] = ["mac", "windows", "linux", "phone", "mod"];
 
+/** The properties every event carries, PostHog's `$` names for the system's own, beside the event's ids and counts. */
 export interface EventProperties {
   $device_type: DeviceType;
   /** Events on one device within SESSION_GAP_MS of each other share a session; the mod cuts them. */
@@ -23,6 +25,7 @@ export interface EventProperties {
   [property: string]: unknown;
 }
 
+/** One line of events.jsonl: what happened, when, on which install, with its properties. */
 export interface AnalyticsEvent {
   event: string;
   /** ISO time. */
@@ -32,9 +35,11 @@ export interface AnalyticsEvent {
   properties: EventProperties;
 }
 
+/** How long a device may go without an event before its next one starts a new session: 30 minutes, in milliseconds. */
 export const SESSION_GAP_MS = 30 * 60 * 1000;
 /** Event names are snake_case words, object then verb: view_opened, message_sent. Anything else from a client is refused. */
 export const EVENT_NAME_RE = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
+/** The longest event name accepted, in characters. */
 export const EVENT_NAME_MAX = 48;
 
 /** Every event captured, with the properties it carries. The report lists the ones that never fired in the period. */
@@ -102,14 +107,17 @@ export const BREAKDOWN: Record<string, string> = {
   mcp_call: "server",
 };
 
+/** Whether a value is one of the device types an event may come from. */
 export function isDeviceType(value: unknown): value is DeviceType {
   return typeof value === "string" && (DEVICE_TYPES as readonly string[]).includes(value);
 }
 
+/** Whether a value is an acceptable event name: snake_case and no longer than EVENT_NAME_MAX. */
 export function isEventName(value: unknown): value is string {
   return typeof value === "string" && value.length <= EVENT_NAME_MAX && EVENT_NAME_RE.test(value);
 }
 
+/** One event line as the mod appends it, stamped with the time given (now by default). */
 export function makeEvent(event: string, distinctId: string, properties: EventProperties, now: Date = new Date()): AnalyticsEvent {
   return { event, timestamp: now.toISOString(), distinct_id: distinctId, properties };
 }
@@ -145,6 +153,7 @@ export function parseEvents(text: string): AnalyticsEvent[] {
   return out;
 }
 
+/** One event's row in the report: how often it fired, in how many sessions, and on which devices. */
 export interface EventRow {
   event: string;
   count: number;
@@ -157,6 +166,7 @@ export interface EventRow {
   mod: number;
 }
 
+/** What `npm run analytics` makes of the events file over a period: counts, sessions, the inbox's engagement, the daemon's turns and the background passes. */
 export interface AnalyticsReport {
   window: { from: string | null; to: string | null; days: number; events: number; activeDays: number };
   sessions: { count: number; byDevice: Record<DeviceType, number>; medianMinutes: number | null; perActiveDay: number | null };
@@ -219,11 +229,13 @@ export interface HarnessRow {
   /** Tool calls that failed, of all tool calls. */
   toolFailureRate: number | null;
 }
+/** The median and 90th percentile of a set of durations, in milliseconds; null when there were none. */
 export interface Spread {
   p50: number | null;
   p90: number | null;
 }
 
+/** One background job's runs in the report: how they ended, what they wrote, and what a run cost. */
 export interface PassRow {
   job: string;
   runs: number;

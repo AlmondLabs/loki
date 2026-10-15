@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { readTurnError, retryMessage } from "../app/src/chat/turnError.ts";
+import { readTurnError, retryMessage } from "../app/src/chat/turn-error.ts";
 
 describe("a failed turn, in words", () => {
   test("Bun's dropped socket inside Letta's llm_error JSON reads as a dropped connection, the JSON kept", () => {

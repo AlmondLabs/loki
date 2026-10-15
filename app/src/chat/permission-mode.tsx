@@ -7,6 +7,7 @@ import { Chip, Meta, Popover, Row } from "../components";
  */
 export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
 
+/** The permission modes, from most asking to none, with the labels the mode menu and chip show. */
 export const MODES: Array<{ id: PermissionMode; label: string; short: string; description: string }> = [
   { id: "strict", label: "Strict", short: "strict", description: "asks before every tool, reads included" },
   { id: "standard", label: "Standard", short: "standard", description: "asks before edits and commands; reads run freely" },
@@ -14,10 +15,12 @@ export const MODES: Array<{ id: PermissionMode; label: string; short: string; de
   { id: "unrestricted", label: "Unrestricted", short: "no asking", description: "nothing asks — every tool runs" },
 ];
 
+/** Whether a value names a permission mode. */
 export function isPermissionMode(v: unknown): v is PermissionMode {
   return v === "strict" || v === "standard" || v === "acceptEdits" || v === "unrestricted";
 }
 
+/** The mode's labels; an unknown or unset mode reads as unrestricted, the daemon's default (daemon/approvals.ts). */
 export const modeInfo = (m: PermissionMode | null | undefined) => MODES.find((x) => x.id === m) ?? MODES[3];
 
 /** The chip: the mode's short name; red ink when nothing will ask, so an open door is never quiet. */

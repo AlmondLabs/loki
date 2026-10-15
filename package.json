@@ -58,6 +58,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "esbuild": "^0.25.0",
     "eslint": "^10.10.0",
+    "eslint-plugin-jsdoc": "65.0.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "3.9.9",
     "react-doctor": "^0.9.13",

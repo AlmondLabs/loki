@@ -3,6 +3,7 @@ import type { RecallStore } from "../recall.ts";
 import type { StartLesson } from "../recall-worker.ts";
 import { fail, reply, type FrameContext, type FrameHandlers } from "./context.ts";
 
+/** What Learn's frame handler needs from its host; without `recall` every request answers that recall is not available. */
 export interface RecallDeps {
   /** Learn (mod/recall.ts): the cards on disk; its settings, status and a run now are the daemon's (daemon/learn.ts). */
   recall?: {

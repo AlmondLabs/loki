@@ -58,8 +58,13 @@ export function dictateTitle(os: Platform = keyboard): string {
   return b && keysOf(b, os).length > 0 ? `dictate (${keyFor("chat.dictate", os)})` : "dictate";
 }
 
+/** Whether this page shows the mic, decided once at load. */
 export const DICTATION_SUPPORTED = dictationSupported(typeof window !== "undefined" && recognitionCtor() !== null);
 
+/**
+ * Dictation into the composer: start and stop listening, with interim words and finished phrases handed to the
+ * callbacks as they are recognised; `error` is a line to show when the mic is blocked or recognition fails.
+ */
 export function useDictation({
   onInterim,
   onFinal,

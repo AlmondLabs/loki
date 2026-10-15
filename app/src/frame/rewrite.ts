@@ -5,6 +5,10 @@
  */
 export const SHARED_SPECIFIERS = ["react", "react/jsx-runtime", "react-dom", "recharts", "@loki/kit"] as const;
 
+/**
+ * A widget's code with each bare import of a shared module (SHARED_SPECIFIERS) turned into a read from
+ * `window.__lokiShared`; every other line is left as it is.
+ */
 export function rewriteSharedImports(code: string): string {
   return code
     .split("\n")

@@ -105,6 +105,7 @@ export interface PassSummary {
   approved: number;
   denied: number;
 }
+/** A pass that has done nothing yet. */
 export const EMPTY_PASS: PassSummary = { seen: 0, archived: 0, approved: 0, denied: 0 };
 
 /** Count one card leaving (delta 1) or coming back by undo (delta -1). */
@@ -113,6 +114,7 @@ export function tally(s: PassSummary, via: Via, delta = 1): PassSummary {
   return { ...s, [key]: Math.max(0, s[key] + delta) };
 }
 
+/** How many cards this visit has decided, every way counted. */
 export function passTotal(s: PassSummary): number {
   return s.seen + s.archived + s.approved + s.denied;
 }
@@ -134,12 +136,14 @@ export function summaryLine(s: PassSummary): string {
  */
 export type Dismissed = Map<string, string>;
 
+/** The dismissed cards with `item` added at its current stamp. */
 export function dismiss(d: Dismissed, item: AttentionItem): Dismissed {
   const next = new Map(d);
   next.set(idOf(item), stampOf(item));
   return next;
 }
 
+/** The dismissed cards without `item`, as an undo puts it back. */
 export function restore(d: Dismissed, item: AttentionItem): Dismissed {
   const next = new Map(d);
   next.delete(idOf(item));
@@ -210,6 +214,7 @@ export interface DeckState {
   held: AttentionItem | null;
   pass: PassSummary;
 }
+/** A pass not yet started: nothing dismissed, held or counted. */
 export const EMPTY_DECK: DeckState = Object.freeze({ dismissed: new Map(), topId: null, held: null, pass: EMPTY_PASS });
 
 /** The ways off a card: an approval only by its decision, anything else by Next or Archive; a main chat cannot be archived. */

@@ -24,6 +24,7 @@ if (typeof window !== "undefined") {
   window.addEventListener("keydown", () => (input = "key"), true);
   window.addEventListener("pointerdown", () => (input = "pointer"), true);
 }
+/** How the person last drove the page, a key or a pointer; a pointer until the first key. */
 export function lastInput(): "key" | "pointer" {
   return input;
 }

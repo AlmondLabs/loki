@@ -52,6 +52,7 @@ export function firstExisting(candidates: Array<string | undefined>, look: Look 
 // cmd.exe's metacharacters, each escaped with ^ (the approach of cross-spawn, which npm tooling relies on).
 const META = /([()\][%!^"`<>&|;, *?])/g;
 
+/** A program's path for a line cmd.exe reads: every metacharacter ^-escaped, unquoted. */
 export function escapeCommand(path: string): string {
   return path.replace(META, "^$1");
 }

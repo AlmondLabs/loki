@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { createActiveClock } from "../core/attention/activeClock.ts";
+import { createActiveClock } from "../core/attention/active-clock.ts";
 
 describe("active clock", () => {
   test("runs only while active: time with the window behind or hidden is not counted", () => {

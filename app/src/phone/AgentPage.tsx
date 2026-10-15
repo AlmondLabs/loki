@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { MARKDOWN_COMPONENTS } from "../chat/markdownImage";
+import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { Diff, type AgentDetails } from "../agents/Agents";

@@ -6,6 +6,10 @@ import { describeGesture, type GestureLog } from "../gestures.ts";
 import type { WidgetsWatcher } from "../widgets-fs.ts";
 import type { FrameHandlers } from "./context.ts";
 
+/**
+ * What the desk frame handler needs from its host: the desk state, the widget files and the gesture log, plus the
+ * optional parts (the switcher's list, a desk's conversation, deleting widgets, pins, recent models).
+ */
 export interface DesksDeps {
   store: DeskStore;
   widgets: WidgetsWatcher;

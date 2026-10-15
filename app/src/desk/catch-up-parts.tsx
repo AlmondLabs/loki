@@ -21,6 +21,7 @@ export const BADGE: Record<AttentionStatus, { label: string; color: string }> = 
   idle: { label: "", color: "var(--loki-muted)" },
 };
 
+/** How long ago a time was, in the Inbox's short words ("just now", "5m", "3h", "2d"); empty for no time. */
 export function ago(iso: string | null): string {
   if (!iso) return "";
   const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
@@ -124,6 +125,7 @@ export const needsYou = (status: AttentionStatus) => status === "approval" || st
 /** A meta word worth noticing (in focus, came back): fg semibold instead of the old brass. */
 const NOTED = { color: "var(--loki-fg)", fontWeight: 600 } as const;
 
+/** The props of `CardHeader`: the Inbox card's chat, whether it came back in, and the one-off line it flashes. */
 export interface CardHeaderProps {
   current: AttentionItem;
   cameBack: boolean;

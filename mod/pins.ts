@@ -32,6 +32,7 @@ export function readPins(file = pinsFile()): Set<string> {
   return out;
 }
 
+/** Whether the conversation is pinned; false when either id is missing. */
 export function isPinned(agentId: string | null, conversationId: string | null, file = pinsFile()): boolean {
   return !!agentId && !!conversationId && readPins(file).has(`${agentId}/${conversationId}`);
 }

@@ -58,8 +58,10 @@ export function isAgentId(id: unknown): id is string {
   return typeof id === "string" && /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,199}$/.test(id);
 }
 
+/** Whether a value names a route the phone's QR code may encode, as lan_via_set must carry. */
 export const isLanVia = (v: unknown): v is LanVia => v === "tailscale" || v === "lan";
 
+/** Whether a value is a well-formed gesture from the canvas, the only state change a tab may ask for; anything else is refused before it reaches a desk. */
 export function isGesture(v: unknown): v is Gesture {
   if (typeof v !== "object" || v === null) return false;
   const g = v as Raw;
@@ -171,6 +173,7 @@ export interface Replies {
   /** Whether Letta is here, whether an import finished with it, and how the last run went (at start or from Settings). */
   chat_import_status: { letta: boolean; complete: boolean; last: { at: string; ok: boolean; message: string } | null };
 }
+/** The name of a frame that answers a request. */
 export type ReplyName = keyof Replies;
 
 /** Where a chat stands when a client opens it (loki's daemon, plan 017 U5): running or not, its mode and folder. */
@@ -230,6 +233,7 @@ export interface Pushes {
   /** A request that failed (with its requestId), or a send or frame the mod could not take (without). */
   error: { message: string; requestId?: string };
 }
+/** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
 
 interface RequestEntry<R extends ReplyName, P> {
@@ -269,6 +273,7 @@ const send = <P>(doc: string, parse: Parse<P>, opts: { phone?: boolean; causes?:
 const push = (doc: string): PushEntry => ({ kind: "push", doc });
 const PHONE = true;
 
+/** The frame table: every frame on `/ws` by name, whether it is a request (and the reply that answers it), a send (and the pushes it causes) or a push, a line saying what it is for, its parser, and whether a paired phone may send it. */
 export const FRAMES = {
   // Desks and widgets
   gesture: send(
@@ -683,8 +688,11 @@ export const FRAMES = {
 } as const;
 
 type Table = typeof FRAMES;
+/** The name of any frame in the table. */
 export type FrameName = keyof Table;
+/** The name of a frame the app sends and the mod answers with a reply. */
 export type RequestName = { [K in FrameName]: Table[K] extends { kind: "request" } ? K : never }[FrameName];
+/** The name of a frame the app sends without waiting for an answer; its effect comes back as pushes. */
 export type SendName = { [K in FrameName]: Table[K] extends { kind: "send" } ? K : never }[FrameName];
 /** What a request or send carries once parsed. */
 export type PayloadOf<N extends RequestName | SendName> = Exclude<ReturnType<Table[N]["parse"]>, string>;
@@ -700,6 +708,7 @@ export type ReplyOf<N extends RequestName> = Table[N] extends { reply: infer R e
 /** A push as it arrives: its name beside its payload. */
 export type PushFrame = { [K in PushName]: { type: K } & Pushes[K] }[PushName];
 
+/** The frame table's entry for a frame's `type` (how the mod's router finds what to do); undefined for a type the table does not list. */
 export const frameEntry = (type: unknown): Table[FrameName] | undefined =>
   typeof type === "string" && Object.hasOwn(FRAMES, type) ? FRAMES[type as FrameName] : undefined;
 

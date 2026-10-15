@@ -23,8 +23,8 @@ async function folderOf(api: ToolExecutionApi, context: Context): Promise<string
 const at = (cwd: string, p: unknown) => (typeof p === "string" && p ? (isAbsolute(p) ? p : resolve(cwd, p)) : cwd);
 
 /**
- * Files under `dir`, folders like .git and node_modules left out, at most `limit`. Asynchronous: a walk of a big
- * folder (an agent's `find` in ~) used to hold the daemon's one thread for seconds, and every chat with it.
+ * Files under `dir`, folders like .git and node_modules left out, at most `limit`. Asynchronous, so a walk of a big
+ * folder (an agent's `find` in ~) never holds the daemon's one thread, and every chat with it, for seconds.
  */
 async function walk(dir: string, limit: number, out: string[] = []): Promise<string[]> {
   let names: string[];
@@ -72,6 +72,7 @@ const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
 const IMAGE_TYPES: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
 
+/** The file tools above (`ls`, `find`, `grep`, `view_image`), as one extension every chat selects. */
 export function fileToolsExtension(): Extension {
   return defineExtension({
     name: "loki.files",

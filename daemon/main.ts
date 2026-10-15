@@ -51,6 +51,7 @@ import { paths } from "../mod/paths.ts";
 import { RecallStore, recallDir } from "../mod/recall.ts";
 import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
 
+/** The exit code when another daemon already holds this folder: the app then leaves that one serving rather than restarting this one (src-tauri/src/harness.rs). */
 export const EXIT_HELD = 3;
 
 const { values: args } = parseArgs({

@@ -22,8 +22,8 @@ import { useModelList } from "./useModelList";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useTasks } from "./useTasks";
-import type { TaskApi } from "../tasks/messageTasks";
-import { requestReveal } from "../tasks/revealMessage";
+import type { TaskApi } from "../tasks/message-tasks";
+import { requestReveal } from "../tasks/reveal-message";
 import { setTaskView } from "../tasks/useTaskView";
 import { taskSource } from "../../../core/task-source.ts";
 import type { Task } from "../../../core/frame-types.ts";
@@ -37,13 +37,13 @@ import { ListColumn } from "./ListColumn";
 import { DeskSidebarView } from "./DeskSidebar";
 import { AgentsView, TasksView, InboxView, NewDeskSheet, PickerTree, SettingsView, WelcomeView, type Picker, RecallView } from "./views";
 import { SearchSheet } from "./SearchSheet";
-import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./searchModel";
+import { deskPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
 import { agentsSelection } from "../agents/selection";
 import { SETTINGS_PAGE_KEY } from "../settings/pages";
 import type { CatchUp, Runtime } from "./types";
 import { effortLabel } from "../chat/ModelPicker";
 import type { ModelSelection } from "../../../core/models.ts";
-import { pageActivity } from "../shared/pageActivity";
+import { pageActivity } from "../shared/page-activity";
 
 const SEGMENT_KEY = "loki.segment";
 
@@ -226,7 +226,7 @@ export function Shell() {
   useEffect(() => {
     tasksRef.current = tasks;
   });
-  /** Add task and the chips on messages (tasks/messageTasks.tsx); a new value only when the list does. */
+  /** Add task and the chips on messages (tasks/message-tasks.tsx); a new value only when the list does. */
   const taskApi = useMemo<TaskApi>(
     () => ({
       tasks: tasks.list,
@@ -369,7 +369,7 @@ export function Shell() {
     setFocusChat((n) => n + 1);
   };
 
-  /** A search result: its section, and for a desk or a waiting item the desk on Messages (searchModel.ts SearchTarget). */
+  /** A search result: its section, and for a desk or a waiting item the desk on Messages (search-model.ts SearchTarget). */
   const searchSources = useMemo(
     () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items }),
     [desk.desks.list, catchUp.agents, catchUp.items],

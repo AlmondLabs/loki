@@ -18,6 +18,7 @@ export interface LocalServer {
   cwd: string | null;
   alwaysLoad: string[];
 }
+/** A remote server: a Streamable HTTP URL and the headers sent with it, a token among them often as a `${keychain:…}` reference. */
 export interface RemoteServer {
   kind: "remote";
   name: string;
@@ -26,6 +27,7 @@ export interface RemoteServer {
   headers: Record<string, string>;
   alwaysLoad: string[];
 }
+/** One server from mcp.json, local or remote. */
 export type ServerConfig = LocalServer | RemoteServer;
 
 /** The config as read: the servers that parse, and a line for each entry that does not. */
@@ -185,6 +187,7 @@ export function setAlwaysLoad(path: string, entry: string, tools: string[]): voi
 
 /** `${keychain:<name>}`: a value kept in the keychain, which the file names instead of holding. */
 export const KEYCHAIN_REF = /\$\{keychain:([A-Za-z0-9_.-]+)\}/g;
+/** The `${keychain:<name>}` reference to write into mcp.json in place of a secret kept under `name`. */
 export const keychainRef = (name: string): string => `\${keychain:${name}}`;
 
 /** The server with every `${keychain:…}` in its env and headers replaced by the secret; a missing one is an error. */

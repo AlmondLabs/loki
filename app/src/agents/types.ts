@@ -18,6 +18,7 @@ import type {
  */
 export type AgentSkill = MemorySkill & Partial<SkillProvenance>;
 
+/** One agent as agent_get sends it: its record, its memory files and skills, whether it has a profile, and the last memory commit. */
 export interface AgentDetails {
   agent: LocalAgent;
   files: MemoryFile[];
@@ -26,6 +27,10 @@ export interface AgentDetails {
   lastCommit: MemoryCommit | null;
 }
 
+/**
+ * What the Agents section reads through the mod: an agent, its memory files and their history, the global skills, and
+ * the skill and reflection reads and writes.
+ */
 export interface AgentsApi {
   get: (agentId: string) => Promise<AgentDetails | null>;
   read: (agentId: string, path: string) => Promise<string | null>;

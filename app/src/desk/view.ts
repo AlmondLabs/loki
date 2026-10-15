@@ -1,6 +1,7 @@
 import type { DeskState, Scope, WidgetLayout, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, autoPlace } from "../../../core/desk-core.ts";
 
+/** A widget on the canvas: its manifest entry, its place, and the data the person's gestures laid over its own. */
 export interface VisibleWidget {
   entry: WidgetManifestEntry;
   layout: WidgetLayout;

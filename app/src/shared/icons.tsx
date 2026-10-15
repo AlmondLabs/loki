@@ -203,8 +203,10 @@ const PATHS = {
   ),
 } satisfies Record<string, ReactNode>;
 
+/** The name of one of loki's icons. */
 export type IconName = keyof typeof PATHS;
 
+/** The props of `Icon`: an SVG's, with the icon's name, its size and an optional accessible name. */
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "name" | "children"> {
   name: IconName;
   /** Rendered square side in px; the drawing stays on its 24-unit box. */

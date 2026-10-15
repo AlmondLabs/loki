@@ -26,6 +26,7 @@ function alive(pid: number): boolean {
 const TAKEOVER_STALE_MS = 10_000;
 const ATTEMPTS = 50;
 
+/** A lock this process holds; `release` removes the file only while it still names this process. */
 export interface Lock {
   release(): void;
 }

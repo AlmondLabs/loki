@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import type { TranscriptRow } from "./Transcript";
-import { REVEAL_PX, anchorTop, findStart, keepStart, openStart, revealStart, threadId } from "./transcriptWindow";
+import { REVEAL_PX, anchorTop, findStart, keepStart, openStart, revealStart, threadId } from "./transcript-window";
 
 /**
  * Follow the bottom only while the reader is there. Scrolling up to read
@@ -9,7 +9,7 @@ import { REVEAL_PX, anchorTop, findStart, keepStart, openStart, revealStart, thr
  * `unpinned` drives the "↓ latest" chip; `unpin` is for find, which moves the
  * selection into view and must not be yanked back by the next delta.
  *
- * It also keeps the window (transcriptWindow.ts): `start` is the first row mounted. Near the top of what is
+ * It also keeps the window (transcript-window.ts): `start` is the first row mounted. Near the top of what is
  * mounted, the next chunk is revealed and the offset moved by what it added, so the row being read stays put.
  * `reveal` mounts whatever find needs before the browser searches; "↓ latest" folds the window back.
  * At the top of everything loaded, `older` (when the log holds more) asks for the next page; the rows it adds

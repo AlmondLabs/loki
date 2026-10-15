@@ -6,6 +6,7 @@
 
 /** A desk scope: "shared" or a sanitized conversation id. */
 export type Scope = string;
+/** The shared desk's scope: its widgets show on every chat's desk too. */
 export const SHARED_SCOPE: Scope = "shared";
 
 /** The desk a widget belongs to: the scope before its id's "/", or the shared desk for an id without one. */
@@ -14,10 +15,12 @@ export function scopeOfId(id: string): Scope {
   return i > 0 ? id.slice(0, i) : SHARED_SCOPE;
 }
 
+/** A point on the canvas, in pixels. */
 export interface Position {
   x: number;
   y: number;
 }
+/** A width and height on the canvas, in pixels. */
 export interface Size {
   w: number;
   h: number;
@@ -38,6 +41,7 @@ export interface WidgetLayout {
   hidden?: boolean;
 }
 
+/** How a widget file is written: a JSON file naming a kit type, or a module that renders itself. */
 export type WidgetKind = "json" | "module";
 
 /** What the mod learned about one widget file on disk. Agent-owned content. */
@@ -60,6 +64,7 @@ export interface WidgetManifestEntry {
   updatedAt: number;
 }
 
+/** What happened to a widget file, as its change log records it. */
 export type WidgetChange = "added" | "changed" | "removed";
 
 /** Who made a widget change: the agent writing files (the default), the person (trashing a widget), or loki itself (a lesson's card). */
@@ -105,10 +110,12 @@ export type Gesture =
   /** `prev` is the value the tab saw before the gesture; module widgets keep their initial data client-side. */
   | { kind: "set"; id: string; path: string; value: unknown; prev?: unknown };
 
+/** A desk with no widgets placed yet, at revision 0. */
 export function emptyDesk(scope: Scope): DeskState {
   return { scope, layout: {}, overlay: {}, rev: 0 };
 }
 
+/** The highest z among a desk's widgets, 0 for an empty desk: a widget brought forward goes one above it. */
 export function topZ(layout: Record<string, WidgetLayout>): number {
   let top = 0;
   for (const l of Object.values(layout)) if (l.z > top) top = l.z;
@@ -120,6 +127,7 @@ export function autoPlace(index: number): Position {
   return { x: 140 + (index % 6) * 60, y: 120 + (index % 6) * 48 };
 }
 
+/** A widget's rectangle on the canvas: its position and size, in pixels. */
 export interface Rect extends Position, Size {}
 
 /** Frames are 280 wide by default; height is unknown until the tab measures it. */
@@ -128,11 +136,14 @@ export const DEFAULT_SIZE: Size = { w: 280, h: 160 };
 export const WIDGET_MAX_WIDTH = 760;
 /** Smallest a human may drag a frame; below this is a mis-grab, not an intent. */
 export const RESIZE_MIN: Size = { w: 200, h: 120 };
+/** Where the first widget on an empty desk goes. */
 export const ORIGIN: Position = { x: 120, y: 120 };
-/** Breathing room between widgets, and how wide a row grows before wrapping. */
+/** Breathing room between widgets, in pixels. */
 export const GAP = 24;
+/** How wide a row of widgets grows before the next one wraps below it, in pixels. */
 export const ROW_WIDTH = 1280;
 
+/** A widget's rectangle, with the default size while the tab has not measured it. */
 export function rectOf(layout: WidgetLayout): Rect {
   return { ...layout.position, w: layout.size?.w ?? DEFAULT_SIZE.w, h: layout.size?.h ?? DEFAULT_SIZE.h };
 }
@@ -200,10 +211,10 @@ export function ensureLayout(state: DeskState, id: string, obstacles: Rect[] = o
   };
 }
 
-/** Record the rendered size of a widget (reported by the tab). No-op if unchanged. */
 /** Smallest size a rendered widget frame can honestly have; anything under it is a transient layout glitch, not a measurement. */
 export const MIN_FRAME = { w: 80, h: 40 };
 
+/** Record the rendered size of a widget (reported by the tab). No-op if unchanged, or if the size is under MIN_FRAME. */
 export function applyMeasure(state: DeskState, id: string, size: Size): DeskState {
   const l = layoutOf(state, id);
   if (!l) return state;
@@ -357,4 +368,5 @@ export const KIT: Record<string, { dataShape: string }> = {
     dataShape: '{ kind: "line"|"bar"|"area", points: Array<{ x: string|number, y: number }>, yLabel?: string }',
   },
 };
+/** Every kit type a JSON widget may name. */
 export const KIT_TYPES: string[] = Object.keys(KIT);

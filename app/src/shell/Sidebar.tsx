@@ -6,6 +6,7 @@ import { inTauri, platform, type Platform } from "../desk/env";
 import { keyFor } from "./keymap";
 import { TitleMenu } from "./TitleMenu";
 
+/** The rail's width in px, down the window's left edge. */
 export const SIDEBAR_WIDTH = 48;
 /**
  * The native title bar is hidden (src-tauri/src/lib.rs: overlay style on the Mac, undecorated on Windows and Linux),
@@ -16,6 +17,7 @@ export const SIDEBAR_WIDTH = 48;
 export function titlebarHeight(shell: boolean = inTauri, os: Platform = platform): number {
   return !shell ? 0 : os === "macos" ? 28 : 32;
 }
+/** The top strip's height in px on this system (see `titlebarHeight`); 0 in a browser tab. */
 export const TITLEBAR_HEIGHT = titlebarHeight();
 
 /**
@@ -41,6 +43,7 @@ function OwnTitleStrip({ os, height }: { os: Platform; height: number }) {
   );
 }
 
+/** What loki's own window buttons do on Windows and Linux. */
 export type WindowAction = "minimize" | "toggleMaximize" | "close";
 
 /** The shell's window, its module loaded on first use; out here because an import() inside a hook keeps the React Compiler off it. */

@@ -13,6 +13,7 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
  * (core/attention/priority.ts).
  */
 
+/** One scheduled task, in Letta's record shape (snake_case, as the file keeps it). A one-time task is `done` once it fires; `cancelled` is a deleted one, kept in the file. */
 export interface ScheduledTask {
   id: string;
   agent_id: string;
@@ -105,8 +106,10 @@ export function dueBetween(fields: Fields, timezone: string, from: Date, to: Dat
   return false;
 }
 
+/** How a schedule's prompt reaches its chat: in the daemon, as a message from loki that waits for a running turn to end (DaemonChats.deliver). */
 export type Fire = (agentId: string, conversationId: string, text: string) => Promise<void>;
 
+/** The scheduled tasks in their file: `start` checks them once a minute and fires what came due, and the tools add, list and cancel them. */
 export class Schedules {
   private readonly file: string;
   private readonly fire: Fire;
@@ -209,6 +212,7 @@ export class Schedules {
   }
 }
 
+/** The scheduling tools (`schedule_create`, `schedule_list`, `schedule_delete`), as an extension over `schedules`; each acts for the chat and agent it is called from. */
 export function scheduleExtension(schedules: Schedules): Extension {
   const caller = async (api: ToolExecutionApi, context: Context) => {
     const [agent, chat] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(ChatDoc, api.conversationId, context)]);

@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import type { PermissionMode } from "./PermissionMode";
+import type { PermissionMode } from "./permission-mode";
 import type { ModelSelection } from "../../../core/models.ts";
 
 /**
@@ -77,4 +77,5 @@ export function useModelAndMode({
   return { pickerOpen, switching, modeOpen, changingMode, pickMode, pickModel, togglePicker, toggleMode, closePicker, closeMode };
 }
 
+/** The conversation's model and mode switchers, as `useModelAndMode` returns them. */
 export type ModelAndMode = ReturnType<typeof useModelAndMode>;

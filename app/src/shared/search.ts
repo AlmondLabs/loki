@@ -1,5 +1,5 @@
 /**
- * Search's matching and ranking, for any kind of hit: the phone's Search (phone/searchIndex.ts) and the
+ * Search's matching and ranking, for any kind of hit: the phone's Search (phone/search-index.ts) and the
  * desktop's ⌘K build their own hits, routes and named pages and hand them here as entries. Pure, so
  * test/shared-search.test.ts runs it under Node, with no DOM.
  *
@@ -15,10 +15,11 @@ export function cleanQuery(raw: string): string {
   return raw.replace(/\s+/g, " ").trim().slice(0, MAX_QUERY).trim();
 }
 
-/** For comparing: cleaned, lower case, accents folded (so "cafe" finds "Café"). */
+/** For comparing: lower case, accents folded (so "cafe" finds "Café"). */
 function fold(s: string): string {
   return s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
 }
+/** A query as it is compared: cleaned, lower case, accents folded. */
 export const normalize = (raw: string): string => fold(cleanQuery(raw));
 
 const WORD = /[\p{L}\p{N}]/u;
@@ -55,6 +56,7 @@ export interface SearchIndex<H> {
   readonly entries: ReadonlyArray<Indexed<H>>;
 }
 
+/** The index over `entries`, each field folded once, so each keystroke compares without folding again. */
 export function buildSearchIndex<H>(entries: ReadonlyArray<Indexed<H>>): SearchIndex<H> {
   return { entries: entries.map((e) => ({ ...e, fields: e.fields.map(foldField) })) };
 }

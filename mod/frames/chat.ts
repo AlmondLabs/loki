@@ -52,6 +52,7 @@ export interface ChatBackend {
   importStatus(): Promise<Replies["chat_import_status"]>;
 }
 
+/** What the chat frame handler needs from its host: the daemon's ChatBackend, absent when the mod runs alone. */
 export interface ChatDeps {
   chat?: ChatBackend;
 }
@@ -80,6 +81,10 @@ async function agentsChange<R>(work: Promise<Outcome<R>>, ctx: FrameContext): Pr
   return out;
 }
 
+/**
+ * The chat frames: each one passed to the daemon's ChatBackend and its result returned as the reply, or `error` with why.
+ * A change to the agents (create, update, delete, import) is also told to every client as `agents_changed`.
+ */
 export function chatFrames(deps: ChatDeps): FrameHandlers {
   const b = deps.chat;
   return {

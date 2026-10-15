@@ -12,6 +12,7 @@ export interface ActiveClock {
   set(active: boolean): void;
 }
 
+/** A new active clock reading `wall` (Date.now by default), running from the start unless `active` is false. */
 export function createActiveClock(wall: () => number = Date.now, active = true): ActiveClock {
   let total = 0;
   let since: number | null = active ? wall() : null;
@@ -28,5 +29,5 @@ export function createActiveClock(wall: () => number = Date.now, active = true):
   };
 }
 
-/** Reports the window coming forward (true) or going away (false), calling back at once with the state now; returns the unsubscribe. The app supplies it (app/src/shared/pageActivity.ts). */
+/** Reports the window coming forward (true) or going away (false), calling back at once with the state now; returns the unsubscribe. The app supplies it (app/src/shared/page-activity.ts). */
 export type Activity = (set: (active: boolean) => void) => () => void;

@@ -17,7 +17,7 @@ import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type 
  */
 export const recallDir = (): string => process.env.LOKI_RECALL_DIR ?? join(lokiDir(), "recall");
 
-/** Learn's settings, cursors and last run are the daemon's now (daemon/passes-state.ts); worker.json is read for this only. */
+/** Learn's settings, cursors and last run live in the daemon (daemon/passes-state.ts); worker.json is read for this only. */
 interface LegacyWorkerFile {
   /** Before 2026-09-14: the hidden conversation per agent the worker cleared before each ask. */
   recallConversations?: Record<string, string>;
@@ -54,6 +54,7 @@ export const isoDay = (now: number): string => {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 };
 
+/** A new card's id: the UTC date as yyyymmdd, a dash, and six random base-36 characters (20260910-k3f9q2). */
 export function newCardId(now = Date.now()): string {
   return `${new Date(now).toISOString().slice(0, 10).replace(/-/g, "")}-${Math.random().toString(36).slice(2, 8)}`;
 }

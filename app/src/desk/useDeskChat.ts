@@ -33,4 +33,8 @@ export function useDeskChat({
   return { deskRuntime, deskChat, pendingApproval, pendingQuestion };
 }
 
+/**
+ * A chat's conversation as `useDeskChat` returns it: its agent and conversation ids (null without both), its
+ * conversation in the Inbox's model, and any approval or question waiting.
+ */
 export type DeskChatModel = ReturnType<typeof useDeskChat>;

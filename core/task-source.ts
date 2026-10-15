@@ -43,7 +43,7 @@ export function oneLine(text: string, max: number): string {
 
 /**
  * The quote a task keeps: the text on one line without markdown's marks, as find in the transcript reads it
- * (chat/transcriptWindow.ts), so the quote both reads plainly in Tasks and finds its message again.
+ * (chat/transcript-window.ts), so the quote both reads plainly in Tasks and finds its message again.
  */
 export function quoteOf(text: string, max = QUOTE_MAX): string {
   return oneLine(text.replace(/[*_`~#>|\\[\]]/g, ""), max);
@@ -141,6 +141,7 @@ export function tasksForRow(byKey: Map<string, Task[]>, row: { role: string; tex
 /** What a message's chip says: still open, an agent's done? waiting for you, or done. */
 export type ChipState = "open" | "waiting" | "done";
 
+/** The state of a task's chip on its message: done once closed, waiting while an agent has asked whether it is done, open otherwise. */
 export function chipState(t: Task): ChipState {
   if (t.status === "closed") return "done";
   return t.metadata.doneAsked ? "waiting" : "open";

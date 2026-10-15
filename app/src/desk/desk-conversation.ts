@@ -11,6 +11,7 @@ interface Rt {
   conversation_id: string;
 }
 
+/** What the shell does for a chat's conversation that the pane cannot: load the models, and switch the chat's model or permission mode through the daemon. */
 export interface DeskConversationHandlers {
   onLoadModels?: () => void;
   /** Switch this desk's conversation to a model; the shell talks to the daemon. */

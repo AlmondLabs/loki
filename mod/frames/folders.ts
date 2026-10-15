@@ -1,6 +1,7 @@
 import type { FolderCheck, RecentFolders } from "../../core/frame-types.ts";
 import { reply, type FrameHandlers } from "./context.ts";
 
+/** What the folders frame handler needs from its host; without `folders` it answers with nothing recent and no matches. */
 export interface FoldersDeps {
   /** Working folders for a new chat (mod/folders.ts). */
   folders?: {

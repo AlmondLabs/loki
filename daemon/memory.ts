@@ -20,6 +20,7 @@ const run = promisify(execFile);
 const FILE_LIMIT = 64 * 1024;
 const LISTED = 200;
 
+/** The memory tools' names, the only tools reflection and the memory review run with; every one but memory_read changes memory. */
 export const MEMORY_TOOLS = ["memory_read", "memory_write", "memory_edit", "memory_delete"];
 
 /** A reflection pass's chat (daemon/reflection.ts): its commits are Reflection's. */
@@ -27,6 +28,7 @@ export const isReflectionChat = (chatId: string): boolean => chatId.startsWith("
 /** A memory review's chat (daemon/doctor.ts, /doctor): its commits are the Doctor's. */
 export const isDoctorChat = (chatId: string): boolean => chatId.startsWith("doctor-");
 
+/** Where an agent's memory repo is, in Letta's backend layout. */
 export function memoryRoot(backendDir: string, agentId: string): string {
   return join(backendDir, "memfs", agentId, "memory");
 }
@@ -96,6 +98,7 @@ const git = (root: string, ...args: string[]) => run("git", ["-C", root, "-c", "
  * that lost was on disk but never committed.
  */
 const queues = new Map<string, Promise<unknown>>();
+/** Run `work` on the repo at `root` once every earlier sequence there has settled, failed or not; settles as `work` does. */
 export function serial<T>(root: string, work: () => Promise<T>): Promise<T> {
   const next = (queues.get(root) ?? Promise.resolve()).then(work, work);
   const settled = next.catch(() => {});
@@ -175,6 +178,7 @@ export async function editMemoryFile(backendDir: string, agentId: string, path: 
   await commit(root, full, message?.trim() || `Update ${path}`, { name: "You", email: "you@loki.local" });
 }
 
+/** The memory tools and the `memory` section, as an extension over the agents in `backendDir`; each change commits as the agent, Reflection or Doctor, by the chat it comes from. */
 export function memoryExtension(backendDir: string): Extension {
   const who = async (read: DocumentReader, conversationId: ConversationId, context: Context) => {
     const [agent, chat] = await Promise.all([read.snapshot(AgentInfoDoc, context), read.snapshot(ChatDoc, conversationId, context)]);

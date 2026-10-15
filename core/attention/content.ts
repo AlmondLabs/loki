@@ -23,6 +23,7 @@ export interface FileAttachment {
 /** What the message box holds: images (sent inside the message) and files (sent as their path). */
 export type Attachment = ImageAttachment | FileAttachment;
 
+/** Whether an attachment is a file sent by its path rather than an image sent inside the message. */
 export const isFileAttachment = (a: Attachment): a is FileAttachment => "kind" in a;
 
 const xmlAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -39,13 +40,14 @@ export function withAttachments(text: string, files: Array<{ path: string; name:
   return text.trim() ? `${text}\n\n${tags}` : tags;
 }
 
+/** A user message's content as buildUserContent makes it: a plain string, or text and base64 image parts. */
 export type UserContent = string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
 
 /**
  * A user message's `content` in the shape Letta's create_message took: a plain string when there are
  * no images, otherwise text and image parts
  * (`{ type: "image", source: { type: "base64", media_type, data } }`). The chat client sends images apart
- * (chat_send), so only the tests use this now.
+ * (chat_send), so the tests are its only callers.
  */
 export function buildUserContent(text: string, images: ImageAttachment[] = [], context?: string): UserContent {
   if (!images.length && !context) return text;

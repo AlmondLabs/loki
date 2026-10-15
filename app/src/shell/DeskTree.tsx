@@ -5,10 +5,11 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
-import { deskMark } from "./sidebarModel";
+import { deskMark } from "./sidebar-model";
 import { formatKeys } from "./keymap";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
+/** The chat picker sheet's width in px. */
 export const TREE_WIDTH = 560;
 
 type Row = { kind: "desk"; desk: DeskSummary } | { kind: "new"; agentId: string | null; name: string };
@@ -41,7 +42,9 @@ export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: s
     .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
 }
 
+/** The picker's sections when nothing is typed: waiting on you, pinned, and the rest. */
 export type SectionId = "waiting" | "pinned" | "rest";
+/** One section of the picker: its label and its chats, in order. */
 export interface Section {
   id: SectionId;
   label: string;
@@ -83,7 +86,7 @@ export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, 
 }
 
 // The mark and the pin / archive rules live in the sidebar's model now; the tree and the phone keep importing them from here.
-export { deskMark, type MarkKind } from "./sidebarModel";
+export { deskMark, type MarkKind } from "./sidebar-model";
 
 /**
  * The desks tree, now only Tasks' assign-to-desk picker (PickerTree in views.tsx): the desk sidebar
@@ -139,6 +142,7 @@ export function statusLine(agentFilter: string | null, chips: Chip[], q: string,
   return q ? `${filterWord} · ${plural(matching)} match` : filterWord;
 }
 
+/** What a key in the picker's filter box does: move, cycle the agent chips, choose, or close. */
 export type TreeKeyAction = "down" | "up" | "agent-next" | "agent-prev" | "choose" | "close";
 
 /**

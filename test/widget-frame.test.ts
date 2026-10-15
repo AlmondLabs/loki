@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, isDataPath, isJsonValue, readFrameMessage, widgetSource } from "../app/src/desk/widgetBridge.ts";
+import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, isDataPath, isJsonValue, readFrameMessage, widgetSource } from "../app/src/desk/widget-bridge.ts";
 import { rewriteSharedImports } from "../app/src/frame/rewrite.ts";
 import { BOOT_REPORTER, FRAME_CSP, buildFrameHtml } from "../app/src/frame/build.ts";
 

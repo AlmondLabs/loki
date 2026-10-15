@@ -3,7 +3,7 @@ import { PHONE_APPEARANCE, linkWord, moreSections, updateState, type LinkState }
 import type { Me } from "./Pair";
 import { navigate } from "./router";
 import { MenuRow, RowGroup } from "./rows";
-import { ReloadSheet } from "./Settings";
+import { ReloadSheet } from "./Preferences";
 import { currentBuild } from "./UpdateBar";
 import { useTheme } from "../theme";
 import { Scroll, TopBar } from "./ui";

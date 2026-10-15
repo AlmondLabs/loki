@@ -8,10 +8,15 @@ import { scopeFor } from "../core/desk-core.ts";
 import { uploadRoute } from "./uploads.ts";
 
 /**
- * Transport only. HTTP exists for /health, /uploads (files attached to messages) and the WebSocket upgrade; the
- * canvas itself is the loki app (or, in development, a Vite tab proxying /loki/* here).
+ * Transport only. HTTP serves /health, /uploads (files attached to messages), the agents' faces, the WebSocket upgrade,
+ * and the routes a caller adds (the MCP sign-in's callback); the canvas itself is the loki app (or, in development, a
+ * Vite tab proxying /loki/* here).
  */
 
+/**
+ * The loopback desk server once listening: the port it bound (which differs from the one asked for when that was 0),
+ * and how to close it.
+ */
 export interface LokiServer {
   server: Server;
   port: number;
@@ -27,6 +32,10 @@ export interface LokiServer {
  */
 export type Authorize = (req: IncomingMessage, url: URL) => { ok: boolean; deviceId?: string };
 
+/**
+ * The loopback server's Authorize: the desktop token, from the WebSocket subprotocol header or else `?t=`, compared in
+ * constant time. With no token every request is refused.
+ */
 export const tokenAuth =
   (token: string | undefined): Authorize =>
   (req, url) => ({ ok: !!token && sameSecret(tokenFromProtocols(req.headers["sec-websocket-protocol"]) ?? url.searchParams.get("t"), token) });
@@ -42,6 +51,10 @@ export function sameSecret(given: string | null | undefined, secret: string): bo
 /** A route of the mod's own beyond the server's: true when it took the request. */
 export type Route = (req: IncomingMessage, res: ServerResponse, url: URL) => boolean;
 
+/**
+ * Starts the loopback desk server on 127.0.0.1: /health, agent faces, uploads when given a folder, then the extra
+ * routes in order; anything else is 404. Retries a port still held by the previous server on /reload.
+ */
 export async function startServer(opts: {
   port: number;
   health?: () => object;
@@ -134,6 +147,10 @@ export async function listenWithRetry(server: Server, port: number, tries = 4, h
   }
 }
 
+/**
+ * One open /ws socket as a frame handler sees it: the desk it shows, the paired phone behind it if any, and how to send
+ * to it.
+ */
 export interface Client {
   scope: Scope;
   /** The paired phone behind this socket (LAN listener only); undefined on loopback. */
@@ -141,11 +158,13 @@ export interface Client {
   send(msg: object): void;
 }
 
+/** What a listener calls for each socket: once when it opens, and for each JSON object it sends. */
 export interface WsHandlers {
   onConnect(client: Client): void;
   onMessage(client: Client, msg: Record<string, unknown>): void;
 }
 
+/** The open /ws sockets of one listener, to broadcast to, count, and close. */
 export interface WsBridge {
   /** Send to every tab, or only tabs showing `scope`. */
   broadcast(msg: object, scope?: Scope): void;
@@ -157,7 +176,8 @@ export interface WsBridge {
 
 /**
  * WebSocket upgrades on `/ws` (the bridge). `auth` is the desktop
- * token (checked as `?t=`) or an Authorize callback; the handlers are the same for both listeners.
+ * token (checked by tokenAuth: the subprotocol header, or `?t=`) or an Authorize callback; the handlers are the same
+ * for both listeners.
  */
 export function attachWs(server: Server, auth: string | Authorize, handlers: WsHandlers): WsBridge {
   const authorize: Authorize = typeof auth === "string" ? tokenAuth(auth) : auth;
@@ -262,6 +282,7 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] ?
 const messageText = (raw: WebSocket.RawData): string =>
   (Array.isArray(raw) ? Buffer.concat(raw) : Buffer.isBuffer(raw) ? raw : Buffer.from(raw)).toString("utf8");
 
+/** The small page the browser shows after an MCP sign-in: signed in or not, and the message, escaped. */
 export function oauthPage(ok: boolean, message: string): string {
   return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>loki · ${ok ? "signed in" : "sign-in failed"}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:32rem;margin:15vh auto;padding:0 16px;color:#222;background:#fafafa}@media(prefers-color-scheme:dark){body{color:#eee;background:#1b1b1d}}h1{font-size:18px}</style><h1>${ok ? "Signed in" : "Not signed in"}</h1><p>${escapeHtml(message)}</p>`;
 }

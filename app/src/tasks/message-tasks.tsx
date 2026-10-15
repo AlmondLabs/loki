@@ -4,7 +4,7 @@ import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { chipState, messageKey, quoteBlock, quoteOf, tasksByMessage, tasksForRow, titleFrom, type TaskSource } from "../../../core/task-source.ts";
 import { Button, Field } from "../components";
 import { formatKeys, matches } from "../shell/keymap";
-import { takeReveal, useRevealAsk } from "./revealMessage";
+import { takeReveal, useRevealAsk } from "./reveal-message";
 import type { useDesk } from "../desk/useDesk";
 
 /**
@@ -51,6 +51,7 @@ export interface Adding {
   title: string;
 }
 
+/** What a thread's messages share for filing tasks from them: the chat's tasks per message, the editor that is open, and its actions. */
 export interface MessageTasksValue {
   conversationId: string;
   tasksFor: (row: TranscriptRow) => Task[];
@@ -64,8 +65,10 @@ export interface MessageTasksValue {
   api: TaskApi;
 }
 
+/** The thread's filing state, provided by the chat pane; null outside one. */
 export const MessageTasks = createContext<MessageTasksValue | null>(null);
 
+/** The thread's filing state, or null outside a chat pane. */
 export const useMessageTasks = () => useContext(MessageTasks);
 
 /** The rows Add task works on: a message with words, yours or the agent's. */
@@ -174,6 +177,7 @@ export function useTaskList(
 /** Messages register their text here as they draw, so ⌘⇧T can find the whole message behind a selection by its key. */
 const drawnText = new Map<string, string>();
 
+/** Register a message's text as it draws, under its conversation and key; the oldest go once a few thousand are kept. */
 export function rememberMessage(conversationId: string, key: string, text: string): void {
   drawnText.set(`${conversationId}:${key}`, text);
   // A long session draws many threads: keep the newest few thousand.
@@ -199,7 +203,7 @@ function selectedMessage(conversationId: string): { role: "user" | "assistant"; 
 }
 
 /**
- * The thread's side of "open the message" (revealMessage.ts): once this conversation's rows are in, mount the rows
+ * The thread's side of "open the message" (reveal-message.ts): once this conversation's rows are in, mount the rows
  * above the window that hold the message, scroll it to the middle and mark it a moment. Rows still loading try again.
  */
 export function useRevealMessage(

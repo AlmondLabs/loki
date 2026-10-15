@@ -1607,7 +1607,7 @@ span.loki-phone-section-btn {
   margin-top: var(--phone-space-1);
 }
 /* Under every message, its copy button, always there (a phone has no hover), its touch area the full 44. A long
-   press on the message opens its actions (phone/MessageActions.tsx), so the browser's own selection and callout
+   press on the message opens its actions (phone/useMessageActions.tsx), so the browser's own selection and callout
    stay off the thread; Select text in that sheet gives the text back to select. */
 .loki-phone .loki-msg-actions {
   display: flex;
@@ -2753,7 +2753,7 @@ span.loki-phone-section-btn {
   animation: loki-pop var(--spring-bouncy-ms) var(--spring-bouncy);
 }
 
-/* Bottom sheets rise on the smooth spring over a fading veil; they leave the same way (sheetMotion.ts). */
+/* Bottom sheets rise on the smooth spring over a fading veil; they leave the same way (sheet-motion.ts). */
 @keyframes loki-sheet-rise {
   from {
     transform: translateY(100%);
@@ -2879,7 +2879,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation-duration: 160ms;
 }
 
-/* A page being swiped back from the left edge (edgeSwipe.ts): it casts a shadow on the darker ground it uncovers. */
+/* A page being swiped back from the left edge (edge-swipe.ts): it casts a shadow on the darker ground it uncovers. */
 .loki-phone-shell[data-edge-drag] {
   background: var(--phone-behind);
 }
@@ -3048,7 +3048,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-banner-in var(--spring-snappy-ms) var(--spring-snappy);
 }
 
-/* Learn (phone/Recall.tsx): the next card rises into the place of the one graded away; the turn to the answer
+/* Learn (phone/Learn.tsx): the next card rises into the place of the one graded away; the turn to the answer
    and the throw are the card's own (Web Animations), so this is only the arrival. */
 @keyframes loki-card-rise {
   from {

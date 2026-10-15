@@ -1,4 +1,4 @@
-import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/messageTasks";
+import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/message-tasks";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type RefObject } from "react";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
@@ -15,9 +15,9 @@ import { avatarUrl } from "./env";
 import { Surface } from "./Surface";
 import type { useDesk } from "./useDesk";
 import { useDeskChat } from "./useDeskChat";
-import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
+import { deskConversation, type DeskConversationHandlers } from "./desk-conversation";
 import { useInlineWidgets } from "../chat/useInlineWidgets";
-import { doneAction } from "../shell/sidebarModel";
+import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/useViewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type DeskTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
@@ -28,6 +28,7 @@ const TABS: ReadonlyArray<Tab<DeskTab>> = [
 ];
 const panelId = (t: DeskTab) => `loki-desk-panel-${t}`;
 
+/** The props of the chat pane (`DeskPane`): the chat and Inbox models, whether the pane is on screen, its tab, and the inset chat's layout. */
 export interface DeskPaneProps extends DeskConversationHandlers {
   desk: ReturnType<typeof useDesk>;
   catchUp: ReturnType<typeof useAttention>;
@@ -51,7 +52,7 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   frameRequest: FrameRequest | null;
   /** A widget row chosen in the thread: open the Desk tab framed on that widget (useDeskPane's frame). */
   onFrameWidget?: (widgetId: string) => void;
-  /** Tasks, for Add task on a message and the chips of the messages that have one (tasks/messageTasks.tsx). */
+  /** Tasks, for Add task on a message and the chips of the messages that have one (tasks/message-tasks.tsx). */
   taskApi?: TaskApi | null;
 }
 

@@ -2,13 +2,13 @@ import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { WIDGET_MAX_WIDTH, getPath, mergeData } from "../../../core/desk-core.ts";
 import { inTauri, openExternal, platform } from "./env";
-import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widgetBridge";
+import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widget-bridge";
 
 /**
  * Mounts an agent-authored module from ~/.loki/widgets/<desk>/<name>.tsx in a sandboxed iframe
  * (`allow-scripts` only: an opaque origin). Agent-written code never runs in the page: there it could read the
  * daemon token and approve its own commands. The frame (app/src/frame/) has its own React and kit; this side
- * hands it the module, the data overlay, the page's styles and theme, and reads back only what widgetBridge.ts
+ * hands it the module, the data overlay, the page's styles and theme, and reads back only what widget-bridge.ts
  * lets through. A new hash reloads the module in place; load and render errors show here and go back to the mod
  * so desk_state (and the next turn) can report them.
  */
@@ -38,6 +38,10 @@ const themeOf = () => {
   return { theme: d.theme ?? "dark", palette: d.palette ?? "loki" };
 };
 
+/**
+ * A custom widget (an agent-written module) drawn in its sandboxed frame: sized to its content
+ * unless `fill`, with load and render errors shown in place and reported through `onError`.
+ */
 export function ModuleWidget({
   entry,
   overlay,
@@ -202,6 +206,7 @@ export function ModuleWidget({
   );
 }
 
+/** A widget's error message, in monospace red, in the widget's place. */
 export function WidgetError({ message }: { message: string }) {
   return (
     <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", whiteSpace: "pre-wrap" }}>
@@ -210,6 +215,7 @@ export function WidgetError({ message }: { message: string }) {
   );
 }
 
+/** Catches a kit widget's render error: shows it in the widget's place and reports it through `onError`, so one broken widget leaves the rest standing. */
 export class WidgetErrorBoundary extends Component<
   { id: string; onError: (id: string, message: string | null) => void; children: ReactNode },
   { error: string | null }

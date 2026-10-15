@@ -33,6 +33,7 @@ export function keyboardFrom(tauri: boolean, os: unknown, userAgent: string): Pl
   return platformFrom(tauri ? os : undefined, userAgent);
 }
 
+/** Whether the page runs inside loki's app (Tauri) rather than a browser tab. */
 export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
 /** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
 export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;

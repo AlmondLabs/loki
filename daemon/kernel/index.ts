@@ -46,6 +46,7 @@ export type ChatInfo = {
   mcpKnown?: string[];
 };
 
+/** The pi-durable document that holds a chat's ChatInfo, one per conversation, keeping only its latest state; a fork starts from the empty one. */
 export const ChatDoc = defineDoc<ChatInfo>({
   kind: "loki.chat",
   version: 1,
@@ -63,6 +64,7 @@ export const AgentInfoDoc = defineDoc<{ id: string; name: string }>({
   initial: () => ({ id: "", name: "" }),
 });
 
+/** The Harness options a store is opened with; the storage is the store's own (AgentStore.open). */
 export type StoreOptions = Pick<HarnessOptions, "models" | "registry" | "settings" | "env" | "onReport" | "now">;
 
 /** One agent's chats on one pi-durable Harness. */

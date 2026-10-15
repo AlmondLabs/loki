@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 /** How many recent models the quick picks lead with. */
 export const RECENT_MODELS_MAX = 5;
 
+/** The recent models' file, state/recent-models.json in the loki folder unless LOKI_RECENT_MODELS_FILE says otherwise. */
 export const recentModelsFile = (): string => process.env.LOKI_RECENT_MODELS_FILE ?? join(lokiDir(), "state", "recent-models.json");
 
 const handles = (value: unknown): string[] => (Array.isArray(value) ? value.filter((h): h is string => typeof h === "string" && h.length > 0) : []);
@@ -24,6 +25,7 @@ function readJson(file: string): Record<string, unknown> {
   }
 }
 
+/** The recent model handles, most recent first and at most RECENT_MODELS_MAX; empty when the file is missing or unreadable. */
 export function readRecentModels(file = recentModelsFile()): string[] {
   return handles(readJson(file).recent).slice(0, RECENT_MODELS_MAX);
 }

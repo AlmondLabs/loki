@@ -19,6 +19,7 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
 /** Rows per group; the group says how many matched in all. */
 export const GROUP_MAX = 5;
 
+/** Search's groups: chats ("desks", the code's older name), agents, what waits in the Inbox, and the app's pages. */
 export type GroupId = "desks" | "agents" | "inbox" | "pages";
 const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", inbox: "Inbox", pages: "Pages" };
 const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
@@ -26,6 +27,7 @@ const GROUP_ORDER: GroupId[] = ["desks", "agents", "inbox", "pages"];
 /** What the row starts with: the agent's face, or an icon. */
 export type Lead = { agent: { id: string; name: string } } | { icon: IconName };
 
+/** One search result: the row it draws and the route it opens. */
 export interface Hit {
   key: string;
   group: GroupId;
@@ -161,6 +163,10 @@ const openable = (d: DeskSummary): d is DeskSummary & { agentId: string; convers
 /** The sources as searchable entries, fields folded: build once per sources (Search.tsx memoizes it), query per keystroke. */
 export type SearchIndex = CoreIndex<Hit>;
 
+/**
+ * The search index over chats that can be opened, agents, the Inbox's ready cards and the app's pages; built once per
+ * set of sources and queried on each keystroke.
+ */
 export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
   for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskTitle(d), d.agentName ?? ""], recency: time(d.lastActive) });

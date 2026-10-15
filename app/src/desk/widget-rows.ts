@@ -8,6 +8,7 @@ import type { WidgetMark } from "../chat/Transcript";
  * and where each entry sits among a thread's messages.
  */
 
+/** The widget change log per chat, by scope, oldest entry first. */
 export type WidgetLogs = Record<Scope, WidgetLogEntry[]>;
 
 const CHANGES: readonly WidgetChange[] = ["added", "changed", "removed"];

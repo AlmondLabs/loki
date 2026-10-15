@@ -4,10 +4,6 @@ How loki's code, comments, docs, tests, commits and pull requests are written. E
 a tool (marked **checked**, with the check named) or is a review matter (marked **review**). A rule that a tool
 checks is not argued in review: change the rule here and the tool together, in one PR.
 
-> **Status**: this guide lands in four PRs: the guide itself, then Prettier (done), then the strict lint (done), then the
-> doc-comment, file-name and PR-title checks, each fixing the whole tree as it turns its check on. A rule marked
-> **checked** whose check has not landed yet is still the rule.
-
 This guide covers how things are written. How loki looks is [design.md](design.md) (tokens, primitives, colour
 rules, checked by `test/tokens.test.ts`); what its words mean is [GLOSSARY.md](../GLOSSARY.md); where code lives is
 [architecture.md](architecture.md).
@@ -18,7 +14,7 @@ The checks, all in CI and all to run before pushing:
 npm run format:check   # Prettier; npm run format fixes it
 npm run lint           # ESLint: typescript-eslint strict + stylistic (type-checked), React hooks and Compiler rules
 npm run typecheck      # tsc, strict
-npm test               # vitest, including the style tests (file names, design tokens, pinned actions)
+npm test               # vitest, including the style tests (file names, PR titles, design tokens, pinned actions)
 npm run test:node
 npm run build:app && npm run build:mod && npm run smoke
 ```
@@ -40,7 +36,10 @@ npm run build:app && npm run build:mod && npm run smoke
 - A hook's file is `useX.ts` or `useX.tsx`: `useTasks.ts`.
 - Everything else is kebab-case: `task-source.ts`, `session-value.ts`, `fake-mcp.mjs`.
 - Tools' own config files keep the names their tools look for (`vite.config.ts`, `eslint.config.mjs`).
-- Tests are `test/<subject>.test.ts`; Node runner tests are `test-node/<subject>.node-test.ts`.
+- A file of several components or helpers, with no one main export, is kebab-case like any module:
+  `permission-mode.tsx`, `recall-parts.tsx`.
+- Tests are `test/<subject>.test.ts`, their helpers in `test/fixtures/`; Node runner tests are
+  `test-node/<subject>.node-test.ts`, beside the helpers they start or import.
 
 **Names** **review**:
 
@@ -121,7 +120,7 @@ Doctor in CI (nothing new against `main`):
 - Stable handlers where children are memoised (the transcript's rows are; see `chat/Transcript.tsx`): `useCallback`,
   or a ref read inside a stable callback.
 - State that outlives a component and is shared goes in a small store read with `useSyncExternalStore`
-  (`shared/sessionValue.ts` is the pattern), not in context threaded through ten components.
+  (`shared/session-value.ts` is the pattern), not in context threaded through ten components.
 - Browser storage only for per-viewer conveniences, every read and write in `try`/`catch`, and the page must work
   without it.
 
@@ -194,7 +193,10 @@ commit.
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`; `!` after the
   scope for a breaking change.
 - Scopes are loki's areas: `chat`, `tasks`, `mcp`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `daemon`,
-  `mod`, `core`, `shell`, `release`, `deps`. The scope may be left out for changes across the tree.
+  `mod`, `core`, `app`, `shell`, `release`, `deps`, `style` (this guide and its tooling). The scope may be left out for
+  changes across the tree. The list lives in `scripts/check-pr-title.ts`; a new area adds its scope there and here.
+- What changed starts lowercase (names inside it keep their capitals: `fix(phone): pair over Tailscale`). GitHub's own
+  `Revert "…"` titles pass as they are.
 - The subject fits in 72 characters. The body says why, in sentences, wrapped near 72.
 - Examples: `feat(tasks): add task from a chat message`, `fix(mcp): retry sign-in after a refused state`,
   `ci: pin the windows runner`.

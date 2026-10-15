@@ -160,4 +160,5 @@ export function useAgentDetails({
   };
 }
 
+/** The selected agent's details and the writes against it, as `useAgentDetails` returns them. */
 export type AgentStore = ReturnType<typeof useAgentDetails>;

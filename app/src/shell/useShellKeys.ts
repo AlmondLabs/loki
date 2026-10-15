@@ -3,16 +3,6 @@ import { inTauri, keyboard, type Platform } from "../desk/env";
 import { chordIds, dialogState, keySegment, menuSpec, registerActions, resolve, runAction, shellKeyAllowed, typingIn, type Segment } from "./keymap";
 
 /**
- * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
- * their own: the sheet's zoom, the deck's decisions, the task list's moves), the one keydown listener that
- * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
- * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
- * registered once. Dialogs own their keys; Preferences, the one dialog that is part of the shell, lets ⌘,
- * ⌘1-6 and its ⌘[ ⌘] through, and search lets ⌘K through to close it (shellKeyAllowed). Esc peels a layer:
- * the desk's Desk tab back to Messages (`toMessages` says whether it took it), then a segment other than
- * the desk, through `escape` (the inbox closes itself). Never while typing.
- */
-/**
  * The webview's own keys on Windows (WebView2's browser accelerators) and Linux: reload, print, find, the caret,
  * devtools, view source, back and forward. None of them belongs in an app window, and a reload drops the desk
  * mid-turn. In the packaged app they are held back (preventDefault); loki's own bindings on the same chords still run,
@@ -46,6 +36,7 @@ const BROWSER_KEYS = new Set([
   "browserforward",
   "browserrefresh",
 ]);
+/** Hold back the webview's own browser keys (BROWSER_KEYS) in the packaged app on Windows and Linux; loki's own bindings on those chords still run. */
 export function guardBrowserKey(
   e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey" | "preventDefault">,
   os: Platform = keyboard,
@@ -56,6 +47,16 @@ export function guardBrowserKey(
   if (BROWSER_KEYS.has(chord)) e.preventDefault();
 }
 
+/**
+ * The window's keys, by keymap id. Owns the registry entries for the window-level actions (views register
+ * their own: the sheet's zoom, the deck's decisions, the task list's moves), the one keydown listener that
+ * resolves the event against the keymap for the showing segment, and the native menu's clicks. `view` and
+ * `actions` are read through a ref, so the closures passed each render stay fresh while everything is
+ * registered once. Dialogs own their keys; Preferences, the one dialog that is part of the shell, lets ⌘,
+ * ⌘1-6 and its ⌘[ ⌘] through, and search lets ⌘K through to close it (shellKeyAllowed). Esc peels a layer:
+ * the desk's Desk tab back to Messages (`toMessages` says whether it took it), then a segment other than
+ * the desk, through `escape` (the inbox closes itself). Never while typing.
+ */
 export function useShellKeys(
   view: { segment: Segment },
   actions: Record<string, () => void>,

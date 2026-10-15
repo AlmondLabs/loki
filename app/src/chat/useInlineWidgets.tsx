@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import type { Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
-import { widgetMarks } from "../desk/widgetRows";
+import { widgetMarks } from "../desk/widget-rows";
 import { InlineWidget } from "./InlineWidget";
 import type { WidgetMark } from "./Transcript";
 
@@ -17,7 +17,7 @@ export interface InlineWidgetSource {
 export const WidgetSourceContext = createContext<InlineWidgetSource | undefined>(undefined);
 
 /**
- * A thread's widget rows and the widgets drawn under them: the marks (desk/widgetRows.ts) from the desk's change
+ * A thread's widget rows and the widgets drawn under them: the marks (desk/widget-rows.ts) from the desk's change
  * log, and `inline(widgetId)` for the live widget. The desk's widgets are asked for once something in the thread
  * shows one (watchDesk), and again when they change. `readOnly` is the phone: it draws, it does not edit.
  */

@@ -6,7 +6,7 @@ import { inTauri } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
-import { withHistoryLog } from "./widgetRows";
+import { withHistoryLog } from "./widget-rows";
 
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
@@ -26,8 +26,10 @@ import type {
   Task,
 } from "../../../core/frame-types.ts";
 
+/** The state of the socket to the mod. */
 export type Connection = "connecting" | "open" | "closed";
 
+/** A request to move the camera to widgets, as the mod's camera frame asks; the nonce makes a repeat new. */
 export interface CameraTarget {
   widgetId: string;
   /** All ids to frame together (first is widgetId). */
@@ -37,11 +39,6 @@ export interface CameraTarget {
 
 export type { VisibleWidget } from "./view";
 
-/**
- * The tab's view of the desk: manifest + geometry per scope, synced from the
- * mod over WebSocket. Gestures apply optimistically with the same pure
- * reducer the mod uses, then go up the wire.
- */
 /** A `recall` reply as the snapshot the view holds, or null when the mod refused or did not answer. */
 const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null => {
   if (!r.ok) return null;
@@ -60,6 +57,11 @@ const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null
 /** Captures kept while the socket is closed; the oldest go first. */
 const CAPTURES_HELD = 50;
 
+/**
+ * The tab's view of the desk: manifest + geometry per scope, synced from the
+ * mod over WebSocket. Gestures apply optimistically with the same pure
+ * reducer the mod uses, then go up the wire.
+ */
 export function useDesk() {
   const {
     scope,
@@ -505,7 +507,7 @@ export function useDesk() {
     trash,
     reportWidgetError,
     cameraTarget,
-    /** This desk's widget change log, oldest first (desk/widgetRows.ts); undefined before any arrived. */
+    /** This desk's widget change log, oldest first (desk/widget-rows.ts); undefined before any arrived. */
     widgetLog: widgetLogs[scope],
     /** Any desk's widget change log (a thread elsewhere: the Inbox, the phone). */
     widgetLogOf: (s: Scope) => widgetLogs[s],

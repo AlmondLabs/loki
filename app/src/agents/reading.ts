@@ -20,6 +20,10 @@ export function shownShaOf(sha: string | null, log: MemoryCommit[]): string | nu
   return sha ?? log.at(0)?.sha ?? null;
 }
 
+/**
+ * What the reading pane shows for a page: the memory file on memory, the shown commit on changes, the shown skill's
+ * file on skills; null on profile and reflection, or when there is nothing to show.
+ */
 export function readingFor(page: AgentPage, filePath: string, shownSha: string | null, shownSkill: AgentSkill | null): Reading {
   if (page === "memory") return { kind: "file", path: filePath };
   if (page === "changes") return shownSha ? { kind: "commit", sha: shownSha } : null;

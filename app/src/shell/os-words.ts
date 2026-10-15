@@ -6,6 +6,7 @@
  */
 import { platform, systemName, type Platform } from "../desk/env";
 
+/** The words that name the machine and its tools on one system. */
 export interface OsWords {
   /** The machine mid-sentence: "every agent on this Mac". */
   machine: string;
@@ -53,6 +54,7 @@ const WORDS: Record<Platform, OsWords> = {
   },
 };
 
+/** The machine's words on a system, the one loki runs on unless told. */
 export function osWords(os: Platform = platform): OsWords {
   return WORDS[os];
 }

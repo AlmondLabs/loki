@@ -39,6 +39,7 @@ import type { MemoryCommit, MemorySkill, MemorySkillInfo, RefreshOutcome, SkillO
  * last step is the agent's, on purpose: the copy is its memory.
  */
 
+/** Where SkillSources reads and writes; the folders left out default to the machine's own. */
 export interface SkillSourcesOptions {
   /** The local backend (mod/agents.ts backendDir()). */
   backendDir?: string;
@@ -59,11 +60,15 @@ export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) 
 
 const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");
 
-/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/osWords.ts). */
+/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/os-words.ts). */
 export function machineWord(os: NodeJS.Platform = process.platform): string {
   return os === "darwin" ? "this Mac" : os === "win32" ? "this PC" : "this computer";
 }
 
+/**
+ * An agent's memory skills told apart as self or other, and an other skill refreshed from its upstream, as described
+ * above.
+ */
 export class SkillSources {
   private readonly opts: SkillSourcesOptions;
   private readonly exec: NonNullable<SkillSourcesOptions["exec"]>;

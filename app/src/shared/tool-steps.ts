@@ -110,6 +110,10 @@ const isBackgroundTask = (row: TranscriptRow): boolean => row.role === "event" &
 /** What kind of step a work row is: the ones with a name of their own are listed; the rest are housekeeping. */
 export type StepKind = "background" | "command" | "agent" | "skill" | "read" | "edit" | "search" | "web" | "plan" | "tool";
 
+/**
+ * What kind of step a work row is, read from its tool's name: a background task's notice or a loaded skill for an event
+ * row, else a command, an agent, a read, an edit, a search, a web call, a plan, or any other tool.
+ */
 export function stepKind(row: TranscriptRow): StepKind {
   if (row.role === "event") return isBackgroundTask(row) ? "background" : "skill";
   const name = stepName(row);
@@ -161,6 +165,7 @@ export function toolRuns(rows: TranscriptRow[], from = 0, breaks?: (i: number) =
 
 /** Steps with a name of their own, shown in full; everything else is housekeeping, listed quieter. */
 const NAMED: ReadonlySet<StepKind> = new Set(["background", "command", "agent"]);
+/** Whether a step is listed in full: a background task, a command or an agent, or any step that failed. */
 export const isNamedStep = (row: TranscriptRow): boolean => NAMED.has(stepKind(row)) || stepFailed(row);
 
 /** "14 min", "1 h 5 min"; null under a minute, or when the rows carry no times. */

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { isRemoteImage } from "../app/src/chat/markdownImage.tsx";
+import { isRemoteImage } from "../app/src/chat/markdown-image.tsx";
 
-/** A remote image in markdown loads only when asked: its address is how a led-astray agent would leak (markdownImage.tsx). */
+/** A remote image in markdown loads only when asked: its address is how a led-astray agent would leak (markdown-image.tsx). */
 describe("markdown images", () => {
   const app = "tauri://localhost/index.html";
   test("another host's image waits to be asked for", () => {

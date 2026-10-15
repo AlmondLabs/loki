@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
+/** Files a new agent through the daemon; resolves to its id or the daemon's error. */
 export type CreateAgent = (opts: NewAgentOptions) => Promise<{ id: string } | { error: string }>;
 
 /**

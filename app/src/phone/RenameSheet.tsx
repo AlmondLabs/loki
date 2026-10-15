@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Field, Sheet } from "../components";
-import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebarModel";
+import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
 
 /**
  * The phone's Rename, as the desktop's RenameDesk: one field holding the name now, selected, so typing replaces

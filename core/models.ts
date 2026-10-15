@@ -1,6 +1,9 @@
+/** Every reasoning effort a model preset may carry, least to most, in the order the model picker offers them. */
 export const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+/** How hard a model thinks before answering, one of REASONING_EFFORTS. */
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
+/** One model preset from the harness's list_models, as the model picker shows it: its handle, label, effort and whether this account can reach it. */
 export interface ModelEntry {
   id: string;
   handle: string;
@@ -27,23 +30,25 @@ export function selectionOf(entry: ModelEntry): ModelSelection {
   return { id: entry.id, handle: entry.handle, ...(entry.reasoningEffort ? { reasoningEffort: entry.reasoningEffort } : {}) };
 }
 
+/** The model a conversation was switched to: the handle and effort sent with chat_model, effort null when none was chosen. */
 export interface AppliedModel {
   handle: string;
   reasoningEffort: ReasoningEffort | null;
 }
 
+/** Whether a value is one of the reasoning efforts, for checking one read off the wire. */
 export function isReasoningEffort(value: unknown): value is ReasoningEffort {
   return typeof value === "string" && (REASONING_EFFORTS as readonly string[]).includes(value);
 }
+
+/** A wire field as text: a string as it is, a number or boolean written out, anything else empty. */
+const wireText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 /**
  * Normalize the list_models wire entries while retaining effort metadata from each preset. `availableHandles`
  * is the reply's `available_handles`: a list marks every other handle unavailable; null (the lookup failed) or
  * absent (an older harness) marks none.
  */
-/** A wire field as text: a string as it is, a number or boolean written out, anything else empty. */
-const wireText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
-
 export function modelEntriesFromWire(value: unknown, availableHandles?: unknown): ModelEntry[] {
   if (!Array.isArray(value)) return [];
   const reachable = Array.isArray(availableHandles) ? new Set(availableHandles.filter((h): h is string => typeof h === "string")) : null;

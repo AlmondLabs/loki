@@ -11,7 +11,7 @@ import type {
 } from "react";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSheetMotion } from "./sheetMotion";
+import { useSheetMotion } from "./sheet-motion";
 import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
@@ -31,6 +31,7 @@ import { Icon, type IconName } from "../shared/icons";
  * green affirmative, filled · negative red ink. "Needs you" is the red attention badge, not a tone.
  */
 export type Tone = "quiet" | "paper" | "brass" | "positive" | "negative";
+/** Control heights: sm 28px (the desktop's default), md 36px, touch 44px (the phone). */
 export type Size = "sm" | "md" | "touch";
 
 const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
@@ -49,6 +50,7 @@ const BTN_TONE: Record<Tone, string | null> = {
   negative: "loki-btn--negative",
 };
 
+/** The props of `Button`: the native button's, with a tone, a size, and the hairline, width and shortcut hint options. */
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tone?: Tone;
   /** sm 28 (desktop default) · md 36 · touch 44 (the phone). */
@@ -79,6 +81,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
 });
 
+/** The props of `IconButton`: a glyph button that needs an accessible label in place of children text. */
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   /** The accessible name; also the tooltip unless `title` is given. */
   label: string;
@@ -115,6 +118,7 @@ export function NavButton({ current, className, type = "button", ...rest }: Butt
   return <button type={type} aria-current={current ? "page" : undefined} className={cx("loki-nav", className)} {...rest} />;
 }
 
+/** The props of `Chip`: the native button's, with the chosen, blue-pick, attention and static looks. */
 export interface ChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** The button, for a host that hands focus back to it (the model pill). */
   ref?: Ref<HTMLButtonElement>;
@@ -213,12 +217,14 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field({ s
   return <input ref={ref} className={fieldClass({ size, mono, bare, large, inline }, className)} {...rest} />;
 });
 
+/** The props of `TextArea`: the native textarea's with the field's size and look options. */
 export type TextAreaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & FieldMods;
 /** A textarea on the well; never resizable by hand (the layout owns its height). */
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function TextArea({ size, mono, bare, large, inline, className, ...rest }, ref) {
   return <textarea ref={ref} className={fieldClass({ size, mono, bare, large, inline }, className)} {...rest} />;
 });
 
+/** The props of `Row`: the native button's, with the selected, dense, touch and flush looks. */
 export interface RowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   selected?: boolean;
   /** 6px radius, tighter padding: options in a picker. */
@@ -241,6 +247,7 @@ export const Row = forwardRef<HTMLButtonElement, RowProps>(function Row({ select
   );
 });
 
+/** The props of `Sheet`, loki's one dialog: its name, how it closes, its size and where it sits. */
 export interface SheetProps {
   /** The dialog's accessible name. */
   label: string;
@@ -269,7 +276,7 @@ export interface SheetProps {
  * A modal sheet over a veil: aria-modal, Escape and a click on the veil close it, and focus returns to
  * where it was when the sheet closes. (A Tab loop inside the sheet is the next step; see docs/design.md.)
  * A bottom sheet (the phone's) is drawn at the phone shell's root, above the screen it covers so that
- * screen can recede under it, and moves as an iOS sheet does (sheetMotion.ts).
+ * screen can recede under it, and moves as an iOS sheet does (sheet-motion.ts).
  */
 export function Sheet({
   label,
@@ -360,6 +367,7 @@ export function Sheet({
   return shell ? createPortal(sheet, shell) : sheet;
 }
 
+/** The props of `Popover`: a div's, with the edge and side it hangs from, its width, and whether it opens without growing. */
 export interface PopoverProps extends HTMLAttributes<HTMLDivElement> {
   /** Which edge of the anchor it hangs from. */
   anchor?: "left" | "right";
@@ -566,6 +574,10 @@ export function ListIcon({ name }: { name: IconName }) {
   );
 }
 
+/**
+ * The props of `ListRow`, the one row the sidebars and list-and-detail lists draw: its lead, title and preview, the
+ * badge and status marks, and its open, menu and row actions.
+ */
 export interface ListRowProps {
   /** The start: an agent's face (AgentFace at 20) or a ListIcon. */
   lead?: ReactNode;
@@ -793,6 +805,7 @@ export function TabRow<T extends string>({
   );
 }
 
+/** The props of `PaneHeader`: the title line's parts and an optional tab row. */
 export interface PaneHeaderProps<T extends string = string> {
   title: ReactNode;
   /** Before the title: a # icon or the agent's face. */

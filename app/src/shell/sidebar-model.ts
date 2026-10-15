@@ -8,6 +8,7 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
  * marks each row carries; the archive below; the "needs you" pills; and what is kept across restarts.
  */
 
+/** The mark before a chat: waiting on you, failed, finished unread, running, archived, deleted, or none. */
 export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
 
 /**
@@ -54,10 +55,10 @@ export function cleanDeskName(raw: string): string | null {
   const name = raw.replace(/\s+/g, " ").trim().slice(0, DESK_NAME_MAX).trimEnd();
   return name || null;
 }
-/** A live desk with an agent and a conversation can be pinned. */
 /** A desk with an agent and a conversation, not deleted, can move to another folder (the daemon keeps it per chat). */
 export const canMove = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status !== "deleted";
 
+/** A live desk with an agent and a conversation can be pinned. */
 export const canPin = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status === "live";
 
 /**
@@ -75,6 +76,7 @@ export interface RowState {
   note?: string;
 }
 
+/** What a chat's row shows, from its Inbox item and its status (see `RowState`). */
 export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): RowState {
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
@@ -102,6 +104,7 @@ export function doneAction(item: AttentionItem | undefined | null): "done" | "un
   return item.lastRole === "assistant" && !!item.lastMessageAt ? "undone" : null;
 }
 
+/** One row of the Chats sidebar: its chat, its marks, whether it is the agent's main chat, and whether it is the one on show. */
 export interface SidebarRow extends RowState {
   desk: DeskSummary;
   /** The agent's main chat (conversation "default"). */
@@ -109,6 +112,7 @@ export interface SidebarRow extends RowState {
   current: boolean;
 }
 
+/** One section of the Chats sidebar: Pinned, or one agent's chats. */
 export interface SidebarSection {
   /** "pinned" or "agent:<agentId>" — the key a fold is kept under. */
   id: string;
@@ -120,6 +124,7 @@ export interface SidebarSection {
   waiting: number;
 }
 
+/** The Chats sidebar as drawn: its sections, the archived chats, and whether a filter matched nothing. */
 export interface SidebarModel {
   sections: SidebarSection[];
   /** Archived and deleted desks, in the mod's order, behind the Archived entry. */
@@ -130,6 +135,7 @@ export interface SidebarModel {
 
 const byRecent = (a: DeskSummary, b: DeskSummary) => (b.lastActive ?? "").localeCompare(a.lastActive ?? "");
 
+/** The Chats sidebar's model, by the rules above, with `opts.query` filtering by chat title or agent name and `opts.current` marking the chat on show. */
 export function sidebarModel(
   desks: DeskSummary[],
   items: AttentionItem[],
@@ -194,12 +200,14 @@ export function offscreenWaits(
   return { up: up?.id ?? null, down: down?.id ?? null };
 }
 
+/** The localStorage key the sidebar's folds and scroll are kept under. */
 export const SIDEBAR_KEY = "loki.desktop.sidebar";
 
+/** The sidebar as the person left it: folded sections, the Archived entry, and the scroll. */
 export interface SidebarPref {
   /** Section ids folded shut. */
   collapsed: string[];
-  /** The Archived entry starts folded. */
+  /** The Archived entry is open; it starts folded. */
   archivedOpen: boolean;
   /** The list's scrollTop. */
   scroll: number;
@@ -207,6 +215,7 @@ export interface SidebarPref {
 
 const FRESH: SidebarPref = { collapsed: [], archivedOpen: false, scroll: 0 };
 
+/** Stored sidebar settings read back; anything missing, malformed or out of range is the fresh default. */
 export function parseSidebar(raw: string | null): SidebarPref {
   if (!raw) return { ...FRESH };
   try {
@@ -223,6 +232,7 @@ export function parseSidebar(raw: string | null): SidebarPref {
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 
+/** The sidebar as saved in `store`; the fresh default when it cannot be read. */
 export function loadSidebar(store: Store): SidebarPref {
   try {
     return parseSidebar(store.getItem(SIDEBAR_KEY));
@@ -231,6 +241,7 @@ export function loadSidebar(store: Store): SidebarPref {
   }
 }
 
+/** Save the sidebar to `store`; a blocked store saves nothing and does not throw. */
 export function saveSidebar(store: Store, pref: SidebarPref): void {
   try {
     store.setItem(SIDEBAR_KEY, JSON.stringify(pref));
@@ -239,6 +250,7 @@ export function saveSidebar(store: Store, pref: SidebarPref): void {
   }
 }
 
+/** The settings with one section's fold flipped. */
 export function toggleFold(pref: SidebarPref, id: string): SidebarPref {
   return { ...pref, collapsed: pref.collapsed.includes(id) ? pref.collapsed.filter((c) => c !== id) : [...pref.collapsed, id] };
 }

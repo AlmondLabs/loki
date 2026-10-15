@@ -18,6 +18,7 @@ import { log } from "./log.ts";
 /** 25 MB (Letta's limit for a channel's media, kept): enough for a deck or a report, not a video. */
 export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
+/** An attached file once it is on disk, as the upload route answers: its path for the agent, name, size in bytes and type. */
 export interface Uploaded {
   path: string;
   name: string;

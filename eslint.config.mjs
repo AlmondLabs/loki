@@ -4,6 +4,7 @@
 // compiler skips a function that breaks one silently; here it is a red check). Layout is Prettier's, not ESLint's.
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
+import jsdoc from "eslint-plugin-jsdoc";
 
 export default tseslint.config(
   { ignores: ["node_modules/**", "**/dist/**", ".loki-build/**", "src-tauri/**", ".impeccable/**", "docs/**", ".claude/**"] },
@@ -45,6 +46,24 @@ export default tseslint.config(
     // Tools that import their config by default, and the mod's entry points, which the mod loader imports by default.
     files: ["**/*.config.{ts,mts,js,mjs}", "mod/index.ts", "mod/boot.ts"],
     rules: { "no-restricted-exports": "off" },
+  },
+  {
+    // Every export outside the tests says what it is (STYLE §5): functions, components, classes, interfaces, type aliases
+    // and constants alike. A `/** … */` comment, so editors show it where the export is used.
+    files: ["**/*.{ts,tsx,mts}"],
+    ignores: ["test/**", "test-node/**", "**/*.config.ts", "**/*.d.mts"],
+    plugins: { jsdoc },
+    rules: {
+      "jsdoc/require-jsdoc": [
+        "error",
+        {
+          publicOnly: true,
+          require: { FunctionDeclaration: true, ClassDeclaration: true, ArrowFunctionExpression: true, FunctionExpression: true },
+          contexts: ["TSInterfaceDeclaration", "TSTypeAliasDeclaration", "ExportNamedDeclaration > VariableDeclaration"],
+          checkConstructors: false,
+        },
+      ],
+    },
   },
   {
     // Plain JavaScript has no types to check against.

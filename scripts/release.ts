@@ -26,7 +26,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseVersion } from "../core/version.ts";
 
+/** What a release run does: ship a stable, the rolling nightly, the Windows and Linux files onto a stable, or nothing. */
 export type Kind = "stable" | "nightly" | "preview" | "none";
+/** What `plan` decided for this push, and why (`reason`, a line for the run's log). */
 export interface Plan {
   kind: Kind;
   /**
@@ -39,12 +41,15 @@ export interface Plan {
   reason: string;
 }
 
+/** The one release PR's branch; merging that PR is what ships a stable. */
 export const RELEASE_BRANCH = "release/next";
 /** The release PR's one file: the main it was built from. Merging it is what makes a run a stable. */
 export const RELEASE_FILE = ".github/release.txt";
 /** The Windows and Linux PR's branch, and the one file its commit changes: the tag its files go on, `v2026.9.24`. */
 export const PREVIEW_BRANCH = "release/preview";
+/** The one file the Windows and Linux PR's commit changes, naming the stable tag its files go on. */
 export const PREVIEW_FILE = ".github/preview.txt";
+/** The rolling nightly's tag and release, deleted and made again on each nightly. */
 export const NIGHTLY_TAG = "nightly";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -69,7 +74,9 @@ export const dayNumber = (d: Date): string => `${d.getUTCMonth() + 1}${String(d.
  * and newer than every `YYYY.M.D` stable before it, since a month and day (101 to 1231) outnumber a month (1 to 12).
  */
 export const stableVersion = (d: Date, n: number): string => `${d.getUTCFullYear()}.${dayNumber(d)}.${n}`;
+/** Whether `v` is a stable's number, `YYYY.MMDD.N` with a real month and day (not the older `YYYY.M.D`). */
 export const isStableVersion = (v: string): boolean => /^\d{4}\.(?:[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\.\d+$/.test(v);
+/** Whether `v` is a nightly's number: the next stable's, then `-nightly.` and the short sha of the merge that built it. */
 export const isNightlyVersion = (v: string): boolean => /^\d+\.\d+\.\d+-nightly\.[0-9a-f]{7,40}$/.test(v);
 
 const byVersion = (a: string, b: string) => {
@@ -141,6 +148,7 @@ export function plan({
   };
 }
 
+/** A commit as the release notes read it. */
 export interface Commit {
   sha: string;
   subject: string;
@@ -149,8 +157,11 @@ export interface Commit {
 
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
-/** The commits that are changes, not the release PR's or the Windows and Linux PR's own (`release: …`). */
-export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !c.subject.startsWith("release: "));
+/**
+ * The commits that are changes, not the release PR's or the Windows and Linux PR's own: `chore(release): …`, or
+ * `release: …` from before the titles followed Conventional Commits (docs/STYLE.md §9).
+ */
+export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^(chore\(release\)|release): /.test(c.subject));
 
 /** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
 export function releaseNotes(version: string, commits: Commit[]): string {
@@ -298,7 +309,7 @@ export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; main
   marker: string;
 } {
   return {
-    title: "release: the next stable",
+    title: "chore(release): the next stable",
     marker: `${mainSha}\n`,
     body: [
       `Merging this ships **the next stable of loki**: the tag, the universal \`.dmg\`, the published release and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**. Windows and Linux follow with their own PR once it is out.`,
@@ -413,7 +424,7 @@ export function previewAction({ version, assets, marker }: { version: string; as
 export function previewPr(version: string, repo: string): { title: string; body: string; marker: string } {
   const tag = `v${version}`;
   return {
-    title: `release: Windows and Linux ${version}`,
+    title: `chore(release): the Windows and Linux preview ${version}`,
     marker: `${tag}\n`,
     body: [
       `**Windows and Linux ${version}.** Merging this builds \`main\` as it is at the merge on Windows and Linux and publishes the files on the ${tag} release:`,

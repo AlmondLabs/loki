@@ -25,6 +25,7 @@ export interface FileRef {
   mime?: string;
 }
 
+/** One row of a conversation as every view draws it (the desk chat, the Inbox, the phone): a user or assistant bubble, a quiet tool marker, or a collapsible harness event. */
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";
   text: string;

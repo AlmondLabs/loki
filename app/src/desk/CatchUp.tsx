@@ -5,12 +5,12 @@ import type { Attachment } from "../../../core/attention/content.ts";
 import type { SlashCommand } from "../../../core/attention/commands.ts";
 import type { TranscriptRow } from "../chat/Transcript";
 import type { ModelEntry } from "../chat/ModelPicker";
-import type { PermissionMode } from "../chat/PermissionMode";
+import type { PermissionMode } from "../chat/permission-mode";
 import { Conversation, type ChatStatus } from "../chat/Conversation";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/useInlineWidgets";
 import { scopeFor } from "../../../core/desk-core.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
-import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./CatchUpParts";
+import { AgentPills, BADGE, CardActions, CardHeader, CaughtUp, DeckHeader, KeysHint, cameBackIn, deckKey, liveWaitingCount, needsYou } from "./catch-up-parts";
 import { useDeckActions } from "./useDeckActions";
 import { useDeckKeys } from "./useDeckKeys";
 import { useDeckQueue } from "./useDeckQueue";
@@ -27,6 +27,7 @@ import { useDeckQueue } from "./useDeckQueue";
 export { BADGE };
 export { catchUpQueue };
 
+/** The Inbox, as a card over the shell; nothing is mounted while it is closed, so each opening builds its queue afresh. */
 export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
   // Closed: nothing mounted, so each opening is a fresh visit — the queue is built from the Inbox right now.
   if (!open) return null;
@@ -75,6 +76,10 @@ interface CatchUpProps {
   widgetSource?: InlineWidgetSource;
 }
 
+/**
+ * Called when the Inbox closes after a visit that decided something: how many cards each action took, the replies, the
+ * cards shown and how long the visit lasted (in milliseconds), for analytics.
+ */
 export type PassSummaryHandler = (pass: {
   decided: number;
   next: number;

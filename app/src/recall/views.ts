@@ -2,6 +2,7 @@ import type { RecallSnapshot } from "../../../core/recall/model.ts";
 
 /** Learn's four views, which the list column lists (plan 013 U11; they were tabs). */
 export type LearnView = "review" | "leads" | "all" | "deleted";
+/** Learn's views, in the order the list column lists them and ⌘[ ⌘] step through them. */
 export const LEARN_VIEWS: LearnView[] = ["review", "leads", "all", "deleted"];
 
 const LABEL: Record<LearnView, string> = { review: "Review", leads: "Leads", all: "All cards", deleted: "Deleted" };

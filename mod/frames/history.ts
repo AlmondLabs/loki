@@ -4,6 +4,7 @@ import type { InboxRow } from "../../core/frame-types.ts";
 import { HISTORY_MAX, HISTORY_PAGE } from "../desks.ts";
 import { reply, type FrameHandlers } from "./context.ts";
 
+/** What the history frame handler needs from its host; each part missing answers empty. */
 export interface HistoryDeps {
   /** The last `limit` rows of a chat's log, and whether there are older ones (it survives compaction). */
   transcript?: (agentId: string | null, conversationId: string, limit: number) => { rows: TranscriptRow[]; more: boolean };

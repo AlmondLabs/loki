@@ -13,7 +13,7 @@ import { Button } from "../components";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, SkeletonCard } from "./rows";
-import { useMessageActions } from "./MessageActions";
+import { useMessageActions } from "./useMessageActions";
 import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
 import { openFromCard } from "./transitions";
@@ -101,6 +101,7 @@ export interface Deck {
   again: () => void;
 }
 
+/** The phone Inbox's pass (see `Deck`), kept in the parent so it lasts while the Inbox is out of sight. */
 export function useDeck(items: AttentionItem[]): Deck {
   const [state, setState] = useState<DeckState>(EMPTY_DECK);
   const visible = useMemo(() => deckQueue(items, state), [items, state]);
@@ -360,6 +361,10 @@ export interface CardModel {
   onPick?: (item: AttentionItem, selection: ModelSelection) => Promise<void>;
 }
 
+/**
+ * The phone's Inbox, the review pass: one card at a time from `deck`, with the states for an empty,
+ * unloaded or unreachable inbox. `hidden` keeps everything but shows nothing.
+ */
 export function Inbox({
   items,
   loaded,

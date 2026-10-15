@@ -10,6 +10,10 @@ import type {
 } from "../../core/frame-types.ts";
 import { fail, reply, type FrameHandlers } from "./context.ts";
 
+/**
+ * What the Agents pages' frame handler needs from its host; without `agents` every request answers that agents are
+ * not available.
+ */
 export interface AgentsDeps {
   /** The Agents page: the local record and the memory filesystem (mod/agents.ts), read-only. */
   agents?: {
