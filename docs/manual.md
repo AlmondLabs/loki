@@ -291,7 +291,8 @@ knobs stay on the Mac. A tap on a chat or a card opens the conversation: the tra
 question card, and a reply box. Opening a conversation marks it viewed, not read, as on the Mac: a chat's name
 on Home stops being bold but keeps its dot, the card stays in the inbox, and the red New line sits before what
 came since your last look on either device. The conversation's actions sheet has **Mark as read** and, once
-read, **Mark as unread**, and pin. No Tasks on the phone.
+read, **Mark as unread**, and pin. No Tasks segment on the phone, but a long press on a message offers **Add task**
+(below), and a message that has a task shows its chip.
 
 The QR and the bookmark carry the Mac's Bonjour name (`my-macbook-pro.local:41415`, from System Settings
 › General › Sharing › local hostname), not its address, so the same icon keeps working at home and at the office
@@ -627,6 +628,17 @@ agent becomes the assignee and the tasks ride along inside `<loki-tasks>` on you
 and again only when that chat's list changes (hidden in the chat, shown as a quiet "assigned tasks" row); nothing is
 sent. ⌘⏎ **dispatches** instead: assigns, then posts the tasks so the agent starts now. New chat is a target too.
 ⌫ marks done, ⇧⌫ toggles blocked, R reopens, ⌘R refreshes, / filters.
+
+**Add task from a message.** Every message in a chat, yours or the agent's, has an **Add task** button (a tick with a
+plus) beside Copy; on the phone it is in the message's long press. To file part of a message, select the words and
+press ⌘⇧T. An editor opens under the message with a title taken from the message's first line (or the selection):
+edit it, ⏎ files the task, esc cancels. The task is yours (it lands in **Mine** until you assign it), its description
+quotes the message or the selection, and it remembers the message: in Tasks, the quote under its title opens that
+chat scrolled to the message. The message shows the task as a chip: **task · open** with the agent's newest progress
+note, **done? · waiting for you** with Confirm and Reopen, or ticked and faded once done. Clicking the chip opens the
+task in Tasks.
+
+<img src="images/add-task.png" width="800" alt="A chat with Add task's editor open under the first message, and chips under the others: a task done and ticked, a task open with the agent's newest note, and a task the agent says is done, waiting with confirm and reopen">
 
 **Only you close your tasks.** An agent comments on a task as it makes progress and closes it when the whole task is
 done, but only on its own chat's tasks: those assigned to it, or filed from it and not assigned elsewhere. When the

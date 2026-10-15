@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import type { TaskSource } from "../../../core/task-source.ts";
 import type { Gesture, Scope } from "../../../core/desk-core.ts";
 import { SHARED_SCOPE, applyGesture, emptyDesk, scopeFor, scopeOfId } from "../../../core/desk-core.ts";
 import { inTauri } from "./env";
@@ -197,7 +198,7 @@ export function useDesk() {
     });
   const tasks = {
     list: (all = true) => taskCall("tasks_list", { all }),
-    create: (t: { title: string; description?: string; labels?: string[]; priority?: number; desk?: string | null; agentId?: string | null; agentName?: string | null; conversationId?: string | null }) => taskCall("task_create", t),
+    create: (t: { title: string; description?: string; labels?: string[]; priority?: number; desk?: string | null; agentId?: string | null; agentName?: string | null; conversationId?: string | null; source?: TaskSource }) => taskCall("task_create", t),
     assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) => taskCall("task_assign", { ids, ...target, start }),
     close: (ids: string[], reason?: string) => taskCall("task_close", { ids, reason }),
     reopen: (ids: string[]) => taskCall("task_reopen", { ids }),

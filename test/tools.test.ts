@@ -152,9 +152,10 @@ describe("loki_task: a chat's own tasks, and only you close yours", () => {
     expect(calls).toEqual([]);
   });
 
-  test("a comment on this chat's task goes through; a closed one is not closed twice", async () => {
-    const { run, calls } = withTasks();
+  test("a comment on this chat's task goes through (and tells the app, for the message's chip); a closed one is not closed twice", async () => {
+    const { run, calls, broadcasts } = withTasks();
     expect(String(await run({ action: "comment", id: "lk-mine", text: "staging done" }))).toBe("noted on lk-mine");
+    expect(broadcasts.map(([m]) => m)).toContainEqual({ type: "tasks_changed" });
     expect(String(await run({ action: "close", id: "lk-done" }))).toBe("lk-done is already closed");
     expect(calls).toEqual(["comment lk-mine"]);
   });

@@ -1,3 +1,4 @@
+import { MessageTasks, useMessageTasksScope, type TaskApi } from "../tasks/messageTasks";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type RefObject } from "react";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
 import { IconButton, PaneHeader, Popover, Row, Kbd, type Tab } from "../components";
@@ -50,6 +51,8 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   frameRequest: FrameRequest | null;
   /** A widget row chosen in the thread: open the Desk tab framed on that widget (useDeskPane's frame). */
   onFrameWidget?: (widgetId: string) => void;
+  /** Tasks, for Add task on a message and the chips of the messages that have one (tasks/messageTasks.tsx). */
+  taskApi?: TaskApi | null;
 }
 
 /** A host counter routed to the view that showed when it was bumped (desk/pane.ts), as React state derived during render. */
@@ -71,6 +74,7 @@ function useRouted(value: number, visible: PaneView | null): TickRoute {
 export function DeskPane(props: DeskPaneProps) {
   const { desk, catchUp, active, tab, onTab, chatOpen, models } = props;
   const { scope, title, agentName, agentId, conversationId, attention } = desk;
+  const messageTasks = useMessageTasksScope({ agentId, agentName, conversationId, desk: scope }, props.taskApi ?? null);
   const visible = paneView(active, tab);
   const onMessages = visible === "messages";
 
@@ -145,6 +149,7 @@ export function DeskPane(props: DeskPaneProps) {
       {/* The showing panel inherits its visibility, never sets "visible": the shell hides the whole pane behind other sections, and a child marked visible would show through them. */}
       <div className="loki-desk-pane-body">
         <div id={panelId("messages")} role="tabpanel" aria-label="Messages" className="loki-desk-pane-panel loki-desk-pane-messages" style={{ visibility: tab === "messages" ? "inherit" : "hidden" }} aria-hidden={tab !== "messages"} onFocus={(e: FocusEvent) => (threadFocus.current = e.target as HTMLElement)}>
+          <MessageTasks.Provider value={messageTasks}>
           <Conversation
             key={scope}
             view={view}
@@ -161,6 +166,7 @@ export function DeskPane(props: DeskPaneProps) {
             modeMenuTick={tickFor(mode, "messages")}
             prefill={prefillFor("messages")}
           />
+          </MessageTasks.Provider>
         </div>
         <div id={panelId("desk")} role="tabpanel" aria-label="Canvas" className="loki-desk-pane-panel" style={{ visibility: tab === "desk" ? "inherit" : "hidden" }} aria-hidden={tab !== "desk"}>
           <Surface

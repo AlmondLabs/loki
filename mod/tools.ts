@@ -234,6 +234,8 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
               if (!ownTask(task, conversation)) return { status: "error", content: `${args.id} is not this conversation's task${task.metadata.assignedTo ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here` };
               if (action === "comment") {
                 await store.comment(args.id, String(args.text));
+                // The note shows on the message the task came from (its chip), so other tabs refetch.
+                deps.broadcast({ type: "tasks_changed" });
                 return `noted on ${args.id}`;
               }
               if (task.status === "closed") return `${args.id} is already closed`;

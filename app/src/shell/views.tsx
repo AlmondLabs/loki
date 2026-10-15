@@ -22,7 +22,7 @@ import type { GlobalShortcut } from "./useGlobalShortcut";
 import type { AssignTarget, useTasks } from "./useTasks";
 import type { CatchUp, Desk, Runtime } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { DeskSummary, Task } from "../../../core/frame-types.ts";
 
 /**
  * The views the rail switches between, each a thin wrapper that wires the window's models to one
@@ -85,9 +85,12 @@ export function InboxView({ desk, catchUp, models, onLoadModels, onPickModel, on
   );
 }
 
-/** Tasks: the list from useTasks, with its moves; ⏎ / ⌘⏎ ask the picker for a target. */
-export function TasksView({ tasks, desks, onAssign, onNew, active }: { tasks: ReturnType<typeof useTasks>; desks: DeskSummary[]; onAssign: (ids: string[], start: boolean) => void; onNew: () => void; active: boolean }) {
-  return <TasksPane tasks={tasks.list} loading={tasks.loading} error={tasks.error} desks={desks} onRefresh={() => void tasks.refresh()} onAssign={onAssign} onClose={(ids) => void tasks.closeTasks(ids)} onReopen={(ids) => void tasks.reopenTasks(ids)} onStatus={(ids, status) => void tasks.setTaskStatus(ids, status)} onNew={onNew} active={active} />;
+/**
+ * Tasks: the list from useTasks, with its moves; ⏎ / ⌘⏎ ask the picker for a target. A message chip's ask for a task
+ * (focus) mounts the pane afresh on it: no filter, no selection, the cursor there.
+ */
+export function TasksView({ tasks, desks, onAssign, onNew, focus, onOpenSource, active }: { tasks: ReturnType<typeof useTasks>; desks: DeskSummary[]; onAssign: (ids: string[], start: boolean) => void; onNew: () => void; focus: { id: string; tick: number } | null; onOpenSource: (task: Task) => void; active: boolean }) {
+  return <TasksPane tasks={tasks.list} loading={tasks.loading} error={tasks.error} desks={desks} onRefresh={() => void tasks.refresh()} onAssign={onAssign} onClose={(ids) => void tasks.closeTasks(ids)} onReopen={(ids) => void tasks.reopenTasks(ids)} onStatus={(ids, status) => void tasks.setTaskStatus(ids, status)} onNew={onNew} key={focus?.tick ?? 0} focusId={focus?.id ?? null} onOpenSource={onOpenSource} active={active} />;
 }
 
 /** The agents: profile, memory, changes and skills per agent; "ask to update" opens the main chat with a request typed in. */

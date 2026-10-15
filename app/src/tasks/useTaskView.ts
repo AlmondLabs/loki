@@ -17,6 +17,8 @@ carryOver("loki.boardView", "loki.tasksView");
 /** The current view, shared by the sidebar and the pane, remembered for the window. */
 const taskView = createSessionValue("loki.tasksView", parseTaskView);
 export const useTaskView = taskView.use;
+/** Set the view from outside the pane: a message's chip shows its task under All (Shell). */
+export const setTaskView = taskView.set;
 
 /**
  * Each view's layout (Board or Table), the Board's grouping and the Table's sort, on this device. A setting of the

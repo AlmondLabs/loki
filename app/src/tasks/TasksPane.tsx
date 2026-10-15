@@ -3,6 +3,7 @@ import { AgentChip, AgentFace } from "../desk/AgentChip";
 
 import { Button, Chip, Field, ListIcon, ListRow, ListSection } from "../components";
 import { ago } from "../shared/ago";
+import { taskSource } from "../../../core/task-source.ts";
 import {
   PRIORITY_LABEL,
   STATUS_LABEL,
@@ -69,6 +70,8 @@ export function TasksPane({
   onReopen,
   onStatus,
   onNew,
+  focusId = null,
+  onOpenSource,
   active,
 }: {
   tasks: Task[] | null;
@@ -84,6 +87,13 @@ export function TasksPane({
   onReopen: (ids: string[]) => void;
   onStatus: (ids: string[], status: "open" | "blocked") => void;
   onNew: () => void;
+  /**
+   * A task to show (a message's chip was clicked): the cursor starts on it and its card takes focus once drawn. The
+   * host mounts the pane afresh for each ask (a key), with the view already set to All, so nothing is adjusted after.
+   */
+  focusId?: string | null;
+  /** A task filed from a message: open its chat at that message. */
+  onOpenSource?: (task: Task) => void;
   /** Tasks is the showing segment: keys apply. */
   active: boolean;
 }) {
@@ -93,7 +103,7 @@ export function TasksPane({
   const { view, missing } = useMemo(() => resolveTaskView(stored, tasks), [stored, tasks]);
   const [prefs, setPrefs] = useViewPrefs(view);
   const [selectedRaw, setSelected] = useState<Set<string>>(new Set());
-  const [cursorRaw, setCursor] = useState<string | null>(null);
+  const [cursorRaw, setCursor] = useState<string | null>(focusId);
   const [anchor, setAnchor] = useState<string | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -117,6 +127,18 @@ export function TasksPane({
   // and the cursor lands on the first card when it has nowhere else to be.
   const cursor = cursorRaw && byId.has(cursorRaw) ? cursorRaw : (all[0]?.id ?? null);
   const selected = useMemo(() => ([...selectedRaw].every((id) => byId.has(id)) ? selectedRaw : new Set([...selectedRaw].filter((id) => byId.has(id)))), [selectedRaw, byId]);
+
+  // A message's chip asked for this task: its card takes focus once it is drawn (the list may still be loading).
+  const focusTask = useRef<string | null>(focusId);
+  useEffect(() => {
+    const id = focusTask.current;
+    if (!id) return;
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`);
+    if (!el) return;
+    focusTask.current = null;
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: "center" });
+  });
 
   // The cursor moved by keyboard: focus follows it, and the column scrolls just enough to show it.
   useEffect(() => {
@@ -291,6 +313,7 @@ export function TasksPane({
     onKeyDown: onCardKey,
     onConfirm: () => onClose([t.id]),
     onReopen: () => onReopen([t.id]),
+    onOpenSource: onOpenSource && taskSource(t) ? () => onOpenSource(t) : undefined,
   });
 
   return (
@@ -471,6 +494,8 @@ type CardProps = {
   onKeyDown: (e: React.KeyboardEvent) => void;
   onConfirm: () => void;
   onReopen: () => void;
+  /** Filed from a chat message: open the chat at it. */
+  onOpenSource?: () => void;
 };
 
 /** The Table: a header of sortable columns over one listbox of rows. */
@@ -509,7 +534,7 @@ function TaskTable({ rows, sort, onSort, chatName, empty, card }: { rows: Task[]
 }
 
 /** One Table row: the title, then a cell per column; a done? row carries Confirm and Reopen under its title. */
-function TaskRow({ task: t, selected, focused, tabIndex, onClick, onFocus, onKeyDown, onConfirm, onReopen, chatName }: CardProps & { chatName: (desk: string) => string }) {
+function TaskRow({ task: t, selected, focused, tabIndex, onClick, onFocus, onKeyDown, onConfirm, onReopen, onOpenSource, chatName }: CardProps & { chatName: (desk: string) => string }) {
   const done = t.status === "closed";
   const cell = (key: SortKey) => cellText(t, key, chatName);
   return (
@@ -539,6 +564,7 @@ function TaskRow({ task: t, selected, focused, tabIndex, onClick, onFocus, onKey
       <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
         <TaskTitle task={t} done={done} selected={selected} />
         {isWaiting(t) && <DoneAsked task={t} onConfirm={onConfirm} onReopen={onReopen} />}
+        {onOpenSource && <SourceLine task={t} onOpen={onOpenSource} />}
       </div>
       <span style={{ color: isWaiting(t) ? "var(--loki-accent)" : done ? "var(--loki-muted)" : undefined }}>{cell("status")}</span>
       <span>{t.assignee ? <AgentChip name={t.assignee} size={9.5} /> : <span className="loki-meta">—</span>}</span>
@@ -550,10 +576,11 @@ function TaskRow({ task: t, selected, focused, tabIndex, onClick, onFocus, onKey
   );
 }
 
-function TaskCard({ task: t, selected, focused, tabIndex, assignedTitle, showStatus, onClick, onFocus, onKeyDown, onConfirm, onReopen }: CardProps & { assignedTitle: string | null; showStatus: boolean }) {
+function TaskCard({ task: t, selected, focused, tabIndex, assignedTitle, showStatus, onClick, onFocus, onKeyDown, onConfirm, onReopen, onOpenSource }: CardProps & { assignedTitle: string | null; showStatus: boolean }) {
   const uid = useId();
   const done = t.status === "closed";
-  const showDesc = !!t.description && !done;
+  // A task from a message shows the message's quote, which is what its description holds.
+  const showDesc = !!t.description && !done && !onOpenSource;
   const showAssigned = !!assignedTitle && !done;
   const waiting = isWaiting(t);
   // The name is the title; the rest of the card describes it.
@@ -582,6 +609,7 @@ function TaskCard({ task: t, selected, focused, tabIndex, assignedTitle, showSta
     >
       <TaskTitle task={t} done={done} selected={selected} />
       {waiting && <DoneAsked id={`${uid}-done`} task={t} onConfirm={onConfirm} onReopen={onReopen} />}
+      {onOpenSource && <SourceLine task={t} onOpen={onOpenSource} />}
       {showDesc && <div id={`${uid}-desc`} className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
       <TaskMeta id={`${uid}-meta`} task={t} done={done} showStatus={showStatus} />
       {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle!} />}
@@ -607,6 +635,25 @@ function DoneAsked({ id, task: t, onConfirm, onReopen }: { id?: string; task: Ta
         <Button size="sm" tone="paper" onClick={stop(onReopen)}>reopen</Button>
       </span>
     </div>
+  );
+}
+
+/** Where a task from a message came from: the quote, and a way back to the message. It does not select the card. */
+function SourceLine({ task: t, onOpen }: { task: Task; onOpen: () => void }) {
+  const quote = t.metadata.quote;
+  return (
+    <button
+      type="button"
+      className="loki-task-source"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen();
+      }}
+      aria-label={`open the message this task came from${quote ? `: ${quote}` : ""}`}
+    >
+      <span aria-hidden>↩</span>
+      <span className="loki-task-source-quote">{quote ? `“${quote}”` : "the message"}</span>
+    </button>
   );
 }
 
