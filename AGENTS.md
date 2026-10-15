@@ -17,7 +17,8 @@ the same rules in [docs/style.md](docs/style.md), which is the source of truth; 
   return, or `void` every promise.
 - **Named exports only**, `import type` for types, `.ts` extensions on imports in `core/`, `mod/` and `daemon/`.
 - **Names**: every file kebab-case, components and hooks too (`tasks-pane.tsx`, `use-tasks.ts`); identifiers camelCase,
-  types and components PascalCase, acronyms as words (`agentUrl`); agent tool names and arguments snake_case.
+  types and components PascalCase, acronyms as words (`agentUrl`); data loki owns (frames, saved files, task metadata,
+  tool arguments) snake_case, used as-is in its types (`desk.agent_id`).
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
 - **Every export outside `test/` has a `/** … */` doc comment.** Comments say why, in full sentences and plain words;
