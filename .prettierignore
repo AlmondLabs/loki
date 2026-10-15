@@ -8,3 +8,4 @@ src-tauri/resources/
 .claude/
 .impeccable/
 .loki-build/
+*.html

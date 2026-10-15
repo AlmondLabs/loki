@@ -2,9 +2,11 @@
  * Writes loki's springs (app/src/kit/spring.ts) into kit/tokens.css, between the spring markers, as the
  * `--spring-<name>` easings and their `--spring-<name>-ms` durations. Run after changing a preset:
  *   node --experimental-strip-types scripts/springs.ts
- * test/spring.test.ts fails while the stylesheet and the presets disagree.
+ * test/spring.test.ts fails while the stylesheet and the presets disagree. The file is run through Prettier after,
+ * so it passes `npm run format:check` as written.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { format, resolveConfig } from "prettier";
 import { join } from "node:path";
 import { springTokens } from "../app/src/kit/spring.ts";
 
@@ -16,5 +18,6 @@ const css = readFileSync(path, "utf8");
 const a = css.indexOf(START);
 const b = css.indexOf(END);
 if (a < 0 || b < a) throw new Error("tokens.css has no spring markers inside :root");
-writeFileSync(path, `${css.slice(0, a + START.length)}\n${springTokens()}\n${css.slice(b)}`);
+const written = `${css.slice(0, a + START.length)}\n${springTokens()}\n${css.slice(b)}`;
+writeFileSync(path, await format(written, { ...(await resolveConfig(path)), filepath: path }));
 console.log("kit/tokens.css: springs written");

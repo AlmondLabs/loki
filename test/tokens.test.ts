@@ -28,6 +28,11 @@ const files = walk(APP, (n) => /\.(tsx|ts|css)$/.test(n) && !n.endsWith(".d.ts")
 const code = files.filter((f) => !f.path.endsWith(".css"));
 const css = files.filter((f) => f.path.endsWith(".css"));
 const tokens = readFileSync(TOKENS, "utf8");
+/**
+ * A stylesheet on one line, every run of whitespace one space and none just inside parentheses: the rules however
+ * Prettier lays them out, matched as rules.
+ */
+const flat = (text: string) => text.replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")");
 
 type Rgb = [number, number, number];
 type Theme = "dark" | "light";
@@ -224,19 +229,19 @@ describe("design tokens: the desktop's Slack direction (2026-09-23)", () => {
   });
   test("focus flashes: a 2px accent ring that fades in a second, to a muted ring on controls and to nothing on text fields", () => {
     // the flash is the ring's colour animating from the accent; what it settles to is the rule's own outline
-    expect(tokens).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
-    const control = tokens.match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    expect(flat(tokens)).toMatch(/@keyframes loki-focus-flash \{ from \{ outline-color: var\(--loki-focus-flash, var\(--loki-accent\)\); \} \}/);
+    const control = flat(tokens).match(/\[tabindex\]:focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(control).toMatch(/outline: 2px solid var\(--loki-muted\)/);
     expect(control).toMatch(/animation: loki-focus-flash 1s ease-out/);
-    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const field = flat(tokens).match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(field).toMatch(/outline: 2px solid transparent/);
     expect(tokens).not.toMatch(/outline: 1px solid/);
   });
   test("text fields never blink: the caret shows focus; the flash is for controls only", () => {
-    const field = tokens.match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
+    const field = flat(tokens).match(/textarea\):focus-visible \{([^}]*)\}/)?.[1] ?? "";
     expect(field).toMatch(/animation: none/);
-    const phone = readFileSync(join(import.meta.dirname, "..", "app", "src", "phone", "phone.css"), "utf8");
-    const chat = readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "chat.css"), "utf8");
+    const phone = flat(readFileSync(join(import.meta.dirname, "..", "app", "src", "phone", "phone.css"), "utf8"));
+    const chat = flat(readFileSync(join(import.meta.dirname, "..", "app", "src", "chat", "chat.css"), "utf8"));
     for (const [css, sel] of [[phone, ".loki-phone :is(input, textarea):focus-visible"], [phone, ".loki-phone-search-field:focus-within"], [chat, ".loki-composer-box:has(.loki-composer-text:focus-visible)"]] as const) {
       const rule = css.slice(css.indexOf(sel)).match(/\{([^}]*)\}/)?.[1] ?? "";
       expect(rule, sel).toMatch(/animation: none/);
@@ -408,7 +413,7 @@ describe("phone tokens: one Slack-like system under the phone root", () => {
     // the phone flashes in its own link colour, through the same keyframes
     expect(phone).toMatch(/--loki-focus-flash: var\(--phone-focus\)/);
     // a page heading is where focus lands on arrival (tabindex -1, never tabbed to): it carries no ring and no flash
-    expect(phone).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
+    expect(flat(phone)).toMatch(/\.loki-phone \[data-phone-heading\]:focus-visible \{ outline-color: transparent; animation: none; \}/);
     // an animation beats a plain declaration, so every ring turned off must stop the flash too
     const off = [...phone.matchAll(/\{([^}]*outline-color: transparent[^}]*)\}/g)].map((m) => m[1]);
     expect(off.filter((b) => !/animation: none/.test(b))).toEqual([]);
