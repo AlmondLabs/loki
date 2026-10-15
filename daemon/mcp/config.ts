@@ -152,18 +152,19 @@ export const keychainRef = (name: string): string => `\${keychain:${name}}`;
 
 /** The server with every `${keychain:…}` in its env and headers replaced by the secret; a missing one is an error. */
 export async function withSecrets(config: ServerConfig, get: (name: string) => Promise<string | null>): Promise<ServerConfig> {
-  const fill = async (values: Record<string, string>): Promise<Record<string, string>> => {
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(values)) {
-      let text = v;
-      for (const m of [...v.matchAll(KEYCHAIN_REF)]) {
-        const secret = await get(m[1]);
-        if (secret === null) throw new Error(`the keychain has no secret named ${m[1]} (for ${k})`);
-        text = text.replace(m[0], secret);
-      }
-      out[k] = text;
-    }
-    return out;
-  };
-  return config.kind === "local" ? { ...config, env: await fill(config.env) } : { ...config, headers: await fill(config.headers) };
+  // Every reference in every value is read at once (the reads do not depend on each other), then put in its place.
+  const names = [...new Set(Object.values(config.kind === "local" ? config.env : config.headers).flatMap((v) => [...v.matchAll(KEYCHAIN_REF)].map((m) => m[1])))];
+  const found = new Map(await Promise.all(names.map(async (n) => [n, await get(n)] as const)));
+  const fill = (values: Record<string, string>): Record<string, string> =>
+    Object.fromEntries(
+      Object.entries(values).map(([k, v]) => [
+        k,
+        v.replace(KEYCHAIN_REF, (_ref, name: string) => {
+          const secret = found.get(name);
+          if (secret === null || secret === undefined) throw new Error(`the keychain has no secret named ${name} (for ${k})`);
+          return secret;
+        }),
+      ]),
+    );
+  return config.kind === "local" ? { ...config, env: fill(config.env) } : { ...config, headers: fill(config.headers) };
 }
