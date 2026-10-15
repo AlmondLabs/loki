@@ -30,6 +30,10 @@ export async function keychain(): Promise<SecretBackend> {
   };
 }
 
+/**
+ * pi-ai's credential store on a SecretBackend, the keychain in the daemon: a credential per provider plus the index
+ * of providers, with changes queued one at a time per provider. Without a keychain, the daemon uses it over memorySecrets.
+ */
 export class KeychainCredentials implements CredentialStore {
   private readonly backend: SecretBackend;
   /** Each provider's last change, so the next waits for it; the index has a queue of its own, which every provider's change joins. */

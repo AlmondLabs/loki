@@ -17,6 +17,7 @@ const emit = () => {
   for (const l of listeners) l();
 };
 
+/** Ask for the chat `conversation` to scroll to the message a task came from; the ask replaces any still waiting. */
 export function requestReveal(conversation: string, source: RevealAsk["source"]): void {
   pending = { conversation, source, tick: Date.now() };
   emit();

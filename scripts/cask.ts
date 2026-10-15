@@ -9,7 +9,9 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+/** Which cask to write: loki for the stables, loki-nightly for the rolling nightly. */
 export type Channel = "stable" | "nightly";
+/** What a cask is made from: the GitHub owner of the loki repo, the version without its v, and the dmg's sha256. */
 export interface CaskInput {
   owner: string;
   version: string;
@@ -22,6 +24,7 @@ export function dmgName(version: string): string {
   return `loki_${version}_universal.dmg`;
 }
 
+/** The cask's Ruby, as Casks/loki.rb or Casks/loki-nightly.rb. Throws on an owner, version or sha256 that does not look right for the channel. */
 export function renderCask({ owner, version, sha256, channel = "stable" }: CaskInput): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(owner)) throw new Error(`not a GitHub owner: ${owner}`);
   if (channel === "stable" && !/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`not a version: ${version} (expected 2026.1011.0, no v)`);

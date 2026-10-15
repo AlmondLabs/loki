@@ -28,6 +28,7 @@ const TABS: ReadonlyArray<Tab<DeskTab>> = [
 ];
 const panelId = (t: DeskTab) => `loki-desk-panel-${t}`;
 
+/** The props of the chat pane (`DeskPane`): the chat and Inbox models, whether the pane is on screen, its tab, and the inset chat's layout. */
 export interface DeskPaneProps extends DeskConversationHandlers {
   desk: ReturnType<typeof useDesk>;
   catchUp: ReturnType<typeof useAttention>;

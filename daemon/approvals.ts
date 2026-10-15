@@ -12,8 +12,11 @@ import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
  * The gate is one pi-durable extension, selected by every conversation (subagents included), as the mods are.
  */
 
+/** A chat's permission mode: which tool calls ask the person first (the table is on `asks`, and in GLOSSARY.md). */
 export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
+/** The mode of a chat that has none set: nothing asks. */
 export const DEFAULT_MODE: PermissionMode = "unrestricted";
+/** Whether a stored value is one of the four modes; a chat whose mode is anything else runs in DEFAULT_MODE. */
 export const isPermissionMode = (m: unknown): m is PermissionMode => m === "strict" || m === "standard" || m === "acceptEdits" || m === "unrestricted";
 
 /** What a tool does, for the mode table: reads, edits files, or anything else (a command). */
@@ -47,6 +50,7 @@ const KINDS: Partial<Record<string, ToolKind>> = {
 /** A tool that is never a permission: a question card asks for answers, not leave. */
 const NEVER_ASK = new Set(["AskUserQuestion"]);
 
+/** A tool's kind for the mode table: loki's own table first, then a mod tool's `readOnly` annotation; anything else is a command, the kind that asks most. */
 export function kindOf(name: string, annotations?: { readOnly?: boolean; destructive?: boolean }): ToolKind {
   const known = KINDS[name];
   if (known) return known;
@@ -88,6 +92,10 @@ interface Pending {
   settle: (d: Decision | { answers: Record<string, unknown> }) => void;
 }
 
+/**
+ * The approval gate and everything a chat waits on the person for: each approval or question card is held until the
+ * first client answers or the turn is stopped, and the tools answered "always allow" are remembered.
+ */
 export class Approvals {
   private readonly pending = new Map<string, Pending>();
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};

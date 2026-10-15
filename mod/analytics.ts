@@ -11,9 +11,13 @@ import { rotateIfLarge } from "./log.ts";
  * state/analytics.json. Past EVENTS_MAX_BYTES the file becomes events.jsonl.1 and a fresh one starts,
  * about two years at a few hundred events a day. Never throws; a null path (LOKI_ANALYTICS=0) captures nothing.
  */
+
+/** The size, in bytes, past which events.jsonl is rotated to events.jsonl.1. */
 export const EVENTS_MAX_BYTES = 20 * 1024 * 1024;
+/** How many captures pass between checks of the file's size, so a capture is not a stat each time. */
 export const EVENTS_CHECK_EVERY = 100;
 
+/** The analytics writer one install keeps: where it writes, the install's distinct_id, and capture(). */
 export interface Analytics {
   path: string | null;
   distinctId: string;
@@ -21,6 +25,10 @@ export interface Analytics {
   capture(device: DeviceType, event: string, properties?: Record<string, unknown>): boolean;
 }
 
+/**
+ * The analytics writer over the given events file and state file, minting the distinct_id if there is none. The
+ * options past `appVersion` exist for tests: rotation size, check interval, session gap and clock.
+ */
 export function createAnalytics(opts: {
   path: string | null;
   statePath: string;

@@ -71,6 +71,7 @@ export interface PassInput {
 export function batchText(parts: readonly PassPart[]): string {
   return parts.map((p, i) => `<conversation n="${i + 1}"${p.title ? ` title=${JSON.stringify(p.title)}` : ""}>\n${p.material}\n</conversation>`).join("\n\n");
 }
+/** What the agent did in a run's hidden chat: the text of its last message that had any, and the names of the tools it called, in order. */
 export interface PassAnswer {
   text: string;
   toolCalls: string[];
@@ -81,6 +82,7 @@ export interface PassResult {
   capped?: boolean;
 }
 
+/** One background job (reflection, Learn) as the runner sees it: its hidden chat, what the agent runs with there, what it asks of a batch and what it does with the answer. The runner does the rest. */
 export interface PassJob {
   name: JobName;
   /** The job's hidden chat for an agent; its prefix is how the rest of loki knows it (memory.ts, telemetry, the mod). */
@@ -117,8 +119,10 @@ interface Deps {
   batchEveryMs?: number;
 }
 
+/** How a run ended: it wrote something, wrote nothing, hit Learn's cap (cursors stay), failed (tried again after a quiet spell), or was skipped (already queued, or its chats busy). */
 export type RunOutcome = "changed" | "nothing" | "capped" | "failed" | "skipped";
 
+/** The background passes' runner: sweeps for due chats, queues one run at a time, and keeps the cursors in PassState; the memory review goes through it too (`runDoctor`). */
 export class PassRunner {
   private readonly deps: Deps;
   /** Runs waiting their turn, each under the keys it holds while queued or running (a job's chats, a review's agent). */

@@ -63,6 +63,7 @@ export function RowIcon({ name }: { name: IconName }) {
 /** "99+" past two digits, as the navigation's badge does. */
 const badgeCount = (n: number) => (n > 99 ? "99+" : String(n));
 
+/** The props of the phone's list row: its lead, title and preview, the time or badge on the right, and its marks. */
 export interface PhoneRowProps {
   /** The start: an Avatar or a RowIcon. */
   lead: ReactNode;

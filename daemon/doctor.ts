@@ -9,6 +9,7 @@ import { MEMORY_TOOLS } from "./memory.ts";
  * "Doctor"; the Agents page's Changes lists them, and Revert undoes one.
  */
 
+/** The memory review's instructions to the agent, as the PassRunner's doctor pass sends them. */
 export const DOCTOR_INSTRUCTIONS = `You are this agent's memory doctor. You review all of the agent's own memory, the files shown to you, and clean it up so that it is true, short and easy to use in later conversations. Change memory only with the memory tools, one change per call, each with a short message saying why ("merge two notes on deploys", "drop the 30 Sept deadline, it has passed").
 
 Tidy:

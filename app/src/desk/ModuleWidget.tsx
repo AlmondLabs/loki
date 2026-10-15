@@ -38,6 +38,10 @@ const themeOf = () => {
   return { theme: d.theme ?? "dark", palette: d.palette ?? "loki" };
 };
 
+/**
+ * A custom widget (an agent-written module) drawn in its sandboxed frame: sized to its content
+ * unless `fill`, with load and render errors shown in place and reported through `onError`.
+ */
 export function ModuleWidget({
   entry,
   overlay,
@@ -202,6 +206,7 @@ export function ModuleWidget({
   );
 }
 
+/** A widget's error message, in monospace red, in the widget's place. */
 export function WidgetError({ message }: { message: string }) {
   return (
     <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", whiteSpace: "pre-wrap" }}>
@@ -210,6 +215,7 @@ export function WidgetError({ message }: { message: string }) {
   );
 }
 
+/** Catches a kit widget's render error: shows it in the widget's place and reports it through `onError`, so one broken widget leaves the rest standing. */
 export class WidgetErrorBoundary extends Component<
   { id: string; onError: (id: string, message: string | null) => void; children: ReactNode },
   { error: string | null }

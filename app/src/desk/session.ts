@@ -8,6 +8,10 @@ import { injectedDesk, injectedToken } from "./env";
 const TOKEN_KEY = "loki.token";
 const DESK_KEY = "loki.desk";
 
+/**
+ * This tab's daemon token and chat: the URL's, else the app's injected ones, else the last visit's,
+ * written back into the URL; the token is empty when there is none.
+ */
 export function readSession(): { token: string; desk: string | null } {
   const params = new URLSearchParams(location.search);
   let token = params.get("t");
@@ -34,6 +38,7 @@ export function readSession(): { token: string; desk: string | null } {
   return { token, desk };
 }
 
+/** Remember the chat on show, so the next visit without one in its URL opens it. */
 export function rememberDesk(desk: string): void {
   localStorage.setItem(DESK_KEY, desk);
 }

@@ -13,6 +13,10 @@ export interface TurnError {
 /** A dropped connection, in Bun's, Node's and undici's words. */
 const DROPPED = /socket connection was closed|ECONNRESET|socket hang up|fetch failed|terminated|network (?:error|connection)|EPIPE/i;
 
+/**
+ * A turn's error as one sentence: the innermost "message" when the harness sent JSON, a dropped connection said
+ * plainly, else the first line, cut at 200 characters.
+ */
 export function readTurnError(error: string): TurnError {
   const raw = error.trim();
   // `{"error": {"error": {"type": "llm_error", "message": "…"}}}`: the innermost message is what happened.

@@ -22,6 +22,7 @@ import { lettaLogCwd, lettaLogEntries } from "./convert.ts";
  * ran loki on Letta finds its agents without looking for a button; Settings › loki › Import runs it again.
  */
 
+/** Where the import reads Letta's files and writes the daemon's. */
 export interface ImportPaths {
   /** Letta's home folder (`~/.letta`). */
   letta: string;
@@ -35,6 +36,7 @@ export interface ImportPaths {
   recallWorkerFile: string;
 }
 
+/** What one import run did, for the log and Settings (describeReport puts it in a line): the agents and providers it imported, counts of chats and schedules, and notes on what it left out. */
 export interface ImportReport {
   agents: string[];
   chats: number;
@@ -65,6 +67,7 @@ interface Done {
   last?: ImportAttempt;
 }
 
+/** Whether Letta's backend is in its home folder, whether an import has finished, and the last attempt, as read from the import's done file. */
 export function importStatus(paths: Pick<ImportPaths, "letta" | "doneFile">): ImportStatus {
   const done = readJson<Done>(paths.doneFile, { agents: [], chats: [] });
   return { letta: existsSync(join(paths.letta, "lc-local-backend", "agents")), complete: done.complete === true, last: done.last ?? null };
@@ -239,6 +242,11 @@ interface LettaConversation {
   model?: string;
 }
 
+/**
+ * Imports agents, chats, keys, schedules and pins from Letta's home into the daemon. Throws when Letta is running or has no backend folder. Progress is written to the
+ * done file after each agent and chat, so a run that fails partway resumes there; the run is marked complete only when
+ * some agent came over (or Letta had none).
+ */
 export async function importFromLetta(deps: {
   paths: ImportPaths;
   stores: StoreManager;

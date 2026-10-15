@@ -25,6 +25,7 @@ export const GROUP_MAX = 5;
 /** What search covers, said wherever it could pass for message search (the phone says the same). */
 export const COVERAGE = "Searches chat titles, agents, waiting items and pages — not message text.";
 
+/** ⌘K search's groups: chats ("desks", the code's older name), agents, what waits on you, and the app's pages. */
 export type GroupId = "desks" | "agents" | "waiting" | "pages";
 const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", waiting: "Waiting", pages: "Pages" };
 
@@ -42,6 +43,7 @@ export type SearchTarget =
 /** What the row starts with: the agent's face, or an icon. */
 export type Lead = { agent: { id: string; name: string } } | { icon: IconName };
 
+/** One ⌘K result: the row it draws, where it goes, and what the recent places remember of it. */
 export interface SearchHit {
   /** Stable, for React and the row's data-launch. */
   key: string;
@@ -56,6 +58,7 @@ export interface SearchHit {
   dim: boolean;
 }
 
+/** One group of ⌘K results, the first GROUP_MAX of those that matched. */
 export type SearchGroup = HitGroup<SearchHit, GroupId>;
 
 /** What the window has loaded: the desks list, the agents, the attention items. */
@@ -141,6 +144,7 @@ export const DESTINATIONS: readonly Page[] = [
 
 /** The recent places, the desktop's own key (the phone's are loki.phone.*). */
 export const PLACES_KEY = "loki.desktop.recentPlaces";
+/** The places opened from ⌘K lately, newest first. */
 export const recentPlaces = createRecents({ key: PLACES_KEY, max: 8 });
 
 // ---- hits -----------------------------------------------------------------------------------------
@@ -206,6 +210,7 @@ const pageHit = (p: Page): SearchHit => ({
 
 // ---- the index ------------------------------------------------------------------------------------
 
+/** The ⌘K index over what the window holds. */
 export type SearchIndex = CoreIndex<SearchHit>;
 
 /** The sources as searchable entries, fields folded: build once per sources, query per keystroke. */
@@ -265,4 +270,5 @@ export function recentPlaceHits(keys: readonly string[], src: SearchSources): Se
 export function deskPlace(scope: string): string {
   return `desk:${scope}`;
 }
+/** The key a section is remembered under among the recent places. */
 export const sectionPlace = (segment: Exclude<Segment, "settings">): string => `page:${segment}`;

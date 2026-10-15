@@ -5,6 +5,7 @@
  * the caller passes `now` and keeps the state.
  */
 export type Grade = 1 | 2 | 3 | 4;
+/** The four grades the scheduler knows, with their FSRS names. */
 export const GRADES: Array<{ grade: Grade; label: string }> = [
   { grade: 1, label: "again" },
   { grade: 2, label: "hard" },
@@ -17,6 +18,7 @@ export const ANSWERS: Array<{ grade: Grade; label: string; key: string }> = [
   { grade: 3, label: "got it", key: "→" },
 ];
 
+/** A card's scheduling state, kept by the caller and passed back on every review. */
 export interface Schedule {
   /** Days until retrievability falls to 90%. 0 until the first review. */
   stability: number;
@@ -39,11 +41,13 @@ const DECAY = -0.5;
 const FACTOR = 19 / 81;
 /** The retention the intervals aim for. */
 export const REQUESTED_RETENTION = 0.9;
+/** The longest a card is put off between reviews, in days. */
 export const MAX_INTERVAL_DAYS = 365;
 /** A forgotten card comes back within the sitting rather than tomorrow. */
 export const RELEARN_MINUTES = 10;
 const DAY = 86_400_000;
 
+/** The schedule of a card never reviewed: due at `now`, with stability and difficulty 0. */
 export function newSchedule(now = Date.now()): Schedule {
   return { stability: 0, difficulty: 0, due: new Date(now).toISOString(), lastReview: null, reps: 0, lapses: 0, recent: [] };
 }
@@ -121,7 +125,9 @@ export function describeGap(ms: number): string {
   return `${Math.round(d / 30)}mo`;
 }
 
+/** Whether a card is due for review at `now`. */
 export const isDue = (s: Schedule, now = Date.now()) => new Date(s.due).getTime() <= now;
+/** Whether a card has never been reviewed. */
 export const isNew = (s: Schedule) => s.lastReview === null;
 
 /** A card the scheduler cannot hold: three of the last four answers were "again". The worker rewrites or splits it. */

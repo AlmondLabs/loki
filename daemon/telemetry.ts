@@ -57,6 +57,7 @@ interface Message {
   usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; reasoning?: number; cost?: { total?: number } };
 }
 
+/** One turn as the telemetry reads it once its run ends: the chat, the entries it wrote and the daemon's clock times (milliseconds since the epoch), from which the `turn_finished` event is made. */
 export interface FinishedTurn {
   agentId: string;
   /** loki's chat id, and what loki keeps about the chat. */
@@ -79,6 +80,7 @@ export interface FinishedTurn {
   model: string | null;
 }
 
+/** Where a turn came from, judged by its agent, its request id, its chat and its first message, checked in that order. */
 export function originOf(t: Pick<FinishedTurn, "chatId" | "hidden" | "title" | "requestId" | "entries" | "agentIsSubagent">): TurnOrigin {
   if (t.agentIsSubagent || t.requestId?.startsWith("subagent:")) return "subagent";
   // A background pass's run (daemon/passes.ts) says which job it is in its request id.

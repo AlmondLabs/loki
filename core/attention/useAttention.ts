@@ -34,12 +34,6 @@ import type { PayloadOf } from "../frames.ts";
 export type EngageAction = PayloadOf<"focus_add">["action"];
 import { scopeFor } from "../desk-core.ts";
 
-/**
- * Catch Up, client-side: the list of open conversations and who spoke last in each come from the
- * mod (inbox_list: every open conversation, main chats included, however old); loki's daemon, through
- * the mod's chat frames (FrameChatClient), supplies the live half — approvals, questions, streaming —
- * for the most recent ones, and the seen markers are the mod's too.
- */
 /** What you did with an Inbox card: moved on, archived it (done), decided an approval, replied, or answered its question. */
 export type CardAction = "next" | "archive" | "approve" | "deny" | "reply" | "answer" | "open";
 
@@ -66,6 +60,7 @@ const minutesSince = (iso: string | null, now: number): number | null => {
   return Number.isNaN(t) ? null : Math.max(0, Math.round((now - t) / 60_000));
 };
 
+/** What the app hands useAttention: the mod's socket state, seen and viewed markers, focus weights, and the calls that reach the mod for lists, history and markers. */
 export interface UseAttentionOptions {
   /** Whether the mod's socket is up, which carries the chats. */
   enabled: boolean;
@@ -142,6 +137,7 @@ function noteFor(told: Map<string, EnvNoteTold>, key: string, desk: string | nul
 /** How many rows of a chat's log a page is (the mod's HISTORY_PAGE): the first load, and each older page after it. */
 export const HISTORY_PAGE = 400;
 
+/** The Inbox's state and actions for a client, the Mac app or the phone: the open conversations and their digests come from the mod (inbox_list), the live half (approvals, questions, streaming) from the daemon through the mod's chat frames for the newest few, and the seen markers from the mod. Returns the scored items, each chat's thread, and the calls that send, decide, archive and manage agents. */
 export function useAttention(opts: UseAttentionOptions) {
   const [conversations, setConversations] = useState<ConversationInfo[]>([]);
   const [agents, setAgents] = useState<Array<{ id: string; name: string }>>([]);

@@ -1,23 +1,32 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { inTauri } from "./desk/env";
 
+/** The appearance choices: follow the system, or always light or dark. */
 export const THEME_PREFERENCES = ["system", "light", "dark"] as const;
+/** An appearance choice. */
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
+/** The appearance in effect, with the system's choice resolved. */
 export type ResolvedTheme = Exclude<ThemePreference, "system">;
 
 /** The colour families in kit/tokens.css: loki's own drafting table, and Tokyo Night. Each has a day and a night side. */
 export const PALETTES = ["loki", "tokyo-night"] as const;
+/** One of loki's colour families. */
 export type Palette = (typeof PALETTES)[number];
+/** Each palette's name as Preferences shows it. */
 export const PALETTE_LABEL: Record<Palette, string> = { loki: "loki", "tokyo-night": "tokyo night" };
 
+/** The localStorage key the appearance choice is kept under. */
 export const THEME_STORAGE_KEY = "loki.theme";
+/** The localStorage key the palette is kept under. */
 export const PALETTE_STORAGE_KEY = "loki.palette";
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
+/** Whether a value (a stored one, say) is an appearance choice. */
 export function isThemePreference(value: unknown): value is ThemePreference {
   return typeof value === "string" && (THEME_PREFERENCES as readonly string[]).includes(value);
 }
 
+/** Whether a value (a stored one, say) names a palette. */
 export function isPalette(value: unknown): value is Palette {
   return typeof value === "string" && (PALETTES as readonly string[]).includes(value);
 }
@@ -35,14 +44,17 @@ function stored<T>(storage: Storage_, key: string, accept: (value: unknown) => v
   }
 }
 
+/** The stored appearance choice; "system" when none is stored or it cannot be read. */
 export function storedTheme(storage: Storage_ = defaultStorage()): ThemePreference {
   return stored(storage, THEME_STORAGE_KEY, isThemePreference, "system");
 }
 
+/** The stored palette; loki's own when none is stored or it cannot be read. */
 export function storedPalette(storage: Storage_ = defaultStorage()): Palette {
   return stored(storage, PALETTE_STORAGE_KEY, isPalette, "loki");
 }
 
+/** The appearance in effect: the preference, or the system's when it is "system". */
 export function resolvedTheme(preference: ThemePreference, systemDark: boolean): ResolvedTheme {
   return preference === "system" ? (systemDark ? "dark" : "light") : preference;
 }
@@ -121,6 +133,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+/** The window's appearance and palette and their setters; throws outside ThemeProvider. */
 export function useTheme(): ThemeState {
   const theme = useContext(ThemeContext);
   if (!theme) throw new Error("useTheme must be used inside ThemeProvider");

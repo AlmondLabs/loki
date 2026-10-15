@@ -9,14 +9,20 @@ import { randomInt } from "node:crypto";
  */
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
 export { PAIRING_ALPHABET, PAIRING_LENGTH };
+/** How long a pairing code may be redeemed, in milliseconds. */
 export const PAIRING_TTL_MS = 10 * 60_000;
 
+/** A freshly minted pairing code and when it stops working. */
 export interface PairingCode {
   code: string;
   /** ISO timestamp. */
   expiresAt: string;
 }
 
+/**
+ * The live pairing codes, in memory only, so a restart voids every code. Expired codes are pruned on each mint and
+ * redeem.
+ */
 export class PairingCodes {
   private readonly codes = new Map<string, number>(); // code → expiry (ms)
   private readonly now: () => number;
@@ -51,6 +57,7 @@ export class PairingCodes {
   }
 }
 
+/** A typed code as stored: spaces and dashes dropped, upper case; empty for anything not a string. */
 export const normalize = (code: string): string => (typeof code === "string" ? code.replace(/[\s-]/g, "").toUpperCase() : "");
 
 function generate(): string {

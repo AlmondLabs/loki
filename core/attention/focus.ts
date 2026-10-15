@@ -21,11 +21,14 @@ export type FocusAction = "message" | "answer" | "decide" | "open" | "skip";
 export const FOCUS_WEIGHT: Record<FocusAction, number> = { message: 1, answer: 1, decide: 0.5, open: 0.25, skip: 0 };
 /** Next on a card shown for its focus keeps this much of the chat's weight. */
 export const SKIP_FACTOR = 0.5;
+/** Hours for a chat's focus weight to halve when you leave it alone. */
 export const FOCUS_HALF_LIFE_H = 12;
+/** Weight added to the sum of every chat's when taking shares, about two fresh replies, so a lone chat after a quiet week does not take the whole list. */
 export const FOCUS_CUSHION = 2;
 /** Opening the same chat again inside this window adds nothing: flicking between chats is not more engagement. */
 export const FOCUS_OPEN_GAP_MS = 30 * 60_000;
 
+/** One chat's focus weight as the mod keeps it (mod/seen.ts), faded from `t` when read. */
 export interface FocusEntry {
   /** The weight as of `t`. */
   w: number;
@@ -33,6 +36,7 @@ export interface FocusEntry {
   t: string;
 }
 
+/** Whether a value is one of the actions that count toward focus, for checking what a client sends. */
 export const isFocusAction = (v: unknown): v is FocusAction => typeof v === "string" && v in FOCUS_WEIGHT;
 
 /** The weight faded to `now`. */

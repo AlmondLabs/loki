@@ -43,6 +43,7 @@ export function skillsOf(backendDir: string, agentId: string | undefined, global
 const PROJECT_FILES = ["AGENTS.md", "CLAUDE.md"];
 const PROJECT_LIMIT = 32 * 1024;
 
+/** The `skills` and `project` sections and the Skill tool, as an extension over the agents in `backendDir`; `globalDir` stands in for the global skills folder (tests). A project file is cut to its first PROJECT_LIMIT characters. */
 export function skillsExtension(backendDir: string, globalDir?: string): Extension {
   return defineExtension({
     name: "loki.skills",

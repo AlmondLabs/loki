@@ -11,6 +11,7 @@ export interface Span {
   end: number;
 }
 
+/** One turn's moments and spans, in milliseconds since the epoch: when the message was sent, and what the store saved. */
 export interface TurnInput {
   sentAt: number;
   /** When the first streamed text or tool call reached the client; null when none did. */
@@ -23,6 +24,7 @@ export interface TurnInput {
   endAt?: number;
 }
 
+/** Where one turn's time went, in milliseconds; a null is a moment the turn never reached. */
 export interface TurnTimings {
   /** Send to the first streamed output. */
   ttftMs: number | null;
@@ -56,6 +58,7 @@ export function covered(spans: readonly Span[]): number {
   return open ? total + open.end - open.start : total;
 }
 
+/** Split one turn's time between the model, its tools and the harness. A tool's time counts only where no model response overlaps it, and the harness has the rest. */
 export function turnTimings(turn: TurnInput): TurnTimings {
   const ends = [...turn.models, ...turn.tools].map((s) => s.end);
   const end = turn.endAt ?? (ends.length ? Math.max(...ends) : turn.sentAt);

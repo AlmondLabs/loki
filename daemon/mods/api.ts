@@ -18,12 +18,14 @@ export interface ChatRef {
   agentName: string;
 }
 
+/** What a mod tool's `execute` gets besides its arguments: the chat it runs in, the turn's abort signal, and a way to stream output. */
 export type ToolContext = ChatRef & {
   signal: AbortSignal;
   /** Stream running output; the returned text, when there is any, replaces it as the result. */
   output(text: string): void;
 };
 
+/** A tool a mod registers, for every chat of every agent. What `execute` returns is the result the model reads: a string as it is, anything else as JSON, and nothing as no result. */
 export interface ModTool {
   name: string;
   description: string;
@@ -34,15 +36,18 @@ export interface ModTool {
   execute(args: Record<string, unknown>, ctx: ToolContext): unknown;
 }
 
+/** What a prompt section renders from: the chat, and the folder it works in (undefined when it has none). */
 export type SectionInput = ChatRef & { cwd: string | undefined };
 
 /** A tool call about to run: block it with a reason the model sees, or change its arguments. */
 export type ToolCall = ChatRef & { name: string; args: Record<string, unknown>; signal: AbortSignal };
+/** A beforeTool handler's answer: block the call with a reason, run it with new arguments (the next handler sees them), or nothing to let it run as it is. */
 export type BeforeToolResult = { block: string } | { args: Record<string, unknown> } | undefined;
 
 /** The person's message as it is about to be sent: return new content to replace it, nothing to leave it. */
 export type OutgoingMessage = ChatRef & { content: string | Array<Record<string, unknown>>; typed: boolean };
 
+/** The turn events a mod can listen to, by name, with what each carries. */
 export interface ModEvents {
   /** A chat was opened in a client (U5). */
   chat_open: ChatRef;
@@ -57,6 +62,7 @@ export interface ModEvents {
 
 type Unregister = () => void;
 
+/** What a mod's `activate` is given. Every register, section, transform and listener returns a function that takes it back; all of them go when the mod is unloaded or replaced. */
 export interface ModApi {
   readonly apiVersion: typeof MOD_API_VERSION;
   tools: { register(tool: ModTool): Unregister };

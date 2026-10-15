@@ -12,6 +12,10 @@ interface Entry {
   line: string;
 }
 
+/**
+ * The person's gestures not yet told to the agent, per desk, in memory only: the last 60 lines a desk had, drained into
+ * the next message sent in its chat.
+ */
 export class GestureLog {
   private logs = new Map<Scope, Entry[]>();
 
@@ -65,6 +69,7 @@ export function describeGesture(g: Gesture, entry: WidgetManifestEntry | undefin
   }
 }
 
+/** The <loki-desk> block attached to the person's next message: the desk's gesture lines and where its widget files live. */
 export function formatDeskContext(scope: Scope, lines: string[], widgetsDir = "~/.loki/widgets"): string {
   return [
     `<loki-desk desk="${scope}">`,

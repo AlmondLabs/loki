@@ -26,8 +26,10 @@ import type {
   Task,
 } from "../../../core/frame-types.ts";
 
+/** The state of the socket to the mod. */
 export type Connection = "connecting" | "open" | "closed";
 
+/** A request to move the camera to widgets, as the mod's camera frame asks; the nonce makes a repeat new. */
 export interface CameraTarget {
   widgetId: string;
   /** All ids to frame together (first is widgetId). */
@@ -37,11 +39,6 @@ export interface CameraTarget {
 
 export type { VisibleWidget } from "./view";
 
-/**
- * The tab's view of the desk: manifest + geometry per scope, synced from the
- * mod over WebSocket. Gestures apply optimistically with the same pure
- * reducer the mod uses, then go up the wire.
- */
 /** A `recall` reply as the snapshot the view holds, or null when the mod refused or did not answer. */
 const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null => {
   if (!r.ok) return null;
@@ -60,6 +57,11 @@ const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null
 /** Captures kept while the socket is closed; the oldest go first. */
 const CAPTURES_HELD = 50;
 
+/**
+ * The tab's view of the desk: manifest + geometry per scope, synced from the
+ * mod over WebSocket. Gestures apply optimistically with the same pure
+ * reducer the mod uses, then go up the wire.
+ */
 export function useDesk() {
   const {
     scope,

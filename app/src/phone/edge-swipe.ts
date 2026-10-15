@@ -15,6 +15,10 @@ const SLOP = 10;
 const COMMIT_FRACTION = 0.33;
 const FLICK = 500;
 
+/**
+ * Whether an edge swipe let go goes Back: past a third of the screen's width, or a flick faster than 500 px/s once past
+ * twice the slop (dx and width in px, velocity in px/s).
+ */
 export const edgeCommits = (dx: number, width: number, velocity: number): boolean => dx > width * COMMIT_FRACTION || (dx > SLOP * 2 && velocity > FLICK);
 
 /** Opened from the home screen (standalone), not in a browser tab. */
@@ -23,6 +27,10 @@ export const standalone = (): boolean =>
   ((typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches) ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true);
 
+/**
+ * Back by a swipe from the left edge, on the shell in `shellRef` while `on`; only in the
+ * home-screen app (`standalone`). `onBack` may change every render.
+ */
 export function useEdgeSwipe(shellRef: RefObject<HTMLElement | null>, on: boolean, onBack: () => void): void {
   const backRef = useRef(onBack);
   useLayoutEffect(() => {

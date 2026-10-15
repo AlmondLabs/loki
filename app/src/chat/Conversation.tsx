@@ -36,6 +36,7 @@ import { StepsTouch } from "./ToolSteps";
 import { readTurnError, retryMessage } from "./turn-error";
 import { useRevealMessage } from "../tasks/message-tasks";
 
+/** What the agent is doing in a chat: nothing, thinking before its reply, or streaming the reply. */
 export type ChatStatus = "idle" | "thinking" | "streaming";
 
 /** What a conversation looks like right now. `rows` is undefined until the transcript has loaded. */
@@ -437,6 +438,7 @@ export function ConversationHeader({
   );
 }
 
+/** What a conversation can ask of its thread, for find in page. */
 export interface ThreadHandle {
   /** Stop following the bottom (find moved the selection into view; the next delta must not pull it away). */
   unpin: () => void;

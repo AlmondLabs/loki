@@ -1,6 +1,7 @@
 import type { TaskStore } from "../tasks.ts";
 import { fail, reply, type FrameContext, type FrameHandlers } from "./context.ts";
 
+/** What the Tasks frame handler needs from its host; without `tasks` every request answers that Tasks is not available. */
 export interface TaskDeps {
   /** The task list (mod/tasks.ts); absent until beads is ready. */
   tasks?: TaskStore;

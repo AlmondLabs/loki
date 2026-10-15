@@ -17,6 +17,7 @@ export interface AgentsSelectionState {
   creating: boolean;
 }
 
+/** A store of the Agents selection: read it, subscribe to it, and change the agent, the page or whether the new-agent form is open. */
 export interface AgentsSelection {
   get: () => AgentsSelectionState;
   subscribe: (fn: () => void) => () => void;
@@ -36,6 +37,7 @@ function tryStore<T>(fn: () => T, fallback: T): T {
   }
 }
 
+/** A selection that remembers the page and the agent in `store` (sessionStorage in the app), restored on creation; null keeps them in memory only. */
 export function createAgentsSelection(store: Store | null): AgentsSelection {
   const savedPage = store ? tryStore(() => store.getItem(AGENT_PAGE_KEY), null) : null;
   const savedAgent = store ? tryStore(() => store.getItem(AGENT_ID_KEY), null) : null;

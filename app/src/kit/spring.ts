@@ -11,6 +11,7 @@
  * finger's speed.
  */
 
+/** A spring as loki describes one: how long it feels and how much it overshoots. */
 export interface Spring {
   /** Seconds: how long the motion feels (SwiftUI's `duration`); the spring settles a little after. */
   duration: number;
@@ -28,6 +29,7 @@ export const SPRINGS = {
   bouncy: { duration: 0.4, bounce: 0.25 },
 } as const satisfies Record<string, Spring>;
 
+/** The name of one of loki's three springs: smooth, snappy or bouncy. */
 export type SpringName = keyof typeof SPRINGS;
 
 /** Close enough to rest that nothing on screen moves any more (a thousandth of the distance). */

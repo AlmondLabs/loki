@@ -16,6 +16,7 @@ export const lokiDir = (): string => process.env.LOKI_DIR ?? join(homedir(), ".l
 
 const stateDir = process.env.LOKI_STATE_DIR ?? join(lokiDir(), "state");
 
+/** Every file and folder the mod reads or writes; each LOKI_*_DIR variable moves its folder elsewhere (tests do). */
 export const paths = {
   root: projectRoot,
   app: join(projectRoot, "app"),
@@ -36,21 +37,25 @@ export const paths = {
   analytics: join(stateDir, "analytics.json"),
 } as const;
 
+/**
+ * The desk server's port, on 127.0.0.1 only (LOKI_PORT overrides it). Its routes need the desktop token, apart from
+ * /health and the MCP sign-in callback.
+ */
 export const DEFAULT_MOD_PORT = 41414;
 /** Where a browser comes back after signing in to a remote MCP server (daemon/mcp/oauth.ts), on the loopback server only. */
 export const MCP_OAUTH_CALLBACK = "/mcp/oauth/callback";
 /** The LAN listener for phones (mod/lan.ts): a second port, never the first. */
 export const DEFAULT_LAN_PORT = 41415;
 
-/**
- * Where the built canvas may be, in order: LOKI_APP_DIST, the installed layout
- * (<data>/app beside <data>/mod/loki-mod.mjs), then a checkout's app/dist.
- * mod/static.ts takes the first that has an index.html. In a checkout `<mod dir>/../app`
- * is the app's *source* directory, whose index.html loads /src/main.tsx: skipped.
- */
 // Only the installed bundle (<data>/mod/loki-mod.mjs) has an app/ beside it; the dev bundle boot.ts writes
 // (.loki-build/mod-<ts>.mjs) sits next to the *source* app/, which must not be served.
 const installedBundle = basename(modFile) === "loki-mod.mjs";
+/**
+ * Where the built canvas may be, in order: LOKI_APP_DIST, the installed layout
+ * (<data>/app beside <data>/mod/loki-mod.mjs), then a checkout's app/dist.
+ * mod/static.ts takes the first that has an index.html and assets/. In a checkout `<mod dir>/../app`
+ * is the app's *source* directory, whose index.html loads /src/main.tsx: skipped.
+ */
 export const appDistCandidates: string[] = [
   ...(process.env.LOKI_APP_DIST ? [process.env.LOKI_APP_DIST] : []),
   ...(installedBundle ? [join(dirname(modFile), "..", "app")] : []),

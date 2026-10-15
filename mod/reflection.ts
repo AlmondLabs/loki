@@ -10,6 +10,10 @@ import type { MemoryCommit, ReflectionState } from "../core/frame-types.ts";
 /** A pass's commits are by "Reflection" (by "Reflection Subagent" in history imported from Letta); the agent's own carry its name. */
 export const isReflectionCommit = (c: MemoryCommit): boolean => /reflection/i.test(c.author);
 
+/**
+ * What the Agents page shows of reflection: the newest reflection commit among the memory repo's last 100, or null when
+ * there is none or the log cannot be read.
+ */
 export async function reflectionState(agentId: string, opts: { log?: (agentId: string) => Promise<MemoryCommit[]> } = {}): Promise<ReflectionState> {
   const commits = await (opts.log ?? ((id: string) => memoryLog(id, { limit: 100 })))(agentId).catch(() => [] as MemoryCommit[]);
   return { lastCommit: commits.find(isReflectionCommit) ?? null };

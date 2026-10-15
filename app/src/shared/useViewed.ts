@@ -34,6 +34,7 @@ export interface Looks {
   held: (LookTarget & { stamp: string }) | null;
 }
 
+/** Nothing sent and nothing held: where a chat's looks start. */
 export const NO_LOOKS: Looks = { sent: null, held: null };
 
 /**

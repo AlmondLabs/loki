@@ -21,9 +21,12 @@ import { expectPop, transition } from "./transitions";
  * leaving the app. parse/format and the entry helpers are pure (test/phone-router.test.ts).
  */
 
+/** The phone's four tabs. */
 export type Tab = "home" | "inbox" | "agents" | "more";
+/** The tabs in the order the tab bar shows them. */
 export const TABS: readonly Tab[] = ["home", "inbox", "agents", "more"];
 
+/** A screen of the phone, as its hash address names it (see the list above). */
 export type Route =
   | { kind: "tab"; tab: Tab }
   | { kind: "learn"; view?: LearnPage }
@@ -36,10 +39,12 @@ export type Route =
   | { kind: "file"; agentId: string; path: string }
   | { kind: "conversation"; agentId: string; conversationId: string; prefill: string | null };
 
+/** The Home tab: where the phone opens and where a page with nowhere else to go comes back to. */
 export const HOME: Route = { kind: "tab", tab: "home" };
 
 /** Learn's lists, as the desktop's Learn column lists them: the deck, the leads, the lessons begun, what was deleted. */
 export type LearnPage = "review" | "leads" | "lessons" | "deleted";
+/** Learn's lists, in the order Learn lists them. */
 export const LEARN_PAGES: readonly LearnPage[] = ["review", "leads", "lessons", "deleted"];
 const isLearnPage = (s: string): s is LearnPage => (LEARN_PAGES as readonly string[]).includes(s);
 
@@ -239,6 +244,7 @@ export function back(r: Route): void {
   else replace(backTarget(r, null), "pop");
 }
 
+/** What the phone shows: the route, the route it was opened from (null when opened cold, from a link or a launch), and how it arrived. */
 export interface RouteState {
   route: Route;
   from: Route | null;

@@ -17,6 +17,7 @@ function asText(v: unknown): string {
   return typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
 }
 
+/** The kit's text card: `data.lines`, one line each. */
 export function InfoCard({ data }: KitProps) {
   const lines = (data.lines as string[] | undefined) ?? [];
   return (
@@ -28,6 +29,7 @@ export function InfoCard({ data }: KitProps) {
   );
 }
 
+/** The kit's big number: `data.value` with its `unit`, a green or red `delta`, and a `label` under it. */
 export function Stat({ data }: KitProps) {
   const delta = typeof data.delta === "number" ? data.delta : null;
   return (
@@ -55,6 +57,7 @@ export function Stat({ data }: KitProps) {
   );
 }
 
+/** The kit's slider over `data.value` (with `min`, `max`, `step`, `label` and `unit`); it writes `value` once, when the drag ends, not on every step. */
 export function SliderControl({ data, onSet }: KitProps) {
   const value = Number(data.value ?? 0);
   const [live, setLive] = useState<number | null>(null);
@@ -110,6 +113,7 @@ export function SliderControl({ data, onSet }: KitProps) {
   );
 }
 
+/** The kit's checklist over `data.items`; ticking one writes `items.<i>.done`. */
 export function ListCard({ data, onSet }: KitProps) {
   const items = (data.items as Array<{ text: string; done?: boolean }> | undefined) ?? [];
   return (
@@ -137,6 +141,7 @@ export function ListCard({ data, onSet }: KitProps) {
   );
 }
 
+/** The kit's chart of `data.points` (x, y), drawn as a line, a bar or an area chart by `data.kind` (line when unset). */
 export function ChartCard({ data }: KitProps) {
   const points = useMemo(() => ((data.points as Array<{ x: string | number; y: number }> | undefined) ?? []).map((p) => ({ ...p })), [data.points]);
   const kind = (data.kind as string | undefined) ?? "line";

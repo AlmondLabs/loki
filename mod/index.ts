@@ -74,6 +74,11 @@ export interface Host {
   analytics?: Analytics;
 }
 
+/**
+ * Starts the mod inside the daemon: the desk server on loopback, the widget watcher, the desks and their state, the
+ * frame router behind /ws, the phone listener (off until switched on in Settings), and the chat event handlers.
+ * Returns the function that stops all of it.
+ */
 export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
   // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it). LOKI_ANALYTICS=0 turns it off.

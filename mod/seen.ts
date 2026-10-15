@@ -15,6 +15,10 @@ import { addFocus, pruneFocus, type FocusAction, type FocusEntry } from "../core
 /** How long a burst of marks waits before it is written: one write per burst, and flush() on shutdown. */
 const PERSIST_DEBOUNCE_MS = 250;
 
+/**
+ * The Catch Up marks, loaded from their file at start (a v1 flat map reads as the seen marks) and
+ * written atomically after each burst of changes.
+ */
 export class SeenStore {
   private seen: Record<string, string> = {};
   private viewed: Record<string, string> = {};

@@ -60,6 +60,7 @@ const closeInbox = () => {
   else replace(HOME, "pop");
 };
 
+/** The phone shell: asks the mod whether this device is paired, then shows Pair, the app, or that the Mac cannot be reached. */
 export function Phone() {
   const [gate, setGate] = useState<Gate>({ kind: "checking" });
   /** Ask the mod who this phone is; the gate says "checking" meanwhile. */

@@ -10,7 +10,9 @@ import { format, resolveConfig } from "prettier";
 import { join } from "node:path";
 import { springTokens } from "../app/src/kit/spring.ts";
 
+/** The marker the springs follow in kit/tokens.css; everything up to END is replaced. */
 export const START = "  /* springs: written by scripts/springs.ts from kit/spring.ts — do not edit by hand */";
+/** The marker that ends the springs in kit/tokens.css. */
 export const END = "  /* end springs */";
 
 const path = join(import.meta.dirname, "..", "app", "src", "kit", "tokens.css");

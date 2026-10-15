@@ -16,12 +16,14 @@ export const callbackUrl = (port = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_P
 
 /** What a sign-in keeps, by kind, as JSON in the keychain under `mcp-oauth.<server>.<kind>`. */
 type Kind = "tokens" | "client" | "verifier";
+/** Where a sign-in's secrets live: the daemon's keychain (daemon/credentials.ts SecretBackend); a keychain without `delete` gets an empty value instead. */
 export interface OAuthSecrets {
   get(account: string): Promise<string | null>;
   set(account: string, value: string): Promise<void>;
   delete?(account: string): Promise<void>;
 }
 
+/** A sign-in's tokens, client registration and PKCE verifier, per server, as JSON in the keychain or, without one, in memory; an unreadable value reads as nothing. */
 export class OAuthStore {
   private readonly memory = new Map<string, string>();
   private readonly secrets: OAuthSecrets | null;

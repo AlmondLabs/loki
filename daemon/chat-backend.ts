@@ -71,6 +71,10 @@ function thinkingLevel(effort: ReasoningEffort | null): string | undefined {
   return effort === "none" ? "off" : effort === "max" ? "xhigh" : effort;
 }
 
+/**
+ * The daemon's ChatBackend: opens, sends to and changes chats in each agent's pi-durable store, and
+ * pushes the converted events, the approvals and questions included, to the clients through `attach`'s callback.
+ */
 export class DaemonChats implements ChatBackend {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly watching = new Map<string, Promise<void>>();

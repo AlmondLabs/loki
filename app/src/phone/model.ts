@@ -134,6 +134,7 @@ export function viaLabel(via: unknown): string | null {
 
 /** The pairing alphabet and length are the mod's (mod/pairing.ts); the URL itself comes from the mod in `pair_code`. */
 export const CODE_ALPHABET = PAIRING_ALPHABET;
+/** The pairing code's length, the mod's. */
 export const CODE_LENGTH = PAIRING_LENGTH;
 
 /** The code in a pairing URL or a bare query string, normalised; null when there is none. */
@@ -159,6 +160,7 @@ export function normalizeCode(input: string): string {
     .slice(0, CODE_LENGTH);
 }
 
+/** What kind of device a phone is, as `deviceKind` reads it from its user agent; "phone" when it is none of the others. */
 export type DeviceKind = "iPhone" | "iPad" | "Android" | "phone";
 
 /**
@@ -262,6 +264,7 @@ export function modelBits(model: string | null | undefined, settings: Record<str
   ].filter(Boolean) as string[];
 }
 
+/** One folder of an agent's memory as the phone lists it, with its files. */
 export interface MemoryFolder {
   /** "" for files at the root. */
   name: string;
@@ -310,6 +313,7 @@ export function needsReload(served: string | null | undefined, current: string |
 /** Hidden for longer than this and back to a changed build: reload without asking — nothing is mid-flight. */
 export const AUTO_RELOAD_HIDDEN_MS = 30_000;
 
+/** Whether to reload without asking: the build changed and the page was hidden for longer than AUTO_RELOAD_HIDDEN_MS. */
 export function shouldAutoReload(hiddenMs: number, changed: boolean): boolean {
   return changed && Number.isFinite(hiddenMs) && hiddenMs > AUTO_RELOAD_HIDDEN_MS;
 }
@@ -337,6 +341,7 @@ export function archiveList(desks: DeskSummary[], agentFilter: string | null, q:
   return archivedDesks(desks, agentFilter, norm(q)).filter((d) => d.agentId && d.conversationId);
 }
 
+/** The counts on Home's shortcuts. */
 export interface HomeCounts {
   /** Inbox: the ready queue (catchUpQueue), snoozed cards left out. */
   inbox: number;
@@ -368,6 +373,7 @@ export function homeCounts({
   };
 }
 
+/** The places Home's shortcut rail leads to. */
 export type Shortcut = "inbox" | "learn" | "agents" | "archive";
 
 /** The line under a shortcut's name: its count, or a calm word when there is nothing. */
@@ -439,6 +445,7 @@ export function homeSections(
   };
 }
 
+/** The paired Mac's state, as Home's presence dot shows it. */
 export type LinkState = "online" | "connecting" | "offline";
 
 /**
@@ -510,13 +517,16 @@ export function agentRows(
   }));
 }
 
+/** The Agents tab's filter: every agent, those with a turn running, or those with a chat waiting on you. */
 export type AgentFilter = "all" | "running" | "waiting";
+/** The Agents tab's filters in the order they are shown, with their labels. */
 export const AGENT_FILTERS: ReadonlyArray<{ id: AgentFilter; label: string }> = [
   { id: "all", label: "All" },
   { id: "running", label: "Running" },
   { id: "waiting", label: "Waiting on you" },
 ];
 
+/** The agent rows the filter keeps, in their order. */
 export function agentsShown(rows: AgentRowModel[], filter: AgentFilter): AgentRowModel[] {
   if (filter === "running") return rows.filter((r) => r.running);
   if (filter === "waiting") return rows.filter((r) => r.waiting > 0);
@@ -537,6 +547,7 @@ export function linkWord(link: LinkState): string {
 
 /** A newer canvas on the Mac ("ready"), the one this page runs ("current"), or an unstamped page with nothing to compare. */
 export type UpdateState = "ready" | "current" | "unknown";
+/** Whether the Mac serves a newer canvas than this page runs (see `needsReload`); unknown when this page carries no build stamp. */
 export function updateState(served: string | null | undefined, current: string | null | undefined): UpdateState {
   if (!current) return "unknown";
   return needsReload(served, current) ? "ready" : "current";
@@ -549,7 +560,9 @@ export const PHONE_APPEARANCE: ReadonlyArray<{ value: ThemePreference; label: st
   { value: "dark", label: "Dark" },
 ];
 
+/** The rows on the More tab. */
 export type MoreRowId = "mac" | "agents" | "learn" | "archive" | "preferences" | "updates" | "about" | "connection";
+/** One row on the More tab: what it shows and the page it opens. */
 export interface MoreRow {
   id: MoreRowId;
   icon: IconName;

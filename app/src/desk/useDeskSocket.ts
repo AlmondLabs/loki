@@ -24,6 +24,10 @@ const NO_YANK_MS = 2000;
  * asking the mod. Remove once the mod's `tailscale.ts` is in and a real tailnet is at hand.
  */
 export const PHONE_DEMO = import.meta.env.DEV && typeof location !== "undefined" && new URLSearchParams(location.search).get("phoneDemo") === "tailscale";
+/**
+ * The LAN status as it would read with Tailscale running on this Mac (fixed made-up names and address), for the
+ * dev-only `PHONE_DEMO`; `serve` overrides whether Tailscale serve is on.
+ */
 export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
   const name = "my-macbook-pro.tail1234.ts.net";
   const on = serve ?? !!s.tailscale?.serveUrl;

@@ -9,6 +9,7 @@ export interface TitleMenuEntry {
   label: string;
   keys: string | null;
 }
+/** One ☰ menu: its title and its lines, with separators between groups. */
 export interface TitleMenuGroup {
   title: string;
   items: Array<TitleMenuEntry | { separator: true }>;

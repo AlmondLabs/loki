@@ -77,6 +77,10 @@ body { overflow-x: auto; overflow-y: hidden; }
 `;
 }
 
+/**
+ * The whole widget-frame.html, with the bundled runtime inlined; `production` minifies it. The Vite tab
+ * serves it to module widgets in development.
+ */
 export async function buildFrameHtml(production: boolean): Promise<string> {
   return frameHtml(await buildFrameScript(production));
 }

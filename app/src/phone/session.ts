@@ -49,10 +49,12 @@ export { createRecents, pushRecent, sanitizeRecents, type RecentEntry } from "..
 
 /** What Search offers before you type: the last few searches, and the last few places opened (as route hashes). */
 export const recentSearches = createRecents({ key: "loki.phone.recentSearches", max: 8 });
+/** The places opened lately, as route hashes, newest first. */
 export const recentPlaces = createRecents({ key: "loki.phone.recentPlaces", max: 8 });
 
 // ---- Scroll ---------------------------------------------------------------------------------------
 
+/** Scroll offsets by key, kept in memory for the session; `get` is null for a key never saved. */
 export function createScrollMemory() {
   const offsets = new Map<string, number>();
   return {
@@ -60,6 +62,7 @@ export function createScrollMemory() {
     get: (key: string): number | null => offsets.get(key) ?? null,
   };
 }
+/** The phone's one scroll memory, which `useScrollMemory` uses unless handed another. */
 export const scrollMemory = createScrollMemory();
 
 /**
@@ -124,6 +127,7 @@ export function createFocusMemory() {
     },
   };
 }
+/** The phone's one focus memory: the control each page was left from. */
 export const focusMemory = createFocusMemory();
 
 /** The element that has focus now, when it is a real control (iOS leaves focus on the body after a tap). */

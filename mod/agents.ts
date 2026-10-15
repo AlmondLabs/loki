@@ -15,6 +15,7 @@ import { isAgentId } from "../core/frames.ts";
  * changing memory is the agent's job, which the page hands over to the chat.
  */
 
+/** The local backend's folder: backend/ in the loki folder (lokiDir), unless LOKI_BACKEND_DIR points elsewhere. */
 export const backendDir = (): string => process.env.LOKI_BACKEND_DIR ?? join(lokiDir(), "backend");
 
 /**
@@ -27,6 +28,11 @@ export function isSubagent(agentId: string, dir = backendDir()): boolean {
   return readLocalAgent(agentId, dir)?.tags.some((t) => t === "role:subagent" || t.startsWith("role:subagent:")) === true;
 }
 
+/**
+ * An agent's record as the Agents page shows it, read from <backend>/agents/<b64 id>.json; null for an invalid id or a
+ * missing or unreadable record. The name falls back to the id, and systemHead is the system prompt's first line, cut to
+ * 200 characters.
+ */
 export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent | null {
   if (!isAgentId(agentId)) return null;
   try {
@@ -48,11 +54,19 @@ export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent 
   }
 }
 
+/**
+ * The folder of an agent's memory filesystem, whether or not it exists yet. Throws on an invalid agent id, so a crafted
+ * id never becomes a path.
+ */
 export function memoryRoot(agentId: string, dir = backendDir()): string {
   if (!isAgentId(agentId)) throw new Error("invalid agent id");
   return join(dir, "memfs", agentId, "memory");
 }
 
+/**
+ * The real path of the agent's profile.png in its memory, or null when there is none, the id is invalid, or the file
+ * resolves outside the memory root.
+ */
 export function profilePath(agentId: string, dir = backendDir()): string | null {
   if (!isAgentId(agentId)) return null;
   return containedFile(memoryRoot(agentId, dir), "profile.png")?.path ?? null;

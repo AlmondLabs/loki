@@ -29,8 +29,10 @@ import { isLanVia } from "../core/frames.ts";
  * The desktop token is refused here even when presented as a bearer.
  */
 
+/** What changed on the phone listener: its status, or the paired devices. */
 export type LanChange = "status" | "devices";
 
+/** What the phone listener is built with; the options marked for tests replace the machine's network, host and clocks. */
 export interface LanOptions {
   /** Default LOKI_LAN_PORT or 41415. 0 picks an ephemeral port (tests). */
   port?: number;
@@ -62,10 +64,15 @@ export interface LanOptions {
   tailscalePollMs?: number;
 }
 
+/** The name of the HttpOnly cookie that carries a paired phone's device token. */
 export const DEVICE_COOKIE = "loki_device";
 const COOKIE_MAX_AGE = 365 * 24 * 3600;
 const MAX_BODY = 64 * 1024;
 
+/**
+ * The phone listener: the setting, the bound server and its /ws, pairing, the routes it advertises in
+ * the QR (the Wi‑Fi address or the tailnet name), and a watch for new canvas builds while it listens.
+ */
 export class LanListener {
   private readonly opts: LanOptions;
   private readonly configuredPort: number;

@@ -18,6 +18,7 @@ export function isRemoteImage(src: string, base: string = location.href): boolea
   }
 }
 
+/** An image in markdown: shown at once when it is local, else a button naming its host that loads it only when pressed (see `isRemoteImage`). */
 export function MarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>) {
   const [shown, setShown] = useState(false);
   if (typeof src !== "string" || !src) return null;

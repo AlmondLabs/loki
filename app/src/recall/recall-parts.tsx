@@ -14,6 +14,7 @@ import { ago } from "../desk/catch-up-parts";
 
 /** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */
 
+/** Where a card came from: the agent's name as a chip, then the chat's title and how long ago. */
 export function SourceLine({ c }: { c: CardWithSchedule }) {
   const { source } = c.card;
   return (

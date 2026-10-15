@@ -22,6 +22,7 @@ import type { PassState } from "./passes-state.ts";
 /** Failing cards of the agent sent along for a rewrite, at most. */
 const FAILING_PER_RUN = 5;
 
+/** The system instructions of Learn's hidden writer chat; what to write and how comes in each prompt (core/recall/extract.ts). */
 export const INSTRUCTIONS = `You are writing study cards for the person you work with, from a stretch of one of your conversations with them. Answer with the JSON the request asks for and nothing else; you have no tools here.`;
 
 interface Deps {
@@ -30,6 +31,7 @@ interface Deps {
   chats: ChatProjection;
 }
 
+/** Learn as a PassJob for the runner: it runs only while the day's cap has room, and its answer becomes cards and leads in `deps.store`. */
 export function learnJob(deps: Deps): PassJob {
   const { store, state, chats } = deps;
   const room = (now: Date) => Math.max(0, state.settings().learn.dailyCap - state.writtenOn(isoDay(now.getTime())));

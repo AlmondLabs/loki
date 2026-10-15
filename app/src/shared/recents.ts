@@ -111,4 +111,5 @@ export function createRecents({
   };
 }
 
+/** One bounded recent history, as `createRecents` returns it. */
 export type Recents = ReturnType<typeof createRecents>;

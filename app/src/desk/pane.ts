@@ -7,17 +7,22 @@ import type { Segment } from "../shell/keymap";
  * that is not an open (⌘[ ⌘], the mod's switch_desk) shows the desk's own tab. Esc on the Desk tab comes back.
  */
 
+/** A chat's tabs: Messages ("messages") and Canvas ("desk", the code's older name). */
 export type DeskTab = "messages" | "desk";
 /** Which chat view shows: the Messages tab's, the Desk tab's inset, or none (another section is on screen). */
 export type PaneView = "messages" | "inset";
 
+/** The tab each chat was left on, by scope; a chat not listed is on Messages. */
 export interface PaneState {
   readonly tabs: Readonly<Record<string, DeskTab>>;
 }
+/** No chat has a tab chosen yet: every one is on Messages. */
 export const EMPTY_PANE: PaneState = { tabs: {} };
 
+/** The tab a chat shows; Messages until another is chosen. */
 export const tabOf = (s: PaneState, scope: string): DeskTab => s.tabs[scope] ?? "messages";
 
+/** The state with a chat's tab chosen; the same state when it is already on that tab. */
 export function chooseTab(s: PaneState, scope: string, tab: DeskTab): PaneState {
   if (tabOf(s, scope) === tab) return s;
   return { tabs: { ...s.tabs, [scope]: tab } };
@@ -35,6 +40,7 @@ export function escapeTab(s: PaneState, scope: string, { typing }: { typing: boo
 /** The Desk tab gives the canvas the window: the list column hides, the rail stays. */
 export const sidebarHidden = (segment: Segment, tab: DeskTab): boolean => segment === "desk" && tab === "desk";
 
+/** The chat view that shows: none when the Chats section is off screen, else the one the tab shows. */
 export const paneView = (active: boolean, tab: DeskTab): PaneView | null => (!active ? null : tab === "messages" ? "messages" : "inset");
 
 /**
@@ -55,13 +61,19 @@ export interface TickRoute {
   readonly value: number;
   readonly to: PaneView | null;
 }
+/** No counter has been bumped yet. */
 export const EMPTY_ROUTE: TickRoute = { value: 0, to: null };
 
+/**
+ * The route after the host's counter reads `value` while `visible` shows: a new value goes to the view showing now, and
+ * a route whose view has gone goes nowhere.
+ */
 export function routeTick(r: TickRoute, value: number, visible: PaneView | null): TickRoute {
   if (value !== r.value) return { value, to: visible };
   if (r.to !== null && r.to !== visible) return { value, to: null };
   return r;
 }
+/** The counter a view acts on: the bumped value when it is that view's, else 0. */
 export const tickFor = (r: TickRoute, view: PaneView): number => (r.to === view ? r.value : 0);
 
 /** A request for the Surface to frame one widget (a widget row in the thread, U8); the nonce makes a repeat new. */
@@ -69,6 +81,7 @@ export interface FrameRequest {
   readonly widgetId: string;
   readonly nonce: number;
 }
+/** A request to frame `widgetId`, new even when it repeats the last one. */
 export const nextFrame = (prev: FrameRequest | null, widgetId: string): FrameRequest => ({ widgetId, nonce: (prev?.nonce ?? 0) + 1 });
 
 /** The agent pill's live state in the header: what the conversation is doing, in a word or two; null when idle. */

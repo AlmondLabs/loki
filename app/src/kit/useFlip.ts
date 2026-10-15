@@ -62,6 +62,7 @@ function ghost(box: HTMLElement, spot: Spot): void {
   g.animate([{ opacity: 1 }, { opacity: 0, transform: "scale(0.98)" }], { duration: 200, easing: "ease-out", fill: "forwards" }).finished.then(done, done);
 }
 
+/** Makes the keyed rows of the list in `ref` glide to their new places, each time `order` changes; an undefined `order` moves nothing. */
 export function useFlip(ref: RefObject<HTMLElement | null>, order: string | undefined): void {
   const last = useRef<Map<string, Spot> | null>(null);
   useLayoutEffect(() => {

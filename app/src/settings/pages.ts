@@ -1,5 +1,6 @@
 /** The pages down Preferences' left side, in order. "loki" gathers what loki runs on: its version, the mod, requirements, install. */
 export type SettingsPage = "loki" | "inbox" | "providers" | "mcp" | "phone" | "skills" | "learn" | "appearance" | "chat" | "files" | "keys";
+/** Preferences' pages, in the order its left side lists them. */
 export const PAGES: Array<{ id: SettingsPage }> = [
   { id: "loki" },
   { id: "inbox" },
@@ -28,8 +29,10 @@ const TITLES: Record<SettingsPage, string> = {
   files: "Files",
   keys: "Keys",
 };
+/** The page's name in the section list and on its heading. */
 export const pageTitle = (p: SettingsPage): string => TITLES[p];
 
+/** Whether a value (a saved page, say) names a Preferences page. */
 export function isSettingsPage(v: unknown): v is SettingsPage {
   return PAGES.some((p) => p.id === v);
 }

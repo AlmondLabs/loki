@@ -12,6 +12,10 @@ export interface Runtime {
   conversation_id: string;
 }
 
+/**
+ * Which chat each desk belongs to, by scope, kept in state/desks.json. A cache: a desk it has not seen is resolved from
+ * its scope and written down. Writes are best effort, and an unreadable file starts it empty.
+ */
 export class DeskRegistry {
   private byScope = new Map<Scope, Runtime>();
   private readonly path: string;
@@ -117,6 +121,10 @@ export class DeskRegistry {
   }
 }
 
+/**
+ * What the mod knows of one conversation from the daemon's chats: its agent, title, last message, and the settings that
+ * belong to the chat rather than the agent.
+ */
 export interface LocalConversationInfo {
   agentId: string | null;
   title: string | null;
@@ -129,6 +137,7 @@ export interface LocalConversationInfo {
   mode: PermissionMode;
 }
 
+/** One conversation in the daemon's chat list, with whether it is archived or hidden. */
 export interface LocalConversationRow {
   conversationId: string;
   agentId: string;

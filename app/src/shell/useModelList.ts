@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { withRecent, type ModelEntry } from "../../../core/models.ts";
 
+const NONE: readonly string[] = [];
+
 /**
  * The models the connected providers offer (chat_models), fetched once from loki's daemon when a picker first
  * wants it; switches go per conversation. The list belongs to one daemon: it is kept with the link's identity (open,
@@ -8,8 +10,6 @@ import { withRecent, type ModelEntry } from "../../../core/models.ts";
  * refetches. The desktop shell and the phone both hold one. Each entry carries its place among the models used
  * lately (`recent`, from the mod), which leads the picker's quick picks.
  */
-const NONE: readonly string[] = [];
-
 export function useModelList({
   open,
   version,

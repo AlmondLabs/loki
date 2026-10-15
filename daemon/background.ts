@@ -36,6 +36,7 @@ interface Task {
   waiters: Set<() => void>;
 }
 
+/** How a finished task tells its chat: the `<task-notification>` text, sent to the agent and chat that started it. */
 export type Notify = (agentId: string, chatId: string, text: string) => void;
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -69,6 +70,10 @@ export function shell(
   return "bash.exe";
 }
 
+/**
+ * The background tasks the daemon runs, by id; an agent reaches only its own. Output is kept from the end (KEEP), and
+ * a finished task stays readable for an hour, up to KEEP_FINISHED of them. `stopAll` ends every one when the daemon stops.
+ */
 export class BackgroundTasks {
   private readonly tasks = new Map<string, Task>();
   private readonly notify: Notify;
@@ -240,6 +245,7 @@ async function caller(api: ToolExecutionApi, context: Context) {
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const idParam = { task_id: { type: "string" } };
 
+/** The background-task tools (`bash_background`, TaskOutput, `write_stdin`, Monitor, TaskStop), as an extension over `tasks`. */
 export function backgroundExtension(tasks: BackgroundTasks): Extension {
   return defineExtension({
     name: "loki.background",

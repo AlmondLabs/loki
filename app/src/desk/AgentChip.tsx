@@ -38,13 +38,14 @@ export function AgentFace({ name, src, size = 20 }: { name: string | null | unde
   return <img src={src} alt={name ? `${name}'s face` : "agent"} style={style} onError={() => setBroken(true)} />;
 }
 
-/** Small tag naming the agent that owns a conversation; colour is stable per name. */
+/** The hue (0 to 359) of an agent's colour, worked out from its name so the same name always gets the same colour. */
 export function agentHue(name: string): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return h % 360;
 }
 
+/** A small pill naming the agent that owns a chat, in a colour that stays the same for the same name; nothing when there is no name. */
 export function AgentChip({ name, size = 10.5 }: { name: string | null | undefined; size?: number }) {
   if (!name) return null;
   const hue = agentHue(name);

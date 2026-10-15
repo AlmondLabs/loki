@@ -35,4 +35,5 @@ export function useReading(selected: string | null, view: Reading, api: AgentsAp
   return { content, loadingView };
 }
 
+/** The reading pane's text and whether it is loading, as `useReading` returns them. */
 export type ReadingState = ReturnType<typeof useReading>;

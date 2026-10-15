@@ -48,6 +48,7 @@ const store = (): Pick<Storage, "getItem" | "setItem"> | null => {
   }
 };
 
+/** The props of the Chats sidebar (`DeskSidebar`): the chats, agents and Inbox items it lists, the chat on show, and what its rows and menus can do. */
 export interface DeskSidebarProps {
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;

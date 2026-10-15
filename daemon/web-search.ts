@@ -5,6 +5,7 @@ import { defineExtension, defineTool, type Extension } from "@earendil-works/pi-
  * used. A result is its title, link and snippet; the tool keeps the first few.
  */
 
+/** One search result: `url` is the real address, not DuckDuckGo's redirect, and `snippet` is empty when the page had none. */
 export interface SearchResult {
   title: string;
   url: string;
@@ -53,6 +54,7 @@ export function parseResults(html: string, limit = 8): SearchResult[] {
   return out;
 }
 
+/** Search DuckDuckGo for `query`: its first eight results, in plain text. Throws when the page does not come back. */
 export async function webSearch(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
   const response = await fetch("https://html.duckduckgo.com/html/", {
     method: "POST",
@@ -64,6 +66,7 @@ export async function webSearch(query: string, signal?: AbortSignal): Promise<Se
   return parseResults(await response.text());
 }
 
+/** The `web_search` tool, as an extension; `search` stands in for DuckDuckGo in tests. */
 export function webSearchExtension(search: (query: string, signal?: AbortSignal) => Promise<SearchResult[]> = webSearch): Extension {
   return defineExtension({
     name: "loki.web",

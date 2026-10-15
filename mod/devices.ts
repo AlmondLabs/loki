@@ -16,8 +16,13 @@ export interface DeviceRecord extends DeviceSummary {
 
 const SEEN_WRITE_INTERVAL_MS = 60_000;
 
+/** The sha256 hex of a device token: the only form of a token state/devices.json keeps. */
 export const hashToken = (token: string): string => createHash("sha256").update(token).digest("hex");
 
+/**
+ * The paired phones, kept in state/devices.json (mode 0600) and loaded once at start; an unreadable file means no
+ * paired phones. Writes are best effort: a failed one costs a re-pair, never a crash.
+ */
 export class DeviceStore {
   private devices: DeviceRecord[] = [];
   private readonly path: string;

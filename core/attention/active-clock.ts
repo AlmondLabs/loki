@@ -12,6 +12,7 @@ export interface ActiveClock {
   set(active: boolean): void;
 }
 
+/** A new active clock reading `wall` (Date.now by default), running from the start unless `active` is false. */
 export function createActiveClock(wall: () => number = Date.now, active = true): ActiveClock {
   let total = 0;
   let since: number | null = active ? wall() : null;

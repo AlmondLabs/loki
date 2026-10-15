@@ -7,12 +7,14 @@
  * memory, changes and skills as headings in one scroll.
  */
 export type AgentPage = "profile" | "memory" | "changes" | "reflection" | "skills";
+/** Every agent page, in the order the tabs list them. */
 export const AGENT_PAGES: readonly AgentPage[] = ["profile", "memory", "changes", "reflection", "skills"];
 /** The page is remembered for the window, like Settings' (sessionStorage). */
 export const AGENT_PAGE_KEY = "loki.agentsPage";
 /** Where a first visit lands: the reading room. */
 export const DEFAULT_AGENT_PAGE: AgentPage = "memory";
 
+/** Whether a value (a remembered page, say) names an agent page. */
 export function isAgentPage(v: unknown): v is AgentPage {
   return typeof v === "string" && (AGENT_PAGES as readonly string[]).includes(v);
 }

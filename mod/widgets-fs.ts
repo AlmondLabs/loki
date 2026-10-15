@@ -14,6 +14,7 @@ import { KIT } from "../core/desk-core.ts";
 
 const MODULE_EXT = new Set([".tsx", ".jsx"]);
 
+/** What one scan of the widgets folder found changed since the last: widgets added, changed and removed. */
 export interface WidgetsDiff {
   added: WidgetManifestEntry[];
   changed: WidgetManifestEntry[];
@@ -24,6 +25,10 @@ export interface WidgetsDiff {
   initial: boolean;
 }
 
+/**
+ * A JSON widget file's title, kit type and data, with an error naming what is wrong when it is not valid JSON, not an
+ * object, or lacks a known type or a title.
+ */
 export function parseJsonWidget(text: string): {
   title?: string;
   type?: string;
@@ -169,6 +174,7 @@ export async function scanWidgets(root: string, cache?: ScanCache): Promise<Map<
   return out;
 }
 
+/** The live manifest of the widgets folder, kept by watchWidgets. */
 export interface WidgetsWatcher {
   /** Current manifest, runtime errors merged in. */
   entries(scope?: Scope): WidgetManifestEntry[];
@@ -180,6 +186,10 @@ export interface WidgetsWatcher {
   close(): void;
 }
 
+/**
+ * Watches the widgets folder and calls `onDiff` after each scan that found a change, scans debounced (80 ms by default)
+ * and run one at a time. The first scan's diff is marked initial. Where the system cannot watch, only rescan() scans.
+ */
 export function watchWidgets(root: string, onDiff: (diff: WidgetsDiff) => void, opts: { debounceMs?: number } = {}): WidgetsWatcher {
   const debounceMs = opts.debounceMs ?? 80;
   mkdirSync(root, { recursive: true });

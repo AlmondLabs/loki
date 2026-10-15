@@ -35,6 +35,10 @@ const isEntry = (v: unknown): v is WidgetLogEntry => {
   return typeof e.id === "string" && typeof e.at === "number" && typeof e.widgetId === "string" && typeof e.change === "string";
 };
 
+/**
+ * The widget change logs of every desk, loaded from disk on first read and kept in memory after; a null folder keeps
+ * them in memory only.
+ */
 export class WidgetLog {
   private logs = new Map<Scope, WidgetLogEntry[]>();
   /** Changes the mod is about to make itself: "<widgetId> <change>" → who asked, and when. */

@@ -63,6 +63,11 @@ function leave(veil: HTMLElement, parent: Node, from = 0, velocity = 0): void {
   if (!card) setTimeout(done, ms);
 }
 
+/**
+ * Gives a bottom sheet the iOS sheet's motion: the finger drag, the dismiss on release, and the cloned
+ * exit however it closes. Does nothing unless `on` (the sheet is in the phone shell); `onClose` may change every
+ * render.
+ */
 export function useSheetMotion(
   veilRef: RefObject<HTMLDivElement | null>,
   cardRef: RefObject<HTMLDivElement | null>,

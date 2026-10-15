@@ -6,6 +6,7 @@ import { REASONING_EFFORTS, selectionOf, type ModelEntry, type ModelSelection, t
 
 export type { ModelEntry, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 
+/** One model as the picker lists it: the entries for its handle (one per reasoning effort it offers) folded into one row. */
 export interface ModelGroup {
   handle: string;
   entries: ModelEntry[];
@@ -18,6 +19,10 @@ export interface ModelGroup {
   recent?: number;
 }
 
+/**
+ * The entries folded into one group per handle, in the order the handles first appear; a group is the default, featured
+ * or recent if any of its entries is, and available only if all are.
+ */
 export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
   const groups = new Map<string, ModelGroup>();
   for (const entry of entries) {
@@ -43,6 +48,7 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
   return [...groups.values()];
 }
 
+/** The entry to pick when a model is chosen: the one at `preferredEffort`, else the default, the featured, medium, high, or the first. */
 export function preferredModelEntry(group: ModelGroup, preferredEffort: ReasoningEffort | null): ModelEntry {
   return (
     (preferredEffort ? group.entries.find((entry) => entry.reasoningEffort === preferredEffort) : undefined) ??
@@ -54,6 +60,7 @@ export function preferredModelEntry(group: ModelGroup, preferredEffort: Reasonin
   );
 }
 
+/** The entries for one handle, one per reasoning effort in REASONING_EFFORTS order; empty with no handle. */
 export function effortEntriesFor(entries: ModelEntry[], handle: string | null | undefined): ModelEntry[] {
   if (!handle) return [];
   const byEffort = new Map<ReasoningEffort, ModelEntry>();
@@ -74,6 +81,7 @@ export function shortModel(handle: string | null | undefined): string {
   return i > 0 ? handle.slice(i + 1) : handle;
 }
 
+/** A reasoning effort as the picker writes it ("no reasoning", "x-high", else its own name). */
 export function effortLabel(effort: ReasoningEffort): string {
   if (effort === "none") return "no reasoning";
   if (effort === "xhigh") return "x-high";
@@ -188,8 +196,10 @@ export function ModelPill({
   );
 }
 
+/** Which page of the model picker shows: the short list, the current model's efforts, or more models. */
 export type PickerView = "models" | "effort" | "more";
 
+/** The props of `ModelChoices`, the picker's content shared by the phone's sheet and the desktop's popover. */
 export interface ModelChoicesProps {
   view: PickerView;
   entries: ModelEntry[] | null;

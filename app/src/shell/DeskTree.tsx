@@ -9,6 +9,7 @@ import { deskMark } from "./sidebar-model";
 import { formatKeys } from "./keymap";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
+/** The chat picker sheet's width in px. */
 export const TREE_WIDTH = 560;
 
 type Row = { kind: "desk"; desk: DeskSummary } | { kind: "new"; agentId: string | null; name: string };
@@ -41,7 +42,9 @@ export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: s
     .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
 }
 
+/** The picker's sections when nothing is typed: waiting on you, pinned, and the rest. */
 export type SectionId = "waiting" | "pinned" | "rest";
+/** One section of the picker: its label and its chats, in order. */
 export interface Section {
   id: SectionId;
   label: string;
@@ -139,6 +142,7 @@ export function statusLine(agentFilter: string | null, chips: Chip[], q: string,
   return q ? `${filterWord} · ${plural(matching)} match` : filterWord;
 }
 
+/** What a key in the picker's filter box does: move, cycle the agent chips, choose, or close. */
 export type TreeKeyAction = "down" | "up" | "agent-next" | "agent-prev" | "choose" | "close";
 
 /**

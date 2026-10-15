@@ -8,9 +8,12 @@ import { dirname, join } from "node:path";
  * left as they were.
  */
 
+/** A background pass's job, as its settings and cursors are keyed. */
 export type JobName = "reflection" | "learn";
+/** Every job, in the order the runner goes through them. */
 export const JOBS: readonly JobName[] = ["reflection", "learn"];
 
+/** The background passes' settings, as `passes.json` keeps them and Settings edits them; `dailyCap` is Learn's most cards a day across all agents. */
 export interface PassSettings {
   reflection: { enabled: boolean };
   learn: { enabled: boolean; dailyCap: number };
@@ -21,6 +24,7 @@ export const DEFAULT_DAILY_CAP = 5;
 /** Learn's cap before the passes, which carries over as the new default rather than as a choice (KTD9). */
 const OLD_DEFAULT_DAILY_CAP = 25;
 
+/** The settings before the person changes any: reflection on, Learn off. */
 export const DEFAULT_SETTINGS: PassSettings = { reflection: { enabled: true }, learn: { enabled: false, dailyCap: DEFAULT_DAILY_CAP } };
 
 interface Cursors {
@@ -46,6 +50,7 @@ function writeJson(file: string, value: unknown): void {
   renameSync(`${file}.tmp`, file);
 }
 
+/** Settings as read or sent, made whole: a missing field takes its default, and a cap that is not a non-negative number is DEFAULT_DAILY_CAP. */
 export function normalSettings(s: Partial<{ reflection: Partial<PassSettings["reflection"]>; learn: Partial<PassSettings["learn"]> }> | null): PassSettings {
   const cap = s?.learn?.dailyCap;
   return {
@@ -57,6 +62,7 @@ export function normalSettings(s: Partial<{ reflection: Partial<PassSettings["re
   };
 }
 
+/** The passes' state in `<stateDir>`: the settings in `passes.json`, and the cursors, Learn's daily count and its last run in `pass-cursors.json`. */
 export class PassState {
   readonly settingsFile: string;
   readonly cursorsFile: string;

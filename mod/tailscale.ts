@@ -11,8 +11,10 @@ import type { TailscaleStatus } from "../core/frame-types.ts";
  * (public exposure) is never touched.
  */
 
+/** Runs the Tailscale CLI and resolves to its stdout; rejects with what the CLI said when it fails. */
 export type TailscaleExec = (bin: string, args: string[], timeoutMs?: number) => Promise<string>;
 
+/** What a Tailscale reader is built with: the listener's port, and the CLI, runner and cache time tests replace. */
 export interface TailscaleOptions {
   /** The CLI path. undefined → findTailscale(); null → treat as not installed (tests). */
   bin?: string | null;
@@ -119,6 +121,10 @@ const defaultExec: TailscaleExec = (bin, args, timeoutMs = STATUS_TIMEOUT) =>
     });
   });
 
+/**
+ * The tailnet reader, for one listener's port: statuses are cached for the ttl, and calls made while
+ * the CLI is still answering share its answer.
+ */
 export class Tailscale {
   private readonly port: number;
   private readonly exec: TailscaleExec;

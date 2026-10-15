@@ -13,6 +13,7 @@ import {
 } from "../core/desk-core.ts";
 import type { Size } from "../core/desk-core.ts";
 
+/** Told the new state of a desk each time a change to it is committed. */
 export type StoreListener = (scope: Scope, state: DeskState) => void;
 
 /**

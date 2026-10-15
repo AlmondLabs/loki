@@ -34,6 +34,10 @@ export interface Thread {
   agentName: string | null;
 }
 
+/**
+ * What the phone's conversation page shows of a chat: its thread (rows undefined until loaded), what the agent is
+ * doing, the approval or question waiting, the turn's error, and a way to load older rows when there are any.
+ */
 export interface ThreadView {
   rows: TranscriptRow[] | undefined;
   status: ChatStatus;

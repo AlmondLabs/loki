@@ -8,15 +8,18 @@ import type { Attachment } from "../../../core/attention/content.ts";
  * The factory is pure enough for a test without a DOM (test/phone-session.test.ts); the hook wires it to React.
  */
 
+/** A reply's draft: its text and the images attached. */
 export interface Draft {
   text: string;
   images: Attachment[];
 }
+/** The one shared empty draft: nothing typed, nothing attached. */
 export const EMPTY_DRAFT: Draft = Object.freeze({ text: "", images: [] });
 
 /** One conversation's key: the same one for its Inbox card and its desk page. */
 export const draftKey = (agentId: string, conversationId: string): string => `${agentId}\u0000${conversationId}`;
 
+/** A drafts store: read, write, clear and subscribe by key (`draftKey`); an empty draft written removes its key. */
 export function createDrafts() {
   const store = new Map<string, Draft>();
   const subs = new Map<string, Set<() => void>>();
@@ -49,6 +52,7 @@ export function createDrafts() {
     watched: (): number => subs.size,
   };
 }
+/** A drafts store, as `createDrafts` returns it. */
 export type Drafts = ReturnType<typeof createDrafts>;
 
 /** The app's drafts, for the page's lifetime: tab changes, pages, disconnects and theme changes leave them alone. */

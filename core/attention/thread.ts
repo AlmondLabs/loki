@@ -70,6 +70,7 @@ function fromHistory(m: HistoryRow): TranscriptRow {
   return row;
 }
 
+/** One conversation's thread: takes steps from history pages and live events, folds them into transcript rows, and hands out the rows the transcript draws. */
 export class ThreadModel {
   /** The last history page loaded; null until one is. */
   private history: TranscriptRow[] | null = null;

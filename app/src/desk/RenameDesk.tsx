@@ -5,6 +5,7 @@ import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
 import type { CatchUp, Desk } from "../shell/types";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
+/** The props of the rename-chat dialog (`RenameDesk`). */
 export interface RenameDeskProps {
   /** The desk's name now; the field starts on it, selected. */
   name: string;

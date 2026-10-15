@@ -29,4 +29,5 @@ export function useDeskPane(scope: string) {
   return { tab, setTab, open, escape, frame, frameRequest };
 }
 
+/** The chat pane's state as `useDeskPane` returns it. */
 export type DeskPaneModel = ReturnType<typeof useDeskPane>;

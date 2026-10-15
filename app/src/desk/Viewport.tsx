@@ -20,6 +20,7 @@ const MIN_GRID_PX = 18;
 /** Per-event zoom factor clamp: a mouse-wheel notch must not jump more than ~18%. */
 const MAX_STEP = 1.18;
 
+/** The canvas's pan-and-zoom surface, with its dot grid; the ref is the pan-zoom library's handle, and `onScale` hears every change of zoom. */
 export const Viewport = forwardRef<ReactZoomPanPinchRef | null, { children: ReactNode; onScale?: (scale: number) => void }>(function Viewport(
   { children, onScale },
   ref,

@@ -56,6 +56,7 @@ export function TabBar({ active, waiting, children }: { active: Tab | null; wait
   );
 }
 
+/** Each tab's name in the tab bar. */
 export const TAB_LABEL: Record<Tab, string> = { home: "Home", inbox: "Inbox", agents: "Agents", more: "More" };
 const TAB_ICON: Record<Tab, IconName> = { home: "home", inbox: "inbox", agents: "agents", more: "more" };
 

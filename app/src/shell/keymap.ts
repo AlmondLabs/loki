@@ -13,9 +13,12 @@
 import { keyboard, type Platform } from "../desk/env";
 
 export type { Platform };
+/** The sections of the desktop, as the keymap scopes bindings: "desk" is Chats, the code's older name. */
 export type Segment = "desk" | "inbox" | "tasks" | "learn" | "agents" | "settings";
+/** Where a binding fires: in every section, in one section, in a chat, or system-wide ("global", which the system dispatches, not the page). */
 export type Where = "anywhere" | Segment | "chat" | "global";
 
+/** One shortcut: its id, its keys and their stand-ins on other systems, where it fires, its label, and where the menu bar shows it. */
 export interface Binding {
   /** Stable id; the action registry and the menu use it. */
   id: string;
@@ -39,8 +42,10 @@ export interface Binding {
   was?: string;
 }
 
+/** The menus of the menu bar that the keymap fills, in order. */
 export const MENUS = ["Go", "Chat", "Inbox", "Tasks", "Learn", "View"] as const;
 
+/** Every shortcut in loki, grouped by where it fires. */
 export const KEYMAP: Binding[] = [
   // --- anywhere ------------------------------------------------------
   { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
@@ -243,7 +248,6 @@ export function cmdHeld(e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">, os: Platf
   return os === "macos" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
 }
 
-/** Does this keyboard event match the spec? `cmd` accepts ⌘ or Ctrl, never both meanings at once. */
 /**
  * Every binding whose chord this event is, whatever its scope: what the native menu bar might also fire for
  * the same keystroke. ⌘] is both "next card" (inbox) and "next desk" (anywhere); the key handler runs the
@@ -253,6 +257,7 @@ export function chordIds(e: KeyboardEvent, map: Binding[] = KEYMAP, os: Platform
   return map.filter((b) => keysOf(b, os).some((k) => matches(e, k))).map((b) => b.id);
 }
 
+/** Does this keyboard event match the spec? `cmd` accepts ⌘ or Ctrl, never both meanings at once. */
 export function matches(e: KeyboardEvent, spec: string): boolean {
   const parts = spec.split("+");
   const key = parts[parts.length - 1];
@@ -303,11 +308,6 @@ export function typingIn(e: KeyboardEvent): boolean {
   return t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable === true;
 }
 
-/**
- * The binding an event triggers in the current context, or null. View bindings win over "anywhere"
- * so ⌘] can mean "next card" in the inbox and "next desk" on the desk. Bindings with a `note`
- * are documentation only.
- */
 /** Chords the text itself uses: never taken while a box has focus, whatever a binding says. */
 export const TEXT_CHORDS = new Set([
   "cmd+left",
@@ -326,6 +326,11 @@ export const TEXT_CHORDS = new Set([
   "alt+backspace",
 ]);
 
+/**
+ * The binding an event triggers in the current context, or null. View bindings win over "anywhere"
+ * so ⌘] can mean "next card" in the inbox and "next desk" on the desk. Bindings with a `note`
+ * are documentation only.
+ */
 export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keyboard): Binding | null {
   const typing = typingIn(e);
   // A key fires while typing only if the binding allows it AND the key is a chord the text does not use:
@@ -401,6 +406,7 @@ const TAURI_KEY: Record<string, string> = {
   "-": "Minus",
 };
 
+/** A keymap key spec in the grammar of Tauri's menu accelerators ("cmd+]" → "CmdOrCtrl+BracketRight"). */
 export function tauriAccelerator(spec: string): string {
   return spec
     .split("+")
@@ -408,6 +414,7 @@ export function tauriAccelerator(spec: string): string {
     .join("+");
 }
 
+/** The menu bar as the Rust side builds it from the keymap: MENUS in order, each binding's group a separated block, empty menus left out. */
 export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): MenuSpec[] {
   return MENUS.map((title) => {
     const mine = map.filter((b): b is Binding & { menu: string } => b.menu?.split("/")[0] === title);
@@ -430,6 +437,7 @@ export function menuSpec(map: Binding[] = KEYMAP, os: Platform = keyboard): Menu
  * Tasks' desk picker is not a dialog here: it owns its keys (data-tree).
  */
 export type DialogState = "none" | "preferences" | "search" | "other";
+/** Which dialogs are up under `root` (see `DialogState`). */
 export function dialogState(root: ParentNode = document): DialogState {
   const up = [...root.querySelectorAll('[role="dialog"]:not([data-tree])')];
   if (up.length === 0) return "none";
@@ -442,6 +450,7 @@ export function dialogState(root: ParentNode = document): DialogState {
  * through, which closes it (Esc too, from the sheet), as Slack's does; every other dialog blocks every shell key.
  */
 const PREFERENCES_KEYS = new Set(["settings.prevPage", "settings.nextPage"]);
+/** Whether a shell key with this id may act with `dialog` up, by the rule above. */
 export function shellKeyAllowed(dialog: DialogState, id: string): boolean {
   if (dialog === "none") return true;
   if (dialog === "other") return false;
@@ -468,6 +477,7 @@ export function keyRows(os: Platform = keyboard, map: Binding[] = KEYMAP): Bindi
 type Action = () => void;
 const actions = new Map<string, Action>();
 
+/** Register what keymap ids do, for `runAction`; returns the unregister, which leaves an id alone that has since been registered again. */
 export function registerActions(map: Record<string, Action>): () => void {
   for (const [id, fn] of Object.entries(map)) actions.set(id, fn);
   return () => {
@@ -475,6 +485,7 @@ export function registerActions(map: Record<string, Action>): () => void {
   };
 }
 
+/** Run the action registered for an id; false when none is. */
 export function runAction(id: string): boolean {
   const fn = actions.get(id);
   if (!fn) return false;

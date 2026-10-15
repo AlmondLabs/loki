@@ -1,6 +1,7 @@
 import type { DeviceSummary, LanStatus, LanVia } from "../../core/frame-types.ts";
 import type { FrameHandlers } from "./context.ts";
 
+/** What the phone settings' frame handler needs from its host; without `lan` every frame fails with an error. */
 export interface LanDeps {
   /** The phone listener (mod/lan.ts) and its paired devices, for Settings › phone. */
   lan?: {

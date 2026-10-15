@@ -163,4 +163,5 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
   };
 }
 
+/** Learn's state and moves for the window, as `useRecall` returns them. */
 export type Recall = ReturnType<typeof useRecall>;

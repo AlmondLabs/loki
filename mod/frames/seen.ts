@@ -2,6 +2,7 @@ import type { Pushes } from "../../core/frames.ts";
 import type { SeenStore } from "../seen.ts";
 import type { FrameHandlers } from "./context.ts";
 
+/** What the marks' frame handler needs from its host: the marks store, absent when the mod keeps none. */
 export interface SeenDeps {
   seen?: SeenStore;
 }

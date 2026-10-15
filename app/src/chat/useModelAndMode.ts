@@ -77,4 +77,5 @@ export function useModelAndMode({
   return { pickerOpen, switching, modeOpen, changingMode, pickMode, pickModel, togglePicker, toggleMode, closePicker, closeMode };
 }
 
+/** The conversation's model and mode switchers, as `useModelAndMode` returns them. */
 export type ModelAndMode = ReturnType<typeof useModelAndMode>;

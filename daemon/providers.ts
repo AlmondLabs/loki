@@ -23,6 +23,7 @@ interface Waiting {
   code?: (input: string) => void;
 }
 
+/** The providers Settings can connect: lists them with how each connects, keeps or removes a key after trying it, and runs a browser sign-in until it finishes, fails or SIGN_IN_MS passes. */
 export class Providers {
   private readonly models: Models;
   private readonly credentials: CredentialStore;

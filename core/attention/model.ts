@@ -17,6 +17,7 @@ import { scored, type AskedBy, type Reason, type Unscored } from "./priority.ts"
  */
 export type AttentionStatus = "approval" | "question" | "done" | "failed" | "running" | "idle";
 
+/** A tool call the agent is paused on until you approve or deny it (a can_use_tool request); `at` is when it was asked. */
 export interface PendingApproval {
   requestId: string;
   toolName: string;
@@ -32,6 +33,7 @@ export interface PendingQuestion {
   at: string;
 }
 
+/** One open conversation as the mod lists it (inbox_list): which agent it belongs to, its title and when it last had a message. */
 export interface ConversationInfo {
   id: string;
   agentId: string;
@@ -58,6 +60,7 @@ export interface QueuedSend {
   desk?: string | null;
 }
 
+/** What the live half knows of one conversation beyond its listing, folded from the daemon's chat events while this client is subscribed: its loop, pending approval or question, last words, thread and queued messages. */
 export interface Live {
   /** Where the chat's loop is, as loki's daemon says: running a turn, idle, or waiting on an approval. */
   loop?: "running" | "idle" | "approval";
@@ -86,6 +89,7 @@ export interface Live {
 
 import { askQuestions, type AskQuestion } from "./content.ts";
 
+/** One card of the Inbox: a conversation with its status, what it last said, what it waits on, and its stamped score. */
 export interface AttentionItem extends ConversationInfo {
   status: AttentionStatus;
   lastAssistantText: string | null;
@@ -110,6 +114,7 @@ export interface AttentionItem extends ConversationInfo {
   runtime: Runtime;
 }
 
+/** The key a chat goes by in the maps of live state, seen markers and focus: "agentId/conversationId". */
 export const keyOf = (agentId: string, conversationId: string) => `${agentId}/${conversationId}`;
 
 /**

@@ -17,6 +17,10 @@ import { isNamedStep, withoutSkillCalls, lastFailure, stepFailed, stepIcon, step
 /** The conversation is the phone's (Conversation's `touch`): steps open as a bottom sheet rather than in place. */
 export const StepsTouch = createContext(false);
 
+/**
+ * A stretch of the agent's work as one quiet line in the thread that opens to every step, in place on the desktop and
+ * as a bottom sheet on the phone (`StepsTouch`).
+ */
 export const ToolSteps = memo(
   function ToolSteps({ rows: all, running, arrived }: { rows: TranscriptRow[]; running: boolean; arrived?: true }) {
     const rows = withoutSkillCalls(all);

@@ -35,6 +35,7 @@ const NAMES_LISTED = 60;
 /** How many tools a free-text search loads. */
 const SEARCH_LIMIT = 5;
 
+/** The name of the tool that finds MCP tools and loads them into a chat. */
 export const SEARCH_TOOL = "mcp_search";
 
 type Capture = (event: string, properties: Record<string, unknown>) => void;
@@ -51,6 +52,11 @@ export const usesOAuth = (c: ServerConfig): boolean => c.kind === "remote" && !O
 /** About how many tokens a tool's definition costs once loaded (four characters a token). */
 export const toolTokens = (t: McpTool): number => Math.ceil(JSON.stringify({ name: t.key, description: t.description, parameters: t.inputSchema }).length / 4);
 
+/**
+ * The `loki.mcp` extension and its settings: registers the connected servers' tools and the
+ * search, keeps each chat's tool filter, the servers switched off per agent and the OAuth sign-ins, and answers the
+ * MCP part of Settings (McpView).
+ */
 export class McpTools {
   readonly servers: McpServers;
   private readonly registry: Registry;

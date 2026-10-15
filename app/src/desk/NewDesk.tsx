@@ -5,6 +5,10 @@ import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
 import { osWords } from "../shell/os-words";
 
+/**
+ * What the new-chat dialog asks of the mod about folders: the recent ones per agent and per chat, completions of a
+ * typed path, a check that a path is a usable folder (and its git branch), and the host's folder chooser.
+ */
 export interface FolderApi {
   recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;
   complete: (prefix: string) => Promise<string[]>;
@@ -40,6 +44,7 @@ interface NewDeskProps {
  * not the tab's own); on another host none, so Browse is not shown.
  */
 export type BrowseWith = "dialog" | "mod" | null;
+/** Which chooser Browse opens on this system, in the app or not (see `BrowseWith`). */
 export function browseWith(tauri: boolean, os: Platform): BrowseWith {
   if (tauri) return "dialog";
   return os === "macos" ? "mod" : null;

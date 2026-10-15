@@ -8,6 +8,7 @@
 
 import type { FileRef, ToolStep } from "./attention/transcript.ts";
 
+/** A message's text with the harness's injected blocks taken out (reminders, desk activity, attachment tags, skill bodies, notifications): what the person or agent actually wrote. */
 export function stripHarnessMarkup(text: string): string {
   return text
     .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "")
@@ -33,6 +34,7 @@ export function decodeEntities(text: string): string {
     .replace(/&amp;/g, "&");
 }
 
+/** One injected block as the quiet event row it becomes in a thread: a line, a summary, and the decoded detail for its disclosure. */
 export interface HarnessEvent {
   /** e.g. "background task bash_24 completed" */
   text: string;
@@ -106,8 +108,9 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   return out;
 }
 
-/** Text of a message's content (string or text parts). */
+/** A text part's value as text: a string as it is, nothing as empty, anything else as JSON. */
 const textOf = (v: unknown): string => (typeof v === "string" ? v : v === undefined || v === null ? "" : JSON.stringify(v));
+/** Text of a message's content (a string, or its text parts joined); other parts and any other shape give nothing. */
 export function messageText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";

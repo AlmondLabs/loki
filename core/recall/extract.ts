@@ -12,6 +12,7 @@ export interface Candidate {
   /** Which slice it came from (Slice.id); missing or unknown falls back to the first new slice. */
   slice?: string;
 }
+/** A change the model proposes to an existing card, named by its id: a new front, a new back, or both. */
 export interface Revision {
   id: string;
   front?: string;
@@ -20,12 +21,14 @@ export interface Revision {
   reason: string;
   slice?: string;
 }
+/** A learning lead the model proposes: a concept worth a lesson, the moment that raised it, and whether one sitting would do (primer) or it takes several (course). */
 export interface LeadCandidate {
   title: string;
   why: string;
   depth: "primer" | "course";
   slice?: string;
 }
+/** Everything parseExtraction read out of the model's answer: new cards, revisions and leads; empty arrays when it gave nothing usable. */
 export interface Extraction {
   cards: Candidate[];
   revisions: Revision[];
@@ -47,6 +50,7 @@ export interface Slice {
   text: string;
 }
 
+/** What buildPrompt needs for one call: the slices to read, the cards already kept, failing and deleted, today's room, and the leads already seen. */
 export interface PromptInput {
   /** Who was talking, for the model's orientation. */
   agentName: string | null;
@@ -70,6 +74,7 @@ export const LEADS_PER_CONVERSATION = 2;
 /** A slice longer than this is cut to its tail: the end of a stretch is where it got somewhere. */
 export const MAX_TRANSCRIPT_CHARS = 24_000;
 
+/** The prompt for one Learn call: what makes a card worth writing, the slices, the cards to avoid repeating or to rewrite, and the JSON shape to answer in. */
 export function buildPrompt(input: PromptInput): string {
   const who = input.agentName ?? "the agent";
   const fresh = input.slices.filter((s) => s.mode === "new");

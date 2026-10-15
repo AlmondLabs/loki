@@ -16,6 +16,7 @@ carryOver("loki.boardView", "loki.tasksView");
 
 /** The current view, shared by the sidebar and the pane, remembered for the window. */
 const taskView = createSessionValue("loki.tasksView", parseTaskView);
+/** The Tasks view on show and its setter, `[view, setView]`, the same in the sidebar and the pane. */
 export const useTaskView = taskView.use;
 /** Set the view from outside the pane: a message's chip shows its task under All (Shell). */
 export const setTaskView = taskView.set;
@@ -46,6 +47,7 @@ const subscribe = (l: () => void) => {
 };
 const snapshot = () => all;
 
+/** Change a view's layout settings and save them on this device; every agent view shares one entry. Without storage they hold until the window closes. */
 export function setViewPrefs(view: TaskViewId, change: Partial<ViewPrefs>): void {
   const key = prefsKey(view);
   all = { ...all, [key]: { ...parsePrefs(all[key]), ...change } };

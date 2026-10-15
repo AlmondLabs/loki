@@ -27,6 +27,7 @@ import { useDeckQueue } from "./useDeckQueue";
 export { BADGE };
 export { catchUpQueue };
 
+/** The Inbox, as a card over the shell; nothing is mounted while it is closed, so each opening builds its queue afresh. */
 export function CatchUp({ open, ...props }: CatchUpProps & { open: boolean }) {
   // Closed: nothing mounted, so each opening is a fresh visit — the queue is built from the Inbox right now.
   if (!open) return null;
@@ -75,6 +76,10 @@ interface CatchUpProps {
   widgetSource?: InlineWidgetSource;
 }
 
+/**
+ * Called when the Inbox closes after a visit that decided something: how many cards each action took, the replies, the
+ * cards shown and how long the visit lasted (in milliseconds), for analytics.
+ */
 export type PassSummaryHandler = (pass: {
   decided: number;
   next: number;

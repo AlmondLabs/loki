@@ -14,6 +14,8 @@ import type { Client, WsHandlers } from "./server.ts";
  *     handler failed, threw or rejected. A send's handler pushes what it causes; its failure answers `error`.
  * HTTP routes (agent faces, pairing, uploads) are mod/server.ts's and mod/lan.ts's.
  */
+
+/** What the router is built from: the frame handlers, the welcome, and the host's broadcast and analytics. */
 export interface BridgeDeps {
   /** The frame handlers (mod/frames/index.ts frameModules): each frame answered by exactly one. */
   modules: FrameHandlers[];
@@ -37,6 +39,10 @@ function settle(run: () => unknown, ok: (value: unknown) => void, bad: (err: unk
   }
 }
 
+/**
+ * The router over the given frame handlers, as the handlers the desktop's /ws and the phone listener both serve.
+ * Throws at once when two handlers answer the same frame.
+ */
 export function createBridge(deps: BridgeDeps): WsHandlers {
   /** Which handler answers each frame: one per name, or the table and the modules disagree. */
   const handlers = new Map<FrameName, Handler>();

@@ -17,6 +17,7 @@ import { formatRoute, type Arrival, type Route } from "./router";
  * Only the app's own Backs slide: the browser's (Safari's swipe-back, its back button) have animated already.
  */
 
+/** How a screen change moves: push, pop, the Inbox card's zoom, or the short cross-fade under reduced motion. */
 export type NavMotion = "push" | "pop" | "zoom" | "fade";
 
 /** The conversation opened from the Inbox card, whose Back shrinks into the card again. */
@@ -33,6 +34,7 @@ export function openFromCard(): void {
  * Back twice, so that one lands without a transition.
  */
 let ownPop = false;
+/** Mark the next Back as the app's own, so it slides; call it just before that Back. */
 export function expectPop(): void {
   ownPop = true;
 }
@@ -43,6 +45,10 @@ export function expectPop(): void {
  * back in place before the new picture is taken.
  */
 let dragged: { dx: number; velocity: number; reset: () => void } | null = null;
+/**
+ * Start the next Back from an edge swipe already `dx` px across, carrying on at `velocity` (px/s); `reset` puts the
+ * page back before the new picture is taken.
+ */
 export function popFromDrag(dx: number, velocity: number, reset: () => void): void {
   dragged = { dx, velocity, reset };
 }

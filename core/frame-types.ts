@@ -8,6 +8,7 @@ import type { AskedBy } from "./attention/priority.ts";
  * mod modules that build them import them from here.
  */
 
+/** One agent as the Agents page shows it, read by the mod from the agent's record and sent in the `agent` frame. */
 export interface LocalAgent {
   id: string;
   name: string;
@@ -21,12 +22,14 @@ export interface LocalAgent {
   systemHead: string | null;
 }
 
+/** One file of an agent's memory, its path relative to the memory root with forward slashes, as the `agent` frame lists them. */
 export interface MemoryFile {
   path: string;
   bytes: number;
   modifiedAt: string;
 }
 
+/** One skill in an agent's memory (its skills/ folder), named by its folder. */
 export interface MemorySkill {
   name: string;
   path: string;
@@ -34,6 +37,7 @@ export interface MemorySkill {
   description: string | null;
 }
 
+/** One commit to an agent's memory repo, as the `agent` and `memory_commits` frames carry it; `at` is ISO time. */
 export interface MemoryCommit {
   sha: string;
   message: string;
@@ -43,8 +47,10 @@ export interface MemoryCommit {
   author: string;
 }
 
+/** Where a memory skill came from: written by the agent itself, or installed from somewhere else (mod/skill-sources.ts). */
 export type SkillOrigin = "self" | "other";
 
+/** Where refreshing an installed skill fetches it from. */
 export type SkillSource =
   /** A git checkout on this Mac; refresh pulls it. `rel` is the skill folder inside it. */
   | { kind: "checkout"; repo: string; rel: string; label: string }
@@ -53,6 +59,7 @@ export type SkillSource =
   /** A GitHub repository; refresh clones it shallowly. `path` is the skill folder inside it. */
   | { kind: "github"; url: string; path: string; ref: string | null; label: string };
 
+/** What the mod knows of a memory skill's origin: who wrote it, whether the agent changed its copy, and where refresh would fetch it. */
 export interface SkillProvenance {
   origin: SkillOrigin;
   /** Commits after the last install/refresh: the agent changed its copy. */
@@ -61,13 +68,16 @@ export interface SkillProvenance {
   source: SkillSource | null;
 }
 
+/** A memory skill with its provenance, as the `agent` frame lists it once the mod has read the repo's history. */
 export type MemorySkillInfo = MemorySkill & SkillProvenance;
 
+/** How refreshing an installed skill went (`skill_refreshed`): already current, replaced with upstream, or staged for the agent to reconcile with its own edits. */
 export type RefreshOutcome =
   | { outcome: "current"; label: string }
   | { outcome: "replaced"; label: string; changed: string[]; sha: string | null }
   | { outcome: "reconcile"; label: string; changed: string[]; upstreamPath: string; prompt: string };
 
+/** One skill in the global skills folder (~/.agents/skills), as `skills_global` lists them. */
 export interface GlobalSkill {
   name: string;
   /** Where the folder really is (the link target), or the folder itself. */
@@ -78,11 +88,13 @@ export interface GlobalSkill {
   source?: string | null;
 }
 
+/** An agent's reflection passes as the `reflection_state` frame reports them. */
 export interface ReflectionState {
   /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
   lastCommit: MemoryCommit | null;
 }
 
+/** One task as the mod reads it from beads and sends it in the `tasks` frames; times are ISO, and `closedAt` is null while it is open. */
 export interface Task {
   id: string;
   title: string;
@@ -109,6 +121,7 @@ export interface LocalDigest {
   lastAsk: AskedBy | null;
 }
 
+/** One open chat in the Inbox list the mod sends (`inbox`): the conversation, its agent, and its digest. Archived chats are left out. */
 export interface InboxRow extends LocalDigest {
   id: string;
   agentId: string;
@@ -118,6 +131,7 @@ export interface InboxRow extends LocalDigest {
   archived: false;
 }
 
+/** The folders chats have worked in lately (`folders`), for the folder picker. */
 export interface RecentFolders {
   /** agentId → folders, most recently used first. */
   byAgent: Record<string, string[]>;
@@ -125,6 +139,7 @@ export interface RecentFolders {
   byConversation: Record<string, string>;
 }
 
+/** Whether a path is a folder a chat can work in, and its git branch (`folder_status`, the answer to folder_check); `reason` says why not when `ok` is false. */
 export interface FolderCheck {
   ok: boolean;
   path: string;
@@ -153,6 +168,7 @@ export interface LanStatus {
   tailscale: TailscaleStatus | null;
 }
 
+/** Which route the phone's QR code encodes: the tailnet or the Wi-Fi. */
 export type LanVia = "tailscale" | "lan";
 
 /** The tailnet's view of the Mac (mod/tailscale.ts). */
@@ -174,6 +190,7 @@ export interface TailscaleStatus {
 /** live: conversation exists. archived: the chat was archived. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
 export type DeskStatus = "live" | "archived" | "deleted" | "none";
 
+/** What the mod knows of the conversation behind a desk: its title, status, agent and model, as the `desk` frame carries them. */
 export interface DeskInfo {
   title: string | null;
   status: DeskStatus;
@@ -187,6 +204,7 @@ export interface DeskInfo {
   mode?: string | null;
 }
 
+/** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */
 export interface DeskSummary extends DeskInfo {
   scope: Scope;
   conversationId: string | null;
@@ -239,6 +257,7 @@ export interface McpServerView {
   offFor: string[];
 }
 
+/** The MCP servers Settings shows (`chat_mcp`), with the problems found reading mcp.json and where that file is. */
 export interface McpView {
   servers: McpServerView[];
   /** Entries in mcp.json that could not be read, one line each. */
