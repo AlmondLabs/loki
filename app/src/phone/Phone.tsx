@@ -1,3 +1,4 @@
+import { useTaskList, type TaskApi } from "../tasks/messageTasks";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/useInlineWidgets";
 import { useAttention } from "../../../core/attention/useAttention.ts";
@@ -156,6 +157,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const screenRef = useRef<string | null>(null);
   const { capture: captureRaw } = attention;
   const capture = useCallback((event: string, properties?: Record<string, unknown>) => captureRaw(event, { ...(screenRef.current ? { $screen: screenRef.current } : {}), ...properties }), [captureRaw]);
+  /** Tasks for Add task and the message chips in a conversation. */
+  const taskApi = useTaskList(desk, capture);
   const catchUp = useAttention({
     enabled: attention.available,
     makeClient: attention.makeClient,
@@ -297,7 +300,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
     <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
       {/* The one main landmark, whatever is on screen; the navigation and the update strip sit outside it. */}
       <main className="loki-phone-main">
-        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} onRename={onRename} onArchive={onArchive} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
+        {conv && <ConversationPage conv={conv} desk={desk} catchUp={catchUp} taskApi={taskApi} onRename={onRename} onArchive={onArchive} models={models.list} onLoadModels={models.load} banner={banner} backLabel={backLabel} onBack={onBack} prefill={prefill} />}
         {route.kind === "learn" && <Learn view={route.view} recall={recall} pass={learnPass} banner={recallNote ? <Banner>{recallNote}</Banner> : banner} backLabel={backLabel} onBack={onBack} onBegin={beginLesson} onOpen={openConversation} />}
         {route.kind === "search" && <Search q={route.q ?? ""} fresh={arrival !== "pop"} sources={searchSources} link={link} loaded={catchUp.agentsLoaded} backLabel={backLabel} onBack={onBack} />}
         {route.kind === "archive" && <Archive desks={desk.desks.list} loaded={desk.desks.loaded} banner={banner} backLabel={backLabel} onBack={onBack} onArchive={onArchive} onRename={onRename} />}
@@ -327,7 +330,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
  * model is the mod's word for the conversation (the desks list), switched through the daemon as the desktop
  * does; a refused switch says why in the banner for a few seconds.
  */
-function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; onRename: RenameDeskName | null; onArchive: ArchiveDesk | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
+function ConversationPage({ conv, desk, catchUp, taskApi, onRename, onArchive, models, onLoadModels, banner, backLabel, onBack, prefill }: { conv: ConversationRoute; desk: DeskApi; catchUp: CatchUp; taskApi: TaskApi; onRename: RenameDeskName | null; onArchive: ArchiveDesk | null; models: ModelEntry[] | null; onLoadModels: () => void; banner: ReactNode; backLabel: string; onBack: () => void; prefill: { text: string; tick: number } | null }) {
   const { attention } = desk;
   const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
@@ -347,6 +350,7 @@ function ConversationPage({ conv, desk, catchUp, onRename, onArchive, models, on
   };
   return (
     <ConversationScreen
+      taskApi={taskApi}
       thread={thread}
       view={catchUp.conversation(thread.agentId, thread.conversationId)}
       model={desk.modelOf(scope)}

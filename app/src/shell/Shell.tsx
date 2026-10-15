@@ -22,6 +22,10 @@ import { useModelList } from "./useModelList";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./useWindowChrome";
 import { useChatLayout } from "./useChatLayout";
 import { useTasks } from "./useTasks";
+import type { TaskApi } from "../tasks/messageTasks";
+import { requestReveal } from "../tasks/revealMessage";
+import { taskSource } from "../../../core/task-source.ts";
+import type { Task } from "../../../core/frame-types.ts";
 import { useRecall } from "./useRecall";
 import { useLokiUpdate } from "./useLokiUpdate";
 import { useGlobalShortcut } from "./useGlobalShortcut";
@@ -200,6 +204,33 @@ export function Shell() {
 
   // --- tasks ---------------------------------------------------------------
   const tasks = useTasks(desk, segment, notice, { send: catchUp.send, openDesk }, capture);
+  /** A task to show in Tasks, from a message's chip: the pane focuses it. */
+  const [taskFocus, setTaskFocus] = useState<{ id: string; tick: number } | null>(null);
+  const tasksRef = useRef(tasks);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  });
+  /** Add task and the chips on messages (tasks/messageTasks.tsx); a new value only when the list does. */
+  const taskApi = useMemo<TaskApi>(
+    () => ({
+      tasks: tasks.list,
+      create: (t) => tasksRef.current.addFromMessage(t),
+      open: (t) => {
+        setSegment("tasks");
+        setTaskFocus({ id: t.id, tick: Date.now() });
+      },
+      confirm: (t) => void tasksRef.current.closeTasks([t.id]),
+      reopen: (t) => void tasksRef.current.reopenTasks([t.id]),
+    }),
+    [tasks.list, setSegment],
+  );
+  /** A task's source in Tasks: its chat opens on Messages, scrolled to the message it came from. */
+  const openTaskSource = (t: Task) => {
+    const s = taskSource(t);
+    if (!s?.conversation || !s.agentId) return notice("that task's chat is not known");
+    requestReveal(s.conversation, s);
+    openDesk(s.agentId, s.conversation, { chat: true });
+  };
   const recall = useRecall(desk, segment, notice);
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
@@ -380,6 +411,7 @@ export function Shell() {
               modelPickerTick={modelPickerTick}
               onPickMode={pickMode}
               modeMenuTick={modeMenuTick}
+              taskApi={taskApi}
             />
           </div>
 
@@ -394,6 +426,8 @@ export function Shell() {
                 setPicker({ ids, start });
               }}
               onNew={() => setCaptureOpen(true)}
+              focus={taskFocus}
+              onOpenSource={openTaskSource}
               active={segment === "tasks" && !picker && !captureOpen && !searchOpen}
             />
           )}

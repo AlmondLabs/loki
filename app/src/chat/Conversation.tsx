@@ -23,6 +23,7 @@ import { useSlashPalette } from "./useSlashPalette";
 import { useTranscriptScroll } from "./useTranscriptScroll";
 import { StepsTouch } from "./ToolSteps";
 import { readTurnError, retryMessage } from "./turnError";
+import { useRevealMessage } from "../tasks/messageTasks";
 
 export type ChatStatus = "idle" | "thinking" | "streaming";
 
@@ -352,6 +353,8 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
   // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
   const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets, older);
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
+  // "Open the message" from a task in Tasks: scroll to the message it came from (tasks/messageTasks.tsx).
+  useRevealMessage(scrollRef, rows, reveal, unpin);
   // One stable "take back" handler for the transcript. The host hands a fresh closure on every render; passing
   // that straight down broke the rows' memo and re-parsed a long thread's markdown on every keystroke.
   const cancelQueuedRef = useRef(onCancelQueued);

@@ -7,6 +7,7 @@ import { isRecallId, type CardWithSchedule, type RecallSnapshot } from "./recall
 import type { TranscriptRow } from "./attention/transcript.ts";
 import type { FocusEntry } from "./attention/focus.ts";
 import type { DeskStatus, DeskSummary, DeviceSummary, FolderCheck, GlobalSkill, InboxRow, LanStatus, LanVia, LocalAgent, McpView, MemoryCommit, MemoryFile, MemorySkill, MemorySkillInfo, RecentFolders, ReflectionState, RefreshOutcome, Task } from "./frame-types.ts";
+import { parseTaskSource } from "./task-source.ts";
 
 /**
  * The mod's own protocol on `/ws` (GLOSSARY.md: Frame, Frame table), declared once. The app sends requests and
@@ -368,8 +369,9 @@ export const FRAMES = {
   recall_lead_start: request("recall_lesson", "a lead becomes a [Learn] conversation with an info card on its desk; the app then sends the brief", (m) => recallId(m), PHONE),
 
   // The task list
-  tasks_list: request("tasks", "the tasks in Tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true })),
-  task_create: request("task_created", "a task filed from the app, stamped with its chat and folder", (m) => ({
+  // The phone reads the list (a message's task chip) and files a task from a message's long press: one tap by the person.
+  tasks_list: request("tasks", "the tasks in Tasks (all of them, closed too, when asked)", (m) => ({ all: m.all === true }), PHONE),
+  task_create: request("task_created", "a task filed from the app, stamped with its chat and folder, and the message it came from (Add task)", (m) => ({
     title: String(m.title ?? ""),
     description: strOr(m.description, undefined),
     labels: Array.isArray(m.labels) ? strings(m.labels) : undefined,
@@ -378,7 +380,8 @@ export const FRAMES = {
     agentId: strOr(m.agentId, null),
     agentName: strOr(m.agentName, null),
     conversationId: strOr(m.conversationId, null),
-  })),
+    source: parseTaskSource(m.source),
+  }), PHONE),
   task_assign: request("tasks_updated", "assign tasks to a chat, optionally starting them", (m) =>
     str(m.conversationId) && str(m.desk)
       ? { ids: taskIds(m), conversationId: m.conversationId, desk: m.desk, agentId: strOr(m.agentId, null), agentName: strOr(m.agentName, null), start: m.start === true }
@@ -463,6 +466,7 @@ export function requestResult<R>(answer: Record<string, unknown> | null): Reques
  * read-only agent pages (record, memory tree and files, git log and diffs); Learn's cards, and its leads
  * (a lesson started, a lead set aside or brought back: each one tap by the person, as sending a message is);
  * and a model picked there, for the shared quick picks.
- * Never gestures, the task list, skills, the writer's settings, or the pairing and device frames.
+ * The task list to read, and a task filed from a message (Add task in its long press); nothing that assigns, closes or reopens.
+ * Never gestures, skills, the writer's settings, or the pairing and device frames.
  */
 export const PHONE_FRAMES: ReadonlySet<FrameName> = new Set((Object.keys(FRAMES) as FrameName[]).filter((n) => FRAMES[n].kind !== "push" && (FRAMES[n] as { phone: boolean }).phone));

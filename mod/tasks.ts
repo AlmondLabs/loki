@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { log } from "./log.ts";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
 import type { Task } from "../core/frame-types.ts";
+import { NOTE_MAX, oneLine, sourceMetadata, type TaskSource } from "../core/task-source.ts";
 
 /**
  * Tasks: the shared task list, kept by beads (`bd`, embedded Dolt) in ONE shared
@@ -24,6 +25,8 @@ export interface TaskStamp {
   conversation?: string | null;
   desk?: string | null;
   folder?: string | null;
+  /** The chat message it was filed from (Add task): the task links back to it, and the message shows its chip. */
+  source?: TaskSource;
 }
 
 export interface CreateTask {
@@ -74,6 +77,13 @@ export function askDoneArgs(id: string, ask: { reason?: string | null; by?: stri
   const args = ["update", id, "--set-metadata", `doneAsked=${ask.reason?.trim() || "yes"}`, "--set-metadata", `doneAskedAt=${now.toISOString()}`];
   if (ask.by) args.push("--set-metadata", `doneAskedBy=${ask.by}`);
   return [...args, "--json"];
+}
+
+/** The newest progress note, on the task itself: its opening on one line, and when. */
+export const LAST_NOTE = ["lastNote", "lastNoteAt"] as const;
+
+export function noteArgs(id: string, text: string, now = new Date()): string[] {
+  return ["update", id, "--set-metadata", `lastNote=${oneLine(text, NOTE_MAX)}`, "--set-metadata", `lastNoteAt=${now.toISOString()}`, "--json"];
 }
 
 /** LOKI_BD, then PATH (`bd.exe` on Windows), then Homebrew, /usr/local, Go's and ~/.local's bin. */
@@ -130,6 +140,7 @@ export function createArgs(t: CreateTask): string[] {
   if (t.stamp.conversation) metadata.conversation = t.stamp.conversation;
   if (t.stamp.desk) metadata.desk = t.stamp.desk;
   if (t.stamp.folder) metadata.folder = t.stamp.folder;
+  if (t.stamp.source) Object.assign(metadata, sourceMetadata(t.stamp.source));
   const args = ["create", "-t", "task", "-p", String(clampPriority(t.priority)), "--metadata", JSON.stringify(metadata), "--json"];
   if (t.description?.trim()) args.push("-d", t.description.trim());
   if (labels.length) args.push("-l", labels.join(","));
@@ -391,11 +402,20 @@ export class TaskStore {
     });
   }
 
-  comment(id: string, text: string): Promise<void> {
+  /**
+   * A progress note on a task. Its opening is also kept on the task (LAST_NOTE), so the message it came from can show
+   * the newest note without reading every task's comments.
+   */
+  comment(id: string, text: string): Promise<Task[]> {
     if (!text.trim()) return Promise.reject(new Error("an empty comment"));
+    const [one] = taskIds([id]);
+    if (!one) return Promise.reject(new Error(`no task ${id}`));
     return this.serial(async () => {
-      await this.run(["comment", id, text.trim()]);
-      log("tasks:comment", { id });
+      await this.run(["comment", one, text.trim()]);
+      const tasks = parseTasks(await this.run(noteArgs(one, text)));
+      log("tasks:comment", { id: one });
+      this.merge(tasks);
+      return tasks;
     });
   }
 
