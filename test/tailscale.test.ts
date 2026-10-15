@@ -64,18 +64,18 @@ describe("finding the CLI", () => {
 });
 
 describe("Tailscale (injected CLI)", () => {
-  function recorded(answers: Record<string, string | Error>, opts: { bin?: string | null; ttlMs?: number; port?: number } = {}) {
+  function recorded(answers: Partial<Record<string, string | Error>>, opts: { bin?: string | null; ttlMs?: number; port?: number } = {}) {
     const calls: string[][] = [];
     const ts = new Tailscale({
       bin: opts.bin === undefined ? "/fake/tailscale" : opts.bin,
       port: opts.port ?? 41415,
       ttlMs: opts.ttlMs,
-      exec: async (bin, args) => {
+      exec: (bin, args) => {
         calls.push([bin, ...args]);
         const a = answers[args.join(" ")];
-        if (a === undefined) throw new Error(`unexpected: ${args.join(" ")}`);
-        if (a instanceof Error) throw a;
-        return a;
+        if (a === undefined) return Promise.reject(new Error(`unexpected: ${args.join(" ")}`));
+        if (a instanceof Error) return Promise.reject(a);
+        return Promise.resolve(a);
       },
     });
     return { ts, calls };
@@ -153,22 +153,27 @@ describe("Tailscale (injected CLI)", () => {
 
   test("setServe runs the exact commands, invalidates, and answers with a fresh status", async () => {
     let served = false;
-    const answers: Record<string, string | Error> = { "status --json": STATUS_RUNNING };
+    const answers: Partial<Record<string, string | Error>> = { "status --json": STATUS_RUNNING };
     const calls: string[][] = [];
     const ts = new Tailscale({
       bin: "/fake/tailscale",
       port: 41415,
-      exec: async (_bin, args) => {
+      exec: (_bin, args) => {
         calls.push(args);
         const key = args.join(" ");
-        if (key === "serve --bg --https=443 http://127.0.0.1:41415")
-          return (void (served = true), "Available within your tailnet:\n\nhttps://my-macbook-pro.tail1234.ts.net/\n");
-        if (key === "serve --https=443 off") return (void (served = false), "");
-        if (key === "serve status --json") return served ? SERVE_41415 : "{}";
+        if (key === "serve --bg --https=443 http://127.0.0.1:41415") {
+          served = true;
+          return Promise.resolve("Available within your tailnet:\n\nhttps://my-macbook-pro.tail1234.ts.net/\n");
+        }
+        if (key === "serve --https=443 off") {
+          served = false;
+          return Promise.resolve("");
+        }
+        if (key === "serve status --json") return Promise.resolve(served ? SERVE_41415 : "{}");
         const a = answers[key];
-        if (a === undefined) throw new Error(`unexpected: ${key}`);
-        if (a instanceof Error) throw a;
-        return a;
+        if (a === undefined) return Promise.reject(new Error(`unexpected: ${key}`));
+        if (a instanceof Error) return Promise.reject(a);
+        return Promise.resolve(a);
       },
     });
     expect((await ts.status()).serveUrl).toBeNull();

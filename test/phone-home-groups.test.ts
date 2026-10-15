@@ -5,22 +5,21 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () => {
-  const desk = (scope: string, agentId: string, agentName: string, lastActive: string, extra: Partial<DeskSummary> = {}): DeskSummary =>
-    ({
-      scope,
-      title: scope,
-      status: "live",
-      agentName,
-      agentId,
-      conversationId: scope,
-      model: null,
-      reasoningEffort: null,
-      pinned: false,
-      widgets: 0,
-      active: false,
-      lastActive,
-      ...extra,
-    }) as DeskSummary;
+  const desk = (scope: string, agentId: string, agentName: string, lastActive: string, extra: Partial<DeskSummary> = {}): DeskSummary => ({
+    scope,
+    title: scope,
+    status: "live",
+    agentName,
+    agentId,
+    conversationId: scope,
+    model: null,
+    reasoningEffort: null,
+    pinned: false,
+    widgets: 0,
+    active: false,
+    lastActive,
+    ...extra,
+  });
   const desks = [
     desk("a1", "ira", "ira", "2026-09-25T10:00:00Z"),
     desk("default", "ira", "ira", "2026-09-20T10:00:00Z", { title: null }),

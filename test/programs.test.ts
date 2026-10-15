@@ -54,7 +54,9 @@ describe("program lookup", () => {
 
   test("execProgram runs a program directly here and hands back its output", async () => {
     const out = await new Promise<string>((resolve, reject) =>
-      execProgram(process.execPath, ["-e", "console.log('a&b')"], { timeout: 20_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))),
+      execProgram(process.execPath, ["-e", "console.log('a&b')"], { timeout: 20_000 }, (err, stdout) =>
+        err ? reject(new Error(err.message, { cause: err })) : resolve(stdout),
+      ),
     );
     expect(out.trim()).toBe("a&b");
   });

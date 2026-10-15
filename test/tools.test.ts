@@ -4,6 +4,7 @@ import { DeskStore } from "../mod/desk-store.ts";
 import { GestureLog } from "../mod/gestures.ts";
 import type { ModApi, ModTool } from "../daemon/mods/api.ts";
 import type { WidgetManifestEntry } from "../core/desk-core.ts";
+import { must } from "./fixtures/must.ts";
 
 const sleep: WidgetManifestEntry = {
   id: "c1/sleep",
@@ -30,13 +31,14 @@ const welcome: WidgetManifestEntry = {
   error: undefined,
 };
 
+/** Each tool as the test calls it: a call's args and, when it has one, its chat and agent. A failed call throws. */
+interface Called {
+  name: string;
+  description: string;
+  run: (c: { args?: Record<string, unknown>; conversation?: { id: string }; agent?: { id: string; name: string } }) => Promise<unknown>;
+}
+
 function harness(deps?: Partial<ToolDeps>) {
-  /** Each tool as the test calls it: a call's args and, when it has one, its chat and agent. A failed call throws. */
-  type Called = {
-    name: string;
-    description: string;
-    run: (c: { args?: Record<string, unknown>; conversation?: { id: string }; agent?: { id: string; name: string } }) => Promise<unknown>;
-  };
   const tools = new Map<string, Called>();
   const api = {
     tools: {
@@ -45,7 +47,7 @@ function harness(deps?: Partial<ToolDeps>) {
           name: t.name,
           description: t.description,
           run: async (c) =>
-            t.execute(c.args ?? {}, {
+            await t.execute(c.args ?? {}, {
               chatId: c.conversation?.id ?? "",
               agentId: c.agent?.id ?? "",
               agentName: c.agent?.name ?? "",
@@ -70,8 +72,8 @@ function harness(deps?: Partial<ToolDeps>) {
       entries: (s) => entries.filter((e) => !s || e.scope === s),
       get: (id) => entries.find((e) => e.id === id),
       setRuntimeError: () => false,
-      rescan: async () => {},
-      close() {},
+      rescan: () => Promise.resolve(),
+      close: () => {},
     },
     widgetsDir: "/proj/app/src/widgets",
     activeScope: () => "c1",
@@ -81,45 +83,56 @@ function harness(deps?: Partial<ToolDeps>) {
   return { tools, broadcasts };
 }
 
+/** What desk_state answers, as the tests read it. */
+interface DeskState {
+  desk: string;
+  widgetsDir: string;
+  widgets: Array<{ id: string }>;
+  shared?: Array<{ error?: unknown }>;
+  pendingCanvasActivity: unknown;
+}
+const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]>[0]) =>
+  JSON.parse((await must(tools.get("desk_state"), "the desk_state tool").run(c)) as string) as DeskState;
+
 describe("desk_state", () => {
   test("returns own desk + shared, merged data, layout, errors, pending activity", async () => {
     const { tools } = harness();
-    const out = JSON.parse((await tools.get("desk_state")!.run({ args: {} })) as string);
+    const out = await deskState(tools, { args: {} });
     expect(out.desk).toBe("c1");
     expect(out.widgetsDir).toBe("/proj/app/src/widgets/c1");
     expect(out.widgets[0]).toMatchObject({ id: "c1/sleep", file: "/proj/app/src/widgets/c1/sleep.json", data: { value: 7 }, error: 'missing "title"' });
-    expect(out.shared[0]).toMatchObject({ id: "shared/welcome", data: { lines: ["a"] } });
-    expect(out.shared[0].error).toBeUndefined();
+    expect(must(out.shared, "the shared desk")[0]).toMatchObject({ id: "shared/welcome", data: { lines: ["a"] } });
+    expect(must(out.shared, "the shared desk")[0].error).toBeUndefined();
     expect(out.pendingCanvasActivity).toEqual(["moved something"]);
   });
   test("the desk comes from the calling conversation, not the mod's active desk", async () => {
     const remembered: string[] = [];
     const { tools } = harness({ remember: (id) => (remembered.push(id), id.replace(/[^a-zA-Z0-9_-]/g, "_")) });
-    const out = JSON.parse((await tools.get("desk_state")!.run({ args: {}, conversation: { id: "local-conv-1291" } })) as string);
+    const out = await deskState(tools, { args: {}, conversation: { id: "local-conv-1291" } });
     expect(out.desk).toBe("local-conv-1291"); // not "c1", the active desk in this harness
     expect(remembered).toEqual(["local-conv-1291"]);
-    const explicit = JSON.parse((await tools.get("desk_state")!.run({ args: { desk: "shared" }, conversation: { id: "local-conv-1291" } })) as string);
+    const explicit = await deskState(tools, { args: { desk: "shared" }, conversation: { id: "local-conv-1291" } });
     expect(explicit.desk).toBe("shared");
   });
 
   test("explicit desk=shared returns only the shared desk", async () => {
     const { tools } = harness();
-    const out = JSON.parse((await tools.get("desk_state")!.run({ args: { desk: "shared" } })) as string);
+    const out = await deskState(tools, { args: { desk: "shared" } });
     expect(out.desk).toBe("shared");
     expect(out.shared).toBeUndefined();
     expect(out.widgets.map((w: { id: string }) => w.id)).toEqual(["shared/welcome"]);
   });
   test("description tells the agent to write files, not to look for a render tool", () => {
     const { tools } = harness();
-    expect(tools.get("desk_state")!.description).toMatch(/write a file/);
-    expect(tools.get("desk_state")!.description).toMatch(/@loki\/kit/);
+    expect(must(tools.get("desk_state"), "the desk_state tool").description).toMatch(/write a file/);
+    expect(must(tools.get("desk_state"), "the desk_state tool").description).toMatch(/@loki\/kit/);
   });
 });
 
 describe("loki_camera", () => {
   test("broadcasts to the widget's desk; shared goes to everyone; missing errors", async () => {
     const { tools, broadcasts } = harness();
-    const cam = tools.get("loki_camera")!;
+    const cam = must(tools.get("loki_camera"), "the loki_camera tool");
     expect(await cam.run({ args: { widgetId: "c1/sleep" } })).toMatch(/gliding/);
     expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep"] }, "c1"]);
     await cam.run({ args: { widgetId: "shared/welcome" } });
@@ -131,7 +144,7 @@ describe("loki_camera", () => {
 
   test("frames several widgets and honours dwell", async () => {
     const { tools, broadcasts } = harness();
-    const cam = tools.get("loki_camera")!;
+    const cam = must(tools.get("loki_camera"), "the loki_camera tool");
     const t = Date.now();
     const out = await cam.run({ args: { widgetIds: ["c1/sleep", "shared/welcome"], dwell: 120 } });
     expect(Date.now() - t).toBeGreaterThanOrEqual(110);
@@ -164,18 +177,24 @@ describe("loki_task: a chat's own tasks, and only you close yours", () => {
     ];
     const calls: string[] = [];
     const store = {
-      find: async (id: string) => tasks.find((t) => t.id === id) ?? null,
-      list: async () => tasks.filter((t) => t.status !== "closed"),
-      comment: async (id: string) => void calls.push(`comment ${id}`),
-      close: async (ids: string[], reason?: string, as?: { actor?: string | null }) => (
+      find: (id: string) => Promise.resolve(tasks.find((t) => t.id === id) ?? null),
+      list: () => Promise.resolve(tasks.filter((t) => t.status !== "closed")),
+      comment: (id: string) => {
+        calls.push(`comment ${id}`);
+        return Promise.resolve();
+      },
+      close: (ids: string[], reason?: string, as?: { actor?: string | null }) => (
         calls.push(`close ${ids.join(",")} ${reason ?? ""}${as?.actor ? ` as ${as.actor}` : ""}`),
-        []
+        Promise.resolve([])
       ),
-      askDone: async (id: string, ask: { reason?: string | null; by?: string | null }) => (calls.push(`askDone ${id} ${ask.reason} by ${ask.by}`), []),
+      askDone: (id: string, ask: { reason?: string | null; by?: string | null }) => (
+        calls.push(`askDone ${id} ${ask.reason} by ${ask.by}`),
+        Promise.resolve([])
+      ),
     };
     const h = harness({ tasks: store as unknown as ToolDeps["tasks"] });
     const run = (args: Record<string, unknown>, conversation = "c1") =>
-      h.tools.get("loki_task")!.run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
+      must(h.tools.get("loki_task"), "the loki_task tool").run({ args, conversation: { id: conversation }, agent: { id: "agent-f", name: "friday" } });
     return { run, calls, broadcasts: h.broadcasts };
   }
 
@@ -215,6 +234,6 @@ describe("loki_task: a chat's own tasks, and only you close yours", () => {
     const listed = JSON.parse(String(await run({ action: "list" }))) as Array<{ id: string }>;
     expect(listed.map((t) => t.id)).toEqual(["lk-mine", "lk-agent"]);
     const h = harness({ tasks: {} as ToolDeps["tasks"] });
-    expect(h.tools.get("loki_task")!.description).toMatch(/Only the user closes a task the user filed/);
+    expect(must(h.tools.get("loki_task"), "the loki_task tool").description).toMatch(/Only the user closes a task the user filed/);
   });
 });

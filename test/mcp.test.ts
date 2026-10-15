@@ -16,6 +16,7 @@ import { McpTools } from "../daemon/mcp/index.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { kindOf } from "../daemon/approvals.ts";
 import { serve, TOOLS } from "./fixtures/fake-mcp.mjs";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const until = async (check: () => boolean, ms = 3000) => {
@@ -130,17 +131,18 @@ describe("MCP tool names, search and results", () => {
         { type: "image", data: "AAAA", mimeType: "image/png" },
         { type: "text", text: "[resource] a file:///a" },
       ]);
-      expect(mapResult({ content: [], structuredContent: { n: 1 } } as never, { spillDir: dir, name: "x" }).content[0]).toEqual({
+      expect(mapResult({ content: [], structuredContent: { n: 1 } }, { spillDir: dir, name: "x" }).content[0]).toEqual({
         type: "text",
         text: '{\n  "n": 1\n}',
       });
       const text = "0123456789".repeat(6000);
       const big = mapResult({ content: [{ type: "text", text }] } as never, { spillDir: dir, name: "mcp__github__search" });
       expect(big.spilled).not.toBeNull();
-      expect(readFileSync(big.spilled!, "utf8")).toBe(text);
+      const spilled = must(big.spilled, "a spill file");
+      expect(readFileSync(spilled, "utf8")).toBe(text);
       const note = (big.content[0] as { text: string }).text;
       expect(note).toContain("60,000 characters");
-      expect(note).toContain(big.spilled!);
+      expect(note).toContain(spilled);
       expect(note.endsWith(text.slice(0, START_CHARS))).toBe(true);
       const err = mapResult(
         { isError: true, content: [{ type: "text", text: `${"a".repeat(ERROR_KEEP)}${"m".repeat(20000)}${"z".repeat(ERROR_KEEP)}` }] } as never,
@@ -165,7 +167,10 @@ describe("MCP servers", () => {
       servers.configure([{ kind: "local", name: "fake", entry: "fake", command: "x", args: [], env: {}, cwd: null, alwaysLoad: ["list_issues"] }]);
       await until(() => servers.status()[0]?.state === "connected");
       expect(servers.status()[0]).toMatchObject({ name: "fake", state: "connected", tools: TOOLS.length, purpose: "A fake issue tracker for tests" });
-      const list = servers.tools().find((t) => t.name === "list_issues")!;
+      const list = must(
+        servers.tools().find((t) => t.name === "list_issues"),
+        "the list_issues tool",
+      );
       expect(list).toMatchObject({ key: "mcp__fake__list_issues", readOnly: true, destructive: false });
       expect(servers.tools().find((t) => t.name === "delete_repo")).toMatchObject({ readOnly: false, destructive: true });
       expect([...servers.alwaysLoaded()]).toEqual(["mcp__fake__list_issues"]);
@@ -361,23 +366,24 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
   test("an edit keeps what loki does not know; renames, removes, and refuses a file that is not JSON", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-edit-"));
     const path = join(dir, "mcp.json");
+    const read = () => JSON.parse(readFileSync(path, "utf8")) as { mcpServers: Record<string, { alwaysLoad?: unknown }> };
     try {
       writeFileSync(path, JSON.stringify({ note: "mine", mcpServers: { gh: { command: "old", timeout: 30, alwaysLoad: ["a"] } } }));
       editServer(path, "gh", { command: "github-mcp-server", args: ["stdio"], env: { T: "x" }, cwd: null });
-      let raw = JSON.parse(readFileSync(path, "utf8"));
+      let raw = read();
       expect(raw).toEqual({
         note: "mine",
         mcpServers: { gh: { timeout: 30, alwaysLoad: ["a"], command: "github-mcp-server", args: ["stdio"], env: { T: "x" } } },
       });
       editServer(path, "gh", { url: "https://x.example/mcp", headers: {} }, { rename: "github" });
-      raw = JSON.parse(readFileSync(path, "utf8"));
+      raw = read();
       expect(raw.mcpServers).toEqual({ github: { timeout: 30, alwaysLoad: ["a"], url: "https://x.example/mcp" } });
       setAlwaysLoad(path, "github", ["b", "b"]);
-      expect(JSON.parse(readFileSync(path, "utf8")).mcpServers.github.alwaysLoad).toEqual(["b"]);
+      expect(read().mcpServers.github.alwaysLoad).toEqual(["b"]);
       editServer(path, "linear", { url: "https://l.example/mcp", headers: { A: "1" } });
       expect(() => editServer(path, "linear", { url: "https://l.example/mcp", headers: {} }, { rename: "github" })).toThrow(/already a server named github/);
       editServer(path, "github", null);
-      expect(Object.keys(JSON.parse(readFileSync(path, "utf8")).mcpServers)).toEqual(["linear"]);
+      expect(Object.keys(read().mcpServers)).toEqual(["linear"]);
       expect(() => editServer(path, "x", { url: "ftp://nope", headers: {} })).toThrow(/not an http/);
       if (process.platform !== "win32") expect(statSync(path).mode & 0o777).toBe(0o600);
       writeFileSync(path, "{broken");
@@ -399,14 +405,14 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       cwd: null,
       alwaysLoad: [],
     };
-    const filled = await withSecrets(config, async (n) => (n === "gh.TOKEN" ? "s3cret" : null));
+    const filled = await withSecrets(config, (n) => Promise.resolve(n === "gh.TOKEN" ? "s3cret" : null));
     expect(filled).toMatchObject({ env: { TOKEN: "Bearer s3cret", PLAIN: "p" } });
-    await expect(withSecrets(config, async () => null)).rejects.toThrow(/no secret named gh.TOKEN/);
+    await expect(withSecrets(config, () => Promise.resolve(null))).rejects.toThrow(/no secret named gh.TOKEN/);
     const seen: Array<Record<string, string>> = [];
     const mem = inMemory();
     const servers = new McpServers({
-      connect: async (c, client, err) => (seen.push(c.kind === "local" ? c.env : c.headers), mem.connect(c, client, err)),
-      resolve: (c) => withSecrets(c, async () => "s3cret"),
+      connect: (c, client, err) => (seen.push(c.kind === "local" ? c.env : c.headers), mem.connect(c, client, err)),
+      resolve: (c) => withSecrets(c, () => Promise.resolve("s3cret")),
     });
     try {
       servers.configure([config]);
@@ -428,7 +434,13 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       configPath: join(dir, "mcp.json"),
       lokiDir: dir,
       servers: new McpServers({ connect: mem.connect }),
-      secrets: { get: async (a) => secrets.get(a) ?? null, set: async (a, v) => void secrets.set(a, v) },
+      secrets: {
+        get: (a) => Promise.resolve(secrets.get(a) ?? null),
+        set: (a, v) => {
+          secrets.set(a, v);
+          return Promise.resolve();
+        },
+      },
     });
     try {
       mcp.setServer("fake", { command: "x", args: [], env: {}, cwd: null });

@@ -54,7 +54,7 @@ async function setup(mode: PermissionMode, opts: { alwaysPath?: string } = {}) {
           name,
           description: name,
           parameters: { type: "object", properties: { x: { type: "string" } } } as never,
-          execute: async (args) => (ran.push(`${name}:${String((args as { x?: string }).x)}`), { content: [{ type: "text", text: "ok" }] }),
+          execute: (args) => (ran.push(`${name}:${String((args as { x?: string }).x)}`), Promise.resolve({ content: [{ type: "text", text: "ok" }] })),
         }),
       ),
     }),

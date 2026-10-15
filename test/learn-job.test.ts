@@ -14,6 +14,7 @@ import { PassRunner } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
 import { RecallStore, isoDay } from "../mod/recall.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const LONG = "you explained how a river delta builds land: sediment drops where the current slows at the mouth, layer on layer. ".repeat(4);
@@ -51,7 +52,7 @@ async function setup(opts: { cap?: number } = {}) {
     backendDir: dir,
     context: ctx,
     jobs: [learnJob({ store: recall, state, chats })],
-    busy: async () => false,
+    busy: () => Promise.resolve(false),
     isSubagent: () => false,
     report: (m) => reports.push(m),
     now: () => now,
@@ -230,7 +231,7 @@ describe("Learn on the background passes", () => {
       s.answers.push(json({ cards: [], revisions: [{ id: "k1", slice: "s2", back: "sediment drops where the current slows", reason: "sharper" }] }));
       await s.runner.sweep();
       expect(s.prompts[0]).toContain('mode=\\"replay\\" for=\\"k1\\"');
-      const revised = s.recall.card("k1")!.card;
+      const revised = must(s.recall.card("k1"), "the card k1").card;
       expect(revised.back).toBe("sediment drops where the current slows");
       expect(revised.previous.at(-1)).toMatchObject({ back: "rivers" });
     } finally {

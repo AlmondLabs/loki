@@ -237,7 +237,9 @@ describe("focus on arrival", () => {
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
     const g = globalThis as { HTMLElement?: unknown };
     const saved = g.HTMLElement;
-    g.HTMLElement ??= class {}; // no DOM here; restoreFocus only asks whether a launcher is one
+    g.HTMLElement ??= function HTMLElement() {
+      // no DOM here; restoreFocus only asks whether a launcher is one
+    };
     try {
       restoreFocus(root, "#/agents", false, createFocusMemory());
     } finally {

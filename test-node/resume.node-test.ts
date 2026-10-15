@@ -50,7 +50,7 @@ async function reopen(file: string, answer: string) {
   return store;
 }
 
-test("a turn killed while the model streams finishes after the store is reopened, the cut-off part kept as aborted", async () => {
+void test("a turn killed while the model streams finishes after the store is reopened, the cut-off part kept as aborted", async () => {
   const dir = mkdtempSync(join(tmpdir(), "loki-resume-"));
   try {
     const file = join(dir, "store.sqlite");
@@ -74,7 +74,7 @@ test("a turn killed while the model streams finishes after the store is reopened
   }
 });
 
-test("a tool that is not replay-safe, killed mid-call, is reported to the model as interrupted instead of run again", async () => {
+void test("a tool that is not replay-safe, killed mid-call, is reported to the model as interrupted instead of run again", async () => {
   const dir = mkdtempSync(join(tmpdir(), "loki-resume-"));
   try {
     const file = join(dir, "store.sqlite");

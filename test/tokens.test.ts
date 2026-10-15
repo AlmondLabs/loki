@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
+import { must } from "./fixtures/must.ts";
 
 /**
  * The design tokens are a contract: inline styles pick from the scales in app/src/kit/tokens.css
@@ -207,7 +208,8 @@ describe("design tokens: definitions and uses agree", () => {
     expect([...named].filter((c) => !ruled.has(c))).toEqual([]);
   });
   test("the page's own colour is --loki-bg in index.html, the manifest and the native window, for every family and both sides", () => {
-    const ground = (palette: Palette, theme: Theme) => /--loki-bg:\s*(#[0-9a-fA-F]{6})/.exec(themeBlock(palette, theme))![1];
+    const ground = (palette: Palette, theme: Theme) =>
+      must(/--loki-bg:\s*(#[0-9a-fA-F]{6})/.exec(themeBlock(palette, theme)), `--loki-bg in ${palette} ${theme}`)[1];
     const bg = ground("loki", "dark");
     const html = readFileSync(join(APP, "..", "index.html"), "utf8");
     const manifest = readFileSync(join(APP, "..", "public", "manifest.webmanifest"), "utf8");

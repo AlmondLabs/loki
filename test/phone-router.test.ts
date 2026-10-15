@@ -199,7 +199,7 @@ describe("ownership and Back", () => {
 describe("navigation / overlay", () => {
   test("only tabs show the navigation", () => {
     for (const tab of TABS) expect(showsNav({ kind: "tab", tab })).toBe(true);
-    for (const kind of ["learn", "search", "archive", "preferences"] as const) expect(showsNav({ kind } as Route)).toBe(false);
+    for (const kind of ["learn", "search", "archive", "preferences"] as const) expect(showsNav({ kind })).toBe(false);
     expect(isOverlay(HOME)).toBe(false);
     expect(isOverlay({ kind: "learn" })).toBe(true);
     expect(isOverlay({ kind: "agent", agentId: "a" })).toBe(true);

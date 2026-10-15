@@ -10,7 +10,12 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export type Channel = "stable" | "nightly";
-export type CaskInput = { owner: string; version: string; sha256: string; channel?: Channel };
+export interface CaskInput {
+  owner: string;
+  version: string;
+  sha256: string;
+  channel?: Channel;
+}
 
 /** The dmg the release workflow attaches (tauri's `--target universal-apple-darwin`). */
 export function dmgName(version: string): string {

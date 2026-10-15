@@ -7,6 +7,7 @@ import { keysFor } from "../app/src/shell/KeysSheet.tsx";
 import { lokiUpgrade, osWords } from "../app/src/shell/osWords.ts";
 import type { Platform } from "../app/src/desk/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
+import { must } from "./fixtures/must.ts";
 
 /**
  * Words for each system (plan 014 U8): copy that names the machine, its file manager or the way to upgrade reads
@@ -51,7 +52,10 @@ describe("the words table", () => {
 });
 
 describe("Hide loki off the Mac is Minimise loki", () => {
-  const hide = KEYMAP.find((b) => b.id === "window.hide")!;
+  const hide = must(
+    KEYMAP.find((b) => b.id === "window.hide"),
+    "the window.hide binding",
+  );
   test("the label per system, and the listings carry it", () => {
     expect(labelOf(hide, "macos")).toBe("Hide loki");
     expect(labelOf(hide, "windows")).toBe("Minimise loki");

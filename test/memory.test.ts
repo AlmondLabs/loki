@@ -9,6 +9,7 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-work
 import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { createAgent } from "../daemon/store/agents.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
+import { must } from "./fixtures/must.ts";
 import { editMemoryFile, memoryDump, memoryExtension, memoryRoot, memorySection, revertMemoryCommit } from "../daemon/memory.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -23,7 +24,7 @@ describe("an agent's memory", () => {
       writeFileSync(join(root, "system", "persona.md"), "I am careful.\n");
       writeFileSync(join(root, "system", "human.md"), "Deepak likes numbered lists.\n");
       writeFileSync(join(root, "reference", "notes.md"), "long notes");
-      const text = memorySection(root)!;
+      const text = must(memorySection(root), "the memory section");
       expect(text).toContain('<file path="system/human.md">\nDeepak likes numbered lists.\n</file>');
       expect(text).toContain('<file path="system/persona.md">\nI am careful.\n</file>');
       expect(text).toContain("- reference/notes.md");
@@ -38,7 +39,7 @@ describe("an agent's memory", () => {
     try {
       writeFileSync(join(root, "MEMORY.md"), "the index");
       writeFileSync(join(root, "mission.md"), "the mission");
-      const text = memorySection(root)!;
+      const text = must(memorySection(root), "the memory section");
       expect(text).toContain('<file path="MEMORY.md">\nthe index\n</file>');
       expect(text).toContain('<file path="mission.md">\nthe mission\n</file>');
       expect(memorySection(join(root, "nope"))).toBeUndefined();

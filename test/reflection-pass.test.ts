@@ -49,7 +49,7 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
     backendDir: dir,
     context: ctx,
     jobs: [reflectionJob],
-    busy: async () => false,
+    busy: () => Promise.resolve(false),
     isSubagent: () => false,
     capture: (_e, p) => events.push(p),
     report: (m) => reports.push(m),

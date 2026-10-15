@@ -103,16 +103,16 @@ describe("a lesson on loki's daemon", () => {
     });
     const made: string[] = [];
     const chats = {
-      create: async (agentId: string, cwd: string | null, title: string | null) => (
+      create: (agentId: string, cwd: string | null, title: string | null) => (
         made.push(`${agentId} ${cwd} ${title}`),
-        { agentId, conversationId: "conv-7" }
+        Promise.resolve({ agentId, conversationId: "conv-7" })
       ),
     } as unknown as ChatBackend;
     const widgets = join(dir, "widgets");
     const started = await startLessonViaChats(chats, { store, widgetsDir: widgets })("l1");
     expect(started).toEqual({ agentId: "a1", conversationId: "conv-7" });
     expect(made).toEqual([`a1 ${homedir()} [Learn] · Envelope encryption`]);
-    expect(JSON.parse(readFileSync(join(widgets, scopeFor("conv-7", "a1"), "lesson.json"), "utf8")).title).toBe("Envelope encryption");
+    expect((JSON.parse(readFileSync(join(widgets, scopeFor("conv-7", "a1"), "lesson.json"), "utf8")) as { title: unknown }).title).toBe("Envelope encryption");
     expect(store.lessons()[0]).toMatchObject({ agentId: "a1", conversationId: "conv-7" });
   });
 });

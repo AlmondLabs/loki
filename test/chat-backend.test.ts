@@ -14,6 +14,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -90,7 +91,12 @@ describe("the daemon's chats", () => {
   test("loki's own message steered in while a turn works goes in at its next step, not as a turn after the answer", async () => {
     // A background task ends while the agent is still at work (here, inside a tool call): its notice is delivered then.
     let notice: () => Promise<void> = async () => {};
-    const s = await setup({ tool: async () => void (await notice(), await new Promise((r) => setTimeout(r, 200))) });
+    const s = await setup({
+      tool: async () => {
+        await notice();
+        await new Promise((r) => setTimeout(r, 200));
+      },
+    });
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
@@ -137,16 +143,16 @@ describe("the daemon's chats", () => {
       const state = await s.chats.open(agent.id, conversationId);
       expect(state.loop).toBe("running");
       expect(state.streaming?.text.length).toBeGreaterThan(0);
-      expect(REPLY.startsWith(state.streaming!.text)).toBe(true);
+      const streaming = must(state.streaming, "the streaming reply");
+      expect(REPLY.startsWith(streaming.text)).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
       // It draws what chat-client makes of the state, then only what was pushed after it opened.
       const l = emptyLive();
-      applyChatEvent(l, { kind: "streaming", text: state.streaming!.text, at: state.streaming!.at });
-      expect(l.thread.rows()!.at(-1)!.text.startsWith("Keep `farm")).toBe(true); // from its first word, while it streams
+      applyChatEvent(l, { kind: "streaming", text: streaming.text, at: streaming.at });
+      expect(must(must(l.thread.rows(), "the thread's rows").at(-1), "the last row").text.startsWith("Keep `farm")).toBe(true); // from its first word, while it streams
       for (const p of s.pushed.slice(at)) for (const e of p.events) applyChatEvent(l, e);
       expect(
-        l.thread
-          .rows()!
+        must(l.thread.rows(), "the thread's rows")
           .filter((r) => r.role === "assistant")
           .map((r) => r.text),
       ).toEqual([REPLY]);
@@ -223,7 +229,7 @@ describe("the daemon's chats", () => {
       expect(s.pushed.at(-1)).toEqual({ conversationId, events: [{ kind: "device", cwd: "/b" }] });
       await s.chats.model({ agentId: agent.id, conversationId, handle: s.handle, reasoningEffort: "high" });
       const store = await s.stores.get(agent.id);
-      const chat = (await store.chat(conversationId, ctx))!;
+      const chat = must(await store.chat(conversationId, ctx), "the chat");
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ model: modelRef(s.handle), thinkingLevel: "high", cwd: "/b" });
       await s.chats.update({ agentId: agent.id, conversationId, title: "Renamed", archived: true, hidden: undefined });
       expect((await store.chats(ctx)).find((c) => c.id === conversationId)).toMatchObject({ title: "Renamed", archived: true });
@@ -268,7 +274,7 @@ describe("the daemon's chats", () => {
       { outcome: "changed" as const, changes: 2, report: "- merged two deploy notes\n- the launch has passed" },
       { outcome: "skipped" as const, changes: 0, report: "a memory review of this agent is already running" },
     ];
-    const runner = { runDoctor: async (agentId: string) => (reviewed.push(agentId), results.shift()!) };
+    const runner = { runDoctor: (agentId: string) => (reviewed.push(agentId), Promise.resolve(must(results.shift(), "a review result"))) };
     const s = await setup({ passes: { runner: runner as never, state: {} as never } });
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
@@ -297,7 +303,7 @@ describe("the daemon's chats", () => {
       await s.chats.send({ agentId: agent.id, conversationId: "imported", text: "hi", images: [], sendId: "h1", context: null });
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(s.pushed.flatMap((p) => p.events).some((e) => e.kind === "error")).toBe(false);
-      const chat = (await store.chat("imported", ctx))!;
+      const chat = must(await store.chat("imported", ctx), "the imported chat");
       expect(((await store.agentSettings(chat.id, ctx)) as { model?: { provider: string } }).model?.provider).toBe(s.faux.provider.id);
     } finally {
       await s.cleanup();

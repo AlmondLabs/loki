@@ -22,7 +22,7 @@ describe("tasks and Learn frames", () => {
   test("an assign without its chat is refused; one with it replies the tasks and tells other tabs", async () => {
     const assigned: Array<{ ids: string[]; status: string }> = [];
     const store = {
-      assign: async (ids: string[], _t: unknown, status: string) => (assigned.push({ ids, status }), ids.map((id) => task(id, status))),
+      assign: (ids: string[], _t: unknown, status: string) => (assigned.push({ ids, status }), Promise.resolve(ids.map((id) => task(id, status)))),
     } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
@@ -37,7 +37,7 @@ describe("tasks and Learn frames", () => {
 
   test("reopen takes back an agent's done? (or a done task) and tells other tabs", async () => {
     const reopened: string[][] = [];
-    const store = { reopen: async (ids: string[]) => (reopened.push(ids), ids.map((id) => task(id))) } as unknown as TaskStore;
+    const store = { reopen: (ids: string[]) => (reopened.push(ids), Promise.resolve(ids.map((id) => task(id)))) } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
     bridge.onMessage(c, { type: "task_reopen", requestId: "r1", ids: ["lk-a1", "lk-b2"] });
@@ -54,10 +54,8 @@ describe("tasks and Learn frames", () => {
         store,
         status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }),
         setSettings: async () => {},
-        run: async () => ({ note: "" }),
-        startLesson: async () => {
-          throw new Error("no agent for this lead");
-        },
+        run: () => Promise.resolve({ note: "" }),
+        startLesson: () => Promise.reject(new Error("no agent for this lead")),
       },
     });
     const c = client("d1");

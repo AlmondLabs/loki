@@ -9,6 +9,8 @@ import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import { scopeFor, type WidgetManifestEntry } from "../core/desk-core.ts";
 import { WidgetLog } from "../mod/widget-log.ts";
 import type { Client } from "../mod/server.ts";
+import { join } from "node:path";
+import { must } from "./fixtures/must.ts";
 import type { DeskSummary, LanStatus, LanVia, TailscaleStatus } from "../core/frame-types.ts";
 
 function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime: Map<string, string> } {
@@ -25,7 +27,7 @@ function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime
       return true;
     },
     rescan: async () => {},
-    close() {},
+    close: () => {},
   };
 }
 
@@ -233,7 +235,7 @@ describe("bridge", () => {
     const b = store.get("c1").layout["c1/b"].position;
     expect(a).not.toEqual(b);
     expect(gestures.peek("c1")).toEqual(["tidied the canvas (auto-arranged 2 widgets)"]);
-    expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widgetIds: expect.arrayContaining(["c1/a", "c1/b"]) });
+    expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widgetIds: expect.arrayContaining(["c1/a", "c1/b"]) as unknown });
   });
 
   test("trash deletes the file through the mod, forgets the layout, and tells the agent", () => {
@@ -271,7 +273,6 @@ describe("bridge: viewed", () => {
   test("viewed_mark stamps a look and broadcasts the seen frame with it; seen_list carries it; the phone may send it", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const { SeenStore } = await import("../mod/seen.ts");
     const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
     try {
@@ -286,12 +287,12 @@ describe("bridge: viewed", () => {
       });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
-      const frame = broadcasts.at(-1)!;
+      const frame = must(broadcasts.at(-1), "the seen frame");
       expect(frame.type).toBe("seen");
       expect(Object.keys(frame.viewed as object)).toEqual(["a/x"]);
       expect(frame.seen).toEqual({}); // a look is not done
       bridge.onMessage(c, { type: "seen_list" });
-      expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) } });
+      expect(c.sent.at(-1)).toMatchObject({ type: "seen", viewed: { "a/x": expect.any(String) as unknown } });
       expect(PHONE_FRAMES.has("viewed_mark")).toBe(true);
       // Learn's leads work from the phone (a lesson started there opens its conversation); the writer's settings do not.
       for (const type of ["recall_lead_start", "recall_lead_dismiss", "recall_lead_restore"] as const) expect(PHONE_FRAMES.has(type)).toBe(true);
@@ -307,7 +308,6 @@ describe("bridge: focus", () => {
   test("a look adds a read's weight; focus_add adds answers and decisions, from the phone too; the seen frame carries it", async () => {
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const { SeenStore } = await import("../mod/seen.ts");
     const dir = mkdtempSync(join(tmpdir(), "loki-focus-"));
     try {
@@ -322,10 +322,10 @@ describe("bridge: focus", () => {
       });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
-      expect((broadcasts.at(-1)!.focus as Record<string, { w: number }>)["a/x"].w).toBe(0.25);
+      expect((must(broadcasts.at(-1), "the seen frame").focus as Record<string, { w: number }>)["a/x"].w).toBe(0.25);
       bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "x", action: "answer" });
       bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "y", action: "decide" });
-      const focus = broadcasts.at(-1)!.focus as Record<string, { w: number }>;
+      const focus = must(broadcasts.at(-1), "the seen frame").focus as Record<string, { w: number }>;
       expect(focus["a/x"].w).toBeCloseTo(1.25, 3);
       expect(focus["a/y"].w).toBe(0.5);
       // messages are counted where turns start, never from a client: a client cannot claim one
@@ -344,7 +344,6 @@ describe("bridge: a mark that changes nothing", () => {
   test("neither writes nor broadcasts", async () => {
     const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const { SeenStore } = await import("../mod/seen.ts");
     const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
     try {
@@ -414,7 +413,10 @@ describe("bridge history", () => {
     const c = client("c1");
     bridge.onConnect(c);
     bridge.onMessage(c, { type: "history_get", requestId: "h1", agentId: "a1", conversationId: "c9" });
-    const reply = c.sent.find((m) => m.type === "history")!;
+    const reply = must(
+      c.sent.find((m) => m.type === "history"),
+      "the history reply",
+    );
     expect(reply).toMatchObject({ requestId: "h1", agentId: "a1", conversationId: "c9" });
     expect((reply.messages as unknown[]).length).toBe(2);
     bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "unknown" });
@@ -486,10 +488,10 @@ describe("bridge: a paired phone's authority", () => {
     };
     const lan = {
       status: () => st,
-      refresh: async () => st,
-      setEnabled: async (e: boolean) => ({ ...st, enabled: e }),
+      refresh: () => Promise.resolve(st),
+      setEnabled: (e: boolean) => Promise.resolve({ ...st, enabled: e }),
       setVia: (via: LanVia) => ({ ...st, via }),
-      setServe: async () => st,
+      setServe: () => Promise.resolve(st),
       pairBegin: () => ({ code: "ABC234", url: "http://x/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
       devices: () => [],
       forget: (id: string) => ((forgot = id), true),
@@ -585,21 +587,21 @@ describe("bridge phone frames", () => {
       refreshed: () => refreshed,
       lan: {
         status: current,
-        refresh: async () => {
+        refresh: () => {
           refreshed += 1;
-          return current();
+          return Promise.resolve(current());
         },
-        setEnabled: async (e: boolean) => {
+        setEnabled: (e: boolean) => {
           calls.push(["setEnabled", e]);
           enabled = e;
-          return current();
+          return Promise.resolve(current());
         },
         setVia: (v: LanVia) => {
           calls.push(["setVia", v]);
           via = v;
           return current();
         },
-        setServe: async (e: boolean) => {
+        setServe: (e: boolean) => {
           calls.push(["setServe", e]);
           // the stub's tailnet has HTTPS disabled: turning serve on fails with the CLI's words, off works
           if (e) serveError = "Error: HTTPS is not enabled for this tailnet";
@@ -607,7 +609,7 @@ describe("bridge phone frames", () => {
             serveError = null;
             serveUrl = null;
           }
-          return current();
+          return Promise.resolve(current());
         },
         pairBegin: () => ({ code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
         devices: () => devices,
@@ -695,7 +697,6 @@ describe("recall frames", () => {
     const { RecallStore } = await import("../mod/recall.ts");
     const { mkdtempSync, rmSync } = await import("node:fs");
     const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
     const dir = mkdtempSync(join(tmpdir(), "loki-recall-b-"));
     try {
       const store = new RecallStore(dir);
@@ -718,42 +719,45 @@ describe("recall frames", () => {
         widgets: fakeWidgets([]),
         gestures: new GestureLog(),
         broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
-        recall: { store, status: () => status, setSettings: async (s) => void Object.assign(status, s), run: async () => ({ note: "ran" }) },
+        recall: { store, status: () => status, setSettings: (s) => (Object.assign(status, s), Promise.resolve()), run: () => Promise.resolve({ note: "ran" }) },
       });
       const c = client("c1");
       bridge.onMessage(c, { type: "recall_list", requestId: "r1" });
-      const list = c.sent.pop()!;
+      const list = must(c.sent.pop(), "the reply");
       expect(list.type).toBe("recall");
       expect((list.cards as unknown[]).length).toBe(1);
       expect((list.worker as { dailyCap: number }).dailyCap).toBe(25);
       bridge.onMessage(c, { type: "recall_grade", requestId: "r2", id: "k1", grade: 3 });
-      const graded = c.sent.pop()!;
+      const graded = must(c.sent.pop(), "the reply");
       expect(graded.type).toBe("recall_card");
       expect((graded.card as { schedule: { reps: number } }).schedule.reps).toBe(1);
       expect(broadcasts.at(-1)).toEqual({ type: "recall_changed" });
       bridge.onMessage(c, { type: "recall_grade", requestId: "r3", id: "k1", grade: 9 });
       expect(c.sent.pop()).toEqual({ type: "error", requestId: "r3", message: "a grade is 1 (again) to 4 (easy)" });
       bridge.onMessage(c, { type: "recall_edit", requestId: "r4", id: "k1", back: "A1 better" });
-      expect((c.sent.pop()!.card as { card: { back: string; updatedBy: string } }).card).toMatchObject({ back: "A1 better", updatedBy: "you" });
+      expect((must(c.sent.pop(), "the reply").card as { card: { back: string; updatedBy: string } }).card).toMatchObject({
+        back: "A1 better",
+        updatedBy: "you",
+      });
       bridge.onMessage(c, { type: "recall_reject", requestId: "r5", id: "k1" });
-      expect(c.sent.pop()!.card).toBeNull();
+      expect(must(c.sent.pop(), "the reply").card).toBeNull();
       expect(store.cards()).toEqual([]);
       bridge.onMessage(c, { type: "recall_restore", requestId: "r6", id: "k1" });
-      expect((c.sent.pop()!.card as { card: { id: string } }).card.id).toBe("k1");
+      expect((must(c.sent.pop(), "the reply").card as { card: { id: string } }).card.id).toBe("k1");
       bridge.onMessage(c, { type: "recall_settings", requestId: "r7", dailyCap: 3, enabled: false });
       await new Promise((r) => setTimeout(r, 0));
-      expect(c.sent.pop()!.worker as { dailyCap: number; enabled: boolean }).toMatchObject({ dailyCap: 3, enabled: false });
+      expect(must(c.sent.pop(), "the reply").worker as { dailyCap: number; enabled: boolean }).toMatchObject({ dailyCap: 3, enabled: false });
       bridge.onMessage(c, { type: "recall_export", requestId: "r8" });
-      expect(c.sent.pop()!.tsv).toBe("Q1?\tA1 better\tt\n");
+      expect(must(c.sent.pop(), "the reply").tsv).toBe("Q1?\tA1 better\tt\n");
       bridge.onMessage(c, { type: "recall_run", requestId: "r9" });
       await new Promise((r) => setTimeout(r, 0));
       expect(c.sent.pop()).toMatchObject({ type: "recall_ran", note: "ran" });
       // a phone may review but not change the worker's settings
       const phone = { ...client("p"), deviceId: "d1" } as Client & { sent: Array<Record<string, unknown>> };
       bridge.onMessage(phone, { type: "recall_grade", requestId: "p1", id: "k1", grade: 4 });
-      expect(phone.sent.pop()!.type).toBe("recall_card");
+      expect(must(phone.sent.pop(), "the reply").type).toBe("recall_card");
       bridge.onMessage(phone, { type: "recall_settings", requestId: "p2", enabled: true });
-      expect(phone.sent.pop()!.type).toBe("error");
+      expect(must(phone.sent.pop(), "the reply").type).toBe("error");
       // no store wired: a clear error
       const bare = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
       bare.onMessage(c, { type: "recall_list", requestId: "x" });

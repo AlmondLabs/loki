@@ -6,6 +6,7 @@ import { createRegistry, defineExtension, defineTool, MemoryStorage, watchEvents
 import { ChatEventConverter } from "../daemon/chat-events.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { applyChatEvent, chatStatusOf, emptyLive, type ChatEvent } from "../core/attention/model.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const NOW = "2026-10-10T10:00:00.000Z";
@@ -60,7 +61,7 @@ describe("chat event converter", () => {
     c.convert(piece("Keep `fa"), NOW);
     c.convert(piece("rmart"), "2026-10-10T10:00:01.000Z");
     expect(c.inFlight()).toEqual({ text: "Keep `farmart", at: NOW });
-    c.convert({ type: "auto_retry_start", attempt: 1, at: 0, errorMessage: "overloaded" } as AgentEvent, NOW);
+    c.convert({ type: "auto_retry_start", attempt: 1, at: 0, errorMessage: "overloaded" }, NOW);
     expect(c.inFlight()).toBeNull();
     c.convert(piece("Keep"), NOW);
     c.convert(written("Keep it"), NOW);
@@ -148,7 +149,7 @@ describe("chat event converter", () => {
     applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "rmart", at: NOW, chunk: true } }, NOW); // a piece that beat the state
     applyChatEvent(l, { kind: "streaming", text: "Keep `farmart", at: NOW }, NOW);
     applyChatEvent(l, { kind: "step", step: { kind: "assistant", text: "-co", at: NOW, chunk: true } }, NOW);
-    expect(l.thread.rows()!.map((r) => r.text)).toEqual(["Keep `farmart-co"]);
+    expect(must(l.thread.rows(), "the thread's rows").map((r) => r.text)).toEqual(["Keep `farmart-co"]);
   });
 
   describe("a reply shows once, however its stream went", () => {
@@ -160,16 +161,14 @@ describe("chat event converter", () => {
       const l = emptyLive();
       for (const e of out.slice(from)) applyChatEvent(l, e, NOW);
       applyChatEvent(l, { kind: "settle" }, NOW);
-      const live = l.thread
-        .rows()!
+      const live = must(l.thread.rows(), "the thread's rows")
         .filter((r) => r.role === "assistant")
         .map((r) => r.text);
       l.thread.load([
         { role: "user", text: "farmart-co-read-write-user is needed" },
         { role: "assistant", text: REPLY },
       ]);
-      const after = l.thread
-        .rows()!
+      const after = must(l.thread.rows(), "the thread's rows")
         .filter((r) => r.role === "assistant")
         .map((r) => r.text);
       return { live, after, last: l.lastAssistantText };
@@ -202,11 +201,14 @@ describe("chat event converter", () => {
       const stream = await watchEvents(store.harness, chat.id, ctx);
       const c = new ChatEventConverter();
       const events: ChatEvent[] = [];
-      stream.start(async (batch) => void events.push(...batch.flatMap((ev) => c.convert(ev, NOW))));
+      stream.start((batch) => {
+        events.push(...batch.flatMap((ev) => c.convert(ev, NOW)));
+        return Promise.resolve();
+      });
       await (await chat.submit({ type: "input", content: "hello" }, ctx)).wait(ctx);
       const end = Date.now() + 2000;
       while (!events.some((e) => e.kind === "turn_end") && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
-      expect(events.find((e) => e.kind === "error")).toEqual({ kind: "error", message: expect.stringContaining("model is not available") });
+      expect(events.find((e) => e.kind === "error")).toEqual({ kind: "error", message: expect.stringContaining("model is not available") as unknown });
       const l = emptyLive();
       for (const e of events) applyChatEvent(l, e, NOW);
       expect(l.inTurn).toBe(false);
@@ -245,12 +247,13 @@ describe("chat event converter", () => {
       const converter = new ChatEventConverter();
       const live = emptyLive();
       const seen: string[] = [];
-      stream.start(async (batch) => {
+      stream.start((batch) => {
         for (const ev of batch)
           for (const e of converter.convert(ev, NOW)) {
             applyChatEvent(live, e, NOW);
-            if (live.thread.streaming) seen.push(live.thread.rows()!.at(-1)!.text);
+            if (live.thread.streaming) seen.push(must(must(live.thread.rows(), "the thread's rows").at(-1), "the streaming row").text);
           }
+        return Promise.resolve();
       });
       const ANSWER = "Yes. Skills give townhall a way to preserve how the organisation does things, not just what people discussed.";
       faux.setResponses([fauxAssistantMessage([fauxThinking("Let me think about skills for a moment here."), fauxText(ANSWER)])]);
@@ -278,7 +281,7 @@ describe("chat event converter", () => {
             name: "echo",
             description: "echo",
             parameters: { type: "object", properties: {} } as never,
-            execute: async () => ({ content: [{ type: "text", text: "echoed" }] }),
+            execute: () => Promise.resolve({ content: [{ type: "text", text: "echoed" }] }),
           }),
         ],
       }),
@@ -289,8 +292,9 @@ describe("chat event converter", () => {
       const stream = await watchEvents(store.harness, chat.id, ctx);
       const converter = new ChatEventConverter();
       const events: ChatEvent[] = [];
-      stream.start(async (batch) => {
+      stream.start((batch) => {
         for (const ev of batch) events.push(...converter.convert(ev, NOW));
+        return Promise.resolve();
       });
       faux.setResponses([fauxAssistantMessage(fauxToolCall("echo", {}), { stopReason: "toolUse" }), fauxAssistantMessage("All done.")]);
       await (await chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);

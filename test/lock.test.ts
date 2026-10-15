@@ -83,9 +83,9 @@ describe("daemon lock", () => {
               children.push(c);
               let out = "";
               let err = "";
-              c.stderr!.on("data", (b: Buffer) => (err += b.toString()));
+              c.stderr.on("data", (b: Buffer) => (err += b.toString()));
               // Each stays alive until all have answered: a winner that exited would leave a leftover to take over.
-              c.stdout!.on("data", (b: Buffer) => {
+              c.stdout.on("data", (b: Buffer) => {
                 out += b.toString();
                 if (out.includes("\n")) resolve(out.trim());
               });

@@ -4,6 +4,10 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DeviceStore } from "../mod/devices.ts";
+import { must } from "./fixtures/must.ts";
+
+/** The device records as written to the file. */
+const onDisk = (path: string) => JSON.parse(readFileSync(path, "utf8")) as Array<{ id: string; lastSeenAt?: string; lastVia?: string }>;
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -70,11 +74,21 @@ describe("device store", () => {
       // 30 s later: seen, but not worth a write
       now += 30_000;
       again.verify(a.token);
-      expect(JSON.parse(readFileSync(path, "utf8")).find((d: { id: string }) => d.id === a.id).lastSeenAt).toBe("2026-09-07T10:00:00.000Z");
+      expect(
+        must(
+          onDisk(path).find((d) => d.id === a.id),
+          "a's record",
+        ).lastSeenAt,
+      ).toBe("2026-09-07T10:00:00.000Z");
       // 2 min later: persisted
       now += 90_000;
       again.verify(a.token);
-      expect(JSON.parse(readFileSync(path, "utf8")).find((d: { id: string }) => d.id === a.id).lastSeenAt).toBe("2026-09-07T10:02:00.000Z");
+      expect(
+        must(
+          onDisk(path).find((d) => d.id === a.id),
+          "a's record",
+        ).lastSeenAt,
+      ).toBe("2026-09-07T10:02:00.000Z");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -94,7 +108,7 @@ describe("device store", () => {
       now += 5_000;
       store.verify(a.token, "lan");
       expect(store.list()[0].lastVia).toBe("lan");
-      expect(JSON.parse(readFileSync(path, "utf8"))[0].lastVia).toBe("lan");
+      expect(onDisk(path)[0].lastVia).toBe("lan");
       expect(seen).toEqual(["lan"]);
       // Same route seconds later: throttled, no write, no callback.
       now += 5_000;
@@ -104,7 +118,7 @@ describe("device store", () => {
       now += 5_000;
       store.verify(a.token, "tailscale");
       expect(store.list()[0].lastVia).toBe("tailscale");
-      expect(JSON.parse(readFileSync(path, "utf8"))[0].lastVia).toBe("tailscale");
+      expect(onDisk(path)[0].lastVia).toBe("tailscale");
       expect(seen).toEqual(["lan", "tailscale"]);
       // A verify without a route (a caller that does not know) keeps the last one.
       now += 120_000;

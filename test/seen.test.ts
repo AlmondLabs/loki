@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SeenStore } from "../mod/seen.ts";
 
+/** The attention file as the store wrote it. */
+const written = (path: string) =>
+  JSON.parse(readFileSync(path, "utf8")) as { seen?: Record<string, string>; viewed?: Record<string, string>; snooze?: unknown; ladder?: unknown };
+
 describe("seen store", () => {
   test("reads the v1 flat file and writes { seen }", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-seen-"));
@@ -14,10 +18,10 @@ describe("seen store", () => {
       expect(store.all()).toEqual({ "a/c1": "2026-09-05T10:00:00Z" });
       store.mark("a", "c2");
       store.flush(); // writes are coalesced; flush is what the mod's shutdown calls
-      const written = JSON.parse(readFileSync(path, "utf8"));
-      expect(Object.keys(written)).toEqual(["seen"]);
-      expect(written.seen["a/c1"]).toBe("2026-09-05T10:00:00Z");
-      expect(new SeenStore(path).all()).toEqual(written.seen);
+      const file = written(path);
+      expect(Object.keys(file)).toEqual(["seen"]);
+      expect(file.seen?.["a/c1"]).toBe("2026-09-05T10:00:00Z");
+      expect(new SeenStore(path).all()).toEqual(file.seen);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -42,9 +46,9 @@ describe("seen store", () => {
       expect(store.viewedAll()).toEqual({ "a/c1": "2026-09-05T10:01:00Z" });
       store.mark("a", "c3");
       store.flush();
-      const written = JSON.parse(readFileSync(path, "utf8"));
-      expect(written.snooze).toBeUndefined();
-      expect(written.ladder).toBeUndefined();
+      const file = written(path);
+      expect(file.snooze).toBeUndefined();
+      expect(file.ladder).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -59,14 +63,14 @@ describe("viewed markers", () => {
       const store = new SeenStore(path);
       store.mark("a", "c1");
       store.flush();
-      expect(JSON.parse(readFileSync(path, "utf8")).viewed).toBeUndefined();
+      expect(written(path).viewed).toBeUndefined();
       expect(store.viewedAll()).toEqual({});
       store.view("a", "c1");
       const at = store.viewedAll()["a/c1"];
       expect(typeof at).toBe("string");
       expect(Number.isFinite(Date.parse(at))).toBe(true);
       store.flush();
-      expect(JSON.parse(readFileSync(path, "utf8")).viewed).toEqual({ "a/c1": at });
+      expect(written(path).viewed).toEqual({ "a/c1": at });
       // "not done" undoes done, never the look
       store.unmark("a", "c1");
       store.flush();
@@ -112,10 +116,10 @@ describe("a mark that changes nothing, and the coalesced write", () => {
       store.view("a", "c1");
       expect(() => readFileSync(path, "utf8")).toThrow(); // nothing on disk yet
       await new Promise((r) => setTimeout(r, 80));
-      expect(JSON.parse(readFileSync(path, "utf8")).viewed).toEqual({ "a/c1": "2026-09-25T10:00:02.000Z" }); // the last of the burst
+      expect(written(path).viewed).toEqual({ "a/c1": "2026-09-25T10:00:02.000Z" }); // the last of the burst
       store.mark("a", "c1");
       store.flush(); // the mod's shutdown
-      expect(JSON.parse(readFileSync(path, "utf8")).seen).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
+      expect(written(path).seen).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
       expect(new SeenStore(path).all()).toEqual({ "a/c1": "2026-09-25T10:00:03.000Z" });
     }));
 });

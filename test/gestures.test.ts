@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { GestureLog, attachDeskContext, describeGesture, formatDeskContext } from "../mod/gestures.ts";
 import type { WidgetManifestEntry } from "../core/desk-core.ts";
+import { must } from "./fixtures/must.ts";
 
 const entry: WidgetManifestEntry = {
   id: "c1/sleep",
@@ -18,13 +19,15 @@ const entry: WidgetManifestEntry = {
 describe("describeGesture", () => {
   test("move/close/set produce lines; focus is silent", () => {
     expect(describeGesture({ kind: "focus", id: "c1/sleep" }, entry)).toBeNull();
-    expect(describeGesture({ kind: "move", id: "c1/sleep", position: { x: 10.4, y: 20.6 } }, entry)!.line).toBe('moved "Sleep" (c1/sleep) to (10, 21)');
-    expect(describeGesture({ kind: "close", id: "c1/sleep" }, entry)!.line).toMatch(/^minimised "Sleep" \(c1\/sleep\)/);
-    expect(describeGesture({ kind: "open", id: "c1/sleep" }, entry)!.line).toBe('restored "Sleep" (c1/sleep) from the tray');
-    expect(describeGesture({ kind: "set", id: "c1/sleep", path: "value", value: 7 }, entry, { value: 6 })!.line).toBe(
+    expect(must(describeGesture({ kind: "move", id: "c1/sleep", position: { x: 10.4, y: 20.6 } }, entry), "a line").line).toBe(
+      'moved "Sleep" (c1/sleep) to (10, 21)',
+    );
+    expect(must(describeGesture({ kind: "close", id: "c1/sleep" }, entry), "a line").line).toMatch(/^minimised "Sleep" \(c1\/sleep\)/);
+    expect(must(describeGesture({ kind: "open", id: "c1/sleep" }, entry), "a line").line).toBe('restored "Sleep" (c1/sleep) from the tray');
+    expect(must(describeGesture({ kind: "set", id: "c1/sleep", path: "value", value: 7 }, entry, { value: 6 }), "a line").line).toBe(
       'set value = 7 (was 6) on "Sleep" (c1/sleep)',
     );
-    expect(describeGesture({ kind: "set", id: "x/y", path: "a.b", value: "z" }, undefined)!.line).toBe('set a.b = "z" on "x/y"');
+    expect(must(describeGesture({ kind: "set", id: "x/y", path: "a.b", value: "z" }, undefined), "a line").line).toBe('set a.b = "z" on "x/y"');
   });
 });
 

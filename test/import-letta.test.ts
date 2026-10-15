@@ -13,6 +13,7 @@ import { backendName, conversationDirName } from "../core/desk-core.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
 import { assistantLine, compactionLine, headerLine, logText, userLine } from "./fixtures/letta-log.ts";
+import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const A = "agent-local-aaaa";
@@ -184,7 +185,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
 async function rows(stores: StoreManager, agentId: string, chatId: string) {
   const store = await stores.get(agentId);
-  const chat = (await store.chat(chatId, ctx))!;
+  const chat = must(await store.chat(chatId, ctx), `the chat ${chatId}`);
   return { store, chat, entries: await store.entries(chat, ctx) };
 }
 
@@ -199,7 +200,9 @@ describe("importing from Letta", () => {
       expect(readFileSync(join(p.backendDir, "memfs", A, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada");
       expect(existsSync(join(p.backendDir, "agents", `${backendName(A)}.json`))).toBe(true);
       // Letta's name for a model is translated to pi-ai's.
-      expect(JSON.parse(readFileSync(join(p.backendDir, "agents", `${backendName(B)}.json`), "utf8")).model).toBe("openai-codex/gpt-test");
+      expect((JSON.parse(readFileSync(join(p.backendDir, "agents", `${backendName(B)}.json`), "utf8")) as { model: unknown }).model).toBe(
+        "openai-codex/gpt-test",
+      );
       expect(existsSync(join(p.backendDir, "memfs", HELPER))).toBe(false);
       const ada = await rows(stores, A, "default");
       expect(foldSteps(ada.entries.flatMap(entrySteps)).map((r) => r.text)).toEqual(["hi", "hello"]);
@@ -226,7 +229,7 @@ describe("importing from Letta", () => {
       const compaction = entries[4];
       expect(compaction.head).toBe(entries[2].id);
       // Letta-era Learn's file is only read.
-      expect(JSON.parse(readFileSync(paths().recallWorkerFile, "utf8")).cursors[`${A}/local-conv-long`]).toBe(6);
+      expect((JSON.parse(readFileSync(paths().recallWorkerFile, "utf8")) as { cursors: Record<string, unknown> }).cursors[`${A}/local-conv-long`]).toBe(6);
       expect(foldSteps(entries.slice(5).flatMap(entrySteps)).map((r) => r.text)).toEqual(["third", "three"]);
     } finally {
       await stores.closeAll();
@@ -251,9 +254,9 @@ describe("importing from Letta", () => {
     const { stores, run } = setup();
     try {
       expect((await run()).schedules).toBe(1);
-      const crons = JSON.parse(readFileSync(paths().schedulesFile, "utf8"));
-      expect(crons.tasks.map((t: { id: string; fire_count: number }) => [t.id, t.fire_count])).toEqual([["t1", 3]]);
-      expect(JSON.parse(readFileSync(paths().pinsFile, "utf8")).agents[A]).toEqual(["local-conv-long"]);
+      const crons = JSON.parse(readFileSync(paths().schedulesFile, "utf8")) as { tasks: Array<{ id: string; fire_count: number }> };
+      expect(crons.tasks.map((t) => [t.id, t.fire_count])).toEqual([["t1", 3]]);
+      expect((JSON.parse(readFileSync(paths().pinsFile, "utf8")) as { agents: Record<string, unknown> }).agents[A]).toEqual(["local-conv-long"]);
     } finally {
       await stores.closeAll();
     }

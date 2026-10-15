@@ -19,6 +19,7 @@ import {
 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
+import { must } from "./fixtures/must.ts";
 
 /**
  * The desk sidebar's model (app/src/shell/sidebarModel.ts, plan 013 U4): Pinned, then one section per agent
@@ -26,22 +27,21 @@ import type { DeskSummary } from "../core/frame-types.ts";
  * archive rules; the "needs you" pills; and what survives a reload.
  */
 
-const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
-  ({
-    scope: scope as DeskSummary["scope"],
-    title: scope,
-    status: "live",
-    agentName: "friday",
-    agentId: "a1",
-    conversationId: scope,
-    model: null,
-    reasoningEffort: null,
-    pinned: false,
-    widgets: 0,
-    active: false,
-    lastActive: "2026-09-08T10:00:00Z",
-    ...over,
-  }) as DeskSummary;
+const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
+  scope,
+  title: scope,
+  status: "live",
+  agentName: "friday",
+  agentId: "a1",
+  conversationId: scope,
+  model: null,
+  reasoningEffort: null,
+  pinned: false,
+  widgets: 0,
+  active: false,
+  lastActive: "2026-09-08T10:00:00Z",
+  ...over,
+});
 const item = (agentId: string, id: string, status: AttentionItem["status"], over: Partial<AttentionItem> = {}): AttentionItem =>
   ({ id, agentId, status, unread: false, ...over }) as unknown as AttentionItem;
 
@@ -75,7 +75,10 @@ describe("sections (scenario 1)", () => {
     expect(scopes(m.archived)).toEqual(["gone", "dead"]);
   });
   test("the main chat leads its agent's section even when older, and is flagged as the main chat", () => {
-    const s = sidebarModel(desks, [], {}).sections.find((x) => x.id === "agent:a1")!;
+    const s = must(
+      sidebarModel(desks, [], {}).sections.find((x) => x.id === "agent:a1"),
+      "the agent:a1 section",
+    );
     expect(s.rows[0].main).toBe(true);
     expect(s.rows.slice(1).every((r) => !r.main)).toBe(true);
   });
@@ -166,14 +169,22 @@ describe("marks (scenario 3)", () => {
   });
   test("the model looks each desk's item up by agent and conversation, and a section counts what waits", () => {
     const m = sidebarModel(desks, [item("a1", "jira", "approval"), item("a2", "jira", "running"), item("a1", "aws", "running")], {});
-    const a1 = m.sections.find((s) => s.id === "agent:a1")!;
+    const a1 = must(
+      m.sections.find((s) => s.id === "agent:a1"),
+      "the agent:a1 section",
+    );
     expect(a1.rows.map((r) => [r.desk.scope, r.kind])).toEqual([
       ["default-a1", "none"],
       ["jira", "waits"],
       ["aws", "running"],
     ]);
     expect(a1.waiting).toBe(1);
-    expect(m.sections.find((s) => s.id === "agent:a2")!.waiting).toBe(0);
+    expect(
+      must(
+        m.sections.find((s) => s.id === "agent:a2"),
+        "the agent:a2 section",
+      ).waiting,
+    ).toBe(0);
   });
 });
 
@@ -332,7 +343,7 @@ describe("the sidebar, rendered", () => {
         onNew: noop,
         onPin: noop,
         onArchive: noop,
-        onRename: async () => null,
+        onRename: () => Promise.resolve(null),
         avatar: () => null,
       }),
     );
@@ -357,7 +368,7 @@ describe("the rename dialog, rendered", () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { RenameDesk } = await import("../app/src/desk/RenameDesk.tsx");
-    const html = renderToStaticMarkup(createElement(RenameDesk, { name: "Meeting notes", onClose: () => {}, onRename: async () => null }));
+    const html = renderToStaticMarkup(createElement(RenameDesk, { name: "Meeting notes", onClose: () => {}, onRename: () => Promise.resolve(null) }));
     expect(html).toContain('aria-label="Rename chat"');
     expect(html).toContain(">Rename chat<");
     expect(html).toContain('value="Meeting notes"');

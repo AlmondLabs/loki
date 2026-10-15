@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { RecallStore, newCardId } from "../mod/recall.ts";
 import { isLearnTitle, learnTitle, type Card, type Lead, type RecallSnapshot } from "../core/recall/model.ts";
 import { learnViews, parseLearnView, stepLearnView } from "../app/src/recall/views.ts";
+import { must } from "./fixtures/must.ts";
 
 const T0 = new Date("2026-09-10T09:00:00Z").getTime();
 const card = (id: string, over: Partial<Card> = {}): Card => ({
@@ -63,12 +64,12 @@ describe("recall store", () => {
     const rows = store.cards();
     expect(rows.map((r) => r.card.id)).toEqual(["a", "b"]);
     expect(rows[0].schedule.lastReview).toBeNull();
-    expect(JSON.parse(readFileSync(join(dir, "cards", "a.json"), "utf8")).front).toBe("q a");
+    expect((JSON.parse(readFileSync(join(dir, "cards", "a.json"), "utf8")) as { front: unknown }).front).toBe("q a");
   });
   test("grade writes the schedule only; the card file is untouched", () => {
     store.add(card("a"));
     const before = readFileSync(join(dir, "cards", "a.json"), "utf8");
-    const s = store.grade("a", 3, T0)!;
+    const s = must(store.grade("a", 3, T0), "the schedule");
     expect(s.reps).toBe(1);
     expect(s.lastReview).toBe(new Date(T0).toISOString());
     expect(readFileSync(join(dir, "cards", "a.json"), "utf8")).toBe(before);
@@ -77,14 +78,14 @@ describe("recall store", () => {
   test("edit keeps the old wording in previous and marks who changed it; the schedule stays", () => {
     store.add(card("a"));
     store.grade("a", 3, T0);
-    const c = store.edit("a", { back: "a better answer" }, "you", T0 + 1000)!;
+    const c = must(store.edit("a", { back: "a better answer" }, "you", T0 + 1000), "the edited card");
     expect(c.back).toBe("a better answer");
     expect(c.updatedBy).toBe("you");
     expect(c.previous).toHaveLength(1);
     expect(c.previous[0].back).toBe("a a");
-    expect(store.card("a")!.schedule.reps).toBe(1);
+    expect(must(store.card("a"), "card a").schedule.reps).toBe(1);
     // tags alone are not a wording change
-    const t = store.edit("a", { tags: ["x"] }, "recall", T0 + 2000)!;
+    const t = must(store.edit("a", { tags: ["x"] }, "recall", T0 + 2000), "the edited card");
     expect(t.tags).toEqual(["x"]);
     expect(t.previous).toHaveLength(1);
     expect(t.updatedBy).toBe("you");
@@ -93,13 +94,13 @@ describe("recall store", () => {
     store.add(card("a"));
     store.grade("a", 1, T0);
     store.grade("a", 1, T0 + 1);
-    const rec = store.reject("a", T0 + 2)!;
+    const rec = must(store.reject("a", T0 + 2), "the rejected record");
     expect(rec.reps).toBe(2);
     expect(store.cards()).toEqual([]);
     expect(store.rejected().map((r) => r.card.id)).toEqual(["a"]);
-    expect(store.restore("a")!.id).toBe("a");
+    expect(must(store.restore("a"), "the restored card").id).toBe("a");
     expect(store.rejected()).toEqual([]);
-    expect(store.card("a")!.schedule.reps).toBe(0);
+    expect(must(store.card("a"), "card a").schedule.reps).toBe(0);
     store.reject("a", T0 + 3);
     store.forget("a");
     expect(store.rejected()).toEqual([]);

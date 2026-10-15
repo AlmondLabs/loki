@@ -8,7 +8,10 @@ import { buildSearchIndex, cleanQuery, groupHits, rankHits, tierOf, type Indexed
  */
 
 /** A hit that is only a name and a group: nothing a router knows about. */
-type Thing = { id: string; group: "a" | "b" };
+interface Thing {
+  id: string;
+  group: "a" | "b";
+}
 const entry = (id: string, fields: string[], recency = 0, group: Thing["group"] = "a"): Indexed<Thing> => ({ hit: { id, group }, fields, recency });
 const ids = (hits: Thing[]) => hits.map((h) => h.id);
 

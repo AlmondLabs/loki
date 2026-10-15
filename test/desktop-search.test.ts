@@ -4,6 +4,7 @@ import { createRecents } from "../app/src/shared/recents.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
+import { must } from "./fixtures/must.ts";
 
 /**
  * The desktop's ⌘K search (app/src/shell/searchModel.ts, plan 013 U9): desks by title and agent, agents,
@@ -11,22 +12,21 @@ import type { DeskSummary } from "../core/frame-types.ts";
  * Enter opens the top result; before typing, the recent places, stale ones dropped at read.
  */
 
-const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
-  ({
-    scope: scope as DeskSummary["scope"],
-    title: scope,
-    status: "live",
-    agentName: "friday",
-    agentId: "a1",
-    conversationId: scope,
-    model: null,
-    reasoningEffort: null,
-    pinned: false,
-    widgets: 0,
-    active: false,
-    lastActive: "2026-09-08T10:00:00Z",
-    ...over,
-  }) as DeskSummary;
+const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
+  scope,
+  title: scope,
+  status: "live",
+  agentName: "friday",
+  agentId: "a1",
+  conversationId: scope,
+  model: null,
+  reasoningEffort: null,
+  pinned: false,
+  widgets: 0,
+  active: false,
+  lastActive: "2026-09-08T10:00:00Z",
+  ...over,
+});
 const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem =>
   ({
     id,
@@ -75,7 +75,12 @@ describe("desktop search: what it finds (AE5)", () => {
   test("an agent's name finds its desks too, by the secondary field; the main chat reads as Main chat", () => {
     const g = search(buildIndex(src), "friday");
     expect(g[0].id).toBe("agents"); // the name is the agent's title, a desk's secondary field
-    expect(g.find((x) => x.id === "desks")!.hits.map((h) => h.title)).toContain("Main chat");
+    expect(
+      must(
+        g.find((x) => x.id === "desks"),
+        "the desks group",
+      ).hits.map((h) => h.title),
+    ).toContain("Main chat");
   });
   test("archived desks show, quieter; pages open the section or Preferences on the page", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];

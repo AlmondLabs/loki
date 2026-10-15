@@ -65,7 +65,7 @@ describe("persistence", () => {
       expect(existsSync(join(dir, "conv1.json"))).toBe(true);
       expect(existsSync(join(dir, "empty.json"))).toBe(false);
       stop();
-      const parsed = JSON.parse(readFileSync(join(dir, "conv1.json"), "utf8"));
+      const parsed = JSON.parse(readFileSync(join(dir, "conv1.json"), "utf8")) as { layout: Record<string, { position: unknown }> };
       expect(parsed.layout["conv1/w"].position).toEqual({ x: 9, y: 9 });
 
       const fresh = new DeskStore();

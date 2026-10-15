@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { must } from "./fixtures/must.ts";
 import {
   INIT_ARGS,
   TaskStore,
@@ -62,7 +63,7 @@ describe("tasks: bd arguments", () => {
     expect(args[0]).toBe("create");
     expect(args.slice(-2)).toEqual(["--", "write the quiz plan"]); // last, after --: never read as an option
     expect(args).toContain("--json");
-    const md = JSON.parse(args[args.indexOf("--metadata") + 1]);
+    const md = JSON.parse(args[args.indexOf("--metadata") + 1]) as unknown;
     expect(md).toEqual({ by: "agent", agent: "ira", agentId: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" });
     expect(args[args.indexOf("-l") + 1]).toBe("almonds,plan"); // folder label deduped against the agent's
     expect(args[args.indexOf("-p") + 1]).toBe("1");
@@ -71,7 +72,12 @@ describe("tasks: bd arguments", () => {
     expect(taskIds(["lk-a1", "lk-a1.2", "--help", "-x", "", "a b"])).toEqual(["lk-a1", "lk-a1.2"]);
   });
   test("a task from the app carries by=you and no agent", () => {
-    const md = JSON.parse(createArgs({ title: "x", stamp: { by: "you", desk: "shared" } }).find((_, i, a) => a[i - 1] === "--metadata")!);
+    const md = JSON.parse(
+      must(
+        createArgs({ title: "x", stamp: { by: "you", desk: "shared" } }).find((_, i, a) => a[i - 1] === "--metadata"),
+        "the metadata argument",
+      ),
+    ) as unknown;
     expect(md).toEqual({ by: "you", desk: "shared" });
   });
   test("assign sets assignee and the target in metadata; dispatch also starts it", () => {
@@ -203,7 +209,9 @@ describe("tasks: the store", () => {
     expect(calls.map((c) => c[0])).toEqual(["list", "create", "close"]);
   });
   test("a title is required", async () => {
-    await expect(new TaskStore({ dir: "/nonexistent", run: async () => "[]" }).create({ title: "  ", stamp: { by: "you" } })).rejects.toThrow(/title/);
+    await expect(new TaskStore({ dir: "/nonexistent", run: () => Promise.resolve("[]") }).create({ title: "  ", stamp: { by: "you" } })).rejects.toThrow(
+      /title/,
+    );
   });
 });
 
@@ -217,7 +225,8 @@ describe("task store setup", () => {
     expect(bdBinary()).toBe(process.execPath);
     delete process.env.LOKI_BD;
     process.env.PATH = "/definitely/not/here";
-    expect(bdBinary() === null || /[\\/]bd(\.exe)?$/i.test(bdBinary()!)).toBe(true);
+    const found = bdBinary();
+    expect(found === null || /[\\/]bd(\.exe)?$/i.test(found)).toBe(true);
     if (prev.bd !== undefined) process.env.LOKI_BD = prev.bd;
     process.env.PATH = prev.path;
   });
@@ -301,11 +310,11 @@ describe("tasks: an agent's done?, and reopening", () => {
     const calls: string[][] = [];
     const store = new TaskStore({
       dir: "/tmp/nowhere",
-      run: async (args) => {
+      run: (args) => {
         calls.push(args);
-        if (args[0] === "update") return JSON.stringify([raw({ id: "lk-a1", status: "in_progress" }), raw({ id: "lk-b2", status: "closed" })]);
-        if (args[0] === "reopen") return JSON.stringify([raw({ id: "lk-b2", status: "open" })]);
-        return "[]";
+        if (args[0] === "update") return Promise.resolve(JSON.stringify([raw({ id: "lk-a1", status: "in_progress" }), raw({ id: "lk-b2", status: "closed" })]));
+        if (args[0] === "reopen") return Promise.resolve(JSON.stringify([raw({ id: "lk-b2", status: "open" })]));
+        return Promise.resolve("[]");
       },
     });
     const tasks = await store.reopen(["lk-a1", "lk-b2"]);

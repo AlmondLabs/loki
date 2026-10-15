@@ -6,6 +6,7 @@ import type { WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
 import { WIDGET_LOG_COLLAPSE_MS, WIDGET_LOG_EXPECT_MS, WIDGET_LOG_LIMIT, WidgetLog, broadcastWidgetChanges } from "../mod/widget-log.ts";
 import { watchWidgets, type WidgetsDiff } from "../mod/widgets-fs.ts";
 import { attachWs, startServer } from "../mod/server.ts";
+import { must } from "./fixtures/must.ts";
 
 const entry = (scope: string, name: string, title = name): WidgetManifestEntry => ({
   id: `${scope}/${name}`,
@@ -85,7 +86,7 @@ describe("WidgetLog", () => {
     const rows = log.read("d1");
     expect(rows.length).toBe(WIDGET_LOG_LIMIT);
     expect(rows[0].name).toBe("w5");
-    expect(rows.at(-1)!.name).toBe(`w${WIDGET_LOG_LIMIT + 4}`);
+    expect(must(rows.at(-1), "the last row").name).toBe(`w${WIDGET_LOG_LIMIT + 4}`);
   });
 
   test("each desk's log persists to its own file and survives a restart; a corrupt file reads as empty", () => {
@@ -172,7 +173,7 @@ describe("WidgetLog", () => {
         expect(d.initial).toBe(false);
         log.record(d, 1000);
       }
-      expect(diffs.at(-1)!.removedEntries.map((e) => e.title)).toEqual(["Newer"]);
+      expect(must(diffs.at(-1), "the last diff").removedEntries.map((e) => e.title)).toEqual(["Newer"]);
       expect(log.read("d1").map((r) => [r.change, r.title])).toEqual([
         ["added", "Newer"],
         ["removed", "Newer"],
@@ -207,7 +208,7 @@ describe("widget_change frames", () => {
         });
       const b = await open("desk_b");
       const got = new Promise<Record<string, unknown>>((resolve) => {
-        b.onmessage = (ev) => resolve(JSON.parse(String(ev.data)));
+        b.onmessage = (ev) => resolve(JSON.parse(String(ev.data)) as Record<string, unknown>);
       });
       broadcastWidgetChanges(new WidgetLog(null), diff({ added: [entry("desk_a", "trip")] }), (m, scope) => bridge.broadcast(m, scope), 9);
       expect(await got).toMatchObject({ type: "widget_change", entry: { scope: "desk_a", widgetId: "desk_a/trip" } });

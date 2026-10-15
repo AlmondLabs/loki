@@ -6,6 +6,7 @@ import { ComposerBar } from "../app/src/chat/ChatInput.tsx";
 import { Conversation } from "../app/src/chat/Conversation.tsx";
 import { ModelChoices, ModelPill, modelLine, modelLists, modelName, pickerKey, returnsFocus } from "../app/src/chat/ModelPicker.tsx";
 import { resolve } from "../app/src/shell/keymap.ts";
+import { must } from "./fixtures/must.ts";
 
 /**
  * The one message box (phone and desktop, 2026-09-24): the text on top and a row inside the same field —
@@ -100,7 +101,7 @@ describe("the message box's bottom row", () => {
   });
 
   test("send is disabled while the box is empty and live once there is text", () => {
-    const send = (html: string) => /<button[^>]*aria-label="Send"[^>]*>/.exec(html)![0];
+    const send = (html: string) => must(/<button[^>]*aria-label="Send"[^>]*>/.exec(html), "the Send button")[0];
     expect(send(conversation(false))).toContain('disabled=""');
     expect(send(conversation(false, "ship it"))).not.toContain("disabled");
     expect(send(conversation(true, "ship it"))).not.toContain("disabled");
@@ -117,7 +118,7 @@ describe("the message box's bottom row", () => {
           }),
         ),
       );
-    const stop = async () => null;
+    const stop = () => Promise.resolve(null);
     expect(working("", stop)).toEqual(["Attach files", "Stop"]);
     expect(working("and also this", stop)).toEqual(["Attach files", "Queue: sends when this turn ends"]);
     expect(working("")).toEqual(["Attach files", "Queue: sends when this turn ends"]);
@@ -139,7 +140,12 @@ describe("the model pill", () => {
     const html = renderToStaticMarkup(pill);
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('aria-expanded="false"');
-    (elements(pill).find((e) => typeof e.props.onClick === "function")!.props.onClick as () => void)();
+    (
+      must(
+        elements(pill).find((e) => typeof e.props.onClick === "function"),
+        "the pill's button",
+      ).props.onClick as () => void
+    )();
     expect(opened).toBe(1);
   });
   test("the name is the preset's label, else the handle's short form; unknown reads Model", () => {
@@ -221,7 +227,14 @@ describe("select model", () => {
     const { short, more } = modelLists(MODELS, CURRENT);
     expect(modelLine(short[0])).toBe("For complex work");
     expect(modelLine(short[1])).toBe("anthropic/claude-sonnet-5");
-    expect(modelLine(more.find((g) => g.handle === "ollama/llama-5")!)).toBeNull(); // the label already is the handle
+    expect(
+      modelLine(
+        must(
+          more.find((g) => g.handle === "ollama/llama-5"),
+          "the ollama/llama-5 entry",
+        ),
+      ),
+    ).toBeNull(); // the label already is the handle
   });
 
   test("the list shows the short list with a check on the current model, then Effort › and More models ›", () => {
@@ -238,19 +251,19 @@ describe("select model", () => {
   test("Effort › opens that model's efforts; choosing one picks it", () => {
     const views: string[] = [];
     const picked: unknown[] = [];
-    (choice(ModelChoices({ ...props, view: "models", onView: (v) => views.push(v) }), "effort")!.props.onClick as () => void)();
+    (must(choice(ModelChoices({ ...props, view: "models", onView: (v) => views.push(v) }), "effort"), "the effort choice").props.onClick as () => void)();
     expect(views).toEqual(["effort"]);
     const tree = ModelChoices({ ...props, view: "effort", onPick: (s) => picked.push(s) });
     const html = renderToStaticMarkup(tree);
     expect([...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Low", "Medium", "High"]);
     expect(html).toMatch(/aria-checked="true"[^>]*data-choice="medium"/);
-    (choice(tree, "high")!.props.onClick as () => void)();
+    (must(choice(tree, "high"), "the high choice").props.onClick as () => void)();
     expect(picked).toEqual([{ id: "opus-high", handle: CURRENT, reasoningEffort: "high" }]);
   });
 
   test("More models › lists the rest", () => {
     const views: string[] = [];
-    (choice(ModelChoices({ ...props, view: "models", onView: (v) => views.push(v) }), "more")!.props.onClick as () => void)();
+    (must(choice(ModelChoices({ ...props, view: "models", onView: (v) => views.push(v) }), "more"), "the more choice").props.onClick as () => void)();
     expect(views).toEqual(["more"]);
     const html = renderToStaticMarkup(ModelChoices({ ...props, view: "more" }));
     const names = [...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1]);
@@ -263,7 +276,12 @@ describe("select model", () => {
     const html = renderToStaticMarkup(phone);
     expect(html).toContain("loki-model-grip");
     expect(html.indexOf('aria-label="Close"')).toBeLessThan(html.indexOf(">Select model<"));
-    (elements(phone).find((e) => e.props.label === "Close")!.props.onClick as () => void)();
+    (
+      must(
+        elements(phone).find((e) => e.props.label === "Close"),
+        "the Close button",
+      ).props.onClick as () => void
+    )();
     expect(closed).toEqual([1]);
     const desk = renderToStaticMarkup(ModelChoices({ ...props, view: "models" }));
     expect(desk).not.toContain("loki-model-grip");

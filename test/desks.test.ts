@@ -59,12 +59,9 @@ describe("desk registry fallback", () => {
 
 describe("DeskRegistry: one scope per conversation", () => {
   test("a legacy bare 'default' key folds onto default-<agentId> and is rewritten on disk", async () => {
-    const { mkdtempSync, writeFileSync: w, readFileSync: r, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join: j } = await import("node:path");
-    const { DeskRegistry } = await import("../mod/desks.ts");
-    const dir = mkdtempSync(j(tmpdir(), "loki-registry-"));
-    const file = j(dir, "desks.json");
+    const { writeFileSync: w, readFileSync: r } = await import("node:fs");
+    const dir = mkdtempSync(join(tmpdir(), "loki-registry-"));
+    const file = join(dir, "desks.json");
     w(
       file,
       JSON.stringify({
@@ -80,7 +77,7 @@ describe("DeskRegistry: one scope per conversation", () => {
         .map((d) => d.scope)
         .sort(),
     ).toEqual(["default-agent-1", "local-conv-9"]);
-    expect(Object.keys(JSON.parse(r(file, "utf8"))).sort()).toEqual(["default-agent-1", "local-conv-9"]);
+    expect(Object.keys(JSON.parse(r(file, "utf8")) as Record<string, unknown>).sort()).toEqual(["default-agent-1", "local-conv-9"]);
     rmSync(dir, { recursive: true, force: true });
   });
 

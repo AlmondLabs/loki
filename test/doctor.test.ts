@@ -42,7 +42,7 @@ async function setup() {
     backendDir: dir,
     context: ctx,
     jobs: [],
-    busy: async () => false,
+    busy: () => Promise.resolve(false),
     isSubagent: () => false,
     capture: (_e, p) => events.push(p),
   });

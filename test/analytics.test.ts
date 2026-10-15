@@ -22,6 +22,7 @@ import { GestureLog } from "../mod/gestures.ts";
 import type { Client } from "../mod/server.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import { TABS, screenOf, type Route } from "../app/src/phone/router.ts";
+import { must } from "./fixtures/must.ts";
 
 const NOW = Date.parse("2026-09-22T18:00:00Z");
 const at = (daysAgo: number, hour = 10, minute = 0) => new Date(NOW - daysAgo * 86_400_000 - (18 - hour) * 3_600_000 + minute * 60_000).toISOString();
@@ -257,7 +258,10 @@ describe("analytics: the harness, from the daemon's turns", () => {
 
   test("by model and by harness version: time spreads, cost a turn, cache share, error and tool-failure rates", () => {
     expect(r.harness.turns).toBe(4);
-    const gpt = r.harness.byModel.find((row) => row.key === "openai/gpt-x")!;
+    const gpt = must(
+      r.harness.byModel.find((row) => row.key === "openai/gpt-x"),
+      "the openai/gpt-x row",
+    );
     expect(gpt).toEqual({
       key: "openai/gpt-x",
       turns: 3,
@@ -379,7 +383,7 @@ describe("analytics: the writer", () => {
 });
 
 describe("analytics: through the bridge", () => {
-  const widgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close() {} };
+  const widgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close: () => {} };
   const client = (scope: string, deviceId?: string): Client & { sent: Array<Record<string, unknown>> } => {
     const sent: Array<Record<string, unknown>> = [];
     return { scope, deviceId, sent, send: (m) => sent.push(m as Record<string, unknown>) };
@@ -411,7 +415,7 @@ describe("analytics: through the bridge", () => {
 
   test("the inbox frames the mod already handles become events", () => {
     const recorded: string[] = [];
-    const seen = { mark() {}, unmark() {}, view() {}, all: () => ({}), viewedAll: () => ({}), focusAll: () => ({}) };
+    const seen = { mark: () => {}, unmark: () => {}, view: () => {}, all: () => ({}), viewedAll: () => ({}), focusAll: () => ({}) };
     const bridge = bridgeOf({
       store: new DeskStore(),
       widgets,
@@ -533,7 +537,7 @@ describe("analytics: engagement, the inbox ranking's metric", () => {
 
   test("a request every window reports is written once; the once key is not", () => {
     const recorded: Array<[string, Record<string, unknown> | undefined]> = [];
-    const noWidgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close() {} };
+    const noWidgets: WidgetsWatcher = { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: async () => {}, close: () => {} };
     const bridge = bridgeOf({
       store: new DeskStore(),
       widgets: noWidgets,

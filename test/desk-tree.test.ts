@@ -12,7 +12,7 @@ import type { DeskSummary } from "../core/frame-types.ts";
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
   ({
-    scope: scope as DeskSummary["scope"],
+    scope,
     title: scope,
     status: "live",
     agentName: "friday",

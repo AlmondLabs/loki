@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { AttentionItem } from "../core/attention/model.ts";
+import { must } from "./fixtures/must.ts";
 
 import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
@@ -171,7 +172,10 @@ describe("ranking", () => {
   });
   test("each group is capped, and says how many matched", () => {
     const many = Array.from({ length: 12 }, (_, i) => desk(`Report ${i}`, { conversationId: `r${i}` }));
-    const g = search(src({ desks: many }), "report").find((x) => x.id === "desks")!;
+    const g = must(
+      search(src({ desks: many }), "report").find((x) => x.id === "desks"),
+      "the desks group",
+    );
     expect(g.hits).toHaveLength(GROUP_MAX);
     expect(g.total).toBe(12);
   });

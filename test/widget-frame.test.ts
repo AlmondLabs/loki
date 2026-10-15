@@ -148,7 +148,9 @@ describe("widget frame: the document", () => {
 });
 
 describe("widget frame: the shell's CSP", () => {
-  const { csp, devCsp } = JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8")).app.security;
+  const { csp, devCsp } = (
+    JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8")) as { app: { security: { csp: string; devCsp: string } } }
+  ).app.security;
   const directive = (policy: string, name: string) =>
     policy
       .split(";")

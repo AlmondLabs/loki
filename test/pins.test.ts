@@ -26,7 +26,7 @@ describe("pins: Desktop's pinned-conversations.json", () => {
     expect(setPin("agent-1", "c1", true, f)).toBe(true); // idempotent
     expect(JSON.parse(readFileSync(f, "utf8"))).toEqual({ version: 1, agents: { "agent-2": ["c9"], "agent-1": ["c1"] } });
     setPin("agent-1", "c1", false, f);
-    expect(JSON.parse(readFileSync(f, "utf8")).agents).toEqual({ "agent-2": ["c9"] });
+    expect((JSON.parse(readFileSync(f, "utf8")) as { agents: unknown }).agents).toEqual({ "agent-2": ["c9"] });
   });
   test("a missing file starts empty", () => {
     const f = join(dir, "nope", "pins.json");

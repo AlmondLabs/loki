@@ -55,7 +55,7 @@ describe("folders", () => {
   test("Windows: completion offers matching folders under a drive path or ~\\", () => {
     const dir = (name: string) => ({ name, isDirectory: () => true });
     const file = (name: string) => ({ name, isDirectory: () => false });
-    const disk: Record<string, Array<ReturnType<typeof dir>>> = {
+    const disk: Partial<Record<string, Array<ReturnType<typeof dir>>>> = {
       "C:\\": [dir("Users"), dir("Windows"), file("pagefile.sys")],
       "C:\\Users\\x": [dir("Documents"), dir("Downloads"), dir("docker"), dir(".config"), file("Doc.txt"), dir("Pictures")],
     };
@@ -95,9 +95,9 @@ describe("folders", () => {
 
   test("the dialog's choice becomes the folder; a cancelled dialog yields nothing", async () => {
     const calls: unknown[] = [];
-    const chose = (value: string | string[] | null) => async (options: unknown) => {
+    const chose = (value: string | string[] | null) => (options: unknown) => {
       calls.push(options);
-      return value;
+      return Promise.resolve(value);
     };
     expect(await dialogPick("/work/current", chose("/work/picked"))).toBe("/work/picked");
     expect(calls[0]).toMatchObject({ directory: true, multiple: false, defaultPath: "/work/current" });
@@ -106,11 +106,7 @@ describe("folders", () => {
     expect(await dialogPick(undefined, chose(["C:\\a", "C:\\b"]))).toBe("C:\\a");
     expect(await dialogPick(undefined, chose([]))).toBeNull();
     expect(await dialogPick(undefined, chose(""))).toBeNull();
-    expect(
-      await dialogPick(undefined, async () => {
-        throw new Error("no dialog");
-      }),
-    ).toBeNull();
+    expect(await dialogPick(undefined, () => Promise.reject(new Error("no dialog")))).toBeNull();
   });
 
   test("the folder row shows Browse only where there is a chooser", () => {

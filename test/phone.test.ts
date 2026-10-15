@@ -335,21 +335,20 @@ describe("reloading a newer canvas", () => {
 });
 
 describe("Home: shortcuts, attention and desks (U3)", () => {
-  const desk = (over: Partial<DeskSummary>): DeskSummary =>
-    ({
-      scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`,
-      title: "t",
-      status: "live",
-      agentName: "ira",
-      agentId: "a1",
-      conversationId: "c",
-      model: null,
-      reasoningEffort: null,
-      widgets: 0,
-      active: false,
-      lastActive: null,
-      ...over,
-    }) as DeskSummary;
+  const desk = (over: Partial<DeskSummary>): DeskSummary => ({
+    scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`,
+    title: "t",
+    status: "live",
+    agentName: "ira",
+    agentId: "a1",
+    conversationId: "c",
+    model: null,
+    reasoningEffort: null,
+    widgets: 0,
+    active: false,
+    lastActive: null,
+    ...over,
+  });
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({
       id: "c",
@@ -444,21 +443,20 @@ describe("Home's presence dot: the paired Mac's link in one word", () => {
 });
 
 describe("Agents: Slack's DM list, one row per agent (U6)", () => {
-  const desk = (over: Partial<DeskSummary>): DeskSummary =>
-    ({
-      scope: "s",
-      title: "t",
-      status: "live",
-      agentName: "ira",
-      agentId: "a1",
-      conversationId: "c",
-      model: null,
-      reasoningEffort: null,
-      widgets: 0,
-      active: false,
-      lastActive: null,
-      ...over,
-    }) as DeskSummary;
+  const desk = (over: Partial<DeskSummary>): DeskSummary => ({
+    scope: "s",
+    title: "t",
+    status: "live",
+    agentName: "ira",
+    agentId: "a1",
+    conversationId: "c",
+    model: null,
+    reasoningEffort: null,
+    widgets: 0,
+    active: false,
+    lastActive: null,
+    ...over,
+  });
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({
       id: "c",

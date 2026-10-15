@@ -29,7 +29,7 @@ const outcome = (url: string, headers: Record<string, string>) =>
     });
   });
 
-test("an upgrade from a page on another site is refused, even with the phone's cookie; the page's own origin connects", async () => {
+void test("an upgrade from a page on another site is refused, even with the phone's cookie; the page's own origin connects", async () => {
   const dir = mkdtempSync(join(tmpdir(), "loki-lan-ws-"));
   const devices = new DeviceStore(join(dir, "devices.json"));
   const codes = new PairingCodes();

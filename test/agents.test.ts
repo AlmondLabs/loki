@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { backendName } from "../core/desk-core.ts";
 import { isSubagent, memoryRoot, memorySkills, memoryTree, parseGitLog, profilePath, readLocalAgent, readMemoryFile } from "../mod/agents.ts";
 import { isAgentId } from "../core/frames.ts";
+import { must } from "./fixtures/must.ts";
 
 const AGENT = "agent-local-test-1234";
 let dir: string;
@@ -40,7 +41,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("agents: the record", () => {
   test("reads name, description, model, settings, tags, favourite, system head", () => {
-    const a = readLocalAgent(AGENT, dir)!;
+    const a = must(readLocalAgent(AGENT, dir), "the agent record");
     expect(a.name).toBe("ira");
     expect(a.description).toBe("The memory-first agent");
     expect(a.model).toBe("anthropic/claude-fable-5");

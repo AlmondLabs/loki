@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { BackgroundTasks, shell } from "../daemon/background.ts";
 import { dueBetween, matches, parseCron, Schedules } from "../daemon/schedule.ts";
 import { extractHarnessEvents } from "../core/harness.ts";
+import { must } from "./fixtures/must.ts";
 
 describe("background tasks", () => {
   test("a task's output is read in pieces; an agent waiting on it when it ends is told by the wait, not a notice", async () => {
@@ -55,7 +56,7 @@ describe("background tasks", () => {
     const tasks = new BackgroundTasks(() => {});
     const id = tasks.start("agent-a", "c", tmpdir(), "sleep 30");
     // An EPIPE from a write arrives as an 'error' on the input stream; with no listener it would be thrown.
-    tasks["tasks"].get(id)!.child.stdin!.emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+    must(must(tasks["tasks"].get(id), "the task").child.stdin, "the task's input").emit("error", Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
     expect(await tasks.wait(id, "agent-a", "EPIPE", 2000)).toContain("EPIPE");
     tasks.stop(id, "agent-a");
   });
@@ -131,7 +132,10 @@ describe("scheduled tasks", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-crons-"));
     try {
       const fired: string[] = [];
-      const schedules = new Schedules(join(dir, "crons.json"), async (_a, chatId, text) => void fired.push(`${chatId}: ${text}`));
+      const schedules = new Schedules(join(dir, "crons.json"), (_a, chatId, text) => {
+        fired.push(`${chatId}: ${text}`);
+        return Promise.resolve();
+      });
       const made = new Date("2026-10-10T00:00:00Z");
       schedules.create(
         {

@@ -8,6 +8,7 @@ import { foldSteps } from "../core/attention/thread.ts";
 import { readLocalTranscript, readLocalTranscriptPage } from "../daemon/import/letta-log.ts";
 import { conversationDirName } from "../core/desk-core.ts";
 import { assistantLine, headerLine, logText, sampleLog, userLine } from "./fixtures/letta-log.ts";
+import { must } from "./fixtures/must.ts";
 
 /** The rows the mod shows today for a log on disk. */
 function rowsFromDisk(text: string) {
@@ -41,17 +42,22 @@ describe("Letta log conversion", () => {
     ]);
     const compaction = converted[4];
     expect(compaction.headSourceId).toBe("e4");
-    expect(JSON.stringify(compaction.model![0].content)).toContain("<summary>\\nAsked about the readme.\\n</summary>");
+    expect(JSON.stringify(must(compaction.model, "the compaction entry's message")[0].content)).toContain("<summary>\\nAsked about the readme.\\n</summary>");
     expect(converted[2].data).toEqual({ diagnostics: [] });
   });
 
   test("Letta's bookkeeping fields are left behind and the message keeps what pi-ai reads", () => {
     const [user, assistant, result] = lettaLogEntries(sampleLog());
-    expect(Object.keys(user.model![0]).sort()).toEqual(["content", "role", "timestamp"]);
-    expect(assistant.model![0]).not.toHaveProperty("metadata");
-    expect(assistant.model![0]).toMatchObject({ role: "assistant", api: "openai-codex-responses", provider: "openai-codex", stopReason: "toolUse" });
-    expect(result.model![0]).toMatchObject({ role: "toolResult", toolCallId: "call-1", toolName: "Read", isError: false });
-    expect(user.model![0].timestamp).toBe(Date.parse("2026-10-01T10:00:01.000Z"));
+    expect(Object.keys(must(user.model, "the user entry's message")[0]).sort()).toEqual(["content", "role", "timestamp"]);
+    expect(must(assistant.model, "the assistant entry's message")[0]).not.toHaveProperty("metadata");
+    expect(must(assistant.model, "the assistant entry's message")[0]).toMatchObject({
+      role: "assistant",
+      api: "openai-codex-responses",
+      provider: "openai-codex",
+      stopReason: "toolUse",
+    });
+    expect(must(result.model, "the result entry's message")[0]).toMatchObject({ role: "toolResult", toolCallId: "call-1", toolName: "Read", isError: false });
+    expect(must(user.model, "the user entry's message")[0].timestamp).toBe(Date.parse("2026-10-01T10:00:01.000Z"));
   });
 
   test("each entry remembers the log line it came from, for Learn's cursors", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { AGENT_PAGES, AGENT_PAGE_HINT, AGENT_PAGE_KEY, AGENT_PAGE_LABEL, DEFAULT_AGENT_PAGE, isAgentPage } from "../app/src/agents/pages.ts";
 import { firstAgentId, readingFor, shownShaOf, shownSkillOf } from "../app/src/agents/reading.ts";
+import type { MemorySkillInfo } from "../core/frame-types.ts";
 
 /** The agent's pages (app/src/agents/pages.ts): five tabs under the desktop agent header; the phone's headings are four of them. */
 describe("agent pages", () => {
@@ -27,7 +28,7 @@ describe("agent reading pane", () => {
   const skills = [
     { name: "notes", path: "skills/notes/SKILL.md", origin: "self" as const },
     { name: "stocks", path: "skills/stocks/SKILL.md", origin: "other" as const },
-  ] as unknown as Array<import("../core/frame-types.ts").MemorySkillInfo>; // the pure helpers only read name, path and origin
+  ] as unknown as MemorySkillInfo[]; // the pure helpers only read name, path and origin
   const d = { skills } as unknown as Parameters<typeof shownSkillOf>[0];
   const log = [{ sha: "abc12345" }, { sha: "def67890" }] as Parameters<typeof shownShaOf>[1];
 
@@ -202,10 +203,10 @@ describe("agents pane", () => {
     initialAgentId: null,
     onOpenDesk: () => {},
     onAskToUpdate: () => {},
-    onUpdateAgent: async () => null,
+    onUpdateAgent: () => Promise.resolve(null),
     write: {},
     reflect: {},
-    listModels: async () => [],
+    listModels: () => Promise.resolve([]),
     onShowDesks: () => {},
     onShowTasks: () => {},
   });
