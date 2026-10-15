@@ -49,7 +49,7 @@ export function askExtension(approvals: Approvals): Extension {
             const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
               agent?.id ?? "",
               chat?.id || `conversation-${api.conversationId}`,
-              { kind: "question", requestId: `question-${api.callId}`, input },
+              { kind: "question", request_id: `question-${api.callId}`, input },
               context.abortSignal,
             );
             const answers = (reply.answers.answers ?? {}) as Record<string, string>;

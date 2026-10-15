@@ -57,7 +57,7 @@ function fixture(
   const handlers: WsHandlers = {
     onConnect: (c) => {
       connected.push(c);
-      c.send({ type: "hello", scope: c.scope, deviceId: c.deviceId ?? null });
+      c.send({ type: "hello", scope: c.scope, device_id: c.deviceId ?? null });
     },
     onMessage: (c, m) => {
       if (m.type === "list_desks") c.send({ type: "desks", desks: [{ scope: c.scope }] });
@@ -89,11 +89,11 @@ async function pair(
   lan: LanListener,
   code: string,
   name = "phone",
-): Promise<{ res: Response; cookie: string; token: string; body: { deviceId: string; name: string } }> {
+): Promise<{ res: Response; cookie: string; token: string; body: { device_id: string; name: string } }> {
   const res = await fetch(`${base(lan)}/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, name }) });
   const setCookie = res.headers.get("set-cookie") ?? "";
   const token = /loki_device=([a-f0-9]*)/.exec(setCookie)?.[1] ?? "";
-  return { res, cookie: `loki_device=${token}`, token, body: (await res.json()) as { deviceId: string; name: string } };
+  return { res, cookie: `loki_device=${token}`, token, body: (await res.json()) as { device_id: string; name: string } };
 }
 
 /** Resolves when the socket closes, or after `ms` with "timeout". */
@@ -128,7 +128,7 @@ describe("LAN listener", () => {
     try {
       expect(f.lan.enabled()).toBe(false);
       const s = f.lan.status();
-      expect(s).toMatchObject({ enabled: false, port, appServed: false, error: null });
+      expect(s).toMatchObject({ enabled: false, port, app_served: false, error: null });
       expect(Array.isArray(s.addresses)).toBe(true);
       await expect(fetch(`http://127.0.0.1:${port}/health`)).rejects.toBeDefined();
       expect(f.changes).toEqual([]);
@@ -220,14 +220,14 @@ describe("LAN listener", () => {
       expect(setCookie).toContain("SameSite=Lax");
       expect(setCookie).toContain("Path=/");
       expect(setCookie).toContain("Max-Age=31536000");
-      expect(f.devices.list().map((d) => d.id)).toEqual([p.body.deviceId]);
+      expect(f.devices.list().map((d) => d.id)).toEqual([p.body.device_id]);
       expect(f.changes.filter((c) => c[0] === "devices")).toHaveLength(1);
 
       const me = await fetch(`${base(f.lan)}/me`, { headers: { cookie: p.cookie } });
       expect(me.status).toBe(200);
-      expect(await me.json()).toEqual({ deviceId: p.body.deviceId, name: "Deepak's iPhone" });
+      expect(await me.json()).toEqual({ device_id: p.body.device_id, name: "Deepak's iPhone" });
       // The request came from loopback with no tailnet marks: the Wi‑Fi route, recorded on the device for Settings.
-      expect(f.devices.list()[0].lastVia).toBe("lan");
+      expect(f.devices.list()[0].last_via).toBe("lan");
       const bearer = await fetch(`${base(f.lan)}/me`, { headers: { authorization: `Bearer ${p.token}` } });
       expect(bearer.status).toBe(200);
       expect((await fetch(`${base(f.lan)}/me`, { headers: { authorization: `Bearer ${DESKTOP}` } })).status).toBe(401);
@@ -235,14 +235,14 @@ describe("LAN listener", () => {
       // the same code pairs again inside its window: a second device (the Home Screen app's own cookie jar)
       const q = await pair(f.lan, code.toLowerCase(), "Home Screen");
       expect(q.res.status).toBe(200);
-      expect(q.body.deviceId).not.toBe(p.body.deviceId);
+      expect(q.body.device_id).not.toBe(p.body.device_id);
       expect(f.devices.list()).toHaveLength(2);
 
       const un = await fetch(`${base(f.lan)}/unpair`, { method: "POST", headers: { cookie: p.cookie, "content-type": "application/json" } });
       expect(un.status).toBe(200);
       expect(un.headers.get("set-cookie")).toContain("Max-Age=0");
       expect((await fetch(`${base(f.lan)}/me`, { headers: { cookie: p.cookie } })).status).toBe(401);
-      expect(f.devices.list().map((d) => d.id)).toEqual([q.body.deviceId]);
+      expect(f.devices.list().map((d) => d.id)).toEqual([q.body.device_id]);
     } finally {
       await f.lan.stop();
       f.cleanup();
@@ -327,7 +327,7 @@ describe("LAN listener", () => {
 
       const good = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?t=${DESKTOP}&desk=conv%2F1`, { cookie: p.cookie });
       const hello = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
-      expect(hello).toEqual({ type: "hello", scope: "conv_1", deviceId: p.body.deviceId });
+      expect(hello).toEqual({ type: "hello", scope: "conv_1", device_id: p.body.device_id });
       good.send(JSON.stringify({ type: "list_desks" }));
       const desks = await new Promise<Record<string, unknown>>((resolve) => good.once("message", (raw) => resolve(frameOf(raw))));
       expect(desks).toEqual({ type: "desks", desks: [{ scope: "conv_1" }] });
@@ -344,7 +344,7 @@ describe("LAN listener", () => {
 
       // forget: the record goes and both live sockets close within a second
       const closes = Promise.all([closedWithin(good, 1000), closedWithin(viaBearer, 1000)]);
-      expect(f.lan.forget(p.body.deviceId)).toBe(true);
+      expect(f.lan.forget(p.body.device_id)).toBe(true);
       expect(await closes).toEqual(["closed", "closed"]);
       expect(f.devices.list()).toEqual([]);
       expect(f.lan.clientCount()).toBe(0);
@@ -410,15 +410,15 @@ describe("LAN listener", () => {
     const nothing = fixture({ port: 41415, tailscale: fakeTailscale({ running: false }), host: () => null, interfaces: () => ({}) });
     try {
       // before the first refresh the cache only knows the binary exists: the Wi‑Fi route
-      expect(served.lan.status().tailscale).toEqual({ installed: true, running: false, ip: null, name: null, serveUrl: null, error: null });
+      expect(served.lan.status().tailscale).toEqual({ installed: true, running: false, ip: null, name: null, serve_url: null, error: null });
       expect(served.lan.pairUrl("ABC234")).toBe("http://my-macbook-pro.local:41415/?code=ABC234");
 
       const s = await served.lan.refresh();
       expect(s.via).toBe("tailscale");
-      expect(s.tailscale).toEqual({ installed: true, running: true, ip: "100.101.102.103", name: TAILNET, serveUrl: `https://${TAILNET}`, error: null });
+      expect(s.tailscale).toEqual({ installed: true, running: true, ip: "100.101.102.103", name: TAILNET, serve_url: `https://${TAILNET}`, error: null });
       expect(served.lan.pairUrl("ABC234")).toBe(`https://${TAILNET}/?code=ABC234`);
 
-      expect((await named.lan.refresh()).tailscale?.serveUrl).toBeNull();
+      expect((await named.lan.refresh()).tailscale?.serve_url).toBeNull();
       expect(named.lan.pairUrl("ABC234")).toBe(`http://${TAILNET}:41415/?code=ABC234`);
       // the user's choice of the Wi‑Fi wins over a running tailnet
       expect(named.lan.setVia("lan").via).toBe("lan");
@@ -516,7 +516,7 @@ describe("LAN listener", () => {
       serve = true;
       await f.lan.refresh();
       expect(f.changes.map((c) => c[0])).toEqual(["status"]);
-      expect(f.changes[0][1].tailscale?.serveUrl).toBe(`https://${TAILNET}`);
+      expect(f.changes[0][1].tailscale?.serve_url).toBe(`https://${TAILNET}`);
       running = false;
       await f.lan.refresh();
       expect(f.changes).toHaveLength(2);
@@ -617,8 +617,8 @@ describe("LAN listener", () => {
     try {
       await withApp.lan.setEnabled(true);
       await noApp.lan.setEnabled(true);
-      expect(withApp.lan.status().appServed).toBe(true);
-      expect(noApp.lan.status().appServed).toBe(false);
+      expect(withApp.lan.status().app_served).toBe(true);
+      expect(noApp.lan.status().app_served).toBe(false);
       const { code } = withApp.codes.mint();
       const p = await pair(withApp.lan, code);
 

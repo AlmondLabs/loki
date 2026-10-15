@@ -10,7 +10,7 @@ import type { Client, WsHandlers } from "./server.ts";
  *  2. refuses it to a paired phone unless the table marks it for the phone;
  *  3. parses it (a malformed one answers `error`);
  *  4. calls its handler, sync or async;
- *  5. sends a request's reply under the table's name with its requestId, or `error` with the requestId when the
+ *  5. sends a request's reply under the table's name with its request_id, or `error` with the request_id when the
  *     handler failed, threw or rejected. A send's handler pushes what it causes; its failure answers `error`.
  * HTTP routes (agent faces, pairing, uploads) are mod/server.ts's and mod/lan.ts's.
  */
@@ -59,15 +59,15 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
     },
 
     onMessage(client: Client, msg: Record<string, unknown>) {
-      const requestId = typeof msg.requestId === "string" ? msg.requestId : undefined;
+      const requestId = typeof msg.request_id === "string" ? msg.request_id : undefined;
       // A paired phone shares this router with the desktop but not its authority (core/frames.ts PHONE_FRAMES).
       if (client.deviceId && !PHONE_FRAMES.has(msg.type as FrameName)) {
-        return client.send({ type: "error", requestId, message: `${String(msg.type)} is not available on the phone` });
+        return client.send({ type: "error", request_id: requestId, message: `${String(msg.type)} is not available on the phone` });
       }
       const entry = frameEntry(msg.type);
       const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
       if (!entry || entry.kind === "push" || !handle)
-        return client.send({ type: "error", requestId, message: `unsupported message type: ${String(msg.type)}` });
+        return client.send({ type: "error", request_id: requestId, message: `unsupported message type: ${String(msg.type)}` });
       const ctx: FrameContext = {
         client,
         push: (f) => client.send(f),
@@ -85,7 +85,7 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       };
       if (entry.kind === "request") {
         const answer = (out: Outcome<object>) =>
-          client.send(out.ok ? { ...out.reply, type: entry.reply, requestId } : { type: "error", requestId, message: out.message });
+          client.send(out.ok ? { ...out.reply, type: entry.reply, request_id: requestId } : { type: "error", request_id: requestId, message: out.message });
         return settle(
           run,
           (out) => answer(out as Outcome<object>),

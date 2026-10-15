@@ -22,9 +22,9 @@ export interface TaskApi {
     description: string;
     source: TaskSource;
     desk: string | null;
-    agentId: string | null;
-    agentName: string | null;
-    conversationId: string;
+    agent_id: string | null;
+    agent_name: string | null;
+    conversation_id: string;
   }) => Promise<string | null>;
   /** The task in Tasks (the desktop); without it the chip only shows. */
   open?: (task: Task) => void;
@@ -111,7 +111,15 @@ export function useMessageTasksScope(conversation: TaskConversation, api: TaskAp
     if (!a || !api || !conversationId) return "nothing to file";
     if (!a.title.trim()) return "a task needs a title";
     const source: TaskSource = { origin: a.origin, role: a.role, key: a.key, at: a.at, quote: quoteOf(a.text) };
-    const err = await api.create({ title: a.title.trim(), description: quoteBlock(a.text), source, desk, agentId, agentName, conversationId });
+    const err = await api.create({
+      title: a.title.trim(),
+      description: quoteBlock(a.text),
+      source,
+      desk,
+      agent_id: agentId,
+      agent_name: agentName,
+      conversation_id: conversationId,
+    });
     if (err) return err;
     setAdding((now) => (now?.key === a.key ? null : now));
     return null;
@@ -333,7 +341,7 @@ const CHIP_LABEL = { open: "task · open", waiting: "done? · waiting for you", 
 export function TaskChip({ task: t, api }: { task: Task; api: TaskApi }) {
   const { open, confirm, reopen } = api;
   const state = chipState(t);
-  const note = state === "open" ? t.metadata.lastNote : state === "waiting" && t.metadata.doneAsked !== "yes" ? t.metadata.doneAsked : null;
+  const note = state === "open" ? t.metadata.last_note : state === "waiting" && t.metadata.done_asked !== "yes" ? t.metadata.done_asked : null;
   const body = (
     <>
       <span className="loki-msg-task-mark" aria-hidden>

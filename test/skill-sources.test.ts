@@ -189,10 +189,10 @@ describe("refresh", () => {
     expect(r.outcome).toBe("reconcile");
     if (r.outcome !== "reconcile") return;
     expect(r.changed).toEqual(["SKILL.md"]);
-    expect(r.upstreamPath).toBe(join(root, "state", "upstream", AGENT, "fmt-typed"));
-    expect(readFileSync(join(r.upstreamPath, "SKILL.md"), "utf8")).toContain("v2");
+    expect(r.upstream_path).toBe(join(root, "state", "upstream", AGENT, "fmt-typed"));
+    expect(readFileSync(join(r.upstream_path, "SKILL.md"), "utf8")).toContain("v2");
     expect(readFileSync(join(memory, "skills", "fmt-typed", "SKILL.md"), "utf8")).toContain("always check twice"); // untouched
-    expect(r.prompt).toBe(reconcilePrompt("fmt-typed", "team-skills checkout", r.upstreamPath, ["SKILL.md"]));
+    expect(r.prompt).toBe(reconcilePrompt("fmt-typed", "team-skills checkout", r.upstream_path, ["SKILL.md"]));
     expect(r.prompt).toContain("keep what you learned");
     expect(JSON.parse(readFileSync(join(root, "state", "skill-sources.json"), "utf8"))).toMatchObject({ [`${AGENT}/fmt-typed`]: join(checkout, "fmt-typed") });
     expect(sources.sourceOf(AGENT, "fmt-typed")?.kind).toBe("checkout");

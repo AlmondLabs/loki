@@ -2,6 +2,7 @@ import { lokiDir } from "./paths.ts";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { newSchedule, review, type Grade, type Schedule } from "../core/recall/fsrs.ts";
+import { migrateKeys } from "../core/snake-keys.ts";
 import { isRecallId, type Card, type CardWithSchedule, type DismissedLead, type Lead, type Lesson, type Rejected } from "../core/recall/model.ts";
 
 /**
@@ -33,6 +34,21 @@ function readJson(path: string): unknown {
     return null;
   }
 }
+/**
+ * A file Recall wrote, renamed into today's snake_case shape: one saved camelCase before October 2026 (createdAt,
+ * agentId, lastReview…) is written back once in the new shape.
+ */
+function readStored(path: string): unknown {
+  const { value, changed } = migrateKeys(readJson(path));
+  if (changed && value !== null) {
+    try {
+      writeJson(path, value);
+    } catch {
+      // read-only or gone: the renamed value still serves this read, and the next read tries again
+    }
+  }
+  return value;
+}
 function writeJson(path: string, value: unknown): void {
   mkdirSync(join(path, ".."), { recursive: true });
   writeFileSync(`${path}.tmp`, JSON.stringify(value, null, 2) + "\n");
@@ -45,7 +61,7 @@ function listJson<T>(dir: string): T[] {
   } catch {
     return [];
   }
-  return names.map((f) => readJson(join(dir, f)) as T | null).filter((v): v is T => v !== null);
+  return names.map((f) => readStored(join(dir, f)) as T | null).filter((v): v is T => v !== null);
 }
 /** The calendar day where the Mac is ("2026-09-10"): the cap resets at the person's midnight, not UTC's. */
 export const isoDay = (now: number): string => {
@@ -78,15 +94,15 @@ export class RecallStore {
       .filter((c) => isRecallId(c.id) && typeof c.front === "string" && typeof c.back === "string")
       .map((card) => ({
         card,
-        schedule: (readJson(this.f("schedule", card.id)) as Schedule | null) ?? newSchedule(new Date(card.createdAt).getTime() || Date.now()),
+        schedule: (readStored(this.f("schedule", card.id)) as Schedule | null) ?? newSchedule(new Date(card.created_at).getTime() || Date.now()),
       }))
-      .sort((a, b) => a.card.createdAt.localeCompare(b.card.createdAt));
+      .sort((a, b) => a.card.created_at.localeCompare(b.card.created_at));
   }
 
   card(id: string): CardWithSchedule | null {
-    const card = readJson(this.f("cards", id)) as Card | null;
+    const card = readStored(this.f("cards", id)) as Card | null;
     if (!card) return null;
-    return { card, schedule: (readJson(this.f("schedule", id)) as Schedule | null) ?? newSchedule() };
+    return { card, schedule: (readStored(this.f("schedule", id)) as Schedule | null) ?? newSchedule() };
   }
 
   rejected(): Rejected[] {
@@ -96,12 +112,12 @@ export class RecallStore {
   /** A new card from the worker (or a restore). The schedule starts fresh: due now, unreviewed. */
   add(card: Card, schedule?: Schedule): void {
     writeJson(this.f("cards", card.id), card);
-    writeJson(this.f("schedule", card.id), schedule ?? newSchedule(new Date(card.createdAt).getTime() || Date.now()));
+    writeJson(this.f("schedule", card.id), schedule ?? newSchedule(new Date(card.created_at).getTime() || Date.now()));
   }
 
   /** New text for a card; the old wording goes into `previous`. The schedule is untouched. Returns the card, or null when unknown. */
   edit(id: string, text: { front?: string; back?: string; tags?: string[] }, by: "recall" | "you", now = Date.now()): Card | null {
-    const cur = readJson(this.f("cards", id)) as Card | null;
+    const cur = readStored(this.f("cards", id)) as Card | null;
     if (!cur) return null;
     const front = text.front?.trim() || cur.front;
     const back = text.back?.trim() || cur.back;
@@ -114,9 +130,9 @@ export class RecallStore {
       tags,
       ...(changedText
         ? {
-            updatedAt: new Date(now).toISOString(),
-            updatedBy: by,
-            previous: [...cur.previous, { front: cur.front, back: cur.back, at: cur.updatedAt, by: cur.updatedBy }].slice(-5),
+            updated_at: new Date(now).toISOString(),
+            updated_by: by,
+            previous: [...cur.previous, { front: cur.front, back: cur.back, at: cur.updated_at, by: cur.updated_by }].slice(-5),
           }
         : {}),
     };
@@ -147,7 +163,7 @@ export class RecallStore {
   /** Undo a delete: the card comes back with a fresh schedule (its history went with the delete). */
   restore(id: string): Card | null {
     // A file from disk: it may not hold a card at all.
-    const card = (readJson(this.f("rejected", id)) as Partial<Rejected> | null)?.card;
+    const card = (readStored(this.f("rejected", id)) as Partial<Rejected> | null)?.card;
     if (!card || !isRecallId(card.id)) return null;
     this.add(card);
     rmSync(this.f("rejected", id), { force: true });
@@ -163,10 +179,10 @@ export class RecallStore {
   leads(): Lead[] {
     return listJson<Lead>(this.p("leads"))
       .filter((l) => isRecallId(l.id) && typeof l.title === "string" && typeof l.why === "string")
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
   lead(id: string): Lead | null {
-    return readJson(this.f("leads", id)) as Lead | null;
+    return readStored(this.f("leads", id)) as Lead | null;
   }
   addLead(lead: Lead): void {
     writeJson(this.f("leads", lead.id), lead);
@@ -184,20 +200,20 @@ export class RecallStore {
     return rec;
   }
   restoreLead(id: string): Lead | null {
-    const lead = (readJson(this.f("leads-dismissed", id)) as Partial<DismissedLead> | null)?.lead;
+    const lead = (readStored(this.f("leads-dismissed", id)) as Partial<DismissedLead> | null)?.lead;
     if (!lead || !isRecallId(lead.id)) return null;
     this.addLead(lead);
     rmSync(this.f("leads-dismissed", id), { force: true });
     return lead;
   }
   lessons(): Lesson[] {
-    return listJson<Lesson>(this.p("lessons")).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    return listJson<Lesson>(this.p("lessons")).sort((a, b) => b.started_at.localeCompare(a.started_at));
   }
   /** The lead became a conversation: it leaves the pile and is remembered as a lesson. */
   startLesson(id: string, conversation: { agentId: string; conversationId: string }, now = Date.now()): Lesson | null {
     const lead = this.lead(id);
     if (!lead) return null;
-    const lesson: Lesson = { lead, agentId: conversation.agentId, conversationId: conversation.conversationId, startedAt: new Date(now).toISOString() };
+    const lesson: Lesson = { lead, agent_id: conversation.agentId, conversation_id: conversation.conversationId, started_at: new Date(now).toISOString() };
     writeJson(this.f("lessons", id), lesson);
     rmSync(this.f("leads", id), { force: true });
     return lesson;

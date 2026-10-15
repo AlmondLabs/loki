@@ -169,7 +169,7 @@ describe("deskView (app/src/desk/view.ts)", () => {
       title: id,
       data: {},
       hash: "",
-      updatedAt: 0,
+      updated_at: 0,
     });
     const widgets = { shared: [entry("shared/a"), entry("shared/b")], d: [entry("d/x"), entry("d/y")] };
     const desks = {

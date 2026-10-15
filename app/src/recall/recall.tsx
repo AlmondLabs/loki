@@ -65,7 +65,7 @@ export function Recall({
   };
   const open = () => {
     const s = current?.card.source;
-    if (s?.agentId && s.conversationId) onOpenDesk(s.agentId, s.conversationId);
+    if (s?.agent_id && s.conversation_id) onOpenDesk(s.agent_id, s.conversation_id);
   };
   // Space shows the answer, then stands for "got it"; the arrows show it first too, then answer — so a pass
   // through the deck is → → → with ← for the ones that slipped.
@@ -245,7 +245,7 @@ function ListsView({
               if (lesson) onBegin(lesson.agentId, lesson.conversationId, lesson.brief, lesson.title);
             })
           }
-          onResume={(s) => onBegin(s.agentId, s.conversationId, lessonBrief(s.lead), learnTitle(s.lead.title))}
+          onResume={(s) => onBegin(s.agent_id, s.conversation_id, lessonBrief(s.lead), learnTitle(s.lead.title))}
           onDismiss={(id) => void recall.dismissLead(id)}
           onOpen={onOpenDesk}
         />
@@ -266,7 +266,7 @@ function ListsView({
       {view === "deleted" && (
         <>
           <RejectedList rejected={snap.rejected} onRestore={(id) => void recall.restore(id)} onForget={(id) => void recall.forget(id)} />
-          <DismissedLeadList dismissed={snap.dismissedLeads} onRestore={(id) => void recall.restoreLead(id)} />
+          <DismissedLeadList dismissed={snap.dismissed_leads} onRestore={(id) => void recall.restoreLead(id)} />
         </>
       )}
     </>
@@ -278,8 +278,8 @@ function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pas
   const now = useNow();
   if (!snap) return <Meta>loading…</Meta>;
   if (snap.cards.length === 0) {
-    const ran = snap.worker.lastRunAt
-      ? ` The worker last ran ${describeGap(now - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.`
+    const ran = snap.worker.last_run_at
+      ? ` The worker last ran ${describeGap(now - new Date(snap.worker.last_run_at).getTime())} ago: ${snap.worker.last_run_note ?? ""}.`
       : " The worker has not run yet.";
     return (
       <Empty card title="Nothing to recall yet.">
@@ -336,7 +336,7 @@ function Deck({
   onCancel: () => void;
 }) {
   const gaps = previews(c.schedule);
-  const canOpen = !!(c.card.source.agentId && c.card.source.conversationId);
+  const canOpen = !!(c.card.source.agent_id && c.card.source.conversation_id);
   return (
     <section
       aria-label={`card ${position} of ${total}`}

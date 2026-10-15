@@ -1,5 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { PassSettings } from "../core/attention/protocol.ts";
+import { migrateKeys } from "../core/snake-keys.ts";
+
+export type { PassSettings };
 
 /**
  * What the background passes keep between runs (plan 018, KTD8): their settings, and each job's cursor in each chat
@@ -13,24 +17,18 @@ export type JobName = "reflection" | "learn";
 /** Every job, in the order the runner goes through them. */
 export const JOBS: readonly JobName[] = ["reflection", "learn"];
 
-/** The background passes' settings, as `passes.json` keeps them and Settings edits them; `dailyCap` is Learn's most cards a day across all agents. */
-export interface PassSettings {
-  reflection: { enabled: boolean };
-  learn: { enabled: boolean; dailyCap: number };
-}
-
 /** Learn's cards a day unless the person says otherwise: a ceiling, not a target (plan 018, R13). */
 export const DEFAULT_DAILY_CAP = 5;
 /** Learn's cap before the passes, which carries over as the new default rather than as a choice (KTD9). */
 const OLD_DEFAULT_DAILY_CAP = 25;
 
 /** The settings before the person changes any: reflection on, Learn off. */
-export const DEFAULT_SETTINGS: PassSettings = { reflection: { enabled: true }, learn: { enabled: false, dailyCap: DEFAULT_DAILY_CAP } };
+export const DEFAULT_SETTINGS: PassSettings = { reflection: { enabled: true }, learn: { enabled: false, daily_cap: DEFAULT_DAILY_CAP } };
 
 interface Cursors {
   cursors: Record<JobName, Record<string, number>>;
-  learnWritten: { day: string; count: number };
-  learnLast?: { at: string; note: string };
+  learn_written: { day: string; count: number };
+  learn_last?: { at: string; note: string };
 }
 
 const key = (agentId: string, chatId: string) => `${agentId}/${chatId}`;
@@ -52,12 +50,12 @@ function writeJson(file: string, value: unknown): void {
 
 /** Settings as read or sent, made whole: a missing field takes its default, and a cap that is not a non-negative number is DEFAULT_DAILY_CAP. */
 export function normalSettings(s: Partial<{ reflection: Partial<PassSettings["reflection"]>; learn: Partial<PassSettings["learn"]> }> | null): PassSettings {
-  const cap = s?.learn?.dailyCap;
+  const cap = s?.learn?.daily_cap;
   return {
     reflection: { enabled: s?.reflection?.enabled ?? DEFAULT_SETTINGS.reflection.enabled },
     learn: {
       enabled: s?.learn?.enabled ?? DEFAULT_SETTINGS.learn.enabled,
-      dailyCap: typeof cap === "number" && Number.isFinite(cap) && cap >= 0 ? Math.round(cap) : DEFAULT_DAILY_CAP,
+      daily_cap: typeof cap === "number" && Number.isFinite(cap) && cap >= 0 ? Math.round(cap) : DEFAULT_DAILY_CAP,
     },
   };
 }
@@ -71,12 +69,14 @@ export class PassState {
   constructor(stateDir: string) {
     this.settingsFile = join(stateDir, "passes.json");
     this.cursorsFile = join(stateDir, "pass-cursors.json");
-    const read = readJson(this.cursorsFile) as Partial<Cursors> | null;
+    const { value: read, changed } = migrateKeys(readJson(this.cursorsFile) as Partial<Cursors> | null);
     this.data = {
       cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } },
-      learnWritten: read?.learnWritten ?? { day: "", count: 0 },
-      ...(read?.learnLast ? { learnLast: read.learnLast } : {}),
+      learn_written: read?.learn_written ?? { day: "", count: 0 },
+      ...(read?.learn_last ? { learn_last: read.learn_last } : {}),
     };
+    // Saved camelCase before October 2026: written back once in the new shape.
+    if (changed) this.save();
   }
 
   /**
@@ -88,7 +88,11 @@ export class PassState {
   }
 
   settings(): PassSettings {
-    return normalSettings(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
+    const { value, changed } = migrateKeys(readJson(this.settingsFile) as Parameters<typeof normalSettings>[0]);
+    const settings = normalSettings(value);
+    // Saved camelCase (`dailyCap`) before October 2026: written back once in the new shape.
+    if (changed) writeJson(this.settingsFile, settings);
+    return settings;
   }
 
   setSettings(s: Parameters<typeof normalSettings>[0]): PassSettings {
@@ -108,21 +112,21 @@ export class PassState {
 
   /** Cards Learn has written on `day` (an ISO date). */
   writtenOn(day: string): number {
-    return this.data.learnWritten.day === day ? this.data.learnWritten.count : 0;
+    return this.data.learn_written.day === day ? this.data.learn_written.count : 0;
   }
 
   noteWritten(day: string, count: number): void {
-    this.data.learnWritten = { day, count: this.writtenOn(day) + count };
+    this.data.learn_written = { day, count: this.writtenOn(day) + count };
     this.save();
   }
 
   /** Learn's last run and a line on what it did, for the Learn section's status. */
   learnLast(): { at: string; note: string } | null {
-    return this.data.learnLast ?? null;
+    return this.data.learn_last ?? null;
   }
 
   noteLearnRun(at: string, note: string): void {
-    this.data.learnLast = { at, note };
+    this.data.learn_last = { at, note };
     this.save();
   }
 
@@ -146,7 +150,7 @@ export class PassState {
       written?: { day?: string; count?: number };
     } | null;
     for (const [k, at] of Object.entries(worker?.cursors ?? {})) if (typeof at === "number") this.data.cursors.learn[k] = at;
-    if (worker?.written?.day) this.data.learnWritten = { day: worker.written.day, count: worker.written.count ?? 0 };
+    if (worker?.written?.day) this.data.learn_written = { day: worker.written.day, count: worker.written.count ?? 0 };
     for (const agentId of dirs(old.reflectionRoot)) {
       for (const chatId of dirs(join(old.reflectionRoot, agentId))) {
         const at = (readJson(join(old.reflectionRoot, agentId, chatId, "state.json")) as { reflected_through?: number } | null)?.reflected_through;
@@ -160,7 +164,7 @@ export class PassState {
       this.settingsFile,
       normalSettings({
         reflection: { enabled: reflection?.trigger !== "off" },
-        learn: { enabled: worker?.enabled === true, dailyCap: cap === undefined || cap === OLD_DEFAULT_DAILY_CAP ? DEFAULT_DAILY_CAP : cap },
+        learn: { enabled: worker?.enabled === true, daily_cap: cap === undefined || cap === OLD_DEFAULT_DAILY_CAP ? DEFAULT_DAILY_CAP : cap },
       }),
     );
   }

@@ -16,7 +16,7 @@ const sleep: WidgetManifestEntry = {
   type: "slider-control",
   data: { value: 6 },
   hash: "h",
-  updatedAt: 0,
+  updated_at: 0,
   error: 'missing "title"',
 };
 const welcome: WidgetManifestEntry = {
@@ -86,10 +86,10 @@ function harness(deps?: Partial<ToolDeps>) {
 /** What desk_state answers, as the tests read it. */
 interface DeskState {
   desk: string;
-  widgetsDir: string;
+  widgets_dir: string;
   widgets: Array<{ id: string }>;
   shared?: Array<{ error?: unknown }>;
-  pendingCanvasActivity: unknown;
+  pending_canvas_activity: unknown;
 }
 const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]>[0]) =>
   JSON.parse((await must(tools.get("desk_state"), "the desk_state tool").run(c)) as string) as DeskState;
@@ -108,11 +108,11 @@ describe("desk_state", () => {
     const { tools } = harness();
     const out = await deskState(tools, { args: {} });
     expect(out.desk).toBe("c1");
-    expect(out.widgetsDir).toBe("/proj/app/src/widgets/c1");
+    expect(out.widgets_dir).toBe("/proj/app/src/widgets/c1");
     expect(out.widgets[0]).toMatchObject({ id: "c1/sleep", file: "/proj/app/src/widgets/c1/sleep.json", data: { value: 7 }, error: 'missing "title"' });
     expect(must(out.shared, "the shared desk")[0]).toMatchObject({ id: "shared/welcome", data: { lines: ["a"] } });
     expect(must(out.shared, "the shared desk")[0].error).toBeUndefined();
-    expect(out.pendingCanvasActivity).toEqual(["moved something"]);
+    expect(out.pending_canvas_activity).toEqual(["moved something"]);
   });
   test("the desk comes from the calling conversation, not the mod's active desk", async () => {
     const remembered: string[] = [];
@@ -143,7 +143,7 @@ describe("desk_camera", () => {
     const { tools, broadcasts } = harness();
     const cam = must(tools.get("desk_camera"), "the desk_camera tool");
     expect(await cam.run({ args: { widget_id: "c1/sleep" } })).toMatch(/gliding/);
-    expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep"] }, "c1"]);
+    expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep"] }, "c1"]);
     await cam.run({ args: { widget_id: "shared/welcome" } });
     expect(broadcasts[1][1]).toBeUndefined();
     // A bad call fails, with what to do about it.
@@ -158,7 +158,7 @@ describe("desk_camera", () => {
     const out = await cam.run({ args: { widget_ids: ["c1/sleep", "shared/welcome"], dwell: 120 } });
     expect(Date.now() - t).toBeGreaterThanOrEqual(110);
     expect(out).toMatch(/framing 2 widgets, held 120ms/);
-    expect(broadcasts[0]).toEqual([{ type: "camera", widgetId: "c1/sleep", widgetIds: ["c1/sleep", "shared/welcome"] }, undefined]);
+    expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep", "shared/welcome"] }, undefined]);
   });
 });
 
@@ -171,18 +171,18 @@ describe("tasks: a chat's own tasks, and only you close yours", () => {
     priority: 2,
     labels: [],
     assignee: null,
-    createdAt: "",
-    updatedAt: "",
-    closedAt: null,
+    created_at: "",
+    updated_at: "",
+    closed_at: null,
     metadata,
   });
   function withTasks() {
     const tasks = [
-      task("lk-mine", { by: "you", assignedTo: "c1" }),
+      task("lk-mine", { by: "you", assigned_to: "c1" }),
       { ...task("lk-agent", { by: "agent", agent: "friday", conversation: "c1" }), assignee: "friday-old-name" },
-      task("lk-other", { by: "you", assignedTo: "c2" }),
+      task("lk-other", { by: "you", assigned_to: "c2" }),
       task("lk-loose", { by: "you" }),
-      task("lk-done", { by: "agent", assignedTo: "c1" }, "closed"),
+      task("lk-done", { by: "agent", assigned_to: "c1" }, "closed"),
     ];
     const calls: string[] = [];
     const store = {

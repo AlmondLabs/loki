@@ -4,7 +4,7 @@ import { byScore } from "./priority.ts";
 /** What needs you: an agent stopped on you, a failed turn, or something new from the agent. The badges count these. */
 const NEEDS_YOU: AttentionStatus[] = ["approval", "question", "failed", "done"];
 /** A card's identity in the Inbox and a visit's decisions: "agentId/conversationId". */
-export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
+export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
 /**
  * What about this item you would be deciding on. Keyed on content — the last
  * thing the agent said and the pending approval — not on timestamps: turn

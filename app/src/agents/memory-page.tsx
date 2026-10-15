@@ -80,12 +80,12 @@ function Tree({ files, current, onPick }: { files: MemoryFile[]; current: string
               key={f.path}
               selected={current === f.path}
               onClick={() => onPick(f.path)}
-              title={`${f.bytes} bytes · ${ago(f.modifiedAt)}`}
+              title={`${f.bytes} bytes · ${ago(f.modified_at)}`}
               style={{ justifyContent: "space-between", gap: 8, fontSize: 12 }}
             >
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g ? f.path.slice(g.length + 1) : f.path}</span>
               <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
-                {ago(f.modifiedAt)}
+                {ago(f.modified_at)}
               </span>
             </Row>
           ))}

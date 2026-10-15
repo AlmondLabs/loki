@@ -13,11 +13,11 @@ const card = (id: string, over: Partial<Card> = {}): Card => ({
   front: `q ${id}`,
   back: `a ${id}`,
   tags: ["t"],
-  createdAt: new Date(T0).toISOString(),
-  updatedAt: new Date(T0).toISOString(),
-  updatedBy: "recall",
+  created_at: new Date(T0).toISOString(),
+  updated_at: new Date(T0).toISOString(),
+  updated_by: "recall",
   previous: [],
-  source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null },
+  source: { agent_id: "a", agent_name: "ira", conversation_id: "c", title: "main chat", at: null },
   ...over,
 });
 
@@ -59,11 +59,11 @@ describe("recall store", () => {
     }
   });
   test("add writes a card file and a fresh schedule; cards come back oldest first", () => {
-    store.add(card("b", { createdAt: "2026-09-10T10:00:00Z" }));
-    store.add(card("a", { createdAt: "2026-09-10T09:00:00Z" }));
+    store.add(card("b", { created_at: "2026-09-10T10:00:00Z" }));
+    store.add(card("a", { created_at: "2026-09-10T09:00:00Z" }));
     const rows = store.cards();
     expect(rows.map((r) => r.card.id)).toEqual(["a", "b"]);
-    expect(rows[0].schedule.lastReview).toBeNull();
+    expect(rows[0].schedule.last_review).toBeNull();
     expect((JSON.parse(readFileSync(join(dir, "cards", "a.json"), "utf8")) as { front: unknown }).front).toBe("q a");
   });
   test("grade writes the schedule only; the card file is untouched", () => {
@@ -71,7 +71,7 @@ describe("recall store", () => {
     const before = readFileSync(join(dir, "cards", "a.json"), "utf8");
     const s = must(store.grade("a", 3, T0), "the schedule");
     expect(s.reps).toBe(1);
-    expect(s.lastReview).toBe(new Date(T0).toISOString());
+    expect(s.last_review).toBe(new Date(T0).toISOString());
     expect(readFileSync(join(dir, "cards", "a.json"), "utf8")).toBe(before);
     expect(store.grade("nope", 3, T0)).toBeNull();
   });
@@ -80,7 +80,7 @@ describe("recall store", () => {
     store.grade("a", 3, T0);
     const c = must(store.edit("a", { back: "a better answer" }, "you", T0 + 1000), "the edited card");
     expect(c.back).toBe("a better answer");
-    expect(c.updatedBy).toBe("you");
+    expect(c.updated_by).toBe("you");
     expect(c.previous).toHaveLength(1);
     expect(c.previous[0].back).toBe("a a");
     expect(must(store.card("a"), "card a").schedule.reps).toBe(1);
@@ -88,7 +88,7 @@ describe("recall store", () => {
     const t = must(store.edit("a", { tags: ["x"] }, "recall", T0 + 2000), "the edited card");
     expect(t.tags).toEqual(["x"]);
     expect(t.previous).toHaveLength(1);
-    expect(t.updatedBy).toBe("you");
+    expect(t.updated_by).toBe("you");
   });
   test("reject moves the card to the pile with its rep count; restore brings it back fresh; forget drops it", () => {
     store.add(card("a"));
@@ -126,8 +126,8 @@ describe("leads and lessons", () => {
     title,
     why: "it went by",
     depth: "primer",
-    source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null },
-    createdAt: new Date(T0).toISOString(),
+    source: { agent_id: "a", agent_name: "ira", conversation_id: "c", title: "main chat", at: null },
+    created_at: new Date(T0).toISOString(),
   });
   test("a lead is added, dismissed to its pile, and restored", () => {
     store.addLead(lead("l1"));
@@ -149,9 +149,9 @@ describe("leads and lessons", () => {
   test("starting a lead records the lesson and takes the lead off the pile", () => {
     store.addLead(lead("l1"));
     const lesson = store.startLesson("l1", { agentId: "a", conversationId: "conv-9" }, T0);
-    expect(lesson).toMatchObject({ agentId: "a", conversationId: "conv-9", lead: { id: "l1" } });
+    expect(lesson).toMatchObject({ agent_id: "a", conversation_id: "conv-9", lead: { id: "l1" } });
     expect(store.leads()).toEqual([]);
-    expect(store.lessons()[0].conversationId).toBe("conv-9");
+    expect(store.lessons()[0].conversation_id).toBe("conv-9");
     expect(store.startLesson("l1", { agentId: "a", conversationId: "x" })).toBeNull();
   });
   test("Learn conversations are named by prefix and recognised by it", () => {
@@ -168,9 +168,9 @@ describe("learn: the views in the list column", () => {
     cards: [],
     rejected: [],
     leads: [],
-    dismissedLeads: [],
+    dismissed_leads: [],
     lessons: [],
-    worker: { enabled: true, dailyCap: 20, lastRunAt: null, lastRunNote: null, writtenToday: 0 },
+    worker: { enabled: true, daily_cap: 20, last_run_at: null, last_run_note: null, written_today: 0 },
     ...over,
   });
 
@@ -180,7 +180,7 @@ describe("learn: the views in the list column", () => {
         cards: [{}, {}, {}] as RecallSnapshot["cards"],
         leads: [{}] as RecallSnapshot["leads"],
         rejected: [{}] as RecallSnapshot["rejected"],
-        dismissedLeads: [{}, {}] as RecallSnapshot["dismissedLeads"],
+        dismissed_leads: [{}, {}] as RecallSnapshot["dismissed_leads"],
       }),
       2,
     );

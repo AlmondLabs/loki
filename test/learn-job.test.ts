@@ -38,7 +38,7 @@ async function setup(opts: { cap?: number } = {}) {
   const chats = new ChatProjection(ctx, () => "Ada");
   chats.follow(stores);
   const state = new PassState(join(dir, "state"));
-  state.setSettings({ reflection: { enabled: false }, learn: { enabled: true, dailyCap: opts.cap ?? 5 } });
+  state.setSettings({ reflection: { enabled: false }, learn: { enabled: true, daily_cap: opts.cap ?? 5 } });
   const recall = new RecallStore(join(dir, "recall"));
   // A minute ahead of the messages, so every chat counts as quiet.
   let now = new Date(Date.now() + 60_000);
@@ -115,7 +115,7 @@ describe("Learn on the background passes", () => {
       expect(s.prompts).toHaveLength(1);
       expect(s.prompts[0]).toContain('id=\\"s1\\"');
       expect(s.prompts[0]).toContain('id=\\"s2\\"');
-      const byFront = new Map(s.recall.cards().map((c) => [c.card.front, c.card.source.conversationId]));
+      const byFront = new Map(s.recall.cards().map((c) => [c.card.front, c.card.source.conversation_id]));
       expect(byFront.get("How does a river delta build land?")).toBe("c1");
       expect(byFront.get("What shapes an estuary?")).toBe("c2");
       for (const c of ["c1", "c2"]) expect(s.state.cursor("learn", s.agentId, c)).toBe(s.entries(c));
@@ -138,7 +138,7 @@ describe("Learn on the background passes", () => {
       );
       await s.runner.sweep();
       expect(s.recall.cards().map((c) => c.card.front)).toEqual(["How does a river delta build land?"]);
-      expect(s.recall.cards()[0].card.source).toMatchObject({ agentId: s.agentId, conversationId: "c1", title: "chat c1" });
+      expect(s.recall.cards()[0].card.source).toMatchObject({ agent_id: s.agentId, conversation_id: "c1", title: "chat c1" });
       expect(s.recall.leads().map((l) => l.title)).toEqual(["Sediment transport"]);
       expect(s.state.writtenOn(isoDay(Date.now() + 60_000))).toBe(1);
       expect(s.state.cursor("learn", s.agentId, "c1")).toBe(s.entries("c1"));
@@ -192,10 +192,10 @@ describe("Learn on the background passes", () => {
       s.recall.add({
         id: "k1",
         ...card("What is a delta?"),
-        source: { agentId: s.agentId, agentName: "Ada", conversationId: "old", title: null, at: null },
-        createdAt: "2026-10-01T00:00:00Z",
-        updatedAt: "2026-10-01T00:00:00Z",
-        updatedBy: "recall",
+        source: { agent_id: s.agentId, agent_name: "Ada", conversation_id: "old", title: null, at: null },
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-01T00:00:00Z",
+        updated_by: "recall",
         previous: [],
       });
       s.recall.reject("k1");
@@ -219,10 +219,10 @@ describe("Learn on the background passes", () => {
         front: "Why does a delta grow?",
         back: "rivers",
         tags: [],
-        source: { agentId: s.agentId, agentName: "Ada", conversationId: "old", title: "old", at: null },
-        createdAt: "2026-10-01T00:00:00Z",
-        updatedAt: "2026-10-01T00:00:00Z",
-        updatedBy: "recall",
+        source: { agent_id: s.agentId, agent_name: "Ada", conversation_id: "old", title: "old", at: null },
+        created_at: "2026-10-01T00:00:00Z",
+        updated_at: "2026-10-01T00:00:00Z",
+        updated_by: "recall",
         previous: [],
       });
       // Missed again and again since it was last written.
@@ -247,8 +247,8 @@ describe("Learn on the background passes", () => {
         title,
         why: "w",
         depth: "primer" as const,
-        source: { agentId: s.agentId, agentName: "Ada", conversationId: "x", title: null, at: null },
-        createdAt: "2026-10-01T00:00:00Z",
+        source: { agent_id: s.agentId, agent_name: "Ada", conversation_id: "x", title: null, at: null },
+        created_at: "2026-10-01T00:00:00Z",
       });
       s.recall.addLead(lead("d1", "Sediment transport"));
       s.recall.dismissLead("d1");

@@ -40,7 +40,7 @@ export function lanStatusFromFrame(msg: Record<string, unknown>): PhoneLanStatus
       running: o.running === true,
       ip: str(o.ip),
       name: str(o.name),
-      serveUrl: str(o.serveUrl),
+      serve_url: str(o.serve_url),
       error: str(o.error),
     };
   }
@@ -50,7 +50,7 @@ export function lanStatusFromFrame(msg: Record<string, unknown>): PhoneLanStatus
     addresses: Array.isArray(msg.addresses) ? (msg.addresses as unknown[]).filter((a): a is string => typeof a === "string") : [],
     host: str(msg.host),
     port: typeof msg.port === "number" ? msg.port : 41415,
-    appServed: msg.appServed === true,
+    app_served: msg.app_served === true,
     error: str(msg.error),
     // The tailnet is a route only while it runs; an older mod sends neither field and the QR carries the Wi‑Fi.
     via: msg.via === "tailscale" && tailscale?.running ? "tailscale" : "lan",
@@ -65,7 +65,7 @@ export function lanStatusFromFrame(msg: Record<string, unknown>): PhoneLanStatus
 export function pairOrigin(s: PhoneLanStatus): string | null {
   const ts = s.tailscale;
   if (s.via === "tailscale" && ts?.running) {
-    if (ts.serveUrl) return ts.serveUrl;
+    if (ts.serve_url) return ts.serve_url;
     if (ts.name) return `http://${ts.name}:${s.port}`;
     if (ts.ip) return `http://${ts.ip}:${s.port}`;
   }
@@ -105,7 +105,7 @@ export function wifiAddress(s: PhoneLanStatus): string {
  */
 export function tailnetAddress(s: PhoneLanStatus): string | null {
   const ts = s.tailscale;
-  return ts?.serveUrl ? ts.serveUrl.replace(/^https:\/\//, "") + " · https" : ts?.name ? `${ts.name}:${s.port}` : ts?.ip ? `${ts.ip}:${s.port}` : null;
+  return ts?.serve_url ? ts.serve_url.replace(/^https:\/\//, "") + " · https" : ts?.name ? `${ts.name}:${s.port}` : ts?.ip ? `${ts.ip}:${s.port}` : null;
 }
 
 /** A fresh pairing code (`pair_code`). */
@@ -198,10 +198,10 @@ export function lastSeen(iso: string | null | undefined, now: number = Date.now(
 /** An agent's name: the daemon's list first, then any desk of its; null when neither knows it. */
 export function agentNameOf(
   agents: Array<{ id: string; name: string }>,
-  desks: Array<{ agentId: string | null; agentName: string | null }>,
+  desks: Array<{ agent_id: string | null; agent_name: string | null }>,
   id: string,
 ): string | null {
-  return agents.find((a) => a.id === id)?.name ?? desks.find((d) => d.agentId === id)?.agentName ?? null;
+  return agents.find((a) => a.id === id)?.name ?? desks.find((d) => d.agent_id === id)?.agent_name ?? null;
 }
 
 /**
@@ -210,18 +210,18 @@ export function agentNameOf(
  */
 export function threadFor(
   conv: { agentId: string; conversationId: string },
-  desks: Array<{ agentId: string | null; conversationId: string | null; title: string | null; agentName: string | null }>,
-  items: Array<{ agentId: string; id: string; title: string | null; agentName: string | null }>,
+  desks: Array<{ agent_id: string | null; conversation_id: string | null; title: string | null; agent_name: string | null }>,
+  items: Array<{ agent_id: string; id: string; title: string | null; agent_name: string | null }>,
   agents: Array<{ id: string; name: string }>,
 ): { agentId: string; conversationId: string; title: string | null; agentName: string | null } {
-  const convDesk = desks.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
-  const convItem = items.find((i) => i.agentId === conv.agentId && i.id === conv.conversationId);
+  const convDesk = desks.find((d) => d.agent_id === conv.agentId && d.conversation_id === conv.conversationId);
+  const convItem = items.find((i) => i.agent_id === conv.agentId && i.id === conv.conversationId);
   return {
     agentId: conv.agentId,
     conversationId: conv.conversationId,
     title:
       convDesk?.title ?? convItem?.title ?? (conv.conversationId === "default" ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat` : null),
-    agentName: convDesk?.agentName ?? convItem?.agentName ?? agentNameOf(agents, desks, conv.agentId),
+    agentName: convDesk?.agent_name ?? convItem?.agent_name ?? agentNameOf(agents, desks, conv.agentId),
   };
 }
 
@@ -230,11 +230,11 @@ export function threadFor(
  * last message read as one) how long it has waited; otherwise how long since the last message.
  */
 export function waitingSince(
-  item: { status: string; lastMessageAt: string | null; pendingApproval: { at: string | null } | null; pendingQuestion: { at: string } | null },
+  item: { status: string; last_message_at: string | null; pendingApproval: { at: string | null } | null; pendingQuestion: { at: string } | null },
   now: number = Date.now(),
 ): string {
   const at =
-    item.status === "approval" ? (item.pendingApproval?.at ?? item.lastMessageAt) : item.pendingQuestion ? item.pendingQuestion.at : item.lastMessageAt;
+    item.status === "approval" ? (item.pendingApproval?.at ?? item.last_message_at) : item.pendingQuestion ? item.pendingQuestion.at : item.last_message_at;
   const since = lastSeen(at, now);
   const asks = !!item.pendingQuestion || item.status === "question";
   const blocked = !!item.pendingApproval || asks;
@@ -242,8 +242,8 @@ export function waitingSince(
 }
 
 /** How many live desks an agent has — the "n desks live" under its row. */
-export function liveDeskCount(desks: Array<{ agentId: string | null; status: string }>, agentId: string): number {
-  return desks.filter((d) => d.agentId === agentId && d.status === "live").length;
+export function liveDeskCount(desks: Array<{ agent_id: string | null; status: string }>, agentId: string): number {
+  return desks.filter((d) => d.agent_id === agentId && d.status === "live").length;
 }
 
 /** "3 desks live", "1 desk live", "no desks live". */
@@ -275,7 +275,7 @@ export interface MemoryFolder {
  * The memory tree the way the desktop groups it: by first folder, `system` first, the root's files
  * last; skills and the face are the agent's other views and stay out. `name` is the path inside the folder.
  */
-export function memoryFolders(files: Array<{ path: string; bytes: number; modifiedAt: string }>): MemoryFolder[] {
+export function memoryFolders(files: Array<{ path: string; bytes: number; modified_at: string }>): MemoryFolder[] {
   const m = new Map<string, MemoryFolder>();
   for (const f of files) {
     if (f.path.startsWith("skills/") || f.path === "profile.png") continue;
@@ -286,7 +286,7 @@ export function memoryFolders(files: Array<{ path: string; bytes: number; modifi
       group = { name: g, files: [] };
       m.set(g, group);
     }
-    group.files.push({ path: f.path, name: g ? f.path.slice(g.length + 1) : f.path, bytes: f.bytes, modifiedAt: f.modifiedAt });
+    group.files.push({ path: f.path, name: g ? f.path.slice(g.length + 1) : f.path, bytes: f.bytes, modifiedAt: f.modified_at });
   }
   const rank = (g: string) => (g === "system" ? 0 : g === "" ? 2 : 1);
   return [...m.values()].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
@@ -338,7 +338,7 @@ const norm = (q: string) => q.trim().toLowerCase();
  * sheet has none on a phone), in the desk list's order, narrowed by the agent scope and the filter.
  */
 export function archiveList(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
-  return archivedDesks(desks, agentFilter, norm(q)).filter((d) => d.agentId && d.conversationId);
+  return archivedDesks(desks, agentFilter, norm(q)).filter((d) => d.agent_id && d.conversation_id);
 }
 
 /** The counts on Home's shortcuts. */
@@ -368,7 +368,7 @@ export function homeCounts({
     inbox: catchUpQueue(items).length,
     learn: due,
     agents: agents.length,
-    running: new Set(items.filter((i) => i.status === "running").map((i) => i.agentId)).size,
+    running: new Set(items.filter((i) => i.status === "running").map((i) => i.agent_id)).size,
     archive: archiveList(desks, null, "").length,
   };
 }
@@ -397,11 +397,11 @@ export function homeDeskSections(
   query: string,
   agents: Array<{ id: string; name: string | null }>,
 ): SidebarSection[] {
-  const above = new Set(attention.map((a) => `${a.item.agentId}/${a.item.id}`));
+  const above = new Set(attention.map((a) => `${a.item.agent_id}/${a.item.id}`));
   const named = agents.flatMap((a) => (a.name ? [{ id: a.id, name: a.name }] : []));
   return sidebarModel(desks, items, { query, agents: named })
     .sections.map((sec) => {
-      const rows = sec.rows.filter((r) => !above.has(`${r.desk.agentId}/${r.desk.conversationId}`));
+      const rows = sec.rows.filter((r) => !above.has(`${r.desk.agent_id}/${r.desk.conversation_id}`));
       return { ...sec, rows, waiting: rows.filter((r) => r.kind === "waits").length };
     })
     .filter((sec) => sec.rows.length > 0);
@@ -428,20 +428,20 @@ export function homeSections(
 ): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
   const q = norm(query);
   const byKey = new Map<string, DeskSummary>();
-  for (const d of desks) if (d.agentId && d.conversationId) byKey.set(`${d.agentId}/${d.conversationId}`, d);
+  for (const d of desks) if (d.agent_id && d.conversation_id) byKey.set(`${d.agent_id}/${d.conversation_id}`, d);
   const waiting = catchUpQueue(items)
-    .map((item) => ({ item, desk: byKey.get(`${item.agentId}/${item.id}`) }))
+    .map((item) => ({ item, desk: byKey.get(`${item.agent_id}/${item.id}`) }))
     .filter(
       ({ item, desk }) =>
-        (!agentFilter || item.agentId === agentFilter) &&
-        (!q || [desk?.title, item.title, item.agentName ?? desk?.agentName].some((s) => (s ?? "").toLowerCase().includes(q))),
+        (!agentFilter || item.agent_id === agentFilter) &&
+        (!q || [desk?.title, item.title, item.agent_name ?? desk?.agent_name].some((s) => (s ?? "").toLowerCase().includes(q))),
     );
   const attention = waiting.slice(0, max);
-  const shown = new Set(attention.map(({ item }) => `${item.agentId}/${item.id}`));
+  const shown = new Set(attention.map(({ item }) => `${item.agent_id}/${item.id}`));
   return {
     attention,
     more: waiting.length - attention.length,
-    desks: liveDesks(desks, agentFilter, q).filter((d) => !shown.has(`${d.agentId}/${d.conversationId}`)),
+    desks: liveDesks(desks, agentFilter, q).filter((d) => !shown.has(`${d.agent_id}/${d.conversation_id}`)),
   };
 }
 
@@ -504,7 +504,7 @@ export interface AgentRowModel {
 /** The Agents list in the daemon's order, so rows keep their place while states change under them. */
 export function agentRows(
   agents: Array<{ id: string; name: string }>,
-  desks: Array<{ agentId: string | null; status: string }>,
+  desks: Array<{ agent_id: string | null; status: string }>,
   items: AttentionItem[],
 ): AgentRowModel[] {
   const ready = catchUpQueue(items);
@@ -512,8 +512,8 @@ export function agentRows(
     id: a.id,
     name: a.name,
     live: liveDeskCount(desks, a.id),
-    running: items.some((i) => i.agentId === a.id && i.status === "running"),
-    waiting: ready.filter((i) => i.agentId === a.id).length,
+    running: items.some((i) => i.agent_id === a.id && i.status === "running"),
+    waiting: ready.filter((i) => i.agent_id === a.id).length,
   }));
 }
 

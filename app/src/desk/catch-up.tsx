@@ -97,10 +97,10 @@ function CatchUpDeck(props: DeckProps) {
   const { onClose, items, conversation, loadHistory, onOpenDesk } = props;
   /** The agent pill on: only that agent's cards come up this visit; null is All. */
   const [agent, setAgent] = useState<string | null>(null);
-  const shown = useMemo(() => (agent ? items.filter((i) => i.agentId === agent) : items), [items, agent]);
+  const shown = useMemo(() => (agent ? items.filter((i) => i.agent_id === agent) : items), [items, agent]);
   const { queue, setQueue, decided: allDecided, setDecided } = useDeckQueue(shown, agent);
   // What undo takes back: this agent's part of the visit.
-  const decided = agent ? allDecided.filter((d) => d.item.agentId === agent) : allDecided;
+  const decided = agent ? allDecided.filter((d) => d.item.agent_id === agent) : allDecided;
   /** /model and /mode typed in the box open the card's own chips; the Conversation opens them on a tick. */
   const [modelTick, setModelTick] = useState(0);
   const [modeTick, setModeTick] = useState(0);
@@ -113,7 +113,7 @@ function CatchUpDeck(props: DeckProps) {
   const current = queue[0] ? (live.get(idOf(queue[0])) ?? queue[0]) : undefined;
   // The reply box unmounts with the last card without a blur event; without a card there is nothing to type into.
   const typing = typingRaw && !!current;
-  const thread = current ? conversation(current.agentId, current.id) : undefined;
+  const thread = current ? conversation(current.agent_id, current.id) : undefined;
 
   // /model and /mode are the card's own chips; everything else goes up (loki's keymap actions, the harness's commands).
   const runCommand = (item: AttentionItem, id: string, args: string) => {
@@ -158,7 +158,7 @@ function CatchUpDeck(props: DeckProps) {
   });
 
   // Fetch the thread once when a card becomes current; live rows stream in on top of it.
-  const currentAgentId = current?.agentId;
+  const currentAgentId = current?.agent_id;
   const currentCardId = current?.id;
   const loadCurrent = useEffectEvent(() => {
     if (current) loadHistory(current);
@@ -280,11 +280,11 @@ function Card({
 }) {
   // a waiting card keeps a neutral frame: the red is for the badge's dot, never a panel
   const badgeColor = needsYou(current.status) ? "var(--loki-border)" : BADGE[current.status].color;
-  const { agentId, id } = current;
+  const { agent_id: agentId, id } = current;
   const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop } = deck;
   const question = current.pendingQuestion;
   // The card's chat's widgets, drawn under the rows that made them; the card is the place to use them.
-  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread?.rows, current.agentName ?? null);
+  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread?.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
   return (
     <div
@@ -327,7 +327,7 @@ function Card({
         }}
         models={deck.models ?? null}
         layout={layout}
-        agentName={current.agentName}
+        agentName={current.agent_name}
         header={<CardHeader current={current} cameBack={cameBackIn(decided, current)} flash={actions.flash} />}
         footer={
           <CardActions current={current} typing={typing} next={actions.next} archive={actions.archive} onOpenDesk={deck.onOpenDesk} onClose={deck.onClose} />

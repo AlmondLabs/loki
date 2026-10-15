@@ -43,10 +43,10 @@ import {
 
 const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({
   id,
-  agentId: "a1",
-  agentName: "ira",
+  agent_id: "a1",
+  agent_name: "ira",
   title: id,
-  lastMessageAt: "2026-09-07T10:00:00Z",
+  last_message_at: "2026-09-07T10:00:00Z",
   archived: false,
   status: "done",
   lastAssistantText: "x",
@@ -196,7 +196,7 @@ describe("dismissed unless the stamp changed", () => {
     const d = dismiss(new Map(), a);
     expect(visibleQueue([a, b], d).map((i) => i.id)).toEqual(["b"]);
     expect(visibleQueue([b, a], d).map((i) => i.id)).toEqual(["b"]);
-    const bumped = item("a", { lastMessageAt: "2026-09-07T10:05:00Z" });
+    const bumped = item("a", { last_message_at: "2026-09-07T10:05:00Z" });
     expect(stampOf(bumped)).toBe(stampOf(a));
     expect(visibleQueue([bumped, b], d).map((i) => i.id)).toEqual(["b"]);
   });
@@ -363,12 +363,12 @@ describe("what the card says", () => {
     expect(dayLabel("not a date", now)).toBeNull();
   });
   test("the notice says what the agent waits on, or what it is doing after your reply", () => {
-    expect(cardNotice({ status: "done", agentName: "friday" }, "idle")).toBeNull(); // a plain wait: the box's "Message friday" says it
-    expect(cardNotice({ status: "approval", agentName: "friday" }, "idle")).toBe("friday needs your approval");
-    expect(cardNotice({ status: "question", agentName: "friday" }, "idle")).toBe("friday asked you something");
-    expect(cardNotice({ status: "failed", agentName: null }, "idle")).toBe("The agent's last turn failed");
-    expect(cardNotice({ status: "running", agentName: "friday" }, "idle")).toBe("friday is working");
-    expect(cardNotice({ status: "done", agentName: "friday" }, "streaming")).toBe("friday is writing");
+    expect(cardNotice({ status: "done", agent_name: "friday" }, "idle")).toBeNull(); // a plain wait: the box's "Message friday" says it
+    expect(cardNotice({ status: "approval", agent_name: "friday" }, "idle")).toBe("friday needs your approval");
+    expect(cardNotice({ status: "question", agent_name: "friday" }, "idle")).toBe("friday asked you something");
+    expect(cardNotice({ status: "failed", agent_name: null }, "idle")).toBe("The agent's last turn failed");
+    expect(cardNotice({ status: "running", agent_name: "friday" }, "idle")).toBe("friday is working");
+    expect(cardNotice({ status: "done", agent_name: "friday" }, "streaming")).toBe("friday is writing");
   });
   test("screen readers hear the outcome and the next card", () => {
     expect(reviewAnnouncement("seen", { id: "b", title: "Fix the shell" }, 2)).toBe("Moved on. Next: Fix the shell.");

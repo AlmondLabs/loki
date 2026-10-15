@@ -19,13 +19,13 @@ export function SourceLine({ c }: { c: CardWithSchedule }) {
   const { source } = c.card;
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
-      {source.agentName && <Chip static>{source.agentName}</Chip>}
+      {source.agent_name && <Chip static>{source.agent_name}</Chip>}
       <Meta>
         {source.title ?? "a conversation"}
         {source.at ? ` · ${ago(source.at)}` : ""}
       </Meta>
       {isNew(c.schedule) && <Meta brass>new</Meta>}
-      {updatedSinceReview(c) && <Meta brass>updated by recall · {ago(c.card.updatedAt)}</Meta>}
+      {updatedSinceReview(c) && <Meta brass>updated by recall · {ago(c.card.updated_at)}</Meta>}
       {c.card.tags.map((t) => (
         <Chip key={t} tag>
           {t}
@@ -93,7 +93,7 @@ export function CardList({
   const shown = cards.filter(
     (c) => !needle || c.card.front.toLowerCase().includes(needle) || c.card.back.toLowerCase().includes(needle) || c.card.tags.some((t) => t.includes(needle)),
   );
-  const sorted = [...shown].sort((a, b) => b.card.updatedAt.localeCompare(a.card.updatedAt));
+  const sorted = [...shown].sort((a, b) => b.card.updated_at.localeCompare(a.card.updated_at));
   return (
     <div style={{ display: "grid", gap: 8 }}>
       <Field
@@ -205,8 +205,8 @@ export function RejectedList({ rejected, onRestore, onForget }: { rejected: Reje
 
 /** "3 of 5 written today", or, at the cap, that cards resume after midnight. */
 function writtenLine(worker: WorkerStatus): string {
-  if (worker.dailyCap > 0 && worker.writtenToday >= worker.dailyCap) return `today's ${worker.dailyCap} cards are written — more after midnight`;
-  return `${worker.writtenToday} of ${worker.dailyCap} written today`;
+  if (worker.daily_cap > 0 && worker.written_today >= worker.daily_cap) return `today's ${worker.daily_cap} cards are written — more after midnight`;
+  return `${worker.written_today} of ${worker.daily_cap} written today`;
 }
 
 /** The worker's knobs and its last word, plus the export. */
@@ -220,12 +220,12 @@ export function WorkerStrip({
 }: {
   worker: WorkerStatus;
   running: boolean;
-  onSettings: (s: { enabled?: boolean; dailyCap?: number }) => void;
+  onSettings: (s: { enabled?: boolean; daily_cap?: number }) => void;
   onRun: () => void;
   onExport: () => void;
   cardCount: number;
 }) {
-  const [cap, setCap] = useState(String(worker.dailyCap));
+  const [cap, setCap] = useState(String(worker.daily_cap));
   return (
     <div style={{ display: "grid", gap: 10, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -234,7 +234,7 @@ export function WorkerStrip({
           {worker.enabled ? "on" : "off"}
         </Button>
         <Meta wrap>
-          {worker.lastRunAt ? `last run ${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}
+          {worker.last_run_at ? `last run ${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "has not run yet"} · {writtenLine(worker)}
         </Meta>
         <span style={{ flex: 1 }} />
         <Button
@@ -256,7 +256,7 @@ export function WorkerStrip({
           mono
           value={cap}
           onChange={(e) => setCap(e.target.value)}
-          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })}
+          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ daily_cap: Number(cap) })}
           style={{ width: 64 }}
           aria-label="cards a day"
         />
@@ -309,7 +309,7 @@ export function RecallIntro({ worker, onEnable }: { worker: WorkerStatus; onEnab
         chat whose canvas it furnishes with the outline — or say "not this", which it remembers.
       </p>
       <p style={{ margin: 0, color: "var(--loki-muted)" }}>
-        It asks the agent's model, so every run spends a little of your provider budget — up to {worker.dailyCap} cards a day, and nothing at all while no
+        It asks the agent's model, so every run spends a little of your provider budget — up to {worker.daily_cap} cards a day, and nothing at all while no
         conversation has new text. Everything it writes is a file under <code style={{ fontFamily: "var(--loki-mono)" }}>~/.loki/recall/</code>. It is off until
         you turn it on, and Settings › learn turns it off again.
       </p>
@@ -334,11 +334,11 @@ export function RecallSettings({
   running,
 }: {
   worker: WorkerStatus;
-  onSettings: (s: { enabled?: boolean; dailyCap?: number }) => void;
+  onSettings: (s: { enabled?: boolean; daily_cap?: number }) => void;
   onRun: () => void;
   running: boolean;
 }) {
-  const [cap, setCap] = useState(String(worker.dailyCap));
+  const [cap, setCap] = useState(String(worker.daily_cap));
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <Line label="Writer">
@@ -361,7 +361,7 @@ export function RecallSettings({
           mono
           value={cap}
           onChange={(e) => setCap(e.target.value)}
-          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ dailyCap: Number(cap) })}
+          onBlur={() => Number.isFinite(Number(cap)) && Number(cap) >= 0 && onSettings({ daily_cap: Number(cap) })}
           style={{ width: 64 }}
           aria-label="cards a day"
         />
@@ -369,7 +369,7 @@ export function RecallSettings({
       <Line label="Last run">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Meta wrap>
-            {worker.lastRunAt ? `${ago(worker.lastRunAt)} · ${worker.lastRunNote ?? ""}` : "has not run yet"} · {writtenLine(worker)}
+            {worker.last_run_at ? `${ago(worker.last_run_at)} · ${worker.last_run_note ?? ""}` : "has not run yet"} · {writtenLine(worker)}
           </Meta>
           <Button
             size="sm"
@@ -457,9 +457,9 @@ export function LeadList({
             style={{ display: "grid", gap: 10, padding: "16px 20px 14px", textAlign: "left", alignItems: "stretch" }}
           >
             <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              {l.source.agentName && <Chip static>{l.source.agentName}</Chip>}
+              {l.source.agent_name && <Chip static>{l.source.agent_name}</Chip>}
               <Meta>
-                {l.source.title ?? "a conversation"} · {ago(l.createdAt)}
+                {l.source.title ?? "a conversation"} · {ago(l.created_at)}
               </Meta>
               <span style={{ flex: 1 }} />
               <Meta>{DEPTH[l.depth]}</Meta>
@@ -480,12 +480,12 @@ export function LeadList({
             <Button size="sm" onClick={() => onDismiss(l.id)} title="the writer remembers not to propose this again">
               not this
             </Button>
-            {l.source.agentId && l.source.conversationId && (
+            {l.source.agent_id && l.source.conversation_id && (
               <Button
                 size="sm"
                 bare
                 onClick={() => {
-                  const { agentId, conversationId } = l.source;
+                  const { agent_id: agentId, conversation_id: conversationId } = l.source;
                   if (agentId && conversationId) onOpen(agentId, conversationId);
                 }}
               >
@@ -499,8 +499,8 @@ export function LeadList({
         <div style={{ display: "grid", gap: 6 }}>
           <Meta>lessons under way</Meta>
           {lessons.map((s) => (
-            <div key={s.conversationId} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
-              <Row flush onClick={() => onOpen(s.agentId, s.conversationId)} title="open the lesson's chat" style={{ minWidth: 0 }}>
+            <div key={s.conversation_id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 10 }}>
+              <Row flush onClick={() => onOpen(s.agent_id, s.conversation_id)} title="open the lesson's chat" style={{ minWidth: 0 }}>
                 <span
                   style={{
                     fontSize: 15,
@@ -515,8 +515,8 @@ export function LeadList({
                 >
                   {s.lead.title}
                 </span>
-                {s.lead.source.agentName && <Chip static>{s.lead.source.agentName}</Chip>}
-                <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.startedAt)}`}</Meta>
+                {s.lead.source.agent_name && <Chip static>{s.lead.source.agent_name}</Chip>}
+                <Meta>{s.empty ? "the brief never arrived" : `started ${ago(s.started_at)}`}</Meta>
               </Row>
               {s.empty && (
                 <Button size="sm" tone="brass" onClick={() => onResume(s)} title="open the chat and send the brief as your first message">

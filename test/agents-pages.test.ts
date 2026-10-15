@@ -131,10 +131,10 @@ describe("agents selection", () => {
 describe("agents column", () => {
   const item = (agentId: string, id: string, status: string, extra = {}) => ({
     id,
-    agentId,
+    agent_id: agentId,
     status,
     lastAssistantText: null,
-    lastMessageAt: null,
+    last_message_at: null,
     archived: false,
     ...extra,
   });
@@ -143,13 +143,13 @@ describe("agents column", () => {
     { id: "a2", name: "friday" },
   ];
   const desks = [
-    { agentId: "a1", status: "live" },
-    { agentId: "a2", status: "live" },
-    { agentId: "a2", status: "live" },
+    { agent_id: "a1", status: "live" },
+    { agent_id: "a2", status: "live" },
+    { agent_id: "a2", status: "live" },
   ];
   const items = [
-    item("a1", "c1", "approval", { lastAssistantText: "Can I run the migration?\nIt drops a table.", lastMessageAt: "2026-09-23T10:00:00Z" }),
-    item("a1", "c2", "question", { lastAssistantText: "older", lastMessageAt: "2026-09-22T10:00:00Z" }),
+    item("a1", "c1", "approval", { lastAssistantText: "Can I run the migration?\nIt drops a table.", last_message_at: "2026-09-23T10:00:00Z" }),
+    item("a1", "c2", "question", { lastAssistantText: "older", last_message_at: "2026-09-22T10:00:00Z" }),
     item("a2", "c3", "running"),
   ] as never;
 

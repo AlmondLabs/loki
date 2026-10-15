@@ -19,8 +19,8 @@ describe("global skills", () => {
     writeFileSync(join(dir, ".DS_Store"), "");
     const skills = listGlobalSkills(dir);
     expect(skills.map((s) => s.name)).toEqual(["linked", "plain"]);
-    expect(skills[0]).toMatchObject({ isLink: true, path: join(root, "elsewhere", "linked"), description: "Linked skill" });
-    expect(skills[1]).toMatchObject({ isLink: false, description: "Does a thing" });
+    expect(skills[0]).toMatchObject({ is_link: true, path: join(root, "elsewhere", "linked"), description: "Linked skill" });
+    expect(skills[1]).toMatchObject({ is_link: false, description: "Does a thing" });
   });
   test("missing dir is an empty list", () => {
     expect(listGlobalSkills("/definitely/not/here")).toEqual([]);

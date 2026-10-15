@@ -36,19 +36,19 @@ export interface PendingQuestion {
 /** One open conversation as the mod lists it (inbox_list): which agent it belongs to, its title and when it last had a message. */
 export interface ConversationInfo {
   id: string;
-  agentId: string;
-  agentName: string | null;
+  agent_id: string;
+  agent_name: string | null;
   title: string | null;
-  lastMessageAt: string | null;
+  last_message_at: string | null;
   archived: boolean;
 }
 
 /** From the last few protocol messages of a conversation. */
 export interface Digest {
-  lastRole: "user" | "assistant" | null;
-  lastAssistantText: string | null;
+  last_role: "user" | "assistant" | null;
+  last_assistant_text: string | null;
   /** Who sent the last message into the conversation, so the score can tell a reply to you from a report. */
-  lastAsk: AskedBy | null;
+  last_ask: AskedBy | null;
 }
 
 /** A message typed mid-turn, waiting for the conversation to go idle. */
@@ -191,13 +191,13 @@ export function cancelQueued(l: Live, text: string): boolean {
  */
 export type ChatEvent =
   /** The agent asks to run a tool. */
-  | { kind: "approval"; requestId: string; toolName: string; input: unknown }
+  | { kind: "approval"; request_id: string; tool_name: string; input: unknown }
   /** The agent asks you questions (a question card), answered with the input filled in. */
-  | { kind: "question"; requestId: string; input: unknown }
+  | { kind: "question"; request_id: string; input: unknown }
   /** The chat's permission mode or folder, as the backend has them now. */
   | { kind: "device"; mode?: string; cwd?: string }
   /** Whether the chat is running, idle, or waiting on an approval; `detail` is the backend's own word for it. */
-  | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string; turnId?: string }
+  | { kind: "loop"; state: "running" | "idle" | "approval"; detail?: string; turn_id?: string }
   /** A piece of the thread: a message, a streamed piece of the reply, a call, an approval, a result. */
   | { kind: "step"; step: Step }
   /** The turn failed. */
@@ -209,18 +209,18 @@ export type ChatEvent =
   /** The answer in flight as written so far, for a client that starts listening mid-answer: the stream starts from it. */
   | { kind: "streaming"; text: string; at: string | null }
   /** The turn ended. */
-  | { kind: "turn_end"; turnId?: string };
+  | { kind: "turn_end"; turn_id?: string };
 
 /** Fold one chat event into a conversation's live state. Returns whether anything changed, and whether you spoke. */
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
   switch (e.kind) {
     case "approval":
-      l.pending = { requestId: e.requestId, toolName: e.toolName, input: e.input, at: now };
+      l.pending = { requestId: e.request_id, toolName: e.tool_name, input: e.input, at: now };
       l.pendingAsk = null;
       l.lastMessageAt = now;
       return { changed: true, userSpoke: false };
     case "question":
-      l.pendingAsk = { requestId: e.requestId, input: e.input, questions: askQuestions(e.input), at: now };
+      l.pendingAsk = { requestId: e.request_id, input: e.input, questions: askQuestions(e.input), at: now };
       l.pending = null;
       l.lastMessageAt = now;
       return { changed: true, userSpoke: false };
@@ -241,7 +241,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
       // repeat that moves nothing is no change, so nothing re-renders on it.
       const before = [l.loop, l.inTurn, l.turns, l.pending, l.pendingAsk, l.error, l.thread.revision];
       l.loop = e.state;
-      if (e.turnId) l.turnId = e.turnId;
+      if (e.turn_id) l.turnId = e.turn_id;
       if (e.state === "running") l.inTurn = true;
       if (e.state === "idle") {
         l.thread.settle(now);
@@ -284,7 +284,7 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
     case "streaming":
       return { changed: l.thread.resume(e.text, e.at), userSpoke: false };
     case "turn_end":
-      if (e.turnId) l.turnId = e.turnId;
+      if (e.turn_id) l.turnId = e.turn_id;
       l.thread.settle(now);
       if (l.inTurn) {
         l.turns += 1;
@@ -303,9 +303,9 @@ const instant = (iso: string | null | undefined) => (iso ? Date.parse(iso) : Num
  * Something came since you last looked: unread (not done) with a last message newer than the last look.
  * With no time to compare, it stays new. The desk sidebar's bold follows this; the Inbox follows `unread`.
  */
-export function unviewed(item: Pick<AttentionItem, "unread" | "lastMessageAt" | "viewedAt">): boolean {
+export function unviewed(item: Pick<AttentionItem, "unread" | "last_message_at" | "viewedAt">): boolean {
   if (!item.unread) return false;
-  const last = instant(item.lastMessageAt),
+  const last = instant(item.last_message_at),
     looked = instant(item.viewedAt);
   return !(Number.isFinite(last) && Number.isFinite(looked) && looked >= last);
 }
@@ -314,9 +314,9 @@ export function unviewed(item: Pick<AttentionItem, "unread" | "lastMessageAt" | 
  * The look to send while a conversation is open on screen, as a stamp ("<key>@<last message time>") so a
  * host sends one viewed_mark per new last message; null when there is nothing new to look at.
  */
-export function viewStamp(item: Pick<AttentionItem, "agentId" | "id" | "unread" | "lastMessageAt" | "viewedAt"> | null | undefined): string | null {
-  if (!item?.lastMessageAt || !unviewed(item)) return null;
-  return `${keyOf(item.agentId, item.id)}@${item.lastMessageAt}`;
+export function viewStamp(item: Pick<AttentionItem, "agent_id" | "id" | "unread" | "last_message_at" | "viewedAt"> | null | undefined): string | null {
+  if (!item?.last_message_at || !unviewed(item)) return null;
+  return `${keyOf(item.agent_id, item.id)}@${item.last_message_at}`;
 }
 
 /**
@@ -335,12 +335,12 @@ export function buildItems(
 ): AttentionItem[] {
   const out: Unscored[] = [];
   for (const c of conversations) {
-    const key = keyOf(c.agentId, c.id);
+    const key = keyOf(c.agent_id, c.id);
     const d = digests.get(key);
     const l = live.get(key);
-    const lastMessageAt = [c.lastMessageAt, l?.lastMessageAt].filter(Boolean).sort().pop() ?? null;
-    const lastRole = l?.lastRole ?? d?.lastRole ?? null;
-    const lastAssistantText = l?.lastAssistantText ?? d?.lastAssistantText ?? null;
+    const lastMessageAt = [c.last_message_at, l?.lastMessageAt].filter(Boolean).sort().pop() ?? null;
+    const lastRole = l?.lastRole ?? d?.last_role ?? null;
+    const lastAssistantText = l?.lastAssistantText ?? d?.last_assistant_text ?? null;
     const seenAt = seen[key] ?? null;
     const unread = !!lastMessageAt && lastRole === "assistant" && (!seenAt || seenAt < lastMessageAt);
     let status: AttentionStatus = "idle";
@@ -353,7 +353,7 @@ export function buildItems(
     out.push({
       ...c,
       status,
-      lastMessageAt,
+      last_message_at: lastMessageAt,
       lastAssistantText: lastAssistantText ? stripHarnessMarkup(lastAssistantText).trim().slice(-TEXT_LIMIT) : null,
       lastRole,
       pendingApproval: l?.pending ?? null,
@@ -363,8 +363,8 @@ export function buildItems(
       seenAt,
       unread,
       viewedAt: viewed[key] ?? null,
-      lastAsk: l?.lastAsk ?? d?.lastAsk ?? null,
-      runtime: { agent_id: c.agentId, conversation_id: c.id },
+      lastAsk: l?.lastAsk ?? d?.last_ask ?? null,
+      runtime: { agent_id: c.agent_id, conversation_id: c.id },
     });
   }
   return scored(out, now, focus);

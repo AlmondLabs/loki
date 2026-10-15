@@ -54,9 +54,9 @@ export function DeckHeader({ needYou, chats }: { needYou: number; chats: number 
 export function agentPills(items: AttentionItem[]): Array<{ agentId: string; name: string; count: number }> {
   const by = new Map<string, { agentId: string; name: string; count: number }>();
   for (const i of inboxQueue(items)) {
-    const p = by.get(i.agentId) ?? { agentId: i.agentId, name: i.agentName ?? "agent", count: 0 };
+    const p = by.get(i.agent_id) ?? { agentId: i.agent_id, name: i.agent_name ?? "agent", count: 0 };
     p.count++;
-    by.set(i.agentId, p);
+    by.set(i.agent_id, p);
   }
   return [...by.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
@@ -69,7 +69,7 @@ export function agentPills(items: AttentionItem[]): Array<{ agentId: string; nam
 export function AgentPills({ items, agent, onAgent }: { items: AttentionItem[]; agent: string | null; onAgent: (agent: string | null) => void }) {
   const pills = agentPills(items);
   if (agent && !pills.some((p) => p.agentId === agent))
-    pills.push({ agentId: agent, name: items.find((i) => i.agentId === agent)?.agentName ?? "agent", count: 0 });
+    pills.push({ agentId: agent, name: items.find((i) => i.agent_id === agent)?.agent_name ?? "agent", count: 0 });
   if (pills.length < 2 && !agent) return null;
   const all = pills.reduce((n, p) => n + p.count, 0);
   return (
@@ -140,8 +140,8 @@ export function CardHeader({ current, cameBack, flash }: CardHeaderProps) {
   return (
     <ConversationHeader
       title={current.title ?? current.id}
-      agentName={current.agentName}
-      agentId={current.agentId}
+      agentName={current.agent_name}
+      agentId={current.agent_id}
       right={
         needsYou(current.status) ? (
           <Chip static style={{ color: "var(--loki-fg)", fontWeight: 600 }}>
@@ -153,7 +153,7 @@ export function CardHeader({ current, cameBack, flash }: CardHeaderProps) {
         ) : null
       }
     >
-      <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.lastMessageAt)}` : ago(current.lastMessageAt)}</Meta>
+      <Meta>{current.status === "approval" ? `waiting ${ago(current.pendingApproval?.at ?? current.last_message_at)}` : ago(current.last_message_at)}</Meta>
       {reason && <Meta style={current.reason === "focus" ? NOTED : undefined}>{reason}</Meta>}
       {cameBack && <Meta style={NOTED}>back · new since you moved on</Meta>}
     </ConversationHeader>
@@ -190,7 +190,7 @@ export function CardActions({
       <Button
         size="sm"
         onClick={() => {
-          onOpenDesk(current.agentId, current.id);
+          onOpenDesk(current.agent_id, current.id);
           onClose();
         }}
         kbd={deckKey("inbox.open", typing)}

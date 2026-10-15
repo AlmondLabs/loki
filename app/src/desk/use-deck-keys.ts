@@ -47,7 +47,7 @@ export function useDeckKeys({
         return replyRef.current?.focus();
       case "open":
         if (!current) return;
-        onOpenDesk(current.agentId, current.id);
+        onOpenDesk(current.agent_id, current.id);
         onClose();
         return;
       case "undo":

@@ -3,10 +3,10 @@ import type { AttentionItem } from "../../core/attention/model.ts";
 /** One inbox item with every field filled in; tests override what they care about. Unscored until a test stamps it. */
 export const attentionItem = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({
   id,
-  agentId: "a1",
-  agentName: "ira",
+  agent_id: "a1",
+  agent_name: "ira",
   title: id,
-  lastMessageAt: "2026-09-05T10:00:00Z",
+  last_message_at: "2026-09-05T10:00:00Z",
   archived: false,
   status: "done",
   lastAssistantText: "x",

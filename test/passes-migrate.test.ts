@@ -48,7 +48,7 @@ describe("background passes: the first start carries over what reflection and Le
         s.write(s.old.learnWorker, { enabled: true, ...(cap === undefined ? {} : { dailyCap: cap }) });
         const state = s.state();
         state.migrate(s.old, []);
-        expect(state.settings().learn).toEqual({ enabled: true, dailyCap: expected });
+        expect(state.settings().learn).toEqual({ enabled: true, daily_cap: expected });
       } finally {
         s.cleanup();
       }
@@ -108,7 +108,7 @@ describe("background passes: the first start carries over what reflection and Le
     try {
       const state = s.state();
       state.migrate(s.old, []);
-      expect(state.settings()).toEqual({ reflection: { enabled: true }, learn: { enabled: false, dailyCap: 5 } });
+      expect(state.settings()).toEqual({ reflection: { enabled: true }, learn: { enabled: false, daily_cap: 5 } });
     } finally {
       s.cleanup();
     }

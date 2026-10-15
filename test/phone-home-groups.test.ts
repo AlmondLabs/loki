@@ -9,15 +9,15 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
     scope,
     title: scope,
     status: "live",
-    agentName,
-    agentId,
-    conversationId: scope,
+    agent_name: agentName,
+    agent_id: agentId,
+    conversation_id: scope,
     model: null,
-    reasoningEffort: null,
+    reasoning_effort: null,
     pinned: false,
     widgets: 0,
     active: false,
-    lastActive,
+    last_active: lastActive,
     ...extra,
   });
   const desks = [
@@ -42,7 +42,14 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
   });
 
   test("a conversation in Needs your attention is not repeated below, and an emptied section goes", () => {
-    const item = { agentId: "kai", id: "b1", status: "question", unread: true, title: "b1", lastMessageAt: "2026-09-25T12:00:00Z" } as unknown as AttentionItem;
+    const item = {
+      agent_id: "kai",
+      id: "b1",
+      status: "question",
+      unread: true,
+      title: "b1",
+      last_message_at: "2026-09-25T12:00:00Z",
+    } as unknown as AttentionItem;
     const attention = [{ item, desk: desks[2] }];
     const groups = homeDeskSections(desks, [item], attention, "", agents);
     expect(groups.map((g) => g.id)).toEqual(["pinned", "agent:ira"]);

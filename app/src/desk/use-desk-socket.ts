@@ -30,8 +30,8 @@ export const PHONE_DEMO = import.meta.env.DEV && typeof location !== "undefined"
  */
 export function phoneDemo(s: PhoneLanStatus, serve?: boolean): PhoneLanStatus {
   const name = "my-macbook-pro.tail1234.ts.net";
-  const on = serve ?? !!s.tailscale?.serveUrl;
-  return { ...s, tailscale: { installed: true, running: true, ip: "100.101.102.103", name, serveUrl: on ? `https://${name}` : null, error: null } };
+  const on = serve ?? !!s.tailscale?.serve_url;
+  return { ...s, tailscale: { installed: true, running: true, ip: "100.101.102.103", name, serve_url: on ? `https://${name}` : null, error: null } };
 }
 
 /**
@@ -91,7 +91,7 @@ export function useDeskSocket() {
   const [recentModels, setRecentModels] = useState<string[]>([]);
   /** Each desk's widget change log (desk/widget-rows.ts): from history replies and live `widget_change` frames, for any desk. */
   const [widgetLogs, setWidgetLogs] = useState<WidgetLogs>({});
-  /** Pending request/reply exchanges with the mod, by requestId. */
+  /** Pending request/reply exchanges with the mod, by request_id. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -142,10 +142,10 @@ export function useDeskSocket() {
       };
       ws.onmessage = (ev) => {
         const raw = JSON.parse(ev.data as string) as Record<string, unknown>;
-        // A request's answer (its reply, or `error`), by requestId: it goes to whoever asked, nowhere else.
-        if (typeof raw.requestId === "string") {
-          const w = waiters.current.get(raw.requestId);
-          waiters.current.delete(raw.requestId);
+        // A request's answer (its reply, or `error`), by request_id: it goes to whoever asked, nowhere else.
+        if (typeof raw.request_id === "string") {
+          const w = waiters.current.get(raw.request_id);
+          waiters.current.delete(raw.request_id);
           w?.(raw); // none: its request already timed out, and the answer has no one left to tell
           return;
         }
@@ -155,13 +155,13 @@ export function useDeskSocket() {
           case "desk": {
             const s = msg.scope;
             console.info(`desk frame: ${s} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
-            const { title, status, agentName, agentId, model, mode } = msg;
+            const { title, status, agent_name: agentName, agent_id: agentId, model, mode } = msg;
             if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
             if (typeof status === "string") setStatuses((t) => withScope(t, s, status));
             if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
             if (typeof agentId === "string" && agentId) setAgentIds((t) => withScope(t, s, agentId));
             if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
-            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
+            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoning_effort));
             if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
             setDesks((d) => ({ ...d, [s]: msg.state }));
             setWidgets((w) => ({ ...w, [s]: msg.widgets }));
@@ -180,9 +180,9 @@ export function useDeskSocket() {
             setWidgets((w) => ({ ...w, [msg.scope]: msg.widgets }));
             break;
           case "camera":
-            if (typeof msg.widgetId === "string" && Date.now() - lastInteractionRef.current > NO_YANK_MS) {
-              const widgetId = msg.widgetId;
-              const widgetIds = Array.isArray(msg.widgetIds) && msg.widgetIds.length ? msg.widgetIds : [widgetId];
+            if (typeof msg.widget_id === "string" && Date.now() - lastInteractionRef.current > NO_YANK_MS) {
+              const widgetId = msg.widget_id;
+              const widgetIds = Array.isArray(msg.widget_ids) && msg.widget_ids.length ? msg.widget_ids : [widgetId];
               setCameraTarget((t) => ({ widgetId, widgetIds, nonce: (t?.nonce ?? 0) + 1 }));
             }
             break;
@@ -214,8 +214,8 @@ export function useDeskSocket() {
             break;
           }
           case "pair_code":
-            if (typeof msg.code === "string" && typeof msg.url === "string" && typeof msg.expiresAt === "string")
-              setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expiresAt });
+            if (typeof msg.code === "string" && typeof msg.url === "string" && typeof msg.expires_at === "string")
+              setPairCode({ code: msg.code, url: msg.url, expiresAt: msg.expires_at });
             break;
           case "devices":
             setDevices(Array.isArray(msg.devices) ? msg.devices : []);
@@ -251,12 +251,12 @@ export function useDeskSocket() {
           case "desk_title": {
             // Sent again on every title refresh: a repeat keeps each map as it is.
             const s = msg.scope;
-            const { title, status, agentName, model, mode } = msg;
+            const { title, status, agent_name: agentName, model, mode } = msg;
             if (typeof title === "string" && title) setTitles((t) => withScope(t, s, title));
             if (typeof status === "string") setStatuses((t) => withScope(t, s, status));
             if (typeof agentName === "string" && agentName) setAgentNames((t) => withScope(t, s, agentName));
             if (typeof model === "string" && model) setModels((t) => withScope(t, s, model));
-            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoningEffort));
+            setReasoningEfforts((current) => withReasoningEffort(current, s, msg.reasoning_effort));
             if (typeof mode === "string" && mode) setModes((t) => withScope(t, s, mode));
             break;
           }
@@ -299,7 +299,7 @@ export function useDeskSocket() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [listsStale]);
 
-  /** Any frame as it is: `request()`'s, which carry a requestId. False while the socket is not open. */
+  /** Any frame as it is: `request()`'s, which carry a request_id. False while the socket is not open. */
   const sendRaw = useCallback((msg: object): boolean => {
     const ws = wsRef.current;
     if (ws?.readyState !== WebSocket.OPEN) return false;

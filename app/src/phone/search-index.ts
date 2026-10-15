@@ -121,12 +121,12 @@ const WAITS: Record<string, string> = { approval: "needs approval", question: "a
 
 type Entry = Indexed<Hit>;
 
-const deskHit = (d: DeskSummary & { agentId: string; conversationId: string }): Hit => ({
-  key: `desk:${d.agentId}/${d.conversationId}`,
+const deskHit = (d: DeskSummary & { agent_id: string; conversation_id: string }): Hit => ({
+  key: `desk:${d.agent_id}/${d.conversation_id}`,
   group: "desks",
   title: deskTitle(d),
-  preview: d.status === "live" ? (d.agentName ?? "agent") : `${d.agentName ?? "agent"} · ${d.status}`,
-  route: { kind: "conversation", agentId: d.agentId, conversationId: d.conversationId, prefill: null },
+  preview: d.status === "live" ? (d.agent_name ?? "agent") : `${d.agent_name ?? "agent"} · ${d.status}`,
+  route: { kind: "conversation", agentId: d.agent_id, conversationId: d.conversation_id, prefill: null },
   lead: { icon: d.status === "live" ? "desk" : "archive" },
   dim: d.status !== "live",
 });
@@ -140,12 +140,12 @@ const agentHit = (a: { id: string; name: string }, description: string | null | 
   dim: false,
 });
 const itemHit = (i: AttentionItem): Hit => ({
-  key: `inbox:${i.agentId}/${i.id}`,
+  key: `inbox:${i.agent_id}/${i.id}`,
   group: "inbox",
   title: i.title || "Untitled conversation",
-  preview: [i.agentName ?? "agent", WAITS[i.status]].filter(Boolean).join(" · "),
-  route: { kind: "conversation", agentId: i.agentId, conversationId: i.id, prefill: null },
-  lead: { agent: { id: i.agentId, name: i.agentName ?? "agent" } },
+  preview: [i.agent_name ?? "agent", WAITS[i.status]].filter(Boolean).join(" · "),
+  route: { kind: "conversation", agentId: i.agent_id, conversationId: i.id, prefill: null },
+  lead: { agent: { id: i.agent_id, name: i.agent_name ?? "agent" } },
   dim: false,
 });
 const pageHit = (d: Destination): Hit => ({
@@ -158,7 +158,7 @@ const pageHit = (d: Destination): Hit => ({
   dim: false,
 });
 
-const openable = (d: DeskSummary): d is DeskSummary & { agentId: string; conversationId: string } => !!d.agentId && !!d.conversationId;
+const openable = (d: DeskSummary): d is DeskSummary & { agent_id: string; conversation_id: string } => !!d.agent_id && !!d.conversation_id;
 
 /** The sources as searchable entries, fields folded: build once per sources (search.tsx memoizes it), query per keystroke. */
 export type SearchIndex = CoreIndex<Hit>;
@@ -169,13 +169,13 @@ export type SearchIndex = CoreIndex<Hit>;
  */
 export function buildIndex(src: SearchSources): SearchIndex {
   const out: Entry[] = [];
-  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskTitle(d), d.agentName ?? ""], recency: time(d.lastActive) });
+  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d), fields: [deskTitle(d), d.agent_name ?? ""], recency: time(d.last_active) });
   for (const a of src.agents) {
     const description = src.describe?.(a.id) ?? null;
     out.push({ hit: agentHit(a, description), fields: [a.name, description ?? ""], recency: 0 });
   }
   // What needs you, from the loaded items; every chat is findable by its title among the chats above.
-  for (const i of catchUpQueue(src.items)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agentName ?? ""], recency: time(i.lastMessageAt) });
+  for (const i of catchUpQueue(src.items)) out.push({ hit: itemHit(i), fields: [i.title ?? "", i.agent_name ?? ""], recency: time(i.last_message_at) });
   for (const d of DESTINATIONS) out.push({ hit: pageHit(d), fields: [d.label, ...d.keywords], recency: 0 });
   return buildSearchIndex(out);
 }
@@ -209,9 +209,9 @@ export function placeHit(hash: string, src: SearchSources): Hit | null {
     };
   }
   if (r.kind === "conversation") {
-    const d = src.desks.find((x) => x.agentId === r.agentId && x.conversationId === r.conversationId);
+    const d = src.desks.find((x) => x.agent_id === r.agentId && x.conversation_id === r.conversationId);
     if (d && openable(d)) return deskHit(d);
-    const i = src.items.find((x) => x.agentId === r.agentId && x.id === r.conversationId);
+    const i = src.items.find((x) => x.agent_id === r.agentId && x.id === r.conversationId);
     return i ? itemHit(i) : null;
   }
   return null;

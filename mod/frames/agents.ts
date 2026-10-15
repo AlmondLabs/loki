@@ -40,29 +40,29 @@ export interface AgentsDeps {
 export function agentsFrames({ agents: ag }: AgentsDeps): FrameHandlers {
   const off = () => fail("agents are not available in this mod");
   return {
-    agent_get: async ({ agentId }) => {
+    agent_get: async ({ agent_id: agentId }) => {
       if (!ag) return off();
       const agent = ag.get(agentId);
       if (!agent) return fail("no local record for this agent");
       const last = await ag.log(agentId, { limit: 1 }).catch((): MemoryCommit[] => []);
       const skills = await (ag.skillsInfo ? ag.skillsInfo(agentId).catch(() => ag.skills(agentId)) : ag.skills(agentId));
-      return reply({ agent, files: ag.tree(agentId), skills, hasProfile: ag.hasProfile(agentId), lastCommit: last[0] ?? null });
+      return reply({ agent, files: ag.tree(agentId), skills, has_profile: ag.hasProfile(agentId), last_commit: last[0] ?? null });
     },
-    memory_read: ({ agentId, path }) => (ag ? reply({ agentId, path, content: ag.read(agentId, path) }) : off()),
-    memory_log: async ({ agentId, path, limit }) => (ag ? reply({ agentId, commits: await ag.log(agentId, { path, limit }) }) : off()),
-    memory_diff: async ({ agentId, sha }) => (ag ? reply({ agentId, sha, diff: await ag.diff(agentId, sha) }) : off()),
-    reflection_state: async ({ agentId }) => {
+    memory_read: ({ agent_id: agentId, path }) => (ag ? reply({ agent_id: agentId, path, content: ag.read(agentId, path) }) : off()),
+    memory_log: async ({ agent_id: agentId, path, limit }) => (ag ? reply({ agent_id: agentId, commits: await ag.log(agentId, { path, limit }) }) : off()),
+    memory_diff: async ({ agent_id: agentId, sha }) => (ag ? reply({ agent_id: agentId, sha, diff: await ag.diff(agentId, sha) }) : off()),
+    reflection_state: async ({ agent_id: agentId }) => {
       if (!ag?.reflection) return fail("reflection is not available in this mod");
-      return reply({ agentId, ...(await ag.reflection(agentId)) });
+      return reply({ agent_id: agentId, ...(await ag.reflection(agentId)) });
     },
     skills_global: () => reply({ skills: ag?.globalSkills?.() ?? [] }),
-    skill_install: async ({ agentId, source, force }) => {
+    skill_install: async ({ agent_id: agentId, source, force }) => {
       if (!ag?.install) return fail("skill install is not available in this mod");
-      return reply({ agentId, output: await ag.install(agentId, source, force) });
+      return reply({ agent_id: agentId, output: await ag.install(agentId, source, force) });
     },
-    skill_refresh: async ({ agentId, name, source }) => {
+    skill_refresh: async ({ agent_id: agentId, name, source }) => {
       if (!ag?.refreshSkill) return fail("skill refresh is not available in this mod");
-      return reply({ agentId, name, ...(await ag.refreshSkill(agentId, name, source)) });
+      return reply({ agent_id: agentId, name, ...(await ag.refreshSkill(agentId, name, source)) });
     },
   };
 }

@@ -31,15 +31,15 @@ const DONE_WINDOW_MS = 7 * 24 * 3600_000;
  * An agent said it finished a task the person filed: the task waits for the person to confirm it (Confirm closes it)
  * or reopen it (mod/tasks.ts askDone). Until then it is open, with the agent's word on it.
  */
-export const isWaiting = (t: Task): boolean => !!t.metadata.doneAsked && t.status !== "closed";
+export const isWaiting = (t: Task): boolean => !!t.metadata.done_asked && t.status !== "closed";
 
 /** Open tasks by priority, then the most recently moved; done ones after them, the latest first. */
 function byListOrder(a: Task, b: Task): number {
   const ad = a.status === "closed";
   const bd = b.status === "closed";
   if (ad !== bd) return ad ? 1 : -1;
-  if (ad) return (b.closedAt ?? "").localeCompare(a.closedAt ?? "");
-  return a.priority - b.priority || (b.updatedAt || "").localeCompare(a.updatedAt || "");
+  if (ad) return (b.closed_at ?? "").localeCompare(a.closed_at ?? "");
+  return a.priority - b.priority || (b.updated_at || "").localeCompare(a.updated_at || "");
 }
 
 /** The tasks the list shows at all: every one with a known status, done ones only from the last week. */
@@ -47,7 +47,7 @@ export function shownTasks(tasks: Task[], now = Date.now()): Task[] {
   return tasks.filter((t) => {
     const status = columnOf(t);
     if (!status) return false;
-    return status !== "done" || !t.closedAt || now - new Date(t.closedAt).getTime() < DONE_WINDOW_MS;
+    return status !== "done" || !t.closed_at || now - new Date(t.closed_at).getTime() < DONE_WINDOW_MS;
   });
 }
 
@@ -73,7 +73,7 @@ export interface ViewRow {
 const agentOf = (view: TaskViewId): string | null => (view.startsWith("agent:") ? view.slice("agent:".length) : null);
 
 /** Yours to do: filed by you and not assigned to any chat. */
-export const isMine = (t: Task): boolean => t.metadata.by === "you" && !t.metadata.assignedTo;
+export const isMine = (t: Task): boolean => t.metadata.by === "you" && !t.metadata.assigned_to;
 
 /** The tasks a view shows, from those the list shows at all. */
 export function viewTasks(tasks: Task[], view: TaskViewId, now = Date.now()): Task[] {
@@ -192,7 +192,7 @@ export function cellText(t: Task, key: SortKey, chat: (desk: string) => string):
     case "folder":
       return folderName(t.metadata.folder) ?? "";
     case "updated":
-      return (t.status === "closed" ? t.closedAt : t.updatedAt) ?? "";
+      return (t.status === "closed" ? t.closed_at : t.updated_at) ?? "";
   }
 }
 

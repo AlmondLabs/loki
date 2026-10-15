@@ -13,7 +13,7 @@ export type WidgetLogs = Record<Scope, WidgetLogEntry[]>;
 
 const CHANGES: readonly WidgetChange[] = ["added", "changed", "removed"];
 
-/** A `widget_change` frame's entry (or one row of a history reply's `widgetLog`), or null when it is not one. */
+/** A `widget_change` frame's entry (or one row of a history reply's `widget_log`), or null when it is not one. */
 export function parseWidgetEntry(v: unknown): WidgetLogEntry | null {
   if (typeof v !== "object" || v === null) return null;
   const e = v as Record<string, unknown>;
@@ -22,7 +22,7 @@ export function parseWidgetEntry(v: unknown): WidgetLogEntry | null {
     typeof e.at === "number" &&
     Number.isFinite(e.at) &&
     typeof e.scope === "string" &&
-    typeof e.widgetId === "string" &&
+    typeof e.widget_id === "string" &&
     typeof e.name === "string" &&
     typeof e.title === "string" &&
     typeof e.kind === "string" &&
@@ -83,7 +83,7 @@ export function widgetMarks(
   const times = rows.map((r) => (r.at ? Date.parse(r.at) : Number.NaN));
   const latest = new Map<string, WidgetLogEntry>();
   const sorted = byTime(log);
-  for (const e of sorted) latest.set(e.widgetId, e);
+  for (const e of sorted) latest.set(e.widget_id, e);
   const mark = (e: WidgetLogEntry, before: number): WidgetMark => ({
     id: e.id,
     before,
@@ -91,8 +91,8 @@ export function widgetMarks(
     who: whoOf(e, agentName),
     change: e.change,
     title: e.title || e.name,
-    widgetId: e.widgetId,
-    gone: e.change === "removed" || latest.get(e.widgetId)?.change === "removed",
+    widgetId: e.widget_id,
+    gone: e.change === "removed" || latest.get(e.widget_id)?.change === "removed",
   });
   if (rows.length && !times.some(Number.isFinite)) {
     const older = sorted.filter((e) => e.at < liveSince);

@@ -9,10 +9,10 @@ import { CardConversation, Decisions, type CardActions } from "../app/src/phone/
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",
-  agentId: "a1",
-  agentName: "friday",
+  agent_id: "a1",
+  agent_name: "friday",
   title: "data pipelines",
-  lastMessageAt: "2026-09-25T10:00:00Z",
+  last_message_at: "2026-09-25T10:00:00Z",
   archived: false,
   status: "done",
   lastAssistantText: "x",
@@ -33,8 +33,8 @@ const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
 });
 
 const MODELS: ModelEntry[] = [
-  { id: "opus-medium", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", isFeatured: true, reasoningEffort: "medium" },
-  { id: "opus-high", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", isFeatured: true, reasoningEffort: "high" },
+  { id: "opus-medium", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", is_featured: true, reasoning_effort: "medium" },
+  { id: "opus-high", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", is_featured: true, reasoning_effort: "high" },
 ];
 
 const actions = (model?: CardActions["model"]): CardActions => ({ onSend: () => {}, onAnswer: () => {}, onCancelQueued: () => {}, model });

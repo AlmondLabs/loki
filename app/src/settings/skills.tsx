@@ -39,7 +39,7 @@ export function Skills({ api }: { api: GlobalSkillsApi }) {
           >
             <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</span>
             <span className="loki-meta" style={{ maxWidth: "45%" }}>
-              {g.source ?? (g.isLink ? "link" : "copy")}
+              {g.source ?? (g.is_link ? "link" : "copy")}
             </span>
             <Button size="sm" onClick={() => void api.disable(g.name).then((err) => (err ? flash(err) : (flash(`${g.name} disabled`), load())))}>
               disable

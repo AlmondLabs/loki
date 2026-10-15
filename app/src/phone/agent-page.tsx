@@ -85,7 +85,7 @@ export function AgentPage({
   const folders = useMemo(() => memoryFolders(d?.files ?? []), [d]);
   const title = d?.agent.name ?? name ?? "Agent";
   const openFile = (path: string) => navigate({ kind: "file", agentId, path });
-  const running = items.some((i) => i.agentId === agentId && i.status === "running");
+  const running = items.some((i) => i.agent_id === agentId && i.status === "running");
 
   return (
     <div className="loki-phone-page">
@@ -130,8 +130,8 @@ function Hero({
   running: boolean;
 }) {
   const live = liveDeskCount(desks, agentId);
-  const main = desks.find((x) => x.agentId === agentId && x.conversationId === "default");
-  const bits = d ? modelBits(d.agent.model, d.agent.modelSettings) : [];
+  const main = desks.find((x) => x.agent_id === agentId && x.conversation_id === "default");
+  const bits = d ? modelBits(d.agent.model, d.agent.model_settings) : [];
   return (
     <section className="loki-phone-hero" aria-label={`${name}'s profile`}>
       <Avatar name={name} src={avatarUrl(agentId)} size={72} presence={running} />
@@ -155,13 +155,13 @@ function Hero({
 
 /** The agent's live desks, the way Home draws them, each opening its conversation. */
 function Conversations({ agentId, desks, items }: { agentId: string; desks: DeskSummary[]; items: AttentionItem[] }) {
-  const mine = desks.filter((x) => x.agentId === agentId && x.status === "live" && x.conversationId);
-  const marks = new Map(items.filter((i) => i.agentId === agentId).map((i) => [i.id, i]));
+  const mine = desks.filter((x) => x.agent_id === agentId && x.status === "live" && x.conversation_id);
+  const marks = new Map(items.filter((i) => i.agent_id === agentId).map((i) => [i.id, i]));
   return (
     <RowSection icon="desk" title="Conversations" count={mine.length}>
       <ul className="loki-phone-list" aria-label="conversations">
         {mine.map((x) => (
-          <DeskRow key={x.scope} desk={x} mark={x.conversationId ? marks.get(x.conversationId) : undefined} onActions={null} />
+          <DeskRow key={x.scope} desk={x} mark={x.conversation_id ? marks.get(x.conversation_id) : undefined} onActions={null} />
         ))}
       </ul>
       {mine.length === 0 && <p className="loki-phone-empty">No live chats. Message opens its main chat.</p>}

@@ -211,7 +211,7 @@ export function DeskSidebar({
         key={d.scope}
         lead={
           r.main && !inPinned ? (
-            <AgentFace name={d.agentName} src={d.agentId ? avatar(d.agentId) : null} size={20} />
+            <AgentFace name={d.agent_name} src={d.agent_id ? avatar(d.agent_id) : null} size={20} />
           ) : (
             <ListIcon name={d.status === "live" ? "desk" : "archive"} />
           )
@@ -389,7 +389,7 @@ export function DeskSidebar({
       {menu && (
         <RowMenu
           {...menu}
-          item={items.find((i) => i.agentId === menu.desk.agentId && i.id === menu.desk.conversationId) ?? null}
+          item={items.find((i) => i.agent_id === menu.desk.agent_id && i.id === menu.desk.conversation_id) ?? null}
           connected={connected}
           onClose={() => setMenu(null)}
           onOpen={onOpen}
@@ -401,12 +401,12 @@ export function DeskSidebar({
         />
       )}
       {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
-      {moving && onMove && folders && moving.agentId && moving.conversationId && (
+      {moving && onMove && folders && moving.agent_id && moving.conversation_id && (
         <ChangeFolder
           onClose={() => setMoving(null)}
-          agentId={moving.agentId}
-          agentName={moving.agentName}
-          conversationKey={conversationDirName(moving.conversationId, moving.agentId)}
+          agentId={moving.agent_id}
+          agentName={moving.agent_name}
+          conversationKey={conversationDirName(moving.conversation_id, moving.agent_id)}
           title={moving.title}
           folders={folders}
           onMove={(folder) => onMove(moving, folder)}
@@ -556,20 +556,20 @@ export function DeskSidebarView({
       onOpen={onOpen}
       onNew={desk.attention.available ? onNew : undefined}
       onPin={(d, pinned) => {
-        if (d.agentId && d.conversationId) desk.desks.pin(d.agentId, d.conversationId, pinned);
+        if (d.agent_id && d.conversation_id) desk.desks.pin(d.agent_id, d.conversation_id, pinned);
       }}
       onRename={renameDesk(desk, catchUp, notice)}
       folders={desk.attention.folders}
       onMove={async (d, folder) => {
-        if (!d.agentId || !d.conversationId) return "no conversation";
-        const err = await catchUp.changeFolder({ agent_id: d.agentId, conversation_id: d.conversationId }, folder);
+        if (!d.agent_id || !d.conversation_id) return "no conversation";
+        const err = await catchUp.changeFolder({ agent_id: d.agent_id, conversation_id: d.conversation_id }, folder);
         if (!err) notice(`${d.title ?? "chat"} moved to ${folder.replace(/^\/Users\/[^/]+/, "~")}`);
         return err;
       }}
       onDone={(item, done) => (done ? catchUp.seen(item) : catchUp.unread(item))}
       onArchive={(d, archived) => {
-        if (!d.conversationId) return;
-        void catchUp.archiveConversation(d.conversationId, archived, "sidebar").then((err) => {
+        if (!d.conversation_id) return;
+        void catchUp.archiveConversation(d.conversation_id, archived, "sidebar").then((err) => {
           if (err) return notice(`archive: ${err}`);
           notice(`${d.title ?? d.scope} ${archived ? "archived" : "restored"}`);
           desk.desks.request();

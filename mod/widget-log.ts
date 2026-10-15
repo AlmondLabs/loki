@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { Scope, WidgetActor, WidgetChange, WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
+import { migrateKeys } from "../core/snake-keys.ts";
 import type { WidgetsDiff } from "./widgets-fs.ts";
 
 /**
@@ -32,7 +33,7 @@ export const WIDGET_LOG_EXPECT_MS = 5_000;
 const isEntry = (v: unknown): v is WidgetLogEntry => {
   if (typeof v !== "object" || v === null) return false;
   const e = v as Record<string, unknown>;
-  return typeof e.id === "string" && typeof e.at === "number" && typeof e.widgetId === "string" && typeof e.change === "string";
+  return typeof e.id === "string" && typeof e.at === "number" && typeof e.widget_id === "string" && typeof e.change === "string";
 };
 
 /**
@@ -91,10 +92,10 @@ export class WidgetLog {
   private append(e: WidgetManifestEntry, change: WidgetChange, at: number): WidgetLogEntry {
     const log = this.load(e.scope);
     const by = this.actor(e.id, change, at);
-    const fields = { at, scope: e.scope, widgetId: e.id, name: e.name, title: e.title, kind: e.kind, by };
+    const fields = { at, scope: e.scope, widget_id: e.id, name: e.name, title: e.title, kind: e.kind, by };
     if (change === "changed") {
       let i = log.length - 1;
-      while (i >= 0 && log[i].widgetId !== e.id) i--;
+      while (i >= 0 && log[i].widget_id !== e.id) i--;
       const prev = i >= 0 ? log[i] : null;
       // only the same hand's edits fold: the agent fixing loki's lesson card is its own row
       if (prev && prev.change !== "removed" && (prev.by ?? "agent") === by && at - prev.at < WIDGET_LOG_COLLAPSE_MS) {
@@ -119,15 +120,21 @@ export class WidgetLog {
     let log = this.logs.get(scope);
     if (log) return log;
     log = [];
+    let rewrite = false;
     if (this.dir) {
       try {
-        const parsed: unknown = JSON.parse(readFileSync(this.file(this.dir, scope), "utf8"));
-        if (Array.isArray(parsed)) log = parsed.filter(isEntry).slice(-WIDGET_LOG_LIMIT);
+        // Saved camelCase (widgetId) before October 2026: renamed here and written back once.
+        const { value: parsed, changed } = migrateKeys(JSON.parse(readFileSync(this.file(this.dir, scope), "utf8")) as unknown);
+        if (Array.isArray(parsed)) {
+          log = parsed.filter(isEntry).slice(-WIDGET_LOG_LIMIT);
+          if (changed) rewrite = true;
+        }
       } catch {
         // none yet, or corrupt: start empty
       }
     }
     this.logs.set(scope, log);
+    if (rewrite) this.persist(scope);
     return log;
   }
 

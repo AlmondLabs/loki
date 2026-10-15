@@ -83,8 +83,8 @@ describe("Tailscale (injected CLI)", () => {
 
   test("no binary: installed false, nothing is run, nothing throws", async () => {
     const { ts, calls } = recorded({}, { bin: null });
-    expect(ts.cached()).toEqual({ installed: false, running: false, ip: null, name: null, serveUrl: null, error: null });
-    expect(await ts.status()).toEqual({ installed: false, running: false, ip: null, name: null, serveUrl: null, error: null });
+    expect(ts.cached()).toEqual({ installed: false, running: false, ip: null, name: null, serve_url: null, error: null });
+    expect(await ts.status()).toEqual({ installed: false, running: false, ip: null, name: null, serve_url: null, error: null });
     const after = await ts.setServe(true);
     expect(after.installed).toBe(false);
     expect(after.error).toBe("Tailscale is not installed");
@@ -98,7 +98,7 @@ describe("Tailscale (injected CLI)", () => {
       running: false,
       ip: null,
       name: null,
-      serveUrl: null,
+      serve_url: null,
       error: "failed to connect to local tailscaled; it doesn't appear to be running",
     });
   });
@@ -112,7 +112,7 @@ describe("Tailscale (injected CLI)", () => {
       running: true,
       ip: "100.101.102.103",
       name: "my-macbook-pro.tail1234.ts.net",
-      serveUrl: "https://my-macbook-pro.tail1234.ts.net",
+      serve_url: "https://my-macbook-pro.tail1234.ts.net",
       error: null,
     });
     expect(await ts.status()).toBe(first);
@@ -133,7 +133,7 @@ describe("Tailscale (injected CLI)", () => {
       running: false,
       ip: "100.101.102.103",
       name: "my-macbook-pro.tail1234.ts.net",
-      serveUrl: null,
+      serve_url: null,
       error: null,
     });
     expect(calls).toEqual([["/fake/tailscale", "status", "--json"]]);
@@ -146,7 +146,7 @@ describe("Tailscale (injected CLI)", () => {
       running: true,
       ip: "100.101.102.103",
       name: "my-macbook-pro.tail1234.ts.net",
-      serveUrl: null,
+      serve_url: null,
       error: "serve is not enabled on this tailnet",
     });
   });
@@ -176,9 +176,9 @@ describe("Tailscale (injected CLI)", () => {
         return Promise.resolve(a);
       },
     });
-    expect((await ts.status()).serveUrl).toBeNull();
+    expect((await ts.status()).serve_url).toBeNull();
     const on = await ts.setServe(true);
-    expect(on.serveUrl).toBe("https://my-macbook-pro.tail1234.ts.net");
+    expect(on.serve_url).toBe("https://my-macbook-pro.tail1234.ts.net");
     expect(on.error).toBeNull();
     expect(calls).toEqual([
       ["status", "--json"],
@@ -188,7 +188,7 @@ describe("Tailscale (injected CLI)", () => {
       ["serve", "status", "--json"],
     ]);
     const off = await ts.setServe(false);
-    expect(off.serveUrl).toBeNull();
+    expect(off.serve_url).toBeNull();
     expect(calls.at(-3)).toEqual(["serve", "--https=443", "off"]);
     expect(calls.some((c) => c[0] === "funnel")).toBe(false);
   });
@@ -202,7 +202,7 @@ describe("Tailscale (injected CLI)", () => {
     });
     const s = await ts.setServe(true);
     expect(s.running).toBe(true);
-    expect(s.serveUrl).toBeNull();
+    expect(s.serve_url).toBeNull();
     expect(s.error).toBe(long.slice(0, 400));
     expect(s.error).toHaveLength(400);
     const { ts: ts2 } = recorded({

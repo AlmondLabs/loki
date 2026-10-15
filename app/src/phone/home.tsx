@@ -23,11 +23,11 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */
 export function openDesk(d: DeskSummary) {
-  if (d.agentId && d.conversationId) navigate({ kind: "conversation", agentId: d.agentId, conversationId: d.conversationId, prefill: null });
+  if (d.agent_id && d.conversation_id) navigate({ kind: "conversation", agentId: d.agent_id, conversationId: d.conversation_id, prefill: null });
 }
 
 function openAttention(item: AttentionItem) {
-  navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
+  navigate({ kind: "conversation", agentId: item.agent_id, conversationId: item.id, prefill: null });
 }
 
 /** Archive or restore a desk's conversation through the daemon; resolves to an error, or null when done. */
@@ -102,7 +102,7 @@ export function Home({
 
   const marks = useMemo(() => {
     const m = new Map<string, AttentionItem>();
-    for (const i of items) m.set(`${i.agentId}/${i.id}`, i);
+    for (const i of items) m.set(`${i.agent_id}/${i.id}`, i);
     return m;
   }, [items]);
   const chips = useMemo(() => agentChips(agents, desks), [agents, desks]);
@@ -149,7 +149,7 @@ export function Home({
 
 /** Home's arrangement, for its rows' glide (kit/use-flip.ts): what is in each section, in order, and which are folded. */
 const homeOrder = (attention: HomeAttention[], more: number, groups: SidebarSection[], folded: string[]): string =>
-  `${attention.map((a) => `${a.item.agentId}/${a.item.id}`).join(",")}|${more > 0}|${groups.map((g) => (folded.includes(g.id) ? `${g.id}:-` : `${g.id}:${g.rows.map((r) => r.desk.scope).join(",")}`)).join(";")}`;
+  `${attention.map((a) => `${a.item.agent_id}/${a.item.id}`).join(",")}|${more > 0}|${groups.map((g) => (folded.includes(g.id) ? `${g.id}:-` : `${g.id}:${g.rows.map((r) => r.desk.scope).join(",")}`)).join(";")}`;
 
 /** Where Home keeps its folds on this device. */
 const FOLDS_KEY = "loki.phone.home.folded.v1";
@@ -194,7 +194,7 @@ function ActingDesk({
   onRename: RenameDeskName | null;
   onClose: () => void;
 }) {
-  const { agentId, conversationId } = desk;
+  const { agent_id: agentId, conversation_id: conversationId } = desk;
   const pin = agentId && conversationId && desk.status === "live" ? (p: boolean) => onPin(agentId, conversationId, p) : null;
   return (
     <DeskActions
@@ -220,7 +220,7 @@ function AttentionSection({ attention, more, waiting }: { attention: HomeAttenti
     >
       <ul className="loki-phone-list" aria-label="needs your attention">
         {attention.map((a) => (
-          <AttentionRow key={`${a.item.agentId}/${a.item.id}`} entry={a} />
+          <AttentionRow key={`${a.item.agent_id}/${a.item.id}`} entry={a} />
         ))}
         {more > 0 && (
           <li data-flip="inbox-more">
@@ -289,7 +289,7 @@ function DeskSections({
                 <DeskRow
                   key={r.desk.scope}
                   desk={r.desk}
-                  mark={marks.get(`${r.desk.agentId}/${r.desk.conversationId}`)}
+                  mark={marks.get(`${r.desk.agent_id}/${r.desk.conversation_id}`)}
                   onActions={() => onActions(r.desk)}
                   inAgent={!pinned}
                   inPinned={pinned}
@@ -421,15 +421,15 @@ function AttentionRow({ entry: { item, desk } }: { entry: HomeAttention }) {
   const word = BADGE[item.status].label;
   return (
     <PhoneRow
-      lead={<Avatar name={item.agentName} src={avatarUrl(item.agentId)} />}
+      lead={<Avatar name={item.agent_name} src={avatarUrl(item.agent_id)} />}
       title={title}
-      preview={`${item.agentName ?? "agent"} · ${word}`}
-      time={ago(item.lastMessageAt)}
+      preview={`${item.agent_name ?? "agent"} · ${word}`}
+      time={ago(item.last_message_at)}
       badge={item.unread || item.status === "approval" || item.status === "question"}
       unread
-      label={`${title}, ${item.agentName ?? "agent"}, ${word}`}
-      launch={`attention:${item.agentId}/${item.id}`}
-      flip={`conv:${item.agentId}/${item.id}`}
+      label={`${title}, ${item.agent_name ?? "agent"}, ${word}`}
+      launch={`attention:${item.agent_id}/${item.id}`}
+      flip={`conv:${item.agent_id}/${item.id}`}
       onOpen={() => openAttention(item)}
     />
   );
@@ -463,14 +463,14 @@ export function DeskRow({
   const looked = m.kind === "finished" && !!mark && !unviewed(mark);
   const doing = m.kind === "running" ? "running…" : (m.kind === "waits" || m.kind === "failed") && mark ? BADGE[mark.status].label : null;
   const said = doing ?? snippet(mark?.lastAssistantText) ?? (d.status !== "live" ? d.status : null);
-  const main = d.conversationId === "default";
+  const main = d.conversation_id === "default";
   const name = inAgent && main && !d.title ? "Main chat" : deskName(d);
-  const who = d.agentName ?? "agent";
+  const who = d.agent_name ?? "agent";
   return (
     <PhoneRow
       lead={
         inAgent && main ? (
-          <Avatar name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={28} />
+          <Avatar name={d.agent_name} src={d.agent_id ? avatarUrl(d.agent_id) : null} size={28} />
         ) : (
           <RowIcon name={d.status === "live" ? "desk" : "archive"} />
         )
@@ -478,13 +478,13 @@ export function DeskRow({
       title={name}
       flags={d.pinned && !inPinned ? <Icon name="pin" size={14} title="pinned" className="loki-phone-row-flag" /> : null}
       preview={inAgent ? (said ?? undefined) : said ? `${who} · ${said}` : who}
-      time={ago(d.lastActive)}
+      time={ago(d.last_active)}
       badge={fresh}
       unread={fresh && !looked}
       dim={d.status !== "live"}
-      label={`${name}, ${d.agentName ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${looked ? "viewed, not done" : m.title}` : ""}`}
+      label={`${name}, ${d.agent_name ?? "agent"}${d.pinned ? ", pinned" : ""}${m.title ? `, ${looked ? "viewed, not done" : m.title}` : ""}`}
       launch={`desk:${d.scope}`}
-      flip={d.conversationId ? `conv:${d.agentId}/${d.conversationId}` : undefined}
+      flip={d.conversation_id ? `conv:${d.agent_id}/${d.conversation_id}` : undefined}
       onOpen={() => openDesk(d)}
       onActions={onActions}
       actionsLabel={`Actions for ${name}`}
@@ -493,7 +493,7 @@ export function DeskRow({
 }
 
 /** A main chat cannot be archived, nor a deleted conversation (DeskTree's canArchiveDesk). */
-const canArchive = (d: DeskSummary) => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+const canArchive = (d: DeskSummary) => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
 
 /**
  * A desk's actions, as a bottom sheet: open it, pin or unpin (live desks), rename, archive or restore. Archive
@@ -535,11 +535,11 @@ export function DeskActions({
   return (
     <Sheet label={`${deskName(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-head">
-        <AgentFace name={d.agentName} src={d.agentId ? avatarUrl(d.agentId) : null} size={36} />
+        <AgentFace name={d.agent_name} src={d.agent_id ? avatarUrl(d.agent_id) : null} size={36} />
         <div className="loki-phone-sheet-copy">
           <div className="loki-phone-title loki-phone-ellipsis">{deskName(d)}</div>
           <div className="loki-phone-meta loki-phone-ellipsis">
-            {d.agentName ?? "agent"}
+            {d.agent_name ?? "agent"}
             {d.status !== "live" ? ` · ${d.status}` : ""}
           </div>
         </div>

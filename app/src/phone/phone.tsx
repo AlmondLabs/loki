@@ -52,7 +52,7 @@ type CatchUp = ReturnType<typeof useAttention>;
 type ConversationRoute = Extract<Route, { kind: "conversation" }>;
 
 /** An inbox card, opened: its conversation, full screen. */
-const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null });
+const openItem = (item: AttentionItem) => navigate({ kind: "conversation", agentId: item.agent_id, conversationId: item.id, prefill: null });
 
 /** Out of the Inbox pass: back where it was opened from, or Home when the app was opened on it. */
 const closeInbox = () => {
@@ -292,8 +292,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onArchive: ArchiveDesk | null =
     attention.available && catchUp.status === "open"
       ? async (d, archived) => {
-          if (!d.conversationId) return "this chat has no conversation";
-          const err = await catchUp.archiveConversation(d.conversationId, archived, "phone_list");
+          if (!d.conversation_id) return "this chat has no conversation";
+          const err = await catchUp.archiveConversation(d.conversation_id, archived, "phone_list");
           if (!err) desk.desks.request();
           return err;
         }
@@ -302,8 +302,8 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onRename: RenameDeskName | null =
     attention.available && catchUp.status === "open"
       ? async (d, name) => {
-          if (!d.conversationId) return "this chat has no conversation";
-          const err = await catchUp.renameConversation(d.conversationId, name);
+          if (!d.conversation_id) return "this chat has no conversation";
+          const err = await catchUp.renameConversation(d.conversation_id, name);
           if (err) return err;
           desk.setDeskTitle(d.scope, name);
           desk.desks.request();
@@ -466,9 +466,9 @@ function ConversationPage({
   prefill: { text: string; tick: number } | null;
 }) {
   const { attention } = desk;
-  const convDesk = desk.desks.list.find((d) => d.agentId === conv.agentId && d.conversationId === conv.conversationId);
+  const convDesk = desk.desks.list.find((d) => d.agent_id === conv.agentId && d.conversation_id === conv.conversationId);
   const thread: Thread = threadFor(conv, desk.desks.list, catchUp.items, catchUp.agents);
-  const item = catchUp.items.find((i) => i.agentId === thread.agentId && i.id === thread.conversationId) ?? null;
+  const item = catchUp.items.find((i) => i.agent_id === thread.agentId && i.id === thread.conversationId) ?? null;
   const scope = scopeFor(thread.conversationId, thread.agentId);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
@@ -479,7 +479,7 @@ function ConversationPage({
   const pickModel = async (rt: Runtime, selection: ModelSelection) => {
     const { applied, error } = await catchUp.updateModel(rt, selection);
     if (error || !applied) return setNote(`Model: ${error ?? "the daemon did not return the applied model"}`);
-    desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+    desk.setDeskModel(scope, applied.handle, applied.reasoning_effort);
     desk.models.used(applied.handle);
   };
   return (
@@ -592,14 +592,14 @@ function Screen({
   const cardModel = {
     models,
     onLoad: onLoadModels,
-    modelOf: (item: AttentionItem) => desk.modelOf(scopeFor(item.id, item.agentId)),
-    effortOf: (item: AttentionItem) => desk.reasoningEffortOf(scopeFor(item.id, item.agentId)),
+    modelOf: (item: AttentionItem) => desk.modelOf(scopeFor(item.id, item.agent_id)),
+    effortOf: (item: AttentionItem) => desk.reasoningEffortOf(scopeFor(item.id, item.agent_id)),
     onPick:
       catchUp.status === "open"
         ? async (item: AttentionItem, selection: ModelSelection) => {
             const { applied, error } = await catchUp.updateModel(item.runtime, selection);
             if (error || !applied) return setCardNote(`Model: ${error ?? "the daemon did not return the applied model"}`);
-            desk.setDeskModel(scopeFor(item.id, item.agentId), applied.handle, applied.reasoningEffort);
+            desk.setDeskModel(scopeFor(item.id, item.agent_id), applied.handle, applied.reasoning_effort);
             desk.models.used(applied.handle);
           }
         : undefined,

@@ -31,9 +31,9 @@ const t = (over: Partial<Task>): Task => ({
   priority: 2,
   labels: [],
   assignee: null,
-  createdAt: "2026-09-06T10:00:00Z",
-  updatedAt: "2026-09-06T10:00:00Z",
-  closedAt: null,
+  created_at: "2026-09-06T10:00:00Z",
+  updated_at: "2026-09-06T10:00:00Z",
+  closed_at: null,
   metadata: {},
   ...over,
 });
@@ -48,7 +48,7 @@ describe("tasks: columns", () => {
         t({ id: "c", status: "in_progress" }),
         t({ id: "d", status: "blocked" }),
         t({ id: "e", status: "deferred", priority: 0 }),
-        t({ id: "f", status: "closed", closedAt: "2026-09-06T11:00:00Z" }),
+        t({ id: "f", status: "closed", closed_at: "2026-09-06T11:00:00Z" }),
       ],
       NOW,
     );
@@ -59,7 +59,7 @@ describe("tasks: columns", () => {
   });
   test("done keeps only the last week", () => {
     const cols = columnsOf(
-      [t({ id: "old", status: "closed", closedAt: "2026-08-01T00:00:00Z" }), t({ id: "new", status: "closed", closedAt: "2026-09-05T00:00:00Z" })],
+      [t({ id: "old", status: "closed", closed_at: "2026-08-01T00:00:00Z" }), t({ id: "new", status: "closed", closed_at: "2026-09-05T00:00:00Z" })],
       NOW,
     );
     expect(cols[3].tasks.map((x) => x.id)).toEqual(["new"]);
@@ -98,17 +98,17 @@ describe("tasks: dispatch message", () => {
 describe("tasks: views (the sidebar)", () => {
   const tasks = [
     t({ id: "a", priority: 3, metadata: { by: "you" } }),
-    t({ id: "b", priority: 1, assignee: "friday", metadata: { by: "you", assignedTo: "c1" } }),
+    t({ id: "b", priority: 1, assignee: "friday", metadata: { by: "you", assigned_to: "c1" } }),
     t({
       id: "c",
       status: "in_progress",
       assignee: "friday",
-      metadata: { by: "agent", agent: "friday", assignedTo: "c1", doneAsked: "migrated staging", doneAskedBy: "friday" },
+      metadata: { by: "agent", agent: "friday", assigned_to: "c1", done_asked: "migrated staging", done_asked_by: "friday" },
     }),
     t({ id: "d", status: "blocked", assignee: "ira", metadata: { by: "agent", agent: "ira" } }),
     t({ id: "e", status: "deferred", priority: 0, metadata: { by: "you" } }),
-    t({ id: "f", status: "closed", closedAt: "2026-09-06T11:00:00Z", assignee: "friday", metadata: { doneAsked: "old word" } }),
-    t({ id: "old", status: "closed", closedAt: "2026-08-01T00:00:00Z", assignee: "ira" }),
+    t({ id: "f", status: "closed", closed_at: "2026-09-06T11:00:00Z", assignee: "friday", metadata: { done_asked: "old word" } }),
+    t({ id: "old", status: "closed", closed_at: "2026-08-01T00:00:00Z", assignee: "ira" }),
   ];
   const ids = (view: TaskViewId) => viewTasks(tasks, view, NOW).map((x) => x.id);
 
@@ -162,17 +162,17 @@ describe("tasks: views (the sidebar)", () => {
 
 describe("tasks: the Board's grouping and the Table's sort", () => {
   const tasks = [
-    t({ id: "a", title: "beta", assignee: "ira", metadata: { by: "you", folder: "/w/infra", desk: "d1" }, updatedAt: "2026-09-06T09:00:00Z" }),
+    t({ id: "a", title: "beta", assignee: "ira", metadata: { by: "you", folder: "/w/infra", desk: "d1" }, updated_at: "2026-09-06T09:00:00Z" }),
     t({
       id: "b",
       title: "Alpha",
       status: "in_progress",
       assignee: "friday",
       metadata: { by: "agent", agent: "friday", folder: "/w/site/" },
-      updatedAt: "2026-09-06T11:00:00Z",
+      updated_at: "2026-09-06T11:00:00Z",
     }),
-    t({ id: "c", title: "gamma", priority: 0, metadata: { by: "you" }, updatedAt: "2026-09-06T10:00:00Z" }),
-    t({ id: "d", title: "delta", status: "closed", closedAt: "2026-09-06T11:30:00Z", assignee: "ira", metadata: { folder: "/w/infra" } }),
+    t({ id: "c", title: "gamma", priority: 0, metadata: { by: "you" }, updated_at: "2026-09-06T10:00:00Z" }),
+    t({ id: "d", title: "delta", status: "closed", closed_at: "2026-09-06T11:30:00Z", assignee: "ira", metadata: { folder: "/w/infra" } }),
   ];
   const cols = (g: Parameters<typeof boardColumns>[1]) => boardColumns(tasks, g, NOW).map((c) => [c.label, c.tasks.map((x) => x.id)]);
 
@@ -205,7 +205,7 @@ describe("tasks: the Board's grouping and the Table's sort", () => {
     expect(rows({ key: "updated", dir: "desc" })).toEqual(["d", "b", "c", "a"]);
     expect(rows({ key: "assignee", dir: "asc" })).toEqual(["b", "a", "d", "c"]);
     expect(rows({ key: "chat", dir: "desc" })).toEqual(["a", "c", "b", "d"]);
-    const waiting = [...tasks, t({ id: "w", status: "in_progress", metadata: { doneAsked: "yes" } })];
+    const waiting = [...tasks, t({ id: "w", status: "in_progress", metadata: { done_asked: "yes" } })];
     expect(tableRows(waiting, { key: "status", dir: "asc" }, undefined, NOW)[0].id).toBe("w");
   });
 

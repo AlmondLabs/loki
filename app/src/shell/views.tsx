@@ -95,7 +95,7 @@ export function InboxView({
       onShown={catchUp.shown}
       onFilter={catchUp.filtered}
       onOpenDesk={(agentId, conversationId) => {
-        const item = catchUp.items.find((i) => i.agentId === agentId && i.id === conversationId);
+        const item = catchUp.items.find((i) => i.agent_id === agentId && i.id === conversationId);
         if (item) catchUp.decided(item, "open", via());
         onOpenDesk(agentId, conversationId, { chat: true });
       }}
@@ -106,9 +106,9 @@ export function InboxView({
       reasoningEffortFor={(agentId, conversationId) => desk.reasoningEffortOf(scopeFor(conversationId, agentId))}
       models={models}
       onLoadModels={onLoadModels}
-      onPickModel={(item, selection) => onPickModel(scopeFor(item.id, item.agentId), item.runtime, selection)}
+      onPickModel={(item, selection) => onPickModel(scopeFor(item.id, item.agent_id), item.runtime, selection)}
       modeFor={(agentId, conversationId) => desk.modeOf(scopeFor(conversationId, agentId))}
-      onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agentId), item.runtime, mode)}
+      onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agent_id), item.runtime, mode)}
       commands={catchUp.commands}
       onCommand={(item, id, args) => {
         // loki's own commands are keymap actions; everything else is the daemon's, run for the card's conversation.
@@ -342,7 +342,8 @@ export function PickerTree({
       onPickDesk={(d) => {
         const p = picker;
         onClose();
-        if (p) void onAssign({ scope: d.scope, agentId: d.agentId, agentName: d.agentName, conversationId: d.conversationId, title: d.title }, p.ids, p.start);
+        if (p)
+          void onAssign({ scope: d.scope, agent_id: d.agent_id, agent_name: d.agent_name, conversation_id: d.conversation_id, title: d.title }, p.ids, p.start);
       }}
       onNew={
         desk.attention.available

@@ -45,9 +45,9 @@ export function ProfilePage({
   setConfirmDelete: (v: boolean) => void;
   onRemove: () => Promise<void>;
 }) {
-  const myDesks = useMemo(() => desks.filter((x) => x.agentId === selected && x.status === "live"), [desks, selected]);
+  const myDesks = useMemo(() => desks.filter((x) => x.agent_id === selected && x.status === "live"), [desks, selected]);
   const myTasks = useMemo(
-    () => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assignedAgentId === selected || t.assignee === d.agent.name)),
+    () => (tasks ?? []).filter((t) => t.status !== "closed" && (t.metadata.assigned_agent_id === selected || t.assignee === d.agent.name)),
     [tasks, selected, d],
   );
   return (
@@ -84,10 +84,10 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
       )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 2 }}>
         {myDesks.map((x) => (
-          <Row dense key={x.scope} onClick={() => onOpen(x.conversationId ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
+          <Row dense key={x.scope} onClick={() => onOpen(x.conversation_id ?? "default")} style={{ justifyContent: "space-between", fontSize: 13.5 }}>
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.title ?? "main chat"}</span>
             <span className="loki-meta loki-meta--wrap" style={{ flex: "0 0 auto" }}>
-              {x.active ? "active" : x.lastActive ? ago(x.lastActive) : ""}
+              {x.active ? "active" : x.last_active ? ago(x.last_active) : ""}
             </span>
           </Row>
         ))}
@@ -192,7 +192,7 @@ function Identity({
     setDescription(d.agent.description ?? "");
     setModel(d.agent.model ?? "");
   }
-  const settings = d.agent.modelSettings;
+  const settings = d.agent.model_settings;
   const bits = [
     settings.effort ? `effort ${typeof settings.effort === "string" ? settings.effort : JSON.stringify(settings.effort)}` : null,
     settings.thinking ? "thinking" : null,
@@ -275,7 +275,7 @@ function McpSection({ agentId, mcp }: { agentId: string; mcp: Pick<McpApi, "get"
       )}
       <div style={{ display: "grid", gap: 6, padding: "0 8px" }}>
         {view?.servers.map((s) => {
-          const on = !s.offFor.includes(agentId);
+          const on = !s.off_for.includes(agentId);
           return (
             <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Switch on={on} onToggle={() => void mcp.agent(agentId, s.name, !on).then(apply)} label={s.entry} small />

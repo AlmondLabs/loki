@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { scopeFor, type WidgetChange } from "../core/desk-core.ts";
 import { isWriterChat, learnTitle, type Lead } from "../core/recall/model.ts";
+import type { Replies } from "../core/frames.ts";
 import type { ChatBackend } from "./frames/chat.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { log } from "./log.ts";
@@ -76,14 +77,14 @@ export function formatTranscript(rows: TranscriptRow[], agentName: string | null
  * directory, the brief sent as the person's first message, the lead recorded as a lesson. The socket
  * waits for the harness's first word back (or two seconds) so the turn is under way before it closes.
  */
-export type StartLesson = (leadId: string) => Promise<{ agentId: string; conversationId: string }>;
+export type StartLesson = (leadId: string) => Promise<Replies["recall_lesson"]>;
 /**
  * The first thing on a lesson's desk: an info card with the lead, so the desk is furnished before the agent says a
  * word. The agent's outline joins it once the brief lands (the app sends the brief over its own live socket, the way
  * the task list's dispatch does — a message fired from a socket that closes right after never reaches the agent).
  */
 export function lessonCard(lead: Lead): { type: "info-card"; title: string; data: { lines: string[] } } {
-  const who = lead.source.agentName ?? "the agent";
+  const who = lead.source.agent_name ?? "the agent";
   const where = lead.source.title ? `it came up in "${lead.source.title}" with ${who}` : `it came up in a conversation with ${who}`;
   return {
     type: "info-card",
@@ -116,8 +117,8 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
   return async (leadId) => {
     const lead = opts.store.lead(leadId);
     if (!lead) throw new Error("no such lead");
-    if (!lead.source.agentId) throw new Error("the lead names no agent");
-    const rt = await create(lead.source.agentId, learnTitle(lead.title));
+    if (!lead.source.agent_id) throw new Error("the lead names no agent");
+    const rt = await create(lead.source.agent_id, learnTitle(lead.title));
     const scope = scopeFor(rt.conversationId, rt.agentId);
     const dir = join(opts.widgetsDir ?? paths.widgets, scope);
     try {
@@ -129,7 +130,7 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
     }
     const lesson = opts.store.startLesson(leadId, rt);
     log("recall:lesson-started", { lead: leadId, conversation: rt.conversationId });
-    return { agentId: lesson?.agentId ?? rt.agentId, conversationId: lesson?.conversationId ?? rt.conversationId };
+    return { agent_id: lesson?.agent_id ?? rt.agentId, conversation_id: lesson?.conversation_id ?? rt.conversationId };
   };
 }
 

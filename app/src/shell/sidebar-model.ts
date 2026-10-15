@@ -40,12 +40,12 @@ export function deskMark(
 }
 
 /** A conversation can be archived (or restored) unless it is the agent's main chat or already deleted. */
-export const canArchive = (d: DeskSummary): boolean => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+export const canArchive = (d: DeskSummary): boolean => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
 /**
  * A desk with its own conversation can be renamed, archived or not: the name is the chat's title. The main chat is
  * called after its agent (it has no summary to set) and a deleted desk has no conversation left to write to.
  */
-export const canRename = (d: DeskSummary): boolean => !!d.conversationId && d.conversationId !== "default" && d.status !== "deleted";
+export const canRename = (d: DeskSummary): boolean => !!d.conversation_id && d.conversation_id !== "default" && d.status !== "deleted";
 
 /** Longest desk name: Slack's channel-name cap; past it a name stops fitting the sidebar row, the header and ⌘K anyway. */
 export const DESK_NAME_MAX = 80;
@@ -56,10 +56,10 @@ export function cleanDeskName(raw: string): string | null {
   return name || null;
 }
 /** A desk with an agent and a conversation, not deleted, can move to another folder (the daemon keeps it per chat). */
-export const canMove = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status !== "deleted";
+export const canMove = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
 /** A live desk with an agent and a conversation can be pinned. */
-export const canPin = (d: DeskSummary): boolean => !!d.agentId && !!d.conversationId && d.status === "live";
+export const canPin = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status === "live";
 
 /**
  * What a row shows: the red badge (one per waiting conversation), the bold title, the live dot, and for a
@@ -101,7 +101,7 @@ export function deskRowState(item: AttentionItem | undefined, d: DeskSummary): R
 export function doneAction(item: AttentionItem | undefined | null): "done" | "undone" | null {
   if (!item || item.pendingApproval) return null;
   if (item.unread) return "done";
-  return item.lastRole === "assistant" && !!item.lastMessageAt ? "undone" : null;
+  return item.lastRole === "assistant" && !!item.last_message_at ? "undone" : null;
 }
 
 /** One row of the Chats sidebar: its chat, its marks, whether it is the agent's main chat, and whether it is the one on show. */
@@ -133,7 +133,7 @@ export interface SidebarModel {
   empty: boolean;
 }
 
-const byRecent = (a: DeskSummary, b: DeskSummary) => (b.lastActive ?? "").localeCompare(a.lastActive ?? "");
+const byRecent = (a: DeskSummary, b: DeskSummary) => (b.last_active ?? "").localeCompare(a.last_active ?? "");
 
 /** The Chats sidebar's model, by the rules above, with `opts.query` filtering by chat title or agent name and `opts.current` marking the chat on show. */
 export function sidebarModel(
@@ -142,14 +142,14 @@ export function sidebarModel(
   opts: { query?: string; current?: string; agents?: Array<{ id: string; name: string }> },
 ): SidebarModel {
   const q = (opts.query ?? "").trim().toLowerCase();
-  const itemOf = new Map(items.map((i) => [`${i.agentId}/${i.id}`, i]));
+  const itemOf = new Map(items.map((i) => [`${i.agent_id}/${i.id}`, i]));
   const names = new Map((opts.agents ?? []).map((a) => [a.id, a.name]));
-  const agentName = (d: DeskSummary) => (d.agentId ? (names.get(d.agentId) ?? d.agentName) : d.agentName) ?? (d.agentId ? "Agent" : "Other chats");
+  const agentName = (d: DeskSummary) => (d.agent_id ? (names.get(d.agent_id) ?? d.agent_name) : d.agent_name) ?? (d.agent_id ? "Agent" : "Other chats");
   const matches = (d: DeskSummary) => !q || (d.title ?? "").toLowerCase().includes(q) || agentName(d).toLowerCase().includes(q);
   const row = (d: DeskSummary): SidebarRow => ({
     desk: d,
-    ...deskRowState(itemOf.get(`${d.agentId}/${d.conversationId}`), d),
-    main: d.conversationId === "default",
+    ...deskRowState(itemOf.get(`${d.agent_id}/${d.conversation_id}`), d),
+    main: d.conversation_id === "default",
     current: d.scope === opts.current,
   });
 
@@ -157,8 +157,8 @@ export function sidebarModel(
   // An agent's place: its most recent activity on any live desk, pinned ones included, before the filter.
   const latest = new Map<string, string>();
   for (const d of live) {
-    const k = d.agentId ?? "",
-      at = d.lastActive ?? "";
+    const k = d.agent_id ?? "",
+      at = d.last_active ?? "";
     if (at >= (latest.get(k) ?? "")) latest.set(k, at);
   }
   const shown = live.filter(matches);
@@ -166,12 +166,12 @@ export function sidebarModel(
   const pinned = shown.filter((d) => d.pinned).sort(byRecent);
   if (pinned.length) sections.push(section("pinned", "Pinned", null, pinned.map(row)));
   const groups = new Map<string, DeskSummary[]>();
-  for (const d of shown) if (!d.pinned) groups.set(d.agentId ?? "", [...(groups.get(d.agentId ?? "") ?? []), d]);
+  for (const d of shown) if (!d.pinned) groups.set(d.agent_id ?? "", [...(groups.get(d.agent_id ?? "") ?? []), d]);
   const order = [...groups].sort(
     ([a, listA], [b, listB]) => (latest.get(b) ?? "").localeCompare(latest.get(a) ?? "") || agentName(listA[0]).localeCompare(agentName(listB[0])),
   );
   for (const [k, desksOfAgent] of order) {
-    const list = desksOfAgent.sort((a, b) => Number(b.conversationId === "default") - Number(a.conversationId === "default") || byRecent(a, b));
+    const list = desksOfAgent.sort((a, b) => Number(b.conversation_id === "default") - Number(a.conversation_id === "default") || byRecent(a, b));
     sections.push(section(`agent:${k}`, agentName(list[0]), k || null, list.map(row)));
   }
   const archived = desks.filter((d) => d.status !== "live" && matches(d)).map(row);

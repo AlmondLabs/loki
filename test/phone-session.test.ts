@@ -277,10 +277,10 @@ describe("drafts through the shared composer", () => {
   const card = (id: string) =>
     ({
       id,
-      agentId: "a1",
-      agentName: "ira",
+      agent_id: "a1",
+      agent_name: "ira",
       title: id,
-      lastMessageAt: "2026-09-07T10:00:00Z",
+      last_message_at: "2026-09-07T10:00:00Z",
       archived: false,
       status: "done",
       lastAssistantText: "x",
@@ -338,7 +338,7 @@ describe("drafts through the shared composer", () => {
   test("deciding the card (Archive, Next) leaves its draft for when it comes back", () => {
     const d = createDrafts();
     const a = card("c1");
-    const k = draftKey(a.agentId, a.id);
+    const k = draftKey(a.agent_id, a.id);
     d.set(k, { text: "half a thought", images: [] });
     let s = commitCard(EMPTY_DECK, a, "archive");
     expect(d.get(k).text).toBe("half a thought");
@@ -355,14 +355,14 @@ describe("drafts through the shared composer", () => {
  */
 describe("the conversation page", () => {
   const card = (over: Partial<AttentionItem> = {}) =>
-    ({ id: "c:1/x", agentId: "agent-1", agentName: "friday", title: "Loki mobile", status: "done", ...over }) as unknown as AttentionItem;
+    ({ id: "c:1/x", agent_id: "agent-1", agent_name: "friday", title: "Loki mobile", status: "done", ...over }) as unknown as AttentionItem;
 
   test("an Inbox card and the page it opens share one draft key, through the address and back", () => {
     const item = card();
-    const opened = parseRoute(formatRoute({ kind: "conversation", agentId: item.agentId, conversationId: item.id, prefill: null }));
+    const opened = parseRoute(formatRoute({ kind: "conversation", agentId: item.agent_id, conversationId: item.id, prefill: null }));
     expect(opened.kind).toBe("conversation");
     if (opened.kind !== "conversation") return;
-    expect(draftKey(opened.agentId, opened.conversationId)).toBe(draftKey(item.agentId, item.id));
+    expect(draftKey(opened.agentId, opened.conversationId)).toBe(draftKey(item.agent_id, item.id));
   });
   test("the draft outlives the screens that show it: tab changes, child routes and a disconnect unmount readers, nothing clears it", () => {
     const k = draftKey("agent-1", "survives");

@@ -5,11 +5,37 @@ import { DeskStore } from "../../mod/desk-store.ts";
 import { GestureLog } from "../../mod/gestures.ts";
 import type { Client } from "../../mod/server.ts";
 import type { WidgetsWatcher } from "../../mod/widgets-fs.ts";
+import { OLD_KEYS } from "../../core/snake-keys.ts";
+
+/** Fields that hold user content or maps keyed by ids, where any key is data: the guard does not look inside them. */
+const DATA_FIELDS = new Set(["data", "overlay", "layout", "input", "args", "metadata"]);
+
+/**
+ * Throws when a frame the mod sends carries a field under its camelCase name from before October 2026 (docs/style.md,
+ * data): every bridge test becomes a check that the wire is snake_case, a spread that brings an old key along included.
+ */
+export function assertSnakeCase(frame: unknown, path = "frame"): void {
+  if (Array.isArray(frame)) return frame.forEach((v, i) => assertSnakeCase(v, `${path}[${i}]`));
+  if (!frame || typeof frame !== "object") return;
+  for (const [k, v] of Object.entries(frame)) {
+    const now = OLD_KEYS[k];
+    if (now) throw new Error(`${path}.${k} is camelCase; on the wire it is ${now}`);
+    if (!DATA_FIELDS.has(k)) assertSnakeCase(v, `${path}.${k}`);
+  }
+}
 
 /** A client that records what the mod sent it; a `deviceId` makes it a paired phone. */
 export function client(scope: string, deviceId?: string): Client & { sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
-  return { scope, sent, ...(deviceId ? { deviceId } : {}), send: (m) => sent.push(m as Record<string, unknown>) };
+  return {
+    scope,
+    sent,
+    ...(deviceId ? { deviceId } : {}),
+    send: (m) => {
+      assertSnakeCase(m);
+      sent.push(m as Record<string, unknown>);
+    },
+  };
 }
 
 /** A widget watcher over fixed entries, with runtime errors kept in memory. */
@@ -47,7 +73,10 @@ export function bridgeOf(deps: BridgeOf = {}) {
 /** A bridge as bridgeOf builds it, and every broadcast it made. */
 export function bridgeWith(deps: BridgeOf = {}) {
   const broadcasts: Array<{ frame: Record<string, unknown>; scope?: string }> = [];
-  const bridge = bridgeOf({ ...deps, broadcast: (frame, scope) => broadcasts.push({ frame: frame as Record<string, unknown>, scope }) });
+  const bridge = bridgeOf({
+    ...deps,
+    broadcast: (frame, scope) => (assertSnakeCase(frame), broadcasts.push({ frame: frame as Record<string, unknown>, scope })),
+  });
   return { bridge, broadcasts };
 }
 

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import type { Scope } from "../core/desk-core.ts";
 import { backendName, scopeFor } from "../core/desk-core.ts";
+import { migrateKeys } from "../core/snake-keys.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
 import type { PermissionMode } from "../daemon/approvals.ts";
 import type { ReasoningEffort } from "../core/models.ts";
@@ -26,8 +27,9 @@ export class DeskRegistry {
     this.path = path;
     this.agentOf = agentOf;
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as Record<string, Partial<Runtime> | null>;
-      let rewritten = false;
+      // Saved camelCase (agentId, conversationId) before October 2026: renamed here and written back once.
+      const { value: parsed, changed } = migrateKeys(JSON.parse(readFileSync(path, "utf8")) as Record<string, Partial<Runtime> | null>);
+      let rewritten = changed;
       for (const [k, v] of Object.entries(parsed)) {
         if (!v?.agent_id || !v.conversation_id) continue;
         const rt: Runtime = { ...v, agent_id: v.agent_id, conversation_id: v.conversation_id };

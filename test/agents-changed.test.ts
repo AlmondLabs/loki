@@ -34,9 +34,9 @@ describe("agents_changed", () => {
     calls.push(["create", () => Promise.resolve(must(h.chat_agent_create, "the chat_agent_create handler")({ name: "test" } as never, c))]);
     calls.push([
       "update",
-      () => Promise.resolve(must(h.chat_agent_update, "the chat_agent_update handler")({ agentId: "agent-local-a", name: "test" } as never, c)),
+      () => Promise.resolve(must(h.chat_agent_update, "the chat_agent_update handler")({ agent_id: "agent-local-a", name: "test" } as never, c)),
     ]);
-    calls.push(["delete", () => Promise.resolve(must(h.chat_agent_delete, "the chat_agent_delete handler")({ agentId: "agent-local-a" }, c))]);
+    calls.push(["delete", () => Promise.resolve(must(h.chat_agent_delete, "the chat_agent_delete handler")({ agent_id: "agent-local-a" }, c))]);
     calls.push(["import", () => Promise.resolve(must(h.chat_import, "the chat_import handler")({}, c))]);
     for (const [, call] of calls) expect(await call()).toMatchObject({ ok: true });
     expect(broadcasts).toEqual([{ type: "agents_changed" }, { type: "agents_changed" }, { type: "agents_changed" }, { type: "agents_changed" }]);
@@ -45,7 +45,7 @@ describe("agents_changed", () => {
   test("a change that failed tells no one, and reading the agents is not a change", async () => {
     const { c, broadcasts } = ctx();
     const failing = chatFrames({ chat: backend(true) });
-    expect(await must(failing.chat_agent_update, "the chat_agent_update handler")({ agentId: "agent-local-a", name: "x" } as never, c)).toMatchObject({
+    expect(await must(failing.chat_agent_update, "the chat_agent_update handler")({ agent_id: "agent-local-a", name: "x" } as never, c)).toMatchObject({
       ok: false,
     });
     expect(await must(failing.chat_agent_create, "the chat_agent_create handler")({ name: "x" } as never, c)).toMatchObject({ ok: false });

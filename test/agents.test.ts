@@ -45,9 +45,9 @@ describe("agents: the record", () => {
     expect(a.name).toBe("ira");
     expect(a.description).toBe("The memory-first agent");
     expect(a.model).toBe("anthropic/claude-fable-5");
-    expect(a.modelSettings.effort).toBe("high");
+    expect(a.model_settings.effort).toBe("high");
     expect(a.favourite).toBe(true);
-    expect(a.systemHead).toBe("You are a Letta Code agent.");
+    expect(a.system_head).toBe("You are a Letta Code agent.");
   });
   test("agent ids are path segments: traversal shapes are refused everywhere", () => {
     expect(isAgentId("default-agent-local-45b66c51-fe5b-44e8-b36c-696adc14ee28")).toBe(true);

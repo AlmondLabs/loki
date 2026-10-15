@@ -20,7 +20,7 @@ import { isLanVia } from "../core/frames.ts";
  * state/lan.json survives /reload. Binds 0.0.0.0:41415 (LOKI_LAN_PORT) and speaks:
  *   GET  /health                       liveness, nothing else
  *   POST /pair  {code, name}           a pairing code → a device token in an HttpOnly cookie
- *   GET  /me                           {deviceId, name} or 401: is this browser paired?
+ *   GET  /me                           {device_id, name} or 401: is this browser paired?
  *   POST /unpair                       clears the cookie and forgets the device
  *   GET  /agents/<id>/profile.png      device auth (cookie or bearer), never ?t=
  *   POST/DELETE /uploads               a file attached to a message (mod/uploads.ts), device auth, same-site only
@@ -124,7 +124,7 @@ export class LanListener {
       addresses,
       host: (this.opts.host ?? bonjourHost)(),
       port: this.boundPort ?? this.configuredPort,
-      appServed: this.dist !== null,
+      app_served: this.dist !== null,
       error: this.bindError ?? (listening && addresses.length === 0 ? "no network interface with an IPv4 address" : null),
       via: this.viaSetting ?? (tailscale?.running ? "tailscale" : "lan"),
       tailscale,
@@ -137,8 +137,8 @@ export class LanListener {
       const next = await this.tailscale.status();
       const prev = this.lastTailscale;
       this.lastTailscale = next;
-      if (prev && (prev.running !== next.running || prev.name !== next.name || prev.serveUrl !== next.serveUrl)) {
-        log("lan:tailscale", { running: next.running, name: next.name, serveUrl: next.serveUrl, error: next.error });
+      if (prev && (prev.running !== next.running || prev.name !== next.name || prev.serve_url !== next.serve_url)) {
+        log("lan:tailscale", { running: next.running, name: next.name, serveUrl: next.serve_url, error: next.error });
         this.opts.onChange?.("status", this.status());
       }
     }
@@ -158,7 +158,7 @@ export class LanListener {
   private origin(s: LanStatus): string {
     const ts = s.tailscale;
     if (s.via === "tailscale" && ts) {
-      if (ts.serveUrl) return ts.serveUrl;
+      if (ts.serve_url) return ts.serve_url;
       if (ts.running && ts.name) return `http://${ts.name}:${s.port}`;
     }
     return `http://${s.host ?? s.address ?? "127.0.0.1"}:${s.port}`;
@@ -315,7 +315,7 @@ export class LanListener {
           const who = this.authorize(req, url);
           const device = who.deviceId ? this.opts.devices.get(who.deviceId) : null;
           if (!device) return json(res, 401, { error: "not paired" });
-          return json(res, 200, { deviceId: device.id, name: device.name });
+          return json(res, 200, { device_id: device.id, name: device.name });
         }
         case "/unpair": {
           if (req.method !== "POST") return json(res, 405, { error: "POST" });
@@ -370,7 +370,7 @@ export class LanListener {
         const { id, token } = this.opts.devices.mint(name);
         log("lan:paired", { id, name });
         this.opts.onChange?.("devices", this.status());
-        json(res, 200, { deviceId: id, name: this.opts.devices.get(id)?.name ?? name }, { "set-cookie": setCookie(token) });
+        json(res, 200, { device_id: id, name: this.opts.devices.get(id)?.name ?? name }, { "set-cookie": setCookie(token) });
       },
       () => json(res, 400, { error: "bad request body" }),
     );

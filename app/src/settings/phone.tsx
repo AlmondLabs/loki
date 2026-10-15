@@ -51,7 +51,7 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
             {status.error}
           </div>
         )}
-        {on && !status.appServed && (
+        {on && !status.app_served && (
           <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ marginTop: 4 }}>
             the canvas build is missing; run npm run build:app
           </div>
@@ -87,7 +87,7 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
         ) : (
           <div style={{ display: "grid", gap: 4 }}>
             {devices.map((d) => {
-              const via = viaLabel(d.lastVia);
+              const via = viaLabel(d.last_via);
               return (
                 <div
                   key={d.id}
@@ -118,7 +118,7 @@ export function Phone({ phone, connected, os = platform }: { phone: PhoneApi; co
                       via {via}
                     </Chip>
                   )}
-                  <span className="loki-meta">{lastSeen(d.lastSeenAt)}</span>
+                  <span className="loki-meta">{lastSeen(d.last_seen_at)}</span>
                   <Button size="sm" tone="negative" onClick={() => phone.forget(d.id)} title="this phone has to pair again">
                     forget
                   </Button>
@@ -178,7 +178,7 @@ function Route({ status, onVia, onServe }: { status: PhoneLanStatus; onVia: (via
 function ServeSwitch({ ts, onServe }: { ts: TailscaleStatus; onServe: (enabled: boolean) => void }) {
   return (
     <div style={{ display: "grid", gap: 2, paddingLeft: 2 }}>
-      <Switch on={!!ts.serveUrl} onToggle={() => onServe(!ts.serveUrl)} label="https on the tailnet" small />
+      <Switch on={!!ts.serve_url} onToggle={() => onServe(!ts.serve_url)} label="https on the tailnet" small />
       {ts.error && (
         <div className="loki-meta loki-meta--negative loki-meta--wrap" style={{ overflowWrap: "anywhere" }}>
           {ts.error}

@@ -95,7 +95,7 @@ export function useViewed(
   useEffect(() => {
     markRef.current = markViewed;
   });
-  const agentId = item?.agentId,
+  const agentId = item?.agent_id,
     conversationId = item?.id;
   useEffect(() => {
     const r = nextLook(looks.current, { looking, stamp, running, agentId, conversationId });

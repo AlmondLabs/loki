@@ -15,24 +15,24 @@ const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
     scope,
     title: scope,
     status: "live",
-    agentName: "friday",
-    agentId: "a1",
-    conversationId: scope,
+    agent_name: "friday",
+    agent_id: "a1",
+    conversation_id: scope,
     model: null,
     pinned: false,
     widgets: 0,
     active: false,
-    lastActive: "2026-09-08T10:00:00Z",
+    last_active: "2026-09-08T10:00:00Z",
     ...over,
   }) as DeskSummary;
-const item = (id: string, status: AttentionItem["status"]): AttentionItem => ({ id, agentId: "a1", status }) as unknown as AttentionItem;
+const item = (id: string, status: AttentionItem["status"]): AttentionItem => ({ id, agent_id: "a1", status }) as unknown as AttentionItem;
 
 const desks = [
-  desk("jira", { lastActive: "2026-09-08T12:00:00Z" }),
-  desk("aws", { lastActive: "2026-09-08T11:00:00Z" }),
-  desk("email", { pinned: true, lastActive: "2026-09-07T09:00:00Z" }),
-  desk("cost", { lastActive: "2026-09-08T09:00:00Z" }),
-  desk("old", { lastActive: "2026-09-01T09:00:00Z" }),
+  desk("jira", { last_active: "2026-09-08T12:00:00Z" }),
+  desk("aws", { last_active: "2026-09-08T11:00:00Z" }),
+  desk("email", { pinned: true, last_active: "2026-09-07T09:00:00Z" }),
+  desk("cost", { last_active: "2026-09-08T09:00:00Z" }),
+  desk("old", { last_active: "2026-09-01T09:00:00Z" }),
   desk("gone", { status: "archived" }),
   desk("shared", { title: "shared sheet" }),
 ];
@@ -59,7 +59,7 @@ describe("sections", () => {
     expect(secs[0].desks.map((d) => d.scope)).toEqual(["jira", "aws", "cost", "email", "old"]);
   });
   test("the agent filter applies inside every section", () => {
-    const mixed = [...desks, desk("ira-main", { agentId: "a2", agentName: "ira", pinned: true })];
+    const mixed = [...desks, desk("ira-main", { agent_id: "a2", agent_name: "ira", pinned: true })];
     const secs = sectionDesks(mixed, "a2", []);
     expect(secs.flatMap((s) => s.desks.map((d) => d.scope))).toEqual(["ira-main"]);
   });

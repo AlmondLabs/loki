@@ -114,12 +114,12 @@ describe("signing in to a remote MCP server (OAuth)", () => {
     });
     try {
       mcp.setServer("issues", { url: `${fake.base}/mcp`, headers: {} });
-      await until(() => mcp.view().servers[0]?.signIn?.url != null);
+      await until(() => mcp.view().servers[0]?.sign_in?.url != null);
       const waiting = mcp.view().servers[0];
-      expect(waiting).toMatchObject({ state: "signin", signIn: { signedIn: false } });
+      expect(waiting).toMatchObject({ state: "signin", sign_in: { signed_in: false } });
       expect(fake.seen.registrations).toBe(1); // loki registered itself, with its callback address
       expect(mcp.sectionText()).toContain("- issues: needs the person to sign in");
-      const page = new URL(must(waiting.signIn?.url, "the sign-in page"));
+      const page = new URL(must(waiting.sign_in?.url, "the sign-in page"));
       expect(page.origin + page.pathname).toBe(`${fake.base}/authorize`);
       expect(page.searchParams.get("code_challenge_method")).toBe("S256");
       expect(page.searchParams.get("redirect_uri")).toBe("http://127.0.0.1:41414/mcp/oauth/callback");
@@ -131,7 +131,7 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       const done = await mcp.finishAuth(params);
       expect(done).toEqual({ ok: true, server: "issues", message: "Signed in to issues. You can close this tab and go back to loki." });
       await until(() => mcp.view().servers[0]?.state === "connected");
-      expect(mcp.view().servers[0]).toMatchObject({ state: "connected", signIn: { url: null, signedIn: true } });
+      expect(mcp.view().servers[0]).toMatchObject({ state: "connected", sign_in: { url: null, signed_in: true } });
       expect(mcp.view().servers[0].tools).toHaveLength(TOOLS.length);
       expect((await mcp.servers.call("mcp__issues__list_issues", { repo: "loki" })).content).toEqual([{ type: "text", text: 'list_issues {"repo":"loki"}' }]);
       expect(fake.seen.mcpWithToken).toBeGreaterThan(0);
@@ -142,7 +142,7 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       // Signing out forgets the tokens and asks for a sign-in again; the registration stays.
       await mcp.signOut("issues");
       expect(keychain.has("mcp-oauth.issues.tokens")).toBe(false);
-      await until(() => mcp.view().servers[0]?.state === "signin" && mcp.view().servers[0]?.signIn?.url != null);
+      await until(() => mcp.view().servers[0]?.state === "signin" && mcp.view().servers[0]?.sign_in?.url != null);
       expect(fake.seen.registrations).toBe(1);
     } finally {
       await mcp.close();
@@ -163,11 +163,11 @@ describe("signing in to a remote MCP server (OAuth)", () => {
     try {
       mcp.setServer("token", { url: `${fake.base}/mcp`, headers: { Authorization: "Bearer wrong" } });
       await until(() => mcp.view().servers[0]?.state === "down");
-      expect(mcp.view().servers[0]).toMatchObject({ state: "down", signIn: null });
+      expect(mcp.view().servers[0]).toMatchObject({ state: "down", sign_in: null });
       mcp.setServer("token", null);
       mcp.setServer("issues", { url: `${fake.base}/mcp`, headers: {} });
-      await until(() => mcp.view().servers[0]?.signIn?.url != null);
-      const state = must(new URL(must(mcp.view().servers[0].signIn?.url, "the sign-in page")).searchParams.get("state"), "a state");
+      await until(() => mcp.view().servers[0]?.sign_in?.url != null);
+      const state = must(new URL(must(mcp.view().servers[0].sign_in?.url, "the sign-in page")).searchParams.get("state"), "a state");
       expect(await mcp.finishAuth({ state, error: "access_denied", error_description: "You said no" })).toEqual({
         ok: false,
         server: "issues",

@@ -9,7 +9,7 @@ export interface RecallDeps {
   recall?: {
     store: RecallStore;
     status: () => WorkerStatus;
-    setSettings: (s: { enabled?: boolean; dailyCap?: number }) => Promise<void>;
+    setSettings: (s: { enabled?: boolean; daily_cap?: number }) => Promise<void>;
     run: () => Promise<{ note: string }>;
     startLesson?: StartLesson;
     /** True while the lesson's conversation holds no message: the brief never arrived and the app offers to send it again. */
@@ -42,7 +42,7 @@ export function recallFrames({ recall }: RecallDeps): FrameHandlers {
     rejected: store.rejected(),
     worker: recall.status(),
     leads: store.leads(),
-    dismissedLeads: store.dismissedLeads(),
+    dismissed_leads: store.dismissedLeads(),
     lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })),
   });
   const changed = (ctx: FrameContext) => ctx.broadcast({ type: "recall_changed" });
@@ -73,8 +73,8 @@ export function recallFrames({ recall }: RecallDeps): FrameHandlers {
       changed(ctx);
       return reply({ card: null });
     },
-    recall_settings: async ({ enabled, dailyCap }, ctx) => {
-      await recall.setSettings({ ...(enabled !== undefined ? { enabled } : {}), ...(dailyCap !== undefined ? { dailyCap } : {}) });
+    recall_settings: async ({ enabled, daily_cap: dailyCap }, ctx) => {
+      await recall.setSettings({ ...(enabled !== undefined ? { enabled } : {}), ...(dailyCap !== undefined ? { daily_cap: dailyCap } : {}) });
       changed(ctx);
       return reply(snapshot());
     },

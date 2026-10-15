@@ -35,7 +35,7 @@ import { parseTaskSource } from "./task-source.ts";
  * the mod's router (mod/bridge.ts) dispatches on, what the app's `request()` and `send()` are typed by, and what
  * a paired phone may send: nothing else lists frames.
  *
- * On the wire a frame is `{ type, ...payload }`; a request and its reply also carry the request's `requestId`.
+ * On the wire a frame is `{ type, ...payload }`; a request and its reply also carry the request's `request_id`.
  */
 
 type Raw = Record<string, unknown>;
@@ -112,14 +112,14 @@ function mcpEdit(
 /** The task ids a task list frame names: `ids`, or a single `id`. */
 const taskIds = (m: Raw): string[] => (Array.isArray(m.ids) ? strings(m.ids) : str(m.id) ? [m.id] : []);
 /** A conversation mark: which conversation, and its agent when the app knows it. */
-const mark = (m: Raw) => (str(m.conversationId) ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId } : "conversationId required");
-const agent = (m: Raw) => (isAgentId(m.agentId) ? { agentId: m.agentId } : "agentId required");
+const mark = (m: Raw) => (str(m.conversation_id) ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id } : "conversation_id required");
+const agent = (m: Raw) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id } : "agent_id required");
 /** A chat on loki's daemon: its agent and its id, both required. */
 const chatRef = (m: Raw) =>
-  isAgentId(m.agentId) && str(m.conversationId) && m.conversationId
-    ? { agentId: m.agentId, conversationId: m.conversationId }
-    : "agentId and conversationId required";
-/** The payload of a frame that carries nothing beside `type` (and a reply's `requestId`). */
+  isAgentId(m.agent_id) && str(m.conversation_id) && m.conversation_id
+    ? { agent_id: m.agent_id, conversation_id: m.conversation_id }
+    : "agent_id and conversation_id required";
+/** The payload of a frame that carries nothing beside `type` (and a reply's `request_id`). */
 type NoPayload = object;
 const nothing = (): NoPayload => ({});
 const recallId = <T extends object>(m: Raw, rest: (id: string) => T | string = () => ({}) as T): ({ id: string } & T) | string => {
@@ -128,7 +128,7 @@ const recallId = <T extends object>(m: Raw, rest: (id: string) => T | string = (
   return typeof r === "string" ? r : { id: m.id, ...r };
 };
 
-/** The answer to a request, by reply name: the payload beside `type` and `requestId`. */
+/** The answer to a request, by reply name: the payload beside `type` and `request_id`. */
 export interface Replies {
   folders: RecentFolders;
   folder_matches: { matches: string[] };
@@ -138,22 +138,22 @@ export interface Replies {
   recall_card: { card: CardWithSchedule | null };
   recall_ran: { note: string };
   recall_export: { tsv: string };
-  recall_lesson: { agentId: string; conversationId: string };
+  recall_lesson: { agent_id: string; conversation_id: string };
   tasks: { tasks: Task[] };
   task_created: { task: Task };
   tasks_updated: { tasks: Task[] };
   skills_global: { skills: GlobalSkill[] };
-  skill_installed: { agentId: string; output: string };
-  skill_refreshed: { agentId: string; name: string } & RefreshOutcome;
-  agent: { agent: LocalAgent; files: MemoryFile[]; skills: Array<MemorySkill | MemorySkillInfo>; hasProfile: boolean; lastCommit: MemoryCommit | null };
-  reflection_state: { agentId: string } & ReflectionState;
-  memory_file: { agentId: string; path: string; content: string | null };
-  memory_commits: { agentId: string; commits: MemoryCommit[] };
-  memory_diff: { agentId: string; sha: string; diff: string };
+  skill_installed: { agent_id: string; output: string };
+  skill_refreshed: { agent_id: string; name: string } & RefreshOutcome;
+  agent: { agent: LocalAgent; files: MemoryFile[]; skills: Array<MemorySkill | MemorySkillInfo>; has_profile: boolean; last_commit: MemoryCommit | null };
+  reflection_state: { agent_id: string } & ReflectionState;
+  memory_file: { agent_id: string; path: string; content: string | null };
+  memory_commits: { agent_id: string; commits: MemoryCommit[] };
+  memory_diff: { agent_id: string; sha: string; diff: string };
   inbox: { conversations: InboxRow[] };
-  history: { agentId: string | null; conversationId: string; messages: TranscriptRow[]; more: boolean; widgetLog: WidgetLogEntry[] };
+  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; widget_log: WidgetLogEntry[] };
   chat_state: ChatState;
-  chat_created: { agentId: string; conversationId: string };
+  chat_created: { agent_id: string; conversation_id: string };
   chat_accepted: { accepted: boolean };
   chat_models: { entries: ModelEntry[] };
   chat_agents: { agents: Array<{ id: string; name: string }> };
@@ -162,7 +162,7 @@ export interface Replies {
   chat_providers: { providers: ConnectProvider[] };
   chat_signin: { url: string; instructions: string | null };
   chat_command_done: { success: boolean; output: string };
-  chat_skill_enabled: { name: string; linkPath: string };
+  chat_skill_enabled: { name: string; link_path: string };
   /** Tools that run without asking, in every mode but strict (daemon/approvals.ts). */
   chat_approvals: { always: string[] };
   chat_mcp: McpView;
@@ -178,11 +178,11 @@ export type ReplyName = keyof Replies;
 
 /** Where a chat stands when a client opens it (loki's daemon, plan 017 U5): running or not, its mode and folder. */
 export interface ChatState {
-  agentId: string;
-  conversationId: string;
+  agent_id: string;
+  conversation_id: string;
   loop: "running" | "idle" | "approval";
   /** The turn running now (daemon/telemetry.ts), for the app's analytics; null when idle. */
-  turnId?: string | null;
+  turn_id?: string | null;
   mode: string | null;
   cwd: string | null;
   /** The answer in flight as written so far, when one is: a client opening mid-answer streams on from it. */
@@ -195,10 +195,10 @@ export interface Pushes {
     scope: Scope;
     title: string | null;
     status: DeskStatus;
-    agentName: string | null;
-    agentId: string | null;
+    agent_name: string | null;
+    agent_id: string | null;
     model: string | null;
-    reasoningEffort: ReasoningEffort | null;
+    reasoning_effort: ReasoningEffort | null;
     mode: string | null;
     state: DeskState;
     widgets: WidgetManifestEntry[];
@@ -207,14 +207,14 @@ export interface Pushes {
     scope: Scope;
     title: string | null;
     status: DeskStatus;
-    agentName: string | null;
+    agent_name: string | null;
     model: string | null;
-    reasoningEffort: ReasoningEffort | null;
+    reasoning_effort: ReasoningEffort | null;
     mode?: string | null;
   };
   state: { scope: Scope; state: DeskState };
   widgets: { scope: Scope; widgets: WidgetManifestEntry[] };
-  camera: { widgetId: string; widgetIds?: string[] };
+  camera: { widget_id: string; widget_ids?: string[] };
   widget_change: { entry: WidgetLogEntry };
   switch_desk: { scope: Scope };
   desks: { desks: DeskSummary[] };
@@ -226,12 +226,12 @@ export interface Pushes {
   agents_changed: NoPayload;
   lan_status: LanStatus;
   devices: { devices: DeviceSummary[] };
-  pair_code: { code: string; url: string; expiresAt: string };
+  pair_code: { code: string; url: string; expires_at: string };
   app_build: { build: string };
   /** What happened in a chat a client has open, in order (core/attention/model.ts ChatEvent). */
-  chat_event: { agentId: string; conversationId: string; events: ChatEvent[] };
-  /** A request that failed (with its requestId), or a send or frame the mod could not take (without). */
-  error: { message: string; requestId?: string };
+  chat_event: { agent_id: string; conversation_id: string; events: ChatEvent[] };
+  /** A request that failed (with its request_id), or a send or frame the mod could not take (without). */
+  error: { message: string; request_id?: string };
 }
 /** The name of a frame the mod pushes unasked. */
 export type PushName = keyof Pushes;
@@ -305,9 +305,9 @@ export const FRAMES = {
   pin_set: send(
     "pin or unpin a conversation (state/pins.json)",
     (m) =>
-      str(m.agentId) && str(m.conversationId)
-        ? { agentId: m.agentId, conversationId: m.conversationId, pinned: m.pinned === true }
-        : "agentId and conversationId required",
+      str(m.agent_id) && str(m.conversation_id)
+        ? { agent_id: m.agent_id, conversation_id: m.conversation_id, pinned: m.pinned === true }
+        : "agent_id and conversation_id required",
     { phone: PHONE, causes: ["desks"] },
   ),
   models_recent_add: send("a model picked in loki, for the shared quick picks", (m) => (str(m.handle) && m.handle ? { handle: m.handle } : "handle required"), {
@@ -349,9 +349,9 @@ export const FRAMES = {
     "history",
     "a chat's last `limit` rows from its log, whether older ones remain, and its desk's widget log",
     (m) =>
-      str(m.conversationId)
-        ? { agentId: strOr(m.agentId, null), conversationId: m.conversationId, limit: isNum(m.limit) ? m.limit : null }
-        : "conversationId required",
+      str(m.conversation_id)
+        ? { agent_id: strOr(m.agent_id, null), conversation_id: m.conversation_id, limit: isNum(m.limit) ? m.limit : null }
+        : "conversation_id required",
     PHONE,
   ),
   inbox_list: request("inbox", "every open conversation from disk, with who spoke last", nothing, PHONE),
@@ -372,10 +372,10 @@ export const FRAMES = {
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
-      // The approval's own id: `requestId` is the frame's, matched to its reply.
-      return str(m.approvalId) && typeof m.allow === "boolean"
-        ? { ...c, approvalId: m.approvalId, allow: m.allow, message: strOr(m.message, null), always: m.always === true }
-        : "approvalId and allow required";
+      // The approval's own id: `request_id` is the frame's, matched to its reply.
+      return str(m.approval_id) && typeof m.allow === "boolean"
+        ? { ...c, approval_id: m.approval_id, allow: m.allow, message: strOr(m.message, null), always: m.always === true }
+        : "approval_id and allow required";
     },
     PHONE,
   ),
@@ -385,29 +385,29 @@ export const FRAMES = {
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
-      return str(m.questionId) && m.input && typeof m.input === "object"
-        ? { ...c, questionId: m.questionId, input: m.input as Raw }
-        : "questionId and input required";
+      return str(m.question_id) && m.input && typeof m.input === "object"
+        ? { ...c, question_id: m.question_id, input: m.input as Raw }
+        : "question_id and input required";
     },
     PHONE,
   ),
   chat_create: request(
     "chat_created",
     "a new chat for an agent, in a folder",
-    (m) => (isAgentId(m.agentId) ? { agentId: m.agentId, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agentId required"),
+    (m) => (isAgentId(m.agent_id) ? { agent_id: m.agent_id, cwd: strOr(m.cwd, null), title: strOr(m.title, null) } : "agent_id required"),
     PHONE,
   ),
   chat_send: request(
     "chat_accepted",
-    "a message from the person; queued when the chat is busy, sent once per sendId",
+    "a message from the person; queued when the chat is busy, sent once per send_id",
     (m) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;
       if (!str(m.text)) return "text required";
       const images = Array.isArray(m.images)
-        ? (m.images as Raw[]).filter((i) => str(i.mediaType) && str(i.data)).map((i) => ({ mediaType: i.mediaType as string, data: i.data as string }))
+        ? (m.images as Raw[]).filter((i) => str(i.media_type) && str(i.data)).map((i) => ({ media_type: i.media_type as string, data: i.data as string }))
         : [];
-      return { ...c, text: m.text, images, sendId: strOr(m.sendId, null), context: strOr(m.context, null) };
+      return { ...c, text: m.text, images, send_id: strOr(m.send_id, null), context: strOr(m.context, null) };
     },
     PHONE,
   ),
@@ -443,7 +443,7 @@ export const FRAMES = {
       const c = chatRef(m);
       if (typeof c === "string") return c;
       return str(m.handle) && m.handle
-        ? { ...c, handle: m.handle, reasoningEffort: strOr(m.reasoningEffort, null) as ReasoningEffort | null }
+        ? { ...c, handle: m.handle, reasoning_effort: strOr(m.reasoning_effort, null) as ReasoningEffort | null }
         : "handle required";
     },
     PHONE,
@@ -456,9 +456,9 @@ export const FRAMES = {
       : "name required",
   ),
   chat_agent_update: request("chat_done", "an agent's name, description or model", (m) =>
-    isAgentId(m.agentId)
-      ? { agentId: m.agentId, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) }
-      : "agentId required",
+    isAgentId(m.agent_id)
+      ? { agent_id: m.agent_id, name: strOr(m.name, undefined), description: strOr(m.description, undefined), model: strOr(m.model, undefined) }
+      : "agent_id required",
   ),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
   chat_import: request("chat_imported", "import agents, chats, keys and schedules from Letta (again: only what is missing)", nothing),
@@ -470,14 +470,14 @@ export const FRAMES = {
       l = part(m.learn);
     if (r?.enabled !== undefined && typeof r.enabled !== "boolean") return "reflection.enabled must be true or false";
     if (l?.enabled !== undefined && typeof l.enabled !== "boolean") return "learn.enabled must be true or false";
-    if (l?.dailyCap !== undefined && !(isNum(l.dailyCap) && l.dailyCap >= 0)) return "learn.dailyCap must be a number, 0 or more";
+    if (l?.daily_cap !== undefined && !(isNum(l.daily_cap) && l.daily_cap >= 0)) return "learn.daily_cap must be a number, 0 or more";
     return {
       ...(r?.enabled !== undefined ? { reflection: { enabled: r.enabled } } : {}),
       ...(l
         ? {
             learn: {
               ...(l.enabled !== undefined ? { enabled: l.enabled } : {}),
-              ...(l.dailyCap !== undefined ? { dailyCap: Math.floor(l.dailyCap) } : {}),
+              ...(l.daily_cap !== undefined ? { daily_cap: Math.floor(l.daily_cap) } : {}),
             },
           }
         : {}),
@@ -494,12 +494,12 @@ export const FRAMES = {
     PHONE,
   ),
   chat_memory_write: request("chat_done", "write a memory file (null content removes it), committed as yours", (m) =>
-    isAgentId(m.agentId) && str(m.path) && m.path
-      ? { agentId: m.agentId, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) }
-      : "agentId and path required",
+    isAgentId(m.agent_id) && str(m.path) && m.path
+      ? { agent_id: m.agent_id, path: m.path, content: m.content === null ? null : strOr(m.content, ""), message: strOr(m.message, undefined) }
+      : "agent_id and path required",
   ),
   chat_memory_revert: request("chat_done", "undo one memory commit with a new commit, as yours", (m) =>
-    isAgentId(m.agentId) && str(m.sha) && /^[0-9a-f]{7,40}$/i.test(m.sha) ? { agentId: m.agentId, sha: m.sha } : "agentId and a commit sha required",
+    isAgentId(m.agent_id) && str(m.sha) && /^[0-9a-f]{7,40}$/i.test(m.sha) ? { agent_id: m.agent_id, sha: m.sha } : "agent_id and a commit sha required",
   ),
   chat_approvals_get: request("chat_approvals", "the tools you always allow", nothing),
   chat_approvals_set: request("chat_approvals", "always allow a tool, or take that back", (m) =>
@@ -518,9 +518,9 @@ export const FRAMES = {
   chat_mcp_restart: request("chat_mcp", "start an MCP server again now", (m) => (str(m.name) && m.name ? { name: m.name } : "name required")),
   chat_mcp_signout: request("chat_mcp", "forget a remote MCP server's sign-in", (m) => (str(m.name) && m.name ? { name: m.name } : "name required")),
   chat_mcp_agent: request("chat_mcp", "switch an MCP server on or off for one agent", (m) =>
-    isAgentId(m.agentId) && str(m.server) && m.server && typeof m.on === "boolean"
-      ? { agentId: m.agentId, server: m.server, on: m.on }
-      : "agentId, server and on required",
+    isAgentId(m.agent_id) && str(m.server) && m.server && typeof m.on === "boolean"
+      ? { agent_id: m.agent_id, server: m.server, on: m.on }
+      : "agent_id, server and on required",
   ),
   chat_mcp_secret: request("chat_mcp_secret", "keep a value in the keychain for mcp.json to name", (m) =>
     str(m.name) && m.name && str(m.value) && m.value ? { name: m.name, value: m.value } : "name and value required",
@@ -533,22 +533,22 @@ export const FRAMES = {
   ),
   chat_providers: request("chat_providers", "the model providers, connected or not", nothing),
   chat_provider_connect: request("chat_providers", "keep a provider's API key, once the provider accepts it", (m) =>
-    str(m.providerId) && m.providerId && str(m.apiKey) ? { providerId: m.providerId, apiKey: m.apiKey } : "providerId and apiKey required",
+    str(m.provider_id) && m.provider_id && str(m.api_key) ? { provider_id: m.provider_id, api_key: m.api_key } : "provider_id and api_key required",
   ),
   chat_provider_disconnect: request("chat_providers", "forget a provider's credential", (m) =>
-    str(m.providerId) && m.providerId ? { providerId: m.providerId } : "providerId required",
+    str(m.provider_id) && m.provider_id ? { provider_id: m.provider_id } : "provider_id required",
   ),
   chat_provider_signin: request(
     "chat_signin",
     "start signing in to a provider: the page to open; the credential is kept when the browser comes back. With `code`, the address the browser ended on, for a sign-in still waiting",
-    (m) => (str(m.providerId) && m.providerId ? { providerId: m.providerId, code: strOr(m.code, null) } : "providerId required"),
+    (m) => (str(m.provider_id) && m.provider_id ? { provider_id: m.provider_id, code: strOr(m.code, null) } : "provider_id required"),
   ),
 
   // Folders
   folders_get: request("folders", "the folders each agent and conversation has worked in", nothing, PHONE),
   folder_complete: request("folder_matches", "folders completing a typed prefix", (m) => ({ prefix: strOr(m.prefix, null) })),
   folder_check: request("folder_status", "whether a path is a folder a chat can work in, and its git branch", (m) => ({ path: strOr(m.path, null) })),
-  folder_pick: request("folder_picked", "the system folder picker (null when cancelled)", (m) => ({ defaultPath: strOr(m.defaultPath, undefined) })),
+  folder_pick: request("folder_picked", "the system folder picker (null when cancelled)", (m) => ({ default_path: strOr(m.default_path, undefined) })),
 
   // Learn
   recall_list: request("recall", "the whole Learn section", nothing, PHONE),
@@ -572,7 +572,7 @@ export const FRAMES = {
   recall_forget: request("recall_card", "forget a set-aside card for good (card: null)", (m) => recallId(m)),
   recall_settings: request("recall", "Learn's settings: on or off, and the most cards it writes in a day", (m) => ({
     enabled: typeof m.enabled === "boolean" ? m.enabled : undefined,
-    dailyCap: isNum(m.dailyCap) && m.dailyCap >= 0 ? Math.round(m.dailyCap) : undefined,
+    daily_cap: isNum(m.daily_cap) && m.daily_cap >= 0 ? Math.round(m.daily_cap) : undefined,
   })),
   recall_run: request("recall_ran", "run Learn now over every chat with new material", nothing),
   recall_export: request("recall_export", "every card as Anki TSV", nothing, PHONE),
@@ -597,21 +597,21 @@ export const FRAMES = {
       labels: Array.isArray(m.labels) ? strings(m.labels) : undefined,
       priority: typeof m.priority === "number" ? m.priority : undefined,
       desk: strOr(m.desk, null),
-      agentId: strOr(m.agentId, null),
-      agentName: strOr(m.agentName, null),
-      conversationId: strOr(m.conversationId, null),
+      agent_id: strOr(m.agent_id, null),
+      agent_name: strOr(m.agent_name, null),
+      conversation_id: strOr(m.conversation_id, null),
       source: parseTaskSource(m.source),
     }),
     PHONE,
   ),
   task_assign: request("tasks_updated", "assign tasks to a chat, optionally starting them", (m) =>
-    str(m.conversationId) && str(m.desk)
+    str(m.conversation_id) && str(m.desk)
       ? {
           ids: taskIds(m),
-          conversationId: m.conversationId,
+          conversation_id: m.conversation_id,
           desk: m.desk,
-          agentId: strOr(m.agentId, null),
-          agentName: strOr(m.agentName, null),
+          agent_id: strOr(m.agent_id, null),
+          agent_name: strOr(m.agent_name, null),
           start: m.start === true,
         }
       : "assign needs a conversation and a chat",
@@ -629,31 +629,31 @@ export const FRAMES = {
   memory_read: request(
     "memory_file",
     "one memory file (content null when missing)",
-    (m) => (isAgentId(m.agentId) ? (str(m.path) ? { agentId: m.agentId, path: m.path } : "path required") : "agentId required"),
+    (m) => (isAgentId(m.agent_id) ? (str(m.path) ? { agent_id: m.agent_id, path: m.path } : "path required") : "agent_id required"),
     PHONE,
   ),
   memory_log: request(
     "memory_commits",
     "memory's git log, for a path or all of it",
     (m) =>
-      isAgentId(m.agentId)
-        ? { agentId: m.agentId, path: strOr(m.path, undefined), limit: typeof m.limit === "number" ? m.limit : undefined }
-        : "agentId required",
+      isAgentId(m.agent_id)
+        ? { agent_id: m.agent_id, path: strOr(m.path, undefined), limit: typeof m.limit === "number" ? m.limit : undefined }
+        : "agent_id required",
     PHONE,
   ),
   memory_diff: request(
     "memory_diff",
     "one memory commit's diff",
-    (m) => (isAgentId(m.agentId) ? (str(m.sha) ? { agentId: m.agentId, sha: m.sha } : "sha required") : "agentId required"),
+    (m) => (isAgentId(m.agent_id) ? (str(m.sha) ? { agent_id: m.agent_id, sha: m.sha } : "sha required") : "agent_id required"),
     PHONE,
   ),
   reflection_state: request("reflection_state", "the last reflection pass that changed an agent's memory", agent),
   skills_global: request("skills_global", "skills outside memory (~/.agents/skills)", nothing),
   skill_install: request("skill_installed", "install a skill into an agent's memory", (m) =>
-    isAgentId(m.agentId) && str(m.source) ? { agentId: m.agentId, source: m.source, force: m.force === true } : "agentId and source required",
+    isAgentId(m.agent_id) && str(m.source) ? { agent_id: m.agent_id, source: m.source, force: m.force === true } : "agent_id and source required",
   ),
   skill_refresh: request("skill_refreshed", "refresh an other skill from its upstream: current, replaced, or staged for the agent to reconcile", (m) =>
-    isAgentId(m.agentId) && str(m.name) ? { agentId: m.agentId, name: m.name, source: strOr(m.source, undefined) } : "agentId and name required",
+    isAgentId(m.agent_id) && str(m.name) ? { agent_id: m.agent_id, name: m.name, source: strOr(m.source, undefined) } : "agent_id and name required",
   ),
 
   // The phone listener (Settings › phone)
@@ -684,7 +684,7 @@ export const FRAMES = {
   pair_code: push("a pairing code, its URL and when it expires"),
   app_build: push("the build a phone is served, so it can offer a reload"),
   chat_event: push("what happened in a chat a client has open"),
-  error: push("a failed request (with its requestId) or a frame the mod could not take"),
+  error: push("a failed request (with its request_id) or a frame the mod could not take"),
 } as const;
 
 type Table = typeof FRAMES;
@@ -702,7 +702,7 @@ type Optional<T> = { [K in keyof T as undefined extends T[K] ? K : null extends 
   [K in keyof T as undefined extends T[K] ? never : null extends T[K] ? never : K]: T[K];
 };
 /** How a request ends for the app: its reply, or the mod's message (or its silence, `timedOut`). */
-export type RequestResult<R> = { ok: true; reply: R } | { ok: false; error: string; timedOut: boolean };
+export type RequestResult<R> = { ok: true; reply: R } | { ok: false; error: string; timed_out: boolean };
 /** The reply a request is answered with. */
 export type ReplyOf<N extends RequestName> = Table[N] extends { reply: infer R extends ReplyName } ? Replies[R] : never;
 /** A push as it arrives: its name beside its payload. */
@@ -712,10 +712,10 @@ export type PushFrame = { [K in PushName]: { type: K } & Pushes[K] }[PushName];
 export const frameEntry = (type: unknown): Table[FrameName] | undefined =>
   typeof type === "string" && Object.hasOwn(FRAMES, type) ? FRAMES[type as FrameName] : undefined;
 
-/** How the app reads a request's answer: the frame that carried its requestId, or null when none came in time. */
+/** How the app reads a request's answer: the frame that carried its request_id, or null when none came in time. */
 export function requestResult<R>(answer: Record<string, unknown> | null): RequestResult<R> {
-  if (!answer) return { ok: false, error: "no answer from the mod", timedOut: true };
-  if (answer.type === "error") return { ok: false, error: typeof answer.message === "string" ? answer.message : "the mod refused", timedOut: false };
+  if (!answer) return { ok: false, error: "no answer from the mod", timed_out: true };
+  if (answer.type === "error") return { ok: false, error: typeof answer.message === "string" ? answer.message : "the mod refused", timed_out: false };
   return { ok: true, reply: answer as unknown as R };
 }
 

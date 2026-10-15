@@ -13,7 +13,7 @@ const entry: WidgetManifestEntry = {
   type: "slider-control",
   data: { value: 6 },
   hash: "abc",
-  updatedAt: 0,
+  updated_at: 0,
 };
 
 describe("describeGesture", () => {

@@ -109,7 +109,7 @@ describe("the daemon's chats", () => {
         () => (asked++, fauxAssistantMessage("Done.")),
         () => (asked++, fauxAssistantMessage("Extra.")),
       ]);
-      await s.chats.send({ agentId: agent.id, conversationId, text: "go", images: [], sendId: "s1", context: null });
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "go", images: [], send_id: "s1", context: null });
       await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
       await new Promise((r) => setTimeout(r, 300));
       const steps = s.pushed
@@ -135,7 +135,7 @@ describe("the daemon's chats", () => {
       await s.chats.open(agent.id, conversationId);
       const REPLY = "Keep `farmart-co-read-write-user` for the farmart.co website project. That closes the Dev review.";
       s.faux.setResponses([s.reply(REPLY)]);
-      await s.chats.send({ agentId: agent.id, conversationId, text: "keep it", images: [], sendId: "s1", context: null });
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "keep it", images: [], send_id: "s1", context: null });
       const chunks = () => s.pushed.flatMap((p) => p.events).filter((e) => e.kind === "step" && e.step.kind === "assistant" && e.step.chunk).length;
       await until(() => chunks() >= 1, 10_000);
       // A second client opens now: the pieces so far went out before it listened.
@@ -181,15 +181,15 @@ describe("the daemon's chats", () => {
       expect(await (await s.stores.get(agent.id)).chat("default", ctx)).toBeDefined();
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
       expect(await s.chats.open(agent.id, conversationId)).toEqual({
-        agentId: agent.id,
-        conversationId,
+        agent_id: agent.id,
+        conversation_id: conversationId,
         loop: "idle",
-        turnId: null,
+        turn_id: null,
         mode: "unrestricted",
         cwd: "/work",
       });
       s.faux.setResponses([s.reply("Hello back")]);
-      expect(await s.chats.send({ agentId: agent.id, conversationId, text: "hello", images: [], sendId: "s1", context: null })).toBe(true);
+      expect(await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hello", images: [], send_id: "s1", context: null })).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(kinds(s.pushed)).toEqual(expect.arrayContaining(["loop", "step:user", "step:assistant", "settle", "turn_end"]));
       // The rider every mod adds reached the model.
@@ -199,14 +199,15 @@ describe("the daemon's chats", () => {
     }
   });
 
-  test("a message sent while the chat runs waits its turn, and one sent again with its sendId goes once", async () => {
+  test("a message sent while the chat runs waits its turn, and one sent again with its send_id goes once", async () => {
     const s = await setup();
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
       await s.chats.open(agent.id, conversationId);
       s.faux.setResponses([s.reply("one"), s.reply("two")]);
-      const send = (text: string, sendId: string) => s.chats.send({ agentId: agent.id, conversationId, text, images: [], sendId, context: null });
+      const send = (text: string, sendId: string) =>
+        s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text, images: [], send_id: sendId, context: null });
       await send("first", "a");
       await send("second", "b");
       await send("second", "b");
@@ -227,13 +228,13 @@ describe("the daemon's chats", () => {
       const { conversationId } = await s.chats.create(agent.id, "/a", null);
       expect((await s.chats.folder(agent.id, conversationId, "/b")).cwd).toBe("/b");
       expect(s.pushed.at(-1)).toEqual({ conversationId, events: [{ kind: "device", cwd: "/b" }] });
-      await s.chats.model({ agentId: agent.id, conversationId, handle: s.handle, reasoningEffort: "high" });
+      await s.chats.model({ agent_id: agent.id, conversation_id: conversationId, handle: s.handle, reasoning_effort: "high" });
       const store = await s.stores.get(agent.id);
       const chat = must(await store.chat(conversationId, ctx), "the chat");
       expect(await store.agentSettings(chat.id, ctx)).toMatchObject({ model: modelRef(s.handle), thinkingLevel: "high", cwd: "/b" });
-      await s.chats.update({ agentId: agent.id, conversationId, title: "Renamed", archived: true, hidden: undefined });
+      await s.chats.update({ agent_id: agent.id, conversation_id: conversationId, title: "Renamed", archived: true, hidden: undefined });
       expect((await store.chats(ctx)).find((c) => c.id === conversationId)).toMatchObject({ title: "Renamed", archived: true });
-      await s.chats.updateAgent({ agentId: agent.id, name: "Ada Lovelace", description: undefined, model: undefined });
+      await s.chats.updateAgent({ agent_id: agent.id, name: "Ada Lovelace", description: undefined, model: undefined });
       expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada Lovelace" }]);
       await s.chats.deleteAgent(agent.id);
       expect(await s.chats.agents()).toEqual([]);
@@ -249,7 +250,7 @@ describe("the daemon's chats", () => {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
       await s.chats.open(agent.id, conversationId);
-      const run = (command: string, args: string | null = null) => s.chats.command({ agentId: agent.id, conversationId, command, args });
+      const run = (command: string, args: string | null = null) => s.chats.command({ agent_id: agent.id, conversation_id: conversationId, command, args });
       s.faux.setResponses([s.reply("noted"), s.reply("fresh")]);
       expect((await run("remember", "I like tea")).success).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));
@@ -257,7 +258,7 @@ describe("the daemon's chats", () => {
       // A chat this short has nothing old enough to summarise: /compact is accepted and leaves it as it is.
       expect((await run("compact")).success).toBe(true);
       expect((await run("clear")).success).toBe(true);
-      await s.chats.send({ agentId: agent.id, conversationId, text: "hello again", images: [], sendId: "x", context: null });
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hello again", images: [], send_id: "x", context: null });
       await until(() => s.sent.length === 2);
       expect(s.sent[1]).toContain("hello again");
       expect(s.sent[1]).not.toContain("I like tea");
@@ -279,7 +280,7 @@ describe("the daemon's chats", () => {
     try {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, null, null);
-      const run = () => s.chats.command({ agentId: agent.id, conversationId, command: "doctor", args: null });
+      const run = () => s.chats.command({ agent_id: agent.id, conversation_id: conversationId, command: "doctor", args: null });
       const done = await run();
       expect(done.success).toBe(true);
       expect(done.output).toBe(
@@ -300,7 +301,7 @@ describe("the daemon's chats", () => {
       await store.createChat("imported", { agent: { model: { provider: "chatgpt-plus-pro", modelId: s.handle } } }, ctx);
       await s.chats.open(agent.id, "imported");
       s.faux.setResponses([s.reply("answered")]);
-      await s.chats.send({ agentId: agent.id, conversationId: "imported", text: "hi", images: [], sendId: "h1", context: null });
+      await s.chats.send({ agent_id: agent.id, conversation_id: "imported", text: "hi", images: [], send_id: "h1", context: null });
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(s.pushed.flatMap((p) => p.events).some((e) => e.kind === "error")).toBe(false);
       const chat = must(await store.chat("imported", ctx), "the imported chat");
@@ -317,7 +318,7 @@ describe("the daemon's chats", () => {
       const { conversationId } = await s.chats.create(agent.id, null, null);
       // No open: a client that opened the chat before a restart sends straight away.
       s.faux.setResponses([s.reply("still heard")]);
-      await s.chats.send({ agentId: agent.id, conversationId, text: "hi", images: [], sendId: "r1", context: null });
+      await s.chats.send({ agent_id: agent.id, conversation_id: conversationId, text: "hi", images: [], send_id: "r1", context: null });
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(kinds(s.pushed)).toEqual(expect.arrayContaining(["step:assistant", "turn_end"]));
     } finally {
@@ -333,11 +334,11 @@ describe("the daemon's chats", () => {
       await s.chats.open(agent.id, conversationId);
       s.faux.setResponses([s.reply("a cat")]);
       await s.chats.send({
-        agentId: agent.id,
-        conversationId,
+        agent_id: agent.id,
+        conversation_id: conversationId,
         text: "what is this?",
-        images: [{ data: "aGVsbG8=", mediaType: "image/png" }],
-        sendId: "i1",
+        images: [{ data: "aGVsbG8=", media_type: "image/png" }],
+        send_id: "i1",
         context: null,
       });
       await until(() => kinds(s.pushed).includes("turn_end"));

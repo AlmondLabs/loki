@@ -102,7 +102,7 @@ describe("the frame table", () => {
   test("every parser answers anything with a payload or a message, never a throw", () => {
     const junk: Array<Record<string, unknown>> = [
       {},
-      { id: 7, agentId: "../x", conversationId: null, size: "big", gesture: [], grade: "3", ids: "a", properties: [1] },
+      { id: 7, agent_id: "../x", conversation_id: null, size: "big", gesture: [], grade: "3", ids: "a", properties: [1] },
       { id: null, scope: "", path: {}, event: "Not An Event" },
     ];
     for (const n of parsed) {
@@ -116,11 +116,11 @@ describe("the frame table", () => {
 
   test("the background passes' settings: each part optional, wrong kinds refused", () => {
     expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: false } })).toEqual({ reflection: { enabled: false } });
-    expect(FRAMES.chat_passes_set.parse({ learn: { enabled: true, dailyCap: 3.7 } })).toEqual({ learn: { enabled: true, dailyCap: 3 } });
+    expect(FRAMES.chat_passes_set.parse({ learn: { enabled: true, daily_cap: 3.7 } })).toEqual({ learn: { enabled: true, daily_cap: 3 } });
     expect(FRAMES.chat_passes_set.parse({})).toEqual({});
-    expect(FRAMES.chat_passes_set.parse({ learn: { dailyCap: -1 } })).toBe("learn.dailyCap must be a number, 0 or more");
+    expect(FRAMES.chat_passes_set.parse({ learn: { daily_cap: -1 } })).toBe("learn.daily_cap must be a number, 0 or more");
     expect(FRAMES.chat_passes_set.parse({ reflection: { enabled: "yes" } })).toBe("reflection.enabled must be true or false");
-    expect(FRAMES.recall_settings.parse({ enabled: true, dailyCap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, dailyCap: 3 });
+    expect(FRAMES.recall_settings.parse({ enabled: true, daily_cap: 3, model: "x", tickMinutes: 5 })).toEqual({ enabled: true, daily_cap: 3 });
   });
 
   test("a Learn id must be one: a phone cannot name a file outside the recall folder", () => {
@@ -143,30 +143,30 @@ describe("the frame table", () => {
   test("parsers keep today's checks", () => {
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 5 })).toBe("a grade is 1 (again) to 4 (easy)");
     expect(FRAMES.recall_grade.parse({ id: "c1", grade: 3 })).toEqual({ id: "c1", grade: 3 });
-    expect(FRAMES.history_get.parse({ agentId: "a" })).toBe("conversationId required");
-    // A payload never names its own `requestId`: the app spreads it after the frame's, and its reply would go unmatched.
-    const approve = { requestId: "frame-1", agentId: "agent-local-a", conversationId: "c", approvalId: "approval-t1", allow: true };
+    expect(FRAMES.history_get.parse({ agent_id: "a" })).toBe("conversation_id required");
+    // A payload never names its own `request_id`: the app spreads it after the frame's, and its reply would go unmatched.
+    const approve = { request_id: "frame-1", agent_id: "agent-local-a", conversation_id: "c", approval_id: "approval-t1", allow: true };
     expect(FRAMES.chat_approve.parse(approve)).toEqual({
-      agentId: "agent-local-a",
-      conversationId: "c",
-      approvalId: "approval-t1",
+      agent_id: "agent-local-a",
+      conversation_id: "c",
+      approval_id: "approval-t1",
       allow: true,
       message: null,
       always: false,
     });
-    expect(FRAMES.chat_answer.parse({ requestId: "frame-2", agentId: "agent-local-a", conversationId: "c", questionId: "q1", input: {} })).toEqual({
-      agentId: "agent-local-a",
-      conversationId: "c",
-      questionId: "q1",
+    expect(FRAMES.chat_answer.parse({ request_id: "frame-2", agent_id: "agent-local-a", conversation_id: "c", question_id: "q1", input: {} })).toEqual({
+      agent_id: "agent-local-a",
+      conversation_id: "c",
+      question_id: "q1",
       input: {},
     });
-    expect(FRAMES.history_get.parse({ conversationId: "c", limit: 99999 })).toEqual({ agentId: null, conversationId: "c", limit: 99999 });
-    expect(FRAMES.task_assign.parse({ ids: ["t1"], conversationId: "c" })).toBe("assign needs a conversation and a chat");
+    expect(FRAMES.history_get.parse({ conversation_id: "c", limit: 99999 })).toEqual({ agent_id: null, conversation_id: "c", limit: 99999 });
+    expect(FRAMES.task_assign.parse({ ids: ["t1"], conversation_id: "c" })).toBe("assign needs a conversation and a chat");
     expect(FRAMES.task_status.parse({ id: "t1", status: "open" })).toEqual({ ids: ["t1"], status: "open" });
     expect(FRAMES.task_status.parse({ id: "t1", status: "done" })).toBe("unknown status done");
-    expect(FRAMES.memory_read.parse({ agentId: "../etc" })).toBe("agentId required");
+    expect(FRAMES.memory_read.parse({ agent_id: "../etc" })).toBe("agent_id required");
     expect(FRAMES.lan_via_set.parse({ via: "bluetooth" })).toBe('via must be "tailscale" or "lan"');
-    expect(FRAMES.focus_add.parse({ conversationId: "c", action: "open" })).toBe("action must be answer, decide or skip");
+    expect(FRAMES.focus_add.parse({ conversation_id: "c", action: "open" })).toBe("action must be answer, decide or skip");
     expect(FRAMES.capture.parse({ event: "desk_switched", properties: [1] })).toEqual({ event: "desk_switched", properties: undefined });
     expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({
       gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } },
@@ -183,11 +183,11 @@ describe("the app's side is typed by the table", () => {
     // @ts-expect-error a grade is required
     request("recall_grade", { id: "c1" });
     request("recall_grade", { id: "c1", grade: 3 });
-    request("history_get", { conversationId: "c" }); // agentId and limit may be left out
-    const more: boolean | undefined = request("history_get", { conversationId: "c" })?.more;
+    request("history_get", { conversation_id: "c" }); // agent_id and limit may be left out
+    const more: boolean | undefined = request("history_get", { conversation_id: "c" })?.more;
     // @ts-expect-error a focus engagement the mod does not take from the app
-    send({ type: "focus_add", conversationId: "c", action: "open" });
-    send({ type: "seen_mark", conversationId: "c" });
+    send({ type: "focus_add", conversation_id: "c", action: "open" });
+    send({ type: "seen_mark", conversation_id: "c" });
     expect(more).toBeUndefined();
   });
 });
@@ -207,7 +207,7 @@ describe("every frame in the table, through the real router", () => {
     addresses: [],
     host: null,
     port: 41415,
-    appServed: false,
+    app_served: false,
     error: null,
     via: "lan" as const,
     tailscale: null,
@@ -225,17 +225,17 @@ describe("every frame in the table, through the real router", () => {
     transcript: () => ({ rows: [], more: false }),
     widgetLog: () => [],
     folders: {
-      recent: () => ({ byAgent: {}, byConversation: {} }),
+      recent: () => ({ by_agent: {}, by_conversation: {} }),
       complete: () => [],
       check: (path) => ({ ok: true, path, branch: null }),
       pick: () => Promise.resolve(null),
     },
     recall: {
       store: new RecallStore(join(dir, "recall")),
-      status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }),
+      status: () => ({ enabled: false, daily_cap: 5, last_run_at: null, last_run_note: null, written_today: 0 }),
       setSettings: async () => {},
       run: () => Promise.resolve({ note: "ran" }),
-      startLesson: () => Promise.resolve({ agentId: "agent-1", conversationId: "conv-1" }),
+      startLesson: () => Promise.resolve({ agent_id: "agent-1", conversation_id: "conv-1" }),
     },
     tasks: {
       list: () => Promise.resolve([]),
@@ -252,7 +252,7 @@ describe("every frame in the table, through the real router", () => {
       read: () => null,
       log: () => Promise.resolve([]),
       diff: () => Promise.resolve(""),
-      reflection: () => Promise.resolve({ lastCommit: null }),
+      reflection: () => Promise.resolve({ last_commit: null }),
       globalSkills: () => [],
       install: () => Promise.resolve("ok"),
       refreshSkill: () => Promise.resolve({ outcome: "current", label: "x" }),
@@ -263,7 +263,7 @@ describe("every frame in the table, through the real router", () => {
       setEnabled: () => Promise.resolve(lanStatus),
       setVia: () => lanStatus,
       setServe: () => Promise.resolve(lanStatus),
-      pairBegin: () => ({ code: "K9HF6D", url: "http://mac.local:41415/?code=K9HF6D", expiresAt: "" }),
+      pairBegin: () => ({ code: "K9HF6D", url: "http://mac.local:41415/?code=K9HF6D", expires_at: "" }),
       devices: () => [],
       forget: () => true,
     },
@@ -275,14 +275,14 @@ describe("every frame in the table, through the real router", () => {
     trash: { id: "d1/w" },
     widget_status: { id: "d1/w", error: null },
     desk_get: { scope: "d1" },
-    pin_set: { agentId: "agent-1", conversationId: "conv-1", pinned: true },
+    pin_set: { agent_id: "agent-1", conversation_id: "conv-1", pinned: true },
     models_recent_add: { handle: "m" },
-    seen_mark: { conversationId: "conv-1" },
-    seen_unmark: { conversationId: "conv-1" },
-    viewed_mark: { conversationId: "conv-1" },
-    focus_add: { conversationId: "conv-1", action: "answer" },
+    seen_mark: { conversation_id: "conv-1" },
+    seen_unmark: { conversation_id: "conv-1" },
+    viewed_mark: { conversation_id: "conv-1" },
+    focus_add: { conversation_id: "conv-1", action: "answer" },
     capture: { event: "frames_walked" },
-    history_get: { conversationId: "conv-1" },
+    history_get: { conversation_id: "conv-1" },
     recall_grade: { id: "k", grade: 3 },
     recall_edit: { id: "k" },
     recall_reject: { id: "k" },
@@ -291,15 +291,15 @@ describe("every frame in the table, through the real router", () => {
     recall_lead_dismiss: { id: "l" },
     recall_lead_restore: { id: "l" },
     recall_lead_start: { id: "l" },
-    task_assign: { ids: ["t"], conversationId: "conv-1", desk: "conv-1" },
+    task_assign: { ids: ["t"], conversation_id: "conv-1", desk: "conv-1" },
     task_status: { ids: ["t"], status: "open" },
-    agent_get: { agentId: "agent-1" },
-    memory_read: { agentId: "agent-1", path: "a.md" },
-    memory_log: { agentId: "agent-1" },
-    memory_diff: { agentId: "agent-1", sha: "abc" },
-    reflection_state: { agentId: "agent-1" },
-    skill_install: { agentId: "agent-1", source: "x" },
-    skill_refresh: { agentId: "agent-1", name: "x" },
+    agent_get: { agent_id: "agent-1" },
+    memory_read: { agent_id: "agent-1", path: "a.md" },
+    memory_log: { agent_id: "agent-1" },
+    memory_diff: { agent_id: "agent-1", sha: "abc" },
+    reflection_state: { agent_id: "agent-1" },
+    skill_install: { agent_id: "agent-1", source: "x" },
+    skill_refresh: { agent_id: "agent-1", name: "x" },
     lan_via_set: { via: "lan" },
   };
 
@@ -311,14 +311,14 @@ describe("every frame in the table, through the real router", () => {
     expect(unhandled(withoutFolders)).toEqual(["folders_get", "folder_complete", "folder_check", "folder_pick"]);
   });
 
-  test("every request is answered with its requestId: its reply under the table's name, or error", async () => {
+  test("every request is answered with its request_id: its reply under the table's name, or error", async () => {
     const bridge = bridgeOf(deps);
     for (const n of parsed.filter((x) => FRAMES[x].kind === "request")) {
       const c = client("d1");
-      bridge.onMessage(c, { type: n, requestId: `r-${n}`, ...sample[n] });
+      bridge.onMessage(c, { type: n, request_id: `r-${n}`, ...sample[n] });
       await settled();
       const answer = c.sent.at(-1);
-      expect([n, answer?.requestId, [(FRAMES[n] as { reply: string }).reply, "error"].includes(String(answer?.type))]).toEqual([n, `r-${n}`, true]);
+      expect([n, answer?.request_id, [(FRAMES[n] as { reply: string }).reply, "error"].includes(String(answer?.type))]).toEqual([n, `r-${n}`, true]);
     }
   });
 
@@ -336,8 +336,8 @@ describe("every frame in the table, through the real router", () => {
     const bridge = bridgeOf(deps);
     for (const n of parsed.filter((x) => !PHONE_FRAMES.has(x))) {
       const phone = client("d1", "dev-1");
-      bridge.onMessage(phone, { type: n, requestId: "p", ...sample[n] });
-      expect([n, phone.sent.at(-1)]).toEqual([n, { type: "error", requestId: "p", message: `${n} is not available on the phone` }]);
+      bridge.onMessage(phone, { type: n, request_id: "p", ...sample[n] });
+      expect([n, phone.sent.at(-1)]).toEqual([n, { type: "error", request_id: "p", message: `${n} is not available on the phone` }]);
     }
   });
 });
@@ -345,37 +345,37 @@ describe("every frame in the table, through the real router", () => {
 describe("how the app reads a request's answer", () => {
   test("a reply is ok, an error frame carries the mod's message at once, and silence is a timeout", async () => {
     const { requestResult } = await import("../core/frames.ts");
-    expect(requestResult({ type: "folder_matches", requestId: "r1", matches: ["/a"] })).toEqual({
+    expect(requestResult({ type: "folder_matches", request_id: "r1", matches: ["/a"] })).toEqual({
       ok: true,
-      reply: { type: "folder_matches", requestId: "r1", matches: ["/a"] } as never,
+      reply: { type: "folder_matches", request_id: "r1", matches: ["/a"] } as never,
     });
-    expect(requestResult({ type: "error", requestId: "r1", message: "task_create is not available on the phone" })).toEqual({
+    expect(requestResult({ type: "error", request_id: "r1", message: "task_create is not available on the phone" })).toEqual({
       ok: false,
       error: "task_create is not available on the phone",
-      timedOut: false,
+      timed_out: false,
     });
-    expect(requestResult({ type: "error", requestId: "r1" })).toEqual({ ok: false, error: "the mod refused", timedOut: false });
-    expect(requestResult(null)).toEqual({ ok: false, error: "no answer from the mod", timedOut: true });
+    expect(requestResult({ type: "error", request_id: "r1" })).toEqual({ ok: false, error: "the mod refused", timed_out: false });
+    expect(requestResult(null)).toEqual({ ok: false, error: "no answer from the mod", timed_out: true });
   });
 });
 
 describe("a parser that throws", () => {
-  test("is answered like any failure: the request still gets error with its requestId", () => {
+  test("is answered like any failure: the request still gets error with its request_id", () => {
     const bridge = bridgeOf({ tasks: { list: () => Promise.resolve([]) } as never });
     const c = client("d1");
-    bridge.onMessage(c, { type: "task_status", requestId: "r1", ids: ["t"], status: { toString: 1 } });
-    expect(c.sent.at(-1)).toMatchObject({ type: "error", requestId: "r1" });
+    bridge.onMessage(c, { type: "task_status", request_id: "r1", ids: ["t"], status: { toString: 1 } });
+    expect(c.sent.at(-1)).toMatchObject({ type: "error", request_id: "r1" });
   });
 });
 
 describe("frames: approvals and MCP settings", () => {
   const parse = (name: keyof typeof FRAMES, m: Record<string, unknown>) =>
     (FRAMES[name] as unknown as { parse: (m: Record<string, unknown>) => unknown }).parse(m);
-  const chat = { agentId: "agent-local-a", conversationId: "c" };
+  const chat = { agent_id: "agent-local-a", conversation_id: "c" };
 
   test("an approval carries 'always' only when it says so", () => {
-    expect(parse("chat_approve", { ...chat, approvalId: "approval-t1", allow: true, always: true })).toMatchObject({ allow: true, always: true });
-    expect(parse("chat_approve", { ...chat, approvalId: "approval-t1", allow: true, always: "yes" })).toMatchObject({ always: false });
+    expect(parse("chat_approve", { ...chat, approval_id: "approval-t1", allow: true, always: true })).toMatchObject({ allow: true, always: true });
+    expect(parse("chat_approve", { ...chat, approval_id: "approval-t1", allow: true, always: "yes" })).toMatchObject({ always: false });
     expect(parse("chat_approvals_set", { tool: "bash", on: false })).toEqual({ tool: "bash", on: false });
     expect(parse("chat_approvals_set", { tool: "bash" })).toBe("tool and on required");
   });
@@ -395,7 +395,7 @@ describe("frames: approvals and MCP settings", () => {
     expect(parse("chat_mcp_server", { entry: "gh", edit: { command: "x", env: { T: 1 } } })).toBe("env must map names to strings");
     expect(parse("chat_mcp_server", { entry: "gh", edit: {} })).toBe("a server needs a command or a url");
     expect(parse("chat_mcp_server", { entry: " ", edit: null })).toBe("entry required");
-    expect(parse("chat_mcp_agent", { agentId: "agent-local-a", server: "gh", on: true })).toEqual({ agentId: "agent-local-a", server: "gh", on: true });
+    expect(parse("chat_mcp_agent", { agent_id: "agent-local-a", server: "gh", on: true })).toEqual({ agent_id: "agent-local-a", server: "gh", on: true });
     expect(parse("chat_mcp_secret", { name: "gh.T", value: "" })).toBe("name and value required");
   });
 

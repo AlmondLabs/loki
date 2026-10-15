@@ -36,7 +36,7 @@ export interface ToolDeps {
 
 /** A conversation's own tasks, the ones it may comment on and close: assigned to it, or filed from it and assigned nowhere. */
 export const ownTask = (t: Task, conversation: string | null): boolean =>
-  !!conversation && (t.metadata.assignedTo === conversation || (t.metadata.conversation === conversation && !t.metadata.assignedTo));
+  !!conversation && (t.metadata.assigned_to === conversation || (t.metadata.conversation === conversation && !t.metadata.assigned_to));
 
 /**
  * The desk a tool call is about: the explicit `desk` argument, else the desk of
@@ -67,7 +67,7 @@ export function deskSnapshot(deps: ToolDeps, scope: Scope) {
       ...(w.type ? { type: w.type } : {}),
       title: w.title,
       data: mergeData(w.data, state.overlay[w.id]),
-      ...(l ? { position: l.position, ...(l.size ? { size: l.size } : {}), z: l.z, ...(l.hidden ? { minimisedByUser: true } : {}) } : {}),
+      ...(l ? { position: l.position, ...(l.size ? { size: l.size } : {}), z: l.z, ...(l.hidden ? { minimised_by_user: true } : {}) } : {}),
       ...(w.error ? { error: w.error } : {}),
     };
   });
@@ -114,7 +114,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
       }),
   };
   const kitLine = Object.entries(KIT)
-    .map(([t, k]) => `${t}: ${k.dataShape}`)
+    .map(([t, k]) => `${t}: ${k.data_shape}`)
     .join("; ");
 
   const disposers: Array<() => void> = [];
@@ -146,15 +146,15 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         const scope = scopeForCall(deps, ctx);
         const out: Record<string, unknown> = {
           desk: scope,
-          widgetsDir: `${deps.widgetsDir}/${scope}`,
+          widgets_dir: `${deps.widgetsDir}/${scope}`,
           widgets: deskSnapshot(deps, scope),
         };
         if (scope !== SHARED_SCOPE) {
-          out.sharedWidgetsDir = `${deps.widgetsDir}/${SHARED_SCOPE}`;
+          out.shared_widgets_dir = `${deps.widgetsDir}/${SHARED_SCOPE}`;
           out.shared = deskSnapshot(deps, SHARED_SCOPE);
         }
         const pending = [...deps.gestures.peek(scope), ...(scope !== SHARED_SCOPE ? deps.gestures.peek(SHARED_SCOPE) : [])];
-        if (pending.length) out.pendingCanvasActivity = pending;
+        if (pending.length) out.pending_canvas_activity = pending;
         log("tool:desk_state:done", { desk: scope, widgets: (out.widgets as unknown[]).length });
         return JSON.stringify(out, null, 2);
       },
@@ -192,7 +192,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
         if (missing.length) return { status: "error", content: `no widget ${missing.map((m) => `"${m}"`).join(", ")} — check desk_state` };
         const scopes = new Set(ids.map(scopeOfId));
         const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE; // mixed desks: every tab may have them
-        deps.broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, scope === SHARED_SCOPE ? undefined : scope);
+        deps.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, scope === SHARED_SCOPE ? undefined : scope);
         const dwell = Math.max(0, Math.min(8000, Number(args.dwell) || 0));
         if (dwell) await new Promise((r) => setTimeout(r, dwell));
         return ids.length === 1
@@ -266,7 +266,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
                   status: t.status,
                   priority: t.priority,
                   labels: t.labels,
-                  assignedTo: (t.metadata as Partial<Record<string, string>>).assignedTo ?? null,
+                  assigned_to: (t.metadata as Partial<Record<string, string>>).assigned_to ?? null,
                   description: t.description,
                 })),
                 null,
@@ -281,7 +281,7 @@ export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
               if (!ownTask(task, conversation))
                 return {
                   status: "error",
-                  content: `${args.id} is not this conversation's task${task.metadata.assignedTo ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here`,
+                  content: `${args.id} is not this conversation's task${task.metadata.assigned_to ? " (it is assigned to another chat)" : ""} — only a task assigned to this conversation, or filed from it, can be ${action === "close" ? "closed" : "commented on"} here`,
                 };
               if (action === "comment") {
                 await store.comment(args.id, String(args.text));

@@ -84,7 +84,7 @@ export function Mcp({ api }: { api: McpApi }) {
     <div style={{ display: "grid", gap: 10 }}>
       <div className="loki-meta loki-meta--wrap">
         Agents see each server and its tools' names; a tool's full definition is loaded only when the agent searches for it, unless it is checked "always
-        loaded". The file is <span style={{ fontFamily: "var(--loki-mono)" }}>{view.configPath}</span>.
+        loaded". The file is <span style={{ fontFamily: "var(--loki-mono)" }}>{view.config_path}</span>.
       </div>
       {view.problems.map((p) => (
         <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">
@@ -145,7 +145,7 @@ function ServerRow({
   apply: (r: McpView | string) => void;
 }) {
   const [confirm, setConfirm] = useState(false);
-  const loaded = s.tools.filter((t) => t.alwaysLoad).map((t) => t.name);
+  const loaded = s.tools.filter((t) => t.always_load).map((t) => t.name);
   const toggleAlways = (name: string, on: boolean) => void api.alwaysLoad(s.entry, on ? [...loaded, name] : loaded.filter((n) => n !== name)).then(apply);
   return (
     <div style={{ display: "grid", gap: 6 }}>
@@ -180,15 +180,20 @@ function ServerRow({
       {open && (
         <div style={{ display: "grid", gap: 8, padding: "4px 8px 10px 28px" }}>
           {s.error && s.state !== "signin" && <div className="loki-meta loki-meta--negative loki-meta--wrap">{s.error}</div>}
-          {s.signIn && <SignIn s={s} signIn={s.signIn} onSignOut={() => void api.signOut(s.name).then(apply)} />}
+          {s.sign_in && <SignIn s={s} signIn={s.sign_in} onSignOut={() => void api.signOut(s.name).then(apply)} />}
           {s.tools.length > 0 && (
             <div role="group" aria-label={`${s.name} tools`} style={{ display: "grid", gap: 4 }}>
               {s.tools.map((t) => (
                 <label key={t.name} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 8, alignItems: "start", cursor: "pointer" }}>
-                  <input type="checkbox" checked={t.alwaysLoad} onChange={(e) => toggleAlways(t.name, e.target.checked)} aria-label={`always load ${t.name}`} />
+                  <input
+                    type="checkbox"
+                    checked={t.always_load}
+                    onChange={(e) => toggleAlways(t.name, e.target.checked)}
+                    aria-label={`always load ${t.name}`}
+                  />
                   <span style={{ minWidth: 0 }}>
                     <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{t.name}</span>
-                    {t.readOnly && (
+                    {t.read_only && (
                       <Chip static tag style={{ marginLeft: 6 }}>
                         read-only
                       </Chip>
@@ -242,7 +247,7 @@ function ServerRow({
  * A remote server's OAuth sign-in: "sign in" opens its authorization page in the browser, which comes back to loki
  * and connects the server; "sign out" forgets the tokens. A page that went stale is made again by restart.
  */
-function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullable<McpServerView["signIn"]>; onSignOut: () => void }) {
+function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullable<McpServerView["sign_in"]>; onSignOut: () => void }) {
   const url = signIn.url;
   if (s.state === "signin")
     return (
@@ -259,7 +264,7 @@ function SignIn({ s, signIn, onSignOut }: { s: McpServerView; signIn: NonNullabl
         )}
       </div>
     );
-  if (signIn.signedIn)
+  if (signIn.signed_in)
     return (
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <span className="loki-meta">signed in</span>

@@ -6,18 +6,18 @@ import { must } from "./fixtures/must.ts";
 describe("attention model (browser)", () => {
   test("buildItems classifies approval / question / done / running / idle and orders by score", () => {
     const convs: ConversationInfo[] = [
-      { id: "done", agentId: "a", agentName: "ira", title: "Done", lastMessageAt: "2026-09-05T08:00:00Z", archived: false },
-      { id: "q", agentId: "a", agentName: "ira", title: "Q", lastMessageAt: "2026-09-05T07:00:00Z", archived: false },
-      { id: "appr", agentId: "a", agentName: "ira", title: "Appr", lastMessageAt: "2026-09-05T06:00:00Z", archived: false },
-      { id: "seen", agentId: "a", agentName: "ira", title: "Seen", lastMessageAt: "2026-09-05T05:00:00Z", archived: false },
-      { id: "run", agentId: "a", agentName: "ira", title: "Run", lastMessageAt: "2026-09-05T04:00:00Z", archived: false },
+      { id: "done", agent_id: "a", agent_name: "ira", title: "Done", last_message_at: "2026-09-05T08:00:00Z", archived: false },
+      { id: "q", agent_id: "a", agent_name: "ira", title: "Q", last_message_at: "2026-09-05T07:00:00Z", archived: false },
+      { id: "appr", agent_id: "a", agent_name: "ira", title: "Appr", last_message_at: "2026-09-05T06:00:00Z", archived: false },
+      { id: "seen", agent_id: "a", agent_name: "ira", title: "Seen", last_message_at: "2026-09-05T05:00:00Z", archived: false },
+      { id: "run", agent_id: "a", agent_name: "ira", title: "Run", last_message_at: "2026-09-05T04:00:00Z", archived: false },
     ];
     const digests = new Map([
-      [keyOf("a", "done"), { lastRole: "assistant" as const, lastAssistantText: "Finished.", lastAsk: null }],
-      [keyOf("a", "q"), { lastRole: "assistant" as const, lastAssistantText: "Should I proceed?", lastAsk: null }],
-      [keyOf("a", "appr"), { lastRole: "assistant" as const, lastAssistantText: "Running it.", lastAsk: null }],
-      [keyOf("a", "seen"), { lastRole: "assistant" as const, lastAssistantText: "Old news.", lastAsk: null }],
-      [keyOf("a", "run"), { lastRole: "user" as const, lastAssistantText: null, lastAsk: null }],
+      [keyOf("a", "done"), { last_role: "assistant" as const, last_assistant_text: "Finished.", last_ask: null }],
+      [keyOf("a", "q"), { last_role: "assistant" as const, last_assistant_text: "Should I proceed?", last_ask: null }],
+      [keyOf("a", "appr"), { last_role: "assistant" as const, last_assistant_text: "Running it.", last_ask: null }],
+      [keyOf("a", "seen"), { last_role: "assistant" as const, last_assistant_text: "Old news.", last_ask: null }],
+      [keyOf("a", "run"), { last_role: "user" as const, last_assistant_text: null, last_ask: null }],
     ]);
     const live = new Map<string, Live>();
     const appr = emptyLive();
@@ -81,7 +81,7 @@ describe("AskUserQuestion as a pending question", () => {
     expect(l.pendingAsk?.requestId).toBe("perm-q1");
     expect(l.pendingAsk?.questions[0].options.map((o) => o.label)).toEqual(["yes", "no"]);
     const items = buildItems(
-      [{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }],
+      [{ id: "c", agent_id: "a", agent_name: "ira", title: "t", last_message_at: "2026-09-06T00:00:00Z", archived: false }],
       new Map(),
       new Map([[keyOf("a", "c"), l]]),
       {},
@@ -124,7 +124,7 @@ describe("a turn that ends in a tool call still counts as new", () => {
     applyEvent(l, { type: "turn_finished", runtime: rt });
     expect(l.turns).toBe(2);
     const items = buildItems(
-      [{ id: "c", agentId: "a", agentName: "ira", title: "t", lastMessageAt: "2026-09-06T00:00:00Z", archived: false }],
+      [{ id: "c", agent_id: "a", agent_name: "ira", title: "t", last_message_at: "2026-09-06T00:00:00Z", archived: false }],
       new Map(),
       new Map([[keyOf("a", "c"), l]]),
       {},
@@ -166,8 +166,8 @@ describe("messages typed mid-turn", () => {
 });
 
 describe("viewed, apart from done", () => {
-  const conv: ConversationInfo = { id: "c", agentId: "a", agentName: "ira", title: "C", lastMessageAt: "2026-09-05T08:00:00Z", archived: false };
-  const digests = new Map([[keyOf("a", "c"), { lastRole: "assistant" as const, lastAssistantText: "Finished.", lastAsk: null }]]);
+  const conv: ConversationInfo = { id: "c", agent_id: "a", agent_name: "ira", title: "C", last_message_at: "2026-09-05T08:00:00Z", archived: false };
+  const digests = new Map([[keyOf("a", "c"), { last_role: "assistant" as const, last_assistant_text: "Finished.", last_ask: null }]]);
   const now = new Date("2026-09-05T10:00:00Z").getTime();
 
   test("buildItems carries the look; a look does not make the item read", () => {
@@ -179,21 +179,21 @@ describe("viewed, apart from done", () => {
   });
 
   test("unviewed: unread with something newer than the last look", () => {
-    const base = { unread: true, lastMessageAt: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
+    const base = { unread: true, last_message_at: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
     expect(unviewed(base)).toBe(true);
     expect(unviewed({ ...base, viewedAt: "2026-09-05T07:59:59Z" })).toBe(true);
     expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00Z" })).toBe(false);
     expect(unviewed({ ...base, viewedAt: "2026-09-05T08:00:00.000+00:00" })).toBe(false); // times compared as instants
     expect(unviewed({ ...base, unread: false })).toBe(false);
-    expect(unviewed({ ...base, lastMessageAt: null, viewedAt: "2026-09-05T08:00:00Z" })).toBe(true); // nothing to compare: still new
+    expect(unviewed({ ...base, last_message_at: null, viewedAt: "2026-09-05T08:00:00Z" })).toBe(true); // nothing to compare: still new
   });
 
   test("viewStamp: one look per new last message, only while it is unread and unviewed", () => {
-    const base = { agentId: "a", id: "c", unread: true, lastMessageAt: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
+    const base = { agent_id: "a", id: "c", unread: true, last_message_at: "2026-09-05T08:00:00Z", viewedAt: null as string | null };
     expect(viewStamp(base)).toBe("a/c@2026-09-05T08:00:00Z");
     expect(viewStamp({ ...base, viewedAt: "2026-09-05T09:00:00Z" })).toBeNull();
     expect(viewStamp({ ...base, unread: false })).toBeNull();
-    expect(viewStamp({ ...base, lastMessageAt: null })).toBeNull();
+    expect(viewStamp({ ...base, last_message_at: null })).toBeNull();
     expect(viewStamp(null)).toBeNull();
   });
 });

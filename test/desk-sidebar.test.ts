@@ -31,30 +31,30 @@ const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
   scope,
   title: scope,
   status: "live",
-  agentName: "friday",
-  agentId: "a1",
-  conversationId: scope,
+  agent_name: "friday",
+  agent_id: "a1",
+  conversation_id: scope,
   model: null,
-  reasoningEffort: null,
+  reasoning_effort: null,
   pinned: false,
   widgets: 0,
   active: false,
-  lastActive: "2026-09-08T10:00:00Z",
+  last_active: "2026-09-08T10:00:00Z",
   ...over,
 });
 const item = (agentId: string, id: string, status: AttentionItem["status"], over: Partial<AttentionItem> = {}): AttentionItem =>
-  ({ id, agentId, status, unread: false, ...over }) as unknown as AttentionItem;
+  ({ id, agent_id: agentId, status, unread: false, ...over }) as unknown as AttentionItem;
 
 const desks = [
-  desk("default-a1", { conversationId: "default", title: "friday", lastActive: "2026-09-01T09:00:00Z" }),
-  desk("jira", { lastActive: "2026-09-08T12:00:00Z" }),
-  desk("email", { pinned: true, lastActive: "2026-09-07T09:00:00Z" }),
-  desk("aws", { lastActive: "2026-09-08T11:00:00Z" }),
-  desk("default-a2", { agentId: "a2", agentName: "ira", conversationId: "default", title: "ira", lastActive: "2026-09-09T08:00:00Z" }),
-  desk("notes", { agentId: "a2", agentName: "ira", title: "Meeting notes", lastActive: "2026-09-02T08:00:00Z" }),
+  desk("default-a1", { conversation_id: "default", title: "friday", last_active: "2026-09-01T09:00:00Z" }),
+  desk("jira", { last_active: "2026-09-08T12:00:00Z" }),
+  desk("email", { pinned: true, last_active: "2026-09-07T09:00:00Z" }),
+  desk("aws", { last_active: "2026-09-08T11:00:00Z" }),
+  desk("default-a2", { agent_id: "a2", agent_name: "ira", conversation_id: "default", title: "ira", last_active: "2026-09-09T08:00:00Z" }),
+  desk("notes", { agent_id: "a2", agent_name: "ira", title: "Meeting notes", last_active: "2026-09-02T08:00:00Z" }),
   desk("gone", { status: "archived", title: "Old spike" }),
   desk("dead", { status: "deleted", title: "Deleted one" }),
-  desk("shared", { title: "shared sheet", agentId: null, agentName: null, conversationId: null }),
+  desk("shared", { title: "shared sheet", agent_id: null, agent_name: null, conversation_id: null }),
 ];
 const scopes = (rows: Array<{ desk: DeskSummary }>) => rows.map((r) => r.desk.scope);
 
@@ -83,7 +83,7 @@ describe("sections (scenario 1)", () => {
     expect(s.rows.slice(1).every((r) => !r.main)).toBe(true);
   });
   test("no pinned desks: no Pinned section; an agent named only by the server list gets its name", () => {
-    const m = sidebarModel([desk("x", { agentName: null, agentId: "a9" })], [], { agents: [{ id: "a9", name: "nova" }] });
+    const m = sidebarModel([desk("x", { agent_name: null, agent_id: "a9" })], [], { agents: [{ id: "a9", name: "nova" }] });
     expect(m.sections.map((s) => [s.id, s.title])).toEqual([["agent:a9", "nova"]]);
   });
   test("the current desk is marked", () => {
@@ -133,21 +133,21 @@ describe("marks (scenario 3)", () => {
   });
   test("finished, looked at since the last message: not bold, the ring stays, the words say viewed", () => {
     const fresh = deskRowState(
-      item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }),
+      item("a1", "jira", "done", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T09:00:00Z" }),
       desk("jira"),
     );
     expect(fresh).toMatchObject({ kind: "finished", unread: true, note: "new messages" });
     const looked = deskRowState(
-      item("a1", "jira", "done", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }),
+      item("a1", "jira", "done", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }),
       desk("jira"),
     );
     expect(looked).toMatchObject({ kind: "finished", badge: null, unread: false, note: "viewed, not done" });
     // waiting stays bold with its badge whatever the look: it needs you to act
     expect(
-      deskRowState(item("a1", "jira", "approval", { unread: true, lastMessageAt: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),
+      deskRowState(item("a1", "jira", "approval", { unread: true, last_message_at: "2026-09-08T10:00:00Z", viewedAt: "2026-09-08T10:05:00Z" }), desk("jira")),
     ).toMatchObject({ kind: "waits", badge: 1, unread: true });
     // done: neither
-    expect(deskRowState(item("a1", "jira", "idle", { unread: false, lastMessageAt: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({
+    expect(deskRowState(item("a1", "jira", "idle", { unread: false, last_message_at: "2026-09-08T10:00:00Z" }), desk("jira"))).toMatchObject({
       kind: "none",
       unread: false,
       note: undefined,
@@ -156,8 +156,8 @@ describe("marks (scenario 3)", () => {
   test("doneAction: Mark as done while unread, Mark as not done once done with a reply, nothing for approvals or your own last word", () => {
     expect(doneAction(item("a1", "jira", "done", { unread: true }))).toBe("done");
     expect(doneAction(item("a1", "jira", "question", { unread: true }))).toBe("done");
-    expect(doneAction(item("a1", "jira", "idle", { unread: false, lastRole: "assistant", lastMessageAt: "2026-09-08T10:00:00Z" }))).toBe("undone");
-    expect(doneAction(item("a1", "jira", "idle", { unread: false, lastRole: "user", lastMessageAt: "2026-09-08T10:00:00Z" }))).toBeNull();
+    expect(doneAction(item("a1", "jira", "idle", { unread: false, lastRole: "assistant", last_message_at: "2026-09-08T10:00:00Z" }))).toBe("undone");
+    expect(doneAction(item("a1", "jira", "idle", { unread: false, lastRole: "user", last_message_at: "2026-09-08T10:00:00Z" }))).toBeNull();
     expect(doneAction(item("a1", "jira", "approval", { unread: true, pendingApproval: { requestId: "r" } as AttentionItem["pendingApproval"] }))).toBeNull();
     expect(doneAction(undefined)).toBeNull();
   });
@@ -190,29 +190,29 @@ describe("marks (scenario 3)", () => {
 
 describe("pin and archive rules (scenario 4)", () => {
   test("the main chat cannot be archived; a deleted desk cannot be archived or restored", () => {
-    expect(canArchive(desk("default-a1", { conversationId: "default" }))).toBe(false);
+    expect(canArchive(desk("default-a1", { conversation_id: "default" }))).toBe(false);
     expect(canArchive(desk("dead", { status: "deleted" }))).toBe(false);
     expect(canArchive(desk("jira"))).toBe(true);
     expect(canArchive(desk("gone", { status: "archived" }))).toBe(true);
-    expect(canArchive(desk("x", { conversationId: null }))).toBe(false);
+    expect(canArchive(desk("x", { conversation_id: null }))).toBe(false);
   });
   test("only live desks with an agent and a conversation can be pinned", () => {
     expect(canPin(desk("dead", { status: "deleted" }))).toBe(false);
     expect(canPin(desk("gone", { status: "archived" }))).toBe(false);
-    expect(canPin(desk("x", { agentId: null }))).toBe(false);
+    expect(canPin(desk("x", { agent_id: null }))).toBe(false);
     expect(canPin(desk("jira"))).toBe(true);
-    expect(canPin(desk("default-a1", { conversationId: "default" }))).toBe(true);
+    expect(canPin(desk("default-a1", { conversation_id: "default" }))).toBe(true);
   });
 });
 
 describe("change folder rules", () => {
   test("any desk with an agent and a conversation can move, the main chat and archived ones too; not a deleted desk or the shared sheet", () => {
     expect(canMove(desk("jira"))).toBe(true);
-    expect(canMove(desk("default-a1", { conversationId: "default" }))).toBe(true);
+    expect(canMove(desk("default-a1", { conversation_id: "default" }))).toBe(true);
     expect(canMove(desk("gone", { status: "archived" }))).toBe(true);
     expect(canMove(desk("dead", { status: "deleted" }))).toBe(false);
-    expect(canMove(desk("shared", { conversationId: null }))).toBe(false);
-    expect(canMove(desk("x", { agentId: null }))).toBe(false);
+    expect(canMove(desk("shared", { conversation_id: null }))).toBe(false);
+    expect(canMove(desk("x", { agent_id: null }))).toBe(false);
   });
 });
 
@@ -220,9 +220,9 @@ describe("rename rules", () => {
   test("any desk with its own conversation can be renamed, archived ones too; not the main chat, a deleted desk or the shared sheet", () => {
     expect(canRename(desk("jira"))).toBe(true);
     expect(canRename(desk("gone", { status: "archived" }))).toBe(true);
-    expect(canRename(desk("default-a1", { conversationId: "default" }))).toBe(false);
+    expect(canRename(desk("default-a1", { conversation_id: "default" }))).toBe(false);
     expect(canRename(desk("dead", { status: "deleted" }))).toBe(false);
-    expect(canRename(desk("shared", { conversationId: null }))).toBe(false);
+    expect(canRename(desk("shared", { conversation_id: null }))).toBe(false);
   });
   test("a name is trimmed, its runs of whitespace (a pasted newline) made one space, and capped; blank is no name", () => {
     expect(cleanDeskName("  Q3 plan  ")).toBe("Q3 plan");

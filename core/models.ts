@@ -9,9 +9,9 @@ export interface ModelEntry {
   handle: string;
   label: string;
   description?: string;
-  isDefault?: boolean;
-  isFeatured?: boolean;
-  reasoningEffort?: ReasoningEffort;
+  is_default?: boolean;
+  is_featured?: boolean;
+  reasoning_effort?: ReasoningEffort;
   /** False when the harness named the handles this account can reach and this is not one (`available_handles`). */
   available?: false;
   /** Among the models used lately (mod/models.ts): 0 is the latest. Set by the app, not the wire. */
@@ -22,18 +22,18 @@ export interface ModelEntry {
 export interface ModelSelection {
   id: string;
   handle: string;
-  reasoningEffort?: ReasoningEffort;
+  reasoning_effort?: ReasoningEffort;
 }
 
 /** The wire choice for one list_models preset. */
 export function selectionOf(entry: ModelEntry): ModelSelection {
-  return { id: entry.id, handle: entry.handle, ...(entry.reasoningEffort ? { reasoningEffort: entry.reasoningEffort } : {}) };
+  return { id: entry.id, handle: entry.handle, ...(entry.reasoning_effort ? { reasoning_effort: entry.reasoning_effort } : {}) };
 }
 
 /** The model a conversation was switched to: the handle and effort sent with chat_model, effort null when none was chosen. */
 export interface AppliedModel {
   handle: string;
-  reasoningEffort: ReasoningEffort | null;
+  reasoning_effort: ReasoningEffort | null;
 }
 
 /** Whether a value is one of the reasoning efforts, for checking one read off the wire. */
@@ -64,12 +64,12 @@ export function modelEntriesFromWire(value: unknown, availableHandles?: unknown)
       handle,
       label: wireText(entry.label ?? entry.handle),
       ...(typeof entry.description === "string" ? { description: entry.description } : {}),
-      ...(entry.isDefault === true ? { isDefault: true } : {}),
-      ...(entry.isFeatured === true ? { isFeatured: true } : {}),
+      ...(entry.isDefault === true ? { is_default: true } : {}),
+      ...(entry.isFeatured === true ? { is_featured: true } : {}),
       ...(reachable && !reachable.has(handle) ? { available: false as const } : {}),
     };
     const efforts = reasoningEffortsFromWireEntry(entry, updateArgs, handle);
-    return efforts.length ? efforts.map((reasoningEffort) => ({ ...base, reasoningEffort })) : [base];
+    return efforts.length ? efforts.map((reasoningEffort) => ({ ...base, reasoning_effort: reasoningEffort })) : [base];
   });
 }
 

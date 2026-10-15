@@ -13,13 +13,13 @@ export interface AgentDmRow extends AgentRowModel {
  */
 export function agentDmRows(
   agents: Array<{ id: string; name: string }>,
-  desks: Array<{ agentId: string | null; status: string }>,
+  desks: Array<{ agent_id: string | null; status: string }>,
   items: AttentionItem[],
 ): AgentDmRow[] {
   return agentRows(agents, desks, items).map((r) => {
     const newest = items
-      .filter((i) => i.agentId === r.id && !i.archived && i.lastAssistantText?.trim())
-      .reduce<AttentionItem | null>((best, i) => (!best || (i.lastMessageAt ?? "") > (best.lastMessageAt ?? "") ? i : best), null);
+      .filter((i) => i.agent_id === r.id && !i.archived && i.lastAssistantText?.trim())
+      .reduce<AttentionItem | null>((best, i) => (!best || (i.last_message_at ?? "") > (best.last_message_at ?? "") ? i : best), null);
     const said = previewLine(newest?.lastAssistantText);
     return { ...r, preview: said || liveDesksLabel(r.live) };
   });

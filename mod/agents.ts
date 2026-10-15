@@ -30,7 +30,7 @@ export function isSubagent(agentId: string, dir = backendDir()): boolean {
 
 /**
  * An agent's record as the Agents page shows it, read from <backend>/agents/<b64 id>.json; null for an invalid id or a
- * missing or unreadable record. The name falls back to the id, and systemHead is the system prompt's first line, cut to
+ * missing or unreadable record. The name falls back to the id, and system_head is the system prompt's first line, cut to
  * 200 characters.
  */
 export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent | null {
@@ -44,10 +44,10 @@ export function readLocalAgent(agentId: string, dir = backendDir()): LocalAgent 
       name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : agentId,
       description: typeof raw.description === "string" && raw.description.trim() ? raw.description.trim() : null,
       model: typeof raw.model === "string" ? raw.model : null,
-      modelSettings: raw.model_settings && typeof raw.model_settings === "object" ? (raw.model_settings as Record<string, unknown>) : {},
+      model_settings: raw.model_settings && typeof raw.model_settings === "object" ? (raw.model_settings as Record<string, unknown>) : {},
       tags,
       favourite: tags.some((t) => t.startsWith("favorite:")),
-      systemHead: system ? system.split("\n")[0].slice(0, 200) : null,
+      system_head: system ? system.split("\n")[0].slice(0, 200) : null,
     };
   } catch {
     return null;
@@ -86,7 +86,7 @@ export function memoryTree(agentId: string, dir = backendDir()): MemoryFile[] {
       if (e.isDirectory()) walk(p);
       else if (e.isFile()) {
         const st = statSync(p);
-        out.push({ path: relative(root, p).split(sep).join("/"), bytes: st.size, modifiedAt: st.mtime.toISOString() });
+        out.push({ path: relative(root, p).split(sep).join("/"), bytes: st.size, modified_at: st.mtime.toISOString() });
       }
     }
   };

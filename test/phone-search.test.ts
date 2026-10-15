@@ -28,24 +28,24 @@ const desk = (title: string | null, over: Partial<DeskSummary> = {}): DeskSummar
   scope: `s-${title}`,
   title,
   status: "live",
-  agentName: "Friday",
-  agentId: "a1",
-  conversationId: `c-${title}`,
+  agent_name: "Friday",
+  agent_id: "a1",
+  conversation_id: `c-${title}`,
   model: null,
-  reasoningEffort: null,
+  reasoning_effort: null,
   widgets: 0,
   active: false,
-  lastActive: "2026-09-20T10:00:00Z",
+  last_active: "2026-09-20T10:00:00Z",
   ...over,
 });
 
 const item = (id: string, title: string, over: Partial<AttentionItem> = {}): AttentionItem =>
   ({
     id,
-    agentId: "a2",
-    agentName: "Ledger",
+    agent_id: "a2",
+    agent_name: "Ledger",
     title,
-    lastMessageAt: "2026-09-21T10:00:00Z",
+    last_message_at: "2026-09-21T10:00:00Z",
     archived: false,
     status: "question",
     lastAssistantText: "the banana report is ready",
@@ -66,8 +66,8 @@ const item = (id: string, title: string, over: Partial<AttentionItem> = {}): Att
 const src = (over: Partial<SearchSources> = {}): SearchSources => ({
   desks: [
     desk("Loki mobile"),
-    desk("Mobile budget", { conversationId: "c2", lastActive: "2026-09-22T10:00:00Z" }),
-    desk("Automobile notes", { conversationId: "c3" }),
+    desk("Mobile budget", { conversation_id: "c2", last_active: "2026-09-22T10:00:00Z" }),
+    desk("Automobile notes", { conversation_id: "c3" }),
   ],
   agents: [
     { id: "a1", name: "Friday" },
@@ -110,7 +110,7 @@ describe("matching", () => {
   });
   test("desk agent names match; desks the phone cannot open are left out", () => {
     expect(titles(src(), "friday", "desks").length).toBe(3);
-    expect(titles(src({ desks: [desk("Orphan", { conversationId: null })] }), "orphan", "desks")).toEqual([]);
+    expect(titles(src({ desks: [desk("Orphan", { conversation_id: null })] }), "orphan", "desks")).toEqual([]);
   });
   test("named pages match by name and by the words people use for them", () => {
     expect(titles(src(), "prefer", "pages")).toEqual(["Preferences"]);
@@ -153,8 +153,8 @@ describe("ranking", () => {
     // both exact; the older desk named Atlas still comes before the newer one whose agent is Atlas
     const s = src({
       desks: [
-        desk("Notes", { agentName: "Atlas", conversationId: "n1" }),
-        desk("Atlas", { agentName: "Friday", conversationId: "n2", lastActive: "2026-01-01T00:00:00Z" }),
+        desk("Notes", { agent_name: "Atlas", conversation_id: "n1" }),
+        desk("Atlas", { agent_name: "Friday", conversation_id: "n2", last_active: "2026-01-01T00:00:00Z" }),
       ],
     });
     expect(titles(s, "atlas", "desks")).toEqual(["Atlas", "Notes"]);
@@ -162,16 +162,16 @@ describe("ranking", () => {
   test("ties break by recency, newest first, then by list order", () => {
     const s = src({
       desks: [
-        desk("Plan A", { conversationId: "p1", lastActive: "2026-09-01T00:00:00Z" }),
-        desk("Plan B", { conversationId: "p2", lastActive: "2026-09-10T00:00:00Z" }),
-        desk("Plan C", { conversationId: "p3", lastActive: null }),
-        desk("Plan D", { conversationId: "p4", lastActive: null }),
+        desk("Plan A", { conversation_id: "p1", last_active: "2026-09-01T00:00:00Z" }),
+        desk("Plan B", { conversation_id: "p2", last_active: "2026-09-10T00:00:00Z" }),
+        desk("Plan C", { conversation_id: "p3", last_active: null }),
+        desk("Plan D", { conversation_id: "p4", last_active: null }),
       ],
     });
     expect(titles(s, "plan", "desks")).toEqual(["Plan B", "Plan A", "Plan C", "Plan D"]);
   });
   test("each group is capped, and says how many matched", () => {
-    const many = Array.from({ length: 12 }, (_, i) => desk(`Report ${i}`, { conversationId: `r${i}` }));
+    const many = Array.from({ length: 12 }, (_, i) => desk(`Report ${i}`, { conversation_id: `r${i}` }));
     const g = must(
       search(src({ desks: many }), "report").find((x) => x.id === "desks"),
       "the desks group",

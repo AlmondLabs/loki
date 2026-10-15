@@ -49,7 +49,7 @@ export interface AgentsApi {
 export interface ReflectionControls {
   /** The background passes' settings (daemon/passes-state.ts): reflection and Learn on or off, Learn's cards a day. */
   get: () => Promise<PassSettings | null>;
-  set: (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }) => Promise<string | null>;
+  set: (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; daily_cap?: number } }) => Promise<string | null>;
   /** Resolves to the harness's one-line answer ("Started a reflection pass…", "No new transcript content…"). */
   run: (rt: Runtime) => Promise<string>;
 }

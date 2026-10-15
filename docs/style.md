@@ -56,6 +56,20 @@ npm run build:app && npm run build:mod && npm run smoke
 - No abbreviations a newcomer would have to guess. Short names are fine for short scopes (`t` for the task in a
   three-line arrow, `e` for an event).
 
+**Data** **review** (the types make most of it checked):
+
+- Data loki owns is snake_case: bridge frame fields and the request envelope (`request_id`), chat events, the files
+  loki writes under `~/.loki`, task metadata in beads, tool arguments, analytics properties. Frame and event names were
+  already snake_case (`task_create`, `task_added`).
+- Its TypeScript types use those names directly (`desk.agent_id`, `row.last_message_at`); there is no conversion layer.
+  Identifiers stay camelCase: `const { agent_id: agentId } = desk`, `{ agent_id: agentId }`.
+- State that never leaves the app (React state, view models, `AttentionItem`'s own fields) is camelCase like any
+  identifier.
+- Formats loki does not own keep their names: `mcp.json` (`mcpServers`, `alwaysLoad`), Letta's files, pi-durable's
+  documents, provider APIs, the browser's `dataset`.
+- A field renamed in saved data is read through `migrateKeys` (`core/snake-keys.ts`, OLD_KEYS; task metadata through
+  OLD_TASK_METADATA_KEYS) and written back once; only listed names are renamed, since a map's keys may be ids.
+
 **Modules**:
 
 - **Named exports only**; no `export default`. Excepted: tools' config files, and `mod/index.ts` and `mod/boot.ts`,

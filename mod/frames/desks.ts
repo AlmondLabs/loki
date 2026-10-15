@@ -28,16 +28,16 @@ export interface DesksDeps {
 
 /** One desk in full: its conversation's title, status, agent and model, its geometry, and its widgets. */
 export function deskFrame(deps: DesksDeps, scope: Scope): { type: "desk" } & Pushes["desk"] {
-  const info = deps.deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agentName: null, agentId: null, model: null, reasoningEffort: null };
+  const info = deps.deskInfo?.(scope) ?? { title: null, status: "none" as DeskStatus, agent_name: null, agent_id: null, model: null, reasoning_effort: null };
   return {
     type: "desk",
     scope,
     title: info.title,
     status: info.status,
-    agentName: info.agentName,
-    agentId: info.agentId,
+    agent_name: info.agent_name,
+    agent_id: info.agent_id,
     model: info.model,
-    reasoningEffort: info.reasoningEffort,
+    reasoning_effort: info.reasoning_effort,
     mode: info.mode ?? null,
     state: deps.store.get(scope),
     widgets: deps.widgets.entries(scope),
@@ -77,7 +77,7 @@ export function desksFrames(deps: DesksDeps): FrameHandlers {
         .map(([id]) => id);
       gestures.record(scope, `tidied the canvas (auto-arranged ${ids.length} widget${ids.length === 1 ? "" : "s"})`, "arrange");
       ctx.track("desk_arranged");
-      ctx.broadcast({ type: "camera", widgetId: ids[0], widgetIds: ids }, audience(scope));
+      ctx.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, audience(scope));
     },
     trash: ({ id }, ctx) => {
       if (!deps.deleteWidgetFile) return;
@@ -100,7 +100,7 @@ export function desksFrames(deps: DesksDeps): FrameHandlers {
     // Another desk's widgets and state, for a thread showing them inline (the Inbox, the phone); no switch.
     desk_get: ({ scope }, ctx) => ctx.push(deskFrame(deps, scope)),
     list_desks: (_, ctx) => ctx.push(desks()),
-    pin_set: ({ agentId, conversationId, pinned }, ctx) => {
+    pin_set: ({ agent_id: agentId, conversation_id: conversationId, pinned }, ctx) => {
       if (!deps.setPin) return;
       deps.setPin(agentId, conversationId, pinned);
       ctx.track("desk_pinned", { pinned });
@@ -123,6 +123,6 @@ export function sortDesks(desks: DeskSummary[]): DeskSummary[] {
     if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) return STATUS_RANK[a.status] - STATUS_RANK[b.status];
     if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
     if (a.active !== b.active) return a.active ? -1 : 1;
-    return (b.lastActive ?? "").localeCompare(a.lastActive ?? "") || (a.title ?? a.scope).localeCompare(b.title ?? b.scope);
+    return (b.last_active ?? "").localeCompare(a.last_active ?? "") || (a.title ?? a.scope).localeCompare(b.title ?? b.scope);
   });
 }

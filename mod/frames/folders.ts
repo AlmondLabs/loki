@@ -15,9 +15,9 @@ export interface FoldersDeps {
 /** The folders a new chat may work in: recent ones, completions, a check, and the system picker. */
 export function foldersFrames({ folders }: FoldersDeps): FrameHandlers {
   return {
-    folders_get: () => reply(folders?.recent() ?? { byAgent: {}, byConversation: {} }),
+    folders_get: () => reply(folders?.recent() ?? { by_agent: {}, by_conversation: {} }),
     folder_complete: ({ prefix }) => reply({ matches: prefix !== null ? (folders?.complete(prefix) ?? []) : [] }),
     folder_check: ({ path }) => reply(path !== null && folders ? folders.check(path) : { ok: false, path: path ?? "", branch: null, reason: "no path" }),
-    folder_pick: async ({ defaultPath }) => reply({ path: (await folders?.pick(defaultPath)) ?? null }),
+    folder_pick: async ({ default_path: defaultPath }) => reply({ path: (await folders?.pick(defaultPath)) ?? null }),
   };
 }

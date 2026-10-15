@@ -22,7 +22,7 @@ export function AgentsColumn({
   selection = agentsSelection,
 }: {
   agents: Array<{ id: string; name: string }>;
-  desks: Array<{ agentId: string | null; status: string }>;
+  desks: Array<{ agent_id: string | null; status: string }>;
   items: AttentionItem[];
   avatar: (agentId: string) => string;
   initialAgentId: string | null;

@@ -67,8 +67,8 @@ describe("a lesson's first widget", () => {
       title: "Envelope encryption",
       why: "you asked what a data key was",
       depth: "primer",
-      source: { agentId: "a1", agentName: "ira", conversationId: "c1", title: "[Long] - KMS", at: null },
-      createdAt: "2026-09-13T00:00:00Z",
+      source: { agent_id: "a1", agent_name: "ira", conversation_id: "c1", title: "[Long] - KMS", at: null },
+      created_at: "2026-09-13T00:00:00Z",
     });
     expect(card.type).toBe("info-card");
     expect(card.title).toBe("Envelope encryption");
@@ -84,8 +84,8 @@ describe("a lesson's first widget", () => {
         title: "T",
         why: "w",
         depth: "course",
-        source: { agentId: "a1", agentName: null, conversationId: "c1", title: null, at: null },
-        createdAt: "2026-09-13T00:00:00Z",
+        source: { agent_id: "a1", agent_name: null, conversation_id: "c1", title: null, at: null },
+        created_at: "2026-09-13T00:00:00Z",
       }).data.lines.slice(0, 2),
     ).toEqual(["a course — a few sittings", "it came up in a conversation with the agent"]);
   });
@@ -98,8 +98,8 @@ describe("a lesson on loki's daemon", () => {
       title: "Envelope encryption",
       why: "w",
       depth: "primer",
-      source: { agentId: "a1", agentName: "ira", conversationId: "c1", title: null, at: null },
-      createdAt: "2026-09-13T00:00:00Z",
+      source: { agent_id: "a1", agent_name: "ira", conversation_id: "c1", title: null, at: null },
+      created_at: "2026-09-13T00:00:00Z",
     });
     const made: string[] = [];
     const chats = {
@@ -110,9 +110,9 @@ describe("a lesson on loki's daemon", () => {
     } as unknown as ChatBackend;
     const widgets = join(dir, "widgets");
     const started = await startLessonViaChats(chats, { store, widgetsDir: widgets })("l1");
-    expect(started).toEqual({ agentId: "a1", conversationId: "conv-7" });
+    expect(started).toEqual({ agent_id: "a1", conversation_id: "conv-7" });
     expect(made).toEqual([`a1 ${homedir()} [Learn] · Envelope encryption`]);
     expect((JSON.parse(readFileSync(join(widgets, scopeFor("conv-7", "a1"), "lesson.json"), "utf8")) as { title: unknown }).title).toBe("Envelope encryption");
-    expect(store.lessons()[0]).toMatchObject({ agentId: "a1", conversationId: "conv-7" });
+    expect(store.lessons()[0]).toMatchObject({ agent_id: "a1", conversation_id: "conv-7" });
   });
 });

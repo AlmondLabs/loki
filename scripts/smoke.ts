@@ -95,19 +95,19 @@ async function start(home: string): Promise<Daemon> {
   throw new Error(`the daemon did not answer /health within ${START_MS / 1000}s:\n${output}`);
 }
 
-type Reply = { type: string; requestId?: string; message?: string } & Record<string, unknown>;
+type Reply = { type: string; request_id?: string; message?: string } & Record<string, unknown>;
 
-/** A socket to the daemon, as the app holds one: requests carry a requestId, answered by their reply or an `error`. */
+/** A socket to the daemon, as the app holds one: requests carry a request_id, answered by their reply or an `error`. */
 async function connect(home: string, port: number) {
   const token = readFileSync(join(home, ".loki", "token"), "utf8").trim();
   const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?t=${encodeURIComponent(token)}`);
   const waiting = new Map<string, (r: Reply) => void>();
   ws.addEventListener("message", (e) => {
     const m = JSON.parse(String(e.data)) as Reply;
-    const answer = m.requestId ? waiting.get(m.requestId) : undefined;
-    if (m.requestId && answer) {
+    const answer = m.request_id ? waiting.get(m.request_id) : undefined;
+    if (m.request_id && answer) {
       answer(m);
-      waiting.delete(m.requestId);
+      waiting.delete(m.request_id);
     }
   });
   await new Promise<void>((resolve, reject) => {
@@ -126,7 +126,7 @@ async function connect(home: string, port: number) {
         clearTimeout(t);
         resolve(r);
       });
-      ws.send(JSON.stringify({ type, requestId, ...payload }));
+      ws.send(JSON.stringify({ type, request_id: requestId, ...payload }));
     });
   };
   return { request, close: () => ws.close() };
@@ -198,7 +198,7 @@ async function main(): Promise<void> {
       ok(`${all.length} providers listed, ${signsIn.length} sign in`);
       if (signsIn.length === 0) fail("no provider offers sign-in: the sign-in flows did not load");
       for (const p of signsIn) {
-        const r = await sock.request("chat_provider_signin", { providerId: p.id }).catch((e: unknown): Reply => ({ type: "error", message: String(e) }));
+        const r = await sock.request("chat_provider_signin", { provider_id: p.id }).catch((e: unknown): Reply => ({ type: "error", message: String(e) }));
         if (r.type === "chat_signin" && typeof r.url === "string" && /^https?:\/\//.test(r.url)) ok(`sign-in to ${p.id} names its page`);
         else if (OURS.test(String(r.message))) fail(`sign-in to ${p.id}: ${r.message}`);
         else warn(`sign-in to ${p.id} did not name a page from this runner: ${r.message ?? r.type}`);

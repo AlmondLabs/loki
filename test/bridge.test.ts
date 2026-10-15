@@ -41,7 +41,7 @@ const sleep: WidgetManifestEntry = {
   type: "slider-control",
   data: { value: 6 },
   hash: "h",
-  updatedAt: 0,
+  updated_at: 0,
 };
 const welcome: WidgetManifestEntry = {
   ...sleep,
@@ -146,14 +146,14 @@ describe("bridge", () => {
           ? {
               title: "[Short] - Sleep tracking",
               status: "archived",
-              agentName: "ira",
-              agentId: "a1",
+              agent_name: "ira",
+              agent_id: "a1",
               model: "anthropic/claude-fable-5",
-              reasoningEffort: "high",
+              reasoning_effort: "high",
             }
           : s === "gone"
-            ? { title: null, status: "deleted", agentName: null, agentId: null, model: null, reasoningEffort: null }
-            : { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null },
+            ? { title: null, status: "deleted", agent_name: null, agent_id: null, model: null, reasoning_effort: null }
+            : { title: "shared", status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null },
     });
     const c = client("c1");
     bridge.onConnect(c);
@@ -162,8 +162,8 @@ describe("bridge", () => {
       scope: "c1",
       title: "[Short] - Sleep tracking",
       status: "archived",
-      agentName: "ira",
-      reasoningEffort: "high",
+      agent_name: "ira",
+      reasoning_effort: "high",
     });
     expect(c.sent[1]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
     bridge.onConnect(client("gone"));
@@ -175,24 +175,24 @@ describe("bridge", () => {
       scope,
       status,
       title: null,
-      agentName: null,
-      agentId: null,
-      conversationId: null,
+      agent_name: null,
+      agent_id: null,
+      conversation_id: null,
       model: null,
-      reasoningEffort: null,
+      reasoning_effort: null,
       widgets: 0,
       active: false,
-      lastActive: null,
+      last_active: null,
       ...extra,
     });
     const sorted = sortDesks([
-      d("old", "live", { lastActive: "2026-09-01T00:00:00Z" }),
+      d("old", "live", { last_active: "2026-09-01T00:00:00Z" }),
       d("gone", "deleted"),
-      d("arch", "archived", { lastActive: "2026-09-03T00:00:00Z" }),
+      d("arch", "archived", { last_active: "2026-09-03T00:00:00Z" }),
       d("shared", "none"),
-      d("now", "live", { active: true, lastActive: "2026-08-01T00:00:00Z" }),
-      d("new", "live", { lastActive: "2026-09-02T00:00:00Z" }),
-      d("pinned", "live", { pinned: true, lastActive: "2026-07-01T00:00:00Z" }),
+      d("now", "live", { active: true, last_active: "2026-08-01T00:00:00Z" }),
+      d("new", "live", { last_active: "2026-09-02T00:00:00Z" }),
+      d("pinned", "live", { pinned: true, last_active: "2026-07-01T00:00:00Z" }),
     ]).map((x) => x.scope);
     expect(sorted).toEqual(["shared", "pinned", "now", "new", "old", "arch", "gone"]);
   });
@@ -203,14 +203,14 @@ describe("bridge", () => {
         scope: "shared",
         title: "shared",
         status: "none",
-        agentName: null,
-        agentId: null,
-        conversationId: null,
+        agent_name: null,
+        agent_id: null,
+        conversation_id: null,
         model: null,
-        reasoningEffort: null,
+        reasoning_effort: null,
         widgets: 1,
         active: false,
-        lastActive: null,
+        last_active: null,
       },
     ];
     const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listDesks: () => desks });
@@ -235,7 +235,7 @@ describe("bridge", () => {
     const b = store.get("c1").layout["c1/b"].position;
     expect(a).not.toEqual(b);
     expect(gestures.peek("c1")).toEqual(["tidied the canvas (auto-arranged 2 widgets)"]);
-    expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widgetIds: expect.arrayContaining(["c1/a", "c1/b"]) as unknown });
+    expect(broadcasts.at(-1)?.[0]).toMatchObject({ type: "camera", widget_ids: expect.arrayContaining(["c1/a", "c1/b"]) as unknown });
   });
 
   test("trash deletes the file through the mod, forgets the layout, and tells the agent", () => {
@@ -286,7 +286,7 @@ describe("bridge: viewed", () => {
         seen,
       });
       const c = client("c1");
-      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
+      bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
       const frame = must(broadcasts.at(-1), "the seen frame");
       expect(frame.type).toBe("seen");
       expect(Object.keys(frame.viewed as object)).toEqual(["a/x"]);
@@ -321,16 +321,16 @@ describe("bridge: focus", () => {
         seen,
       });
       const c = client("c1");
-      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
+      bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
       expect((must(broadcasts.at(-1), "the seen frame").focus as Record<string, { w: number }>)["a/x"].w).toBe(0.25);
-      bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "x", action: "answer" });
-      bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "y", action: "decide" });
+      bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "x", action: "answer" });
+      bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "y", action: "decide" });
       const focus = must(broadcasts.at(-1), "the seen frame").focus as Record<string, { w: number }>;
       expect(focus["a/x"].w).toBeCloseTo(1.25, 3);
       expect(focus["a/y"].w).toBe(0.5);
       // messages are counted where turns start, never from a client: a client cannot claim one
       const before = broadcasts.length;
-      bridge.onMessage(c, { type: "focus_add", agentId: "a", conversationId: "x", action: "message" });
+      bridge.onMessage(c, { type: "focus_add", agent_id: "a", conversation_id: "x", action: "message" });
       expect(broadcasts.length).toBe(before);
       expect(PHONE_FRAMES.has("focus_add")).toBe(true);
       seen.flush();
@@ -358,12 +358,12 @@ describe("bridge: a mark that changes nothing", () => {
         seen,
       });
       const c = client("c1");
-      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
+      bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" });
       expect(broadcasts.length).toBe(1);
       seen.flush();
       writeFileSync(path, "untouched");
-      bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" }); // the same instant: the same look
-      bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" }); // not done already
+      bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" }); // the same instant: the same look
+      bridge.onMessage(c, { type: "seen_unmark", agent_id: "a", conversation_id: "x" }); // not done already
       expect(broadcasts.length).toBe(1);
       seen.flush();
       expect(readFileSync(path, "utf8")).toBe("untouched");
@@ -378,20 +378,20 @@ describe("bridge history", () => {
     const rows = [
       {
         id: "default",
-        agentId: "a1",
-        agentName: "ira",
+        agent_id: "a1",
+        agent_name: "ira",
         title: "ira · main chat",
-        lastMessageAt: "2026-09-06T11:49:16Z",
+        last_message_at: "2026-09-06T11:49:16Z",
         archived: false as const,
-        lastRole: "assistant" as const,
-        lastAsk: null,
-        lastAssistantText: "It's on your canvas now.",
+        last_role: "assistant" as const,
+        last_ask: null,
+        last_assistant_text: "It's on your canvas now.",
       },
     ];
     const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listInbox: () => rows });
     const c = client("c1");
-    bridge.onMessage(c, { type: "inbox_list", requestId: "i1" });
-    expect(c.sent).toEqual([{ type: "inbox", requestId: "i1", conversations: rows }]);
+    bridge.onMessage(c, { type: "inbox_list", request_id: "i1" });
+    expect(c.sent).toEqual([{ type: "inbox", request_id: "i1", conversations: rows }]);
   });
   test("history_get answers with the local transcript and echoes the request id", () => {
     const bridge = bridgeOf({
@@ -412,15 +412,15 @@ describe("bridge history", () => {
     });
     const c = client("c1");
     bridge.onConnect(c);
-    bridge.onMessage(c, { type: "history_get", requestId: "h1", agentId: "a1", conversationId: "c9" });
+    bridge.onMessage(c, { type: "history_get", request_id: "h1", agent_id: "a1", conversation_id: "c9" });
     const reply = must(
       c.sent.find((m) => m.type === "history"),
       "the history reply",
     );
-    expect(reply).toMatchObject({ requestId: "h1", agentId: "a1", conversationId: "c9" });
+    expect(reply).toMatchObject({ request_id: "h1", agent_id: "a1", conversation_id: "c9" });
     expect((reply.messages as unknown[]).length).toBe(2);
-    bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "unknown" });
-    expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ requestId: "h2", messages: [] });
+    bridge.onMessage(c, { type: "history_get", request_id: "h2", agent_id: "a1", conversation_id: "unknown" });
+    expect(c.sent.filter((m) => m.type === "history").at(-1)).toMatchObject({ request_id: "h2", messages: [] });
   });
   test("history_get pages: the limit asked for (one page at least, a cap at most), and whether older rows remain", () => {
     const asked: number[] = [];
@@ -433,7 +433,7 @@ describe("bridge history", () => {
     });
     const c = client("c1");
     for (const limit of [undefined, 800, 1200, 5, 1e9])
-      bridge.onMessage(c, { type: "history_get", requestId: "h", agentId: "a1", conversationId: "c1", limit });
+      bridge.onMessage(c, { type: "history_get", request_id: "h", agent_id: "a1", conversation_id: "c1", limit });
     expect(asked).toEqual([400, 800, 1200, 400, 20_000]);
     expect(c.sent.filter((m) => m.type === "history").map((m) => m.more)).toEqual([true, true, false, true, false]);
   });
@@ -448,11 +448,11 @@ describe("bridge history", () => {
       widgetLog: (agentId, conversationId) => log.read(scopeFor(conversationId, agentId)),
     });
     const c = client("c1");
-    bridge.onMessage(c, { type: "history_get", requestId: "h1", agentId: "a1", conversationId: "c1" });
-    bridge.onMessage(c, { type: "history_get", requestId: "h2", agentId: "a1", conversationId: "c2" });
+    bridge.onMessage(c, { type: "history_get", request_id: "h1", agent_id: "a1", conversation_id: "c1" });
+    bridge.onMessage(c, { type: "history_get", request_id: "h2", agent_id: "a1", conversation_id: "c2" });
     const [one, two] = c.sent.filter((m) => m.type === "history");
-    expect(one.widgetLog).toEqual([expect.objectContaining({ scope: "c1", widgetId: "c1/sleep", title: "Sleep", kind: "json", change: "added", at: 123 })]);
-    expect(two.widgetLog).toEqual([]);
+    expect(one.widget_log).toEqual([expect.objectContaining({ scope: "c1", widget_id: "c1/sleep", title: "Sleep", kind: "json", change: "added", at: 123 })]);
+    expect(two.widget_log).toEqual([]);
   });
   test("a phone's history_get still answers, with the widget log as one more field it may ignore", () => {
     const bridge = bridgeOf({
@@ -464,9 +464,9 @@ describe("bridge history", () => {
       widgetLog: () => [],
     });
     const phone = { ...client("shared"), deviceId: "d1" };
-    bridge.onMessage(phone, { type: "history_get", requestId: "p1", agentId: "a1", conversationId: "c1" });
+    bridge.onMessage(phone, { type: "history_get", request_id: "p1", agent_id: "a1", conversation_id: "c1" });
     expect(phone.sent).toEqual([
-      { type: "history", requestId: "p1", agentId: "a1", conversationId: "c1", messages: [{ role: "user", text: "hi" }], more: false, widgetLog: [] },
+      { type: "history", request_id: "p1", agent_id: "a1", conversation_id: "c1", messages: [{ role: "user", text: "hi" }], more: false, widget_log: [] },
     ]);
   });
 });
@@ -481,7 +481,7 @@ describe("bridge: a paired phone's authority", () => {
       addresses: ["192.168.1.3"],
       host: null,
       port: 41415,
-      appServed: true,
+      app_served: true,
       error: null,
       via: "lan",
       tailscale: null,
@@ -492,7 +492,7 @@ describe("bridge: a paired phone's authority", () => {
       setEnabled: (e: boolean) => Promise.resolve({ ...st, enabled: e }),
       setVia: (via: LanVia) => ({ ...st, via }),
       setServe: () => Promise.resolve(st),
-      pairBegin: () => ({ code: "ABC234", url: "http://x/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
+      pairBegin: () => ({ code: "ABC234", url: "http://x/?code=ABC234", expires_at: "2026-09-07T10:10:00.000Z" }),
       devices: () => [],
       forget: (id: string) => ((forgot = id), true),
     };
@@ -528,8 +528,8 @@ describe("bridge: a paired phone's authority", () => {
       "measure",
     ]) {
       phone.sent.length = 0;
-      bridge.onMessage(phone, { type, requestId: "r1", id: "d2", enabled: false });
-      expect(phone.sent).toEqual([{ type: "error", requestId: "r1", message: `${type} is not available on the phone` }]);
+      bridge.onMessage(phone, { type, request_id: "r1", id: "d2", enabled: false });
+      expect(phone.sent).toEqual([{ type: "error", request_id: "r1", message: `${type} is not available on the phone` }]);
     }
     expect(forgot).toBeNull();
     expect(broadcasts).toEqual([]);
@@ -537,8 +537,8 @@ describe("bridge: a paired phone's authority", () => {
       phone.sent.length = 0;
       bridge.onMessage(phone, {
         type,
-        agentId: "a1",
-        conversationId: "c1",
+        agent_id: "a1",
+        conversation_id: "c1",
         skips: 1,
         until: "2026-09-07T10:10:00.000Z",
         stamp: "s",
@@ -559,7 +559,7 @@ describe("bridge phone frames", () => {
     running: true,
     ip: "100.101.102.103",
     name: "my-macbook-pro.tail1234.ts.net",
-    serveUrl: null,
+    serve_url: null,
     error: null,
   };
   const status: LanStatus = {
@@ -568,7 +568,7 @@ describe("bridge phone frames", () => {
     addresses: ["192.168.1.3"],
     host: "my-macbook-pro.local",
     port: 41415,
-    appServed: true,
+    app_served: true,
     error: null,
     via: "tailscale",
     tailscale,
@@ -580,8 +580,8 @@ describe("bridge phone frames", () => {
     let refreshed = 0;
     let serveError: string | null = null;
     let serveUrl: string | null = null;
-    const devices = [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }];
-    const current = (): LanStatus => ({ ...status, enabled, via, tailscale: { ...tailscale, serveUrl, error: serveError } });
+    const devices = [{ id: "d1", name: "iPhone", created_at: "2026-09-07T10:00:00.000Z", last_seen_at: "2026-09-07T10:00:00.000Z" }];
+    const current = (): LanStatus => ({ ...status, enabled, via, tailscale: { ...tailscale, serve_url: serveUrl, error: serveError } });
     return {
       calls,
       refreshed: () => refreshed,
@@ -611,7 +611,7 @@ describe("bridge phone frames", () => {
           }
           return Promise.resolve(current());
         },
-        pairBegin: () => ({ code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" }),
+        pairBegin: () => ({ code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expires_at: "2026-09-07T10:10:00.000Z" }),
         devices: () => devices,
         forget: (id: string) => {
           calls.push(["forget", id]);
@@ -644,11 +644,11 @@ describe("bridge phone frames", () => {
     expect(d.calls).toEqual([["setEnabled", true]]);
     expect(c.sent.at(-1)).toEqual({ type: "lan_status", ...status, enabled: true });
     bridge.onMessage(c, { type: "pair_begin" });
-    expect(c.sent.at(-1)).toEqual({ type: "pair_code", code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" });
+    expect(c.sent.at(-1)).toEqual({ type: "pair_code", code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expires_at: "2026-09-07T10:10:00.000Z" });
     bridge.onMessage(c, { type: "devices_list" });
     expect(c.sent.at(-1)).toEqual({
       type: "devices",
-      devices: [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }],
+      devices: [{ id: "d1", name: "iPhone", created_at: "2026-09-07T10:00:00.000Z", last_seen_at: "2026-09-07T10:00:00.000Z" }],
     });
     bridge.onMessage(c, { type: "device_forget", id: "d1" });
     expect(d.calls.at(-1)).toEqual(["forget", "d1"]);
@@ -705,15 +705,15 @@ describe("recall frames", () => {
         front: "Q1?",
         back: "A1",
         tags: ["t"],
-        source: { agentId: "a", agentName: "ira", conversationId: "c", title: null, at: null },
-        createdAt: "2026-09-10T08:00:00Z",
-        updatedAt: "2026-09-10T08:00:00Z",
-        updatedBy: "recall",
+        source: { agent_id: "a", agent_name: "ira", conversation_id: "c", title: null, at: null },
+        created_at: "2026-09-10T08:00:00Z",
+        updated_at: "2026-09-10T08:00:00Z",
+        updated_by: "recall",
         previous: [],
       });
       const broadcasts: Array<Record<string, unknown>> = [];
       // Learn's settings and status are the daemon's; here a plain object stands in for them.
-      const status = { enabled: true, dailyCap: 25, lastRunAt: null, lastRunNote: null, writtenToday: 0 };
+      const status = { enabled: true, daily_cap: 25, last_run_at: null, last_run_note: null, written_today: 0 };
       const bridge = bridgeOf({
         store: new DeskStore(),
         widgets: fakeWidgets([]),
@@ -722,45 +722,45 @@ describe("recall frames", () => {
         recall: { store, status: () => status, setSettings: (s) => (Object.assign(status, s), Promise.resolve()), run: () => Promise.resolve({ note: "ran" }) },
       });
       const c = client("c1");
-      bridge.onMessage(c, { type: "recall_list", requestId: "r1" });
+      bridge.onMessage(c, { type: "recall_list", request_id: "r1" });
       const list = must(c.sent.pop(), "the reply");
       expect(list.type).toBe("recall");
       expect((list.cards as unknown[]).length).toBe(1);
-      expect((list.worker as { dailyCap: number }).dailyCap).toBe(25);
-      bridge.onMessage(c, { type: "recall_grade", requestId: "r2", id: "k1", grade: 3 });
+      expect((list.worker as { daily_cap: number }).daily_cap).toBe(25);
+      bridge.onMessage(c, { type: "recall_grade", request_id: "r2", id: "k1", grade: 3 });
       const graded = must(c.sent.pop(), "the reply");
       expect(graded.type).toBe("recall_card");
       expect((graded.card as { schedule: { reps: number } }).schedule.reps).toBe(1);
       expect(broadcasts.at(-1)).toEqual({ type: "recall_changed" });
-      bridge.onMessage(c, { type: "recall_grade", requestId: "r3", id: "k1", grade: 9 });
-      expect(c.sent.pop()).toEqual({ type: "error", requestId: "r3", message: "a grade is 1 (again) to 4 (easy)" });
-      bridge.onMessage(c, { type: "recall_edit", requestId: "r4", id: "k1", back: "A1 better" });
-      expect((must(c.sent.pop(), "the reply").card as { card: { back: string; updatedBy: string } }).card).toMatchObject({
+      bridge.onMessage(c, { type: "recall_grade", request_id: "r3", id: "k1", grade: 9 });
+      expect(c.sent.pop()).toEqual({ type: "error", request_id: "r3", message: "a grade is 1 (again) to 4 (easy)" });
+      bridge.onMessage(c, { type: "recall_edit", request_id: "r4", id: "k1", back: "A1 better" });
+      expect((must(c.sent.pop(), "the reply").card as { card: { back: string; updated_by: string } }).card).toMatchObject({
         back: "A1 better",
-        updatedBy: "you",
+        updated_by: "you",
       });
-      bridge.onMessage(c, { type: "recall_reject", requestId: "r5", id: "k1" });
+      bridge.onMessage(c, { type: "recall_reject", request_id: "r5", id: "k1" });
       expect(must(c.sent.pop(), "the reply").card).toBeNull();
       expect(store.cards()).toEqual([]);
-      bridge.onMessage(c, { type: "recall_restore", requestId: "r6", id: "k1" });
+      bridge.onMessage(c, { type: "recall_restore", request_id: "r6", id: "k1" });
       expect((must(c.sent.pop(), "the reply").card as { card: { id: string } }).card.id).toBe("k1");
-      bridge.onMessage(c, { type: "recall_settings", requestId: "r7", dailyCap: 3, enabled: false });
+      bridge.onMessage(c, { type: "recall_settings", request_id: "r7", daily_cap: 3, enabled: false });
       await new Promise((r) => setTimeout(r, 0));
-      expect(must(c.sent.pop(), "the reply").worker as { dailyCap: number; enabled: boolean }).toMatchObject({ dailyCap: 3, enabled: false });
-      bridge.onMessage(c, { type: "recall_export", requestId: "r8" });
+      expect(must(c.sent.pop(), "the reply").worker as { daily_cap: number; enabled: boolean }).toMatchObject({ daily_cap: 3, enabled: false });
+      bridge.onMessage(c, { type: "recall_export", request_id: "r8" });
       expect(must(c.sent.pop(), "the reply").tsv).toBe("Q1?\tA1 better\tt\n");
-      bridge.onMessage(c, { type: "recall_run", requestId: "r9" });
+      bridge.onMessage(c, { type: "recall_run", request_id: "r9" });
       await new Promise((r) => setTimeout(r, 0));
       expect(c.sent.pop()).toMatchObject({ type: "recall_ran", note: "ran" });
       // a phone may review but not change the worker's settings
       const phone = { ...client("p"), deviceId: "d1" } as Client & { sent: Array<Record<string, unknown>> };
-      bridge.onMessage(phone, { type: "recall_grade", requestId: "p1", id: "k1", grade: 4 });
+      bridge.onMessage(phone, { type: "recall_grade", request_id: "p1", id: "k1", grade: 4 });
       expect(must(phone.sent.pop(), "the reply").type).toBe("recall_card");
-      bridge.onMessage(phone, { type: "recall_settings", requestId: "p2", enabled: true });
+      bridge.onMessage(phone, { type: "recall_settings", request_id: "p2", enabled: true });
       expect(must(phone.sent.pop(), "the reply").type).toBe("error");
       // no store wired: a clear error
       const bare = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {} });
-      bare.onMessage(c, { type: "recall_list", requestId: "x" });
+      bare.onMessage(c, { type: "recall_list", request_id: "x" });
       expect(c.sent.pop()).toMatchObject({ type: "error", message: "recall is not available in this mod" });
     } finally {
       rmSync(dir, { recursive: true, force: true });

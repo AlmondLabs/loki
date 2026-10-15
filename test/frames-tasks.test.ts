@@ -12,9 +12,9 @@ const task = (id: string, status = "open"): Task => ({
   priority: 2,
   labels: [],
   assignee: null,
-  createdAt: "",
-  updatedAt: "",
-  closedAt: null,
+  created_at: "",
+  updated_at: "",
+  closed_at: null,
   metadata: {},
 });
 
@@ -26,11 +26,11 @@ describe("tasks and Learn frames", () => {
     } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
-    bridge.onMessage(c, { type: "task_assign", requestId: "r1", ids: ["t1"], conversationId: "conv-1" });
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r1", message: "assign needs a conversation and a chat" });
-    bridge.onMessage(c, { type: "task_assign", requestId: "r2", ids: ["t1"], conversationId: "conv-1", desk: "conv-1", start: true });
+    bridge.onMessage(c, { type: "task_assign", request_id: "r1", ids: ["t1"], conversation_id: "conv-1" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r1", message: "assign needs a conversation and a chat" });
+    bridge.onMessage(c, { type: "task_assign", request_id: "r2", ids: ["t1"], conversation_id: "conv-1", desk: "conv-1", start: true });
     await settled();
-    expect(c.sent.at(-1)).toMatchObject({ type: "tasks_updated", requestId: "r2", tasks: [{ id: "t1", status: "in_progress" }] });
+    expect(c.sent.at(-1)).toMatchObject({ type: "tasks_updated", request_id: "r2", tasks: [{ id: "t1", status: "in_progress" }] });
     expect(assigned).toEqual([{ ids: ["t1"], status: "in_progress" }]);
     expect(broadcasts.at(-1)?.frame).toEqual({ type: "tasks_changed" });
   });
@@ -40,9 +40,9 @@ describe("tasks and Learn frames", () => {
     const store = { reopen: (ids: string[]) => (reopened.push(ids), Promise.resolve(ids.map((id) => task(id)))) } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
-    bridge.onMessage(c, { type: "task_reopen", requestId: "r1", ids: ["lk-a1", "lk-b2"] });
+    bridge.onMessage(c, { type: "task_reopen", request_id: "r1", ids: ["lk-a1", "lk-b2"] });
     await settled();
-    expect(c.sent.at(-1)).toMatchObject({ type: "tasks_updated", requestId: "r1", tasks: [{ id: "lk-a1" }, { id: "lk-b2" }] });
+    expect(c.sent.at(-1)).toMatchObject({ type: "tasks_updated", request_id: "r1", tasks: [{ id: "lk-a1" }, { id: "lk-b2" }] });
     expect(reopened).toEqual([["lk-a1", "lk-b2"]]);
     expect(broadcasts.at(-1)?.frame).toEqual({ type: "tasks_changed" });
   });
@@ -52,15 +52,15 @@ describe("tasks and Learn frames", () => {
     const { bridge } = bridgeWith({
       recall: {
         store,
-        status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }),
+        status: () => ({ enabled: false, daily_cap: 5, last_run_at: null, last_run_note: null, written_today: 0 }),
         setSettings: async () => {},
         run: () => Promise.resolve({ note: "" }),
         startLesson: () => Promise.reject(new Error("no agent for this lead")),
       },
     });
     const c = client("d1");
-    bridge.onMessage(c, { type: "recall_lead_start", requestId: "r1", id: "lead-1" });
+    bridge.onMessage(c, { type: "recall_lead_start", request_id: "r1", id: "lead-1" });
     await settled();
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r1", message: "no agent for this lead" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r1", message: "no agent for this lead" });
   });
 });

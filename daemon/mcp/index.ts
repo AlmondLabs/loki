@@ -324,9 +324,9 @@ export class McpTools {
         .map((t) => ({
           name: t.name,
           description: t.description,
-          readOnly: t.readOnly,
+          read_only: t.readOnly,
           destructive: t.destructive,
-          alwaysLoad: c.alwaysLoad.includes(t.name),
+          always_load: c.alwaysLoad.includes(t.name),
           tokens: toolTokens(t),
         }));
       return {
@@ -339,13 +339,13 @@ export class McpTools {
         tools: mine,
         tokens: mine.reduce((n, t) => n + t.tokens, 0),
         config: c.kind === "local" ? { command: c.command, args: c.args, env: c.env, cwd: c.cwd } : { url: c.url, headers: c.headers },
-        signIn: usesOauth(c) ? { url: s?.state === "signin" ? (this.signInUrls.get(c.name) ?? null) : null, signedIn: this.signedIn.has(c.name) } : null,
-        offFor: Object.entries(this.off)
+        sign_in: usesOauth(c) ? { url: s?.state === "signin" ? (this.signInUrls.get(c.name) ?? null) : null, signed_in: this.signedIn.has(c.name) } : null,
+        off_for: Object.entries(this.off)
           .filter(([, servers]) => servers.includes(c.name))
           .map(([agent]) => agent),
       };
     });
-    return { servers, problems: this.problems, configPath: this.configPath };
+    return { servers, problems: this.problems, config_path: this.configPath };
   }
 
   /** Add, change, rename (`rename`) or remove (`edit` null) a server in mcp.json, and connect as it now says. */

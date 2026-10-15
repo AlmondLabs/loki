@@ -17,11 +17,17 @@ export interface HistoryDeps {
 /** A chat's history from the daemon's projection of its store, and the Inbox's list of open conversations. */
 export function historyFrames(deps: HistoryDeps): FrameHandlers {
   return {
-    history_get: ({ agentId, conversationId, limit }) => {
+    history_get: ({ agent_id: agentId, conversation_id: conversationId, limit }) => {
       // `limit` grows as the reader scrolls past the oldest row they have (HISTORY_PAGE at a time).
       const rows = Math.min(HISTORY_MAX, Math.max(HISTORY_PAGE, Math.floor(Number(limit)) || HISTORY_PAGE));
       const page = deps.transcript?.(agentId, conversationId, rows) ?? { rows: [], more: false };
-      return reply({ agentId, conversationId, messages: page.rows, more: page.more, widgetLog: deps.widgetLog?.(agentId, conversationId) ?? [] });
+      return reply({
+        agent_id: agentId,
+        conversation_id: conversationId,
+        messages: page.rows,
+        more: page.more,
+        widget_log: deps.widgetLog?.(agentId, conversationId) ?? [],
+      });
     },
     inbox_list: () => reply({ conversations: deps.listInbox?.() ?? [] }),
   };

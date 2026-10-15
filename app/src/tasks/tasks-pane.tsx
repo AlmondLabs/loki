@@ -463,7 +463,7 @@ export function TasksPane({
                         key={t.id}
                         {...cardProps(t)}
                         showStatus={prefs.groupBy !== "status"}
-                        assignedTitle={t.metadata.assignedDesk ? (deskTitle.get(t.metadata.assignedDesk) ?? t.metadata.assignedDesk) : null}
+                        assignedTitle={t.metadata.assigned_desk ? (deskTitle.get(t.metadata.assigned_desk) ?? t.metadata.assigned_desk) : null}
                       />
                     ))}
                   </div>
@@ -730,7 +730,7 @@ function TaskRow({
       <span className="loki-meta" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.metadata.folder}>
         {folderName(t.metadata.folder) ?? "—"}
       </span>
-      <span className="loki-meta">{ago(done ? t.closedAt : t.updatedAt)}</span>
+      <span className="loki-meta">{ago(done ? t.closed_at : t.updated_at)}</span>
     </div>
   );
 }
@@ -807,8 +807,8 @@ function DoneAsked({ id, task: t, onConfirm, onReopen }: { id?: string; task: Ta
     <div id={id} style={{ display: "grid", gap: 6, padding: "6px 8px", borderRadius: "var(--loki-radius)", background: "var(--loki-selection)" }}>
       <span className="loki-meta loki-meta--wrap" style={{ color: "var(--loki-fg)" }}>
         <strong>done? · waiting for you</strong>
-        {t.metadata.doneAskedBy ? ` · ${t.metadata.doneAskedBy}` : ""}
-        {t.metadata.doneAsked && t.metadata.doneAsked !== "yes" ? `: ${t.metadata.doneAsked}` : ""}
+        {t.metadata.done_asked_by ? ` · ${t.metadata.done_asked_by}` : ""}
+        {t.metadata.done_asked && t.metadata.done_asked !== "yes" ? `: ${t.metadata.done_asked}` : ""}
       </span>
       <span style={{ display: "flex", gap: 6 }}>
         <Button size="sm" tone="positive" onClick={stop(onConfirm)}>
@@ -888,7 +888,7 @@ function TaskMeta({ id, task: t, done, showStatus }: { id: string; task: Task; d
           {l}
         </Chip>
       ))}
-      <span style={{ marginLeft: "auto" }}>{ago(done ? t.closedAt : t.updatedAt)}</span>
+      <span style={{ marginLeft: "auto" }}>{ago(done ? t.closed_at : t.updated_at)}</span>
     </div>
   );
 }

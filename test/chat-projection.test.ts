@@ -45,7 +45,10 @@ describe("chat projection", () => {
         { conversationId: "local-conv-1", agentId: AGENT, archived: false, hidden: false, lastMessageAt: "2026-10-01T10:00:06.000Z" },
       ]);
       expect(chats.agentOf("local-conv-1")).toBe(AGENT);
-      expect(chats.folders()).toEqual({ byAgent: { [AGENT]: ["/work/loki"] }, byConversation: { [conversationDirName("local-conv-1", AGENT)]: "/work/loki" } });
+      expect(chats.folders()).toEqual({
+        by_agent: { [AGENT]: ["/work/loki"] },
+        by_conversation: { [conversationDirName("local-conv-1", AGENT)]: "/work/loki" },
+      });
     } finally {
       await store.close(ctx);
     }
@@ -64,7 +67,7 @@ describe("chat projection", () => {
       await (await chat.submit({ type: "input", content: "second question" }, ctx)).wait(ctx);
       const next = chats.since("c", AGENT, cursor.lines);
       expect(next.rows.map((r) => r.text)).toEqual(["second question", "second answer"]);
-      expect(chats.digest("c", AGENT)).toEqual({ lastRole: "assistant", lastAssistantText: "second answer", lastAsk: "person" });
+      expect(chats.digest("c", AGENT)).toEqual({ last_role: "assistant", last_assistant_text: "second answer", last_ask: "person" });
     } finally {
       await store.close(ctx);
     }
@@ -104,7 +107,7 @@ describe("chat projection", () => {
       await chats.attach(AGENT, store);
       faux.setResponses([fauxAssistantMessage("report")]);
       await (await chat.submit({ type: "input", content: "Scheduled task: morning report" }, ctx)).wait(ctx);
-      expect(chats.digest("s", AGENT).lastAsk).toBe("schedule");
+      expect(chats.digest("s", AGENT).last_ask).toBe("schedule");
     } finally {
       await store.close(ctx);
     }
@@ -115,6 +118,6 @@ describe("chat projection", () => {
     expect(chats.info("nope", AGENT)).toBeNull();
     expect(chats.page("nope", AGENT, 10)).toEqual({ rows: [], more: false });
     expect(chats.since("nope", AGENT, 0)).toEqual({ rows: [], lines: 0 });
-    expect(chats.digest("nope", AGENT)).toEqual({ lastRole: null, lastAssistantText: null, lastAsk: null });
+    expect(chats.digest("nope", AGENT)).toEqual({ last_role: null, last_assistant_text: null, last_ask: null });
   });
 });

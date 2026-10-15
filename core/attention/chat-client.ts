@@ -81,7 +81,7 @@ export class FrameChatClient {
    */
   constructor(opts: {
     request: FrameRequest;
-    onChatEvent: (fn: (p: { agentId: string; conversationId: string; events: ChatEvent[] }) => void) => () => void;
+    onChatEvent: (fn: (p: { agent_id: string; conversation_id: string; events: ChatEvent[] }) => void) => () => void;
     onReconnect?: (fn: () => void) => () => void;
     onListsStale?: (fn: () => void) => () => void;
     agentOf?: (conversationId: string) => string | null;
@@ -90,7 +90,9 @@ export class FrameChatClient {
     this.request = opts.request;
     this.openUrl = opts.openUrl ?? (() => {});
     this.agentOf = opts.agentOf ?? (() => null);
-    const offEvents = opts.onChatEvent(({ agentId, conversationId, events }) => this.emit({ agent_id: agentId, conversation_id: conversationId }, events));
+    const offEvents = opts.onChatEvent(({ agent_id: agentId, conversation_id: conversationId, events }) =>
+      this.emit({ agent_id: agentId, conversation_id: conversationId }, events),
+    );
     const offReconnect = opts.onReconnect?.(() => void this.reopen()) ?? (() => {});
     const offStale =
       opts.onListsStale?.(() => {
@@ -160,10 +162,10 @@ export class FrameChatClient {
   /** Open a chat: its live events follow, and its state now arrives as events too. */
   async runtimeStart(rt: Runtime, opts: { mode?: string } = {}): Promise<ServerEvent> {
     this.remember(rt);
-    const state = await this.call("chat_open", { agentId: rt.agent_id, conversationId: rt.conversation_id, mode: opts.mode ?? null });
+    const state = await this.call("chat_open", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, mode: opts.mode ?? null });
     this.opened.add(`${rt.agent_id}\u0000${rt.conversation_id}`);
     this.emit(rt, [
-      { kind: "loop", state: state.loop, ...(state.turnId ? { turnId: state.turnId } : {}) },
+      { kind: "loop", state: state.loop, ...(state.turn_id ? { turn_id: state.turn_id } : {}) },
       { kind: "device", ...(state.mode ? { mode: state.mode } : {}), ...(state.cwd ? { cwd: state.cwd } : {}) },
       // Opened mid-answer: what was written before this socket listened, so the reply shows from its first word.
       ...(state.streaming?.text ? [{ kind: "streaming" as const, text: state.streaming.text, at: state.streaming.at }] : []),
@@ -172,8 +174,8 @@ export class FrameChatClient {
   }
 
   async createConversation(agentId: string, cwd: string, name?: string): Promise<Runtime> {
-    const created = await this.call("chat_create", { agentId, cwd, title: name ?? null });
-    const rt = this.remember({ agent_id: created.agentId, conversation_id: created.conversationId });
+    const created = await this.call("chat_create", { agent_id: agentId, cwd, title: name ?? null });
+    const rt = this.remember({ agent_id: created.agent_id, conversation_id: created.conversation_id });
     await this.runtimeStart(rt);
     return rt;
   }
@@ -182,29 +184,29 @@ export class FrameChatClient {
     this.remember(rt);
     const sendId = `send-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const r = await this.call("chat_send", {
-      agentId: rt.agent_id,
-      conversationId: rt.conversation_id,
+      agent_id: rt.agent_id,
+      conversation_id: rt.conversation_id,
       text,
-      images: images.map((i) => ({ mediaType: i.mediaType, data: i.data })),
-      sendId,
+      images: images.map((i) => ({ media_type: i.mediaType, data: i.data })),
+      send_id: sendId,
       context: context ?? null,
     });
     return r.accepted;
   }
 
   async abortTurn(rt: Runtime): Promise<boolean> {
-    await this.call("chat_abort", { agentId: rt.agent_id, conversationId: rt.conversation_id });
+    await this.call("chat_abort", { agent_id: rt.agent_id, conversation_id: rt.conversation_id });
     return true;
   }
 
   async changeFolder(rt: Runtime, cwd: string): Promise<void> {
-    await this.call("chat_folder", { agentId: rt.agent_id, conversationId: rt.conversation_id, cwd });
+    await this.call("chat_folder", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, cwd });
   }
 
   async updateConversation(conversationId: string, body: Record<string, unknown>): Promise<void> {
     await this.call("chat_update", {
-      agentId: this.agentFor(conversationId),
-      conversationId,
+      agent_id: this.agentFor(conversationId),
+      conversation_id: conversationId,
       ...(typeof body.summary === "string" || body.summary === null ? { title: body.summary } : {}),
       ...(typeof body.archived === "boolean" ? { archived: body.archived } : {}),
       ...(typeof body.hidden === "boolean" ? { hidden: body.hidden } : {}),
@@ -217,9 +219,9 @@ export class FrameChatClient {
 
   async updateModel(rt: Runtime, choice: ModelSelection | string): Promise<AppliedModel> {
     const handle = typeof choice === "string" ? choice : choice.handle;
-    const reasoningEffort = typeof choice === "string" ? null : (choice.reasoningEffort ?? null);
-    await this.call("chat_model", { agentId: rt.agent_id, conversationId: rt.conversation_id, handle, reasoningEffort });
-    return { handle, reasoningEffort };
+    const reasoningEffort = typeof choice === "string" ? null : (choice.reasoning_effort ?? null);
+    await this.call("chat_model", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, handle, reasoning_effort: reasoningEffort });
+    return { handle, reasoning_effort: reasoningEffort };
   }
 
   async listModels(): Promise<ModelEntry[]> {
@@ -241,7 +243,7 @@ export class FrameChatClient {
 
   async updateAgent(agentId: string, body: Record<string, unknown>): Promise<void> {
     await this.call("chat_agent_update", {
-      agentId,
+      agent_id: agentId,
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(typeof body.description === "string" ? { description: body.description } : {}),
       ...(typeof body.model === "string" ? { model: body.model } : {}),
@@ -249,7 +251,7 @@ export class FrameChatClient {
   }
 
   async deleteAgent(agentId: string): Promise<void> {
-    await this.call("chat_agent_delete", { agentId }, 30_000);
+    await this.call("chat_agent_delete", { agent_id: agentId }, 30_000);
   }
 
   /** The thread comes from the mod's history (history_get) on the daemon; there is no second source. */
@@ -257,9 +259,9 @@ export class FrameChatClient {
   async respondApproval(rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always"): Promise<boolean> {
     return (
       await this.call("chat_approve", {
-        agentId: rt.agent_id,
-        conversationId: rt.conversation_id,
-        approvalId: requestId,
+        agent_id: rt.agent_id,
+        conversation_id: rt.conversation_id,
+        approval_id: requestId,
         allow: behavior !== "deny",
         always: behavior === "always",
         message: null,
@@ -268,7 +270,8 @@ export class FrameChatClient {
   }
 
   async answerQuestion(rt: Runtime, requestId: string, updatedInput: Record<string, unknown>): Promise<boolean> {
-    return (await this.call("chat_answer", { agentId: rt.agent_id, conversationId: rt.conversation_id, questionId: requestId, input: updatedInput })).accepted;
+    return (await this.call("chat_answer", { agent_id: rt.agent_id, conversation_id: rt.conversation_id, question_id: requestId, input: updatedInput }))
+      .accepted;
   }
   async listConnectProviders(): Promise<ConnectProvider[]> {
     return (await this.call("chat_providers", {})).providers;
@@ -281,11 +284,12 @@ export class FrameChatClient {
   async connectProvider(providerId: string, fields: Partial<Record<string, string>>, authMethodId?: string): Promise<ConnectProvider[]> {
     // The address the browser ended on, for a sign-in that is waiting: the daemon finishes it, and the wait below sees it.
     if (authMethodId === "oauth_code") {
-      await this.call("chat_provider_signin", { providerId, code: fields.redirect_url ?? "" }, 30_000);
+      await this.call("chat_provider_signin", { provider_id: providerId, code: fields.redirect_url ?? "" }, 30_000);
       return this.listConnectProviders();
     }
-    if (authMethodId !== "oauth") return (await this.call("chat_provider_connect", { providerId, apiKey: fields.api_key ?? "" }, 30_000)).providers;
-    const page = await this.call("chat_provider_signin", { providerId, code: null }, 30_000);
+    if (authMethodId !== "oauth")
+      return (await this.call("chat_provider_connect", { provider_id: providerId, api_key: fields.api_key ?? "" }, 30_000)).providers;
+    const page = await this.call("chat_provider_signin", { provider_id: providerId, code: null }, 30_000);
     this.openUrl(page.url);
     const until = Date.now() + 5 * 60_000;
     while (Date.now() < until) {
@@ -297,24 +301,24 @@ export class FrameChatClient {
   }
 
   async disconnectProvider(providerId: string): Promise<ConnectProvider[]> {
-    return (await this.call("chat_provider_disconnect", { providerId })).providers;
+    return (await this.call("chat_provider_disconnect", { provider_id: providerId })).providers;
   }
 
   async getPassSettings(): Promise<PassSettings | null> {
     return this.call("chat_passes_get", {});
   }
-  async setPassSettings(s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }): Promise<PassSettings | null> {
+  async setPassSettings(s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; daily_cap?: number } }): Promise<PassSettings | null> {
     return this.call("chat_passes_set", s);
   }
 
   async writeMemoryFile(agentId: string, path: string, content: string, commitMessage?: string): Promise<void> {
-    await this.call("chat_memory_write", { agentId, path, content, message: commitMessage });
+    await this.call("chat_memory_write", { agent_id: agentId, path, content, message: commitMessage });
   }
   async deleteMemoryFile(agentId: string, path: string, commitMessage?: string): Promise<void> {
-    await this.call("chat_memory_write", { agentId, path, content: null, message: commitMessage });
+    await this.call("chat_memory_write", { agent_id: agentId, path, content: null, message: commitMessage });
   }
   async revertMemoryCommit(agentId: string, sha: string): Promise<void> {
-    await this.call("chat_memory_revert", { agentId, sha });
+    await this.call("chat_memory_revert", { agent_id: agentId, sha });
   }
   /** The tools that run without asking (but in strict mode), and taking one back or adding one. */
   async approvalsAlways(): Promise<string[]> {
@@ -330,10 +334,10 @@ export class FrameChatClient {
     alwaysLoad: (entry: string, tools: string[]) => this.call("chat_mcp_always_load", { entry, tools }),
     restart: (name: string) => this.call("chat_mcp_restart", { name }),
     signOut: (name: string) => this.call("chat_mcp_signout", { name }),
-    agent: (agentId: string, server: string, on: boolean) => this.call("chat_mcp_agent", { agentId, server, on }),
+    agent: (agentId: string, server: string, on: boolean) => this.call("chat_mcp_agent", { agent_id: agentId, server, on }),
     secret: async (name: string, value: string) => (await this.call("chat_mcp_secret", { name, value })).ref,
   };
-  async skillEnable(skillPath: string): Promise<{ name: string; linkPath: string }> {
+  async skillEnable(skillPath: string): Promise<{ name: string; link_path: string }> {
     return this.call("chat_skill_enable", { path: skillPath });
   }
   async skillDisable(name: string): Promise<void> {
@@ -347,7 +351,7 @@ export class FrameChatClient {
     // A memory review reads all of memory and may edit a lot of it: it gets the pass's own time limit (daemon/passes.ts), and a little more.
     const r = await this.call(
       "chat_command",
-      { agentId: rt.agent_id, conversationId: rt.conversation_id, command: commandId, args: args ?? null },
+      { agent_id: rt.agent_id, conversation_id: rt.conversation_id, command: commandId, args: args ?? null },
       commandId === "doctor" ? 11 * 60_000 : 180_000,
     ).catch((err: unknown) => ({ success: false, output: err instanceof Error ? err.message : String(err) }));
     this.emit(rt, [{ kind: "command", phase: "end", input, success: r.success, output: r.output }]);
