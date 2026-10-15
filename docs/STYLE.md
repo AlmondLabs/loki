@@ -4,7 +4,7 @@ How loki's code, comments, docs, tests, commits and pull requests are written. E
 a tool (marked **checked**, with the check named) or is a review matter (marked **review**). A rule that a tool
 checks is not argued in review: change the rule here and the tool together, in one PR.
 
-> **Status**: this guide lands in four PRs: the guide itself, then Prettier (done), then the strict lint, then the
+> **Status**: this guide lands in four PRs: the guide itself, then Prettier (done), then the strict lint (done), then the
 > doc-comment, file-name and PR-title checks, each fixing the whole tree as it turns its check on. A rule marked
 > **checked** whose check has not landed yet is still the rule.
 
@@ -93,6 +93,19 @@ Tuned on purpose (allowed, and why):
 - `() => void send()` arrow shorthand: it says "fire and forget" in one place (`no-confusing-void-expression` off).
 - Numbers and booleans in template strings (`restrict-template-expressions` allows them): `${count} tasks` is clear.
 - Empty arrow functions as deliberate no-ops (`no-empty-function` allows arrows): `const noop = () => {};`.
+- `||` with a string or boolean (`prefer-nullish-coalescing` ignores them): `name || "untitled"` treats an empty string
+  as missing on purpose, which `??` would not.
+- A test reaching a private member with brackets, `runner["deps"]` (`dot-notation` allows it; TypeScript allows only
+  that form).
+
+Patterns the rules lead to:
+
+- A shape that must also be pi-durable's `JsonObject` (or any index-signature type) is
+  `interface ChatInfo extends JsonObject { … }`, which says so; a `type` alias stays only where that cannot work, with
+  the reason on an `eslint-disable-next-line` comment. That is the one disable comment the guide allows.
+- A parse function that returns literal types gets an annotated return type rather than `as` casts on its fields:
+  TypeScript widens a narrowed literal back to `string` inside an object literal, and the cast hides that.
+- In tests, `must(value, "what")` (`test/fixtures/must.ts`) stands in for `value!` and fails with what was missing.
 
 ## 4. React
 
