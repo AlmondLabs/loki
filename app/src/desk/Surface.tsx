@@ -14,7 +14,7 @@ import { ModuleWidget, WidgetError } from "./ModuleWidget";
 import { useCamera } from "./useCamera";
 import { useChatInset } from "./useChatInset";
 import type { DeskChatModel } from "./useDeskChat";
-import { deskConversation, type DeskConversationHandlers } from "./deskConversation";
+import { deskConversation, type DeskConversationHandlers } from "./desk-conversation";
 import type { FrameRequest } from "./pane";
 import { Chip, Empty } from "../components";
 

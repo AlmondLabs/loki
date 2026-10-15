@@ -4,7 +4,7 @@ import { dispatchMessage, isWaiting } from "../tasks/model";
 import type { Segment } from "./keymap";
 import type { CatchUp, Desk } from "./types";
 import type { DeskSummary, Task } from "../../../core/frame-types.ts";
-import type { TaskApi } from "../tasks/messageTasks";
+import type { TaskApi } from "../tasks/message-tasks";
 
 /** A desk the task list can hand tasks to: the picker's row, or the desk just created for them. */
 export type AssignTarget = Pick<DeskSummary, "scope" | "agentId" | "conversationId" | "title"> & { agentName: string | null };
@@ -111,7 +111,7 @@ export function useTasks(
     void refresh();
     return null;
   };
-  /** Add task from a chat message (tasks/messageTasks.tsx): filed as yours, stamped with the message it came from. */
+  /** Add task from a chat message (tasks/message-tasks.tsx): filed as yours, stamped with the message it came from. */
   const addFromMessage: TaskApi["create"] = async ({ source, ...t }) => {
     const r = await desk.tasks.create({ ...t, source });
     if (!r.ok) return r.message;

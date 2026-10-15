@@ -10,7 +10,7 @@ import {
   type WorkerStatus,
 } from "../../../core/recall/model.ts";
 import { Button, Chip, Empty, Field, Meta, Row, Switch, TextArea } from "../components";
-import { ago } from "../desk/CatchUpParts";
+import { ago } from "../desk/catch-up-parts";
 
 /** The pieces around the deck: the source line, the card editor, the browse list, the deleted pile, the worker strip, the key legend. */
 

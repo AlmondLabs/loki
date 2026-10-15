@@ -3,7 +3,7 @@ import type { TaskSource } from "../../../core/task-source.ts";
 
 /**
  * "Open the message" from a task in Tasks: the chat opens, and its thread scrolls to the message the task came from.
- * The ask waits here until that conversation's thread is on screen and takes it (useRevealMessage in messageTasks.tsx).
+ * The ask waits here until that conversation's thread is on screen and takes it (useRevealMessage in message-tasks.tsx).
  */
 export interface RevealAsk {
   conversation: string;

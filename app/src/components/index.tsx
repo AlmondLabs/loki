@@ -11,7 +11,7 @@ import type {
 } from "react";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSheetMotion } from "./sheetMotion";
+import { useSheetMotion } from "./sheet-motion";
 import { LAYER } from "../kit/layers";
 import { useLeave } from "../kit/leave";
 import { lastInput } from "../kit/motion";
@@ -269,7 +269,7 @@ export interface SheetProps {
  * A modal sheet over a veil: aria-modal, Escape and a click on the veil close it, and focus returns to
  * where it was when the sheet closes. (A Tab loop inside the sheet is the next step; see docs/design.md.)
  * A bottom sheet (the phone's) is drawn at the phone shell's root, above the screen it covers so that
- * screen can recede under it, and moves as an iOS sheet does (sheetMotion.ts).
+ * screen can recede under it, and moves as an iOS sheet does (sheet-motion.ts).
  */
 export function Sheet({
   label,

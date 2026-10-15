@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { WidgetLogEntry } from "../core/desk-core.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
-import { parseWidgetEntry, widgetMarks, withEntry, withHistoryLog } from "../app/src/desk/widgetRows.ts";
+import { parseWidgetEntry, widgetMarks, withEntry, withHistoryLog } from "../app/src/desk/widget-rows.ts";
 
 /**
  * Widget rows in the thread (plan 013 U8, R15, AE2): the desk's widget change log merged among the

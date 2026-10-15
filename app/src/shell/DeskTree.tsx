@@ -5,7 +5,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 
 import { AgentChip, AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
-import { deskMark } from "./sidebarModel";
+import { deskMark } from "./sidebar-model";
 import { formatKeys } from "./keymap";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
@@ -83,7 +83,7 @@ export function archivedDesks(desks: DeskSummary[], agentFilter: string | null, 
 }
 
 // The mark and the pin / archive rules live in the sidebar's model now; the tree and the phone keep importing them from here.
-export { deskMark, type MarkKind } from "./sidebarModel";
+export { deskMark, type MarkKind } from "./sidebar-model";
 
 /**
  * The desks tree, now only Tasks' assign-to-desk picker (PickerTree in views.tsx): the desk sidebar

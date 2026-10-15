@@ -25,7 +25,7 @@ import type { TranscriptRow } from "./transcript.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
 import type { ImageAttachment } from "./content.ts";
 import { idOf, inboxQueue } from "./queue.ts";
-import { createActiveClock, type Activity } from "./activeClock.ts";
+import { createActiveClock, type Activity } from "./active-clock.ts";
 import { focusShares, type FocusEntry } from "./focus.ts";
 import { allCommands, commandInput, type SlashCommand } from "./commands.ts";
 import type { PayloadOf } from "../frames.ts";
@@ -362,7 +362,7 @@ export function useAttention(opts: UseAttentionOptions) {
    * card stood in the Inbox (rank among `of`), what it scored and why, whether it was new and how long its chat had
    * been quiet, read from the live items at that moment. A card shown (inbox_card_shown) starts its dwell clock; the
    * decision (inbox_card_decided) says how long it was on top before you acted, counting only the time loki was
-   * visible and focused (activeClock.ts).
+   * visible and focused (active-clock.ts).
    */
   const itemsRef = useRef(items);
   useEffect(() => {

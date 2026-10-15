@@ -6,7 +6,7 @@ import { Button, Empty, Meta, Title } from "../components";
 import { useNow } from "../components/useNow";
 import { registerActions } from "../shell/keymap";
 import type { Recall as RecallModel } from "../shell/useRecall";
-import { CardEditor, CardList, DismissedLeadList, LeadList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./RecallParts";
+import { CardEditor, CardList, DismissedLeadList, LeadList, PreviousText, RecallIntro, RecallKeys, RejectedList, SourceLine, WorkerStrip } from "./recall-parts";
 import { useDeckPass } from "./useDeckPass";
 import { useLearnView } from "./useLearnView";
 import { stepLearnView, type LearnView as View } from "./views";

@@ -6,7 +6,7 @@ import { inTauri } from "./env";
 import { PHONE_DEMO, phoneDemo, useDeskSocket, withReasoningEffort } from "./useDeskSocket";
 import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { deskView } from "./view";
-import { withHistoryLog } from "./widgetRows";
+import { withHistoryLog } from "./widget-rows";
 
 import type { CardWithSchedule, RecallSnapshot } from "../../../core/recall/model.ts";
 import type { Grade } from "../../../core/recall/fsrs.ts";
@@ -505,7 +505,7 @@ export function useDesk() {
     trash,
     reportWidgetError,
     cameraTarget,
-    /** This desk's widget change log, oldest first (desk/widgetRows.ts); undefined before any arrived. */
+    /** This desk's widget change log, oldest first (desk/widget-rows.ts); undefined before any arrived. */
     widgetLog: widgetLogs[scope],
     /** Any desk's widget change log (a thread elsewhere: the Inbox, the phone). */
     widgetLogOf: (s: Scope) => widgetLogs[s],

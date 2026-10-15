@@ -52,7 +52,7 @@ export function useMessageActions(
         <ul className="loki-phone-list">
           <SheetRow icon={copied ? "check" : "copy"} label={copied ? "Copied" : "Copy"} onClick={() => void copy(row.text)} />
           <SheetRow icon="select" label="Select text" onClick={() => setHeld({ row, selecting: true })} />
-          {/* Add task: the editor opens under the message, as on the desktop (tasks/messageTasks.tsx). */}
+          {/* Add task: the editor opens under the message, as on the desktop (tasks/message-tasks.tsx). */}
           {onAddTask && (row.role === "user" || row.role === "assistant") && (
             <SheetRow
               icon="plus"

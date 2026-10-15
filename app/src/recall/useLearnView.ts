@@ -1,4 +1,4 @@
-import { createSessionValue } from "../shared/sessionValue";
+import { createSessionValue } from "../shared/session-value";
 import { parseLearnView } from "./views";
 
 /** Learn's current view, shared by its list column and the pane, remembered for the window. */

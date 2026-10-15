@@ -59,7 +59,7 @@ export const INSTALL_RE = /^(Install skill: |chore\(skills\): (install|refresh) 
 
 const DEFAULT_LOCK = join(homedir(), ".agents", ".skill-lock.json");
 
-/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/osWords.ts). */
+/** The machine in the mod's own messages, as the app's words table names it (app/src/shell/os-words.ts). */
 export function machineWord(os: NodeJS.Platform = process.platform): string {
   return os === "darwin" ? "this Mac" : os === "win32" ? "this PC" : "this computer";
 }

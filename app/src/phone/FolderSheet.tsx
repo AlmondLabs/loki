@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button, Chip, Sheet } from "../components";
-import { folderName, shownFolders } from "./newChatFolders";
+import { folderName, shownFolders } from "./new-chat-folders";
 
 /** Home shortened to ~, for reading. */
 const shortPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");

@@ -2,7 +2,7 @@ import { createContext, memo, useContext, useState } from "react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { Sheet } from "../components";
 import { Icon } from "../shared/icons";
-import { isNamedStep, withoutSkillCalls, lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workSummary } from "../shared/toolSteps";
+import { isNamedStep, withoutSkillCalls, lastFailure, stepFailed, stepIcon, stepKind, stepName, stepTarget, stepVerb, workSummary } from "../shared/tool-steps";
 
 /**
  * A stretch of the agent's work in the thread (tool calls, background tasks, skills it loaded), as one quiet line:
@@ -11,7 +11,7 @@ import { isNamedStep, withoutSkillCalls, lastFailure, stepFailed, stepIcon, step
  * line, in order, in one flat list: the named ones (background tasks, commands, agents, anything that failed) in
  * full, the housekeeping (reads, searches, edits, skills) quieter; chips filter a long stretch. A step opens its command and
  * output under it, one at a time, inline on the desktop; on the phone the same list is a bottom sheet and a step
- * opens in it, with a way back. The wording is shared/toolSteps.ts.
+ * opens in it, with a way back. The wording is shared/tool-steps.ts.
  */
 
 /** The conversation is the phone's (Conversation's `touch`): steps open as a bottom sheet rather than in place. */

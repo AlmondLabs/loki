@@ -8,7 +8,7 @@ import { avatarUrl } from "../desk/env";
 
 import { BADGE } from "../desk/CatchUp";
 import { agentChips, deskMark } from "../shell/DeskTree";
-import type { SidebarSection } from "../shell/sidebarModel";
+import type { SidebarSection } from "../shell/sidebar-model";
 import { Button, Chip, Field, Sheet } from "../components";
 import { Icon, type IconName } from "./icons";
 import { homeCounts, homeDeskSections, homeSections, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
@@ -17,8 +17,8 @@ import { navigate, type Route } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
 import { Scroll } from "./ui";
 import { RenameSheet } from "./RenameSheet";
-import { chosenFolder, folderName, foldersOf, shownFolders } from "./newChatFolders";
-import { canRename } from "../shell/sidebarModel";
+import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-folders";
+import { canRename } from "../shell/sidebar-model";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** A desk's conversation, full screen; the shared sheet has none on a phone. */

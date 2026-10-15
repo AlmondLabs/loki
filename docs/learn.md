@@ -162,6 +162,6 @@ section). Two levers:
 - `mod/frames/recall.ts`: the `recall_*` frames the section speaks to the mod (declared in `core/frames.ts`).
 - `app/src/recall/`: the section, its list of views (`LearnColumn.tsx`, `views.ts`), the deck, the leads view,
   the worker strip. Settings › learn is in `app/src/settings/Settings.tsx`; the phone's deck is
-  `app/src/phone/Recall.tsx`.
+  `app/src/phone/Learn.tsx`.
 - Plans: `docs/plans/2026-09-12-008-feat-loki-learn-plan.md` for leads and lessons;
   `docs/plans/2026-10-10-018-refactor-loki-background-passes-plan.md` for the background passes.

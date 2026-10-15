@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import type { PermissionMode } from "./PermissionMode";
+import type { PermissionMode } from "./permission-mode";
 import type { ModelSelection } from "../../../core/models.ts";
 
 /**

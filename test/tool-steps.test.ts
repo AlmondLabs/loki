@@ -11,7 +11,7 @@ import {
   stepVerb,
   toolRuns,
   workSummary,
-} from "../app/src/shared/toolSteps.ts";
+} from "../app/src/shared/tool-steps.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 const bash = (failed = false): TranscriptRow => ({ role: "tool", text: "Bash · ls", tool: { name: "Bash", ...(failed ? { failed: true } : {}) } });

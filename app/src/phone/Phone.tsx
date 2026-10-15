@@ -1,4 +1,4 @@
-import { useTaskList, type TaskApi } from "../tasks/messageTasks";
+import { useTaskList, type TaskApi } from "../tasks/message-tasks";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
 import { WidgetSourceContext } from "../chat/useInlineWidgets";
 import { useAttention } from "../../../core/attention/useAttention.ts";
@@ -6,18 +6,18 @@ import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { modBase } from "../desk/env";
 import { useDesk } from "../desk/useDesk";
-import { AgentPage, FilePage } from "./Agent";
+import { AgentPage, FilePage } from "./AgentPage";
 import { Agents, knownDescription } from "./Agents";
-import { ConversationScreen, type Thread } from "./Conversation";
+import { ConversationScreen, type Thread } from "./ConversationScreen";
 import { Archive } from "./Archive";
 import { Home, type ArchiveDesk, type RenameDeskName } from "./Home";
-import { canRename } from "../shell/sidebarModel";
+import { canRename } from "../shell/sidebar-model";
 import { Inbox, useDeck, type Deck } from "./Inbox";
 import { Pair, type Me } from "./Pair";
 import { More } from "./More";
 import { Search } from "./Search";
-import { AboutPage, ConnectionPage, Preferences } from "./Settings";
-import { Learn } from "./Recall";
+import { AboutPage, ConnectionPage, Preferences } from "./Preferences";
+import { Learn } from "./Learn";
 import { useRecall } from "../shell/useRecall";
 import { useDeckPass } from "../recall/useDeckPass";
 import { TabBar } from "./TabBar";
@@ -26,14 +26,14 @@ import { agentNameOf, archiveList, homeCounts, lastSeen, linkState, threadFor, t
 import { HOME, back, backTarget, depthOf, formatRoute, labelOf, navigate, replace, screenOf, showsNav, useRouteState, type Route, type Tab } from "./router";
 import { draftKey, nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./session";
 import { useKeyboardInset } from "./viewport";
-import { useEdgeSwipe } from "./edgeSwipe";
+import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/useModelList";
 import { conversationDirName, scopeFor } from "../../../core/desk-core.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/ModelPicker";
 import { Banner, Button } from "../components";
-import { pageActivity } from "../shared/pageActivity";
+import { pageActivity } from "../shared/page-activity";
 import "./phone.css";
 
 /**
@@ -279,7 +279,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   useFocusOnRoute(shellRef, place, arrival === "pop");
   // The on-screen keyboard: where it only shrinks the visual viewport, the shell fits what is visible (viewport.ts).
   useKeyboardInset(shellRef);
-  // On a page, a swipe from the left edge goes back, as on iOS (edgeSwipe.ts).
+  // On a page, a swipe from the left edge goes back, as on iOS (edge-swipe.ts).
   useEdgeSwipe(shellRef, route.kind !== "tab", onBack);
   // Pages opened go on the device's recent list, for Search (which drops ones that no longer resolve).
   // Pages only: not the tabs (the Inbox with a card up hides the navigation but is still a tab), not Search itself.
@@ -311,7 +311,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
       : null;
 
   const link = linkState(desk.connection);
-  // What Search looks through: only what the phone already holds (searchIndex.ts), agent descriptions from the Agents cache.
+  // What Search looks through: only what the phone already holds (search-index.ts), agent descriptions from the Agents cache.
   const searchSources = useMemo(
     () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, describe: knownDescription }),
     [desk.desks.list, catchUp.agents, catchUp.items],

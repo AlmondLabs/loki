@@ -15,14 +15,14 @@ import {
   saveSidebar,
   sidebarModel,
   toggleFold,
-} from "../app/src/shell/sidebarModel.ts";
+} from "../app/src/shell/sidebar-model.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 
 /**
- * The desk sidebar's model (app/src/shell/sidebarModel.ts, plan 013 U4): Pinned, then one section per agent
+ * The desk sidebar's model (app/src/shell/sidebar-model.ts, plan 013 U4): Pinned, then one section per agent
  * by recent activity, each live desk once, the agent's main chat first; the filter; the marks; the pin and
  * archive rules; the "needs you" pills; and what survives a reload.
  */

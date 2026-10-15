@@ -40,7 +40,10 @@ npm run build:app && npm run build:mod && npm run smoke
 - A hook's file is `useX.ts` or `useX.tsx`: `useTasks.ts`.
 - Everything else is kebab-case: `task-source.ts`, `session-value.ts`, `fake-mcp.mjs`.
 - Tools' own config files keep the names their tools look for (`vite.config.ts`, `eslint.config.mjs`).
-- Tests are `test/<subject>.test.ts`; Node runner tests are `test-node/<subject>.node-test.ts`.
+- A file of several components or helpers, with no one main export, is kebab-case like any module:
+  `permission-mode.tsx`, `recall-parts.tsx`.
+- Tests are `test/<subject>.test.ts`, their helpers in `test/fixtures/`; Node runner tests are
+  `test-node/<subject>.node-test.ts`, beside the helpers they start or import.
 
 **Names** **review**:
 
@@ -121,7 +124,7 @@ Doctor in CI (nothing new against `main`):
 - Stable handlers where children are memoised (the transcript's rows are; see `chat/Transcript.tsx`): `useCallback`,
   or a ref read inside a stable callback.
 - State that outlives a component and is shared goes in a small store read with `useSyncExternalStore`
-  (`shared/sessionValue.ts` is the pattern), not in context threaded through ten components.
+  (`shared/session-value.ts` is the pattern), not in context threaded through ten components.
 - Browser storage only for per-viewer conveniences, every read and write in `try`/`catch`, and the page must work
   without it.
 

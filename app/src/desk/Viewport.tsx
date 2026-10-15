@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, type ReactNode } from "react";
 import { TransformWrapper, TransformComponent, type ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
-import { stopGlide } from "./cameraGlide";
+import { stopGlide } from "./camera-glide";
 
 /**
  * Pannable/zoomable surface with Figma's input model:
@@ -10,7 +10,7 @@ import { stopGlide } from "./cameraGlide";
  * The library's own wheel handling is off; we apply transforms directly,
  * coalescing all input that arrives within one animation frame. Widgets carry
  * `.loki-no-pan` so dragging one never pans the canvas.
- * Camera glides to widgets are springs (cameraGlide.ts); a wheel, pinch or drag stops one where it is.
+ * Camera glides to widgets are springs (camera-glide.ts); a wheel, pinch or drag stops one where it is.
  */
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 4;

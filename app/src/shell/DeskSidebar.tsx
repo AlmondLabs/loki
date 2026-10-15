@@ -19,12 +19,12 @@ import {
   toggleFold,
   type SidebarPref,
   type SidebarRow,
-} from "./sidebarModel";
+} from "./sidebar-model";
 import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/RenameDesk";
 import { ChangeFolder, type FolderApi } from "../desk/NewDesk";
 import { conversationDirName } from "../../../core/desk-core.ts";
-import "./deskSidebar.css";
+import "./desk-sidebar.css";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /** The row's data-launch, so the pills can find a waiting row in the list. */
@@ -74,7 +74,7 @@ export interface DeskSidebarProps {
 
 /**
  * The Desk column, Slack's channel sidebar (plan 013 U4): a "Desks" header with new desk, a filter, then
- * Pinned and one folding section per agent (sidebarModel.ts), the archive folded at the bottom. A row opens its
+ * Pinned and one folding section per agent (sidebar-model.ts), the archive folded at the bottom. A row opens its
  * desk; hover buttons and the row's context menu pin and archive. When a desk that needs you is scrolled
  * out of sight, a pill at that edge says so and brings it into view. Folds and scroll outlive restarts.
  */

@@ -72,9 +72,9 @@ writes them into `tokens.css` as `--spring-<name>` (a `linear()` curve) and `--s
 compositor while agents stream; a finger's speed carries into the spring it lets go of (`spring(name, velocity)`);
 anything can be caught mid-motion; light things happen during a drag and lasting ones on release; nothing done
 from the keyboard, nor a tab switch, animates. On the phone: pressed controls give to 97%, bottom sheets rise, follow
-a finger down and leave however they close (`components/sheetMotion.ts`) while the screen behind recedes; pages push
+a finger down and leave however they close (`components/sheet-motion.ts`) while the screen behind recedes; pages push
 and pop, the Inbox card zooms into its conversation (View Transitions, `phone/transitions.ts`); and a swipe from the
-left edge goes back (`phone/edgeSwipe.ts`). The chat shows agents at work: a streaming reply's words fade in as
+left edge goes back (`phone/edge-swipe.ts`). The chat shows agents at work: a streaming reply's words fade in as
 they arrive, rows that come in while you read rise into place, "thinking" is three rising dots, and scrolled up,
 the chip counts what is new. Lists that change under you glide (`kit/useFlip.ts`): a row moving, even between
 sections, springs to its place, a row leaving fades while the rows below slide up. Undo springs in and out
@@ -87,10 +87,10 @@ thrown right for Got it and left for Again, and the next rises into its place.
 The desktop is quieter than the phone. Popovers opened by a click grow from the corner they hang from (the slash
 palette and anything a key opens are just there); a chat opened by a click fades in; a red badge springs in when its
 count goes up; the camera glides to a widget on the smooth spring, and a wheel, pinch or drag stops it
-(`desk/cameraGlide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
+(`desk/camera-glide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
 shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
 
-The agent's work reads the way Claude's apps show it (`chat/ToolSteps.tsx`, wording in `shared/toolSteps.ts`): a
+The agent's work reads the way Claude's apps show it (`chat/ToolSteps.tsx`, wording in `shared/tool-steps.ts`): a
 stretch between two messages (tool calls, background-task notices, skills it loaded) is one quiet line in the thread,
 "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed" ("Ran 3 commands" when the rows carry no
 times; "Working" breathing while the last step waits). When a step failed, its name sits under the closed line in red

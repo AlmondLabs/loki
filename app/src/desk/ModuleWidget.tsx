@@ -2,13 +2,13 @@ import { Component, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
 import { WIDGET_MAX_WIDTH, getPath, mergeData } from "../../../core/desk-core.ts";
 import { inTauri, openExternal, platform } from "./env";
-import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widgetBridge";
+import { BRIDGE, FRAME_PATH, WIDGET_SANDBOX, readFrameMessage, widgetSource, type ToFrame } from "./widget-bridge";
 
 /**
  * Mounts an agent-authored module from ~/.loki/widgets/<desk>/<name>.tsx in a sandboxed iframe
  * (`allow-scripts` only: an opaque origin). Agent-written code never runs in the page: there it could read the
  * daemon token and approve its own commands. The frame (app/src/frame/) has its own React and kit; this side
- * hands it the module, the data overlay, the page's styles and theme, and reads back only what widgetBridge.ts
+ * hands it the module, the data overlay, the page's styles and theme, and reads back only what widget-bridge.ts
  * lets through. A new hash reloads the module in place; load and render errors show here and go back to the mod
  * so desk_state (and the next turn) can report them.
  */

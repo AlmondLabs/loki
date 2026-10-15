@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { AgentFace } from "./AgentChip";
 import { avatarUrl, inTauri, platform, type Platform } from "./env";
 import { Button, Chip, Field, Row, Sheet } from "../components";
-import { osWords } from "../shell/osWords";
+import { osWords } from "../shell/os-words";
 
 export interface FolderApi {
   recent: () => Promise<{ byAgent: Record<string, string[]>; byConversation: Record<string, string> }>;

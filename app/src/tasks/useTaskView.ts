@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { createSessionValue } from "../shared/sessionValue";
+import { createSessionValue } from "../shared/session-value";
 import { DEFAULT_PREFS, parsePrefs, parseTaskView, type TaskViewId, type ViewPrefs } from "./model";
 
 /** The window's view from before the Board was called Tasks, carried over once so a reload keeps it. */

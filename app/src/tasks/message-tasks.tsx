@@ -4,7 +4,7 @@ import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { chipState, messageKey, quoteBlock, quoteOf, tasksByMessage, tasksForRow, titleFrom, type TaskSource } from "../../../core/task-source.ts";
 import { Button, Field } from "../components";
 import { formatKeys, matches } from "../shell/keymap";
-import { takeReveal, useRevealAsk } from "./revealMessage";
+import { takeReveal, useRevealAsk } from "./reveal-message";
 import type { useDesk } from "../desk/useDesk";
 
 /**
@@ -199,7 +199,7 @@ function selectedMessage(conversationId: string): { role: "user" | "assistant"; 
 }
 
 /**
- * The thread's side of "open the message" (revealMessage.ts): once this conversation's rows are in, mount the rows
+ * The thread's side of "open the message" (reveal-message.ts): once this conversation's rows are in, mount the rows
  * above the window that hold the message, scroll it to the middle and mark it a moment. Rows still loading try again.
  */
 export function useRevealMessage(

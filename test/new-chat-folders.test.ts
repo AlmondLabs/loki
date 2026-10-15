@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { chosenFolder, folderName, foldersOf, shownFolders } from "../app/src/phone/newChatFolders.ts";
+import { chosenFolder, folderName, foldersOf, shownFolders } from "../app/src/phone/new-chat-folders.ts";
 
 describe("the phone's New chat folder", () => {
   const recent = { a: ["/Users/u/work/loki", "/Users/u/work/site", "/Users/u/notes"], b: [] };

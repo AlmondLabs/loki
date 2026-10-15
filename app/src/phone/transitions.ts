@@ -38,7 +38,7 @@ export function expectPop(): void {
 }
 
 /**
- * A Back that begins from a finger already partway across (the edge swipe, edgeSwipe.ts): the old picture
+ * A Back that begins from a finger already partway across (the edge swipe, edge-swipe.ts): the old picture
  * is taken as the page sits, dx across, and goes on from there at the finger's speed. `reset` puts the page
  * back in place before the new picture is taken.
  */

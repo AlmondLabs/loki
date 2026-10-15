@@ -3,7 +3,7 @@ import { buildSearchIndex, cleanQuery, groupHits, rankHits, tierOf, type Indexed
 
 /**
  * The shared search core (app/src/shared/search.ts): matching and ranking over any hit type, with no
- * routes and no pages of its own. The phone (phone/searchIndex.ts) and the desktop's ⌘K each build their
+ * routes and no pages of its own. The phone (phone/search-index.ts) and the desktop's ⌘K each build their
  * hits and destinations on top of it.
  */
 

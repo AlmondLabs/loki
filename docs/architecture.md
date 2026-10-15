@@ -160,7 +160,7 @@ any other mod uses, and the daemon hands it the chats as its host (`chats` to re
    watched and pushed to the app; each chat's geometry and widget change log. A `.tsx` widget is agent-written code,
    so the app runs each in its own sandboxed iframe (`sandbox="allow-scripts"`, an opaque origin, `connect-src
    'none'`): it never sees the daemon token, the page or the network, and talks to the page only by `postMessage`,
-   which `app/src/desk/widgetBridge.ts` checks (its data, `onSet`, its size, focus, and http(s) links). The frame
+   which `app/src/desk/widget-bridge.ts` checks (its data, `onSet`, its size, focus, and http(s) links). The frame
    document is `app/src/frame/`, served as `/widget-frame.html`; the shell sets the token only in the top-level page,
    since Tauri also runs its init script in subframes on Windows.
 2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
@@ -301,7 +301,7 @@ place, and the Mac's side of it is what shipped first.
    copy and gating read that one value; `core/` stays system-free (`test/core-portability.test.ts`).
 2. **Keys come from the keymap.** `formatKeys` in `app/src/shell/keymap.ts` writes ⌘ ⌥ ⇧ on the Mac and Ctrl,
    Alt, Shift elsewhere; a binding whose Mac key the other system keeps for itself carries its own keys there
-   (`keysOn`), and a label that only fits there its own label (`labelOn`). `osWords.ts` holds the other
+   (`keysOn`), and a label that only fits there its own label (`labelOn`). `os-words.ts` holds the other
    per-system words (this Mac, this PC, this computer; Finder, File Explorer).
 3. **Mac extras exist only on macOS.** The tray, dock badge, global shortcut and native menu bar are compiled under
    `cfg(target_os = "macos")` with Mac-only dependencies; dictation, phone pairing and Tailscale are hidden in the

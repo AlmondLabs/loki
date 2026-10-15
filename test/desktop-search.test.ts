@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { buildIndex, flatHits, PLACES_KEY, recentPlaceHits, search, topHit, type SearchSources } from "../app/src/shell/searchModel.ts";
+import { buildIndex, flatHits, PLACES_KEY, recentPlaceHits, search, topHit, type SearchSources } from "../app/src/shell/search-model.ts";
 import { createRecents } from "../app/src/shared/recents.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
@@ -7,7 +7,7 @@ import type { DeskSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 
 /**
- * The desktop's ⌘K search (app/src/shell/searchModel.ts, plan 013 U9): desks by title and agent, agents,
+ * The desktop's ⌘K search (app/src/shell/search-model.ts, plan 013 U9): desks by title and agent, agents,
  * waiting Inbox items and the app's pages, from what the window already holds — never message text.
  * Enter opens the top result; before typing, the recent places, stale ones dropped at read.
  */

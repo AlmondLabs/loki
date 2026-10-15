@@ -1,5 +1,5 @@
 /**
- * Search's matching and ranking, for any kind of hit: the phone's Search (phone/searchIndex.ts) and the
+ * Search's matching and ranking, for any kind of hit: the phone's Search (phone/search-index.ts) and the
  * desktop's ⌘K build their own hits, routes and named pages and hand them here as entries. Pure, so
  * test/shared-search.test.ts runs it under Node, with no DOM.
  *

@@ -4,9 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { keyboardFrom, platformFrom } from "../app/src/desk/env.ts";
 import { browseWith } from "../app/src/desk/NewDesk.tsx";
 import { formatKeys, keyFor, cmdHeld } from "../app/src/shell/keymap.ts";
-import { osWords, runsOn } from "../app/src/shell/osWords.ts";
+import { osWords, runsOn } from "../app/src/shell/os-words.ts";
 import { SystemFact } from "../app/src/settings/Settings.tsx";
-import { HostSystemRow } from "../app/src/phone/Settings.tsx";
+import { HostSystemRow } from "../app/src/phone/Preferences.tsx";
 import { bootScript, hostOs } from "../mod/static.ts";
 
 /**

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import ts from "typescript";
 import { KEYMAP, keyRows, labelOf } from "../app/src/shell/keymap.ts";
 import { keysFor } from "../app/src/shell/KeysSheet.tsx";
-import { lokiUpgrade, osWords } from "../app/src/shell/osWords.ts";
+import { lokiUpgrade, osWords } from "../app/src/shell/os-words.ts";
 import type { Platform } from "../app/src/desk/env.ts";
 import { machineWord } from "../mod/skill-sources.ts";
 import { must } from "./fixtures/must.ts";
@@ -78,7 +78,7 @@ describe("Hide loki off the Mac is Minimise loki", () => {
  */
 describe("the machine comes from the words table", () => {
   const APP = join(import.meta.dirname, "..", "app", "src");
-  const ALLOW = ["shell/osWords.ts", "phone/", "settings/Phone.tsx"];
+  const ALLOW = ["shell/os-words.ts", "phone/", "settings/Phone.tsx"];
   /** Phone pairing is on the Mac only (U3): the rail's Settings label says so only while it is on. */
   const MAC_ONLY_LINES = ["shell/Sidebar.tsx: , phones can reach this Mac"];
   const MAC_WORDS = /\b[Tt]his Mac\b|\bFinder\b/;

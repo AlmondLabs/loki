@@ -10,7 +10,7 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 
 import { archivedDesks, liveDesks } from "../shell/DeskTree";
-import { sidebarModel, type SidebarSection } from "../shell/sidebarModel";
+import { sidebarModel, type SidebarSection } from "../shell/sidebar-model";
 import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
@@ -380,7 +380,7 @@ export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
 }
 
 /**
- * Home's desks, grouped as the desktop sidebar groups them (shell/sidebarModel.ts, so the two cannot drift):
+ * Home's desks, grouped as the desktop sidebar groups them (shell/sidebar-model.ts, so the two cannot drift):
  * Pinned, then one section per agent by its latest activity, the main chat first. A conversation already in
  * "Needs your attention" is not repeated below it (R16), and a section left with nothing is dropped.
  */

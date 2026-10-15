@@ -13,7 +13,7 @@ import { Button } from "../components";
 import { waitingSince } from "./model";
 import { Icon } from "./icons";
 import { Avatar, SkeletonCard } from "./rows";
-import { useMessageActions } from "./MessageActions";
+import { useMessageActions } from "./useMessageActions";
 import { draftKey, useDraft } from "./session";
 import { TopBar } from "./ui";
 import { openFromCard } from "./transitions";

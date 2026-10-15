@@ -7,12 +7,12 @@ import { createRecents } from "../shared/recents";
 import type { IconName } from "../shared/icons";
 import { PAGES, pageTitle, type SettingsPage } from "../settings/pages";
 import type { Segment } from "./keymap";
-import { osWords } from "./osWords";
+import { osWords } from "./os-words";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 
 /**
  * The desktop's ⌘K search, pure (test/desktop-search.test.ts; plan 013 U9): the desktop's adapter over
- * shared/search.ts, as phone/searchIndex.ts is the phone's. It looks only at what the window holds, in
+ * shared/search.ts, as phone/search-index.ts is the phone's. It looks only at what the window holds, in
  * declared fields — a desk's title and agent, an agent's name, a waiting Inbox item's title and agent, the
  * named pages. Never a transcript. A hit carries where it goes (`target`); Shell.tsx does the going.
  *

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Field, Sheet } from "../components";
-import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebarModel";
+import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
 import type { CatchUp, Desk } from "../shell/types";
 import type { DeskSummary } from "../../../core/frame-types.ts";
 

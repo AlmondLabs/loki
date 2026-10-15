@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AgentPills, agentPills } from "../app/src/desk/CatchUpParts.tsx";
+import { AgentPills, agentPills } from "../app/src/desk/catch-up-parts.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
-/** The desktop Inbox's agent pills (CatchUpParts.tsx): All, then each agent with cards this pass. */
+/** The desktop Inbox's agent pills (catch-up-parts.tsx): All, then each agent with cards this pass. */
 
 const of = (id: string, agentId: string, agentName: string) => attentionItem(id, { agentId, agentName });
 

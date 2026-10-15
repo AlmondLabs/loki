@@ -4,7 +4,7 @@ import { Icon } from "./icons";
 import type { LinkState } from "./model";
 import { navigate, rewrite } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
-import { buildIndex, cleanQuery, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./searchIndex";
+import { buildIndex, cleanQuery, recentPlaceHits, search, type GroupId, type Hit, type SearchSources } from "./search-index";
 import { recentPlaces, recentSearches, scrollMemory, useScrollMemory } from "./session";
 
 /** What Search covers, said plainly wherever it would otherwise look like message search. */
@@ -15,7 +15,7 @@ const GROUP_ICON = { desks: "desk", agents: "agents", inbox: "inbox", pages: "mo
  * Search, opened from the round button beside the navigation, Slack's grammar: the field at the top takes
  * focus at once and stays above the keyboard (the shell fits the visible viewport, viewport.ts); what
  * scrolls beneath it is the one scroll owner. Before typing: recent searches and recently visited places
- * (searchIndex.ts drops ones that no longer resolve). While typing: Desks, Agents, Inbox and Pages, from what the
+ * (search-index.ts drops ones that no longer resolve). While typing: Desks, Agents, Inbox and Pages, from what the
  * phone already holds — no Mac calls. A result opens its usual page with Search as the origin; the query
  * is written into this entry first, so Back comes back to the same query and scroll. Clearing the field
  * keeps focus there and never leaves — Back does.

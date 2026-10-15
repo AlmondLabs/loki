@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 
 /**
- * widget-frame.html: the document a module widget's sandboxed iframe loads (app/src/desk/widgetBridge.ts).
+ * widget-frame.html: the document a module widget's sandboxed iframe loads (app/src/desk/widget-bridge.ts).
  * The runtime (main.tsx, with its own React, ReactDOM, recharts and kit) is bundled into one classic script and
  * inlined: a sandboxed frame has an opaque origin, so a module script or a stylesheet fetched from the app's
  * own server would be a cross-origin request the server does not answer. The Tauri shell hashes inline

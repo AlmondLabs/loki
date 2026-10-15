@@ -8,7 +8,7 @@ import type { FocusEntry } from "../../../core/attention/focus.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
 import type { CameraTarget, Connection } from "./useDesk";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
-import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widgetRows";
+import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widget-rows";
 import type { DeskStatus, DeskSummary } from "../../../core/frame-types.ts";
 import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
 
@@ -85,7 +85,7 @@ export function useDeskSocket() {
   const [servedBuild, setServedBuild] = useState<string | null>(null);
   /** The models used lately, latest first (mod/models.ts): sent when the link opens and again after every pick anywhere. */
   const [recentModels, setRecentModels] = useState<string[]>([]);
-  /** Each desk's widget change log (desk/widgetRows.ts): from history replies and live `widget_change` frames, for any desk. */
+  /** Each desk's widget change log (desk/widget-rows.ts): from history replies and live `widget_change` frames, for any desk. */
   const [widgetLogs, setWidgetLogs] = useState<WidgetLogs>({});
   /** Pending request/reply exchanges with the mod, by requestId. */
   const waiters = useRef(new Map<string, (msg: Record<string, unknown>) => void>());

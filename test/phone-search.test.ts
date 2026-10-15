@@ -15,11 +15,11 @@ import {
   search,
   tierOf,
   type SearchSources,
-} from "../app/src/phone/searchIndex.ts";
+} from "../app/src/phone/search-index.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
- * The phone's local Search (app/src/phone/searchIndex.ts): what it matches (declared fields only — desk
+ * The phone's local Search (app/src/phone/search-index.ts): what it matches (declared fields only — desk
  * titles and agents, agent names and descriptions, the loaded Inbox items, the named pages), how it ranks,
  * and how the recent histories resolve to rows with the stale ones dropped.
  */
