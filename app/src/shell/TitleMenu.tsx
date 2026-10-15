@@ -41,13 +41,36 @@ export function runMenuItem(id: string): void {
  * The menu itself, without state: the titles, then Hide loki (Minimise loki there, labelOf); beside them the open title's items. Pointing at a
  * title opens it, as a menu bar's does.
  */
-export function TitleMenuPanel({ groups, open, onOpen, onPick, os = keyboard }: { groups: TitleMenuGroup[]; open: string | null; onOpen: (title: string | null) => void; onPick: (id: string) => void; os?: Platform }) {
+export function TitleMenuPanel({
+  groups,
+  open,
+  onOpen,
+  onPick,
+  os = keyboard,
+}: {
+  groups: TitleMenuGroup[];
+  open: string | null;
+  onOpen: (title: string | null) => void;
+  onPick: (id: string) => void;
+  os?: Platform;
+}) {
   const current = groups.find((g) => g.title === open) ?? null;
   return (
     <>
       <div role="menu" aria-label="loki" className="loki-title-menu-panel">
         {groups.map((g) => (
-          <Row key={g.title} dense role="menuitem" aria-haspopup="menu" aria-expanded={open === g.title} data-menu={g.title} selected={open === g.title} className="loki-title-menu-item" onClick={() => onOpen(g.title)} onPointerEnter={() => onOpen(g.title)}>
+          <Row
+            key={g.title}
+            dense
+            role="menuitem"
+            aria-haspopup="menu"
+            aria-expanded={open === g.title}
+            data-menu={g.title}
+            selected={open === g.title}
+            className="loki-title-menu-item"
+            onClick={() => onOpen(g.title)}
+            onPointerEnter={() => onOpen(g.title)}
+          >
             <span>{g.title}</span>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
               <path d="M3.5 2l3 3-3 3" />
@@ -56,7 +79,12 @@ export function TitleMenuPanel({ groups, open, onOpen, onPick, os = keyboard }: 
         ))}
         <hr className="loki-title-menu-sep" />
         <Row dense role="menuitem" data-menu-id={HIDE} className="loki-title-menu-item" onClick={() => onPick(HIDE)} onPointerEnter={() => onOpen(null)}>
-          <span>{labelOf(KEYMAP.find((b) => b.id === HIDE)!, os)}</span>
+          <span>
+            {labelOf(
+              KEYMAP.find((b) => b.id === HIDE)!,
+              os,
+            )}
+          </span>
           <Kbd>{keyFor(HIDE, os)}</Kbd>
         </Row>
       </div>
@@ -89,7 +117,15 @@ export function TitleMenu({ os = keyboard }: { os?: Platform }) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <span className="loki-title-menu-anchor">
-      <button type="button" className="loki-title-btn loki-title-btn--menu" aria-label="Menu" title="Menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
+      <button
+        type="button"
+        className="loki-title-btn loki-title-btn--menu"
+        aria-label="Menu"
+        title="Menu"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((v) => !v)}
+      >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
           <path d="M3 4.5h10M3 8h10M3 11.5h10" />
         </svg>
@@ -136,7 +172,12 @@ function TitleMenuPopover({ os, onPick, onClose }: { os: Platform; onPick: (id: 
     if (enter) items(ref.current?.querySelector(".loki-title-submenu"))[0]?.focus();
   }, [enter]);
   const titles = () => ref.current?.firstElementChild;
-  const focusTitle = (t: string | null) => (t ? items(titles()).find((el) => el.dataset.menu === t)?.focus() : undefined);
+  const focusTitle = (t: string | null) =>
+    t
+      ? items(titles())
+          .find((el) => el.dataset.menu === t)
+          ?.focus()
+      : undefined;
   return (
     <div
       ref={ref}

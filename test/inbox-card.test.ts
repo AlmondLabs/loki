@@ -53,7 +53,13 @@ function render(it: AttentionItem, card: CardActions, status: "idle" | "thinking
 }
 
 describe("the Inbox card's message box", () => {
-  const model: CardActions["model"] = { models: MODELS, onLoad: () => {}, modelOf: () => "anthropic/claude-opus-5-5", effortOf: () => "medium", onPick: async () => {} };
+  const model: CardActions["model"] = {
+    models: MODELS,
+    onLoad: () => {},
+    modelOf: () => "anthropic/claude-opus-5-5",
+    effortOf: () => "medium",
+    onPick: async () => {},
+  };
 
   test("carries the model pill, named with the card's model and effort", () => {
     const html = render(item(), actions(model));
@@ -74,10 +80,18 @@ describe("the Inbox card's message box", () => {
 });
 
 describe("the phone's decisions under a card", () => {
-  const html = (over: Partial<AttentionItem>) => renderToStaticMarkup(createElement(Decisions, { item: item(over), onOpen: () => {}, onSeen: () => {}, onApprove: () => {} }));
+  const html = (over: Partial<AttentionItem>) =>
+    renderToStaticMarkup(createElement(Decisions, { item: item(over), onOpen: () => {}, onSeen: () => {}, onApprove: () => {} }));
 
   test("an approval offers deny, approve, and always allowing the tool", () => {
-    const out = html({ pendingApproval: { requestId: "approval-t1", toolName: "mcp__github__create_issue", input: {}, at: "2026-09-25T10:00:00Z" } as AttentionItem["pendingApproval"] });
+    const out = html({
+      pendingApproval: {
+        requestId: "approval-t1",
+        toolName: "mcp__github__create_issue",
+        input: {},
+        at: "2026-09-25T10:00:00Z",
+      } as AttentionItem["pendingApproval"],
+    });
     expect(out).toContain(">Deny<");
     expect(out).toContain(">Approve<");
     expect(out).toContain("Always allow mcp__github__create_issue");

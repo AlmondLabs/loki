@@ -41,10 +41,18 @@ export function isPassChat(store: RecallStore, conversationId: string): boolean 
  * disk for the model to grep — the prompt tells it where — so the quoted list stops growing with the deck.
  */
 export function overlappingCards<T extends { front: string; back: string; tags: string[] }>(cards: T[], texts: string[], cap = MAX_QUOTED_CARDS): T[] {
-  const words = new Set(texts.join(" ").toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g) ?? []);
+  const words = new Set(
+    texts
+      .join(" ")
+      .toLowerCase()
+      .match(/[a-z][a-z0-9_-]{2,}/g) ?? [],
+  );
   const scored = cards
     .map((c) => {
-      const own = new Set([...(`${c.front} ${c.back}`.toLowerCase().match(/[a-z][a-z0-9_-]{4,}/g) ?? []), ...c.tags.map((t) => t.toLowerCase()).filter((t) => t.length >= 3)]);
+      const own = new Set([
+        ...(`${c.front} ${c.back}`.toLowerCase().match(/[a-z][a-z0-9_-]{4,}/g) ?? []),
+        ...c.tags.map((t) => t.toLowerCase()).filter((t) => t.length >= 3),
+      ]);
       let hits = 0;
       for (const w of own) if (words.has(w)) hits += 1;
       return { c, hits };
@@ -80,7 +88,14 @@ export function lessonCard(lead: Lead): { type: "info-card"; title: string; data
   return {
     type: "info-card",
     title: lead.title,
-    data: { lines: [lead.depth === "primer" ? "a primer — one sitting" : "a course — a few sittings", where, lead.why, `${who} lays the lesson out here; the chat opens with the brief`] },
+    data: {
+      lines: [
+        lead.depth === "primer" ? "a primer — one sitting" : "a course — a few sittings",
+        where,
+        lead.why,
+        `${who} lays the lesson out here; the chat opens with the brief`,
+      ],
+    },
   };
 }
 
@@ -118,4 +133,3 @@ function startLessonWith(create: CreateLessonChat, opts: LessonOpts): StartLesso
 export function startLessonViaChats(chats: ChatBackend, opts: LessonOpts): StartLesson {
   return startLessonWith((agentId, title) => chats.create(agentId, homedir(), title), opts);
 }
-

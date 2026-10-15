@@ -68,7 +68,8 @@ export function modelEntriesFromWire(value: unknown, availableHandles?: unknown)
 function reasoningEffortsFromWireEntry(entry: Record<string, unknown>, updateArgs: Record<string, unknown> | null, handle: string): ReasoningEffort[] {
   if (updateArgs && isReasoningEffort(updateArgs.reasoning_effort)) return [updateArgs.reasoning_effort];
 
-  const capabilities = entry.reasoning_capabilities && typeof entry.reasoning_capabilities === "object" ? (entry.reasoning_capabilities as Record<string, unknown>) : null;
+  const capabilities =
+    entry.reasoning_capabilities && typeof entry.reasoning_capabilities === "object" ? (entry.reasoning_capabilities as Record<string, unknown>) : null;
   const advertised = Array.isArray(entry.reasoning_levels)
     ? entry.reasoning_levels
     : Array.isArray(entry.reasoningLevels)

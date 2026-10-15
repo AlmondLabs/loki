@@ -36,7 +36,15 @@ function fakeTailscale(opts: { running?: boolean; serve?: boolean; port?: number
   });
 }
 
-function fixture(opts: { port?: number; appDist?: string | null; tailscale?: Tailscale; host?: () => string | null; interfaces?: () => ReturnType<typeof networkInterfaces> } = {}) {
+function fixture(
+  opts: {
+    port?: number;
+    appDist?: string | null;
+    tailscale?: Tailscale;
+    host?: () => string | null;
+    interfaces?: () => ReturnType<typeof networkInterfaces>;
+  } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "loki-lan-"));
   const devices = new DeviceStore(join(dir, "devices.json"));
   const codes = new PairingCodes();
@@ -72,7 +80,11 @@ function fixture(opts: { port?: number; appDist?: string | null; tailscale?: Tai
 
 const base = (lan: LanListener) => `http://127.0.0.1:${lan.status().port}`;
 
-async function pair(lan: LanListener, code: string, name = "phone"): Promise<{ res: Response; cookie: string; token: string; body: { deviceId: string; name: string } }> {
+async function pair(
+  lan: LanListener,
+  code: string,
+  name = "phone",
+): Promise<{ res: Response; cookie: string; token: string; body: { deviceId: string; name: string } }> {
   const res = await fetch(`${base(lan)}/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, name }) });
   const setCookie = res.headers.get("set-cookie") ?? "";
   const token = /loki_device=([a-f0-9]*)/.exec(setCookie)?.[1] ?? "";
@@ -173,13 +185,22 @@ describe("LAN listener", () => {
     const f = fixture();
     try {
       await f.lan.setEnabled(true);
-      const bad = await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "ZZZZZZ", name: "x" }) });
+      const bad = await fetch(`${base(f.lan)}/pair`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: "ZZZZZZ", name: "x" }),
+      });
       expect(bad.status).toBe(404);
       // Cross-site protection: a body not declared JSON (what a form or no-cors text post looks like) is 415,
       // a foreign Origin is 403, the page's own origin passes, and a JSON body that is not JSON is 400.
       expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", body: "not json" })).status).toBe(415);
-      expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: "http://evil.example" }, body: "{}" })).status).toBe(403);
-      expect((await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: base(f.lan) }, body: "{" })).status).toBe(400);
+      expect(
+        (await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: "http://evil.example" }, body: "{}" }))
+          .status,
+      ).toBe(403);
+      expect(
+        (await fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin: base(f.lan) }, body: "{" })).status,
+      ).toBe(400);
       expect((await fetch(`${base(f.lan)}/unpair`, { method: "POST" })).status).toBe(415);
       expect((await fetch(`${base(f.lan)}/me`)).status).toBe(401);
 
@@ -246,7 +267,13 @@ describe("LAN listener", () => {
       const { code } = f.codes.mint();
       // Every request's headers reach the listener before any body does: all are past the first check together.
       const reqs = [...Array.from({ length: 30 }, () => "ZZZZZZ"), code].map((c) => {
-        const req = httpRequest({ host: "127.0.0.1", port: f.lan.status().port!, path: "/pair", method: "POST", headers: { "content-type": "application/json" } });
+        const req = httpRequest({
+          host: "127.0.0.1",
+          port: f.lan.status().port!,
+          path: "/pair",
+          method: "POST",
+          headers: { "content-type": "application/json" },
+        });
         const status = new Promise<number>((resolve, reject) => {
           req.on("response", (res) => {
             res.resume();
@@ -326,7 +353,7 @@ describe("LAN listener", () => {
   test("a new canvas build is announced to phones as app_build and shows in /health", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-lan-build-"));
     mkdirSync(join(dir, "assets"), { recursive: true });
-    writeFileSync(join(dir, "index.html"), "<html><head></head><body><div id=\"root\"></div></body></html>");
+    writeFileSync(join(dir, "index.html"), '<html><head></head><body><div id="root"></div></body></html>');
     const f = fixture({ appDist: dir });
     try {
       await f.lan.setEnabled(true);
@@ -338,8 +365,13 @@ describe("LAN listener", () => {
       const p = await pair(f.lan, code);
       const phone = connect(`ws://127.0.0.1:${f.lan.status().port}/ws?desk=shared`, { cookie: p.cookie });
       await new Promise<void>((r) => phone.once("message", () => r()));
-      const announced = new Promise<Record<string, unknown>>((r) => phone.on("message", (raw) => { const m = JSON.parse(String(raw)); if (m.type === "app_build") r(m); }));
-      writeFileSync(join(dir, "index.html"), "<html><head></head><body><div id=\"root\"></div><!-- v2 --></body></html>");
+      const announced = new Promise<Record<string, unknown>>((r) =>
+        phone.on("message", (raw) => {
+          const m = JSON.parse(String(raw));
+          if (m.type === "app_build") r(m);
+        }),
+      );
+      writeFileSync(join(dir, "index.html"), '<html><head></head><body><div id="root"></div><!-- v2 --></body></html>');
       f.lan.checkBuild();
       const m = (await announced) as { build: string };
       expect(m.build).toMatch(/^[a-f0-9]{12}$/);
@@ -411,9 +443,23 @@ describe("LAN listener", () => {
     try {
       // an older file has no via: the default applies
       writeFileSync(join(f.dir, "lan.json"), JSON.stringify({ enabled: false }));
-      const fresh = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415, tailscale: fakeTailscale({ running: false }) });
+      const fresh = new LanListener({
+        stateFile: join(f.dir, "lan.json"),
+        devices: f.devices,
+        codes: f.codes,
+        handlers: f.handlers,
+        port: 41415,
+        tailscale: fakeTailscale({ running: false }),
+      });
       expect((await fresh.refresh()).via).toBe("lan");
-      const running = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415, tailscale: fakeTailscale() });
+      const running = new LanListener({
+        stateFile: join(f.dir, "lan.json"),
+        devices: f.devices,
+        codes: f.codes,
+        handlers: f.handlers,
+        port: 41415,
+        tailscale: fakeTailscale(),
+      });
       expect((await running.refresh()).via).toBe("tailscale");
 
       f.changes.length = 0;
@@ -422,13 +468,22 @@ describe("LAN listener", () => {
       expect(f.changes.map((c) => c[0])).toEqual(["status"]);
       expect(f.changes[0][1].via).toBe("lan");
       // the choice outlives a restart and an enable/disable, which rewrite the file
-      const again = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415, tailscale: fakeTailscale() });
+      const again = new LanListener({
+        stateFile: join(f.dir, "lan.json"),
+        devices: f.devices,
+        codes: f.codes,
+        handlers: f.handlers,
+        port: 41415,
+        tailscale: fakeTailscale(),
+      });
       expect((await again.refresh()).via).toBe("lan");
       await f.lan.setEnabled(false);
       expect(JSON.parse(readFileSync(join(f.dir, "lan.json"), "utf8"))).toEqual({ enabled: false, via: "lan" });
       const junk = new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415 });
       writeFileSync(join(f.dir, "lan.json"), JSON.stringify({ enabled: true, via: "pigeon" }));
-      expect(new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415 }).status()).toMatchObject({ enabled: true, via: "lan" });
+      expect(
+        new LanListener({ stateFile: join(f.dir, "lan.json"), devices: f.devices, codes: f.codes, handlers: f.handlers, port: 41415 }).status(),
+      ).toMatchObject({ enabled: true, via: "lan" });
       expect(junk.status().via).toBe("lan");
     } finally {
       f.cleanup();
@@ -485,7 +540,14 @@ describe("LAN listener", () => {
   });
 
   test("the tailnet's 100.x address is not listed among the Wi‑Fi addresses", async () => {
-    const f = fixture({ interfaces: () => ({ en0: [{ address: "192.168.1.3", family: "IPv4", internal: false }], utun4: [{ address: "100.74.177.93", family: "IPv4", internal: false }], lo0: [{ address: "127.0.0.1", family: "IPv4", internal: true }] }) as unknown as ReturnType<typeof networkInterfaces> });
+    const f = fixture({
+      interfaces: () =>
+        ({
+          en0: [{ address: "192.168.1.3", family: "IPv4", internal: false }],
+          utun4: [{ address: "100.74.177.93", family: "IPv4", internal: false }],
+          lo0: [{ address: "127.0.0.1", family: "IPv4", internal: true }],
+        }) as unknown as ReturnType<typeof networkInterfaces>,
+    });
     try {
       expect(f.lan.status().addresses).toEqual(["192.168.1.3"]);
       expect(f.lan.status().address).toBe("192.168.1.3");
@@ -499,7 +561,10 @@ describe("LAN listener", () => {
     const allowed = [TAILNET, `${TAILNET}:443`, "my-macbook-pro.local"];
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}` }), allowed)).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}` }))).toMatchObject({ status: 403 });
-    expect(crossSite(req({ host: "127.0.0.1:41415", origin: "https://evil.example" }), allowed)).toMatchObject({ status: 403, error: "cross-site request refused" });
+    expect(crossSite(req({ host: "127.0.0.1:41415", origin: "https://evil.example" }), allowed)).toMatchObject({
+      status: 403,
+      error: "cross-site request refused",
+    });
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: `https://${TAILNET}.evil.example` }), allowed)).toMatchObject({ status: 403 });
     expect(crossSite(req({ host: "127.0.0.1:41415", "x-forwarded-host": TAILNET, origin: `https://${TAILNET}` }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", "x-forwarded-host": `${TAILNET}, 127.0.0.1:41415`, origin: `https://${TAILNET}` }))).toBeNull();
@@ -507,7 +572,9 @@ describe("LAN listener", () => {
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "http://127.0.0.1:41415" }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "null" }))).toBeNull();
     expect(crossSite(req({ host: "127.0.0.1:41415", origin: "not a url" }), allowed)).toMatchObject({ status: 403, error: "bad origin" });
-    expect(crossSite({ headers: { "content-type": "text/plain", origin: `https://${TAILNET}` } } as unknown as IncomingMessage, allowed)).toMatchObject({ status: 415 });
+    expect(crossSite({ headers: { "content-type": "text/plain", origin: `https://${TAILNET}` } } as unknown as IncomingMessage, allowed)).toMatchObject({
+      status: 415,
+    });
   });
 
   test("behind tailscale serve: /pair from the tailnet origin reaches the code check; a stranger is still 403", async () => {
@@ -519,7 +586,12 @@ describe("LAN listener", () => {
       expect(f.lan.status().error).toBeNull();
       const port = f.lan.status().port;
       expect(f.lan.status().tailscale?.name).toBe(TAILNET); // start() refreshed
-      const post = (origin: string, extra: Record<string, string> = {}) => fetch(`${base(f.lan)}/pair`, { method: "POST", headers: { "content-type": "application/json", origin, ...extra }, body: JSON.stringify({ code: "ZZZZZZ", name: "x" }) });
+      const post = (origin: string, extra: Record<string, string> = {}) =>
+        fetch(`${base(f.lan)}/pair`, {
+          method: "POST",
+          headers: { "content-type": "application/json", origin, ...extra },
+          body: JSON.stringify({ code: "ZZZZZZ", name: "x" }),
+        });
       expect((await post(`https://${TAILNET}`)).status).toBe(404); // past the origin check, the code is wrong
       expect((await post(`http://${TAILNET}:${port}`)).status).toBe(404);
       expect((await post("https://evil.example")).status).toBe(403);

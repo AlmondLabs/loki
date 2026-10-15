@@ -6,12 +6,14 @@ import { emptyLive } from "../core/attention/model.ts";
 import { foldSteps, ownSendKey } from "../core/attention/thread.ts";
 import { fileSize, isInlineImage } from "../app/src/chat/attachments.ts";
 
-const report = { path: "/Users/me/.letta/loki/uploads/2026-09-30/Q3 \"final\".pdf", name: 'Q3 "final".pdf', size: 482113, mime: "application/pdf" };
+const report = { path: '/Users/me/.letta/loki/uploads/2026-09-30/Q3 "final".pdf', name: 'Q3 "final".pdf', size: 482113, mime: "application/pdf" };
 
 describe("files on a message: Letta's attachment tag", () => {
   test("a file goes as the tag Letta's channels use, after the text", () => {
     const tag = attachmentTag(report);
-    expect(tag).toBe('<attachment kind="file" local_path="/Users/me/.letta/loki/uploads/2026-09-30/Q3 &quot;final&quot;.pdf" name="Q3 &quot;final&quot;.pdf" mime_type="application/pdf" size_bytes="482113" />');
+    expect(tag).toBe(
+      '<attachment kind="file" local_path="/Users/me/.letta/loki/uploads/2026-09-30/Q3 &quot;final&quot;.pdf" name="Q3 &quot;final&quot;.pdf" mime_type="application/pdf" size_bytes="482113" />',
+    );
     expect(withAttachments("read this", [report])).toBe(`read this\n\n${tag}`);
     expect(withAttachments("", [report])).toBe(tag);
     expect(withAttachments("just text", [])).toBe("just text");
@@ -22,7 +24,8 @@ describe("files on a message: Letta's attachment tag", () => {
     expect(messageFiles(text)).toEqual([report]);
     expect(stripHarnessMarkup(text).trim()).toBe("read this");
     // A Slack channel's tag with its own children, and one not downloaded: hidden; only files with a path are chips.
-    const slack = 'hi <attachment kind="file" attachment_id="F1" download_status="not_downloaded" name="a.pdf">\n  <download-retry>…</download-retry>\n</attachment>';
+    const slack =
+      'hi <attachment kind="file" attachment_id="F1" download_status="not_downloaded" name="a.pdf">\n  <download-retry>…</download-retry>\n</attachment>';
     expect(stripHarnessMarkup(slack).trim()).toBe("hi");
     expect(messageFiles(slack)).toEqual([]);
   });
@@ -35,9 +38,17 @@ describe("files on a message: Letta's attachment tag", () => {
   test("the echo of a message sent with a file is recognised, and not shown twice", () => {
     const l = emptyLive();
     l.thread.expectEcho(ownSendKey("", [report]));
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: withAttachments("", [report]) } });
+    applyEvent(l, {
+      type: "stream_delta",
+      runtime: { agent_id: "a", conversation_id: "c" },
+      delta: { message_type: "user_message", content: withAttachments("", [report]) },
+    });
     expect(l.thread.rows() ?? []).toEqual([]);
-    applyEvent(l, { type: "stream_delta", runtime: { agent_id: "a", conversation_id: "c" }, delta: { message_type: "user_message", content: withAttachments("from the phone", [report]) } });
+    applyEvent(l, {
+      type: "stream_delta",
+      runtime: { agent_id: "a", conversation_id: "c" },
+      delta: { message_type: "user_message", content: withAttachments("from the phone", [report]) },
+    });
     expect(l.thread.rows()).toMatchObject([{ role: "user", text: "from the phone", files: [report] }]);
   });
 });

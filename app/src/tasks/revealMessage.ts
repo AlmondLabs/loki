@@ -37,6 +37,10 @@ const subscribe = (l: () => void) => {
 /** The ask for this conversation, while there is one. */
 export function useRevealAsk(conversation: string | null): RevealAsk | null {
   // No ask on a server render (the tests' static markup): nothing has been asked for there.
-  const ask = useSyncExternalStore(subscribe, () => pending, () => null);
+  const ask = useSyncExternalStore(
+    subscribe,
+    () => pending,
+    () => null,
+  );
   return ask && conversation && ask.conversation === conversation ? ask : null;
 }

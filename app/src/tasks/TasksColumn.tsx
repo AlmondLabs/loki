@@ -20,7 +20,15 @@ export function TasksColumn({ tasks, onNew }: { tasks: Task[] | null; onNew: () 
   // A missing agent's view marks no row: the pane asks for a new pick.
   const { view } = useMemo(() => resolveTaskView(stored, tasks), [stored, tasks]);
   const row = (v: { view: TaskViewId; label: string; count: number }, lead: React.ReactNode) => (
-    <ListRow key={v.view} lead={lead} title={v.label} time={tasks === null ? null : String(v.count)} current={view === v.view} label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`} onOpen={() => setView(v.view)} />
+    <ListRow
+      key={v.view}
+      lead={lead}
+      title={v.label}
+      time={tasks === null ? null : String(v.count)}
+      current={view === v.view}
+      label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`}
+      onOpen={() => setView(v.view)}
+    />
   );
   return (
     <>

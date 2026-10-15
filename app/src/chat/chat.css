@@ -1,111 +1,439 @@
 /* Markdown inside assistant bubbles: compact, token-driven. Links are the accent blue; code is the one mono. */
-.loki-md > :first-child { margin-top: 0; }
-.loki-md > :last-child { margin-bottom: 0; }
-.loki-md p { margin: 0 0 8px; white-space: pre-wrap; }
-.loki-md h1, .loki-md h2, .loki-md h3, .loki-md h4 {
-  margin: 12px 0 6px; font-size: 13.5px; font-weight: 600; color: var(--loki-fg);
+.loki-md > :first-child {
+  margin-top: 0;
 }
-.loki-md h1 { font-size: 17px; } .loki-md h2 { font-size: 15px; }
+.loki-md > :last-child {
+  margin-bottom: 0;
+}
+.loki-md p {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+.loki-md h1,
+.loki-md h2,
+.loki-md h3,
+.loki-md h4 {
+  margin: 12px 0 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-md h1 {
+  font-size: 17px;
+}
+.loki-md h2 {
+  font-size: 15px;
+}
 /* Tailwind's preflight strips list markers; put them back for chat markdown. */
-.loki-md ul, .loki-md ol { margin: 4px 0 8px; padding-left: 22px; }
-.loki-md ul { list-style: disc outside; }
-.loki-md ol { list-style: decimal outside; }
-.loki-md ol ol { list-style: lower-alpha outside; }
-.loki-md ul ul { list-style: circle outside; }
-.loki-md li { margin: 2px 0; display: list-item; }
-.loki-md li::marker { color: var(--loki-muted); font-variant-numeric: tabular-nums; }
-.loki-md li > p { margin: 0; }
+.loki-md ul,
+.loki-md ol {
+  margin: 4px 0 8px;
+  padding-left: 22px;
+}
+.loki-md ul {
+  list-style: disc outside;
+}
+.loki-md ol {
+  list-style: decimal outside;
+}
+.loki-md ol ol {
+  list-style: lower-alpha outside;
+}
+.loki-md ul ul {
+  list-style: circle outside;
+}
+.loki-md li {
+  margin: 2px 0;
+  display: list-item;
+}
+.loki-md li::marker {
+  color: var(--loki-muted);
+  font-variant-numeric: tabular-nums;
+}
+.loki-md li > p {
+  margin: 0;
+}
 .loki-md code {
-  font-family: var(--loki-mono); font-size: 12px; background: var(--loki-code);
-  padding: 1px 5px; border-radius: 4px;
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  background: var(--loki-code);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 .loki-md pre {
-  margin: 8px 0; padding: 10px 12px; background: var(--loki-well);
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--loki-well);
   /* Wrap long lines rather than growing a scrollbar per block: the bubbles are narrow and this is prose-adjacent output, not an editor. */
-  white-space: pre-wrap; overflow-wrap: anywhere; overflow-x: hidden;
-  border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
 }
-.loki-md pre code { background: transparent; padding: 0; font-size: 12px; line-height: 1.5; }
-.loki-md blockquote { margin: 6px 0; padding: 2px 10px; border-left: 2px solid var(--loki-border); color: var(--loki-muted); }
-.loki-md a { color: var(--loki-accent); text-decoration: none; }
-.loki-md a:hover { text-decoration: underline; }
-.loki-md-img { max-width: 100%; height: auto; border-radius: var(--loki-radius-sm); }
+.loki-md pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.loki-md blockquote {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 2px solid var(--loki-border);
+  color: var(--loki-muted);
+}
+.loki-md a {
+  color: var(--loki-accent);
+  text-decoration: none;
+}
+.loki-md a:hover {
+  text-decoration: underline;
+}
+.loki-md-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--loki-radius-sm);
+}
 .loki-md-remote {
-  font: inherit; font-size: 12px; color: var(--loki-muted); background: transparent; cursor: pointer;
-  border: 1px dashed var(--loki-border); border-radius: var(--loki-radius-sm); padding: 2px 8px; margin: 2px 0;
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: inherit;
+  font-size: 12px;
+  color: var(--loki-muted);
+  background: transparent;
+  cursor: pointer;
+  border: 1px dashed var(--loki-border);
+  border-radius: var(--loki-radius-sm);
+  padding: 2px 8px;
+  margin: 2px 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.loki-md-remote:hover { color: var(--loki-fg); border-color: var(--loki-muted); }
-.loki-md hr { border: 0; border-top: 1px solid var(--loki-border); margin: 10px 0; }
-.loki-md table { border-collapse: collapse; margin: 8px 0; font-size: 12px; display: block; max-width: 100%; overflow-x: auto; }
-.loki-md th, .loki-md td { border: 1px solid var(--loki-border); padding: 4px 8px; text-align: left; }
+.loki-md-remote:hover {
+  color: var(--loki-fg);
+  border-color: var(--loki-muted);
+}
+.loki-md hr {
+  border: 0;
+  border-top: 1px solid var(--loki-border);
+  margin: 10px 0;
+}
+.loki-md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.loki-md th,
+.loki-md td {
+  border: 1px solid var(--loki-border);
+  padding: 4px 8px;
+  text-align: left;
+}
 /* A message wraps anywhere (overflow-wrap: anywhere, above), which also tells a table its cells can be one letter
    wide: a narrow column ("#", 10, 11, 12) was squeezed until its numbers broke digit by digit. In a cell words break
    only when nothing else fits; a link or code, which can be one long run, still breaks anywhere. */
-.loki-md th, .loki-md td { overflow-wrap: break-word; }
-.loki-md th :is(a, code), .loki-md td :is(a, code) { overflow-wrap: anywhere; }
-.loki-md th { color: var(--loki-muted); font-weight: 600; }
-.loki-md strong { color: var(--loki-fg); }
+.loki-md th,
+.loki-md td {
+  overflow-wrap: break-word;
+}
+.loki-md th :is(a, code),
+.loki-md td :is(a, code) {
+  overflow-wrap: anywhere;
+}
+.loki-md th {
+  color: var(--loki-muted);
+  font-weight: 600;
+}
+.loki-md strong {
+  color: var(--loki-fg);
+}
 
 /* Copy as markdown: a glyph under the bubble, at its outer corner (the agent's on the left, yours on the right), shown
    when the row is hovered or holds focus, and kept visible for a beat after it copied. Its row is always there, so
    nothing shifts on hover. The stylesheet zeroes the fade under reduced motion. */
-.loki-bubble { display: flex; flex-direction: column; align-items: flex-start; width: 100%; }
-.loki-bubble[data-role="user"] { align-items: flex-end; }
-.loki-bubble-copy { opacity: 0; transition: opacity 120ms ease-out; flex: none; margin: 0 6px -8px; } /* rides into the next row's top margin: 16px of rhythm, not 24 */
-.loki-bubble:hover .loki-bubble-copy, .loki-bubble:focus-within .loki-bubble-copy, .loki-bubble-copy[data-copied="true"] { opacity: 1; }
-@media (hover: none) { .loki-bubble-copy { opacity: 0.55; } }
+.loki-bubble {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+.loki-bubble[data-role="user"] {
+  align-items: flex-end;
+}
+.loki-bubble-copy {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  flex: none;
+  margin: 0 6px -8px;
+} /* rides into the next row's top margin: 16px of rhythm, not 24 */
+.loki-bubble:hover .loki-bubble-copy,
+.loki-bubble:focus-within .loki-bubble-copy,
+.loki-bubble-copy[data-copied="true"] {
+  opacity: 1;
+}
+@media (hover: none) {
+  .loki-bubble-copy {
+    opacity: 0.55;
+  }
+}
 
 /* Tool and event rows between messages (Transcript.tsx): muted sans meta, the way Slack sets an app's
    notice in a thread. The detail a row opens is data and keeps its own box. The phone restyles them under
    its own root (phone/phone.css). */
 /* A run of tools (ToolSteps.tsx): one quiet line, "Ran 3 commands ›", breathing while it runs; on the desktop the
    steps unfold in place under it, and each step its input and output. */
-.loki-steps { font-size: 12px; color: var(--loki-muted); font-family: var(--loki-font); margin: 2px 0 2px 14px; }
-.loki-steps-line { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 0; border: none; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.loki-steps-line:hover { color: var(--loki-fg); }
-.loki-steps-chev { flex: none; opacity: 0.7; }
-@keyframes loki-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-.loki-steps-line[data-running] .loki-steps-label { animation: loki-breathe 1.6s ease-in-out infinite; }
-.loki-steps-list { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; gap: 2px; }
-.loki-steps-step { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 4px 6px; margin-left: -6px; border: none; border-radius: var(--loki-radius-sm); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; list-style: none; }
-.loki-steps-step:hover { background: var(--loki-hover); }
-.loki-steps-failure { display: flex; align-items: center; gap: 6px; max-width: 100%; margin: 0 0 2px; padding: 1px 0; border: none; background: none; color: var(--loki-negative); font: inherit; text-align: left; cursor: pointer; }
-.loki-steps-failure span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.loki-steps-open { margin: 4px 0 8px; padding: 6px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); max-width: 720px; }
-.loki-steps-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 8px; margin-bottom: 4px; border-bottom: 1px solid var(--loki-border); }
-.loki-steps-chip { padding: 2px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: none; color: var(--loki-muted); font: inherit; cursor: pointer; }
-.loki-steps-chip[aria-pressed="true"] { border-color: var(--loki-accent); color: var(--loki-fg); }
-.loki-steps-chip-n { font-variant-numeric: tabular-nums; opacity: 0.8; }
-.loki-steps-step[data-minor] { padding-top: 2px; padding-bottom: 2px; }
-.loki-steps-step[data-minor] .loki-steps-verb { color: var(--loki-muted); }
-.loki-steps-step::-webkit-details-marker { display: none; }
-.loki-steps-icon { flex: none; margin-top: 1px; }
-.loki-steps-text { display: grid; min-width: 0; }
-.loki-steps-verb { display: inline-flex; align-items: baseline; gap: 6px; color: var(--loki-fg); }
-.loki-steps-failed { color: var(--loki-negative); }
-.loki-steps-target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.loki-steps-detail { display: grid; gap: 8px; margin: 4px 0 8px 24px; }
-.loki-steps-heading { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: var(--loki-muted); }
-.loki-steps-code { margin: 0; padding: 8px 10px; max-height: 240px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font-family: var(--loki-mono); font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
-.loki-steps-desc { margin: 0; padding: 8px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); line-height: 1.45; overflow-wrap: anywhere; }
-.loki-steps-code[data-failed] { border-color: var(--loki-negative); }
-.loki-steps-none { margin: 0; color: var(--loki-muted); }
-.loki-event-row { margin: 8px 0; font-size: 12px; color: var(--loki-muted); }
-.loki-event-summary { font-family: var(--loki-font); }
-.loki-event-aside { color: var(--loki-fg); opacity: 0.75; margin-left: 8px; font-family: var(--loki-font); }
+.loki-steps {
+  font-size: 12px;
+  color: var(--loki-muted);
+  font-family: var(--loki-font);
+  margin: 2px 0 2px 14px;
+}
+.loki-steps-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-steps-line:hover {
+  color: var(--loki-fg);
+}
+.loki-steps-chev {
+  flex: none;
+  opacity: 0.7;
+}
+@keyframes loki-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+.loki-steps-line[data-running] .loki-steps-label {
+  animation: loki-breathe 1.6s ease-in-out infinite;
+}
+.loki-steps-list {
+  list-style: none;
+  margin: 4px 0 6px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.loki-steps-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border: none;
+  border-radius: var(--loki-radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  list-style: none;
+}
+.loki-steps-step:hover {
+  background: var(--loki-hover);
+}
+.loki-steps-failure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0 0 2px;
+  padding: 1px 0;
+  border: none;
+  background: none;
+  color: var(--loki-negative);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.loki-steps-failure span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-steps-open {
+  margin: 4px 0 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+  max-width: 720px;
+}
+.loki-steps-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--loki-border);
+}
+.loki-steps-chip {
+  padding: 2px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: none;
+  color: var(--loki-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.loki-steps-chip[aria-pressed="true"] {
+  border-color: var(--loki-accent);
+  color: var(--loki-fg);
+}
+.loki-steps-chip-n {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+.loki-steps-step[data-minor] {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.loki-steps-step[data-minor] .loki-steps-verb {
+  color: var(--loki-muted);
+}
+.loki-steps-step::-webkit-details-marker {
+  display: none;
+}
+.loki-steps-icon {
+  flex: none;
+  margin-top: 1px;
+}
+.loki-steps-text {
+  display: grid;
+  min-width: 0;
+}
+.loki-steps-verb {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--loki-fg);
+}
+.loki-steps-failed {
+  color: var(--loki-negative);
+}
+.loki-steps-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-steps-detail {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 8px 24px;
+}
+.loki-steps-heading {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--loki-muted);
+}
+.loki-steps-code {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.loki-steps-desc {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.loki-steps-code[data-failed] {
+  border-color: var(--loki-negative);
+}
+.loki-steps-none {
+  margin: 0;
+  color: var(--loki-muted);
+}
+.loki-event-row {
+  margin: 8px 0;
+  font-size: 12px;
+  color: var(--loki-muted);
+}
+.loki-event-summary {
+  font-family: var(--loki-font);
+}
+.loki-event-aside {
+  color: var(--loki-fg);
+  opacity: 0.75;
+  margin-left: 8px;
+  font-family: var(--loki-font);
+}
 .loki-event-detail {
-  margin: 6px 0 0 14px; padding: 8px 10px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-sm);
-  font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; color: var(--loki-fg);
+  margin: 6px 0 0 14px;
+  padding: 8px 10px;
+  background: var(--loki-well);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-sm);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+  color: var(--loki-fg);
 }
 
 /* The agent's open question and the tool it is paused on (QuestionCard.tsx, ApprovalCard.tsx): a panel between
    the thread and the box, edged in the accent blue on its blue wash. The phone draws its own card. */
-.loki-question { padding: 8px 20px 10px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); display: grid; gap: 8px; max-height: 38%; overflow-y: auto; flex: 0 0 auto; }
-.loki-approval { padding: 12px 20px; border-top: 1px solid var(--loki-accent); background: var(--loki-brass-soft); }
+.loki-question {
+  padding: 8px 20px 10px;
+  border-top: 1px solid var(--loki-accent);
+  background: var(--loki-brass-soft);
+  display: grid;
+  gap: 8px;
+  max-height: 38%;
+  overflow-y: auto;
+  flex: 0 0 auto;
+}
+.loki-approval {
+  padding: 12px 20px;
+  border-top: 1px solid var(--loki-accent);
+  background: var(--loki-brass-soft);
+}
 .loki-approval-input {
-  margin: 0; padding: 10px 12px; background: var(--loki-well); border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md);
-  font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto; color: var(--loki-fg);
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--loki-well);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 140px;
+  overflow: auto;
+  color: var(--loki-fg);
 }
 
 /* The message box, one for the phone and the desktop (Conversation.tsx, ChatInput.tsx; 2026-09-24, after
@@ -113,7 +441,10 @@
    model pill, then the mic and send at the end, all one height (28 here, 36 on the phone). Static values live
    here so the phone restyles them by class (phone/phone.css); the gutters stay inline, since the host sets
    them at runtime. The focus flash goes round the whole field, not the bare text inside it. */
-.loki-composer { position: relative; display: flex; }
+.loki-composer {
+  position: relative;
+  display: flex;
+}
 .loki-composer-box {
   position: relative;
   flex: 1;
@@ -127,175 +458,767 @@
   background: var(--loki-well);
   transition: border-color 120ms ease-out;
 }
-.loki-composer-box:focus-within { border-color: var(--loki-muted); }
+.loki-composer-box:focus-within {
+  border-color: var(--loki-muted);
+}
 /* Listening: the field's edge turns the accent until the recogniser stops. */
-.loki-composer-box[data-listening] { border-color: var(--loki-accent); }
-.loki-composer-box:has(.loki-composer-text:focus-visible) { outline: 2px solid transparent; outline-offset: -1px; animation: none; }
-.loki-composer-text:focus-visible { outline-color: transparent; animation: none; }
-.loki-field.loki-composer-text { min-height: 0; padding: 4px 6px; border: none; background: transparent; line-height: 20px; }
-.loki-composer-images { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 4px 0; }
+.loki-composer-box[data-listening] {
+  border-color: var(--loki-accent);
+}
+.loki-composer-box:has(.loki-composer-text:focus-visible) {
+  outline: 2px solid transparent;
+  outline-offset: -1px;
+  animation: none;
+}
+.loki-composer-text:focus-visible {
+  outline-color: transparent;
+  animation: none;
+}
+.loki-field.loki-composer-text {
+  min-height: 0;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  line-height: 20px;
+}
+.loki-composer-images {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 4px 0;
+}
 /* A file on a message (ChatInput's chips before sending, Transcript's on the sent bubble): icon, name, size. */
-.loki-file-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; min-height: 32px; padding: 4px 8px 4px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); color: var(--loki-fg); font: inherit; font-size: 13.5px; line-height: 1.3; text-align: left; }
-button.loki-file-chip { cursor: pointer; }
-button.loki-file-chip:hover { border-color: var(--loki-muted); }
-.loki-file-chip[data-failed] { border-color: var(--loki-negative); }
-.loki-file-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.loki-file-chip-size { flex: none; color: var(--loki-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.loki-file-chip-remove { flex: none; width: 20px; height: 20px; margin-left: 2px; padding: 0; border: 0; border-radius: var(--loki-radius-pill); background: transparent; color: var(--loki-muted); font-size: 15px; line-height: 20px; cursor: pointer; }
-.loki-file-chip-remove:hover { background: var(--loki-border); color: var(--loki-fg); }
-.loki-file-error { display: block; padding: 4px 6px 0; }
-.loki-bubble-files { display: flex; gap: 6px; flex-wrap: wrap; }
-.loki-composer-bar { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.loki-composer-end { display: flex; align-items: center; gap: 4px; margin-left: auto; flex: none; }
-.loki-btn.loki-composer-round { position: relative; flex: none; border-radius: var(--loki-radius-pill); }
-.loki-composer-attach { color: var(--loki-fg); }
+.loki-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  min-height: 32px;
+  padding: 4px 8px 4px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+  color: var(--loki-fg);
+  font: inherit;
+  font-size: 13.5px;
+  line-height: 1.3;
+  text-align: left;
+}
+button.loki-file-chip {
+  cursor: pointer;
+}
+button.loki-file-chip:hover {
+  border-color: var(--loki-muted);
+}
+.loki-file-chip[data-failed] {
+  border-color: var(--loki-negative);
+}
+.loki-file-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.loki-file-chip-size {
+  flex: none;
+  color: var(--loki-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.loki-file-chip-remove {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--loki-radius-pill);
+  background: transparent;
+  color: var(--loki-muted);
+  font-size: 15px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.loki-file-chip-remove:hover {
+  background: var(--loki-border);
+  color: var(--loki-fg);
+}
+.loki-file-error {
+  display: block;
+  padding: 4px 6px 0;
+}
+.loki-bubble-files {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.loki-composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.loki-composer-end {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  flex: none;
+}
+.loki-btn.loki-composer-round {
+  position: relative;
+  flex: none;
+  border-radius: var(--loki-radius-pill);
+}
+.loki-composer-attach {
+  color: var(--loki-fg);
+}
 /* Send: Slack's green once there is something to send; a muted circle while the box is empty. */
-.loki-btn.loki-composer-send:disabled { background: var(--loki-hover); color: var(--loki-muted); opacity: 1; }
+.loki-btn.loki-composer-send:disabled {
+  background: var(--loki-hover);
+  color: var(--loki-muted);
+  opacity: 1;
+}
 /* Stop, in send's place while the agent works (Claude's): a filled round in the ink colour with a square in it. */
-.loki-btn.loki-composer-stop { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); }
-.loki-btn.loki-composer-stop:hover:not(:disabled) { border-color: var(--loki-fg); background: var(--loki-fg); color: var(--loki-bg); opacity: 0.85; }
-.loki-btn.loki-composer-stop:disabled { opacity: 0.5; }
+.loki-btn.loki-composer-stop {
+  border-color: var(--loki-fg);
+  background: var(--loki-fg);
+  color: var(--loki-bg);
+}
+.loki-btn.loki-composer-stop:hover:not(:disabled) {
+  border-color: var(--loki-fg);
+  background: var(--loki-fg);
+  color: var(--loki-bg);
+  opacity: 0.85;
+}
+.loki-btn.loki-composer-stop:disabled {
+  opacity: 0.5;
+}
 /* The model pill: the model in the foreground, the effort after it in the muted colour, one height with the row. */
-.loki-chip.loki-model-pill { min-height: 28px; min-width: 0; flex: 0 1 auto; padding: 0 8px 0 10px; color: var(--loki-fg); font-weight: 600; }
-.loki-model-pill-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.loki-model-pill-effort { flex: none; color: var(--loki-muted); font-weight: 400; }
-.loki-model-pill-chev { color: var(--loki-muted); }
+.loki-chip.loki-model-pill {
+  min-height: 28px;
+  min-width: 0;
+  flex: 0 1 auto;
+  padding: 0 8px 0 10px;
+  color: var(--loki-fg);
+  font-weight: 600;
+}
+.loki-model-pill-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.loki-model-pill-effort {
+  flex: none;
+  color: var(--loki-muted);
+  font-weight: 400;
+}
+.loki-model-pill-chev {
+  color: var(--loki-muted);
+}
 /* The permission mode beside the model pill, the same height and shape; its menu opens above it. */
-.loki-mode-anchor { position: relative; display: inline-flex; min-width: 0; flex: 0 1 auto; }
-.loki-chip.loki-mode-pill { gap: 5px; font-weight: 400; }
+.loki-mode-anchor {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.loki-chip.loki-mode-pill {
+  gap: 5px;
+  font-weight: 400;
+}
 /* Its menu is wider than the chip it hangs from: sized to the viewport, not to the anchor. */
-.loki-mode-anchor > .loki-popover { max-width: min(300px, calc(100vw - 32px)); }
+.loki-mode-anchor > .loki-popover {
+  max-width: min(300px, calc(100vw - 32px));
+}
 
 /* Select model (ModelPicker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
    chevron in Effort and More models), a card of choices split by hairlines with a check in the accent on the
    current one, then Effort › and More models › as rounded rows of their own. */
-.loki-model-popover { max-height: min(460px, 70vh); display: flex; flex-direction: column; }
-.loki-model { display: flex; flex-direction: column; min-height: 0; }
-.loki-model-bar { display: grid; grid-template-columns: 28px 1fr 28px; align-items: center; gap: 4px; padding: 8px 8px 4px; }
-.loki-model-spacer { width: 24px; height: 24px; }
-.loki-model-title { margin: 0; text-align: center; font-family: var(--loki-font); font-size: 13.5px; font-weight: 700; color: var(--loki-fg); }
+.loki-model-popover {
+  max-height: min(460px, 70vh);
+  display: flex;
+  flex-direction: column;
+}
+.loki-model {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.loki-model-bar {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 4px;
+}
+.loki-model-spacer {
+  width: 24px;
+  height: 24px;
+}
+.loki-model-title {
+  margin: 0;
+  text-align: center;
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--loki-fg);
+}
 /* Rows at their content's height: the cards clip (overflow: hidden), so auto rows would shrink them into the
    capped popover and cut More models off instead of letting the body scroll. */
-.loki-model-body { display: grid; grid-auto-rows: max-content; gap: 8px; padding: 4px 8px 8px; overflow-y: auto; min-height: 0; }
-.loki-model-card { border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); overflow: hidden; }
-.loki-row.loki-model-row { align-items: center; gap: 8px; }
-.loki-model-copy { display: grid; flex: 1; min-width: 0; gap: 1px; }
-.loki-model-name { font-size: 13.5px; font-weight: 600; color: var(--loki-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.loki-model-line { font-size: 12px; color: var(--loki-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.loki-model-check { flex: none; color: var(--loki-accent); }
-.loki-model-link-label { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
-.loki-model-aside { font-size: 12px; color: var(--loki-muted); }
-.loki-model-chev { flex: none; color: var(--loki-muted); }
-.loki-model-provider { padding: 6px 10px 2px; }
-.loki-model-status { margin: 0; padding: 10px; font-size: 12px; color: var(--loki-muted); }
-.loki-model-foot { padding: 5px 10px; border-top: 1px solid var(--loki-border); }
-.loki-conversation-footer { position: relative; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.loki-approval-kicker { color: var(--loki-accent); margin-bottom: 8px; }
-.loki-question-kicker { color: var(--loki-accent); font-size: 12px; font-weight: 700; }
-.loki-question-text { font-family: var(--loki-font); font-size: 13.5px; font-weight: 600; color: var(--loki-fg); }
-.loki-thread-error { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--loki-negative); font-family: var(--loki-font); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
-.loki-thread-error-raw { flex-basis: 100%; color: var(--loki-muted); }
-.loki-thread-error-raw summary { cursor: pointer; width: max-content; }
-.loki-thread-error-raw pre { margin: 4px 0 0; padding: 8px 10px; max-height: 160px; overflow: auto; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-md); background: var(--loki-panel); font-family: var(--loki-mono); font-size: 12px; white-space: pre-wrap; }
+.loki-model-body {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: 8px;
+  padding: 4px 8px 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.loki-model-card {
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+  overflow: hidden;
+}
+.loki-row.loki-model-row {
+  align-items: center;
+  gap: 8px;
+}
+.loki-model-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+.loki-model-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--loki-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-model-line {
+  font-size: 12px;
+  color: var(--loki-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-model-check {
+  flex: none;
+  color: var(--loki-accent);
+}
+.loki-model-link-label {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-model-aside {
+  font-size: 12px;
+  color: var(--loki-muted);
+}
+.loki-model-chev {
+  flex: none;
+  color: var(--loki-muted);
+}
+.loki-model-provider {
+  padding: 6px 10px 2px;
+}
+.loki-model-status {
+  margin: 0;
+  padding: 10px;
+  font-size: 12px;
+  color: var(--loki-muted);
+}
+.loki-model-foot {
+  padding: 5px 10px;
+  border-top: 1px solid var(--loki-border);
+}
+.loki-conversation-footer {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.loki-approval-kicker {
+  color: var(--loki-accent);
+  margin-bottom: 8px;
+}
+.loki-question-kicker {
+  color: var(--loki-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.loki-question-text {
+  font-family: var(--loki-font);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-thread-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--loki-negative);
+  font-family: var(--loki-font);
+  font-size: 12px;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+.loki-thread-error-raw {
+  flex-basis: 100%;
+  color: var(--loki-muted);
+}
+.loki-thread-error-raw summary {
+  cursor: pointer;
+  width: max-content;
+}
+.loki-thread-error-raw pre {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  max-height: 160px;
+  overflow: auto;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-md);
+  background: var(--loki-panel);
+  font-family: var(--loki-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
 
 /* The avatar-led message layout (Transcript's Message and Divider), on the desktop: Slack's anatomy — the face
    and bold name at a run's start, the body under the name, the whole row tinted on hover. These classes render
    only when a host passes `layout.people`, so bubbles stay the desktop default; `:not(.loki-phone *)` keeps
    every rule off the phone, which draws the same classes its own way (phone/phone.css). The row bleeds into
    the thread's 20px gutter so the hover tint runs edge to edge. */
-.loki-msg:not(.loki-phone *) { display: flex; align-items: flex-start; gap: 8px; margin: 0 -20px; padding: 2px 20px; transition: background-color 120ms ease-out; }
-.loki-msg[data-first]:not(.loki-phone *) { margin-top: 8px; padding-top: 6px; }
-.loki-msg:not(.loki-phone *):hover { background: var(--loki-hover); }
-.loki-msg[data-queued]:not(.loki-phone *) .loki-msg-body { opacity: 0.7; }
-.loki-msg-face:not(.loki-phone *) { flex: none; width: 36px; }
-.loki-msg-copy:not(.loki-phone *) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.loki-msg-name:not(.loki-phone *) { font-size: 13.5px; font-weight: 700; line-height: 1.3; color: var(--loki-fg); }
-.loki-msg-body:not(.loki-phone *) { font-size: 13.5px; line-height: 1.5; color: var(--loki-fg); }
-.loki-msg-body:not(.loki-phone *) img { max-width: 100%; height: auto; }
-.loki-msg-queued:not(.loki-phone *) { margin-top: 4px; }
+.loki-msg:not(.loki-phone *) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 -20px;
+  padding: 2px 20px;
+  transition: background-color 120ms ease-out;
+}
+.loki-msg[data-first]:not(.loki-phone *) {
+  margin-top: 8px;
+  padding-top: 6px;
+}
+.loki-msg:not(.loki-phone *):hover {
+  background: var(--loki-hover);
+}
+.loki-msg[data-queued]:not(.loki-phone *) .loki-msg-body {
+  opacity: 0.7;
+}
+.loki-msg-face:not(.loki-phone *) {
+  flex: none;
+  width: 36px;
+}
+.loki-msg-copy:not(.loki-phone *) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.loki-msg-name:not(.loki-phone *) {
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--loki-fg);
+}
+.loki-msg-body:not(.loki-phone *) {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--loki-fg);
+}
+.loki-msg-body:not(.loki-phone *) img {
+  max-width: 100%;
+  height: auto;
+}
+.loki-msg-queued:not(.loki-phone *) {
+  margin-top: 4px;
+}
 /* The red "New" line: the day on the left, a hairline in the badge red, "New" on the right in the negative ink (AA as text; the badge red is for fills). */
-.loki-msg-divider:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 16px 0 4px; font-size: 12px; font-weight: 700; }
-.loki-msg-divider-day:not(.loki-phone *) { color: var(--loki-fg); }
-.loki-msg-divider-rule:not(.loki-phone *) { flex: 1; height: 1px; background: var(--loki-attention); }
-.loki-msg-divider-new:not(.loki-phone *) { color: var(--loki-negative); }
+.loki-msg-divider:not(.loki-phone *) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.loki-msg-divider-day:not(.loki-phone *) {
+  color: var(--loki-fg);
+}
+.loki-msg-divider-rule:not(.loki-phone *) {
+  flex: 1;
+  height: 1px;
+  background: var(--loki-attention);
+}
+.loki-msg-divider-new:not(.loki-phone *) {
+  color: var(--loki-negative);
+}
 /* Message times (TranscriptRow.at): quiet, beside the copy button under the message (and after a widget row's words). */
-.loki-msg-time:not(.loki-phone *) { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--loki-muted); }
+.loki-msg-time:not(.loki-phone *) {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--loki-muted);
+}
 /* Under every message, its copy button: faint until the row is hovered or holds focus, and full for a beat after it
    copied. The row is always there, so nothing shifts on hover; it rides a little into the next message's space. */
-.loki-msg-actions:not(.loki-phone *) { display: flex; align-items: center; gap: 2px; min-height: 24px; margin: 0 0 -6px -4px; }
-.loki-msg-actions .loki-msg-time:not(.loki-phone *) { margin-left: 4px; }
-.loki-msg-action:not(.loki-phone *) { opacity: 0.35; transition: opacity 120ms ease-out; }
-.loki-msg:not(.loki-phone *):hover .loki-msg-action, .loki-msg-action:not(.loki-phone *):focus-visible, .loki-msg-action[data-copied="true"] { opacity: 1; }
-.loki-msg-action[data-copied="true"] { color: var(--loki-positive); }
+.loki-msg-actions:not(.loki-phone *) {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+  margin: 0 0 -6px -4px;
+}
+.loki-msg-actions .loki-msg-time:not(.loki-phone *) {
+  margin-left: 4px;
+}
+.loki-msg-action:not(.loki-phone *) {
+  opacity: 0.35;
+  transition: opacity 120ms ease-out;
+}
+.loki-msg:not(.loki-phone *):hover .loki-msg-action,
+.loki-msg-action:not(.loki-phone *):focus-visible,
+.loki-msg-action[data-copied="true"] {
+  opacity: 1;
+}
+.loki-msg-action[data-copied="true"] {
+  color: var(--loki-positive);
+}
 /* A day's block and its pill: the hairline runs across the day's top; the pill rides the thread's top edge
    until the next day's block pushes it off. */
-.loki-msg-day:not(.loki-phone *) { position: relative; }
-.loki-msg-day:not(.loki-phone *)::before { content: ""; position: absolute; top: 12px; left: 0; right: 0; height: 1px; background: var(--loki-border); }
-.loki-msg-day-pill-wrap:not(.loki-phone *) { position: sticky; top: 0; z-index: 1; display: flex; justify-content: center; padding: 1px 0; margin-top: 4px; pointer-events: none; }
-.loki-msg-day-pill:not(.loki-phone *) { padding: 2px 12px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: var(--loki-bg); font-size: 12px; font-weight: 700; line-height: 1.5; color: var(--loki-fg); }
+.loki-msg-day:not(.loki-phone *) {
+  position: relative;
+}
+.loki-msg-day:not(.loki-phone *)::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--loki-border);
+}
+.loki-msg-day-pill-wrap:not(.loki-phone *) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  padding: 1px 0;
+  margin-top: 4px;
+  pointer-events: none;
+}
+.loki-msg-day-pill:not(.loki-phone *) {
+  padding: 2px 12px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-bg);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--loki-fg);
+}
 /* A widget row (plan 013 U8): one quiet line in the message column, a tile icon in the face's column. Still on
    the desk, the line is a button (the widget's title in the link blue) that opens the Desk tab framed on it. */
-.loki-widget-row:not(.loki-phone *) { display: flex; align-items: center; gap: 8px; margin: 4px -20px; padding: 2px 20px; font-size: 13.5px; line-height: 1.5; color: var(--loki-muted); }
-.loki-widget-row-icon:not(.loki-phone *) { flex: none; display: flex; justify-content: flex-end; width: 36px; color: var(--loki-muted); }
-.loki-widget-row-text:not(.loki-phone *) { min-width: 0; overflow-wrap: anywhere; }
+.loki-widget-row:not(.loki-phone *) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px -20px;
+  padding: 2px 20px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--loki-muted);
+}
+.loki-widget-row-icon:not(.loki-phone *) {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  width: 36px;
+  color: var(--loki-muted);
+}
+.loki-widget-row-text:not(.loki-phone *) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 /* Tool and event lines among avatar-led messages sit in the message column (face 36px + gap 8px), under the text they follow. */
-:is(.loki-msg, .loki-widget-row) ~ :is(.loki-steps, .loki-event-row):not(.loki-phone *) { margin-left: 44px; }
-.loki-widget-row-agent:not(.loki-phone *) { font-weight: 700; color: var(--loki-fg); }
-.loki-widget-row-open:not(.loki-phone *) { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: var(--loki-radius-sm); }
+:is(.loki-msg, .loki-widget-row) ~ :is(.loki-steps, .loki-event-row):not(.loki-phone *) {
+  margin-left: 44px;
+}
+.loki-widget-row-agent:not(.loki-phone *) {
+  font-weight: 700;
+  color: var(--loki-fg);
+}
+.loki-widget-row-open:not(.loki-phone *) {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--loki-radius-sm);
+}
 /* A widget drawn live in the thread, under its latest row (chat/InlineWidget.tsx): a card as wide as the thread allows. */
-.loki-inline-widget { margin: 4px 0 10px 44px; max-width: 760px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-lg); background: var(--loki-panel); overflow: hidden; }
-.loki-inline-widget-head { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--loki-border); color: var(--loki-muted); font-size: 12px; }
-.loki-inline-widget-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--loki-fg); }
-.loki-inline-widget-open { margin-left: auto; padding: 2px 8px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: none; color: var(--loki-muted); font: inherit; cursor: pointer; }
-.loki-inline-widget-open:hover { color: var(--loki-fg); border-color: var(--loki-muted); }
-.loki-inline-widget-body { padding: 12px; overflow-x: auto; }
-.loki-inline-widget-note { margin: 0; color: var(--loki-muted); font-size: 13.5px; }
-.loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title { color: var(--loki-accent); }
-.loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title { text-decoration: underline; }
-.loki-widget-row-open:not(.loki-phone *):focus-visible { outline: 2px solid var(--loki-muted); outline-offset: 2px; animation: loki-focus-flash 1s ease-out; }
-.loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title { text-decoration: line-through; }
-.loki-widget-row .loki-msg-time:not(.loki-phone *) { margin-left: 0; }
+.loki-inline-widget {
+  margin: 4px 0 10px 44px;
+  max-width: 760px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-lg);
+  background: var(--loki-panel);
+  overflow: hidden;
+}
+.loki-inline-widget-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--loki-border);
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+.loki-inline-widget-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--loki-fg);
+}
+.loki-inline-widget-open {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: none;
+  color: var(--loki-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.loki-inline-widget-open:hover {
+  color: var(--loki-fg);
+  border-color: var(--loki-muted);
+}
+.loki-inline-widget-body {
+  padding: 12px;
+  overflow-x: auto;
+}
+.loki-inline-widget-note {
+  margin: 0;
+  color: var(--loki-muted);
+  font-size: 13.5px;
+}
+.loki-widget-row-open:not(.loki-phone *) .loki-widget-row-title {
+  color: var(--loki-accent);
+}
+.loki-widget-row-open:not(.loki-phone *):hover .loki-widget-row-title {
+  text-decoration: underline;
+}
+.loki-widget-row-open:not(.loki-phone *):focus-visible {
+  outline: 2px solid var(--loki-muted);
+  outline-offset: 2px;
+  animation: loki-focus-flash 1s ease-out;
+}
+.loki-widget-row[data-gone]:not(.loki-phone *) .loki-widget-row-title {
+  text-decoration: line-through;
+}
+.loki-widget-row .loki-msg-time:not(.loki-phone *) {
+  margin-left: 0;
+}
 
 /* The agent thinking: "thinking" and three dots rising in turn, as a typing bubble's do. Transform and opacity only. */
-.loki-thinking { display: flex; align-items: baseline; gap: 4px; padding: 6px 0; color: var(--loki-muted); font-size: 12px; }
-.loki-thinking-dots { display: inline-flex; gap: 3px; }
-.loki-thinking-dots > span { width: 4px; height: 4px; border-radius: 50%; background: currentColor; animation: loki-think 1.2s ease-in-out infinite; }
-.loki-thinking-dots > span:nth-child(2) { animation-delay: 0.15s; }
-.loki-thinking-dots > span:nth-child(3) { animation-delay: 0.3s; }
+.loki-thinking {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 6px 0;
+  color: var(--loki-muted);
+  font-size: 12px;
+}
+.loki-thinking-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.loki-thinking-dots > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: loki-think 1.2s ease-in-out infinite;
+}
+.loki-thinking-dots > span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.loki-thinking-dots > span:nth-child(3) {
+  animation-delay: 0.3s;
+}
 @keyframes loki-think {
-  0%, 60%, 100% { opacity: 0.35; transform: none; }
-  30% { opacity: 1; transform: translateY(-3px); }
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: none;
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
 }
 
 /* Add task (tasks/messageTasks.tsx): under a message, its tasks' chips and the editor; both phone and desktop. */
 /* One column that can shrink below its content, so a long title ellipsises inside the message instead of pushing out. */
-.loki-msg-tasks { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin: 6px 0 2px; justify-items: start; }
-.loki-msg-task { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; max-width: 100%; min-width: 0; }
-.loki-msg-task-open { all: unset; box-sizing: border-box; display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; padding: 3px 10px; border: 1px solid var(--loki-border); border-radius: var(--loki-radius-pill); background: var(--loki-panel); font-size: 12px; line-height: 1.45; color: var(--loki-fg); }
-button.loki-msg-task-open { cursor: pointer; }
-button.loki-msg-task-open:hover { border-color: var(--loki-control-border); }
-button.loki-msg-task-open:focus-visible { outline: 2px solid var(--loki-accent); outline-offset: 1px; }
-.loki-msg-task-mark { flex: 0 0 auto; font-weight: 700; color: var(--loki-muted); }
-.loki-msg-task-state { flex: 0 0 auto; font-weight: 600; white-space: nowrap; }
-.loki-msg-task-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.loki-msg-task-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--loki-muted); }
-.loki-msg-task-note::before { content: "· "; }
-.loki-msg-task[data-state="waiting"] .loki-msg-task-open { border-color: var(--loki-accent); background: var(--loki-selection); }
-.loki-msg-task[data-state="waiting"] .loki-msg-task-mark, .loki-msg-task[data-state="waiting"] .loki-msg-task-state { color: var(--loki-accent); }
+.loki-msg-tasks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin: 6px 0 2px;
+  justify-items: start;
+}
+.loki-msg-task {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+.loki-msg-task-open {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--loki-border);
+  border-radius: var(--loki-radius-pill);
+  background: var(--loki-panel);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--loki-fg);
+}
+button.loki-msg-task-open {
+  cursor: pointer;
+}
+button.loki-msg-task-open:hover {
+  border-color: var(--loki-control-border);
+}
+button.loki-msg-task-open:focus-visible {
+  outline: 2px solid var(--loki-accent);
+  outline-offset: 1px;
+}
+.loki-msg-task-mark {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--loki-muted);
+}
+.loki-msg-task-state {
+  flex: 0 0 auto;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.loki-msg-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.loki-msg-task-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--loki-muted);
+}
+.loki-msg-task-note::before {
+  content: "· ";
+}
+.loki-msg-task[data-state="waiting"] .loki-msg-task-open {
+  border-color: var(--loki-accent);
+  background: var(--loki-selection);
+}
+.loki-msg-task[data-state="waiting"] .loki-msg-task-mark,
+.loki-msg-task[data-state="waiting"] .loki-msg-task-state {
+  color: var(--loki-accent);
+}
 /* Done: ticked and faded, the title struck through. */
-.loki-msg-task[data-state="done"] .loki-msg-task-open { opacity: 0.6; }
-.loki-msg-task[data-state="done"] .loki-msg-task-mark { color: var(--loki-positive); }
-.loki-msg-task[data-state="done"] .loki-msg-task-title { text-decoration: line-through; }
-.loki-msg-task-answer { display: inline-flex; gap: 6px; }
-.loki-msg-task-editor { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; width: min(560px, 100%); padding: 6px; border: 1px solid var(--loki-accent); border-radius: var(--loki-radius-lg); background: var(--loki-panel); }
-.loki-msg-task-from { flex-basis: 100%; padding: 0 2px; }
+.loki-msg-task[data-state="done"] .loki-msg-task-open {
+  opacity: 0.6;
+}
+.loki-msg-task[data-state="done"] .loki-msg-task-mark {
+  color: var(--loki-positive);
+}
+.loki-msg-task[data-state="done"] .loki-msg-task-title {
+  text-decoration: line-through;
+}
+.loki-msg-task-answer {
+  display: inline-flex;
+  gap: 6px;
+}
+.loki-msg-task-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: min(560px, 100%);
+  padding: 6px;
+  border: 1px solid var(--loki-accent);
+  border-radius: var(--loki-radius-lg);
+  background: var(--loki-panel);
+}
+.loki-msg-task-from {
+  flex-basis: 100%;
+  padding: 0 2px;
+}
 /* The phone's message row keeps Copy only: Add task is in the long press there. */
-.loki-phone .loki-msg-addtask { display: none; }
+.loki-phone .loki-msg-addtask {
+  display: none;
+}
 /* The message a task's "open the message" landed on: marked for a moment. */
-.loki-msg[data-flash="true"] { background: var(--loki-selection); border-radius: var(--loki-radius); transition: background 600ms ease-out; }
-@media (prefers-reduced-motion: reduce) { .loki-msg[data-flash="true"] { transition: none; } }
+.loki-msg[data-flash="true"] {
+  background: var(--loki-selection);
+  border-radius: var(--loki-radius);
+  transition: background 600ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .loki-msg[data-flash="true"] {
+    transition: none;
+  }
+}
 /* In Tasks, where a task from a message came from: its quote, a way back to the message. */
-.loki-task-source { all: unset; box-sizing: border-box; display: flex; align-items: baseline; gap: 6px; max-width: 100%; min-width: 0; font-size: 11px; color: var(--loki-muted); cursor: pointer; }
-.loki-task-source:hover { color: var(--loki-fg); }
-.loki-task-source:focus-visible { outline: 2px solid var(--loki-accent); outline-offset: 2px; border-radius: 3px; }
-.loki-task-source-quote { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: italic; }
+.loki-task-source {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--loki-muted);
+  cursor: pointer;
+}
+.loki-task-source:hover {
+  color: var(--loki-fg);
+}
+.loki-task-source:focus-visible {
+  outline: 2px solid var(--loki-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.loki-task-source-quote {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}

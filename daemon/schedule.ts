@@ -50,12 +50,29 @@ export function parseCron(expr: string): Fields {
   if (parts.length !== 5) throw new Error(`a cron expression has five fields: ${expr}`);
   const weekday = field(parts[4], 0, 7);
   if (weekday.has(7)) weekday.add(0); // Sunday is 0 or 7
-  return { minute: field(parts[0], 0, 59), hour: field(parts[1], 0, 23), day: field(parts[2], 1, 31), month: field(parts[3], 1, 12), weekday, dayStar: parts[2] === "*", weekdayStar: parts[4] === "*" };
+  return {
+    minute: field(parts[0], 0, 59),
+    hour: field(parts[1], 0, 23),
+    day: field(parts[2], 1, 31),
+    month: field(parts[3], 1, 12),
+    weekday,
+    dayStar: parts[2] === "*",
+    weekdayStar: parts[4] === "*",
+  };
 }
 
 /** The wall-clock parts of `at` in a timezone. */
 function partsIn(at: Date, timezone: string) {
-  const f = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", weekday: "short" });
+  const f = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    weekday: "short",
+  });
   const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
   const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(p.weekday);
   return { minute: Number(p.minute), hour: Number(p.hour), day: Number(p.day), month: Number(p.month), weekday };
@@ -113,7 +130,14 @@ export class Schedules {
   create(t: Omit<ScheduledTask, "id" | "status" | "created_at" | "last_fired_at" | "fire_count">, now = new Date()): ScheduledTask {
     parseCron(t.cron);
     partsIn(now, t.timezone); // a timezone Intl does not know throws here
-    const task: ScheduledTask = { ...t, id: randomBytes(4).toString("hex"), status: "active", created_at: now.toISOString(), last_fired_at: null, fire_count: 0 };
+    const task: ScheduledTask = {
+      ...t,
+      id: randomBytes(4).toString("hex"),
+      status: "active",
+      created_at: now.toISOString(),
+      last_fired_at: null,
+      fire_count: 0,
+    };
     this.save([...this.list(), task]);
     return task;
   }
@@ -155,7 +179,9 @@ export class Schedules {
         if (!task.recurring) task.status = "done";
         this.save(tasks);
         fired++;
-        await this.fire(task.agent_id, task.conversation_id, `Scheduled task "${task.name}": ${task.prompt}`).catch((error: unknown) => this.report(`schedule ${task.name} did not fire: ${String(error)}`));
+        await this.fire(task.agent_id, task.conversation_id, `Scheduled task "${task.name}": ${task.prompt}`).catch((error: unknown) =>
+          this.report(`schedule ${task.name} did not fire: ${String(error)}`),
+        );
       }
       return fired;
     } finally {
@@ -188,11 +214,31 @@ export function scheduleExtension(schedules: Schedules): Extension {
         name: "schedule_create",
         description:
           "Schedule a prompt to arrive in this chat on a cron schedule (minute hour day month weekday), in a timezone such as Asia/Kolkata; once (recurring false) or every time it comes due.",
-        parameters: { type: "object", properties: { name: { type: "string" }, cron: { type: "string" }, prompt: { type: "string" }, timezone: { type: "string" }, recurring: { type: "boolean" }, description: { type: "string" } }, required: ["name", "cron", "prompt"] } as never,
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            cron: { type: "string" },
+            prompt: { type: "string" },
+            timezone: { type: "string" },
+            recurring: { type: "boolean" },
+            description: { type: "string" },
+          },
+          required: ["name", "cron", "prompt"],
+        } as never,
         execute: async (args, api, context) => {
           const a = args as { name: string; cron: string; prompt: string; timezone?: string; recurring?: boolean; description?: string };
           const { agentId, chatId } = await caller(api, context);
-          const task = schedules.create({ agent_id: agentId, conversation_id: chatId, name: a.name, description: a.description ?? null, cron: a.cron, timezone: a.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone, recurring: a.recurring !== false, prompt: a.prompt });
+          const task = schedules.create({
+            agent_id: agentId,
+            conversation_id: chatId,
+            name: a.name,
+            description: a.description ?? null,
+            cron: a.cron,
+            timezone: a.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            recurring: a.recurring !== false,
+            prompt: a.prompt,
+          });
           return text(`scheduled "${task.name}" (${task.cron}, ${task.timezone}${task.recurring ? "" : ", once"})`);
         },
       }),
@@ -203,7 +249,11 @@ export function scheduleExtension(schedules: Schedules): Extension {
         execute: async (_args, api, context) => {
           const { agentId } = await caller(api, context);
           const mine = schedules.list().filter((t) => t.agent_id === agentId && t.status === "active");
-          return text(mine.length ? mine.map((t) => `- ${t.name} (${t.id}): ${t.cron} ${t.timezone}${t.recurring ? "" : ", once"}; fired ${t.fire_count}×`).join("\n") : "no scheduled tasks");
+          return text(
+            mine.length
+              ? mine.map((t) => `- ${t.name} (${t.id}): ${t.cron} ${t.timezone}${t.recurring ? "" : ", once"}; fired ${t.fire_count}×`).join("\n")
+              : "no scheduled tasks",
+          );
         },
       }),
       defineTool({

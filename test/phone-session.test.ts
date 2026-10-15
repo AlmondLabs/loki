@@ -5,7 +5,20 @@ import { EMPTY_DECK, commitCard, threadNotice, undoCard } from "../app/src/phone
 import { threadLine } from "../app/src/phone/model.ts";
 import { formatRoute, parseRoute } from "../app/src/phone/router.ts";
 import { keyboardInset } from "../app/src/phone/viewport.ts";
-import { EMPTY_DRAFT, createDrafts, drafts, createFocusMemory, createRecents, createScrollMemory, draftKey, nextPrefill, pushRecent, restoreFocus, sanitizeRecents, type RecentEntry } from "../app/src/phone/session.ts";
+import {
+  EMPTY_DRAFT,
+  createDrafts,
+  drafts,
+  createFocusMemory,
+  createRecents,
+  createScrollMemory,
+  draftKey,
+  nextPrefill,
+  pushRecent,
+  restoreFocus,
+  sanitizeRecents,
+  type RecentEntry,
+} from "../app/src/phone/session.ts";
 
 /**
  * The phone's session layer (app/src/phone/session.ts): drafts keyed by conversation, bounded recent
@@ -100,7 +113,13 @@ describe("recents", () => {
   const e = (v: string, at: number): RecentEntry => ({ v, at });
   test("a new entry goes first; a repeat moves up instead of doubling; the list is bounded", () => {
     let l: RecentEntry[] = [];
-    for (const [v, at] of [["a", 1], ["b", 2], ["c", 3], ["a", 4]] as const) l = pushRecent(l, v, at, 3);
+    for (const [v, at] of [
+      ["a", 1],
+      ["b", 2],
+      ["c", 3],
+      ["a", 4],
+    ] as const)
+      l = pushRecent(l, v, at, 3);
     expect(l.map((x) => x.v)).toEqual(["a", "c", "b"]);
     l = pushRecent(l, "d", 5, 3);
     expect(l.map((x) => x.v)).toEqual(["d", "a", "c"]);
@@ -189,7 +208,10 @@ describe("focus return", () => {
     const f = createFocusMemory();
     const byLaunch = { isConnected: true } as unknown as Element;
     const saved = (globalThis as { document?: unknown }).document;
-    (globalThis as { document?: unknown }).document = { getElementById: () => null, querySelector: (sel: string) => (sel === '[data-launch="desk:a1/c1"]' ? byLaunch : null) };
+    (globalThis as { document?: unknown }).document = {
+      getElementById: () => null,
+      querySelector: (sel: string) => (sel === '[data-launch="desk:a1/c1"]' ? byLaunch : null),
+    };
     try {
       f.remember("#/home", { isConnected: false, id: "gone-id", getAttribute: () => "desk:a1/c1" } as unknown as Element);
       expect(f.take("#/home")).toBe(byLaunch);
@@ -205,7 +227,11 @@ describe("focus return", () => {
 });
 
 describe("focus on arrival", () => {
-  const heading = (away: boolean, log: string[], name: string) => ({ getClientRects: () => [{}], closest: (sel: string) => (away && sel.includes("[data-away]") ? {} : null), focus: () => log.push(name) });
+  const heading = (away: boolean, log: string[], name: string) => ({
+    getClientRects: () => [{}],
+    closest: (sel: string) => (away && sel.includes("[data-away]") ? {} : null),
+    focus: () => log.push(name),
+  });
   test("a heading in a screen kept mounted but away (the hidden Inbox) is not the one focused", () => {
     const log: string[] = [];
     const root = { contains: () => false, querySelectorAll: () => [heading(true, log, "inbox"), heading(false, log, "agents")] } as unknown as Element;
@@ -246,7 +272,28 @@ describe("prefill", () => {
  * the review pass leaves its draft alone.
  */
 describe("drafts through the shared composer", () => {
-  const card = (id: string) => ({ id, agentId: "a1", agentName: "ira", title: id, lastMessageAt: "2026-09-07T10:00:00Z", archived: false, status: "done", lastAssistantText: "x", lastRole: "assistant", pendingApproval: null, pendingQuestion: null, turns: 0, error: null, seenAt: null, unread: true, lastAsk: null, score: 0, reason: "report", runtime: { agent_id: "a1", conversation_id: id } }) as unknown as AttentionItem;
+  const card = (id: string) =>
+    ({
+      id,
+      agentId: "a1",
+      agentName: "ira",
+      title: id,
+      lastMessageAt: "2026-09-07T10:00:00Z",
+      archived: false,
+      status: "done",
+      lastAssistantText: "x",
+      lastRole: "assistant",
+      pendingApproval: null,
+      pendingQuestion: null,
+      turns: 0,
+      error: null,
+      seenAt: null,
+      unread: true,
+      lastAsk: null,
+      score: 0,
+      reason: "report",
+      runtime: { agent_id: "a1", conversation_id: id },
+    }) as unknown as AttentionItem;
 
   test("sending clears only the submitted conversation's draft", () => {
     const d = createDrafts();
@@ -305,7 +352,8 @@ describe("drafts through the shared composer", () => {
  * the header's live line; the notice over the box; and how much of the screen the keyboard takes.
  */
 describe("the conversation page", () => {
-  const card = (over: Partial<AttentionItem> = {}) => ({ id: "c:1/x", agentId: "agent-1", agentName: "friday", title: "Loki mobile", status: "done", ...over }) as unknown as AttentionItem;
+  const card = (over: Partial<AttentionItem> = {}) =>
+    ({ id: "c:1/x", agentId: "agent-1", agentName: "friday", title: "Loki mobile", status: "done", ...over }) as unknown as AttentionItem;
 
   test("an Inbox card and the page it opens share one draft key, through the address and back", () => {
     const item = card();
@@ -330,7 +378,16 @@ describe("the conversation page", () => {
     const k = draftKey("a1", "c1");
     d.set(k, { text: "keep me", images: [img("q")] });
     expect(() =>
-      submitDraft(d.get(k), { question: null, onSend: () => { throw new Error("socket closed"); } }, () => d.clear(k)),
+      submitDraft(
+        d.get(k),
+        {
+          question: null,
+          onSend: () => {
+            throw new Error("socket closed");
+          },
+        },
+        () => d.clear(k),
+      ),
     ).toThrow("socket closed");
     expect(d.get(k)).toEqual({ text: "keep me", images: [img("q")] });
     submitDraft(d.get(k), { question: null, onSend: () => {} }, () => d.clear(k));

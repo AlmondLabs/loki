@@ -21,7 +21,15 @@ export interface Analytics {
   capture(device: DeviceType, event: string, properties?: Record<string, unknown>): boolean;
 }
 
-export function createAnalytics(opts: { path: string | null; statePath: string; appVersion?: string | null; maxBytes?: number; checkEvery?: number; sessionGapMs?: number; now?: () => Date }): Analytics {
+export function createAnalytics(opts: {
+  path: string | null;
+  statePath: string;
+  appVersion?: string | null;
+  maxBytes?: number;
+  checkEvery?: number;
+  sessionGapMs?: number;
+  now?: () => Date;
+}): Analytics {
   const { path, statePath } = opts;
   const max = opts.maxBytes ?? EVENTS_MAX_BYTES;
   const every = opts.checkEvery ?? EVENTS_CHECK_EVERY;

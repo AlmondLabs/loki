@@ -19,7 +19,12 @@ export interface McpApi {
 
 export type McpEdit = { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
 
-const STATE_TONE: Record<McpServerView["state"], string> = { connected: "var(--loki-positive)", starting: "var(--loki-accent)", down: "var(--loki-negative)", signin: "var(--loki-accent)" };
+const STATE_TONE: Record<McpServerView["state"], string> = {
+  connected: "var(--loki-positive)",
+  starting: "var(--loki-accent)",
+  down: "var(--loki-negative)",
+  signin: "var(--loki-accent)",
+};
 const KEYCHAIN = /^\$\{keychain:[A-Za-z0-9_.-]+\}$/;
 
 /** "about 9k tokens": a cost as the list shows it. */
@@ -36,7 +41,10 @@ export function parsePairs(text: string, sep: "=" | ":"): Record<string, string>
   }
   return out;
 }
-export const pairsText = (pairs: Record<string, string>, sep: "=" | ":"): string => Object.entries(pairs).map(([k, v]) => `${k}${sep === ":" ? ": " : "="}${v}`).join("\n");
+export const pairsText = (pairs: Record<string, string>, sep: "=" | ":"): string =>
+  Object.entries(pairs)
+    .map(([k, v]) => `${k}${sep === ":" ? ": " : "="}${v}`)
+    .join("\n");
 
 /**
  * Settings › MCP: the servers in ~/.loki/mcp.json, each with its state, its tools and what loading them all would
@@ -70,23 +78,43 @@ export function Mcp({ api }: { api: McpApi }) {
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div className="loki-meta loki-meta--wrap">
-        Agents see each server and its tools' names; a tool's full definition is loaded only when the agent searches for it, unless it is checked "always loaded". The file is <span style={{ fontFamily: "var(--loki-mono)" }}>{view.configPath}</span>.
+        Agents see each server and its tools' names; a tool's full definition is loaded only when the agent searches for it, unless it is checked "always
+        loaded". The file is <span style={{ fontFamily: "var(--loki-mono)" }}>{view.configPath}</span>.
       </div>
       {view.problems.map((p) => (
-        <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">{p}</div>
+        <div key={p} className="loki-meta loki-meta--negative loki-meta--wrap">
+          {p}
+        </div>
       ))}
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
       <div style={{ display: "grid", gap: 2 }}>
         {view.servers.map((s) => (
-          <ServerRow key={s.name} s={s} open={open === s.name} onToggle={() => setOpen(open === s.name ? null : s.name)} onEdit={() => setEditing(s)} api={api} apply={apply} />
+          <ServerRow
+            key={s.name}
+            s={s}
+            open={open === s.name}
+            onToggle={() => setOpen(open === s.name ? null : s.name)}
+            onEdit={() => setEditing(s)}
+            api={api}
+            apply={apply}
+          />
         ))}
-        {view.servers.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>no servers yet</div>}
+        {view.servers.length === 0 && (
+          <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
+            no servers yet
+          </div>
+        )}
       </div>
       {editing ? (
-        <ServerForm key={editing === "new" ? "new" : editing.name} server={editing === "new" ? null : editing} api={api} onDone={(r) => {
-          if (r) apply(r);
-          setEditing(null);
-        }} />
+        <ServerForm
+          key={editing === "new" ? "new" : editing.name}
+          server={editing === "new" ? null : editing}
+          api={api}
+          onDone={(r) => {
+            if (r) apply(r);
+            setEditing(null);
+          }}
+        />
       ) : (
         <Button size="sm" tone="brass" onClick={() => setEditing("new")} style={{ justifySelf: "start" }}>
           + add a server
@@ -96,20 +124,53 @@ export function Mcp({ api }: { api: McpApi }) {
   );
 }
 
-function ServerRow({ s, open, onToggle, onEdit, api, apply }: { s: McpServerView; open: boolean; onToggle: () => void; onEdit: () => void; api: McpApi; apply: (r: McpView | string) => void }) {
+function ServerRow({
+  s,
+  open,
+  onToggle,
+  onEdit,
+  api,
+  apply,
+}: {
+  s: McpServerView;
+  open: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  api: McpApi;
+  apply: (r: McpView | string) => void;
+}) {
   const [confirm, setConfirm] = useState(false);
   const loaded = s.tools.filter((t) => t.alwaysLoad).map((t) => t.name);
   const toggleAlways = (name: string, on: boolean) => void api.alwaysLoad(s.entry, on ? [...loaded, name] : loaded.filter((n) => n !== name)).then(apply);
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <Row dense selected={open} onClick={onToggle} aria-expanded={open} aria-label={`${s.entry}, ${s.kind} server, ${s.state === "connected" ? `${s.tools.length} tools` : s.state === "signin" ? "needs sign-in" : s.state}`} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}>
+      <Row
+        dense
+        selected={open}
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={`${s.entry}, ${s.kind} server, ${s.state === "connected" ? `${s.tools.length} tools` : s.state === "signin" ? "needs sign-in" : s.state}`}
+        style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 10 }}
+      >
         <Dot color={STATE_TONE[s.state]} />
         <span style={{ minWidth: 0 }}>
           <strong>{s.entry}</strong>
-          <span className="loki-meta" style={{ marginLeft: 8 }}>{s.kind}</span>
-          {s.purpose && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{s.purpose}</span>}
+          <span className="loki-meta" style={{ marginLeft: 8 }}>
+            {s.kind}
+          </span>
+          {s.purpose && (
+            <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
+              {s.purpose}
+            </span>
+          )}
         </span>
-        <span className="loki-meta">{s.state === "connected" ? `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} · ${tokenLabel(s.tokens)} if all loaded` : s.state === "signin" ? "needs sign-in" : s.state}</span>
+        <span className="loki-meta">
+          {s.state === "connected"
+            ? `${s.tools.length} tool${s.tools.length === 1 ? "" : "s"} · ${tokenLabel(s.tokens)} if all loaded`
+            : s.state === "signin"
+              ? "needs sign-in"
+              : s.state}
+        </span>
       </Row>
       {open && (
         <div style={{ display: "grid", gap: 8, padding: "4px 8px 10px 28px" }}>
@@ -122,9 +183,21 @@ function ServerRow({ s, open, onToggle, onEdit, api, apply }: { s: McpServerView
                   <input type="checkbox" checked={t.alwaysLoad} onChange={(e) => toggleAlways(t.name, e.target.checked)} aria-label={`always load ${t.name}`} />
                   <span style={{ minWidth: 0 }}>
                     <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12 }}>{t.name}</span>
-                    {t.readOnly && <Chip static tag style={{ marginLeft: 6 }}>read-only</Chip>}
-                    {t.destructive && <Chip static tag style={{ marginLeft: 6 }}>destructive</Chip>}
-                    {t.description && <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>{t.description.split("\n")[0]}</span>}
+                    {t.readOnly && (
+                      <Chip static tag style={{ marginLeft: 6 }}>
+                        read-only
+                      </Chip>
+                    )}
+                    {t.destructive && (
+                      <Chip static tag style={{ marginLeft: 6 }}>
+                        destructive
+                      </Chip>
+                    )}
+                    {t.description && (
+                      <span className="loki-meta loki-meta--wrap" style={{ display: "block" }}>
+                        {t.description.split("\n")[0]}
+                      </span>
+                    )}
                   </span>
                   <span className="loki-meta">{tokenLabel(t.tokens)}</span>
                 </label>
@@ -133,15 +206,25 @@ function ServerRow({ s, open, onToggle, onEdit, api, apply }: { s: McpServerView
             </div>
           )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button size="sm" tone="paper" onClick={() => void api.restart(s.name).then(apply)}>restart</Button>
-            <Button size="sm" tone="paper" onClick={onEdit}>edit</Button>
+            <Button size="sm" tone="paper" onClick={() => void api.restart(s.name).then(apply)}>
+              restart
+            </Button>
+            <Button size="sm" tone="paper" onClick={onEdit}>
+              edit
+            </Button>
             {confirm ? (
               <>
-                <Button size="sm" tone="negative" onClick={() => void api.server(s.entry, null).then(apply)}>remove {s.entry}</Button>
-                <Button size="sm" onClick={() => setConfirm(false)}>keep it</Button>
+                <Button size="sm" tone="negative" onClick={() => void api.server(s.entry, null).then(apply)}>
+                  remove {s.entry}
+                </Button>
+                <Button size="sm" onClick={() => setConfirm(false)}>
+                  keep it
+                </Button>
               </>
             ) : (
-              <Button size="sm" onClick={() => setConfirm(true)}>remove</Button>
+              <Button size="sm" onClick={() => setConfirm(true)}>
+                remove
+              </Button>
             )}
           </div>
         </div>
@@ -159,9 +242,13 @@ function SignIn({ s, onSignOut }: { s: McpServerView; onSignOut: () => void }) {
   if (s.state === "signin")
     return (
       <div style={{ display: "grid", gap: 6 }}>
-        <span className="loki-meta loki-meta--wrap">{s.entry} needs you to sign in before its tools can be used. Your browser opens its sign-in page and comes back to loki.</span>
+        <span className="loki-meta loki-meta--wrap">
+          {s.entry} needs you to sign in before its tools can be used. Your browser opens its sign-in page and comes back to loki.
+        </span>
         {signIn.url ? (
-          <Button size="sm" tone="positive" onClick={() => openExternal(signIn.url!)} style={{ justifySelf: "start" }}>sign in to {s.entry}</Button>
+          <Button size="sm" tone="positive" onClick={() => openExternal(signIn.url!)} style={{ justifySelf: "start" }}>
+            sign in to {s.entry}
+          </Button>
         ) : (
           <span className="loki-meta loki-meta--wrap">getting the sign-in page… (restart if it does not come)</span>
         )}
@@ -171,7 +258,9 @@ function SignIn({ s, onSignOut }: { s: McpServerView; onSignOut: () => void }) {
     return (
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <span className="loki-meta">signed in</span>
-        <Button size="sm" onClick={onSignOut}>sign out</Button>
+        <Button size="sm" onClick={onSignOut}>
+          sign out
+        </Button>
       </div>
     );
   return null;
@@ -216,7 +305,15 @@ export async function secureValues(pairs: Record<string, string>, prefix: string
 /** The form as the edit Settings sends; `secure` turns values into keychain references when asked. */
 export async function editOf(form: Form, secure: (pairs: Record<string, string>) => Promise<Record<string, string>>): Promise<McpEdit> {
   if (form.kind === "remote") return { url: form.url.trim(), headers: await secure(parsePairs(form.headers, ":")) };
-  return { command: form.command.trim(), args: form.args.split("\n").map((a) => a.trim()).filter(Boolean), env: await secure(parsePairs(form.env, "=")), cwd: form.cwd.trim() || null };
+  return {
+    command: form.command.trim(),
+    args: form.args
+      .split("\n")
+      .map((a) => a.trim())
+      .filter(Boolean),
+    env: await secure(parsePairs(form.env, "=")),
+    cwd: form.cwd.trim() || null,
+  };
 }
 
 /** Add or edit one server: local (a command loki starts) or remote (a URL), its env or headers as lines. */
@@ -248,21 +345,41 @@ function ServerForm({ server, api, onDone }: { server: McpServerView | null; api
   return (
     <div style={{ display: "grid", gap: 8, padding: 12, border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)" }}>
       <strong>{server ? `Edit ${server.entry}` : "Add a server"}</strong>
-      <label htmlFor={`${uid}-name`} className="loki-label">Name</label>
-      <Field id={`${uid}-name`} size="sm" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="github" autoComplete="off" data-1p-ignore />
+      <label htmlFor={`${uid}-name`} className="loki-label">
+        Name
+      </label>
+      <Field
+        id={`${uid}-name`}
+        size="sm"
+        value={form.name}
+        onChange={(e) => set("name", e.target.value)}
+        placeholder="github"
+        autoComplete="off"
+        data-1p-ignore
+      />
       <div role="group" aria-label="Kind" style={{ display: "flex", gap: 4 }}>
-        <Chip active={form.kind === "local"} aria-pressed={form.kind === "local"} onClick={() => set("kind", "local")}>local (a command)</Chip>
-        <Chip active={form.kind === "remote"} aria-pressed={form.kind === "remote"} onClick={() => set("kind", "remote")}>remote (a URL)</Chip>
+        <Chip active={form.kind === "local"} aria-pressed={form.kind === "local"} onClick={() => set("kind", "local")}>
+          local (a command)
+        </Chip>
+        <Chip active={form.kind === "remote"} aria-pressed={form.kind === "remote"} onClick={() => set("kind", "remote")}>
+          remote (a URL)
+        </Chip>
       </div>
       {form.kind === "local" ? <LocalFields uid={uid} form={form} set={set} /> : <RemoteFields uid={uid} form={form} set={set} />}
       <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
         <input type="checkbox" checked={keychain} onChange={(e) => setKeychain(e.target.checked)} />
-        <span className="loki-meta loki-meta--wrap">keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them</span>
+        <span className="loki-meta loki-meta--wrap">
+          keep {form.kind === "local" ? "environment" : "header"} values in this computer's keychain; the file names them instead of holding them
+        </span>
       </label>
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}
       <div style={{ display: "flex", gap: 8 }}>
-        <Button size="sm" tone="positive" disabled={busy} onClick={() => void save()}>{busy ? "saving…" : "save"}</Button>
-        <Button size="sm" disabled={busy} onClick={() => onDone(null)}>cancel</Button>
+        <Button size="sm" tone="positive" disabled={busy} onClick={() => void save()}>
+          {busy ? "saving…" : "save"}
+        </Button>
+        <Button size="sm" disabled={busy} onClick={() => onDone(null)}>
+          cancel
+        </Button>
       </div>
     </div>
   );
@@ -272,13 +389,37 @@ function ServerForm({ server, api, onDone }: { server: McpServerView | null; api
 function LocalFields({ uid, form, set }: { uid: string; form: Form; set: SetField }) {
   return (
     <>
-      <label htmlFor={`${uid}-cmd`} className="loki-label">Command</label>
-      <Field id={`${uid}-cmd`} size="sm" mono value={form.command} onChange={(e) => set("command", e.target.value)} placeholder="npx" autoComplete="off" data-1p-ignore />
-      <label htmlFor={`${uid}-args`} className="loki-label">Arguments, one a line</label>
-      <TextArea id={`${uid}-args`} mono rows={3} value={form.args} onChange={(e) => set("args", e.target.value)} placeholder={"-y\n@modelcontextprotocol/server-github"} />
-      <label htmlFor={`${uid}-env`} className="loki-label">Environment, NAME=value a line</label>
+      <label htmlFor={`${uid}-cmd`} className="loki-label">
+        Command
+      </label>
+      <Field
+        id={`${uid}-cmd`}
+        size="sm"
+        mono
+        value={form.command}
+        onChange={(e) => set("command", e.target.value)}
+        placeholder="npx"
+        autoComplete="off"
+        data-1p-ignore
+      />
+      <label htmlFor={`${uid}-args`} className="loki-label">
+        Arguments, one a line
+      </label>
+      <TextArea
+        id={`${uid}-args`}
+        mono
+        rows={3}
+        value={form.args}
+        onChange={(e) => set("args", e.target.value)}
+        placeholder={"-y\n@modelcontextprotocol/server-github"}
+      />
+      <label htmlFor={`${uid}-env`} className="loki-label">
+        Environment, NAME=value a line
+      </label>
       <TextArea id={`${uid}-env`} mono rows={3} value={form.env} onChange={(e) => set("env", e.target.value)} placeholder="GITHUB_PERSONAL_ACCESS_TOKEN=…" />
-      <label htmlFor={`${uid}-cwd`} className="loki-label">Folder (optional)</label>
+      <label htmlFor={`${uid}-cwd`} className="loki-label">
+        Folder (optional)
+      </label>
       <Field id={`${uid}-cwd`} size="sm" mono value={form.cwd} onChange={(e) => set("cwd", e.target.value)} autoComplete="off" data-1p-ignore />
     </>
   );
@@ -288,10 +429,30 @@ function LocalFields({ uid, form, set }: { uid: string; form: Form; set: SetFiel
 function RemoteFields({ uid, form, set }: { uid: string; form: Form; set: SetField }) {
   return (
     <>
-      <label htmlFor={`${uid}-url`} className="loki-label">URL</label>
-      <Field id={`${uid}-url`} size="sm" mono value={form.url} onChange={(e) => set("url", e.target.value)} placeholder="https://mcp.linear.app/mcp" autoComplete="off" data-1p-ignore />
-      <label htmlFor={`${uid}-headers`} className="loki-label">Headers, Name: value a line</label>
-      <TextArea id={`${uid}-headers`} mono rows={3} value={form.headers} onChange={(e) => set("headers", e.target.value)} placeholder="Authorization: Bearer …" />
+      <label htmlFor={`${uid}-url`} className="loki-label">
+        URL
+      </label>
+      <Field
+        id={`${uid}-url`}
+        size="sm"
+        mono
+        value={form.url}
+        onChange={(e) => set("url", e.target.value)}
+        placeholder="https://mcp.linear.app/mcp"
+        autoComplete="off"
+        data-1p-ignore
+      />
+      <label htmlFor={`${uid}-headers`} className="loki-label">
+        Headers, Name: value a line
+      </label>
+      <TextArea
+        id={`${uid}-headers`}
+        mono
+        rows={3}
+        value={form.headers}
+        onChange={(e) => set("headers", e.target.value)}
+        placeholder="Authorization: Bearer …"
+      />
     </>
   );
 }
@@ -309,7 +470,9 @@ export function AlwaysAllowed({ api }: { api: McpApi["approvals"] }) {
       {tools.map((t) => (
         <div key={t} style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 12, flex: 1, overflowWrap: "anywhere" }}>{t}</span>
-          <Button size="sm" onClick={() => void api.set(t, false).then(apply)}>take back</Button>
+          <Button size="sm" onClick={() => void api.set(t, false).then(apply)}>
+            take back
+          </Button>
         </div>
       ))}
       {error && <div className="loki-meta loki-meta--negative loki-meta--wrap">{error}</div>}

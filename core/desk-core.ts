@@ -144,8 +144,7 @@ export function occupiedRects(state: DeskState): Rect[] {
     .map(rectOf);
 }
 
-const overlaps = (a: Rect, b: Rect, gap: number) =>
-  a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
+const overlaps = (a: Rect, b: Rect, gap: number) => a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
 
 /**
  * First free spot for a widget of `size`: the origin, or to the right of / below
@@ -312,10 +311,7 @@ export function getPath(obj: unknown, path: string): unknown {
 }
 
 /** File data with the gesture overlay applied. Never mutates inputs. */
-export function mergeData(
-  data: Record<string, unknown>,
-  overlay: Record<string, unknown> | undefined,
-): Record<string, unknown> {
+export function mergeData(data: Record<string, unknown>, overlay: Record<string, unknown> | undefined): Record<string, unknown> {
   const out = structuredClone(data);
   if (overlay) for (const [path, value] of Object.entries(overlay)) setPath(out, path, value);
   return out;
@@ -356,8 +352,7 @@ export const KIT: Record<string, { dataShape: string }> = {
   },
   "list-card": { dataShape: "{ items: Array<{ text: string, done?: boolean }> }" },
   "chart-card": {
-    dataShape:
-      '{ kind: "line"|"bar"|"area", points: Array<{ x: string|number, y: number }>, yLabel?: string }',
+    dataShape: '{ kind: "line"|"bar"|"area", points: Array<{ x: string|number, y: number }>, yLabel?: string }',
   },
 };
 export const KIT_TYPES: string[] = Object.keys(KIT);

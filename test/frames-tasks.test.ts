@@ -4,12 +4,26 @@ import type { TaskStore } from "../mod/tasks.ts";
 import type { RecallStore } from "../mod/recall.ts";
 import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 
-const task = (id: string, status = "open"): Task => ({ id, title: id, description: "", status, priority: 2, labels: [], assignee: null, createdAt: "", updatedAt: "", closedAt: null, metadata: {} });
+const task = (id: string, status = "open"): Task => ({
+  id,
+  title: id,
+  description: "",
+  status,
+  priority: 2,
+  labels: [],
+  assignee: null,
+  createdAt: "",
+  updatedAt: "",
+  closedAt: null,
+  metadata: {},
+});
 
 describe("tasks and Learn frames", () => {
   test("an assign without its chat is refused; one with it replies the tasks and tells other tabs", async () => {
     const assigned: Array<{ ids: string[]; status: string }> = [];
-    const store = { assign: async (ids: string[], _t: unknown, status: string) => (assigned.push({ ids, status }), ids.map((id) => task(id, status))) } as unknown as TaskStore;
+    const store = {
+      assign: async (ids: string[], _t: unknown, status: string) => (assigned.push({ ids, status }), ids.map((id) => task(id, status))),
+    } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
     bridge.onMessage(c, { type: "task_assign", requestId: "r1", ids: ["t1"], conversationId: "conv-1" });
@@ -35,7 +49,17 @@ describe("tasks and Learn frames", () => {
 
   test("a lesson that cannot start answers error with the reason", async () => {
     const store = {} as RecallStore;
-    const { bridge } = bridgeWith({ recall: { store, status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }), setSettings: async () => {}, run: async () => ({ note: "" }), startLesson: async () => { throw new Error("no agent for this lead"); } } });
+    const { bridge } = bridgeWith({
+      recall: {
+        store,
+        status: () => ({ enabled: false, dailyCap: 5, lastRunAt: null, lastRunNote: null, writtenToday: 0 }),
+        setSettings: async () => {},
+        run: async () => ({ note: "" }),
+        startLesson: async () => {
+          throw new Error("no agent for this lead");
+        },
+      },
+    });
     const c = client("d1");
     bridge.onMessage(c, { type: "recall_lead_start", requestId: "r1", id: "lead-1" });
     await settled();

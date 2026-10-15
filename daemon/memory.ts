@@ -52,10 +52,18 @@ function files(root: string, dir = root, out: string[] = []): string[] {
 export function memorySection(root: string): string | undefined {
   if (!existsSync(root)) return undefined;
   const all = files(root);
-  const core = all.some((f) => f.startsWith("system/")) ? all.filter((f) => f.startsWith("system/") && f.endsWith(".md")) : all.filter((f) => !f.includes("/") && f.endsWith(".md"));
+  const core = all.some((f) => f.startsWith("system/"))
+    ? all.filter((f) => f.startsWith("system/") && f.endsWith(".md"))
+    : all.filter((f) => !f.includes("/") && f.endsWith(".md"));
   const parts = core.map((f) => `<file path="${f}">\n${readFileSync(join(root, f), "utf8").slice(0, FILE_LIMIT).trimEnd()}\n</file>`);
   const rest = all.filter((f) => !core.includes(f));
-  if (rest.length) parts.push(`Other memory files (read them with memory_read when you need them):\n${rest.slice(0, LISTED).map((f) => `- ${f}`).join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`);
+  if (rest.length)
+    parts.push(
+      `Other memory files (read them with memory_read when you need them):\n${rest
+        .slice(0, LISTED)
+        .map((f) => `- ${f}`)
+        .join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`,
+    );
   return parts.length ? `This is your memory, kept as files you can change with the memory tools.\n\n${parts.join("\n\n")}` : undefined;
 }
 
@@ -143,7 +151,9 @@ export async function revertMemoryCommit(backendDir: string, agentId: string, sh
     } catch (error) {
       await git(root, "revert", "--abort").catch(() => {});
       const detail = String((error as { stderr?: string }).stderr ?? error);
-      throw new Error(/conflict/i.test(detail) ? "a later change touched the same lines; revert that one first" : `could not revert: ${detail.trim().split("\n")[0]}`);
+      throw new Error(
+        /conflict/i.test(detail) ? "a later change touched the same lines; revert that one first" : `could not revert: ${detail.trim().split("\n")[0]}`,
+      );
     }
   });
 }
@@ -170,7 +180,11 @@ export function memoryExtension(backendDir: string): Extension {
     const [agent, chat] = await Promise.all([read.snapshot(AgentInfoDoc, context), read.snapshot(ChatDoc, conversationId, context)]);
     if (!agent?.id) throw new Error("this chat belongs to no agent");
     const id = chat?.id ?? "";
-    const author = isReflectionChat(id) ? { name: "Reflection", email: `reflection+${agent.id}@loki.local` } : isDoctorChat(id) ? { name: "Doctor", email: `doctor+${agent.id}@loki.local` } : { name: agent.name || agent.id, email: `${agent.id}@loki.local` };
+    const author = isReflectionChat(id)
+      ? { name: "Reflection", email: `reflection+${agent.id}@loki.local` }
+      : isDoctorChat(id)
+        ? { name: "Doctor", email: `doctor+${agent.id}@loki.local` }
+        : { name: agent.name || agent.id, email: `${agent.id}@loki.local` };
     return { root: memoryRoot(backendDir, agent.id), author };
   };
   return defineExtension({
@@ -196,7 +210,11 @@ export function memoryExtension(backendDir: string): Extension {
       defineTool({
         name: "memory_write",
         description: "Write a whole memory file (created if new); the change is committed with your message.",
-        parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string", description: "Why, in a few words" } }, required: ["path", "content"] } as never,
+        parameters: {
+          type: "object",
+          properties: { path: { type: "string" }, content: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
+          required: ["path", "content"],
+        } as never,
         execute: async (args, api, context) => {
           const a = args as { path: string; content: string; message?: string };
           const { root, author } = await who(api, api.conversationId, context);
@@ -210,7 +228,11 @@ export function memoryExtension(backendDir: string): Extension {
       defineTool({
         name: "memory_edit",
         description: "Replace one exact passage of a memory file with another; the change is committed with your message.",
-        parameters: { type: "object", properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" }, message: { type: "string" } }, required: ["path", "old_text", "new_text"] } as never,
+        parameters: {
+          type: "object",
+          properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" }, message: { type: "string" } },
+          required: ["path", "old_text", "new_text"],
+        } as never,
         execute: async (args, api, context) => {
           const a = args as { path: string; old_text: string; new_text: string; message?: string };
           const { root, author } = await who(api, api.conversationId, context);
@@ -227,8 +249,13 @@ export function memoryExtension(backendDir: string): Extension {
       }),
       defineTool({
         name: "memory_delete",
-        description: "Delete a memory file that is no longer needed (merged into another, or no longer true); the change is committed with your message and can be undone.",
-        parameters: { type: "object", properties: { path: { type: "string" }, message: { type: "string", description: "Why, in a few words" } }, required: ["path"] } as never,
+        description:
+          "Delete a memory file that is no longer needed (merged into another, or no longer true); the change is committed with your message and can be undone.",
+        parameters: {
+          type: "object",
+          properties: { path: { type: "string" }, message: { type: "string", description: "Why, in a few words" } },
+          required: ["path"],
+        } as never,
         execute: async (args, api, context) => {
           const a = args as { path: string; message?: string };
           const { root, author } = await who(api, api.conversationId, context);
@@ -236,7 +263,19 @@ export function memoryExtension(backendDir: string): Extension {
           if (!existsSync(full)) throw new Error(`no memory file ${a.path}`);
           await serial(root, async () => {
             await git(root, "rm", "--quiet", "--", full);
-            await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", a.message?.trim() || `Remove ${a.path}`, "--", full);
+            await git(
+              root,
+              "-c",
+              `user.name=${author.name}`,
+              "-c",
+              `user.email=${author.email}`,
+              "commit",
+              "--quiet",
+              "-m",
+              a.message?.trim() || `Remove ${a.path}`,
+              "--",
+              full,
+            );
           });
           return { content: [{ type: "text", text: `deleted ${a.path}` }] };
         },

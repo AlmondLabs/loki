@@ -2,7 +2,19 @@ import { describe, expect, test } from "vitest";
 import { editOf, formOf, pairsText, parsePairs, secureValues, tokenLabel } from "../app/src/settings/Mcp.tsx";
 import type { McpServerView } from "../core/frame-types.ts";
 
-const server = (config: McpServerView["config"]): McpServerView => ({ name: "gh", entry: "my gh", kind: "command" in config ? "local" : "remote", state: "connected", error: null, purpose: null, tools: [], tokens: 0, config, offFor: [], signIn: null });
+const server = (config: McpServerView["config"]): McpServerView => ({
+  name: "gh",
+  entry: "my gh",
+  kind: "command" in config ? "local" : "remote",
+  state: "connected",
+  error: null,
+  purpose: null,
+  tools: [],
+  tokens: 0,
+  config,
+  offFor: [],
+  signIn: null,
+});
 
 describe("Settings › MCP's form", () => {
   test("a server's config becomes the form's text, and the form comes back as the same edit", async () => {

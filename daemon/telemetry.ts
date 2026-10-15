@@ -31,7 +31,10 @@ export function turnIdOf(agentId: string, inputs: readonly unknown[]): string | 
 export function harnessVersion(root: string): string | null {
   if (existsSync(join(root, ".git"))) {
     try {
-      return execFileSync("git", ["describe", "--always", "--dirty", "--exclude=*"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+      return (
+        execFileSync("git", ["describe", "--always", "--dirty", "--exclude=*"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() ||
+        null
+      );
     } catch {
       // no git on PATH: the version below
     }
@@ -101,8 +104,10 @@ export function turnProperties(t: FinishedTurn): Record<string, unknown> {
   const models: Span[] = answers.filter((m) => typeof m.timestamp === "number").map((m) => ({ start: m.timestamp!, end: m.timestamp! + (m.durationMs ?? 0) }));
   const tools: Span[] = results.filter((m) => typeof m.timestamp === "number").map((m) => ({ start: m.timestamp! - (m.durationMs ?? 0), end: m.timestamp! }));
   const timings = turnTimings({ sentAt: t.startedAt, firstOutputAt: t.firstOutputAt, models, tools, endAt: t.endedAt });
-  const sum = (pick: (u: NonNullable<Message["usage"]>) => number | undefined) => answers.reduce((n, m) => n + (m.usage ? pick(m.usage) ?? 0 : 0), 0);
-  const input = sum((u) => u.input), cacheRead = sum((u) => u.cacheRead), cacheWrite = sum((u) => u.cacheWrite);
+  const sum = (pick: (u: NonNullable<Message["usage"]>) => number | undefined) => answers.reduce((n, m) => n + (m.usage ? (pick(m.usage) ?? 0) : 0), 0);
+  const input = sum((u) => u.input),
+    cacheRead = sum((u) => u.cacheRead),
+    cacheWrite = sum((u) => u.cacheWrite);
   const prompt = input + cacheRead + cacheWrite;
   const last = answers.at(-1);
   const stopReason = last?.stopReason ?? null;
@@ -172,7 +177,10 @@ export class TurnTelemetry {
   attach(agentId: string, store: AgentStore): void {
     this.unsubscribe.get(agentId)?.();
     for (const key of [...this.running.keys()]) if (key.startsWith(`${agentId}\u0000`)) this.running.delete(key);
-    this.unsubscribe.set(agentId, store.harness.subscribeCommits((publication) => this.apply(agentId, store, publication)));
+    this.unsubscribe.set(
+      agentId,
+      store.harness.subscribeCommits((publication) => this.apply(agentId, store, publication)),
+    );
   }
 
   private apply(agentId: string, store: AgentStore, publication: CommitPublication): void {
@@ -198,7 +206,11 @@ export class TurnTelemetry {
     for (const change of publication.changes) {
       if (change.type !== "document" || change.record.kind !== "pi.live" || change.conversationId === undefined) continue;
       const key = `${agentId}\u0000${change.conversationId}`;
-      const live = (change.value ?? {}) as { run?: { taskId: unknown; inputs: unknown[] }; generation?: { message?: { content?: unknown[] } }; tools?: unknown[] };
+      const live = (change.value ?? {}) as {
+        run?: { taskId: unknown; inputs: unknown[] };
+        generation?: { message?: { content?: unknown[] } };
+        tools?: unknown[];
+      };
       let run = this.running.get(key);
       // A run hands over to a new task after each tool round; it is the same run while its first input is.
       if (run && live.run && String(live.run.inputs[0]) === String(run.inputs[0])) run.taskId = live.run.taskId;
@@ -228,7 +240,10 @@ export class TurnTelemetry {
   private async finish(agentId: string, store: AgentStore, conversationId: number, run: Running, endedAt: number, failure: string | null): Promise<void> {
     try {
       const { context } = this.deps;
-      const [info, settings] = await Promise.all([store.chatInfo(conversationId as ConversationId, context), store.agentSettings(conversationId as ConversationId, context)]);
+      const [info, settings] = await Promise.all([
+        store.chatInfo(conversationId as ConversationId, context),
+        store.agentSettings(conversationId as ConversationId, context),
+      ]);
       if (!info?.id) return; // not a chat of loki's
       const model = (settings as { model?: { provider?: string; modelId?: string } } | undefined)?.model;
       const requestKey = `${agentId}\u0000${String(run.inputs[0])}`;

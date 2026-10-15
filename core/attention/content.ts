@@ -116,7 +116,16 @@ export function environmentNote(
 }
 
 function localTime(now: Date, locale?: string): string {
-  return now.toLocaleString(locale ?? undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZoneName: "short" });
+  return now.toLocaleString(locale ?? undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZoneName: "short",
+  });
 }
 
 /** One question from the AskUserQuestion tool (daemon/ask.ts, in the shape Letta's used). */
@@ -135,7 +144,9 @@ export function askQuestions(input: unknown): AskQuestion[] {
   for (const q of qs as Array<Record<string, unknown>>) {
     if (typeof q?.question !== "string" || !q.question.trim()) continue;
     const options = Array.isArray(q.options)
-      ? (q.options as Array<Record<string, unknown>>).filter((o) => typeof o?.label === "string" && o.label.trim()).map((o) => ({ label: o.label as string, description: typeof o.description === "string" ? o.description : undefined }))
+      ? (q.options as Array<Record<string, unknown>>)
+          .filter((o) => typeof o?.label === "string" && o.label.trim())
+          .map((o) => ({ label: o.label as string, description: typeof o.description === "string" ? o.description : undefined }))
       : [];
     out.push({ question: q.question, header: typeof q.header === "string" ? q.header : undefined, options, multiSelect: q.multiSelect === true });
   }

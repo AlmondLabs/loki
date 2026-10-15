@@ -73,7 +73,9 @@ export type Host = { chats: ChatSource; chat: ChatBackend; analytics?: Analytics
 export default function activate(api: ModApi, host: Host): () => void {
   initLog(paths.modLog);
   // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it). LOKI_ANALYTICS=0 turns it off.
-  const analytics = host.analytics ?? createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
+  const analytics =
+    host.analytics ??
+    createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
   log("activate", { pid: process.pid, node: process.versions.node, api: api.apiVersion });
 
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
@@ -110,11 +112,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     // Shared widgets first: they appear on every desk, so they claim space before desk widgets flow around them.
     for (const e of [...diff.added].sort((a, b) => Number(b.scope === SHARED_SCOPE) - Number(a.scope === SHARED_SCOPE))) store.seen(e.scope, e.id);
     for (const e of diff.changed) store.fileChanged(e.scope, e.id);
-    const scopes = new Set<Scope>([
-      ...diff.added.map((e) => e.scope),
-      ...diff.changed.map((e) => e.scope),
-      ...diff.removed.map(scopeOfId),
-    ]);
+    const scopes = new Set<Scope>([...diff.added.map((e) => e.scope), ...diff.changed.map((e) => e.scope), ...diff.removed.map(scopeOfId)]);
     for (const scope of scopes) {
       broadcast({ type: "widgets", scope, widgets: widgets.entries(scope) }, scope === SHARED_SCOPE ? undefined : scope);
     }
@@ -134,7 +132,8 @@ export default function activate(api: ModApi, host: Host): () => void {
   const seen = new SeenStore(join(paths.state, "attention.json"));
   // The task list (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
   const tasks = new TaskStore();
-  const folderFor = (agentId: string | null, conversationId: string | null): string | null => (conversationId ? chats.folders().byConversation[conversationDirName(conversationId, agentId)] ?? null : null);
+  const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
+    conversationId ? (chats.folders().byConversation[conversationDirName(conversationId, agentId)] ?? null) : null;
   const refreshTasks = () => {
     if (!tasks.ready()) return;
     void tasks.list().catch((err) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
@@ -145,7 +144,8 @@ export default function activate(api: ModApi, host: Host): () => void {
 
   // --- transport -------------------------------------------------------
   const deskInfo = (scope: Scope): DeskInfo & { lastActive: string | null } => {
-    if (scope === SHARED_SCOPE) return { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
+    if (scope === SHARED_SCOPE)
+      return { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
     const rt = desks.get(scope);
     if (!rt) return { title: null, status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
     const agentName = lookupLocalAgentName(rt.agent_id);
@@ -154,12 +154,23 @@ export default function activate(api: ModApi, host: Host): () => void {
     const agentEffort = reasoningEffortFromSettings(agent?.modelSettings);
     const info = chats.info(rt.conversation_id, rt.agent_id);
     const mode = info?.mode ?? "unrestricted";
-    if (!info) return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, reasoningEffort: agentEffort, mode, lastActive: null };
-    return { title: info.title, status: info.archived ? "archived" : "live", agentName, agentId: rt.agent_id, model: info.model ?? agentModel, reasoningEffort: info.model ? info.reasoningEffort : info.reasoningEffort ?? agentEffort, mode, lastActive: info.lastMessageAt };
+    if (!info)
+      return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, reasoningEffort: agentEffort, mode, lastActive: null };
+    return {
+      title: info.title,
+      status: info.archived ? "archived" : "live",
+      agentName,
+      agentId: rt.agent_id,
+      model: info.model ?? agentModel,
+      reasoningEffort: info.model ? info.reasoningEffort : (info.reasoningEffort ?? agentEffort),
+      mode,
+      lastActive: info.lastMessageAt,
+    };
   };
   const listDesks = (): DeskSummary[] => {
     // A subagent's turn may have registered a desk before we knew what it was: evict it, once, here.
-    for (const agentId of new Set(desks.all().map((d) => d.agent_id))) if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
+    for (const agentId of new Set(desks.all().map((d) => d.agent_id)))
+      if (isSubagent(agentId) && desks.forgetAgent(agentId)) log("desks:evict-subagent", { agentId });
     // And the background passes' chats, which an earlier loki listed (Learn's) and kept as desks.
     const evicted = desks.forgetConversations(passChat);
     if (evicted) log("desks:evict-pass-chats", { evicted });
@@ -215,7 +226,15 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (!names.has(c.agentId)) names.set(c.agentId, lookupLocalAgentName(c.agentId));
       const info = chats.info(c.conversationId, c.agentId);
       if (isLearnTitle(info?.title)) continue; // a lesson is precisely the thing that can wait: a desk, never an inbox card
-      out.push({ id: c.conversationId, agentId: c.agentId, agentName: names.get(c.agentId) ?? null, title: info?.title ?? null, lastMessageAt: c.lastMessageAt, archived: false, ...chats.digest(c.conversationId, c.agentId) });
+      out.push({
+        id: c.conversationId,
+        agentId: c.agentId,
+        agentName: names.get(c.agentId) ?? null,
+        title: info?.title ?? null,
+        lastMessageAt: c.lastMessageAt,
+        archived: false,
+        ...chats.digest(c.conversationId, c.agentId),
+      });
     }
     return out.sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
   };
@@ -247,7 +266,13 @@ export default function activate(api: ModApi, host: Host): () => void {
     const passes = new PassState(paths.state);
     const s = passes.settings().learn;
     const last = passes.learnLast();
-    return { enabled: s.enabled, dailyCap: s.dailyCap, lastRunAt: last?.at ?? null, lastRunNote: last?.note ?? null, writtenToday: passes.writtenOn(isoDay(Date.now())) };
+    return {
+      enabled: s.enabled,
+      dailyCap: s.dailyCap,
+      lastRunAt: last?.at ?? null,
+      lastRunNote: last?.note ?? null,
+      writtenToday: passes.writtenOn(isoDay(Date.now())),
+    };
   };
   // A lesson's chat is made by the daemon, in process.
   const lessons = { store: recallStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
@@ -440,11 +465,28 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (ignored(e)) return;
       // The turn itself is measured by the daemon (daemon/telemetry.ts, turn_finished).
       const scope = desks.remember(e.chatId, e.agentId);
-      titleRefreshes.schedule(scope, () => {
-        // A chat's title can come after its first turn; tell tabs when the title or status changes.
-        const info = deskInfo(scope);
-        if (info.title) broadcast({ type: "desk_title", scope, title: info.title, status: info.status, agentName: info.agentName, model: info.model, reasoningEffort: info.reasoningEffort, mode: info.mode ?? null }, scope === SHARED_SCOPE ? undefined : scope);
-      }, 1200);
+      titleRefreshes.schedule(
+        scope,
+        () => {
+          // A chat's title can come after its first turn; tell tabs when the title or status changes.
+          const info = deskInfo(scope);
+          if (info.title)
+            broadcast(
+              {
+                type: "desk_title",
+                scope,
+                title: info.title,
+                status: info.status,
+                agentName: info.agentName,
+                model: info.model,
+                reasoningEffort: info.reasoningEffort,
+                mode: info.mode ?? null,
+              },
+              scope === SHARED_SCOPE ? undefined : scope,
+            );
+        },
+        1200,
+      );
     }),
   );
 

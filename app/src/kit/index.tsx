@@ -1,19 +1,6 @@
-
 import type { ComponentType } from "react";
 import { useMemo, useRef, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 /**
  * loki widget kit v1. Every component takes the widget's `data` and an
@@ -41,9 +28,7 @@ export function Stat({ data }: KitProps) {
   return (
     <div className="loki-widget-body">
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span style={{ fontSize: 28, fontWeight: 600, fontFamily: "var(--loki-mono)" }}>
-          {String(data.value ?? "—")}
-        </span>
+        <span style={{ fontSize: 28, fontWeight: 600, fontFamily: "var(--loki-mono)" }}>{String(data.value ?? "—")}</span>
         {typeof data.unit === "string" && <span className="loki-muted">{data.unit}</span>}
         {delta !== null && (
           <span
@@ -148,10 +133,7 @@ export function ListCard({ data, onSet }: KitProps) {
 }
 
 export function ChartCard({ data }: KitProps) {
-  const points = useMemo(
-    () => ((data.points as Array<{ x: string | number; y: number }>) ?? []).map((p) => ({ ...p })),
-    [data.points],
-  );
+  const points = useMemo(() => ((data.points as Array<{ x: string | number; y: number }>) ?? []).map((p) => ({ ...p })), [data.points]);
   const kind = (data.kind as string) ?? "line";
   const common = {
     data: points,

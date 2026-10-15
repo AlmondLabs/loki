@@ -99,7 +99,15 @@ export function sourceMetadata(s: TaskSource): Record<string, string> {
 export function taskSource(t: Task): (TaskSource & { conversation: string | null; agentId: string | null }) | null {
   const md = t.metadata;
   if ((md.origin !== "message" && md.origin !== "selection") || (md.msgRole !== "user" && md.msgRole !== "assistant") || !md.msgKey) return null;
-  return { origin: md.origin, role: md.msgRole, key: md.msgKey, at: md.msgAt ?? null, quote: md.quote ?? "", conversation: md.conversation ?? null, agentId: md.agentId ?? null };
+  return {
+    origin: md.origin,
+    role: md.msgRole,
+    key: md.msgKey,
+    at: md.msgAt ?? null,
+    quote: md.quote ?? "",
+    conversation: md.conversation ?? null,
+    agentId: md.agentId ?? null,
+  };
 }
 
 /** Whether a task came from this message: its key, or failing that (the text read back differently) its role and time. */

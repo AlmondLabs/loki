@@ -33,7 +33,7 @@ export function keyboardFrom(tauri: boolean, os: unknown, userAgent: string): Pl
   return platformFrom(tauri ? os : undefined, userAgent);
 }
 
-export const inTauri =typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
+export const inTauri = typeof window !== "undefined" && !!window.__TAURI_INTERNALS__;
 /** Served by the mod's LAN listener (a phone, or any browser on the Wi‑Fi): phone mode, cookie auth. */
 export const inLan = typeof window !== "undefined" && !inTauri && !!window.__LOKI__?.lan;
 
@@ -96,17 +96,32 @@ export function openExternal(href: string): void {
 export function installShellLogging(): void {
   if (!inTauri) return;
   void import("@tauri-apps/api/core").then(({ invoke }) => {
-    const mirror = (level: string, orig: (...a: unknown[]) => void) => (...args: unknown[]) => {
-      orig(...args);
-      void invoke("client_log", { level, message: args.map((a) => (a instanceof Error ? a.message : typeof a === "string" ? a : JSON.stringify(a))).join(" ") }).catch(() => {});
-    };
+    const mirror =
+      (level: string, orig: (...a: unknown[]) => void) =>
+      (...args: unknown[]) => {
+        orig(...args);
+        void invoke("client_log", {
+          level,
+          message: args.map((a) => (a instanceof Error ? a.message : typeof a === "string" ? a : JSON.stringify(a))).join(" "),
+        }).catch(() => {});
+      };
     console.warn = mirror("warn", console.warn.bind(console));
     console.error = mirror("error", console.error.bind(console));
     console.info = mirror("info", console.info.bind(console));
     // WebKit prints CSP refusals to the console directly, bypassing console.error: report them ourselves.
-    document.addEventListener("securitypolicyviolation", (e) => void invoke("client_log", { level: "error", message: `csp: ${e.violatedDirective} blocked ${e.blockedURI || "inline"} at ${e.sourceFile || location.pathname}:${e.lineNumber}` }).catch(() => {}));
+    document.addEventListener(
+      "securitypolicyviolation",
+      (e) =>
+        void invoke("client_log", {
+          level: "error",
+          message: `csp: ${e.violatedDirective} blocked ${e.blockedURI || "inline"} at ${e.sourceFile || location.pathname}:${e.lineNumber}`,
+        }).catch(() => {}),
+    );
     window.addEventListener("error", (e) => void invoke("client_log", { level: "error", message: `uncaught: ${e.message}` }).catch(() => {}));
-    window.addEventListener("unhandledrejection", (e) => void invoke("client_log", { level: "error", message: `unhandled rejection: ${String((e as PromiseRejectionEvent).reason)}` }).catch(() => {}));
+    window.addEventListener(
+      "unhandledrejection",
+      (e) => void invoke("client_log", { level: "error", message: `unhandled rejection: ${String((e as PromiseRejectionEvent).reason)}` }).catch(() => {}),
+    );
     void invoke("client_log", { level: "info", message: `page booted at ${location.href}` }).catch(() => {});
   });
 }

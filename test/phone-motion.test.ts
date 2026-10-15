@@ -90,7 +90,10 @@ describe("streaming words (Transcript's rehypeWords)", () => {
   });
 
   test("code keeps its text whole, inline and in blocks; words inside marks are still wrapped", () => {
-    const tree = run({ type: "root", children: [el("p", [text("run "), el("code", [text("bun test")]), el("strong", [text("now please")])]), el("pre", [el("code", [text("const a = 1")])])] });
+    const tree = run({
+      type: "root",
+      children: [el("p", [text("run "), el("code", [text("bun test")]), el("strong", [text("now please")])]), el("pre", [el("code", [text("const a = 1")])])],
+    });
     expect(words(tree)).toEqual(["run ", "now ", "please"]);
   });
 

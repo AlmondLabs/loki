@@ -56,7 +56,14 @@ export const KEYMAP: Binding[] = [
   // Slack's sidebar key. The inbox has no list column, so there ⌘⇧D stays Deny (its own binding wins; takenBy lists it so).
   { id: "column.toggle", keys: ["cmd+shift+d"], where: "anywhere", label: "Show / Hide Sidebar", typing: true, menu: "View/column" },
   // Off the Mac there is no hidden window to bring back from the dock: the key minimises (useWindowChrome).
-  { id: "window.hide", keys: ["cmd+shift+w"], where: "anywhere", label: "Hide loki", labelOn: { windows: "Minimise loki", linux: "Minimise loki" }, typing: true },
+  {
+    id: "window.hide",
+    keys: ["cmd+shift+w"],
+    where: "anywhere",
+    label: "Hide loki",
+    labelOn: { windows: "Minimise loki", linux: "Minimise loki" },
+    typing: true,
+  },
   { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
@@ -74,8 +81,26 @@ export const KEYMAP: Binding[] = [
   { id: "chat.model", keys: ["cmd+shift+m"], where: "desk", label: "Change Model…", typing: true, menu: "Chat" },
   { id: "chat.mode", keys: ["cmd+shift+p"], where: "desk", label: "Change Permission Mode…", typing: true, menu: "Chat" },
   // Ctrl+Alt+arrows are the system's off the Mac (workspaces on Linux, screen rotation on Windows, where Ctrl+Alt is also AltGr).
-  { id: "chat.left", keys: ["cmd+left", "alt+cmd+left"], keysOn: { windows: ["cmd+left", "cmd+shift+["], linux: ["cmd+left", "cmd+shift+["] }, where: "desk", label: "Move Chat Left", typing: true, menu: "Chat/place", menuAccel: false },
-  { id: "chat.right", keys: ["cmd+right", "alt+cmd+right"], keysOn: { windows: ["cmd+right", "cmd+shift+]"], linux: ["cmd+right", "cmd+shift+]"] }, where: "desk", label: "Move Chat Right", typing: true, menu: "Chat/place", menuAccel: false },
+  {
+    id: "chat.left",
+    keys: ["cmd+left", "alt+cmd+left"],
+    keysOn: { windows: ["cmd+left", "cmd+shift+["], linux: ["cmd+left", "cmd+shift+["] },
+    where: "desk",
+    label: "Move Chat Left",
+    typing: true,
+    menu: "Chat/place",
+    menuAccel: false,
+  },
+  {
+    id: "chat.right",
+    keys: ["cmd+right", "alt+cmd+right"],
+    keysOn: { windows: ["cmd+right", "cmd+shift+]"], linux: ["cmd+right", "cmd+shift+]"] },
+    where: "desk",
+    label: "Move Chat Right",
+    typing: true,
+    menu: "Chat/place",
+    menuAccel: false,
+  },
   { id: "view.fit", keys: ["cmd+0"], where: "desk", label: "Fit All Widgets", typing: true, menu: "View" },
   { id: "view.reset", keys: ["cmd+shift+0"], where: "desk", label: "Actual Size (1:1)", typing: true, menu: "View" },
   { id: "view.zoomIn", keys: ["cmd+=", "cmd+shift+="], where: "desk", label: "Zoom In", typing: true, menu: "View" },
@@ -284,7 +309,22 @@ export function typingIn(e: KeyboardEvent): boolean {
  * are documentation only.
  */
 /** Chords the text itself uses: never taken while a box has focus, whatever a binding says. */
-export const TEXT_CHORDS = new Set(["cmd+left", "cmd+right", "cmd+up", "cmd+down", "cmd+backspace", "cmd+z", "cmd+shift+z", "cmd+a", "cmd+c", "cmd+v", "cmd+x", "alt+left", "alt+right", "alt+backspace"]);
+export const TEXT_CHORDS = new Set([
+  "cmd+left",
+  "cmd+right",
+  "cmd+up",
+  "cmd+down",
+  "cmd+backspace",
+  "cmd+z",
+  "cmd+shift+z",
+  "cmd+a",
+  "cmd+c",
+  "cmd+v",
+  "cmd+x",
+  "alt+left",
+  "alt+right",
+  "alt+backspace",
+]);
 
 export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keyboard): Binding | null {
   const typing = typingIn(e);
@@ -301,14 +341,23 @@ export function resolve(e: KeyboardEvent, segment: Segment, os: Platform = keybo
  */
 export function takenBy(b: Binding, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; key: string; id: string; label: string }> {
   if (b.where !== "anywhere" || b.note) return [];
-  return map.flatMap((o) => (o.note || o.where === "anywhere" || o.where === "global" ? [] : keysOf(b, os).filter((k) => keysOf(o, os).includes(k)).map((key) => ({ where: o.where, key, id: o.id, label: labelOf(o, os) }))));
+  return map.flatMap((o) =>
+    o.note || o.where === "anywhere" || o.where === "global"
+      ? []
+      : keysOf(b, os)
+          .filter((k) => keysOf(o, os).includes(k))
+          .map((key) => ({ where: o.where, key, id: o.id, label: labelOf(o, os) })),
+  );
 }
 
 /** Bindings that share a key inside one scope — a mistake to catch in tests. With no system named, all three; another system's own clashes carry its name. */
 export function conflicts(map: Binding[] = KEYMAP, os?: Platform): string[] {
   if (!os) {
     const mac = conflicts(map, "macos");
-    const own = (o: Platform) => conflicts(map, o).filter((c) => !mac.includes(c)).map((c) => `${c} (${o})`);
+    const own = (o: Platform) =>
+      conflicts(map, o)
+        .filter((c) => !mac.includes(c))
+        .map((c) => `${c} (${o})`);
     return [...mac, ...own("windows"), ...own("linux")];
   }
   const seen = new Map<string, string>();

@@ -47,7 +47,15 @@ const pairKey = (r: TranscriptRow) => `${r.role}\u0000${r.role === "user" ? with
 const pending = (r: TranscriptRow) => r.queued === true || (r.role === "event" && r.summary === RUNNING);
 
 const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
-  a.role === b.role && a.text === b.text && a.summary === b.summary && a.detail === b.detail && a.images === b.images && a.files === b.files && a.tool === b.tool && a.queued === b.queued && a.at === b.at;
+  a.role === b.role &&
+  a.text === b.text &&
+  a.summary === b.summary &&
+  a.detail === b.detail &&
+  a.images === b.images &&
+  a.files === b.files &&
+  a.tool === b.tool &&
+  a.queued === b.queued &&
+  a.at === b.at;
 
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
 
@@ -363,7 +371,8 @@ export class ThreadModel {
     if (!text && !files.length) return { changed: events.length > 0, spoke: null };
     this.settle(at);
     const own = this.echoes.indexOf(ownSendKey(withoutImageMarks(text), files));
-    if (own >= 0) this.echoes.splice(own, 1); // shown when it was sent
+    if (own >= 0)
+      this.echoes.splice(own, 1); // shown when it was sent
     else this.push({ role: "user", text, ...rowAt(at), ...(files.length ? { files } : {}) });
     return { changed: true, spoke: text };
   }

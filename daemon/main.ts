@@ -87,7 +87,10 @@ process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 // Every provider pi-ai knows; a provider's credential from the keychain (daemon/credentials.ts), else its environment
 // variable. A keychain that cannot be reached leaves the environment, and says so.
 // LOKI_KEYCHAIN=0 keeps secrets in memory for this daemon's life: a test or a scratch run never writes the login keychain.
-const secrets = process.env.LOKI_KEYCHAIN === "0" ? memorySecrets() : await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
+const secrets =
+  process.env.LOKI_KEYCHAIN === "0"
+    ? memorySecrets()
+    : await keychain().catch((error: unknown) => (report(`keychain unavailable, keys come from the environment only: ${String(error)}`), undefined));
 const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
 // The sign-in flows (ChatGPT, OpenRouter, GitHub Copilot…), imported statically. pi-ai loads each through a variable
 // path so a bundler cannot follow it, and in the release bundle (daemon.mjs) that path pointed beside the bundle at
@@ -95,12 +98,28 @@ const credentials = secrets ? new KeychainCredentials(secrets) : undefined;
 // plain static imports, which suits Node and the bundle alike.
 registerBunOAuthFlows();
 const models = builtinModels(credentials ? { credentials } : {});
-const stores = new StoreManager(join(args.dir, "stores"), { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) }, context, report);
+const stores = new StoreManager(
+  join(args.dir, "stores"),
+  { models, registry: mods.registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? homedir() }) },
+  context,
+  report,
+);
 // The approval gate and the question card, in every chat (daemon/approvals.ts, daemon/ask.ts).
 // MCP servers (daemon/mcp/): their tools wait behind mcp_search, and their own hints say which only read.
-const mcp = new McpTools({ registry: mods.registry, configPath: join(args.dir, "mcp.json"), lokiDir: args.dir, report, version: appVersion(paths.root) ?? undefined, ...(secrets ? { secrets } : {}) });
+const mcp = new McpTools({
+  registry: mods.registry,
+  configPath: join(args.dir, "mcp.json"),
+  lokiDir: args.dir,
+  report,
+  version: appVersion(paths.root) ?? undefined,
+  ...(secrets ? { secrets } : {}),
+});
 // "Always allow" answers are kept beside the other state, for every chat.
-const approvals = new Approvals({ widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"), kindOfTool: (name) => kindOf(name, mcp.annotations(name) ?? mods.annotations(name)), alwaysPath: join(args.dir, "state", "approvals.json") });
+const approvals = new Approvals({
+  widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
+  kindOfTool: (name) => kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
+  alwaysPath: join(args.dir, "state", "approvals.json"),
+});
 mods.registry.install(approvals.extension());
 mods.registry.install(askExtension(approvals));
 // The tools every chat has: pi-durable's own (read, write, edit, bash), loki's file tools, memory, skills and the
@@ -115,7 +134,9 @@ mods.registry.install(webSearchExtension());
 // daemon/schedule.ts).
 const schedulesFile = join(args.dir, "state", "crons.json");
 const deliver = (agentId: string, chatId: string, text: string) => chat.deliver(agentId, chatId, text);
-const background = new BackgroundTasks((agentId, chatId, text) => void chat.deliver(agentId, chatId, text, "steer").catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)));
+const background = new BackgroundTasks(
+  (agentId, chatId, text) => void chat.deliver(agentId, chatId, text, "steer").catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)),
+);
 mods.registry.install(backgroundExtension(background));
 const schedules = new Schedules(schedulesFile, deliver, report);
 mods.registry.install(scheduleExtension(schedules));
@@ -124,14 +145,32 @@ const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.n
 // The background passes (daemon/passes.ts): reflection and Learn, one run at a time over chats that have gone quiet.
 const passState = new PassState(join(args.dir, "state"));
 const busy = (agentId: string, chatId: string): Promise<boolean> => chat.busy(agentId, chatId);
-const passes = new PassRunner({ stores, chats, registry: mods.registry, state: passState, backendDir: backend, context, jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })], busy, isSubagent: (id) => isSubagent(id, backend), capture: (event, properties) => analytics.capture("mod", event, properties), report });
+const passes = new PassRunner({
+  stores,
+  chats,
+  registry: mods.registry,
+  state: passState,
+  backendDir: backend,
+  context,
+  jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })],
+  busy,
+  isSubagent: (id) => isSubagent(id, backend),
+  capture: (event, properties) => analytics.capture("mod", event, properties),
+  report,
+});
 // The first start after the passes came carries over reflection's and Learn's own settings and cursors, once every
 // store has its chats loaded (before an import from Letta, whose chats then get cursors of their own).
-const oldPassFiles = { reflectionSettings: join(args.dir, "state", "reflection.json"), reflectionRoot: join(args.dir, "reflection"), learnWorker: join(recallDir(), "worker.json") };
+const oldPassFiles = {
+  reflectionSettings: join(args.dir, "state", "reflection.json"),
+  reflectionRoot: join(args.dir, "reflection"),
+  learnWorker: join(recallDir(), "worker.json"),
+};
 async function carryOverPasses(): Promise<void> {
   await chats.loaded();
   if (passState.started()) return;
-  const list = chats.list().flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
+  const list = chats
+    .list()
+    .flatMap((c) => (c.agentId ? [{ agentId: c.agentId, chatId: c.conversationId, entries: chats.answers(c.conversationId, c.agentId, 0).entries }] : []));
   passState.migrate(oldPassFiles, list);
   report(`background passes: settings and cursors carried over for ${list.length} chats`);
 }
@@ -149,22 +188,24 @@ let importing: Promise<ImportReport> | null = null;
 const importLetta = (): Promise<ImportReport> =>
   (importing ??= (async () => {
     await carryOverPasses();
-    return recorded(importFromLetta({
-      paths: importPaths,
-      stores,
-      credentials: credentials ?? new KeychainCredentials(memorySecrets()),
-      knownProviders: new Set(models.getProviders().map((p) => p.id)),
-      context,
-      passes: {
-        importing: (agentId, chatId) => {
-          for (const job of JOBS) passState.setCursor(job, agentId, chatId, Number.MAX_SAFE_INTEGER);
+    return recorded(
+      importFromLetta({
+        paths: importPaths,
+        stores,
+        credentials: credentials ?? new KeychainCredentials(memorySecrets()),
+        knownProviders: new Set(models.getProviders().map((p) => p.id)),
+        context,
+        passes: {
+          importing: (agentId, chatId) => {
+            for (const job of JOBS) passState.setCursor(job, agentId, chatId, Number.MAX_SAFE_INTEGER);
+          },
+          imported: (agentId, chatId, cursors) => {
+            passState.setCursor("reflection", agentId, chatId, cursors.entries);
+            passState.setCursor("learn", agentId, chatId, cursors.learn);
+          },
         },
-        imported: (agentId, chatId, cursors) => {
-          passState.setCursor("reflection", agentId, chatId, cursors.entries);
-          passState.setCursor("learn", agentId, chatId, cursors.learn);
-        },
-      },
-    }));
+      }),
+    );
   })().finally(() => (importing = null)));
 /** Each run's outcome is kept for Settings (daemon/import/letta.ts, recordAttempt), whichever way it went. */
 async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
@@ -177,14 +218,37 @@ async function recorded(run: Promise<ImportReport>): Promise<ImportReport> {
     throw error;
   }
 }
-const chat: DaemonChats = new DaemonChats({ stores, mods, approvals, providers, passes: { runner: passes, state: passState }, mcp, models, backendDir: backend, context, report, importLetta, importStatus: () => importStatus(importPaths) });
+const chat: DaemonChats = new DaemonChats({
+  stores,
+  mods,
+  approvals,
+  providers,
+  passes: { runner: passes, state: passState },
+  mcp,
+  models,
+  backendDir: backend,
+  context,
+  report,
+  importLetta,
+  importStatus: () => importStatus(importPaths),
+});
 chats.follow(stores);
 // Product analytics, local only (core/analytics.ts; `npm run analytics` reads it), one writer for the daemon and loki's
 // mod. LOKI_ANALYTICS=0 turns it off. Each agent turn is one turn_finished line, measured from its store (daemon/telemetry.ts).
-const analytics = createAnalytics({ path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events, statePath: paths.analytics, appVersion: appVersion(paths.root) });
+const analytics = createAnalytics({
+  path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events,
+  statePath: paths.analytics,
+  appVersion: appVersion(paths.root),
+});
 mcp.setCapture((event, properties) => analytics.capture("mod", event, properties));
 mcp.start();
-const telemetry = new TurnTelemetry({ capture: (event, properties) => analytics.capture("mod", event, properties), harnessVersion: harnessVersion(paths.root), isSubagent: (id) => isSubagent(id, backend), context, report });
+const telemetry = new TurnTelemetry({
+  capture: (event, properties) => analytics.capture("mod", event, properties),
+  harnessVersion: harnessVersion(paths.root),
+  isSubagent: (id) => isSubagent(id, backend),
+  context,
+  report,
+});
 telemetry.follow(stores);
 // An agent whose record names its model as Letta did (imported before the import translated names) is renamed first.
 const knownProvider = (id: string) => Boolean(models.getProvider(id));
@@ -202,20 +266,31 @@ if (importNeeded(importPaths)) {
     const r = await importLetta();
     report(`imported from Letta: ${describeReport(r)}${r.notes.length ? `; ${r.notes.join("; ")}` : ""}`);
   } catch (error) {
-    report(`import from Letta not done, tried again at the next start or from Settings › loki › Import: ${error instanceof Error ? error.message : String(error)}`);
+    report(
+      `import from Letta not done, tried again at the next start or from Settings › loki › Import: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
 // loki's own mod (mod/index.ts), on the mod API with the chats as its host: read (`chats`) and run (`chat`).
 const core = (await import(pathToFileURL(args.mod).href)) as { default: (api: ModApi, host: Host) => unknown };
-const loadCore = () => mods.load({ name: "loki", apiVersion: MOD_API_VERSION, activate: (api) => core.default(api, { chats, chat, analytics }) as Promise<() => void> | (() => void) });
+const loadCore = () =>
+  mods.load({
+    name: "loki",
+    apiVersion: MOD_API_VERSION,
+    activate: (api) => core.default(api, { chats, chat, analytics }) as Promise<() => void> | (() => void),
+  });
 await loadCore();
 // A checkout's mod (mod/boot.ts bundles mod/index.ts afresh on every activate) reloads when its sources change.
 const stopWatchingCore = args.mod.endsWith("boot.ts")
-  ? watchFiles(dirname(args.mod), (f) => f.endsWith(".ts") && !f.includes(".loki-build"), async (file) => {
-      const result = await loadCore();
-      report(`mod loki reloaded after ${file} changed: ${"loaded" in result ? "ok" : result.refused}`);
-    })
+  ? watchFiles(
+      dirname(args.mod),
+      (f) => f.endsWith(".ts") && !f.includes(".loki-build"),
+      async (file) => {
+        const result = await loadCore();
+        report(`mod loki reloaded after ${file} changed: ${"loaded" in result ? "ok" : result.refused}`);
+      },
+    )
   : () => {};
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();

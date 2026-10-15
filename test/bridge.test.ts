@@ -30,10 +30,27 @@ function fakeWidgets(entries: WidgetManifestEntry[]): WidgetsWatcher & { runtime
 }
 
 const sleep: WidgetManifestEntry = {
-  id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",
-  data: { value: 6 }, hash: "h", updatedAt: 0,
+  id: "c1/sleep",
+  scope: "c1",
+  name: "sleep",
+  kind: "json",
+  file: "c1/sleep.json",
+  title: "Sleep",
+  type: "slider-control",
+  data: { value: 6 },
+  hash: "h",
+  updatedAt: 0,
 };
-const welcome: WidgetManifestEntry = { ...sleep, id: "shared/welcome", scope: "shared", name: "welcome", file: "shared/welcome.json", title: "loki", type: "info-card", data: { lines: [] } };
+const welcome: WidgetManifestEntry = {
+  ...sleep,
+  id: "shared/welcome",
+  scope: "shared",
+  name: "welcome",
+  file: "shared/welcome.json",
+  title: "loki",
+  type: "info-card",
+  data: { lines: [] },
+};
 
 function client(scope: string): Client & { sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
@@ -52,7 +69,10 @@ describe("bridge", () => {
     const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep, welcome]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m) });
     const c = client("c1");
     bridge.onConnect(c);
-    expect(c.sent.map((m) => [m.type, m.scope])).toEqual([["desk", "c1"], ["desk", "shared"]]);
+    expect(c.sent.map((m) => [m.type, m.scope])).toEqual([
+      ["desk", "c1"],
+      ["desk", "shared"],
+    ]);
     expect((c.sent[0].widgets as unknown[]).length).toBe(1);
     const s = client("shared");
     bridge.onConnect(s);
@@ -115,19 +135,54 @@ describe("bridge", () => {
 
   test("desk frames carry the conversation title and status", async () => {
     const bridge = bridgeOf({
-      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
-      deskInfo: (s) => (s === "c1" ? { title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", agentId: "a1", model: "anthropic/claude-fable-5", reasoningEffort: "high" } : s === "gone" ? { title: null, status: "deleted", agentName: null, agentId: null, model: null, reasoningEffort: null } : { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null }),
+      store: new DeskStore(),
+      widgets: fakeWidgets([sleep]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
+      deskInfo: (s) =>
+        s === "c1"
+          ? {
+              title: "[Short] - Sleep tracking",
+              status: "archived",
+              agentName: "ira",
+              agentId: "a1",
+              model: "anthropic/claude-fable-5",
+              reasoningEffort: "high",
+            }
+          : s === "gone"
+            ? { title: null, status: "deleted", agentName: null, agentId: null, model: null, reasoningEffort: null }
+            : { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null },
     });
     const c = client("c1");
     bridge.onConnect(c);
-    expect(c.sent[0]).toMatchObject({ type: "desk", scope: "c1", title: "[Short] - Sleep tracking", status: "archived", agentName: "ira", reasoningEffort: "high" });
+    expect(c.sent[0]).toMatchObject({
+      type: "desk",
+      scope: "c1",
+      title: "[Short] - Sleep tracking",
+      status: "archived",
+      agentName: "ira",
+      reasoningEffort: "high",
+    });
     expect(c.sent[1]).toMatchObject({ type: "desk", scope: "shared", title: "shared", status: "none" });
     bridge.onConnect(client("gone"));
     await new Promise((r) => setTimeout(r, 10));
   });
 
   test("sortDesks: shared, then live (pinned, active, then recent), then archived, then deleted", () => {
-    const d = (scope: string, status: DeskSummary["status"], extra: Partial<DeskSummary> = {}): DeskSummary => ({ scope, status, title: null, agentName: null, agentId: null, conversationId: null, model: null, reasoningEffort: null, widgets: 0, active: false, lastActive: null, ...extra });
+    const d = (scope: string, status: DeskSummary["status"], extra: Partial<DeskSummary> = {}): DeskSummary => ({
+      scope,
+      status,
+      title: null,
+      agentName: null,
+      agentId: null,
+      conversationId: null,
+      model: null,
+      reasoningEffort: null,
+      widgets: 0,
+      active: false,
+      lastActive: null,
+      ...extra,
+    });
     const sorted = sortDesks([
       d("old", "live", { lastActive: "2026-09-01T00:00:00Z" }),
       d("gone", "deleted"),
@@ -141,7 +196,21 @@ describe("bridge", () => {
   });
 
   test("list_desks replies with the mod's desk list", () => {
-    const desks: DeskSummary[] = [{ scope: "shared", title: "shared", status: "none", agentName: null, agentId: null, conversationId: null, model: null, reasoningEffort: null, widgets: 1, active: false, lastActive: null }];
+    const desks: DeskSummary[] = [
+      {
+        scope: "shared",
+        title: "shared",
+        status: "none",
+        agentName: null,
+        agentId: null,
+        conversationId: null,
+        model: null,
+        reasoningEffort: null,
+        widgets: 1,
+        active: false,
+        lastActive: null,
+      },
+    ];
     const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listDesks: () => desks });
     const c = client("c1");
     bridge.onMessage(c, { type: "list_desks" });
@@ -172,7 +241,13 @@ describe("bridge", () => {
     store.seen("c1", "c1/sleep");
     const gestures = new GestureLog();
     const deleted: string[] = [];
-    const bridge = bridgeOf({ store, widgets: fakeWidgets([sleep]), gestures, broadcast: () => {}, deleteWidgetFile: (id) => (deleted.push(id), `/w/${id}.json`) });
+    const bridge = bridgeOf({
+      store,
+      widgets: fakeWidgets([sleep]),
+      gestures,
+      broadcast: () => {},
+      deleteWidgetFile: (id) => (deleted.push(id), `/w/${id}.json`),
+    });
     const c = client("c1");
     bridge.onMessage(c, { type: "trash", id: "c1/sleep" });
     expect(deleted).toEqual(["c1/sleep"]);
@@ -202,7 +277,13 @@ describe("bridge: viewed", () => {
     try {
       const seen = new SeenStore(join(dir, "attention.json"));
       const broadcasts: Array<Record<string, unknown>> = [];
-      const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
+      const bridge = bridgeOf({
+        store: new DeskStore(),
+        widgets: fakeWidgets([]),
+        gestures: new GestureLog(),
+        broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
+        seen,
+      });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
       const frame = broadcasts.at(-1)!;
@@ -232,7 +313,13 @@ describe("bridge: focus", () => {
     try {
       const seen = new SeenStore(join(dir, "attention.json"));
       const broadcasts: Array<Record<string, unknown>> = [];
-      const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
+      const bridge = bridgeOf({
+        store: new DeskStore(),
+        widgets: fakeWidgets([]),
+        gestures: new GestureLog(),
+        broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
+        seen,
+      });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
       expect((broadcasts.at(-1)!.focus as Record<string, { w: number }>)["a/x"].w).toBe(0.25);
@@ -264,7 +351,13 @@ describe("bridge: a mark that changes nothing", () => {
       const path = join(dir, "attention.json");
       const seen = new SeenStore(path, { now: () => "2026-09-25T10:00:00.000Z" });
       const broadcasts: Array<Record<string, unknown>> = [];
-      const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), seen });
+      const bridge = bridgeOf({
+        store: new DeskStore(),
+        widgets: fakeWidgets([]),
+        gestures: new GestureLog(),
+        broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
+        seen,
+      });
       const c = client("c1");
       bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" });
       expect(broadcasts.length).toBe(1);
@@ -283,7 +376,19 @@ describe("bridge: a mark that changes nothing", () => {
 
 describe("bridge history", () => {
   test("inbox_list answers with the mod's open conversations and echoes the request id", () => {
-    const rows = [{ id: "default", agentId: "a1", agentName: "ira", title: "ira · main chat", lastMessageAt: "2026-09-06T11:49:16Z", archived: false as const, lastRole: "assistant" as const, lastAsk: null, lastAssistantText: "It's on your canvas now." }];
+    const rows = [
+      {
+        id: "default",
+        agentId: "a1",
+        agentName: "ira",
+        title: "ira · main chat",
+        lastMessageAt: "2026-09-06T11:49:16Z",
+        archived: false as const,
+        lastRole: "assistant" as const,
+        lastAsk: null,
+        lastAssistantText: "It's on your canvas now.",
+      },
+    ];
     const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {}, listInbox: () => rows });
     const c = client("c1");
     bridge.onMessage(c, { type: "inbox_list", requestId: "i1" });
@@ -291,8 +396,20 @@ describe("bridge history", () => {
   });
   test("history_get answers with the local transcript and echoes the request id", () => {
     const bridge = bridgeOf({
-      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
-      transcript: (agentId, conversationId) => ({ rows: agentId === "a1" && conversationId === "c9" ? [{ role: "user", text: "hi" }, { role: "tool", text: "Bash · ls" }] : [], more: false }),
+      store: new DeskStore(),
+      widgets: fakeWidgets([sleep]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
+      transcript: (agentId, conversationId) => ({
+        rows:
+          agentId === "a1" && conversationId === "c9"
+            ? [
+                { role: "user", text: "hi" },
+                { role: "tool", text: "Bash · ls" },
+              ]
+            : [],
+        more: false,
+      }),
     });
     const c = client("c1");
     bridge.onConnect(c);
@@ -306,11 +423,15 @@ describe("bridge history", () => {
   test("history_get pages: the limit asked for (one page at least, a cap at most), and whether older rows remain", () => {
     const asked: number[] = [];
     const bridge = bridgeOf({
-      store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {},
+      store: new DeskStore(),
+      widgets: fakeWidgets([]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
       transcript: (_a, _c, limit) => (asked.push(limit), { rows: [], more: limit < 1200 }),
     });
     const c = client("c1");
-    for (const limit of [undefined, 800, 1200, 5, 1e9]) bridge.onMessage(c, { type: "history_get", requestId: "h", agentId: "a1", conversationId: "c1", limit });
+    for (const limit of [undefined, 800, 1200, 5, 1e9])
+      bridge.onMessage(c, { type: "history_get", requestId: "h", agentId: "a1", conversationId: "c1", limit });
     expect(asked).toEqual([400, 800, 1200, 400, 20_000]);
     expect(c.sent.filter((m) => m.type === "history").map((m) => m.more)).toEqual([true, true, false, true, false]);
   });
@@ -318,7 +439,10 @@ describe("bridge history", () => {
     const log = new WidgetLog(null);
     log.record({ added: [sleep], changed: [], removed: [], removedEntries: [], initial: false }, 123);
     const bridge = bridgeOf({
-      store: new DeskStore(), widgets: fakeWidgets([sleep]), gestures: new GestureLog(), broadcast: () => {},
+      store: new DeskStore(),
+      widgets: fakeWidgets([sleep]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
       widgetLog: (agentId, conversationId) => log.read(scopeFor(conversationId, agentId)),
     });
     const c = client("c1");
@@ -330,13 +454,18 @@ describe("bridge history", () => {
   });
   test("a phone's history_get still answers, with the widget log as one more field it may ignore", () => {
     const bridge = bridgeOf({
-      store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: () => {},
+      store: new DeskStore(),
+      widgets: fakeWidgets([]),
+      gestures: new GestureLog(),
+      broadcast: () => {},
       transcript: () => ({ rows: [{ role: "user", text: "hi" }], more: false }),
       widgetLog: () => [],
     });
     const phone = { ...client("shared"), deviceId: "d1" };
     bridge.onMessage(phone, { type: "history_get", requestId: "p1", agentId: "a1", conversationId: "c1" });
-    expect(phone.sent).toEqual([{ type: "history", requestId: "p1", agentId: "a1", conversationId: "c1", messages: [{ role: "user", text: "hi" }], more: false, widgetLog: [] }]);
+    expect(phone.sent).toEqual([
+      { type: "history", requestId: "p1", agentId: "a1", conversationId: "c1", messages: [{ role: "user", text: "hi" }], more: false, widgetLog: [] },
+    ]);
   });
 });
 
@@ -344,7 +473,17 @@ describe("bridge: a paired phone's authority", () => {
   test("a device client gets the inbox frames and nothing else", () => {
     const broadcasts: Record<string, unknown>[] = [];
     let forgot: string | null = null;
-    const st: LanStatus = { enabled: true, address: "192.168.1.3", addresses: ["192.168.1.3"], host: null, port: 41415, appServed: true, error: null, via: "lan", tailscale: null };
+    const st: LanStatus = {
+      enabled: true,
+      address: "192.168.1.3",
+      addresses: ["192.168.1.3"],
+      host: null,
+      port: 41415,
+      appServed: true,
+      error: null,
+      via: "lan",
+      tailscale: null,
+    };
     const lan = {
       status: () => st,
       refresh: async () => st,
@@ -355,9 +494,37 @@ describe("bridge: a paired phone's authority", () => {
       devices: () => [],
       forget: (id: string) => ((forgot = id), true),
     };
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan, listDesks: () => [] });
+    const bridge = bridgeOf({
+      store: new DeskStore(),
+      widgets: fakeWidgets([]),
+      gestures: new GestureLog(),
+      broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
+      lan,
+      listDesks: () => [],
+    });
     const phone = { ...client("shared"), deviceId: "d1" };
-    for (const type of ["pair_begin", "device_forget", "lan_set", "lan_get", "lan_via_set", "lan_serve_set", "devices_list", "gesture", "arrange", "trash", "folder_pick", "folder_check", "skill_install", "skills_global", "task_assign", "task_close", "task_reopen", "task_status", "widget_status", "measure"]) {
+    for (const type of [
+      "pair_begin",
+      "device_forget",
+      "lan_set",
+      "lan_get",
+      "lan_via_set",
+      "lan_serve_set",
+      "devices_list",
+      "gesture",
+      "arrange",
+      "trash",
+      "folder_pick",
+      "folder_check",
+      "skill_install",
+      "skills_global",
+      "task_assign",
+      "task_close",
+      "task_reopen",
+      "task_status",
+      "widget_status",
+      "measure",
+    ]) {
       phone.sent.length = 0;
       bridge.onMessage(phone, { type, requestId: "r1", id: "d2", enabled: false });
       expect(phone.sent).toEqual([{ type: "error", requestId: "r1", message: `${type} is not available on the phone` }]);
@@ -366,7 +533,15 @@ describe("bridge: a paired phone's authority", () => {
     expect(broadcasts).toEqual([]);
     for (const type of PHONE_FRAMES) {
       phone.sent.length = 0;
-      bridge.onMessage(phone, { type, agentId: "a1", conversationId: "c1", skips: 1, until: "2026-09-07T10:10:00.000Z", stamp: "s", at: "2026-09-07T10:00:00.000Z" });
+      bridge.onMessage(phone, {
+        type,
+        agentId: "a1",
+        conversationId: "c1",
+        skips: 1,
+        until: "2026-09-07T10:10:00.000Z",
+        stamp: "s",
+        at: "2026-09-07T10:00:00.000Z",
+      });
       expect(phone.sent.some((m) => m.type === "error" && String(m.message).includes("not available on the phone"))).toBe(false);
     }
     // the desktop (no deviceId) keeps everything
@@ -377,8 +552,25 @@ describe("bridge: a paired phone's authority", () => {
 });
 
 describe("bridge phone frames", () => {
-  const tailscale: TailscaleStatus = { installed: true, running: true, ip: "100.101.102.103", name: "my-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
-  const status: LanStatus = { enabled: false, address: "192.168.1.3", addresses: ["192.168.1.3"], host: "my-macbook-pro.local", port: 41415, appServed: true, error: null, via: "tailscale", tailscale };
+  const tailscale: TailscaleStatus = {
+    installed: true,
+    running: true,
+    ip: "100.101.102.103",
+    name: "my-macbook-pro.tail1234.ts.net",
+    serveUrl: null,
+    error: null,
+  };
+  const status: LanStatus = {
+    enabled: false,
+    address: "192.168.1.3",
+    addresses: ["192.168.1.3"],
+    host: "my-macbook-pro.local",
+    port: 41415,
+    appServed: true,
+    error: null,
+    via: "tailscale",
+    tailscale,
+  };
   function lanDeps() {
     const calls: unknown[] = [];
     let enabled = false;
@@ -433,7 +625,13 @@ describe("bridge phone frames", () => {
   test("lan_get / lan_set / pair_begin / devices_list / device_forget", async () => {
     const broadcasts: Array<Record<string, unknown>> = [];
     const d = lanDeps();
-    const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), lan: d.lan });
+    const bridge = bridgeOf({
+      store: new DeskStore(),
+      widgets: fakeWidgets([]),
+      gestures: new GestureLog(),
+      broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
+      lan: d.lan,
+    });
     const c = client("c1");
     bridge.onMessage(c, { type: "lan_get" });
     await new Promise((r) => setTimeout(r, 0));
@@ -446,7 +644,10 @@ describe("bridge phone frames", () => {
     bridge.onMessage(c, { type: "pair_begin" });
     expect(c.sent.at(-1)).toEqual({ type: "pair_code", code: "ABC234", url: "http://192.168.1.3:41415/?code=ABC234", expiresAt: "2026-09-07T10:10:00.000Z" });
     bridge.onMessage(c, { type: "devices_list" });
-    expect(c.sent.at(-1)).toEqual({ type: "devices", devices: [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }] });
+    expect(c.sent.at(-1)).toEqual({
+      type: "devices",
+      devices: [{ id: "d1", name: "iPhone", createdAt: "2026-09-07T10:00:00.000Z", lastSeenAt: "2026-09-07T10:00:00.000Z" }],
+    });
     bridge.onMessage(c, { type: "device_forget", id: "d1" });
     expect(d.calls.at(-1)).toEqual(["forget", "d1"]);
     expect(broadcasts.at(-1)).toEqual({ type: "devices", devices: [] });
@@ -498,11 +699,27 @@ describe("recall frames", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-recall-b-"));
     try {
       const store = new RecallStore(dir);
-      store.add({ id: "k1", front: "Q1?", back: "A1", tags: ["t"], source: { agentId: "a", agentName: "ira", conversationId: "c", title: null, at: null }, createdAt: "2026-09-10T08:00:00Z", updatedAt: "2026-09-10T08:00:00Z", updatedBy: "recall", previous: [] });
+      store.add({
+        id: "k1",
+        front: "Q1?",
+        back: "A1",
+        tags: ["t"],
+        source: { agentId: "a", agentName: "ira", conversationId: "c", title: null, at: null },
+        createdAt: "2026-09-10T08:00:00Z",
+        updatedAt: "2026-09-10T08:00:00Z",
+        updatedBy: "recall",
+        previous: [],
+      });
       const broadcasts: Array<Record<string, unknown>> = [];
       // Learn's settings and status are the daemon's; here a plain object stands in for them.
       const status = { enabled: true, dailyCap: 25, lastRunAt: null, lastRunNote: null, writtenToday: 0 };
-      const bridge = bridgeOf({ store: new DeskStore(), widgets: fakeWidgets([]), gestures: new GestureLog(), broadcast: (m) => broadcasts.push(m as Record<string, unknown>), recall: { store, status: () => status, setSettings: async (s) => void Object.assign(status, s), run: async () => ({ note: "ran" }) } });
+      const bridge = bridgeOf({
+        store: new DeskStore(),
+        widgets: fakeWidgets([]),
+        gestures: new GestureLog(),
+        broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
+        recall: { store, status: () => status, setSettings: async (s) => void Object.assign(status, s), run: async () => ({ note: "ran" }) },
+      });
       const c = client("c1");
       bridge.onMessage(c, { type: "recall_list", requestId: "r1" });
       const list = c.sent.pop()!;
@@ -525,7 +742,7 @@ describe("recall frames", () => {
       expect((c.sent.pop()!.card as { card: { id: string } }).card.id).toBe("k1");
       bridge.onMessage(c, { type: "recall_settings", requestId: "r7", dailyCap: 3, enabled: false });
       await new Promise((r) => setTimeout(r, 0));
-      expect((c.sent.pop()!.worker as { dailyCap: number; enabled: boolean })).toMatchObject({ dailyCap: 3, enabled: false });
+      expect(c.sent.pop()!.worker as { dailyCap: number; enabled: boolean }).toMatchObject({ dailyCap: 3, enabled: false });
       bridge.onMessage(c, { type: "recall_export", requestId: "r8" });
       expect(c.sent.pop()!.tsv).toBe("Q1?\tA1 better\tt\n");
       bridge.onMessage(c, { type: "recall_run", requestId: "r9" });

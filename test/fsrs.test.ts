@@ -82,8 +82,16 @@ describe("fsrs", () => {
 });
 
 const card = (id: string, over: Partial<Card> = {}): Card => ({
-  id, front: `q ${id}`, back: `a ${id}`, tags: [], createdAt: "2026-09-10T08:00:00Z", updatedAt: "2026-09-10T08:00:00Z", updatedBy: "recall", previous: [],
-  source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null }, ...over,
+  id,
+  front: `q ${id}`,
+  back: `a ${id}`,
+  tags: [],
+  createdAt: "2026-09-10T08:00:00Z",
+  updatedAt: "2026-09-10T08:00:00Z",
+  updatedBy: "recall",
+  previous: [],
+  source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null },
+  ...over,
 });
 
 describe("recall queue", () => {

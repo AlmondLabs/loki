@@ -52,7 +52,30 @@ export const ChatInput = forwardRef<
     "aria-activedescendant"?: string;
     "aria-expanded"?: boolean;
   }
->(function ChatInput({ value, onChange, onSubmit, onKeyDown, onEscape, onFocus, onBlur, images = [], onImages, placeholder, disabled, touch = false, tools, canSend, sendLabel, sendTitle, onStop, stopping = false, ...aria }, ref) {
+>(function ChatInput(
+  {
+    value,
+    onChange,
+    onSubmit,
+    onKeyDown,
+    onEscape,
+    onFocus,
+    onBlur,
+    images = [],
+    onImages,
+    placeholder,
+    disabled,
+    touch = false,
+    tools,
+    canSend,
+    sendLabel,
+    sendTitle,
+    onStop,
+    stopping = false,
+    ...aria
+  },
+  ref,
+) {
   // The latest list, for uploads that finish after the draft moved on.
   const imagesRef = useRef(images);
   useLayoutEffect(() => {
@@ -184,12 +207,37 @@ export const ChatInput = forwardRef<
               </span>
             ) : (
               <span key={a.id} style={{ position: "relative", display: "inline-block" }}>
-                <img src={a.url} alt="" style={{ height: 56, maxWidth: 120, objectFit: "cover", borderRadius: "var(--loki-radius-sm)", border: "1px solid var(--loki-border)", display: "block" }} />
+                <img
+                  src={a.url}
+                  alt=""
+                  style={{
+                    height: 56,
+                    maxWidth: 120,
+                    objectFit: "cover",
+                    borderRadius: "var(--loki-radius-sm)",
+                    border: "1px solid var(--loki-border)",
+                    display: "block",
+                  }}
+                />
                 <button
                   type="button"
                   onClick={() => remove(a)}
                   aria-label="Remove image"
-                  style={{ position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, border: "1px solid var(--loki-border)", background: "var(--loki-panel)", color: "var(--loki-fg)", fontSize: 10.5, lineHeight: "16px", cursor: "pointer", padding: 0 }}
+                  style={{
+                    position: "absolute",
+                    top: -6,
+                    right: -6,
+                    width: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    border: "1px solid var(--loki-border)",
+                    background: "var(--loki-panel)",
+                    color: "var(--loki-fg)",
+                    fontSize: 10.5,
+                    lineHeight: "16px",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
                 >
                   ×
                 </button>
@@ -202,7 +250,12 @@ export const ChatInput = forwardRef<
               <span className="loki-file-chip-name">{u.name}</span>
               <span className="loki-file-chip-size">{u.error ? "failed" : `${Math.round(u.share * 100)}%`}</span>
               {u.error && (
-                <button type="button" className="loki-file-chip-remove" onClick={() => setUploads((x) => x.filter((y) => y.id !== u.id))} aria-label={`Remove ${u.name}`}>
+                <button
+                  type="button"
+                  className="loki-file-chip-remove"
+                  onClick={() => setUploads((x) => x.filter((y) => y.id !== u.id))}
+                  aria-label={`Remove ${u.name}`}
+                >
                   ×
                 </button>
               )}
@@ -275,7 +328,9 @@ export const ChatInput = forwardRef<
         touch={touch}
         attach={onImages ? { onClick: () => picker.current?.click() } : null}
         tools={tools}
-        dictation={dictation.supported ? { listening, pending: dictation.pending, title: listening ? "stop dictating" : dictateTitle(), onToggle: startDictation } : null}
+        dictation={
+          dictation.supported ? { listening, pending: dictation.pending, title: listening ? "stop dictating" : dictateTitle(), onToggle: startDictation } : null
+        }
         canSend={canSend && !uploading}
         sendLabel={uploading ? "Uploading…" : sendLabel}
         sendTitle={sendTitle}
@@ -297,11 +352,20 @@ export const ChatInput = forwardRef<
         />
       )}
       {dictation.error && (
-        <span id="loki-dictation-error" role="status" className="loki-meta loki-meta--negative" style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6 }}>
+        <span
+          id="loki-dictation-error"
+          role="status"
+          className="loki-meta loki-meta--negative"
+          style={{ position: "absolute", left: 12, bottom: "100%", marginBottom: 6 }}
+        >
           {dictation.error}
         </span>
       )}
-      {interim && <span className="sr-only" aria-live="polite">{interim}</span>}
+      {interim && (
+        <span className="sr-only" aria-live="polite">
+          {interim}
+        </span>
+      )}
     </div>
   );
 });
@@ -347,17 +411,41 @@ export function ComposerBar({
       {tools}
       <span className="loki-composer-end">
         {dictation && (
-          <IconButton size={size} tone={dictation.listening || dictation.pending ? "brass" : "quiet"} onClick={dictation.onToggle} disabled={disabled} label={dictation.listening ? "Stop dictating" : "Dictate"} aria-pressed={dictation.listening} title={dictation.title} className="loki-composer-round">
+          <IconButton
+            size={size}
+            tone={dictation.listening || dictation.pending ? "brass" : "quiet"}
+            onClick={dictation.onToggle}
+            disabled={disabled}
+            label={dictation.listening ? "Stop dictating" : "Dictate"}
+            aria-pressed={dictation.listening}
+            title={dictation.title}
+            className="loki-composer-round"
+          >
             <Icon name="mic" size={glyph} />
             {dictation.listening && <Dot pulse size={6} color="var(--loki-accent)" aria-hidden style={{ position: "absolute", top: 3, right: 3 }} />}
           </IconButton>
         )}
         {stop ? (
-          <IconButton size={size} onClick={stop.onStop} disabled={stop.stopping} label={stop.stopping ? "Stopping" : "Stop"} title={stop.stopping ? "stopping…" : "stop the agent's turn"} className="loki-composer-round loki-composer-stop">
+          <IconButton
+            size={size}
+            onClick={stop.onStop}
+            disabled={stop.stopping}
+            label={stop.stopping ? "Stopping" : "Stop"}
+            title={stop.stopping ? "stopping…" : "stop the agent's turn"}
+            className="loki-composer-round loki-composer-stop"
+          >
             <Icon name="stop" size={glyph} />
           </IconButton>
         ) : (
-          <IconButton size={size} tone={canSend ? "positive" : "quiet"} onClick={onSend} disabled={disabled || !canSend} label={sendLabel} title={sendTitle ?? sendLabel} className="loki-composer-round loki-composer-send">
+          <IconButton
+            size={size}
+            tone={canSend ? "positive" : "quiet"}
+            onClick={onSend}
+            disabled={disabled || !canSend}
+            label={sendLabel}
+            title={sendTitle ?? sendLabel}
+            className="loki-composer-round loki-composer-send"
+          >
             <Icon name="send" size={glyph} />
           </IconButton>
         )}

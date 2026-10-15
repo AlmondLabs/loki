@@ -52,7 +52,10 @@ export class KeychainCredentials implements CredentialStore {
 
   private serial<T>(providerId: string, work: () => Promise<T>): Promise<T> {
     const run = (this.queue.get(providerId) ?? Promise.resolve()).then(work, work);
-    this.queue.set(providerId, run.catch(() => undefined));
+    this.queue.set(
+      providerId,
+      run.catch(() => undefined),
+    );
     return run;
   }
 

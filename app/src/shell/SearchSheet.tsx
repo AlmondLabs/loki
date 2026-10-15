@@ -17,7 +17,19 @@ const optionId = (key: string) => `loki-search-opt-${key.replace(/[^a-zA-Z0-9_-]
  * ↑ ↓ move the highlight (focus stays in the field: a combobox over one listbox), Enter opens it, Esc and
  * ⌘K again close. The line at the foot says what is searched, so no one takes it for message search.
  */
-export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { sources: SearchSources; /** The place showing (a recent-places key), left out of the recents. */ here: string | null; avatar: (agentId: string) => string | null; onOpen: (hit: SearchHit) => void; onClose: () => void }) {
+export function SearchSheet({
+  sources,
+  here,
+  avatar,
+  onOpen,
+  onClose,
+}: {
+  sources: SearchSources;
+  /** The place showing (a recent-places key), left out of the recents. */ here: string | null;
+  avatar: (agentId: string) => string | null;
+  onOpen: (hit: SearchHit) => void;
+  onClose: () => void;
+}) {
   // No autoFocus on the field: Sheet notes the element focused before it (to hand focus back on close), then focuses the field, its first control.
   const [query, setQuery] = useState("");
   const [placeKeys, setPlaceKeys] = useState(() => recentPlaces.read());
@@ -27,7 +39,16 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
   const typed = cleanQuery(query);
   const index = useMemo(() => buildIndex(sources), [sources]);
   const groups = useMemo(() => search(index, typed), [index, typed]);
-  const places = useMemo(() => (typed ? [] : recentPlaceHits(placeKeys.filter((k) => k !== here), sources)), [typed, placeKeys, here, sources]);
+  const places = useMemo(
+    () =>
+      typed
+        ? []
+        : recentPlaceHits(
+            placeKeys.filter((k) => k !== here),
+            sources,
+          ),
+    [typed, placeKeys, here, sources],
+  );
   const rows = typed ? flatHits(groups) : places;
   const found = groups.reduce((n, g) => n + g.total, 0);
   const current = rows[Math.min(active, rows.length - 1)] ?? null;
@@ -44,7 +65,9 @@ export function SearchSheet({ sources, here, avatar, onOpen, onClose }: { source
     recentPlaces.add(hit.place);
     onOpen(hit);
   };
-  const row = (h: SearchHit, i: number) => <HitRow key={h.key} hit={h} selected={h === current} avatar={avatar} onPoint={() => setActive(i)} onOpen={() => open(h)} />;
+  const row = (h: SearchHit, i: number) => (
+    <HitRow key={h.key} hit={h} selected={h === current} avatar={avatar} onPoint={() => setActive(i)} onOpen={() => open(h)} />
+  );
 
   const starts = groupStarts(groups); // each group's first row in `rows`
   return (
@@ -153,7 +176,19 @@ function Group({ title, note, children }: { title: string; note?: string | null;
 }
 
 /** One result: ListRow's anatomy as a listbox option — the lead, the title over its line; highlighted while chosen. */
-function HitRow({ hit, selected, avatar, onPoint, onOpen }: { hit: SearchHit; selected: boolean; avatar: (agentId: string) => string | null; onPoint: () => void; onOpen: () => void }) {
+function HitRow({
+  hit,
+  selected,
+  avatar,
+  onPoint,
+  onOpen,
+}: {
+  hit: SearchHit;
+  selected: boolean;
+  avatar: (agentId: string) => string | null;
+  onPoint: () => void;
+  onOpen: () => void;
+}) {
   const lead = "agent" in hit.lead ? <AgentFace name={hit.lead.agent.name} src={avatar(hit.lead.agent.id)} /> : <ListIcon name={hit.lead.icon} />;
   return (
     <li id={optionId(hit.key)} role="option" aria-selected={selected} className="loki-list-item" data-dim={hit.dim || undefined} data-launch={hit.key}>
@@ -166,7 +201,11 @@ function HitRow({ hit, selected, avatar, onPoint, onOpen }: { hit: SearchHit; se
           </span>
           <span className="loki-list-row-preview">{hit.preview}</span>
         </span>
-        {selected && <span className="loki-meta" aria-hidden>{formatKeys("enter")}</span>}
+        {selected && (
+          <span className="loki-meta" aria-hidden>
+            {formatKeys("enter")}
+          </span>
+        )}
       </div>
     </li>
   );

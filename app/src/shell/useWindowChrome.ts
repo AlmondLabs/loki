@@ -9,15 +9,41 @@ import type { Desk } from "./types";
  * the window in the Window menu, Mission Control and to screen readers; a browser tab shows it as the tab
  * title. A waiting count prefixes the tab title everywhere but the inbox.
  */
-export function useWindowTitle(desk: Pick<Desk, "title" | "status" | "scope" | "agentName">, segment: Segment, waiting: number, openTasks: number, dueCards = 0): void {
+export function useWindowTitle(
+  desk: Pick<Desk, "title" | "status" | "scope" | "agentName">,
+  segment: Segment,
+  waiting: number,
+  openTasks: number,
+  dueCards = 0,
+): void {
   useEffect(() => {
     const deskName = desk.title ?? (desk.status === "live" ? "new chat" : desk.scope);
     // "agent · title", the way a main chat is named ("ira · main chat"); no repeat when the title already leads with it.
     const who = desk.agentName && !deskName.toLowerCase().startsWith(desk.agentName.toLowerCase()) ? `${desk.agentName} · ` : "";
     const state = desk.status === "archived" ? " · archived" : desk.status === "deleted" ? " · deleted" : "";
-    const name = segment === "inbox" ? (waiting > 0 ? `Inbox · ${waiting} waiting` : "Inbox") : segment === "tasks" ? (openTasks > 0 ? `Tasks · ${openTasks} open` : "Tasks") : segment === "learn" ? (dueCards > 0 ? `Learn · ${dueCards} due` : "Learn") : segment === "agents" ? "Agents" : segment === "settings" ? "Preferences" : `${who}${deskName}${state}`;
+    const name =
+      segment === "inbox"
+        ? waiting > 0
+          ? `Inbox · ${waiting} waiting`
+          : "Inbox"
+        : segment === "tasks"
+          ? openTasks > 0
+            ? `Tasks · ${openTasks} open`
+            : "Tasks"
+          : segment === "learn"
+            ? dueCards > 0
+              ? `Learn · ${dueCards} due`
+              : "Learn"
+            : segment === "agents"
+              ? "Agents"
+              : segment === "settings"
+                ? "Preferences"
+                : `${who}${deskName}${state}`;
     document.title = waiting > 0 && segment !== "inbox" ? `(${waiting}) ${name}` : name;
-    if (inTauri) void import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name)).catch((e) => console.warn("loki: window title", e));
+    if (inTauri)
+      void import("@tauri-apps/api/window")
+        .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(name))
+        .catch((e) => console.warn("loki: window title", e));
   }, [waiting, desk.title, desk.status, desk.scope, desk.agentName, segment, openTasks, dueCards]);
 }
 

@@ -35,7 +35,14 @@ export function lanStatusFromFrame(msg: Record<string, unknown>): PhoneLanStatus
   let tailscale: TailscaleStatus | null = null;
   if (t && typeof t === "object") {
     const o = t as Record<string, unknown>;
-    tailscale = { installed: o.installed === true, running: o.running === true, ip: str(o.ip), name: str(o.name), serveUrl: str(o.serveUrl), error: str(o.error) };
+    tailscale = {
+      installed: o.installed === true,
+      running: o.running === true,
+      ip: str(o.ip),
+      name: str(o.name),
+      serveUrl: str(o.serveUrl),
+      error: str(o.error),
+    };
   }
   return {
     enabled: msg.enabled === true,
@@ -72,7 +79,10 @@ export function pairOrigin(s: PhoneLanStatus): string | null {
  * named as it is. `https:` is worth a word because it means `tailscale serve` is in front.
  */
 export function routeOf(host: string, protocol: string): string {
-  const hostname = host.replace(/^\[([^\]]+)\](?::\d+)?$/, "$1").replace(/^([^:]+):\d+$/, "$1").toLowerCase();
+  const hostname = host
+    .replace(/^\[([^\]]+)\](?::\d+)?$/, "$1")
+    .replace(/^([^:]+):\d+$/, "$1")
+    .toLowerCase();
   const secure = protocol === "https:" ? " · https" : "";
   if (hostname.endsWith(".ts.net")) return `via Tailscale${secure}`;
   if (hostname.endsWith(".local")) return `via this Wi‑Fi (Bonjour)${secure}`;
@@ -184,7 +194,11 @@ export function lastSeen(iso: string | null | undefined, now: number = Date.now(
 }
 
 /** An agent's name: the daemon's list first, then any desk of its; null when neither knows it. */
-export function agentNameOf(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; agentName: string | null }>, id: string): string | null {
+export function agentNameOf(
+  agents: Array<{ id: string; name: string }>,
+  desks: Array<{ agentId: string | null; agentName: string | null }>,
+  id: string,
+): string | null {
   return agents.find((a) => a.id === id)?.name ?? desks.find((d) => d.agentId === id)?.agentName ?? null;
 }
 
@@ -203,7 +217,8 @@ export function threadFor(
   return {
     agentId: conv.agentId,
     conversationId: conv.conversationId,
-    title: convDesk?.title ?? convItem?.title ?? (conv.conversationId === "default" ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat` : null),
+    title:
+      convDesk?.title ?? convItem?.title ?? (conv.conversationId === "default" ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat` : null),
     agentName: convDesk?.agentName ?? convItem?.agentName ?? agentNameOf(agents, desks, conv.agentId),
   };
 }
@@ -212,8 +227,12 @@ export function threadFor(
  * The card footer's first word: for a card waiting on you (an approval, or a question — structured or the
  * last message read as one) how long it has waited; otherwise how long since the last message.
  */
-export function waitingSince(item: { status: string; lastMessageAt: string | null; pendingApproval: { at: string | null } | null; pendingQuestion: { at: string } | null }, now: number = Date.now()): string {
-  const at = item.status === "approval" ? (item.pendingApproval?.at ?? item.lastMessageAt) : item.pendingQuestion ? item.pendingQuestion.at : item.lastMessageAt;
+export function waitingSince(
+  item: { status: string; lastMessageAt: string | null; pendingApproval: { at: string | null } | null; pendingQuestion: { at: string } | null },
+  now: number = Date.now(),
+): string {
+  const at =
+    item.status === "approval" ? (item.pendingApproval?.at ?? item.lastMessageAt) : item.pendingQuestion ? item.pendingQuestion.at : item.lastMessageAt;
   const since = lastSeen(at, now);
   const asks = !!item.pendingQuestion || item.status === "question";
   const blocked = !!item.pendingApproval || asks;
@@ -235,7 +254,12 @@ export function liveDesksLabel(n: number): string {
  * window the harness set; empty when it runs on the harness default.
  */
 export function modelBits(model: string | null | undefined, settings: Record<string, unknown>): string[] {
-  return [model ?? null, settings.effort ? `effort ${String(settings.effort)}` : null, settings.thinking ? "thinking" : null, settings.context_window_limit ? `${Math.round(Number(settings.context_window_limit) / 1000)}k context` : null].filter(Boolean) as string[];
+  return [
+    model ?? null,
+    settings.effort ? `effort ${String(settings.effort)}` : null,
+    settings.thinking ? "thinking" : null,
+    settings.context_window_limit ? `${Math.round(Number(settings.context_window_limit) / 1000)}k context` : null,
+  ].filter(Boolean) as string[];
 }
 
 export interface MemoryFolder {
@@ -320,7 +344,17 @@ export interface HomeCounts {
 }
 
 /** The shortcut rail's numbers, from the same derivations the destinations use. */
-export function homeCounts({ items, due, agents, desks }: { items: AttentionItem[]; due: number; agents: Array<{ id: string }>; desks: DeskSummary[] }): HomeCounts {
+export function homeCounts({
+  items,
+  due,
+  agents,
+  desks,
+}: {
+  items: AttentionItem[];
+  due: number;
+  agents: Array<{ id: string }>;
+  desks: DeskSummary[];
+}): HomeCounts {
   return {
     inbox: catchUpQueue(items).length,
     learn: due,
@@ -346,7 +380,13 @@ export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
  * Pinned, then one section per agent by its latest activity, the main chat first. A conversation already in
  * "Needs your attention" is not repeated below it (R16), and a section left with nothing is dropped.
  */
-export function homeDeskSections(desks: DeskSummary[], items: AttentionItem[], attention: HomeAttention[], query: string, agents: Array<{ id: string; name: string | null }>): SidebarSection[] {
+export function homeDeskSections(
+  desks: DeskSummary[],
+  items: AttentionItem[],
+  attention: HomeAttention[],
+  query: string,
+  agents: Array<{ id: string; name: string | null }>,
+): SidebarSection[] {
   const above = new Set(attention.map((a) => `${a.item.agentId}/${a.item.id}`));
   const named = agents.flatMap((a) => (a.name ? [{ id: a.id, name: a.name }] : []));
   return sidebarModel(desks, items, { query, agents: named })
@@ -369,16 +409,30 @@ export interface HomeAttention {
  * then by recency) without them. Actionable desks past the cap stay in the desk list with their mark.
  * The agent scope and the filter narrow both; an item matches by its desk's name, its own title or its agent.
  */
-export function homeSections(desks: DeskSummary[], items: AttentionItem[], agentFilter: string | null, query: string, max = HOME_ATTENTION_MAX): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
+export function homeSections(
+  desks: DeskSummary[],
+  items: AttentionItem[],
+  agentFilter: string | null,
+  query: string,
+  max = HOME_ATTENTION_MAX,
+): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
   const q = norm(query);
   const byKey = new Map<string, DeskSummary>();
   for (const d of desks) if (d.agentId && d.conversationId) byKey.set(`${d.agentId}/${d.conversationId}`, d);
   const waiting = catchUpQueue(items)
     .map((item) => ({ item, desk: byKey.get(`${item.agentId}/${item.id}`) }))
-    .filter(({ item, desk }) => (!agentFilter || item.agentId === agentFilter) && (!q || [desk?.title, item.title, item.agentName ?? desk?.agentName].some((s) => (s ?? "").toLowerCase().includes(q))));
+    .filter(
+      ({ item, desk }) =>
+        (!agentFilter || item.agentId === agentFilter) &&
+        (!q || [desk?.title, item.title, item.agentName ?? desk?.agentName].some((s) => (s ?? "").toLowerCase().includes(q))),
+    );
   const attention = waiting.slice(0, max);
   const shown = new Set(attention.map(({ item }) => `${item.agentId}/${item.id}`));
-  return { attention, more: waiting.length - attention.length, desks: liveDesks(desks, agentFilter, q).filter((d) => !shown.has(`${d.agentId}/${d.conversationId}`)) };
+  return {
+    attention,
+    more: waiting.length - attention.length,
+    desks: liveDesks(desks, agentFilter, q).filter((d) => !shown.has(`${d.agentId}/${d.conversationId}`)),
+  };
 }
 
 export type LinkState = "online" | "connecting" | "offline";
@@ -396,8 +450,30 @@ export function linkState(mod: "connecting" | "open" | "closed"): LinkState {
  * The conversation header's second line, under the agent's name: what the agent is doing (it waits on
  * your approval or answer, is writing, working, or is waiting on you), then the desk. Either may be absent.
  */
-export function threadLine({ status, approval, question, waiting, desk }: { status: "idle" | "thinking" | "streaming"; approval: unknown; question: unknown; waiting: boolean; desk: string | null }): string {
-  const live = approval ? "needs approval" : question ? "asked you" : status === "streaming" ? "writing" : status === "thinking" ? "working" : waiting ? "waiting on you" : null;
+export function threadLine({
+  status,
+  approval,
+  question,
+  waiting,
+  desk,
+}: {
+  status: "idle" | "thinking" | "streaming";
+  approval: unknown;
+  question: unknown;
+  waiting: boolean;
+  desk: string | null;
+}): string {
+  const live = approval
+    ? "needs approval"
+    : question
+      ? "asked you"
+      : status === "streaming"
+        ? "writing"
+        : status === "thinking"
+          ? "working"
+          : waiting
+            ? "waiting on you"
+            : null;
   return [live, desk].filter(Boolean).join(" · ");
 }
 
@@ -415,7 +491,11 @@ export interface AgentRowModel {
 }
 
 /** The Agents list in the daemon's order, so rows keep their place while states change under them. */
-export function agentRows(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; status: string }>, items: AttentionItem[]): AgentRowModel[] {
+export function agentRows(
+  agents: Array<{ id: string; name: string }>,
+  desks: Array<{ agentId: string | null; status: string }>,
+  items: AttentionItem[],
+): AgentRowModel[] {
   const ready = catchUpQueue(items);
   return agents.map((a) => ({
     id: a.id,
@@ -481,13 +561,27 @@ export interface MoreRow {
  * Learn, the archive, preferences), then the utilities (updates, About, the connection). Every secondary
  * capability the phone had under You and Settings is one of these rows or a page behind one.
  */
-export function moreSections(s: { link: LinkState; agents: number; running: number; due: number; archived: number; appearance: string; update: UpdateState }): Array<{ label: string; rows: MoreRow[] }> {
+export function moreSections(s: {
+  link: LinkState;
+  agents: number;
+  running: number;
+  due: number;
+  archived: number;
+  appearance: string;
+  update: UpdateState;
+}): Array<{ label: string; rows: MoreRow[] }> {
   return [
     { label: "Paired Mac", rows: [{ id: "mac", icon: "laptop", label: "Paired Mac", aside: linkWord(s.link), to: { kind: "connection" } }] },
     {
       label: "Places",
       rows: [
-        { id: "agents", icon: "agents", label: "Agents", aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null, to: { kind: "tab", tab: "agents" } },
+        {
+          id: "agents",
+          icon: "agents",
+          label: "Agents",
+          aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null,
+          to: { kind: "tab", tab: "agents" },
+        },
         { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
         { id: "archive", icon: "archive", label: "Archived chats", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
         { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },
@@ -496,7 +590,13 @@ export function moreSections(s: { link: LinkState; agents: number; running: numb
     {
       label: "loki",
       rows: [
-        { id: "updates", icon: "refresh", label: "Updates", aside: s.update === "ready" ? "Update ready" : s.update === "current" ? "Up to date" : null, to: null },
+        {
+          id: "updates",
+          icon: "refresh",
+          label: "Updates",
+          aside: s.update === "ready" ? "Update ready" : s.update === "current" ? "Up to date" : null,
+          to: null,
+        },
         { id: "about", icon: "info", label: "About loki", aside: null, to: { kind: "about" } },
         { id: "connection", icon: "link", label: "Connection details", aside: null, to: { kind: "connection" } },
       ],

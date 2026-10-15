@@ -182,9 +182,7 @@ export function WidgetFrame({
         zIndex: layout.z,
         // A human-sized frame keeps its width and height. Otherwise it sizes to its content up to a
         // reading width, then the content scrolls — never clipped, never a fixed measurement of itself.
-        ...(sized
-          ? { width: layout.size!.w, height: layout.size!.h }
-          : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
+        ...(sized ? { width: layout.size!.w, height: layout.size!.h } : { width: "fit-content", minWidth: MIN_FRAME.w, maxWidth: WIDGET_MAX_WIDTH }),
         background: "var(--loki-panel)",
         border: `1px solid ${entry.error ? "var(--loki-negative)" : highlighted ? "var(--loki-accent)" : "var(--loki-border)"}`,
         borderRadius: "var(--loki-radius)",
@@ -197,8 +195,18 @@ export function WidgetFrame({
         flexDirection: "column",
       }}
     >
-      <FrameTitleBar entry={entry} gesture={gesture} onFocus={onFocus} onTrash={onTrash} onDragStart={onDragStart} onDragMove={onDragMove} onDragEnd={onDragEnd} />
-      <div className="loki-frame-body" style={{ padding: 12, minHeight: 0, ...(sized ? { flex: 1, overflow: "auto" } : { overflowX: "auto" }) }}>{children}</div>
+      <FrameTitleBar
+        entry={entry}
+        gesture={gesture}
+        onFocus={onFocus}
+        onTrash={onTrash}
+        onDragStart={onDragStart}
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+      />
+      <div className="loki-frame-body" style={{ padding: 12, minHeight: 0, ...(sized ? { flex: 1, overflow: "auto" } : { overflowX: "auto" }) }}>
+        {children}
+      </div>
       {/* Where a keyboard nudge left the frame, for screen readers; sr-only keeps it out of sight and out of the layout. */}
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}
@@ -251,7 +259,9 @@ function FrameTitleBar({
         {entry.title}
       </span>
       <span className="loki-frame-controls" style={{ display: "flex", gap: 2, alignItems: "center" }}>
-        <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", marginRight: 6 }}>{entry.name}</span>
+        <span className="loki-meta loki-meta--wrap" style={{ fontFamily: "var(--loki-mono)", marginRight: 6 }}>
+          {entry.name}
+        </span>
         <FrameButton label={`focus ${entry.title}`} title="focus" onClick={() => onFocus?.(entry.id)}>
           {/* target */}
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -275,7 +285,15 @@ function FrameTitleBar({
 }
 
 /** The corner handle that pins a width and height. */
-function ResizeGrip({ onResizeStart, onResizeMove, onResizeEnd }: { onResizeStart: (e: React.PointerEvent) => void; onResizeMove: (e: React.PointerEvent) => void; onResizeEnd: (e: React.PointerEvent) => void }) {
+function ResizeGrip({
+  onResizeStart,
+  onResizeMove,
+  onResizeEnd,
+}: {
+  onResizeStart: (e: React.PointerEvent) => void;
+  onResizeMove: (e: React.PointerEvent) => void;
+  onResizeEnd: (e: React.PointerEvent) => void;
+}) {
   return (
     <div
       className="loki-frame-resize"
@@ -287,7 +305,15 @@ function ResizeGrip({ onResizeStart, onResizeMove, onResizeEnd }: { onResizeStar
       onPointerCancel={onResizeEnd}
       style={{ position: "absolute", right: 0, bottom: 0, width: 16, height: 16, cursor: "nwse-resize", touchAction: "none", zIndex: 1 }}
     >
-      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="var(--loki-muted)" strokeWidth="1.2" style={{ position: "absolute", right: 1, bottom: 1 }}>
+      <svg
+        viewBox="0 0 16 16"
+        width="16"
+        height="16"
+        fill="none"
+        stroke="var(--loki-muted)"
+        strokeWidth="1.2"
+        style={{ position: "absolute", right: 1, bottom: 1 }}
+      >
         <path d="M11 15L15 11M7.5 15L15 7.5" />
       </svg>
     </div>

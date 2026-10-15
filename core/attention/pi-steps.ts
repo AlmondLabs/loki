@@ -28,7 +28,8 @@ export function messageAt(m: PiMessage): string | null {
  * as the result of the call it names. System messages and thinking are nothing.
  */
 export function messageSteps(m: PiMessage, at: string | null): Step[] {
-  if (m.role === "toolResult") return typeof m.toolCallId === "string" ? [{ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true }] : [];
+  if (m.role === "toolResult")
+    return typeof m.toolCallId === "string" ? [{ kind: "result", id: m.toolCallId, output: m.content, failed: m.isError === true }] : [];
   if (m.role !== "user" && m.role !== "assistant") return [];
   const text = contentText(m.content);
   if (m.role === "user") return [{ kind: "user", raw: text, at }];

@@ -124,15 +124,24 @@ export function parsePrefs(raw: unknown): ViewPrefs {
   return {
     layout: LAYOUTS.includes(v.layout as Layout) ? (v.layout as Layout) : DEFAULT_PREFS.layout,
     groupBy: GROUPS.includes(v.groupBy as GroupBy) ? (v.groupBy as GroupBy) : DEFAULT_PREFS.groupBy,
-    sort: { key: SORT_KEYS.includes(sort.key as SortKey) ? (sort.key as SortKey) : DEFAULT_PREFS.sort.key, dir: sort.dir === "asc" ? "asc" : sort.dir === "desc" ? "desc" : DEFAULT_PREFS.sort.dir },
+    sort: {
+      key: SORT_KEYS.includes(sort.key as SortKey) ? (sort.key as SortKey) : DEFAULT_PREFS.sort.key,
+      dir: sort.dir === "asc" ? "asc" : sort.dir === "desc" ? "desc" : DEFAULT_PREFS.sort.dir,
+    },
   };
 }
 
 /** The last part of a folder's path, as the list names it. */
-export const folderName = (folder: string | undefined): string | null => (folder ? folder.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || folder : null);
+export const folderName = (folder: string | undefined): string | null =>
+  folder
+    ? folder
+        .replace(/[\\/]+$/, "")
+        .split(/[\\/]/)
+        .pop() || folder
+    : null;
 
 /** Who filed it: you, or the agent by name. */
-export const filedBy = (t: Task): string => (t.metadata.by === "you" ? "you" : t.metadata.agent ?? "an agent");
+export const filedBy = (t: Task): string => (t.metadata.by === "you" ? "you" : (t.metadata.agent ?? "an agent"));
 
 /**
  * The Board's columns for a view's tasks. By status, always the four (an empty one says so). By assignee or folder,
@@ -189,7 +198,8 @@ export function tableRows(tasks: Task[], sort: Sort, chat: (desk: string) => str
 }
 
 /** A Table header's click: the same column flips its direction, a new one starts where it reads best (newest first for a time). */
-export const nextSort = (sort: Sort, key: SortKey): Sort => (sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "updated" ? "desc" : "asc" });
+export const nextSort = (sort: Sort, key: SortKey): Sort =>
+  sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "updated" ? "desc" : "asc" };
 
 /**
  * The view to show, and the agent it names when that agent no longer has a task in the list (its sidebar shows no
@@ -239,7 +249,13 @@ export function stepCursor(columns: Column[], cursor: string | null, dir: Dir): 
 export function filterTasks(tasks: Task[], query: string): Task[] {
   const q = query.trim().toLowerCase();
   if (!q) return tasks;
-  return tasks.filter((t) => t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q) || t.labels.some((l) => l.toLowerCase().includes(q)) || (t.metadata.agent ?? "").toLowerCase().includes(q));
+  return tasks.filter(
+    (t) =>
+      t.title.toLowerCase().includes(q) ||
+      t.id.toLowerCase().includes(q) ||
+      t.labels.some((l) => l.toLowerCase().includes(q)) ||
+      (t.metadata.agent ?? "").toLowerCase().includes(q),
+  );
 }
 
 /**
@@ -260,6 +276,8 @@ export function dispatchMessage(tasks: Task[]): string {
     one ? "Please pick up this task from my task list:" : `Please pick up these ${tasks.length} tasks from my task list:`,
     ...lines,
     "",
-    one ? "When it is done, close it with loki_task { action: \"close\", id, reason }. Ask if anything is unclear before starting." : "Work them in order unless one blocks another. Close each with loki_task { action: \"close\", id, reason } as you finish. Ask if anything is unclear before starting.",
+    one
+      ? 'When it is done, close it with loki_task { action: "close", id, reason }. Ask if anything is unclear before starting.'
+      : 'Work them in order unless one blocks another. Close each with loki_task { action: "close", id, reason } as you finish. Ask if anything is unclear before starting.',
   ].join("\n");
 }

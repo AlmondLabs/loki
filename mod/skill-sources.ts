@@ -1,5 +1,18 @@
 import { execFile } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { memoryLog, memoryRoot, readLocalAgent } from "./agents.ts";
@@ -196,7 +209,22 @@ export class SkillSources {
     const who = readLocalAgent(agentId, this.opts.backendDir)?.name?.trim() || "loki";
     try {
       await this.exec("git", ["add", "-A", "--", spec], { cwd: memory, timeoutMs: 10_000 });
-      await this.exec("git", ["-c", `user.name=${who}`, "-c", `user.email=${agentId}@loki.local`, "commit", "--quiet", "-m", `chore(skills): refresh ${name} from ${label}`, "--", spec], { cwd: memory, timeoutMs: 15_000 });
+      await this.exec(
+        "git",
+        [
+          "-c",
+          `user.name=${who}`,
+          "-c",
+          `user.email=${agentId}@loki.local`,
+          "commit",
+          "--quiet",
+          "-m",
+          `chore(skills): refresh ${name} from ${label}`,
+          "--",
+          spec,
+        ],
+        { cwd: memory, timeoutMs: 15_000 },
+      );
       return (await this.exec("git", ["rev-parse", "HEAD"], { cwd: memory, timeoutMs: 5_000 })).trim();
     } catch (err) {
       // The hook refused, or git did: put the copy back as it was and say why.
@@ -241,9 +269,17 @@ export function parseSource(spec: string): SkillSource | null {
     return existsSync(p) ? localSource(p) : null;
   }
   const url = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/tree\/([^/]+)(?:\/(.*))?)?\/?$/i.exec(s);
-  if (url) return { kind: "github", url: `https://github.com/${url[1]}/${url[2]}.git`, path: url[4] ?? ".", ref: url[3] ?? null, label: `${url[1]}/${url[2]}${url[4] ? `/${url[4]}` : ""}` };
+  if (url)
+    return {
+      kind: "github",
+      url: `https://github.com/${url[1]}/${url[2]}.git`,
+      path: url[4] ?? ".",
+      ref: url[3] ?? null,
+      label: `${url[1]}/${url[2]}${url[4] ? `/${url[4]}` : ""}`,
+    };
   const short = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\/(.+))?$/.exec(s);
-  if (short && !short[1].includes(".")) return { kind: "github", url: `https://github.com/${short[1]}/${short[2]}.git`, path: short[3] ?? ".", ref: null, label: s };
+  if (short && !short[1].includes("."))
+    return { kind: "github", url: `https://github.com/${short[1]}/${short[2]}.git`, path: short[3] ?? ".", ref: null, label: s };
   return null;
 }
 
@@ -280,8 +316,20 @@ export function readLock(file: string): LockEntry[] {
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as { skills?: unknown };
     const raw = parsed.skills;
-    const list: unknown[] = Array.isArray(raw) ? raw : typeof raw === "object" && raw !== null ? Object.entries(raw as Record<string, unknown>).map(([name, v]) => (typeof v === "object" && v !== null ? { name, ...(v as object) } : null)) : [];
-    return list.filter((e): e is LockEntry => typeof e === "object" && e !== null && typeof (e as LockEntry).name === "string" && typeof (e as LockEntry).sourceUrl === "string" && typeof (e as LockEntry).skillPath === "string" && typeof (e as LockEntry).source === "string");
+    const list: unknown[] = Array.isArray(raw)
+      ? raw
+      : typeof raw === "object" && raw !== null
+        ? Object.entries(raw as Record<string, unknown>).map(([name, v]) => (typeof v === "object" && v !== null ? { name, ...(v as object) } : null))
+        : [];
+    return list.filter(
+      (e): e is LockEntry =>
+        typeof e === "object" &&
+        e !== null &&
+        typeof (e as LockEntry).name === "string" &&
+        typeof (e as LockEntry).sourceUrl === "string" &&
+        typeof (e as LockEntry).skillPath === "string" &&
+        typeof (e as LockEntry).source === "string",
+    );
   } catch {
     return [];
   }
@@ -318,6 +366,22 @@ const keep = (p: string) => basename(p) !== ".git" && basename(p) !== ".DS_Store
 
 function defaultExec(bin: string, args: string[], opts: { cwd?: string; timeoutMs: number }): Promise<string> {
   return new Promise((res, rej) => {
-    execFile(bin, args, { cwd: opts.cwd, timeout: opts.timeoutMs, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } }, (err, stdout, stderr) => (err ? rej(new Error(String(stderr || err.message).trim().split("\n").slice(-3).join(" "))) : res(String(stdout))));
+    execFile(
+      bin,
+      args,
+      { cwd: opts.cwd, timeout: opts.timeoutMs, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
+      (err, stdout, stderr) =>
+        err
+          ? rej(
+              new Error(
+                String(stderr || err.message)
+                  .trim()
+                  .split("\n")
+                  .slice(-3)
+                  .join(" "),
+              ),
+            )
+          : res(String(stdout)),
+    );
   });
 }

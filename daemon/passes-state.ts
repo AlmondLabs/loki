@@ -42,7 +42,10 @@ export function normalSettings(s: Partial<{ reflection: Partial<PassSettings["re
   const cap = s?.learn?.dailyCap;
   return {
     reflection: { enabled: s?.reflection?.enabled ?? DEFAULT_SETTINGS.reflection.enabled },
-    learn: { enabled: s?.learn?.enabled ?? DEFAULT_SETTINGS.learn.enabled, dailyCap: typeof cap === "number" && Number.isFinite(cap) && cap >= 0 ? Math.round(cap) : DEFAULT_DAILY_CAP },
+    learn: {
+      enabled: s?.learn?.enabled ?? DEFAULT_SETTINGS.learn.enabled,
+      dailyCap: typeof cap === "number" && Number.isFinite(cap) && cap >= 0 ? Math.round(cap) : DEFAULT_DAILY_CAP,
+    },
   };
 }
 
@@ -55,7 +58,11 @@ export class PassState {
     this.settingsFile = join(stateDir, "passes.json");
     this.cursorsFile = join(stateDir, "pass-cursors.json");
     const read = readJson<Partial<Cursors>>(this.cursorsFile);
-    this.data = { cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } }, learnWritten: read?.learnWritten ?? { day: "", count: 0 }, ...(read?.learnLast ? { learnLast: read.learnLast } : {}) };
+    this.data = {
+      cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } },
+      learnWritten: read?.learnWritten ?? { day: "", count: 0 },
+      ...(read?.learnLast ? { learnLast: read.learnLast } : {}),
+    };
   }
 
   /**
@@ -113,9 +120,14 @@ export class PassState {
    * The first start: settings and cursors from what reflection and Learn kept before, and every chat with no cursor
    * for a job starts from where it is now (KTD7), so the first sweeps do not read every old chat at once.
    */
-  migrate(old: { reflectionSettings: string; reflectionRoot: string; learnWorker: string }, chats: ReadonlyArray<{ agentId: string; chatId: string; entries: number }>): void {
+  migrate(
+    old: { reflectionSettings: string; reflectionRoot: string; learnWorker: string },
+    chats: ReadonlyArray<{ agentId: string; chatId: string; entries: number }>,
+  ): void {
     const reflection = readJson<{ trigger?: string }>(old.reflectionSettings);
-    const worker = readJson<{ enabled?: boolean; dailyCap?: number; cursors?: Record<string, number>; written?: { day?: string; count?: number } }>(old.learnWorker);
+    const worker = readJson<{ enabled?: boolean; dailyCap?: number; cursors?: Record<string, number>; written?: { day?: string; count?: number } }>(
+      old.learnWorker,
+    );
     for (const [k, at] of Object.entries(worker?.cursors ?? {})) if (typeof at === "number") this.data.cursors.learn[k] = at;
     if (worker?.written?.day) this.data.learnWritten = { day: worker.written.day, count: worker.written.count ?? 0 };
     for (const agentId of dirs(old.reflectionRoot)) {
@@ -127,13 +139,21 @@ export class PassState {
     for (const c of chats) for (const job of JOBS) this.data.cursors[job][key(c.agentId, c.chatId)] ??= c.entries;
     this.save();
     const cap = worker?.dailyCap;
-    writeJson(this.settingsFile, normalSettings({ reflection: { enabled: reflection?.trigger !== "off" }, learn: { enabled: worker?.enabled === true, dailyCap: cap === undefined || cap === OLD_DEFAULT_DAILY_CAP ? DEFAULT_DAILY_CAP : cap } }));
+    writeJson(
+      this.settingsFile,
+      normalSettings({
+        reflection: { enabled: reflection?.trigger !== "off" },
+        learn: { enabled: worker?.enabled === true, dailyCap: cap === undefined || cap === OLD_DEFAULT_DAILY_CAP ? DEFAULT_DAILY_CAP : cap },
+      }),
+    );
   }
 }
 
 function dirs(dir: string): string[] {
   try {
-    return readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+    return readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
   } catch {
     return [];
   }

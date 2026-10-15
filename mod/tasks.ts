@@ -88,7 +88,17 @@ export function noteArgs(id: string, text: string, now = new Date()): string[] {
 
 /** LOKI_BD, then PATH (`bd.exe` on Windows), then Homebrew, /usr/local, Go's and ~/.local's bin. */
 export function bdBinary(look: Look = {}): string | null {
-  return firstExisting([envVar("LOKI_BD", look), ...onPath("bd", look), "/opt/homebrew/bin/bd", "/usr/local/bin/bd", join(homedir(), "go", "bin", "bd"), join(homedir(), ".local", "bin", "bd")], look);
+  return firstExisting(
+    [
+      envVar("LOKI_BD", look),
+      ...onPath("bd", look),
+      "/opt/homebrew/bin/bd",
+      "/usr/local/bin/bd",
+      join(homedir(), "go", "bin", "bd"),
+      join(homedir(), ".local", "bin", "bd"),
+    ],
+    look,
+  );
 }
 
 /** The one-time `bd init` for the shared task list. Exported for tests. */
@@ -97,7 +107,10 @@ export const INIT_ARGS = ["init", "--prefix", "lk", "--non-interactive"];
 /** A label for the project a task came from: the folder's name, lower-cased, safe for bd. */
 export function projectLabel(folder: string | null | undefined): string | null {
   if (!folder) return null;
-  const name = basename(folder).toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  const name = basename(folder)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return name || null;
 }
 
@@ -203,7 +216,7 @@ export function formatTasksContext(tasks: Task[], opts: { conversation: string }
     `Tasks assigned to this conversation in the user's Tasks (${mine.length}):`,
     ...lines,
     "Pick one up when the user's message is about it or when asked to work through Tasks; otherwise acknowledge briefly and carry on.",
-    "Add progress with loki_task {action:\"comment\", id, text}. When the whole task is done, call {action:\"close\", id, reason}: one the user filed then waits for the user to confirm.",
+    'Add progress with loki_task {action:"comment", id, text}. When the whole task is done, call {action:"close", id, reason}: one the user filed then waits for the user to confirm.',
     "</loki-tasks>",
   ].join("\n");
 }
@@ -292,7 +305,11 @@ export class TaskStore {
         { cwd: this.dir, env: { ...process.env, BEADS_DIR: join(this.dir, ".beads"), BD_NON_INTERACTIVE: "1" }, timeout: 20_000, maxBuffer: 16 * 1024 * 1024 },
         (err, stdout, stderr) => {
           if (err) {
-            const msg = String(stderr || err.message).trim().split("\n").filter((l) => !l.startsWith("warning:") && !l.trim().startsWith("Fix:") && !l.trim().startsWith("Or:")).join(" ");
+            const msg = String(stderr || err.message)
+              .trim()
+              .split("\n")
+              .filter((l) => !l.startsWith("warning:") && !l.trim().startsWith("Fix:") && !l.trim().startsWith("Or:"))
+              .join(" ");
             reject(new Error(msg || `bd ${args[0]} failed`));
           } else resolve(stdout);
         },

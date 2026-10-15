@@ -92,10 +92,26 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_model: (p) => served(b, async (x) => (await x.model(p), DONE)),
     chat_models: () => served(b, async (x) => ({ entries: await x.models() })),
     chat_agents: () => served(b, async (x) => ({ agents: await x.agents() })),
-    chat_agent_create: (p, ctx) => agentsChange(served(b, (x) => x.createAgent(p)), ctx),
-    chat_agent_update: (p, ctx) => agentsChange(served(b, async (x) => (await x.updateAgent(p), DONE)), ctx),
-    chat_agent_delete: ({ agentId }, ctx) => agentsChange(served(b, async (x) => (await x.deleteAgent(agentId), DONE)), ctx),
-    chat_import: (_p, ctx) => agentsChange(served(b, (x) => x.importLetta()), ctx),
+    chat_agent_create: (p, ctx) =>
+      agentsChange(
+        served(b, (x) => x.createAgent(p)),
+        ctx,
+      ),
+    chat_agent_update: (p, ctx) =>
+      agentsChange(
+        served(b, async (x) => (await x.updateAgent(p), DONE)),
+        ctx,
+      ),
+    chat_agent_delete: ({ agentId }, ctx) =>
+      agentsChange(
+        served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
+        ctx,
+      ),
+    chat_import: (_p, ctx) =>
+      agentsChange(
+        served(b, (x) => x.importLetta()),
+        ctx,
+      ),
     chat_import_status: () => served(b, (x) => x.importStatus()),
     chat_passes_get: () => served(b, (x) => x.passes()),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
@@ -114,7 +130,8 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_mcp_agent: (p) => served(b, (x) => x.mcpAgent(p)),
     chat_mcp_secret: (p) => served(b, (x) => x.mcpSecret(p)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
-    chat_provider_connect: ({ providerId, apiKey }) => served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
+    chat_provider_connect: ({ providerId, apiKey }) =>
+      served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
     chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),
     chat_provider_signin: ({ providerId, code }) => served(b, (x) => x.signIn(providerId, code)),
   };

@@ -4,7 +4,22 @@ import type { Runtime } from "./protocol.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
 import type { ConnectProvider, PassSettings } from "./protocol.ts";
-import { applyChatEvent, folderMoveAnswer, buildItems, cancelQueued as dropQueued, chatStatusOf, emptyLive, keyOf, takeQueued, type AttentionItem, type ConversationInfo, type Digest, type Live, type PendingApproval, type PendingQuestion } from "./model.ts";
+import {
+  applyChatEvent,
+  folderMoveAnswer,
+  buildItems,
+  cancelQueued as dropQueued,
+  chatStatusOf,
+  emptyLive,
+  keyOf,
+  takeQueued,
+  type AttentionItem,
+  type ConversationInfo,
+  type Digest,
+  type Live,
+  type PendingApproval,
+  type PendingQuestion,
+} from "./model.ts";
 import { buildQuestionAnswer, environmentNote, isFileAttachment, withAttachments, type Attachment, type EnvNoteTold } from "./content.ts";
 import type { TranscriptRow } from "./transcript.ts";
 import { ownSendKey, type HistoryRow } from "./thread.ts";
@@ -64,7 +79,22 @@ export interface UseAttentionOptions {
   markSeen: (agentId: string, conversationId: string) => void;
   unmarkSeen: (agentId: string, conversationId: string) => void;
   /** Full transcript from the daemon's store, through the mod (compaction-proof); may resolve empty. */
-  loadLocalHistory?: (agentId: string, conversationId: string, limit?: number) => Promise<{ rows: Array<{ role: "user" | "assistant" | "tool" | "event"; text: string; summary?: string | null; detail?: string | null; at?: string | null; tool?: ToolStep; files?: FileRef[] }>; more: boolean }>;
+  loadLocalHistory?: (
+    agentId: string,
+    conversationId: string,
+    limit?: number,
+  ) => Promise<{
+    rows: Array<{
+      role: "user" | "assistant" | "tool" | "event";
+      text: string;
+      summary?: string | null;
+      detail?: string | null;
+      at?: string | null;
+      tool?: ToolStep;
+      files?: FileRef[];
+    }>;
+    more: boolean;
+  }>;
   /** Every open conversation with its digest, from the mod (inbox_list). The list is the inbox's; only live events come from the chat client. */
   listConversations: () => Promise<Array<ConversationInfo & Digest>>;
   /** How many of the newest conversations to subscribe to for live events (each is a chat the daemon follows and pushes to this socket). */
@@ -93,7 +123,10 @@ function outgoing(text: string, attachments: Attachment[]): { text: string; imag
 }
 
 /** A message's row as it shows at once: the text, its images, and chips for its files. */
-function sentRow(text: string, attachments: Attachment[]): { role: "user"; text: string; images?: string[]; files?: Array<{ path: string; name: string; size: number; mime: string }>; at: string } {
+function sentRow(
+  text: string,
+  attachments: Attachment[],
+): { role: "user"; text: string; images?: string[]; files?: Array<{ path: string; name: string; size: number; mime: string }>; at: string } {
   const files = attachments.filter(isFileAttachment).map(({ path, name, size, mime }) => ({ path, name, size, mime }));
   const images = attachments.filter((a): a is ImageAttachment => !isFileAttachment(a)).map((i) => i.url);
   return { role: "user", text, ...(images.length ? { images } : {}), ...(files.length ? { files } : {}), at: new Date().toISOString() };
@@ -208,7 +241,12 @@ export function useAttention(opts: UseAttentionOptions) {
       }
       // A new permission request or question (approval_requested). Every window and phone sees the same request; the
       // mod keeps the first report of each (`once`).
-      const request = l.pending && l.pending.requestId !== asked.approval ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" } : l.pendingAsk && l.pendingAsk.requestId !== asked.question ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" } : null;
+      const request =
+        l.pending && l.pending.requestId !== asked.approval
+          ? { id: l.pending.requestId, tool: l.pending.toolName, kind: "approval" }
+          : l.pendingAsk && l.pendingAsk.requestId !== asked.question
+            ? { id: l.pendingAsk.requestId, tool: "AskUserQuestion", kind: "question" }
+            : null;
       // A folder change waiting on its answer (changeFolder): the new folder in a device status, or a loop error.
       const move = folderMoves.current.get(key);
       const answer = move ? folderMoveAnswer(events, l.cwd, move) : null;
@@ -217,7 +255,14 @@ export function useAttention(opts: UseAttentionOptions) {
         move.done(answer.error);
         l.error = errorBefore; // the refusal is the folder dialog's to show; the chat did not fail
       }
-      if (request) optsRef.current.capture?.("approval_requested", { desk: deskOf(agent, conv), agent, tool: request.tool, kind: request.kind, once: `request:${request.id}` });
+      if (request)
+        optsRef.current.capture?.("approval_requested", {
+          desk: deskOf(agent, conv),
+          agent,
+          tool: request.tool,
+          kind: request.kind,
+          once: `request:${request.id}`,
+        });
       if (userSpoke) opts.markSeen(agent, conv);
       if (changed) bump();
       // The turn just ended and something was typed during it: it goes out now, one per turn end.
@@ -244,10 +289,13 @@ export function useAttention(opts: UseAttentionOptions) {
     const subscribeLimit = opts.subscribeLimit ?? 30;
     // Promise-style error handling here: the React Compiler cannot take a loop or a ?? inside a try block.
     const loadOnce = async () => {
-      void sock.serverInfo().then((info) => {
-        // The daemon runs exactly its own commands; the palette offers those and loki's.
-        if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: [], only: info.commands });
-      }).catch(() => {});
+      void sock
+        .serverInfo()
+        .then((info) => {
+          // The daemon runs exactly its own commands; the palette offers those and loki's.
+          if (!cancelled) setServer({ version: info.version, protocol: info.protocol, advertised: [], only: info.commands });
+        })
+        .catch(() => {});
       const agents = await sock.listAgents();
       const names = new Map(agents.filter((a) => a.hidden !== true).map((a) => [a.id, a.name ?? "agent"]));
       if (!cancelled) {
@@ -257,7 +305,9 @@ export function useAttention(opts: UseAttentionOptions) {
       // The list and the digests are the mod's, in one answer: nothing is windowed or capped here.
       const rows = await opts.listConversations();
       if (cancelled) return;
-      const convs: ConversationInfo[] = rows.map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c).sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+      const convs: ConversationInfo[] = rows
+        .map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c)
+        .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
       lastReload.current = Date.now();
       knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
       setConversations(convs);
@@ -329,23 +379,46 @@ export function useAttention(opts: UseAttentionOptions) {
     const queue = inboxQueue(itemsRef.current);
     const at = queue.findIndex((i) => idOf(i) === idOf(item));
     const it = queue[at] ?? item;
-    return { desk: deskOf(item.agentId, item.id), agent: item.agentId, turn_id: turnOf(item.agentId, item.id), rank: at >= 0 ? at + 1 : null, of: queue.length, score: Math.round(it.score * 10) / 10, focus: Math.round(it.focus * 100) / 100, reason: it.reason, status: it.status, new: it.unread, idle_min: minutesSince(it.lastMessageAt, Date.now()) };
+    return {
+      desk: deskOf(item.agentId, item.id),
+      agent: item.agentId,
+      turn_id: turnOf(item.agentId, item.id),
+      rank: at >= 0 ? at + 1 : null,
+      of: queue.length,
+      score: Math.round(it.score * 10) / 10,
+      focus: Math.round(it.focus * 100) / 100,
+      reason: it.reason,
+      status: it.status,
+      new: it.unread,
+      idle_min: minutesSince(it.lastMessageAt, Date.now()),
+    };
   };
-  const shown = useCallback((item: AttentionItem) => {
-    shownAt.current.set(idOf(item), clock.now());
-    optsRef.current.capture?.("inbox_card_shown", cardProps(item));
-  }, [clock]);
+  const shown = useCallback(
+    (item: AttentionItem) => {
+      shownAt.current.set(idOf(item), clock.now());
+      optsRef.current.capture?.("inbox_card_shown", cardProps(item));
+    },
+    [clock],
+  );
   /** The last decision, so a Next straight after acting on the same card reads as moving on (analytics.ts does the same). */
   const lastDecision = useRef<{ id: string; action: CardAction } | null>(null);
-  const decided = useCallback((item: AttentionItem, action: CardAction, via?: CardVia) => {
-    const since = shownAt.current.get(idOf(item));
-    const props = cardProps(item);
-    optsRef.current.capture?.("inbox_card_decided", { action, ...(via ? { via } : {}), ...props, dwell_ms: since === undefined ? null : Math.round(clock.now() - since) });
-    // Next on a card that was on top for its focus: not what you are on now, so its focus halves (focus.ts SKIP_FACTOR).
-    // Not after you just acted on it: that is moving on, and your reply is what gave it the focus.
-    if (skipsFocus(lastDecision.current, idOf(item), action, props.reason)) optsRef.current.engage?.(item.agentId, item.id, "skip");
-    lastDecision.current = { id: idOf(item), action };
-  }, [clock]);
+  const decided = useCallback(
+    (item: AttentionItem, action: CardAction, via?: CardVia) => {
+      const since = shownAt.current.get(idOf(item));
+      const props = cardProps(item);
+      optsRef.current.capture?.("inbox_card_decided", {
+        action,
+        ...(via ? { via } : {}),
+        ...props,
+        dwell_ms: since === undefined ? null : Math.round(clock.now() - since),
+      });
+      // Next on a card that was on top for its focus: not what you are on now, so its focus halves (focus.ts SKIP_FACTOR).
+      // Not after you just acted on it: that is moving on, and your reply is what gave it the focus.
+      if (skipsFocus(lastDecision.current, idOf(item), action, props.reason)) optsRef.current.engage?.(item.agentId, item.id, "skip");
+      lastDecision.current = { id: idOf(item), action };
+    },
+    [clock],
+  );
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
     optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agentId, item.id), agent: item.agentId });
@@ -356,39 +429,53 @@ export function useAttention(opts: UseAttentionOptions) {
   }, []);
 
   // A chat's thread comes from the mod, which reads the whole of it from the daemon's store.
-  const loadThread = useCallback(async (rt: Runtime) => {
-    const key = keyOf(rt.agent_id, rt.conversation_id);
-    if (loading.current.has(key)) return;
-    loading.current.add(key);
-    const read = async () => {
-      const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
-      const rows: HistoryRow[] = page?.rows ?? [];
-      setOlder((o) => (!!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key))));
-      liveOf(key).thread.load(rows);
-      setLive(new Map(liveRef.current));
-    };
-    // A promise's catch, not try/finally (the React Compiler takes neither a finally nor a ?? inside a try): the key frees either way.
-    await read().catch((err: unknown) => console.warn("loki: thread", err));
-    loading.current.delete(key);
-  }, [liveOf]);
+  const loadThread = useCallback(
+    async (rt: Runtime) => {
+      const key = keyOf(rt.agent_id, rt.conversation_id);
+      if (loading.current.has(key)) return;
+      loading.current.add(key);
+      const read = async () => {
+        const page = await optsRef.current.loadLocalHistory?.(rt.agent_id, rt.conversation_id, historyLimits.current.get(key) ?? HISTORY_PAGE);
+        const rows: HistoryRow[] = page?.rows ?? [];
+        setOlder((o) =>
+          !!o[key] === !!page?.more ? o : page?.more ? { ...o, [key]: true } : Object.fromEntries(Object.entries(o).filter(([k]) => k !== key)),
+        );
+        liveOf(key).thread.load(rows);
+        setLive(new Map(liveRef.current));
+      };
+      // A promise's catch, not try/finally (the React Compiler takes neither a finally nor a ?? inside a try): the key frees either way.
+      await read().catch((err: unknown) => console.warn("loki: thread", err));
+      loading.current.delete(key);
+    },
+    [liveOf],
+  );
   const loadHistory = useCallback((item: AttentionItem) => loadThread(item.runtime), [loadThread]);
   /** The next page of a chat's history, older than what is loaded: asked for when the reader reaches the top. */
-  const loadOlder = useCallback((rt: Runtime) => {
-    const key = keyOf(rt.agent_id, rt.conversation_id);
-    if (loading.current.has(key)) return;
-    historyLimits.current.set(key, (historyLimits.current.get(key) ?? HISTORY_PAGE) + HISTORY_PAGE);
-    void loadThread(rt);
-  }, [loadThread]);
+  const loadOlder = useCallback(
+    (rt: Runtime) => {
+      const key = keyOf(rt.agent_id, rt.conversation_id);
+      if (loading.current.has(key)) return;
+      historyLimits.current.set(key, (historyLimits.current.get(key) ?? HISTORY_PAGE) + HISTORY_PAGE);
+      void loadThread(rt);
+    },
+    [loadThread],
+  );
 
   /** A new conversation under an agent, in a folder: the runtime of the desk it becomes. */
-  const createDesk = useCallback(async (agentId: string, cwd: string, name?: string): Promise<Runtime> => {
-    const sock = socketRef.current;
-    if (!sock) throw new Error("not connected to loki's daemon");
-    const rt = await sock.createConversation(agentId, cwd, name);
-    const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
-    setConversations((c) => [{ id: rt.conversation_id, agentId: rt.agent_id, agentName, title: name?.trim() || null, lastMessageAt: new Date().toISOString(), archived: false }, ...c]);
-    return rt;
-  }, [agents]);
+  const createDesk = useCallback(
+    async (agentId: string, cwd: string, name?: string): Promise<Runtime> => {
+      const sock = socketRef.current;
+      if (!sock) throw new Error("not connected to loki's daemon");
+      const rt = await sock.createConversation(agentId, cwd, name);
+      const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
+      setConversations((c) => [
+        { id: rt.conversation_id, agentId: rt.agent_id, agentName, title: name?.trim() || null, lastMessageAt: new Date().toISOString(), archived: false },
+        ...c,
+      ]);
+      return rt;
+    },
+    [agents],
+  );
 
   /** Subscribe to a conversation that is not among the recent ones (e.g. the desk's). */
   const subscribe = useCallback(async (rt: Runtime) => {
@@ -407,110 +494,174 @@ export function useAttention(opts: UseAttentionOptions) {
    * approval. `rows` is undefined until the transcript has been asked for.
    */
   const conversation = useCallback(
-    (agentId: string, conversationId: string): { rows: TranscriptRow[] | undefined; status: "idle" | "thinking" | "streaming"; pending: PendingApproval | null; question: PendingQuestion | null; error: string | null; mode: string | null; cwd: string | null; older: (() => void) | null } => {
+    (
+      agentId: string,
+      conversationId: string,
+    ): {
+      rows: TranscriptRow[] | undefined;
+      status: "idle" | "thinking" | "streaming";
+      pending: PendingApproval | null;
+      question: PendingQuestion | null;
+      error: string | null;
+      mode: string | null;
+      cwd: string | null;
+      older: (() => void) | null;
+    } => {
       const key = keyOf(agentId, conversationId);
       const l = live.get(key);
       // The thread's rows keep their identity from update to update; only what changed is new.
-      return { rows: l?.thread.rows(), status: chatStatusOf(l), pending: l?.pending ?? null, question: l?.pendingAsk ?? null, error: l?.error ?? null, mode: l?.mode ?? null, cwd: l?.cwd ?? null, older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null };
+      return {
+        rows: l?.thread.rows(),
+        status: chatStatusOf(l),
+        pending: l?.pending ?? null,
+        question: l?.pendingAsk ?? null,
+        error: l?.error ?? null,
+        mode: l?.mode ?? null,
+        cwd: l?.cwd ?? null,
+        older: older[key] ? () => loadOlder({ agent_id: agentId, conversation_id: conversationId }) : null,
+      };
     },
     [live, older, loadOlder],
   );
 
-  const decide = useCallback((rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always") => {
-    const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
-    const was = l?.pending?.requestId === requestId ? l.pending : null;
-    if (l && was) l.pending = null; // optimistic: the card clears at once
-    optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
-    optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "decide");
-    optsRef.current.capture?.("approval_decided", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, turn_id: l?.turnId ?? null, behavior, wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null });
-    bump();
-    void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
-      if (ok || !l || !was) return;
-      if (!l.pending) l.pending = was; // the server refused: put the request back
+  const decide = useCallback(
+    (rt: Runtime, requestId: string, behavior: "allow" | "deny" | "always") => {
+      const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+      const was = l?.pending?.requestId === requestId ? l.pending : null;
+      if (l && was) l.pending = null; // optimistic: the card clears at once
+      optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
+      optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "decide");
+      optsRef.current.capture?.("approval_decided", {
+        desk: deskOf(rt.agent_id, rt.conversation_id),
+        agent: rt.agent_id,
+        turn_id: l?.turnId ?? null,
+        behavior,
+        wait_ms: was ? Math.max(0, Date.now() - Date.parse(was.at)) || null : null,
+      });
       bump();
-    });
-  }, [bump]);
-  const approve = useCallback((item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => decide(item.runtime, requestId, behavior), [decide]);
+      void socketRef.current?.respondApproval(rt, requestId, behavior).then((ok) => {
+        if (ok || !l || !was) return;
+        if (!l.pending) l.pending = was; // the server refused: put the request back
+        bump();
+      });
+    },
+    [bump],
+  );
+  const approve = useCallback(
+    (item: AttentionItem, requestId: string, behavior: "allow" | "deny" | "always") => decide(item.runtime, requestId, behavior),
+    [decide],
+  );
 
   /** Answer a pending AskUserQuestion; the card clears at once and comes back if the server refuses. */
-  const answer = useCallback((rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => {
-    const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
-    const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
-    if (!l || !was) return;
-    l.pendingAsk = null;
-    const summary = Object.values(answers).map((a) => (Array.isArray(a) ? a.join(", ") : a)).join(" · ");
-    if (summary.trim()) l.thread.own({ role: "user", text: summary, at: new Date().toISOString() });
-    optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
-    optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "answer");
-    optsRef.current.capture?.("question_answered", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, wait_ms: Math.max(0, Date.now() - Date.parse(was.at)) || null });
-    bump();
-    void socketRef.current?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
-      if (ok) return;
-      if (!l.pendingAsk) l.pendingAsk = was;
+  const answer = useCallback(
+    (rt: Runtime, requestId: string, answers: Record<string, string | string[]>) => {
+      const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+      const was = l?.pendingAsk?.requestId === requestId ? l.pendingAsk : null;
+      if (!l || !was) return;
+      l.pendingAsk = null;
+      const summary = Object.values(answers)
+        .map((a) => (Array.isArray(a) ? a.join(", ") : a))
+        .join(" · ");
+      if (summary.trim()) l.thread.own({ role: "user", text: summary, at: new Date().toISOString() });
+      optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
+      optsRef.current.engage?.(rt.agent_id, rt.conversation_id, "answer");
+      optsRef.current.capture?.("question_answered", {
+        desk: deskOf(rt.agent_id, rt.conversation_id),
+        agent: rt.agent_id,
+        wait_ms: Math.max(0, Date.now() - Date.parse(was.at)) || null,
+      });
       bump();
-    });
-  }, [bump]);
+      void socketRef.current?.answerQuestion(rt, requestId, buildQuestionAnswer(was.input, answers)).then((ok) => {
+        if (ok) return;
+        if (!l.pendingAsk) l.pendingAsk = was;
+        bump();
+      });
+    },
+    [bump],
+  );
 
   /** Send a message into a conversation. Shown at once; the server's echo of it is recognised and not shown twice. */
-  const send = useCallback((rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
-    const key = keyOf(rt.agent_id, rt.conversation_id);
-    const l = liveOf(key);
-    const fileCount = images.filter(isFileAttachment).length;
-    optsRef.current.capture?.("message_sent", { desk: deskOf(rt.agent_id, rt.conversation_id), agent: rt.agent_id, turn_id: l.turnId ?? null, origin: env.origin ?? null, images: images.length - fileCount, files: fileCount, queued: l.inTurn });
-    optsRef.current.sent?.(rt);
-    // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
-    if (l.inTurn) {
-      l.queued.push({ text, images, desk: env.desk });
-      l.thread.queue(sentRow(text, images));
+  const send = useCallback(
+    (rt: Runtime, text: string, images: Attachment[] = [], env: { desk?: string | null; origin?: SendOrigin } = {}) => {
+      const key = keyOf(rt.agent_id, rt.conversation_id);
+      const l = liveOf(key);
+      const fileCount = images.filter(isFileAttachment).length;
+      optsRef.current.capture?.("message_sent", {
+        desk: deskOf(rt.agent_id, rt.conversation_id),
+        agent: rt.agent_id,
+        turn_id: l.turnId ?? null,
+        origin: env.origin ?? null,
+        images: images.length - fileCount,
+        files: fileCount,
+        queued: l.inTurn,
+      });
+      optsRef.current.sent?.(rt);
+      // Mid-turn: keep it. The transcript shows it as queued; it leaves when the turn ends (see the event loop).
+      if (l.inTurn) {
+        l.queued.push({ text, images, desk: env.desk });
+        l.thread.queue(sentRow(text, images));
+        bump();
+        return;
+      }
+      const out = outgoing(text, images);
+      l.thread.own(sentRow(text, images), out.key);
+      l.lastRole = "user";
       bump();
-      return;
-    }
-    const out = outgoing(text, images);
-    l.thread.own(sentRow(text, images), out.key);
-    l.lastRole = "user";
-    bump();
-    void subscribe(rt).then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk))).catch((err) => console.warn("loki: send", err));
-    optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
-  }, [subscribe, bump, liveOf]);
+      void subscribe(rt)
+        .then(() => socketRef.current?.sendUserMessage(rt, out.text, out.images, noteFor(envNotes.current, key, env.desk)))
+        .catch((err) => console.warn("loki: send", err));
+      optsRef.current.markSeen(rt.agent_id, rt.conversation_id);
+    },
+    [subscribe, bump, liveOf],
+  );
   /** Take back a message typed mid-turn before it went out. */
-  const cancelQueued = useCallback((rt: Runtime, text: string) => {
-    const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
-    if (l && dropQueued(l, text)) bump();
-  }, [bump]);
-  const reply = useCallback((item: AttentionItem, text: string, images: Attachment[] = []) => send(item.runtime, text, images, { desk: item.title, origin: "inbox" }), [send]);
+  const cancelQueued = useCallback(
+    (rt: Runtime, text: string) => {
+      const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+      if (l && dropQueued(l, text)) bump();
+    },
+    [bump],
+  );
+  const reply = useCallback(
+    (item: AttentionItem, text: string, images: Attachment[] = []) => send(item.runtime, text, images, { desk: item.title, origin: "inbox" }),
+    [send],
+  );
 
   /**
    * A slash command for the harness (/reload, /compact …): execute_command, the path Desktop uses. The
    * transcript row comes from the harness's slash_command_start / _end deltas when the conversation is
    * subscribed; the answer here fills the row in when those never arrived, or when the call failed.
    */
-  const execute = useCallback(async (rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> => {
-    const l = liveOf(keyOf(rt.agent_id, rt.conversation_id));
-    const input = commandInput(commandId, args);
-    const now = () => new Date().toISOString();
-    optsRef.current.capture?.("command_run", { command: commandId });
-    const sock = socketRef.current;
-    if (!sock) {
-      l.thread.finishCommand(input, false, "not connected to loki's daemon", now());
+  const execute = useCallback(
+    async (rt: Runtime, commandId: string, args?: string): Promise<{ success: boolean; output: string }> => {
+      const l = liveOf(keyOf(rt.agent_id, rt.conversation_id));
+      const input = commandInput(commandId, args);
+      const now = () => new Date().toISOString();
+      optsRef.current.capture?.("command_run", { command: commandId });
+      const sock = socketRef.current;
+      if (!sock) {
+        l.thread.finishCommand(input, false, "not connected to loki's daemon", now());
+        bump();
+        return { success: false, output: "not connected to loki's daemon" };
+      }
+      if (!sock.isSubscribed(rt)) l.thread.beginCommand(input, now()); // no deltas will come for this one; show the running row ourselves
       bump();
-      return { success: false, output: "not connected to loki's daemon" };
-    }
-    if (!sock.isSubscribed(rt)) l.thread.beginCommand(input, now()); // no deltas will come for this one; show the running row ourselves
-    bump();
-    try {
-      const res = await sock.executeCommand(rt, commandId, args);
-      if (l.thread.commandRunning(input)) l.thread.finishCommand(input, res.success, res.output, now());
-      bump();
-      return res;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // /reload restarts the mod, and the mod is this link: the answer is lost with it, which is the success case.
-      const reloaded = commandId === "reload" && /link closed/i.test(message);
-      l.thread.finishCommand(input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message, now());
-      bump();
-      return { success: reloaded, output: reloaded ? "reloaded" : message };
-    }
-  }, [bump, liveOf]);
+      try {
+        const res = await sock.executeCommand(rt, commandId, args);
+        if (l.thread.commandRunning(input)) l.thread.finishCommand(input, res.success, res.output, now());
+        bump();
+        return res;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        // /reload restarts the mod, and the mod is this link: the answer is lost with it, which is the success case.
+        const reloaded = commandId === "reload" && /link closed/i.test(message);
+        l.thread.finishCommand(input, reloaded, reloaded ? "reloaded — the mod restarted and the link is back" : message, now());
+        bump();
+        return { success: reloaded, output: reloaded ? "reloaded" : message };
+      }
+    },
+    [bump, liveOf],
+  );
 
   const updateAgent = useCallback(async (agentId: string, body: { name?: string; description?: string; model?: string }): Promise<string | null> => {
     const sock = socketRef.current;
@@ -593,24 +744,33 @@ export function useAttention(opts: UseAttentionOptions) {
       write: async (agentId: string, path: string, content: string, message?: string): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
-        return sock.writeMemoryFile(agentId, path, content, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+        return sock.writeMemoryFile(agentId, path, content, message).then(
+          () => null,
+          (err: unknown) => (err instanceof Error ? err.message : String(err)),
+        );
       },
       remove: async (agentId: string, path: string, message?: string): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
-        return sock.deleteMemoryFile(agentId, path, message).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+        return sock.deleteMemoryFile(agentId, path, message).then(
+          () => null,
+          (err: unknown) => (err instanceof Error ? err.message : String(err)),
+        );
       },
       revert: async (agentId: string, sha: string): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
-        return sock.revertMemoryCommit(agentId, sha).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+        return sock.revertMemoryCommit(agentId, sha).then(
+          () => null,
+          (err: unknown) => (err instanceof Error ? err.message : String(err)),
+        );
       },
     }),
     [],
   );
   /** Settings › MCP, Agents › Profile and Settings › Chat's always-allowed tools; each resolves to its result or an error message. */
   const mcp = useMemo(() => {
-    const via = async <T,>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
+    const via = async <T>(work: (sock: ChatClient) => Promise<T>): Promise<T | string> => {
       const sock = socketRef.current;
       if (!sock) return "not connected to loki's daemon";
       return work(sock).catch((err: unknown) => (err instanceof Error ? err.message : String(err)));
@@ -635,12 +795,18 @@ export function useAttention(opts: UseAttentionOptions) {
       enable: async (path: string): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
-        return sock.skillEnable(path).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+        return sock.skillEnable(path).then(
+          () => null,
+          (err: unknown) => (err instanceof Error ? err.message : String(err)),
+        );
       },
       disable: async (name: string): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
-        return sock.skillDisable(name).then(() => null, (err: unknown) => (err instanceof Error ? err.message : String(err)));
+        return sock.skillDisable(name).then(
+          () => null,
+          (err: unknown) => (err instanceof Error ? err.message : String(err)),
+        );
       },
     }),
     [],
@@ -692,20 +858,23 @@ export function useAttention(opts: UseAttentionOptions) {
     });
   }, []);
 
-  const setMode = useCallback(async (rt: Runtime, mode: string): Promise<string | null> => {
-    const sock = socketRef.current;
-    if (!sock) return "not connected to loki's daemon";
-    try {
-      await sock.runtimeStart(rt, { mode });
-    } catch (err) {
-      return err instanceof Error ? err.message : String(err);
-    }
-    const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
-    if (l) l.mode = mode;
-    optsRef.current.capture?.("mode_set", { mode });
-    bump();
-    return null;
-  }, [bump]);
+  const setMode = useCallback(
+    async (rt: Runtime, mode: string): Promise<string | null> => {
+      const sock = socketRef.current;
+      if (!sock) return "not connected to loki's daemon";
+      try {
+        await sock.runtimeStart(rt, { mode });
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+      const l = liveRef.current.get(keyOf(rt.agent_id, rt.conversation_id));
+      if (l) l.mode = mode;
+      optsRef.current.capture?.("mode_set", { mode });
+      bump();
+      return null;
+    },
+    [bump],
+  );
   /**
    * Archive or restore a conversation; resolves to an error message or null. Main chats cannot be archived.
    * Archiving is how a chat leaves the Inbox, so it goes from the list at once; a restore reads the list again.
@@ -716,7 +885,12 @@ export function useAttention(opts: UseAttentionOptions) {
     if (conversationId === "default") return "a main chat cannot be archived";
     try {
       await sock.updateConversation(conversationId, { archived });
-      if (origin) optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", { desk: scopeFor(conversationId), origin, ...(archived ? { turn_id: [...liveRef.current].find(([key]) => key.endsWith(`/${conversationId}`))?.[1].turnId ?? null } : {}) });
+      if (origin)
+        optsRef.current.capture?.(archived ? "chat_archived" : "chat_restored", {
+          desk: scopeFor(conversationId),
+          origin,
+          ...(archived ? { turn_id: [...liveRef.current].find(([key]) => key.endsWith(`/${conversationId}`))?.[1].turnId ?? null } : {}),
+        });
       if (archived) setConversations((c) => c.filter((x) => x.id !== conversationId));
       else reloadRef.current?.();
       return null;

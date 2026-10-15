@@ -9,9 +9,14 @@ import { applyChatEvent, chatStatusOf, emptyLive, type ChatEvent } from "../core
 
 const ctx = BACKGROUND_CONTEXT;
 const NOW = "2026-10-10T10:00:00.000Z";
-const piece = (delta: string, contentIndex = 0) => ({ type: "message_update", usage: {} as never, changes: [{ type: "text_delta", contentIndex, delta }] }) as AgentEvent;
+const piece = (delta: string, contentIndex = 0) =>
+  ({ type: "message_update", usage: {} as never, changes: [{ type: "text_delta", contentIndex, delta }] }) as AgentEvent;
 const update = (...changes: unknown[]) => ({ type: "message_update", usage: {} as never, changes }) as AgentEvent;
-const written = (text: string) => ({ type: "message_end", entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text }] } as never] } }) as AgentEvent;
+const written = (text: string) =>
+  ({
+    type: "message_end",
+    entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text }] } as never] },
+  }) as AgentEvent;
 
 describe("chat event converter", () => {
   test("streamed pieces go out as they come, and the answer goes out whole when written, as history has it", () => {
@@ -23,7 +28,26 @@ describe("chat event converter", () => {
 
   test("an answer written whole sends all its words, then its tool calls", () => {
     const c = new ChatEventConverter();
-    const end = c.convert({ type: "message_end", entry: { id: 1 as never, conversationId: 1 as never, kind: "pi.assistant", model: [{ role: "assistant", content: [{ type: "text", text: "Let me look." }, { type: "toolCall", id: "t1", name: "read", arguments: { path: "a" } }] } as never] } }, NOW);
+    const end = c.convert(
+      {
+        type: "message_end",
+        entry: {
+          id: 1 as never,
+          conversationId: 1 as never,
+          kind: "pi.assistant",
+          model: [
+            {
+              role: "assistant",
+              content: [
+                { type: "text", text: "Let me look." },
+                { type: "toolCall", id: "t1", name: "read", arguments: { path: "a" } },
+              ],
+            } as never,
+          ],
+        },
+      },
+      NOW,
+    );
     expect(end).toEqual([
       { kind: "step", step: { kind: "assistant", text: "Let me look.", at: NOW } },
       { kind: "step", step: { kind: "call", name: "read", args: { path: "a" }, id: "t1", at: NOW } },
@@ -43,7 +67,28 @@ describe("chat event converter", () => {
     expect(c.inFlight()).toBeNull();
     // Following starts mid-answer: pi-durable's snapshot carries the partial.
     const late = new ChatEventConverter();
-    late.convert({ type: "snapshot", entries: [], tools: [], compactions: [], inbox: [], agent: {}, usage: {}, generation: { attempt: 0, message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "text", text: "Keep `far" }] } } } as never, NOW);
+    late.convert(
+      {
+        type: "snapshot",
+        entries: [],
+        tools: [],
+        compactions: [],
+        inbox: [],
+        agent: {},
+        usage: {},
+        generation: {
+          attempt: 0,
+          message: {
+            role: "assistant",
+            content: [
+              { type: "thinking", thinking: "hm" },
+              { type: "text", text: "Keep `far" },
+            ],
+          },
+        },
+      } as never,
+      NOW,
+    );
     expect(late.inFlight()).toEqual({ text: "Keep `far", at: NOW });
     late.convert(piece("mart", 1), NOW);
     expect(late.inFlight()?.text).toBe("Keep `farmart");
@@ -61,13 +106,19 @@ describe("chat event converter", () => {
 
     test("a text block begun with its first words already in it, then words added", () => {
       // The screenshot's case: "Yes. Skills give townhall a way" came in the block's start and never showed.
-      const events = [update({ type: "text_start", contentIndex: 0, block: { type: "text", text: "Yes. Skills give townhall a way" } }), piece(" to preserve how")];
+      const events = [
+        update({ type: "text_start", contentIndex: 0, block: { type: "text", text: "Yes. Skills give townhall a way" } }),
+        piece(" to preserve how"),
+      ];
       expect(fold(events)).toEqual({ shown: ["Yes. Skills give townhall a way to preserve how"], inFlight: "Yes. Skills give townhall a way to preserve how" });
     });
 
     test("a block after thinking: only the text shows, and a second text block joins as the written answer joins them", () => {
       const events = [
-        update({ type: "thinking_start", contentIndex: 0, block: { type: "thinking", thinking: "hm" } }, { type: "text_start", contentIndex: 1, block: { type: "text", text: "One" } }),
+        update(
+          { type: "thinking_start", contentIndex: 0, block: { type: "thinking", thinking: "hm" } },
+          { type: "text_start", contentIndex: 1, block: { type: "text", text: "One" } },
+        ),
         update({ type: "thinking_delta", contentIndex: 0, delta: " more" }, { type: "text_delta", contentIndex: 1, delta: " two" }),
         update({ type: "text_start", contentIndex: 2, block: { type: "text", text: "Three" } }),
       ];
@@ -77,7 +128,11 @@ describe("chat event converter", () => {
     test("a block or the whole message rewritten: the client is handed the answer so far in place of what it had", () => {
       const rewritten = [piece("Kept it"), update({ type: "block", contentIndex: 0, block: { type: "text", text: "Keep it short" } })];
       expect(fold(rewritten).shown).toEqual(["Keep it short"]);
-      const replaced = [piece("Kept it"), update({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "Keep" }] } }), piece(" going")];
+      const replaced = [
+        piece("Kept it"),
+        update({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "Keep" }] } }),
+        piece(" going"),
+      ];
       expect(fold(replaced)).toEqual({ shown: ["Keep going"], inFlight: "Keep going" });
     });
 
@@ -105,9 +160,18 @@ describe("chat event converter", () => {
       const l = emptyLive();
       for (const e of out.slice(from)) applyChatEvent(l, e, NOW);
       applyChatEvent(l, { kind: "settle" }, NOW);
-      const live = l.thread.rows()!.filter((r) => r.role === "assistant").map((r) => r.text);
-      l.thread.load([{ role: "user", text: "farmart-co-read-write-user is needed" }, { role: "assistant", text: REPLY }]);
-      const after = l.thread.rows()!.filter((r) => r.role === "assistant").map((r) => r.text);
+      const live = l.thread
+        .rows()!
+        .filter((r) => r.role === "assistant")
+        .map((r) => r.text);
+      l.thread.load([
+        { role: "user", text: "farmart-co-read-write-user is needed" },
+        { role: "assistant", text: REPLY },
+      ]);
+      const after = l.thread
+        .rows()!
+        .filter((r) => r.role === "assistant")
+        .map((r) => r.text);
       return { live, after, last: l.lastAssistantText };
     };
     const pieces = (text: string, size = 10) => Array.from({ length: Math.ceil(text.length / size) }, (_, i) => piece(text.slice(i * size, (i + 1) * size)));
@@ -164,7 +228,9 @@ describe("chat event converter", () => {
   });
 
   test("a tool with no result entry shows as failed", () => {
-    expect(new ChatEventConverter().convert({ type: "tool_execution_end", toolCallId: "t1", toolName: "bash" }, NOW)).toEqual([{ kind: "step", step: { kind: "result", id: "t1", output: "the tool did not finish", failed: true } }]);
+    expect(new ChatEventConverter().convert({ type: "tool_execution_end", toolCallId: "t1", toolName: "bash" }, NOW)).toEqual([
+      { kind: "step", step: { kind: "result", id: "t1", output: "the tool did not finish", failed: true } },
+    ]);
   });
 
   test("a real streamed answer shows from its first word while it streams, after thinking", async () => {
@@ -204,7 +270,19 @@ describe("chat event converter", () => {
     const models = createModels();
     models.setProvider(faux.provider);
     const registry = createRegistry();
-    registry.install(defineExtension({ name: "t", tools: [defineTool({ name: "echo", description: "echo", parameters: { type: "object", properties: {} } as never, execute: async () => ({ content: [{ type: "text", text: "echoed" }] }) })] }));
+    registry.install(
+      defineExtension({
+        name: "t",
+        tools: [
+          defineTool({
+            name: "echo",
+            description: "echo",
+            parameters: { type: "object", properties: {} } as never,
+            execute: async () => ({ content: [{ type: "text", text: "echoed" }] }),
+          }),
+        ],
+      }),
+    );
     const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
     try {
       const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);

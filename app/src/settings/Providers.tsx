@@ -57,9 +57,21 @@ export function Providers({
       </div>
       <div style={{ display: "grid", gap: 2 }}>
         {shown.map((p) => (
-          <ProviderRow key={p.id} p={p} open={open === p.id} onToggle={() => setOpen(open === p.id ? null : p.id)} onConnect={onConnect} onDisconnect={onDisconnect} onChanged={onChanged} />
+          <ProviderRow
+            key={p.id}
+            p={p}
+            open={open === p.id}
+            onToggle={() => setOpen(open === p.id ? null : p.id)}
+            onConnect={onConnect}
+            onDisconnect={onDisconnect}
+            onChanged={onChanged}
+          />
         ))}
-        {shown.length === 0 && <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>nothing matches</div>}
+        {shown.length === 0 && (
+          <div className="loki-meta loki-meta--wrap" style={{ padding: "6px 8px" }}>
+            nothing matches
+          </div>
+        )}
       </div>
       {!more && !filter && sorted.length > shown.length && (
         <Button size="sm" onClick={() => setMore(true)} style={{ justifySelf: "start" }}>
@@ -121,18 +133,42 @@ function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconne
 
 type ConnectState = ReturnType<typeof useProviderConnect>;
 
-function ProviderRow({ p, open, onToggle, onConnect, onDisconnect, onChanged }: { p: ConnectProvider; open: boolean; onToggle: () => void; onConnect: ConnectFn; onDisconnect: DisconnectFn; onChanged?: () => void }) {
+function ProviderRow({
+  p,
+  open,
+  onToggle,
+  onConnect,
+  onDisconnect,
+  onChanged,
+}: {
+  p: ConnectProvider;
+  open: boolean;
+  onToggle: () => void;
+  onConnect: ConnectFn;
+  onDisconnect: DisconnectFn;
+  onChanged?: () => void;
+}) {
   const connected = isConnected(p);
   const state = useProviderConnect(p, onConnect, onDisconnect, onChanged, onToggle);
 
   return (
-    <div style={{ border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`, borderRadius: "var(--loki-radius-md)", background: open ? "var(--loki-panel)" : "transparent" }}>
+    <div
+      style={{
+        border: `1px solid ${open ? "var(--loki-border)" : "transparent"}`,
+        borderRadius: "var(--loki-radius-md)",
+        background: open ? "var(--loki-panel)" : "transparent",
+      }}
+    >
       <Row onClick={onToggle} aria-expanded={open}>
         <Dot aria-hidden color={connected ? "var(--loki-positive)" : "var(--loki-border)"} />
         <span style={{ display: "grid", gap: 1, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: 13.5 }}>
             {p.display_name}
-            {connected && <span className="loki-label" style={{ marginLeft: 8, color: "var(--loki-positive)" }}>Connected</span>}
+            {connected && (
+              <span className="loki-label" style={{ marginLeft: 8, color: "var(--loki-positive)" }}>
+                Connected
+              </span>
+            )}
           </span>
           {p.description && !open && <span className="loki-meta">{p.description}</span>}
         </span>
@@ -167,7 +203,11 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
         </div>
       )}
       {fields.map((f) => (
-        <label key={f.key} htmlFor={`${fieldId}-${f.key}`} style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: 12 }}>
+        <label
+          key={f.key}
+          htmlFor={`${fieldId}-${f.key}`}
+          style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 10, alignItems: "center", fontSize: 12 }}
+        >
           <span style={{ color: "var(--loki-muted)" }}>
             {f.label}
             {f.required === false ? <span style={{ opacity: 0.6 }}> · optional</span> : null}
@@ -190,7 +230,17 @@ function ConnectForm({ p, connected, state }: { p: ConnectProvider; connected: b
       ))}
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <Button size="sm" tone="positive" onClick={() => void connect()} disabled={busy || !canConnect(fields, values)}>
-          {signIn ? (busy ? "waiting for the browser…" : connected ? "sign in again" : signIn.label) : busy ? "checking…" : connected ? "replace the key" : "connect"}
+          {signIn
+            ? busy
+              ? "waiting for the browser…"
+              : connected
+                ? "sign in again"
+                : signIn.label
+            : busy
+              ? "checking…"
+              : connected
+                ? "replace the key"
+                : "connect"}
         </Button>
         {connected && (
           <Button size="sm" onClick={() => void disconnect()} disabled={busy}>

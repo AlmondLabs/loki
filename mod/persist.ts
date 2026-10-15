@@ -62,7 +62,10 @@ export function persistDesks(store: DeskStore, dir: string, debounceMs = DEBOUNC
   const unsubscribe = store.subscribe((scope) => {
     const t = timers.get(scope);
     if (t) clearTimeout(t);
-    timers.set(scope, setTimeout(() => flush(scope), debounceMs));
+    timers.set(
+      scope,
+      setTimeout(() => flush(scope), debounceMs),
+    );
   });
 
   return () => {

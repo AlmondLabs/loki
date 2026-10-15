@@ -25,7 +25,30 @@ export type DeckPass = ReturnType<typeof useDeckPass>;
  * opens as its own page (#/learn/<page>), so the deck and the leads never share a screen. The pass is held
  * by Phone.tsx, so leaving Review and coming back resumes it; Back returns to where each was opened from.
  */
-export function Learn({ view, recall, pass, banner, backLabel = "home", onBack, onBegin, onOpen }: { view: LearnPage | undefined; recall: RecallModel; pass: DeckPass; banner: ReactNode; backLabel?: string; onBack: () => void; /** A lesson begins: its conversation opens and the brief goes out as the person's first message. */ onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void; /** A conversation opens (where a lead came up, a lesson under way). */ onOpen: (agentId: string, conversationId: string) => void }) {
+export function Learn({
+  view,
+  recall,
+  pass,
+  banner,
+  backLabel = "home",
+  onBack,
+  onBegin,
+  onOpen,
+}: {
+  view: LearnPage | undefined;
+  recall: RecallModel;
+  pass: DeckPass;
+  banner: ReactNode;
+  backLabel?: string;
+  onBack: () => void;
+  /** A lesson begins: its conversation opens and the brief goes out as the person's first message. */ onBegin: (
+    agentId: string,
+    conversationId: string,
+    brief: string,
+    title: string,
+  ) => void;
+  /** A conversation opens (where a lead came up, a lesson under way). */ onOpen: (agentId: string, conversationId: string) => void;
+}) {
   const back = <BackButton onClick={onBack} label={backLabel} />;
   if (view === "review") return <Review recall={recall} pass={pass} banner={banner} back={back} />;
   if (view === "leads") return <Leads recall={recall} banner={banner} back={back} onBegin={onBegin} onOpen={onOpen} />;
@@ -51,9 +74,23 @@ function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: Reac
           <>
             {snap.cards.length === 0 && snap.leads.length === 0 && !snap.worker.enabled && <Off dailyCap={snap.worker.dailyCap} />}
             <RowGroup>
-              <MenuRow icon="refresh" label="Review" aside={recall.due ? `${recall.due} due` : snap.cards.length ? "Nothing due" : null} page launch="learn-review" onClick={() => openLearn("review")} />
+              <MenuRow
+                icon="refresh"
+                label="Review"
+                aside={recall.due ? `${recall.due} due` : snap.cards.length ? "Nothing due" : null}
+                page
+                launch="learn-review"
+                onClick={() => openLearn("review")}
+              />
               <MenuRow icon="learn" label="Leads" aside={snap.leads.length || null} page launch="learn-leads" onClick={() => openLearn("leads")} />
-              <MenuRow icon="desk" label="Lessons under way" aside={snap.lessons.length || null} page launch="learn-lessons" onClick={() => openLearn("lessons")} />
+              <MenuRow
+                icon="desk"
+                label="Lessons under way"
+                aside={snap.lessons.length || null}
+                page
+                launch="learn-lessons"
+                onClick={() => openLearn("lessons")}
+              />
               <MenuRow icon="archive" label="Deleted" aside={deleted || null} page launch="learn-deleted" onClick={() => openLearn("deleted")} />
             </RowGroup>
           </>
@@ -77,7 +114,12 @@ function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: Dec
   const { current } = pass;
   return (
     <div className="loki-phone-page">
-      <TopBar left={back} title="Review" sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}${current && pass.total ? ` · ${pass.passed.size + 1} of ${pass.total}` : ""}`} progress={pass.total ? pass.passed.size / pass.total : null} />
+      <TopBar
+        left={back}
+        title="Review"
+        sub={`${recall.due} due · ${cards.length} card${cards.length === 1 ? "" : "s"}${current && pass.total ? ` · ${pass.passed.size + 1} of ${pass.total}` : ""}`}
+        progress={pass.total ? pass.passed.size / pass.total : null}
+      />
       {banner}
       <Scroll>
         <div className="loki-phone-learn">
@@ -137,7 +179,19 @@ function LeadSource({ source, at, aside }: { source: CardSource; at: string; asi
  * up. Start the lesson makes a [Learn] conversation with the agent who was there and opens it with the
  * brief as your first message; Not this sets it aside (the writer reads that, and Deleted brings it back).
  */
-function Leads({ recall, banner, back, onBegin, onOpen }: { recall: RecallModel; banner: ReactNode; back: ReactNode; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void; onOpen: (agentId: string, conversationId: string) => void }) {
+function Leads({
+  recall,
+  banner,
+  back,
+  onBegin,
+  onOpen,
+}: {
+  recall: RecallModel;
+  banner: ReactNode;
+  back: ReactNode;
+  onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
+  onOpen: (agentId: string, conversationId: string) => void;
+}) {
   const snap = recall.snap;
   const leads = snap?.leads ?? [];
   const start = async (id: string) => {
@@ -170,7 +224,14 @@ function Leads({ recall, banner, back, onBegin, onOpen }: { recall: RecallModel;
                   <div className="loki-phone-learn-front">{l.title}</div>
                   <p className="loki-phone-lead-why">{l.why}</p>
                   <p className="loki-phone-meta">{DEPTH[l.depth]}</p>
-                  <Button size="touch" tone="positive" block className="loki-phone-lead-start" disabled={recall.starting !== null} onClick={() => void start(l.id)}>
+                  <Button
+                    size="touch"
+                    tone="positive"
+                    block
+                    className="loki-phone-lead-start"
+                    disabled={recall.starting !== null}
+                    onClick={() => void start(l.id)}
+                  >
                     {busy ? "Starting the lesson…" : "Start the lesson"}
                   </Button>
                   <div className="loki-phone-learn-foot">
@@ -194,7 +255,19 @@ function Leads({ recall, banner, back, onBegin, onOpen }: { recall: RecallModel;
 }
 
 /** Lessons begun from a lead, each its [Learn] conversation; one whose brief never arrived offers to send it. */
-function Lessons({ recall, banner, back, onBegin, onOpen }: { recall: RecallModel; banner: ReactNode; back: ReactNode; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void; onOpen: (agentId: string, conversationId: string) => void }) {
+function Lessons({
+  recall,
+  banner,
+  back,
+  onBegin,
+  onOpen,
+}: {
+  recall: RecallModel;
+  banner: ReactNode;
+  back: ReactNode;
+  onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
+  onOpen: (agentId: string, conversationId: string) => void;
+}) {
   const snap = recall.snap;
   const lessons = snap?.lessons ?? [];
   return (
@@ -225,7 +298,11 @@ function Lessons({ recall, banner, back, onBegin, onOpen }: { recall: RecallMode
                   </span>
                 </button>
                 {s.empty && (
-                  <button type="button" className="loki-phone-row-action" onClick={() => onBegin(s.agentId, s.conversationId, lessonBrief(s.lead), learnTitle(s.lead.title))}>
+                  <button
+                    type="button"
+                    className="loki-phone-row-action"
+                    onClick={() => onBegin(s.agentId, s.conversationId, lessonBrief(s.lead), learnTitle(s.lead.title))}
+                  >
                     Send the brief
                   </button>
                 )}
@@ -301,7 +378,10 @@ function Off({ dailyCap }: { dailyCap: number }) {
   return (
     <div className="loki-phone-empty">
       <p className="loki-phone-headline">Learn is off</p>
-      <p>Once it is on, a writer on the Mac turns conversations that have gone quiet into flashcards, and they wait here on a schedule. Each run spends a little of your provider budget, up to {dailyCap} cards a day.</p>
+      <p>
+        Once it is on, a writer on the Mac turns conversations that have gone quiet into flashcards, and they wait here on a schedule. Each run spends a little
+        of your provider budget, up to {dailyCap} cards a day.
+      </p>
       <p className="loki-phone-meta">Turn it on from the Mac: Learn, or Settings › learn.</p>
     </div>
   );
@@ -348,14 +428,38 @@ function Source({ c }: { c: CardWithSchedule }) {
 }
 
 /** How a graded card leaves: thrown right for a pass, left for a miss, the Inbox's directions and tilt. */
-const THROW = (dir: 1 | -1): Keyframe[] => [{ transform: "none", opacity: 1 }, { transform: `translateX(${dir * 115}%) rotate(${dir * 8}deg)`, opacity: 0.6 }];
+const THROW = (dir: 1 | -1): Keyframe[] => [
+  { transform: "none", opacity: 1 },
+  { transform: `translateX(${dir * 115}%) rotate(${dir * 8}deg)`, opacity: 0.6 },
+];
 /** A deleted card sinks and fades where it was. */
-const DROP: Keyframe[] = [{ transform: "none", opacity: 1 }, { transform: "translateY(24px) scale(0.94)", opacity: 0 }];
+const DROP: Keyframe[] = [
+  { transform: "none", opacity: 1 },
+  { transform: "translateY(24px) scale(0.94)", opacity: 0 },
+];
 /** The half of a turn the card makes with its front up; the other half brings the answer round. */
 const TURN_MS = 140;
 const moves = () => lastInput() !== "key" && !prefersReducedMotion();
 
-function PhoneCard({ c, position, total, revealed, onReveal, onAnswer, onDelete, onUndo }: { c: CardWithSchedule; position: number; total: number; revealed: boolean; onReveal: () => void; onAnswer: (g: Grade) => void; onDelete: () => void; onUndo: () => void }) {
+function PhoneCard({
+  c,
+  position,
+  total,
+  revealed,
+  onReveal,
+  onAnswer,
+  onDelete,
+  onUndo,
+}: {
+  c: CardWithSchedule;
+  position: number;
+  total: number;
+  revealed: boolean;
+  onReveal: () => void;
+  onAnswer: (g: Grade) => void;
+  onDelete: () => void;
+  onUndo: () => void;
+}) {
   const gaps = previews(c.schedule);
   const ref = useRef<HTMLElement>(null);
   // How this card will leave, set by what sends it (a grade, a delete); read by useLeave as it unmounts.
@@ -371,12 +475,19 @@ function PhoneCard({ c, position, total, revealed, onReveal, onAnswer, onDelete,
   const reveal = () => {
     const el = ref.current;
     if (!el || typeof el.animate !== "function" || !moves()) return onReveal();
-    const away = el.animate([{ transform: "perspective(1200px) rotateY(0deg)" }, { transform: "perspective(1200px) rotateY(90deg)" }], { duration: TURN_MS, easing: "ease-in", fill: "forwards" });
+    const away = el.animate([{ transform: "perspective(1200px) rotateY(0deg)" }, { transform: "perspective(1200px) rotateY(90deg)" }], {
+      duration: TURN_MS,
+      easing: "ease-in",
+      fill: "forwards",
+    });
     const round = () => {
       flushSync(onReveal);
       away.cancel();
       const s = spring("snappy");
-      el.animate([{ transform: "perspective(1200px) rotateY(-90deg)" }, { transform: "perspective(1200px) rotateY(0deg)" }], { duration: s.ms, easing: s.easing });
+      el.animate([{ transform: "perspective(1200px) rotateY(-90deg)" }, { transform: "perspective(1200px) rotateY(0deg)" }], {
+        duration: s.ms,
+        easing: s.easing,
+      });
     };
     away.finished.then(round, round);
   };
@@ -394,7 +505,13 @@ function PhoneCard({ c, position, total, revealed, onReveal, onAnswer, onDelete,
       {revealed && (
         <div className="loki-phone-learn-grades">
           {ANSWERS.map(({ grade, label }) => (
-            <button key={grade} type="button" className={grade >= 3 ? "loki-phone-decide-btn loki-phone-decide-btn--affirm" : "loki-phone-decide-btn"} aria-label={`${label}, next in ${gaps[grade]}`} onClick={() => leave(THROW(grade >= 3 ? 1 : -1), () => onAnswer(grade))}>
+            <button
+              key={grade}
+              type="button"
+              className={grade >= 3 ? "loki-phone-decide-btn loki-phone-decide-btn--affirm" : "loki-phone-decide-btn"}
+              aria-label={`${label}, next in ${gaps[grade]}`}
+              onClick={() => leave(THROW(grade >= 3 ? 1 : -1), () => onAnswer(grade))}
+            >
               <span className="loki-phone-learn-grade">{label[0].toUpperCase() + label.slice(1)}</span>
               <span className="loki-phone-learn-gap">{gaps[grade]}</span>
             </button>

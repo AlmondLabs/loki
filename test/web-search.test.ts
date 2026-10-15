@@ -45,7 +45,10 @@ describe("web search", () => {
     registry.install(webSearchExtension(async (q) => (q === "pi" ? parseResults(PAGE) : [])));
     const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
     const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
-    faux.setResponses([fauxAssistantMessage([fauxToolCall("web_search", { query: "pi" }), fauxToolCall("web_search", { query: "zzz" })], { stopReason: "toolUse" }), fauxAssistantMessage("found it")]);
+    faux.setResponses([
+      fauxAssistantMessage([fauxToolCall("web_search", { query: "pi" }), fauxToolCall("web_search", { query: "zzz" })], { stopReason: "toolUse" }),
+      fauxAssistantMessage("found it"),
+    ]);
     await (await chat.submit({ type: "input", content: "search" }, ctx)).wait(ctx);
     const results = (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
     expect(results[0]).toContain("1. Pi Durable | Earendil\\n   https://earendil.com/posts/pi-durable/");

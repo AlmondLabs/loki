@@ -10,7 +10,8 @@ export const idOf = (i: AttentionItem) => `${i.agentId}/${i.id}`;
  * boundaries, streaming and list refreshes all move `lastMessageAt` without
  * anything new to read, and would bounce a decided card straight back.
  */
-export const stampOf = (i: AttentionItem) => `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}|${i.turns}`;
+export const stampOf = (i: AttentionItem) =>
+  `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}|${i.turns}`;
 
 /**
  * What needs you now: the count on the Inbox's badge, Home's "Needs your attention", Search's waiting group.

@@ -1,5 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { HOME, TABS, backTarget, depthOf, entryState, formatRoute, isOverlay, labelOf, originOf, ownerOf, parentOf, parseRoute, screenOf, showsNav, type Route } from "../app/src/phone/router.ts";
+import {
+  HOME,
+  TABS,
+  backTarget,
+  depthOf,
+  entryState,
+  formatRoute,
+  isOverlay,
+  labelOf,
+  originOf,
+  ownerOf,
+  parentOf,
+  parseRoute,
+  screenOf,
+  showsNav,
+  type Route,
+} from "../app/src/phone/router.ts";
 
 /**
  * The phone's hash routes (app/src/phone/router.ts): every route both ways, file paths with slashes
@@ -88,7 +104,12 @@ describe("conversations", () => {
 
 describe("child routes", () => {
   test("search, archive and preferences have stable direct links", () => {
-    for (const [kind, hash] of [["search", "#/search"], ["archive", "#/archive"], ["preferences", "#/preferences"], ["learn", "#/learn"]] as const) {
+    for (const [kind, hash] of [
+      ["search", "#/search"],
+      ["archive", "#/archive"],
+      ["preferences", "#/preferences"],
+      ["learn", "#/learn"],
+    ] as const) {
       const r = { kind } as Route;
       expect(formatRoute(r)).toBe(hash);
       roundTrip(r);

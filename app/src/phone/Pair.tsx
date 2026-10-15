@@ -65,9 +65,7 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
           <span aria-hidden className="loki-phone-workspace">
             L
           </span>
-          <h1 className="loki-phone-large-title loki-phone-pair-title">
-            Pair with the Mac
-          </h1>
+          <h1 className="loki-phone-large-title loki-phone-pair-title">Pair with the Mac</h1>
           <p className="loki-phone-pair-lead">Open Settings › phone on the Mac and type the six characters it shows. Once is enough for this icon.</p>
         </div>
         <form
@@ -107,7 +105,9 @@ export function Pair({ onPaired }: { onPaired: (me: Me) => void }) {
             {busy ? "Pairing…" : "Pair"}
           </Button>
         </form>
-        <p className="loki-phone-pair-foot">Same Wi‑Fi as the Mac (or its Tailscale address), and the Mac awake. Nothing is installed; this page is served by loki itself.</p>
+        <p className="loki-phone-pair-foot">
+          Same Wi‑Fi as the Mac (or its Tailscale address), and the Mac awake. Nothing is installed; this page is served by loki itself.
+        </p>
       </div>
     </main>
   );

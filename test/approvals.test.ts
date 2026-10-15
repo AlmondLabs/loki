@@ -50,7 +50,12 @@ async function setup(mode: PermissionMode, opts: { alwaysPath?: string } = {}) {
     defineExtension({
       name: "tools",
       tools: ["bash", "write"].map((name) =>
-        defineTool({ name, description: name, parameters: { type: "object", properties: { x: { type: "string" } } } as never, execute: async (args) => (ran.push(`${name}:${String((args as { x?: string }).x)}`), { content: [{ type: "text", text: "ok" }] }) }),
+        defineTool({
+          name,
+          description: name,
+          parameters: { type: "object", properties: { x: { type: "string" } } } as never,
+          execute: async (args) => (ran.push(`${name}:${String((args as { x?: string }).x)}`), { content: [{ type: "text", text: "ok" }] }),
+        }),
       ),
     }),
   );
@@ -90,7 +95,10 @@ describe("approvals in a chat", () => {
       expect(JSON.parse(readFileSync(alwaysPath, "utf8"))).toEqual({ always: ["bash"] });
       // Strict mode asks for everything, always-allowed tools too.
       await s.store.updateChat("c", { mode: "strict" }, ctx);
-      s.faux.setResponses([s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "3" }, { id: "t3" }), { stopReason: "toolUse" })), s.reply(fauxAssistantMessage("ok"))]);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "3" }, { id: "t3" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("ok")),
+      ]);
       const strict = (await s.chat.submit({ type: "input", content: "again" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 2);
       s.approvals.decide("approval-t3", true);
@@ -106,11 +114,13 @@ describe("approvals in a chat", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-
   test("a command waits for the person; allowed, it runs; the client following the chat sees the ask and the loop", async () => {
     const s = await setup("standard");
     try {
-      s.faux.setResponses([s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "1" }, { id: "t1" }), { stopReason: "toolUse" })), s.reply(fauxAssistantMessage("done"))]);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "1" }, { id: "t1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("done")),
+      ]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 1);
       expect(s.ran).toEqual([]);
@@ -129,7 +139,10 @@ describe("approvals in a chat", () => {
   test("denied, the tool does not run and the model reads the person's reason", async () => {
     const s = await setup("standard");
     try {
-      s.faux.setResponses([s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "rm" }, { id: "t1" }), { stopReason: "toolUse" })), s.reply(fauxAssistantMessage("ok, not doing that"))]);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("bash", { x: "rm" }, { id: "t1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("ok, not doing that")),
+      ]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 1);
       s.approvals.decide("approval-t1", false, "not on this machine");
@@ -159,7 +172,9 @@ describe("approvals in a chat", () => {
     const s = await setup("standard");
     try {
       s.faux.setResponses([
-        s.reply(fauxAssistantMessage([fauxToolCall("bash", { x: "a" }, { id: "t1" }), fauxToolCall("write", { x: "b" }, { id: "t2" })], { stopReason: "toolUse" })),
+        s.reply(
+          fauxAssistantMessage([fauxToolCall("bash", { x: "a" }, { id: "t1" }), fauxToolCall("write", { x: "b" }, { id: "t2" })], { stopReason: "toolUse" }),
+        ),
         s.reply(fauxAssistantMessage("both done")),
       ]);
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
@@ -192,7 +207,10 @@ describe("approvals in a chat", () => {
     const s = await setup("strict");
     try {
       const input = { questions: [{ question: "Which colour?", options: [{ label: "Red" }, { label: "Blue" }], multiSelect: false }] };
-      s.faux.setResponses([s.reply(fauxAssistantMessage(fauxToolCall("AskUserQuestion", input, { id: "q1" }), { stopReason: "toolUse" })), s.reply(fauxAssistantMessage("Blue it is"))]);
+      s.faux.setResponses([
+        s.reply(fauxAssistantMessage(fauxToolCall("AskUserQuestion", input, { id: "q1" }), { stopReason: "toolUse" })),
+        s.reply(fauxAssistantMessage("Blue it is")),
+      ]);
       const run = (await s.chat.submit({ type: "input", content: "pick" }, ctx)).wait(ctx);
       await until(() => s.pushed.some((e) => e.kind === "question"));
       expect(s.pushed.find((e) => e.kind === "question")).toEqual({ kind: "question", requestId: "question-q1", input });

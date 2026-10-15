@@ -60,7 +60,8 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
       }
       const entry = frameEntry(msg.type);
       const handle = entry && entry.kind !== "push" ? handlers.get(msg.type as FrameName) : undefined;
-      if (!entry || entry.kind === "push" || !handle) return client.send({ type: "error", requestId, message: `unsupported message type: ${String(msg.type)}` });
+      if (!entry || entry.kind === "push" || !handle)
+        return client.send({ type: "error", requestId, message: `unsupported message type: ${String(msg.type)}` });
       const ctx: FrameContext = {
         client,
         push: (f) => client.send(f),
@@ -77,10 +78,19 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
         return handle(payload as never, ctx);
       };
       if (entry.kind === "request") {
-        const answer = (out: Outcome<object>) => client.send(out.ok ? { ...out.reply, type: entry.reply, requestId } : { type: "error", requestId, message: out.message });
-        return settle(run, (out) => answer(out as Outcome<object>), (err) => answer(fail(errorMessage(err))));
+        const answer = (out: Outcome<object>) =>
+          client.send(out.ok ? { ...out.reply, type: entry.reply, requestId } : { type: "error", requestId, message: out.message });
+        return settle(
+          run,
+          (out) => answer(out as Outcome<object>),
+          (err) => answer(fail(errorMessage(err))),
+        );
       }
-      settle(run, () => {}, (err) => client.send({ type: "error", message: errorMessage(err) }));
+      settle(
+        run,
+        () => {},
+        (err) => client.send({ type: "error", message: errorMessage(err) }),
+      );
     },
   };
 }

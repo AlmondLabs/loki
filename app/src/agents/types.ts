@@ -1,6 +1,5 @@
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
 
-
 import type { PassSettings, Runtime } from "../../../core/attention/protocol.ts";
 import type { GlobalSkill, LocalAgent, MemoryCommit, MemoryFile, MemorySkillInfo, ReflectionState, RefreshOutcome } from "../../../core/frame-types.ts";
 

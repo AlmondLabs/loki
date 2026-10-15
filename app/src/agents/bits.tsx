@@ -19,7 +19,13 @@ export function Pane({ children }: { children: React.ReactNode }) {
 
 /** The list beside the reading pane: a scrolling column with a rule down its right. */
 export function ListPane({ children }: { children: React.ReactNode }) {
-  return <div style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}>{children}</div>;
+  return (
+    <div
+      style={{ minWidth: 0, minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "14px 16px 24px 28px", borderRight: "1px solid var(--loki-border)" }}
+    >
+      {children}
+    </div>
+  );
 }
 
 /** A memory file as prose: the frontmatter dropped, the markdown rendered; a line instead when there is nothing to show. */
@@ -29,7 +35,9 @@ export function Prose({ content, loadingView, empty }: { content: string | null;
       {content === null && !loadingView && <div className="loki-meta loki-meta--wrap">{empty}</div>}
       {content !== null && (
         <div className="loki-md" style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--loki-fg)", maxWidth: 760, overflowWrap: "anywhere" }}>
-          <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>{stripFrontmatter(content)}</Markdown>
+          <Markdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+            {stripFrontmatter(content)}
+          </Markdown>
         </div>
       )}
     </>

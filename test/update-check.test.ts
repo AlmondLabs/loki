@@ -18,7 +18,13 @@ const release: Release = {
   tag_name: `v${v}`,
   name: `loki ${v}`,
   html_url: page,
-  assets: [asset(`loki_${v}_universal.dmg`), asset("cask.rb"), asset(`loki_${v}_x64-setup.exe`), asset(`loki_${v}_amd64.AppImage`), asset(`loki_${v}_amd64.deb`)],
+  assets: [
+    asset(`loki_${v}_universal.dmg`),
+    asset("cask.rb"),
+    asset(`loki_${v}_x64-setup.exe`),
+    asset(`loki_${v}_amd64.AppImage`),
+    asset(`loki_${v}_amd64.deb`),
+  ],
 };
 // a stable before its Windows and Linux PR is merged, and every nightly: the Mac's files alone
 const macOnly: Release = { ...release, assets: [asset(`loki_${v}_universal.dmg`), asset("cask.rb")] };
@@ -44,7 +50,13 @@ describe("the download for this system", () => {
 });
 
 describe("the release Windows and Linux follow: the newest with their file", () => {
-  const rel = (tag: string, names: string[], extra: Partial<Release> & { prerelease?: boolean; draft?: boolean } = {}): Release => ({ tag_name: tag, name: `loki ${tag.slice(1)}`, html_url: `https://github.com/owner/loki/releases/tag/${tag}`, assets: names.map(asset), ...extra });
+  const rel = (tag: string, names: string[], extra: Partial<Release> & { prerelease?: boolean; draft?: boolean } = {}): Release => ({
+    tag_name: tag,
+    name: `loki ${tag.slice(1)}`,
+    html_url: `https://github.com/owner/loki/releases/tag/${tag}`,
+    assets: names.map(asset),
+    ...extra,
+  });
   const winLinux = (d: string) => [`loki_${d}_x64-setup.exe`, `loki_${d}_amd64.AppImage`, `loki_${d}_amd64.deb`];
   // newest first, as GitHub lists them: the Mac shipped 9.30 alone, 9.29 is Windows and Linux alone (not latest), 9.28 has both
   const list: Release[] = [
@@ -65,7 +77,10 @@ describe("the release Windows and Linux follow: the newest with their file", () 
     const exeOnly = rel("v2026.10.1", ["loki_2026.10.1_x64-setup.exe"]);
     expect(newestWith([exeOnly, ...list], "windows")?.tag_name).toBe("v2026.10.1");
     expect(newestWith([exeOnly, ...list], "linux")?.tag_name).toBe("v2026.9.29");
-    expect(newestWith([rel("v2026.10.2", winLinux("2026.10.2"), { draft: true }), rel("v2026.10.3", winLinux("2026.10.3"), { prerelease: true }), ...list], "linux")?.tag_name).toBe("v2026.9.29");
+    expect(
+      newestWith([rel("v2026.10.2", winLinux("2026.10.2"), { draft: true }), rel("v2026.10.3", winLinux("2026.10.3"), { prerelease: true }), ...list], "linux")
+        ?.tag_name,
+    ).toBe("v2026.9.29");
   });
 
   test("no release with this system's file is none", () => {
@@ -75,8 +90,18 @@ describe("the release Windows and Linux follow: the newest with their file", () 
 });
 
 describe("Settings' version fact", () => {
-  const update: LokiUpdate = { current: "2026.9.27", channel: "stable", latest: v, url: page, download: null, issues: "https://github.com/owner/loki/issues", newer: true, error: null };
-  const html = (os: Platform, u: LokiUpdate = update, r: Release = release) => renderToStaticMarkup(createElement(LokiVersionFact, { update: { ...u, download: downloadFor(r, os) }, os }));
+  const update: LokiUpdate = {
+    current: "2026.9.27",
+    channel: "stable",
+    latest: v,
+    url: page,
+    download: null,
+    issues: "https://github.com/owner/loki/issues",
+    newer: true,
+    error: null,
+  };
+  const html = (os: Platform, u: LokiUpdate = update, r: Release = release) =>
+    renderToStaticMarkup(createElement(LokiVersionFact, { update: { ...u, download: downloadFor(r, os) }, os }));
 
   test("Windows and Linux say preview, link the issues, and link this system's file", () => {
     for (const os of ["windows", "linux"] as const) {

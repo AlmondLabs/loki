@@ -98,7 +98,9 @@ describe("widget frame: where the module comes from", () => {
   test("the shell's loki scheme, spelled per webview", () => {
     expect(widgetSource("trip/budget.tsx", "abc", { tauri: true, os: "macos", dev: false })).toEqual({ url: "loki://localhost/widgets/trip/budget.js?v=abc" });
     expect(widgetSource("trip/budget.jsx", "abc", { tauri: true, os: "linux", dev: true })).toEqual({ url: "loki://localhost/widgets/trip/budget.js?v=abc" });
-    expect(widgetSource("trip/budget.tsx", "abc", { tauri: true, os: "windows", dev: false })).toEqual({ url: "http://loki.localhost/widgets/trip/budget.js?v=abc" });
+    expect(widgetSource("trip/budget.tsx", "abc", { tauri: true, os: "windows", dev: false })).toEqual({
+      url: "http://loki.localhost/widgets/trip/budget.js?v=abc",
+    });
   });
   test("the Vite tab fetches it from the dev server; a built page without the shell has none", () => {
     // the dev server's route takes the .js name, as widgets.rs does (a .tsx name was a 404 there)
@@ -110,7 +112,8 @@ describe("widget frame: where the module comes from", () => {
 
 describe("widget frame: shared imports (the Vite tab's widgets.rs)", () => {
   test("the same rewrites as the Rust core", () => {
-    const code = 'import React, { useState, useEffect as ue } from "react";\nimport * as K from "@loki/kit";\nimport { jsx as _jsx } from "react/jsx-runtime";\nimport x from "./local.js";\n';
+    const code =
+      'import React, { useState, useEffect as ue } from "react";\nimport * as K from "@loki/kit";\nimport { jsx as _jsx } from "react/jsx-runtime";\nimport x from "./local.js";\n';
     const out = rewriteSharedImports(code);
     expect(out).toContain('const React = window.__lokiShared["react"].default ?? window.__lokiShared["react"];');
     expect(out).toContain('const { useState, useEffect: ue } = window.__lokiShared["react"];');
@@ -146,7 +149,12 @@ describe("widget frame: the document", () => {
 
 describe("widget frame: the shell's CSP", () => {
   const { csp, devCsp } = JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8")).app.security;
-  const directive = (policy: string, name: string) => policy.split(";").map((d: string) => d.trim().split(/\s+/)).find((d: string[]) => d[0] === name)?.slice(1) ?? [];
+  const directive = (policy: string, name: string) =>
+    policy
+      .split(";")
+      .map((d: string) => d.trim().split(/\s+/))
+      .find((d: string[]) => d[0] === name)
+      ?.slice(1) ?? [];
   test("frames only the widget frame, on both spellings of the app's origin", () => {
     expect(directive(csp, "frame-src")).toEqual(["tauri://localhost/widget-frame.html", "http://tauri.localhost/widget-frame.html"]);
     expect(directive(devCsp, "frame-src")).toEqual(["http://127.0.0.1:5173/widget-frame.html"]);

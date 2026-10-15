@@ -124,7 +124,11 @@ export function readFrameMessage(event: { source: unknown; data: unknown }, fram
  */
 export function widgetSource(file: string, hash: string, host: { tauri: boolean; os: Platform; dev: boolean }): { url: string } | { fetch: string } | null {
   // Both servers serve the transpiled module under the source's name with .js (widgets.rs; app/vite.config.ts, widgetModule).
-  const path = file.replace(/\.(tsx|jsx)$/, ".js").split("/").map(encodeURIComponent).join("/");
+  const path = file
+    .replace(/\.(tsx|jsx)$/, ".js")
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
   const v = `?v=${encodeURIComponent(hash)}`;
   if (host.tauri) {
     const base = host.os === "windows" ? "http://loki.localhost" : "loki://localhost";

@@ -21,7 +21,17 @@ import { stepLearnView, type LearnView as View } from "./views";
  */
 const TONE: Record<Grade, "negative" | "quiet" | "paper" | "positive"> = { 1: "negative", 2: "quiet", 3: "positive", 4: "paper" };
 
-export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: RecallModel; active: boolean; onOpenDesk: (agentId: string, conversationId: string) => void; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
+export function Recall({
+  recall,
+  active,
+  onOpenDesk,
+  onBegin,
+}: {
+  recall: RecallModel;
+  active: boolean;
+  onOpenDesk: (agentId: string, conversationId: string) => void;
+  onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
+}) {
   const { snap } = recall;
   const [view, setView] = useLearnView();
   const cards = snap?.cards ?? [];
@@ -51,7 +61,14 @@ export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: Recall
   const answer = (g: Grade) => (revealed ? grade(g) : pass.reveal());
   const keys = useRef({ reveal: () => {}, again: () => {}, good: () => {}, remove: () => {}, edit: () => {}, open: () => {} });
   useEffect(() => {
-    keys.current = { reveal: () => answer(3), again: () => answer(1), good: () => answer(3), remove, edit: () => current && setEditingId(current.card.id), open };
+    keys.current = {
+      reveal: () => answer(3),
+      again: () => answer(1),
+      good: () => answer(3),
+      remove,
+      edit: () => current && setEditingId(current.card.id),
+      open,
+    };
   });
   // The deck's keys, registered once per showing; the handlers above are read at press time.
   useEffect(() => {
@@ -69,7 +86,11 @@ export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: Recall
   // The section's own keys, whichever view shows: ⌘[ and ⌘] step the views, ⌘R refreshes.
   useEffect(() => {
     if (!active) return;
-    return registerActions({ "learn.prevView": () => setView(stepLearnView(view, -1)), "learn.nextView": () => setView(stepLearnView(view, 1)), "recall.refresh": () => void recall.refresh() });
+    return registerActions({
+      "learn.prevView": () => setView(stepLearnView(view, -1)),
+      "learn.nextView": () => setView(stepLearnView(view, 1)),
+      "recall.refresh": () => void recall.refresh(),
+    });
   }, [active, recall, view, setView]);
 
   const deck = current && (
@@ -95,14 +116,31 @@ export function Recall({ recall, active, onOpenDesk, onBegin }: { recall: Recall
   );
 
   return (
-    <div style={{ position: "absolute", inset: 0, overflowY: "auto", scrollbarGutter: "stable", padding: "20px 24px 16px", boxSizing: "border-box", display: "flex", flexDirection: "column" }}>
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        overflowY: "auto",
+        scrollbarGutter: "stable",
+        padding: "20px 24px 16px",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       {/* The header keeps its place across the views. Inside the
           body, the deck sits in the middle of what is left (a little above it, where the eye rests); the lists
           start at the top. The gutter is reserved so a long list's scrollbar does not shift the column sideways. */}
       <div style={{ width: 760, maxWidth: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
         <RecallHeader recall={recall} />
         <div key={view} style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, animation: "loki-view-in 120ms ease-out" }}>
-          {view === "review" ? <ReviewView recall={recall} pass={pass}>{deck}</ReviewView> : <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />}
+          {view === "review" ? (
+            <ReviewView recall={recall} pass={pass}>
+              {deck}
+            </ReviewView>
+          ) : (
+            <ListsView recall={recall} view={view} onOpenDesk={onOpenDesk} onBegin={onBegin} />
+          )}
         </div>
       </div>
     </div>
@@ -131,11 +169,17 @@ function Notices({ recall }: { recall: RecallModel }) {
   const { snap } = recall;
   return (
     <>
-      {recall.error && <Meta wrap style={{ color: "var(--loki-negative)" }}>{recall.error}</Meta>}
+      {recall.error && (
+        <Meta wrap style={{ color: "var(--loki-negative)" }}>
+          {recall.error}
+        </Meta>
+      )}
       {snap && !snap.worker.enabled && snap.cards.length > 0 && (
         <Meta wrap>
           the writer is off — these are the cards so far, no new ones are coming ·{" "}
-          <Button bare size="sm" tone="brass" onClick={() => void recall.settings({ enabled: true })}>turn it on</Button>
+          <Button bare size="sm" tone="brass" onClick={() => void recall.settings({ enabled: true })}>
+            turn it on
+          </Button>
         </Meta>
       )}
     </>
@@ -163,7 +207,17 @@ function ReviewView({ recall, pass, children }: { recall: RecallModel; pass: Ret
 }
 
 /** The three list views: leads, all cards with the worker strip, deleted (cards and leads). */
-function ListsView({ recall, view, onOpenDesk, onBegin }: { recall: RecallModel; view: View; onOpenDesk: (agentId: string, conversationId: string) => void; onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void }) {
+function ListsView({
+  recall,
+  view,
+  onOpenDesk,
+  onBegin,
+}: {
+  recall: RecallModel;
+  view: View;
+  onOpenDesk: (agentId: string, conversationId: string) => void;
+  onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
+}) {
   const { snap } = recall;
   if (!snap) return <Notices recall={recall} />;
   return (
@@ -187,7 +241,14 @@ function ListsView({ recall, view, onOpenDesk, onBegin }: { recall: RecallModel;
       {view === "all" && (
         <>
           <CardList cards={snap.cards} onEdit={(id, text) => void recall.edit(id, text)} onDelete={(id) => void recall.remove(id)} />
-          <WorkerStrip worker={snap.worker} running={recall.running} onSettings={(s) => void recall.settings(s)} onRun={() => void recall.run()} onExport={() => void recall.exportCards()} cardCount={snap.cards.length} />
+          <WorkerStrip
+            worker={snap.worker}
+            running={recall.running}
+            onSettings={(s) => void recall.settings(s)}
+            onRun={() => void recall.run()}
+            onExport={() => void recall.exportCards()}
+            cardCount={snap.cards.length}
+          />
         </>
       )}
       {view === "deleted" && (
@@ -205,8 +266,14 @@ function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pas
   const now = useNow();
   if (!snap) return <Meta>loading…</Meta>;
   if (snap.cards.length === 0) {
-    const ran = snap.worker.lastRunAt ? ` The worker last ran ${describeGap(now - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.` : " The worker has not run yet.";
-    return <Empty card title="Nothing to recall yet.">Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.{ran}</Empty>;
+    const ran = snap.worker.lastRunAt
+      ? ` The worker last ran ${describeGap(now - new Date(snap.worker.lastRunAt).getTime())} ago: ${snap.worker.lastRunNote ?? ""}.`
+      : " The worker has not run yet.";
+    return (
+      <Empty card title="Nothing to recall yet.">
+        Cards are written in the background from conversations that have gone quiet — nothing to do here but come back.{ran}
+      </Empty>
+    );
   }
   if (!pass.current) {
     return (
@@ -225,11 +292,53 @@ function ReviewBody({ snap, pass, children }: { snap: RecallSnapshot | null; pas
 }
 
 /** One card: its source, the front, the answer once shown, and the two answers. */
-function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, onGrade, onDelete, onEdit, onOpen, onTogglePrevious, onSave, onCancel }: { c: CardWithSchedule; position: number; total: number; revealed: boolean; editing: boolean; showPrevious: boolean; onReveal: () => void; onGrade: (g: Grade) => void; onDelete: () => void; onEdit: () => void; onOpen: () => void; onTogglePrevious: () => void; onSave: (text: { front: string; back: string }) => void; onCancel: () => void }) {
+function Deck({
+  c,
+  position,
+  total,
+  revealed,
+  editing,
+  showPrevious,
+  onReveal,
+  onGrade,
+  onDelete,
+  onEdit,
+  onOpen,
+  onTogglePrevious,
+  onSave,
+  onCancel,
+}: {
+  c: CardWithSchedule;
+  position: number;
+  total: number;
+  revealed: boolean;
+  editing: boolean;
+  showPrevious: boolean;
+  onReveal: () => void;
+  onGrade: (g: Grade) => void;
+  onDelete: () => void;
+  onEdit: () => void;
+  onOpen: () => void;
+  onTogglePrevious: () => void;
+  onSave: (text: { front: string; back: string }) => void;
+  onCancel: () => void;
+}) {
   const gaps = previews(c.schedule);
   const canOpen = !!(c.card.source.agentId && c.card.source.conversationId);
   return (
-    <section aria-label={`card ${position} of ${total}`} style={{ background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-lg)", boxShadow: "var(--loki-shadow-sheet)", padding: "18px 24px 16px", display: "grid", gap: 16, animation: "loki-card-next 200ms ease-out" }}>
+    <section
+      aria-label={`card ${position} of ${total}`}
+      style={{
+        background: "var(--loki-panel)",
+        border: "1px solid var(--loki-border)",
+        borderRadius: "var(--loki-radius-lg)",
+        boxShadow: "var(--loki-shadow-sheet)",
+        padding: "18px 24px 16px",
+        display: "grid",
+        gap: 16,
+        animation: "loki-card-next 200ms ease-out",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <SourceLine c={c} />
         <span style={{ flex: 1 }} />
@@ -241,18 +350,46 @@ function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, o
         <CardEditor c={c} onSave={onSave} onCancel={onCancel} />
       ) : (
         <>
-          <div style={{ fontSize: 22, fontWeight: 600, lineHeight: 1.3, color: "var(--loki-fg)", whiteSpace: "pre-wrap", textWrap: "balance" as never, padding: "10px 0" }}>{c.card.front}</div>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 600,
+              lineHeight: 1.3,
+              color: "var(--loki-fg)",
+              whiteSpace: "pre-wrap",
+              textWrap: "balance" as never,
+              padding: "10px 0",
+            }}
+          >
+            {c.card.front}
+          </div>
           {revealed ? (
-            <div style={{ borderTop: "1px solid var(--loki-border)", paddingTop: 14, fontSize: 15, lineHeight: 1.55, color: "var(--loki-fg)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{c.card.back}</div>
+            <div
+              style={{
+                borderTop: "1px solid var(--loki-border)",
+                paddingTop: 14,
+                fontSize: 15,
+                lineHeight: 1.55,
+                color: "var(--loki-fg)",
+                whiteSpace: "pre-wrap",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {c.card.back}
+            </div>
           ) : (
             <div style={{ display: "flex", justifyContent: "center", padding: "6px 0 2px" }}>
-              <Button size="md" tone="paper" onClick={onReveal} kbd="space">show the answer</Button>
+              <Button size="md" tone="paper" onClick={onReveal} kbd="space">
+                show the answer
+              </Button>
             </div>
           )}
           {c.card.previous.length > 0 && (
             <div style={{ display: "grid", gap: 8 }}>
               <span>
-                <Button size="sm" bare onClick={onTogglePrevious} aria-expanded={showPrevious}>{showPrevious ? "hide the earlier wording" : "what it said before"}</Button>
+                <Button size="sm" bare onClick={onTogglePrevious} aria-expanded={showPrevious}>
+                  {showPrevious ? "hide the earlier wording" : "what it said before"}
+                </Button>
               </span>
               {showPrevious && <PreviousText c={c} />}
             </div>
@@ -262,16 +399,32 @@ function Deck({ c, position, total, revealed, editing, showPrevious, onReveal, o
       {revealed && !editing && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, borderTop: "1px solid var(--loki-border)", paddingTop: 14 }}>
           {ANSWERS.map(({ grade, label, key }) => (
-            <Button key={grade} size="md" tone={TONE[grade]} onClick={() => onGrade(grade)} kbd={key} title={`next in ${gaps[grade]}`} style={{ justifyContent: "center" }}>
+            <Button
+              key={grade}
+              size="md"
+              tone={TONE[grade]}
+              onClick={() => onGrade(grade)}
+              kbd={key}
+              title={`next in ${gaps[grade]}`}
+              style={{ justifyContent: "center" }}
+            >
               {label} <span style={{ fontSize: 10.5, opacity: 0.75 }}>{gaps[grade]}</span>
             </Button>
           ))}
         </div>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", borderTop: "1px solid var(--loki-border)", paddingTop: 12 }}>
-        <Button size="sm" onClick={onDelete} kbd="X" title="delete — it joins the pile the worker reads as 'not this'">delete</Button>
-        <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>edit</Button>
-        {canOpen && <Button size="sm" onClick={onOpen} kbd="O">open the chat</Button>}
+        <Button size="sm" onClick={onDelete} kbd="X" title="delete — it joins the pile the worker reads as 'not this'">
+          delete
+        </Button>
+        <Button size="sm" onClick={onEdit} kbd="E" disabled={editing}>
+          edit
+        </Button>
+        {canOpen && (
+          <Button size="sm" onClick={onOpen} kbd="O">
+            open the chat
+          </Button>
+        )}
       </div>
     </section>
   );

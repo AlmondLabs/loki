@@ -148,7 +148,21 @@ export function returnsFocus(active: unknown, picker: { contains: (node: never) 
  * The pill in the message box's bottom row: the model in the foreground, the effort after it in the muted colour
  * (only when the model offers a choice), a chevron. It opens Select model.
  */
-export function ModelPill({ ref, name, effort, busy, open, onClick }: { ref?: Ref<HTMLButtonElement>; name: string; effort: ReasoningEffort | null; busy?: boolean; open: boolean; onClick: () => void }) {
+export function ModelPill({
+  ref,
+  name,
+  effort,
+  busy,
+  open,
+  onClick,
+}: {
+  ref?: Ref<HTMLButtonElement>;
+  name: string;
+  effort: ReasoningEffort | null;
+  busy?: boolean;
+  open: boolean;
+  onClick: () => void;
+}) {
   const said = effort ? sentence(effortLabel(effort)) : null;
   return (
     <Chip
@@ -211,7 +225,8 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
       {checked && <Icon name="check" size={glyph} className="loki-model-check" />}
     </Row>
   );
-  const groupOption = (group: ModelGroup) => option(group.handle, groupName(group), modelLine(group), group.handle === current, () => onPick(selectionOf(preferredModelEntry(group, currentEffort))));
+  const groupOption = (group: ModelGroup) =>
+    option(group.handle, groupName(group), modelLine(group), group.handle === current, () => onPick(selectionOf(preferredModelEntry(group, currentEffort))));
   const link = (id: "effort" | "more", label: string, aside: string | null) => (
     <div key={id} className="loki-model-card">
       <Row flush role="menuitem" data-choice={id} data-model-item="" onClick={() => onView(id)} className="loki-model-row">
@@ -230,13 +245,33 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
   let content;
   if (!entries) content = status(loading ? "Loading models…" : "No models from the harness");
   else if (view === "effort") {
-    content = <div className="loki-model-card" role="group" aria-label="Effort">{efforts.map((entry) => option(entry.reasoningEffort!, sentence(effortLabel(entry.reasoningEffort!)), null, entry.reasoningEffort === currentEffort, () => onPick(selectionOf(entry))))}</div>;
+    content = (
+      <div className="loki-model-card" role="group" aria-label="Effort">
+        {efforts.map((entry) =>
+          option(entry.reasoningEffort!, sentence(effortLabel(entry.reasoningEffort!)), null, entry.reasoningEffort === currentEffort, () =>
+            onPick(selectionOf(entry)),
+          ),
+        )}
+      </div>
+    );
   } else if (view === "more") {
     const q = query.trim().toLowerCase();
     const shown = more.filter((group) => !q || group.handle.toLowerCase().includes(q) || group.label.toLowerCase().includes(q)).slice(0, MORE_CAP);
     content = (
       <>
-        <Field size={touch ? "touch" : "sm"} type="search" name="model-search" autoComplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Filter by provider or name" aria-label="Filter models" />
+        <Field
+          size={touch ? "touch" : "sm"}
+          type="search"
+          name="model-search"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="Filter by provider or name"
+          aria-label="Filter models"
+        />
         {shown.length === 0 ? (
           status("No model matches")
         ) : (
@@ -244,7 +279,14 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
             {shown.flatMap((group, i) => {
               const provider = group.handle.split("/")[0];
               const heading = i === 0 || shown[i - 1].handle.split("/")[0] !== provider;
-              return [heading && provider !== group.handle && <div key={`${provider}-label`} role="presentation" className="loki-label loki-model-provider">{provider}</div>, groupOption(group)];
+              return [
+                heading && provider !== group.handle && (
+                  <div key={`${provider}-label`} role="presentation" className="loki-label loki-model-provider">
+                    {provider}
+                  </div>
+                ),
+                groupOption(group),
+              ];
             })}
           </div>
         )}
@@ -253,7 +295,9 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
   } else {
     content = (
       <>
-        <div className="loki-model-card" role="group" aria-label="Models">{short.map(groupOption)}</div>
+        <div className="loki-model-card" role="group" aria-label="Models">
+          {short.map(groupOption)}
+        </div>
         {efforts.length > 1 && link("effort", "Effort", currentEffort ? sentence(effortLabel(currentEffort)) : null)}
         {more.length > 0 && link("more", "More models", null)}
       </>
@@ -326,7 +370,9 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, loadi
   // Each view starts on its natural place: the filter in More models, else the checked row, else the first.
   useEffect(() => {
     const node = ref.current;
-    const target = node?.querySelector<HTMLElement>(view === "more" ? "input" : '[data-model-item][aria-checked="true"]') ?? node?.querySelector<HTMLElement>("[data-model-item]");
+    const target =
+      node?.querySelector<HTMLElement>(view === "more" ? "input" : '[data-model-item][aria-checked="true"]') ??
+      node?.querySelector<HTMLElement>("[data-model-item]");
     target?.focus({ preventScroll: true });
   }, [view, loaded]);
   // Closing hands focus back to the pill (a tap on a phone never focused it, so the sheet's own return may have
@@ -364,7 +410,21 @@ function ModelPickerOpen({ touch = false, current, currentEffort, entries, loadi
     else items[move.focus]?.focus();
   };
 
-  const body = <ModelChoices view={view} entries={entries} current={current} currentEffort={currentEffort} loading={loading} query={query} touch={touch} onView={setView} onQuery={setQuery} onPick={onPick} onClose={onClose} />;
+  const body = (
+    <ModelChoices
+      view={view}
+      entries={entries}
+      current={current}
+      currentEffort={currentEffort}
+      loading={loading}
+      query={query}
+      touch={touch}
+      onView={setView}
+      onQuery={setQuery}
+      onPick={onPick}
+      onClose={onClose}
+    />
+  );
   if (touch) {
     const sheet = (
       <Sheet label="Select model" onClose={onClose} placement="bottom" className="loki-phone-sheet loki-model-sheet">

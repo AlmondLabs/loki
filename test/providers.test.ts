@@ -48,7 +48,13 @@ describe("providers on the daemon", () => {
       ...base,
       id: "fake-key",
       name: "Fake",
-      auth: { apiKey: { name: "Fake key", login: async () => ({ type: "api_key", key: "" }), resolve: async ({ credential }: { credential?: { key?: string } }) => (credential?.key ? { auth: { apiKey: credential.key } } : undefined) } },
+      auth: {
+        apiKey: {
+          name: "Fake key",
+          login: async () => ({ type: "api_key", key: "" }),
+          resolve: async ({ credential }: { credential?: { key?: string } }) => (credential?.key ? { auth: { apiKey: credential.key } } : undefined),
+        },
+      },
       refreshModels: async (context: { credential?: unknown }) => {
         const credential = context.credential as { key?: string } | undefined;
         if (credential?.key !== "good") throw new Error("401 invalid key");
@@ -86,7 +92,14 @@ describe("signing in through the browser", () => {
           name: "Fake (ChatGPT subscription)",
           loginLabel: "Sign in with ChatGPT",
           login: async (interaction: ProviderAuthInteraction, options?: LoginOptions) => {
-            seen.choice = await interaction.prompt({ type: "select", message: "how?", options: [{ id: "browser", label: "Browser" }, { id: "device", label: "Device code" }] });
+            seen.choice = await interaction.prompt({
+              type: "select",
+              message: "how?",
+              options: [
+                { id: "browser", label: "Browser" },
+                { id: "device", label: "Device code" },
+              ],
+            });
             seen.device = options?.getDeviceId?.();
             seen.agent = options?.agentName;
             interaction.notify({ type: "auth_url", url: "https://auth.example/authorize", instructions: "finish in the browser" });
@@ -103,7 +116,12 @@ describe("signing in through the browser", () => {
         },
       },
     } as never);
-    const providers = new Providers(models, credentials, () => {}, () => "0b5a3f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b");
+    const providers = new Providers(
+      models,
+      credentials,
+      () => {},
+      () => "0b5a3f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+    );
     return { providers, credentials, seen, browser: (code: string) => callback?.(code) };
   }
 
@@ -154,7 +172,12 @@ describe("signing in through the browser", () => {
         },
       },
     } as never);
-    const providers = new Providers(models, credentials, () => {}, () => "0b5a3f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b");
+    const providers = new Providers(
+      models,
+      credentials,
+      () => {},
+      () => "0b5a3f0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b",
+    );
     expect(await providers.signIn("fake-copilot")).toEqual({ url: "https://github.com/login/device", instructions: "Enter the code ABCD-1234" });
     expect(asked).toBe("");
   });

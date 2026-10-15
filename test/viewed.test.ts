@@ -32,12 +32,23 @@ describe("viewed marks while a reply streams", () => {
   });
 
   test("leaving mid-stream marks it viewed", () => {
-    const streaming = run([{ looking: true, running: true, stamp: at("01"), ...ids }, { looking: true, running: true, stamp: at("02"), ...ids }]);
+    const streaming = run([
+      { looking: true, running: true, stamp: at("01"), ...ids },
+      { looking: true, running: true, stamp: at("02"), ...ids },
+    ]);
     // the pane shows something else (or the conversation closes): the look is not lost
     const left = run([{ looking: false, running: true, stamp: null, ...ids }], streaming.looks);
     expect(left.marks).toEqual(["a/c"]);
     // it streams on unseen: nothing more is marked until you look again
-    expect(run([{ looking: false, running: true, stamp: null, ...ids }, { looking: false, running: false, stamp: null, ...ids }], left.looks).marks).toEqual([]);
+    expect(
+      run(
+        [
+          { looking: false, running: true, stamp: null, ...ids },
+          { looking: false, running: false, stamp: null, ...ids },
+        ],
+        left.looks,
+      ).marks,
+    ).toEqual([]);
   });
 
   test("looking away (the window blurred) mid-stream marks it viewed; coming back holds again until the turn ends", () => {

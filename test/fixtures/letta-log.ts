@@ -20,7 +20,13 @@ export function userLine(id: string, parentId: string | null, at: string, text: 
   };
 }
 
-export function assistantLine(id: string, parentId: string, at: string, text: string, calls: Array<{ id: string; name: string; arguments: unknown }> = []): Line {
+export function assistantLine(
+  id: string,
+  parentId: string,
+  at: string,
+  text: string,
+  calls: Array<{ id: string; name: string; arguments: unknown }> = [],
+): Line {
   return {
     type: "message",
     id,
@@ -47,7 +53,16 @@ export function toolResultLine(id: string, parentId: string, at: string, callId:
     id,
     parentId,
     timestamp: at,
-    message: { id: `m-${id}`, role: "toolResult", toolCallId: callId, toolName: name, content: [{ type: "text", text: output }], isError, metadata: meta(at), timestamp: Date.parse(at) },
+    message: {
+      id: `m-${id}`,
+      role: "toolResult",
+      toolCallId: callId,
+      toolName: name,
+      content: [{ type: "text", text: output }],
+      isError,
+      metadata: meta(at),
+      timestamp: Date.parse(at),
+    },
   };
 }
 

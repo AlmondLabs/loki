@@ -35,7 +35,11 @@ export function useFrameKeyboard({
   // Keyboard nudges: the next position/size waiting to be committed, and the timer that commits them.
   // Committing through `gesture` (the drag's release path) keeps undo honest: the mod collapses commits
   // that land within its burst window into one step, so ⌘Z undoes a press, or a held key, at a time.
-  const nudgeRef = useRef<{ position: Position | null; size: Size | null; timer: ReturnType<typeof setTimeout> | null }>({ position: null, size: null, timer: null });
+  const nudgeRef = useRef<{ position: Position | null; size: Size | null; timer: ReturnType<typeof setTimeout> | null }>({
+    position: null,
+    size: null,
+    timer: null,
+  });
   const [announcement, setAnnouncement] = useState("");
   const announceRef = useRef<{ text: string; timer: ReturnType<typeof setTimeout> | null }>({ text: "", timer: null });
   useEffect(

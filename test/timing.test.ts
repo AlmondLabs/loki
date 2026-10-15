@@ -8,7 +8,10 @@ describe("turn timings", () => {
     const t = turnTimings({
       sentAt: 0,
       firstOutputAt: 400,
-      models: [{ start: 100, end: 1000 }, { start: 1600, end: 2600 }],
+      models: [
+        { start: 100, end: 1000 },
+        { start: 1600, end: 2600 },
+      ],
       tools: [{ start: 1050, end: 1500 }],
     });
     expect(t).toEqual({
@@ -34,8 +37,14 @@ describe("turn timings", () => {
     const t = turnTimings({
       sentAt: 0,
       firstOutputAt: 200,
-      models: [{ start: 0, end: 500 }, { start: 900, end: 1200 }],
-      tools: [{ start: 500, end: 800 }, { start: 500, end: 700 }],
+      models: [
+        { start: 0, end: 500 },
+        { start: 900, end: 1200 },
+      ],
+      tools: [
+        { start: 500, end: 800 },
+        { start: 500, end: 700 },
+      ],
     });
     expect(t.toolMs).toBe(300);
     expect(t.afterToolMs).toEqual([100, 200]);
@@ -53,7 +62,14 @@ describe("turn timings", () => {
   });
 
   test("covered joins overlapping spans and ignores empty ones", () => {
-    expect(covered([{ start: 0, end: 10 }, { start: 5, end: 20 }, { start: 30, end: 40 }, { start: 50, end: 50 }])).toBe(30);
+    expect(
+      covered([
+        { start: 0, end: 10 },
+        { start: 5, end: 20 },
+        { start: 30, end: 40 },
+        { start: 50, end: 50 },
+      ]),
+    ).toBe(30);
   });
 
   test("median of odd and even counts, and of none", () => {

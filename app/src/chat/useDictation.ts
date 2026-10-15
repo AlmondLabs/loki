@@ -8,10 +8,21 @@ import { KEYMAP, keyFor, keysOf } from "../shell/keymap";
  * which is the natural end of a dictated message. Note: Chrome may send the
  * audio to Google's speech service unless on-device recognition is available.
  */
-interface RecognitionAlternative { transcript: string }
-interface RecognitionResult { isFinal: boolean; length: number; [i: number]: RecognitionAlternative }
-interface RecognitionEvent { resultIndex: number; results: { length: number; [i: number]: RecognitionResult } }
-interface RecognitionErrorEvent { error: string }
+interface RecognitionAlternative {
+  transcript: string;
+}
+interface RecognitionResult {
+  isFinal: boolean;
+  length: number;
+  [i: number]: RecognitionAlternative;
+}
+interface RecognitionEvent {
+  resultIndex: number;
+  results: { length: number; [i: number]: RecognitionResult };
+}
+interface RecognitionErrorEvent {
+  error: string;
+}
 interface Recognition {
   lang: string;
   continuous: boolean;
@@ -99,7 +110,9 @@ export function useDictation({
     };
     r.onerror = (e) => {
       if (e.error === "no-speech" || e.error === "aborted") return; // a pause, or we stopped it
-      setError(e.error === "not-allowed" || e.error === "service-not-allowed" ? "microphone blocked — allow it in the address bar" : `dictation failed: ${e.error}`);
+      setError(
+        e.error === "not-allowed" || e.error === "service-not-allowed" ? "microphone blocked — allow it in the address bar" : `dictation failed: ${e.error}`,
+      );
     };
     r.onend = () => {
       rec.current = null;

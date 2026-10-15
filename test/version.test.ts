@@ -22,7 +22,18 @@ test("YYYY.MMDD.N stables come after every YYYY.M.D one, and in order through mo
   expect(isNewerVersion("2026.10.11", "2026.1011.0")).toBe(true);
   expect(isNewerVersion("2026.12.31", "2026.1011.0")).toBe(true); // any old-scheme day: a month never reaches 101
   expect(isNewerVersion("2026.1011.0", "2026.10.31")).toBe(false);
-  const inOrder = ["2026.1011.0", "2026.1011.1", "2026.1011.10", "2026.1012.0", "2026.1031.0", "2026.1101.0", "2026.1231.3", "2027.101.0", "2027.131.0", "2027.201.0"];
+  const inOrder = [
+    "2026.1011.0",
+    "2026.1011.1",
+    "2026.1011.10",
+    "2026.1012.0",
+    "2026.1031.0",
+    "2026.1101.0",
+    "2026.1231.3",
+    "2027.101.0",
+    "2027.131.0",
+    "2027.201.0",
+  ];
   for (let i = 1; i < inOrder.length; i++) {
     expect(isNewerVersion(inOrder[i - 1], inOrder[i])).toBe(true);
     expect(isNewerVersion(inOrder[i], inOrder[i - 1])).toBe(false);

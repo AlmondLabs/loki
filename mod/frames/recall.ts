@@ -20,10 +20,30 @@ export interface RecallDeps {
 export function recallFrames({ recall }: RecallDeps): FrameHandlers {
   if (!recall) {
     const off = () => fail("recall is not available in this mod");
-    return { recall_list: off, recall_grade: off, recall_edit: off, recall_reject: off, recall_restore: off, recall_forget: off, recall_settings: off, recall_run: off, recall_export: off, recall_lead_dismiss: off, recall_lead_restore: off, recall_lead_start: off };
+    return {
+      recall_list: off,
+      recall_grade: off,
+      recall_edit: off,
+      recall_reject: off,
+      recall_restore: off,
+      recall_forget: off,
+      recall_settings: off,
+      recall_run: off,
+      recall_export: off,
+      recall_lead_dismiss: off,
+      recall_lead_restore: off,
+      recall_lead_start: off,
+    };
   }
   const { store } = recall;
-  const snapshot = (): RecallSnapshot => ({ cards: store.cards(), rejected: store.rejected(), worker: recall.status(), leads: store.leads(), dismissedLeads: store.dismissedLeads(), lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })) });
+  const snapshot = (): RecallSnapshot => ({
+    cards: store.cards(),
+    rejected: store.rejected(),
+    worker: recall.status(),
+    leads: store.leads(),
+    dismissedLeads: store.dismissedLeads(),
+    lessons: store.lessons().map((l) => ({ ...l, empty: recall.lessonEmpty?.(l) ?? false })),
+  });
   const changed = (ctx: FrameContext) => ctx.broadcast({ type: "recall_changed" });
   return {
     recall_list: () => reply(snapshot()),

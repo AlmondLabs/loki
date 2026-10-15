@@ -31,7 +31,16 @@ export async function importMod(file: string, buildDir: string): Promise<LokiMod
   if (esbuild) {
     mkdirSync(buildDir, { recursive: true });
     const outfile = join(buildDir, `${basename(file, extname(file))}-${Date.now()}-${loads++}.mjs`);
-    await esbuild.build({ entryPoints: [file], outfile, bundle: true, platform: "node", format: "esm", target: "node22", packages: "external", logLevel: "silent" });
+    await esbuild.build({
+      entryPoints: [file],
+      outfile,
+      bundle: true,
+      platform: "node",
+      format: "esm",
+      target: "node22",
+      packages: "external",
+      logLevel: "silent",
+    });
     url = pathToFileURL(outfile);
   } else if (extname(file) === ".ts") {
     throw new Error("a .ts mod needs esbuild, which this install does not have; use .mjs");
@@ -79,10 +88,13 @@ export function watchFiles(dir: string, include: (file: string) => boolean, chan
   const watcher = watch(dir, { recursive }, (_event, file) => {
     if (!file || !include(file)) return;
     clearTimeout(timers.get(file));
-    timers.set(file, setTimeout(() => {
-      timers.delete(file);
-      void changed(file);
-    }, settleMs));
+    timers.set(
+      file,
+      setTimeout(() => {
+        timers.delete(file);
+        void changed(file);
+      }, settleMs),
+    );
   });
   return () => {
     watcher.close();

@@ -48,7 +48,10 @@ export function browseWith(tauri: boolean, os: Platform): BrowseWith {
 type OpenDialog = (options: { directory: true; multiple: false; defaultPath?: string; title?: string }) => Promise<string | string[] | null>;
 
 /** The system's folder dialog (tauri-plugin-dialog), opened at the typed folder. Resolves null when cancelled or unavailable. */
-export async function dialogPick(defaultPath?: string, open: OpenDialog = async (options) => (await import("@tauri-apps/plugin-dialog")).open(options)): Promise<string | null> {
+export async function dialogPick(
+  defaultPath?: string,
+  open: OpenDialog = async (options) => (await import("@tauri-apps/plugin-dialog")).open(options),
+): Promise<string | null> {
   try {
     const picked = await open({ directory: true, multiple: false, defaultPath, title: "Folder for the new chat" });
     const path = Array.isArray(picked) ? picked[0] : picked;
@@ -61,7 +64,12 @@ export async function dialogPick(defaultPath?: string, open: OpenDialog = async 
 
 /** A folder's name for the list: its last segment (Windows paths split on backslashes as well). */
 export function folderLabel(path: string, os: Platform = platform): string {
-  return path.split(os === "windows" ? /[\\/]/ : "/").filter(Boolean).pop() ?? path;
+  return (
+    path
+      .split(os === "windows" ? /[\\/]/ : "/")
+      .filter(Boolean)
+      .pop() ?? path
+  );
 }
 
 type FolderStatus = { ok: boolean; branch: string | null; reason?: string } | null;
@@ -69,7 +77,12 @@ type FolderOption = { path: string; group: "match" | "mine" | "others" };
 type FolderSuggestion = { path: string; source: "current" | "recent" };
 
 /** The predictable hierarchy for an untouched folder field. */
-export function suggestedFolder(recent: Record<string, string[]>, currentFolder: string | null, agentId: string | null, currentAgentId: string | null): FolderSuggestion | null {
+export function suggestedFolder(
+  recent: Record<string, string[]>,
+  currentFolder: string | null,
+  agentId: string | null,
+  currentAgentId: string | null,
+): FolderSuggestion | null {
   if (!agentId) return null;
   if (currentFolder && agentId === currentAgentId) return { path: currentFolder, source: "current" };
   const latest = recent[agentId]?.[0];
@@ -78,8 +91,10 @@ export function suggestedFolder(recent: Record<string, string[]>, currentFolder:
 
 /** The folder list's rows: typed completions first; then this agent's recent folders; then everyone else's. */
 function folderOptions(recent: Record<string, string[]>, matches: string[], agentId: string | null, folderTouched: boolean): FolderOption[] {
-  const mine = agentId ? recent[agentId] ?? [] : [];
-  const others = Object.entries(recent).filter(([a]) => a !== agentId).flatMap(([, l]) => l);
+  const mine = agentId ? (recent[agentId] ?? []) : [];
+  const others = Object.entries(recent)
+    .filter(([a]) => a !== agentId)
+    .flatMap(([, l]) => l);
   const seen = new Set<string>();
   const list: FolderOption[] = [];
   const take = (paths: string[], group: FolderOption["group"]) => {
@@ -100,7 +115,17 @@ function folderOptions(recent: Record<string, string[]>, matches: string[], agen
  * chat you are on for its own agent, else the agent's latest folder), is checked and completed as you type, lists
  * recent folders, and Browse opens the system's chooser. Each dialog keeps its own busy state beside `picking`.
  */
-export function useFolderField({ folders, agentId, currentAgentId, currentConversationKey }: { folders: FolderApi; agentId: string | null; currentAgentId: string | null; currentConversationKey: string | null }) {
+export function useFolderField({
+  folders,
+  agentId,
+  currentAgentId,
+  currentConversationKey,
+}: {
+  folders: FolderApi;
+  agentId: string | null;
+  currentAgentId: string | null;
+  currentConversationKey: string | null;
+}) {
   const [folder, setFolder] = useState("");
   const [source, setSource] = useState<FolderSuggestion["source"] | null>(null);
   const [touched, setTouched] = useState(false);
@@ -121,7 +146,7 @@ export function useFolderField({ folders, agentId, currentAgentId, currentConver
       .then((r) => {
         if (gone) return;
         setRecent(r.byAgent);
-        setCurrentFolder(currentConversationKey ? r.byConversation[currentConversationKey] ?? null : null);
+        setCurrentFolder(currentConversationKey ? (r.byConversation[currentConversationKey] ?? null) : null);
       })
       .catch(() => {}) // no recent folders to offer; Browse still works
       .finally(() => {
@@ -264,8 +289,17 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
         />
 
         <div>
-          <div className="loki-label" style={{ marginBottom: 6 }}>Name <span style={{ fontWeight: 400 }}>· optional, named from the first exchange otherwise</span></div>
-          <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="what this chat is about" aria-label="chat name" autoComplete="off" />
+          <div className="loki-label" style={{ marginBottom: 6 }}>
+            Name <span style={{ fontWeight: 400 }}>· optional, named from the first exchange otherwise</span>
+          </div>
+          <Field
+            ref={nameRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="what this chat is about"
+            aria-label="chat name"
+            autoComplete="off"
+          />
         </div>
 
         {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}
@@ -281,7 +315,23 @@ function NewDeskSheet({ onClose, agents, defaultAgentId, currentAgentId, current
  * completion and Browse as New chat; Move is off until it names another folder that exists. The daemon tells the
  * agent on its next turn that the working directory changed.
  */
-export function ChangeFolder({ onClose, agentId, agentName, conversationKey, title, folders, onMove }: { onClose: () => void; agentId: string; agentName: string | null; conversationKey: string; title: string | null; folders: FolderApi; onMove: (folder: string) => Promise<string | null> }) {
+export function ChangeFolder({
+  onClose,
+  agentId,
+  agentName,
+  conversationKey,
+  title,
+  folders,
+  onMove,
+}: {
+  onClose: () => void;
+  agentId: string;
+  agentName: string | null;
+  conversationKey: string;
+  title: string | null;
+  folders: FolderApi;
+  onMove: (folder: string) => Promise<string | null>;
+}) {
   const field = useFolderField({ folders, agentId, currentAgentId: agentId, currentConversationKey: conversationKey });
   const { folder, status, listOpen, setListOpen, currentFolder } = field;
   const [moving, setMoving] = useState(false);
@@ -327,7 +377,10 @@ export function ChangeFolder({ onClose, agentId, agentName, conversationKey, tit
     >
       <div style={{ padding: "14px 18px 12px", borderBottom: "1px solid var(--loki-border)" }}>
         <div className="loki-label">Change folder</div>
-        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>{title ? `Move ${title}` : "Move this chat"}{agentName ? ` · ${agentName}` : ""}</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: "var(--loki-fg)", marginTop: 4 }}>
+          {title ? `Move ${title}` : "Move this chat"}
+          {agentName ? ` · ${agentName}` : ""}
+        </div>
       </div>
       <div style={{ padding: "14px 18px", display: "grid", gap: 14 }}>
         <FolderPicker
@@ -346,13 +399,17 @@ export function ChangeFolder({ onClose, agentId, agentName, conversationKey, tit
           canBrowse={field.ready || field.touched}
           browser={field.browser}
         />
-        <div className="loki-meta loki-meta--wrap">{currentFolder ? `Now in ${currentFolder}. ` : ""}The agent is told the folder changed on its next turn.</div>
+        <div className="loki-meta loki-meta--wrap">
+          {currentFolder ? `Now in ${currentFolder}. ` : ""}The agent is told the folder changed on its next turn.
+        </div>
         {error && <div style={{ color: "var(--loki-negative)", fontSize: 12 }}>{error}</div>}
       </div>
       <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
         <span className="loki-label">Enter move · esc close</span>
         <span style={{ flex: 1 }} />
-        <Button size="sm" onClick={onClose}>cancel</Button>
+        <Button size="sm" onClick={onClose}>
+          cancel
+        </Button>
         <Button size="sm" tone="positive" onClick={() => void move()} disabled={!canMove}>
           {moving ? "moving…" : "move"}
         </Button>
@@ -368,7 +425,9 @@ export function ChangeFolder({ onClose, agentId, agentName, conversationKey, tit
 function AgentChips({ agents, agentId, onPick }: { agents: NewDeskProps["agents"]; agentId: string | null; onPick: (id: string) => void }) {
   return (
     <div>
-      <div className="loki-label" style={{ marginBottom: 6 }}>Agent</div>
+      <div className="loki-label" style={{ marginBottom: 6 }}>
+        Agent
+      </div>
       <div role="radiogroup" aria-label="agent" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {agents.map((a) => (
           <Chip key={a.id} label role="radio" aria-checked={a.id === agentId} active={a.id === agentId} onClick={() => onPick(a.id)}>
@@ -432,7 +491,9 @@ export function FolderPicker({
       <div className="loki-label" style={{ marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
         <span>
           Folder
-          {source && <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>}
+          {source && (
+            <span style={{ fontWeight: 400, marginLeft: 6 }}>· {source === "current" ? "current chat" : `recent for ${agentName ?? "this agent"}`}</span>
+          )}
         </span>
         <FolderVerdict status={status} />
       </div>
@@ -479,15 +540,50 @@ export function FolderPicker({
 }
 
 /** The completion list: grouped rows, a heading where a group starts (typed matches need none). */
-function FolderList({ options, hi, onHover, onChoose, agentName, beside }: { options: FolderOption[]; hi: number; onHover: (i: number) => void; onChoose: (path: string) => void; agentName: string | null; beside: boolean }) {
+function FolderList({
+  options,
+  hi,
+  onHover,
+  onChoose,
+  agentName,
+  beside,
+}: {
+  options: FolderOption[];
+  hi: number;
+  onHover: (i: number) => void;
+  onChoose: (path: string) => void;
+  agentName: string | null;
+  beside: boolean;
+}) {
   return (
-    <div role="listbox" aria-label="folders" style={{ position: "absolute", left: 0, right: beside ? 92 : 0, top: "100%", marginTop: 4, background: "var(--loki-panel)", border: "1px solid var(--loki-border)", borderRadius: "var(--loki-radius-md)", boxShadow: "var(--loki-shadow-float)", maxHeight: 240, overflowY: "auto", zIndex: 2 }}>
+    <div
+      role="listbox"
+      aria-label="folders"
+      style={{
+        position: "absolute",
+        left: 0,
+        right: beside ? 92 : 0,
+        top: "100%",
+        marginTop: 4,
+        background: "var(--loki-panel)",
+        border: "1px solid var(--loki-border)",
+        borderRadius: "var(--loki-radius-md)",
+        boxShadow: "var(--loki-shadow-float)",
+        maxHeight: 240,
+        overflowY: "auto",
+        zIndex: 2,
+      }}
+    >
       {options.map((o, i) => {
         const label = folderLabel(o.path);
         const first = i === 0 || options[i - 1].group !== o.group;
         return (
           <div key={o.path}>
-            {first && o.group !== "match" && <div className="loki-label" style={{ padding: "8px 10px 2px" }}>{o.group === "mine" ? `${agentName ?? "This agent"}'s recent folders` : "Other agents' folders"}</div>}
+            {first && o.group !== "match" && (
+              <div className="loki-label" style={{ padding: "8px 10px 2px" }}>
+                {o.group === "mine" ? `${agentName ?? "This agent"}'s recent folders` : "Other agents' folders"}
+              </div>
+            )}
             <Row
               dense
               role="option"
@@ -501,7 +597,9 @@ function FolderList({ options, hi, onHover, onChoose, agentName, beside }: { opt
               style={{ display: "grid", gap: 0 }}
             >
               <div style={{ fontSize: 13.5, color: "var(--loki-fg)" }}>{label}</div>
-              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>{o.path}</div>
+              <div className="loki-meta" style={{ fontFamily: "var(--loki-mono)" }}>
+                {o.path}
+              </div>
             </Row>
           </div>
         );
@@ -510,12 +608,24 @@ function FolderList({ options, hi, onHover, onChoose, agentName, beside }: { opt
   );
 }
 
-function NewDeskFooter({ canStart, busy, onClose, onStart }: { canStart: boolean; busy: false | "creating" | "picking"; onClose: () => void; onStart: () => void }) {
+function NewDeskFooter({
+  canStart,
+  busy,
+  onClose,
+  onStart,
+}: {
+  canStart: boolean;
+  busy: false | "creating" | "picking";
+  onClose: () => void;
+  onStart: () => void;
+}) {
   return (
     <div style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid var(--loki-border)", alignItems: "center" }}>
       <span className="loki-label">Enter start · esc close</span>
       <span style={{ flex: 1 }} />
-      <Button size="sm" onClick={onClose}>cancel</Button>
+      <Button size="sm" onClick={onClose}>
+        cancel
+      </Button>
       <Button size="sm" tone="positive" onClick={onStart} disabled={!canStart}>
         {busy === "creating" ? "starting…" : "start"}
       </Button>

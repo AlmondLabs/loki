@@ -11,7 +11,15 @@ const shortPath = (path: string) => path.replace(/^\/Users\/[^/]+/, "~");
  * folder from its next turn. A refusal shows under the chips and the sheet stays. Browsing any
  * folder on the Mac is the desktop's (the phone is not given the Mac's disk).
  */
-export function FolderSheet({ load, onMove, onClose }: { load: () => Promise<{ current: string | null; choices: string[] }>; onMove: (folder: string) => Promise<string | null>; onClose: () => void }) {
+export function FolderSheet({
+  load,
+  onMove,
+  onClose,
+}: {
+  load: () => Promise<{ current: string | null; choices: string[] }>;
+  onMove: (folder: string) => Promise<string | null>;
+  onClose: () => void;
+}) {
   const [state, setState] = useState<{ current: string | null; choices: string[] } | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [all, setAll] = useState(false);
@@ -53,12 +61,22 @@ export function FolderSheet({ load, onMove, onClose }: { load: () => Promise<{ c
       {state === null ? (
         <p className="loki-phone-meta">Asking the Mac for folders…</p>
       ) : folders.length < 2 ? (
-        <p className="loki-phone-meta loki-phone-wrap">{state.current ? `In ${shortPath(state.current)}. ` : ""}This agent has worked in no other folder; pick one on the Mac.</p>
+        <p className="loki-phone-meta loki-phone-wrap">
+          {state.current ? `In ${shortPath(state.current)}. ` : ""}This agent has worked in no other folder; pick one on the Mac.
+        </p>
       ) : (
         <>
           <div role="radiogroup" aria-label="Folder" className="loki-phone-chips loki-phone-chips--wrap">
             {shown.map((f) => (
-              <Chip key={f} touch role="radio" active={f === lit} aria-checked={f === lit} aria-label={shortPath(f)} onClick={() => (setPicked(f), setError(null))}>
+              <Chip
+                key={f}
+                touch
+                role="radio"
+                active={f === lit}
+                aria-checked={f === lit}
+                aria-label={shortPath(f)}
+                onClick={() => (setPicked(f), setError(null))}
+              >
                 {folderName(f)}
               </Chip>
             ))}

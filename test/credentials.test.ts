@@ -20,7 +20,10 @@ describe("provider credentials", () => {
     const bump = (tag: string) =>
       store.modify("openai-codex", async (current) => {
         await new Promise((r) => setTimeout(r, 5));
-        return { ...(current as { type: "oauth"; access: string; refresh: string; expires: number }), access: `${(current as { access: string }).access}+${tag}` };
+        return {
+          ...(current as { type: "oauth"; access: string; refresh: string; expires: number }),
+          access: `${(current as { access: string }).access}+${tag}`,
+        };
       });
     await Promise.all([bump("a"), bump("b")]);
     expect((await store.read("openai-codex")) as { access: string }).toMatchObject({ access: "a0+a+b" });
@@ -43,7 +46,11 @@ describe("the keychain's index", () => {
   test("providers saved at the same moment are all listed", async () => {
     const secrets = memorySecrets();
     // A slow keychain, so every save's read of the index overlaps the others'.
-    const slow = { ...secrets, get: async (a: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.get(a)), set: async (a: string, v: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.set(a, v)) };
+    const slow = {
+      ...secrets,
+      get: async (a: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.get(a)),
+      set: async (a: string, v: string) => (await new Promise((r) => setTimeout(r, 5)), secrets.set(a, v)),
+    };
     const store = new KeychainCredentials(slow);
     await Promise.all(["a", "b", "c", "d"].map((p) => store.modify(p, async () => ({ type: "api_key", key: p }))));
     expect((await store.list()).map((c) => c.providerId).sort()).toEqual(["a", "b", "c", "d"]);

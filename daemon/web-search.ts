@@ -37,7 +37,9 @@ export function parseResults(html: string, limit = 8): SearchResult[] {
   for (const block of blocks) {
     if (out.length >= limit) break;
     if (/result--ad\b/.test(block.slice(0, 200))) continue;
-    const link = block.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/) ?? block.match(/<a[^>]+href="([^"]+)"[^>]+class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>/);
+    const link =
+      block.match(/<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/) ??
+      block.match(/<a[^>]+href="([^"]+)"[^>]+class="[^"]*result__a[^"]*"[^>]*>([\s\S]*?)<\/a>/);
     if (!link) continue;
     const snippet = block.match(/class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|td)>/);
     const url = realUrl(link[1]);
@@ -69,7 +71,9 @@ export function webSearchExtension(search: (query: string, signal?: AbortSignal)
         execute: async (args, _api, context) => {
           const query = (args as { query: string }).query;
           const results = await search(query, context.abortSignal);
-          const text = results.length ? results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ""}`).join("\n") : `No results from duckduckgo for: ${query}`;
+          const text = results.length
+            ? results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}${r.snippet ? `\n   ${r.snippet}` : ""}`).join("\n")
+            : `No results from duckduckgo for: ${query}`;
           return { content: [{ type: "text", text }] };
         },
       }),

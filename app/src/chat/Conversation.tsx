@@ -158,7 +158,15 @@ export function Conversation({
   const ownRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = inputRefProp ?? ownRef;
   const threadRef = useRef<ThreadHandle>(null);
-  const { draft, setDraft, images, setImages, submit } = useDraft({ question, onAnswer: actions.onAnswer, onSend: actions.onSend, commands: actions.commands, onCommand: actions.onCommand, onSent, controlled: controlledDraft });
+  const { draft, setDraft, images, setImages, submit } = useDraft({
+    question,
+    onAnswer: actions.onAnswer,
+    onSend: actions.onSend,
+    commands: actions.commands,
+    onCommand: actions.onCommand,
+    onSent,
+    controlled: controlledDraft,
+  });
   const { findOpen, setFindOpen, findRef } = useChatTicks({ focusTick, findTick, inputRef });
   useEffect(() => {
     if (!prefill || prefill.tick <= 0) return;
@@ -171,7 +179,13 @@ export function Conversation({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.tick]);
-  const controls = useModelAndMode({ onLoadModels: actions.onLoadModels, onPickModel: actions.onPickModel, onPickMode: actions.onPickMode, modelPickerTick, modeMenuTick });
+  const controls = useModelAndMode({
+    onLoadModels: actions.onLoadModels,
+    onPickModel: actions.onPickModel,
+    onPickMode: actions.onPickMode,
+    modelPickerTick,
+    modeMenuTick,
+  });
   const palette = useSlashPalette({ draft, onDraft: setDraft, commands: actions.commands ?? [], onCommand: actions.onCommand, inputRef });
 
   const pillRef = useRef<HTMLButtonElement>(null);
@@ -194,7 +208,19 @@ export function Conversation({
       }
     : undefined;
   const waiting = !!approval || !!question;
-  const picker = hasModelPicker && <ModelPicker open={controls.pickerOpen} touch={touch} current={model} currentEffort={reasoningEffort} entries={models} loading={!models} onPick={(selection) => void controls.pickModel(selection)} onClose={controls.closePicker} pillRef={pillRef} />;
+  const picker = hasModelPicker && (
+    <ModelPicker
+      open={controls.pickerOpen}
+      touch={touch}
+      current={model}
+      currentEffort={reasoningEffort}
+      entries={models}
+      loading={!models}
+      onPick={(selection) => void controls.pickModel(selection)}
+      onClose={controls.closePicker}
+      pillRef={pillRef}
+    />
+  );
 
   return (
     <>
@@ -213,7 +239,20 @@ export function Conversation({
       )}
       {/* On the phone a run of tools opens as a bottom sheet; on the desktop it unfolds in place (ToolSteps.tsx). */}
       <StepsTouch.Provider value={touch}>
-        <Thread ref={threadRef} rows={view.rows} status={view.status} error={view.error ?? null} agentName={agentName} waiting={waiting} dim={dim} onCancelQueued={actions.onCancelQueued} onRetry={(text) => actions.onSend(text)} older={view.older ?? null} layout={layout} style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }} />
+        <Thread
+          ref={threadRef}
+          rows={view.rows}
+          status={view.status}
+          error={view.error ?? null}
+          agentName={agentName}
+          waiting={waiting}
+          dim={dim}
+          onCancelQueued={actions.onCancelQueued}
+          onRetry={(text) => actions.onSend(text)}
+          older={view.older ?? null}
+          layout={layout}
+          style={{ padding: `16px calc(20px + ${g.right}) 16px calc(20px + ${g.left})` }}
+        />
       </StepsTouch.Provider>
 
       {composer && (
@@ -223,8 +262,13 @@ export function Conversation({
           {notice}
 
           {/* The message box; a draft that starts with "/" opens the command palette above. */}
-          <div className="loki-composer" style={{ padding: `8px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(12px + ${g.bottom})`} calc(12px + ${g.left})` }}>
-            {palette.open && <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />}
+          <div
+            className="loki-composer"
+            style={{ padding: `8px calc(12px + ${g.right}) ${hasFooter ? "8px" : `calc(12px + ${g.bottom})`} calc(12px + ${g.left})` }}
+          >
+            {palette.open && (
+              <SlashPalette matches={palette.matches} index={palette.index} listId={palette.listId} onHover={palette.setIndex} onPick={palette.pick} />
+            )}
             <ChatInput
               ref={inputRef}
               value={draft}
@@ -244,14 +288,29 @@ export function Conversation({
               tools={
                 (hasModelPicker || hasModeMenu) && (
                   <>
-                    {hasModelPicker && <ModelPill ref={pillRef} name={modelName(models, model)} effort={effort} busy={controls.switching} open={controls.pickerOpen} onClick={controls.togglePicker} />}
+                    {hasModelPicker && (
+                      <ModelPill
+                        ref={pillRef}
+                        name={modelName(models, model)}
+                        effort={effort}
+                        busy={controls.switching}
+                        open={controls.pickerOpen}
+                        onClick={controls.togglePicker}
+                      />
+                    )}
                     {/* The desktop's popover hangs above the box; the phone's sheet is drawn outside it (below), over the whole screen. */}
                     {!touch && picker}
                     {/* The permission mode beside the model: both say how this conversation's agent works. */}
                     {hasModeMenu && (
                       <span className="loki-mode-anchor">
                         <ModeChip className="loki-model-pill loki-mode-pill" mode={currentMode} busy={controls.changingMode} onClick={controls.toggleMode} />
-                        <ModeMenu open={controls.modeOpen} side="above" current={currentMode} onPick={(m) => void controls.pickMode(m)} onClose={controls.closeMode} />
+                        <ModeMenu
+                          open={controls.modeOpen}
+                          side="above"
+                          current={currentMode}
+                          onPick={(m) => void controls.pickMode(m)}
+                          onClose={controls.closeMode}
+                        />
                       </span>
                     )}
                   </>
@@ -271,10 +330,43 @@ export function Conversation({
             <div className="loki-conversation-footer" style={{ padding: `0 calc(12px + ${g.right}) calc(12px + ${g.bottom}) calc(12px + ${g.left})` }}>
               {canApprove &&
                 (() => {
-                  const approve = <Button key="approve" size={touch ? "touch" : "sm"} tone="positive" className="loki-approve" onClick={() => actions.onApprove!("allow")} kbd={hints?.approve}>approve</Button>;
-                  const deny = <Button key="deny" size={touch ? "touch" : "sm"} tone="negative" className="loki-deny" onClick={() => actions.onApprove!("deny")} kbd={hints?.deny}>deny</Button>;
+                  const approve = (
+                    <Button
+                      key="approve"
+                      size={touch ? "touch" : "sm"}
+                      tone="positive"
+                      className="loki-approve"
+                      onClick={() => actions.onApprove!("allow")}
+                      kbd={hints?.approve}
+                    >
+                      approve
+                    </Button>
+                  );
+                  const deny = (
+                    <Button
+                      key="deny"
+                      size={touch ? "touch" : "sm"}
+                      tone="negative"
+                      className="loki-deny"
+                      onClick={() => actions.onApprove!("deny")}
+                      kbd={hints?.deny}
+                    >
+                      deny
+                    </Button>
+                  );
                   // Allows this call and every later one of the same tool, in any chat, until taken back in Settings › Chat (not in strict mode).
-                  const always = <Button key="always" size={touch ? "touch" : "sm"} tone="paper" className="loki-approve-always" onClick={() => actions.onApprove!("always")} title="allow this tool from now on, in every chat (Settings › Chat takes it back)">always allow</Button>;
+                  const always = (
+                    <Button
+                      key="always"
+                      size={touch ? "touch" : "sm"}
+                      tone="paper"
+                      className="loki-approve-always"
+                      onClick={() => actions.onApprove!("always")}
+                      title="allow this tool from now on, in every chat (Settings › Chat takes it back)"
+                    >
+                      always allow
+                    </Button>
+                  );
                   // On touch deny comes first, in reading order as on screen (the phone's two wide buttons); the desk keeps approve first.
                   return touch ? [deny, always, approve] : [approve, always, deny];
                 })()}
@@ -292,13 +384,37 @@ export function composerPlaceholder(view: Pick<ConversationView, "status" | "app
   if (view.question) return view.question.questions.length === 1 ? "answer in your own words, or pick above…" : "answer above…";
   if (view.approval) return "reply, or approve / deny below…";
   const who = agentName ?? "the agent";
-  return view.status === "idle" ? `message ${who}… (${keyFor("chat.send")} send · ${keyFor("chat.newline")} new line)` : `message ${who}… it goes when this turn ends`;
+  return view.status === "idle"
+    ? `message ${who}… (${keyFor("chat.send")} send · ${keyFor("chat.newline")} new line)`
+    : `message ${who}… it goes when this turn ends`;
 }
 
 /** The title, then the agent's face and name with whatever else the host says about the conversation; `right` sits at the end of the row. */
-export function ConversationHeader({ title, agentName, agentId, children, right }: { title: ReactNode; agentName: string | null | undefined; agentId: string | null | undefined; children?: ReactNode; right?: ReactNode }) {
+export function ConversationHeader({
+  title,
+  agentName,
+  agentId,
+  children,
+  right,
+}: {
+  title: ReactNode;
+  agentName: string | null | undefined;
+  agentId: string | null | undefined;
+  children?: ReactNode;
+  right?: ReactNode;
+}) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: "1px solid var(--loki-border)", flex: "0 0 auto" }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+        padding: "14px 18px",
+        borderBottom: "1px solid var(--loki-border)",
+        flex: "0 0 auto",
+      }}
+    >
       <div style={{ minWidth: 0 }}>
         <Title style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</Title>
         <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
@@ -346,12 +462,34 @@ function ThreadError({ error, rows, onRetry }: { error: string; rows: Transcript
  * the error. Follows the bottom only while the reader is there; scrolled up, a "↓ latest" chip offers the
  * way back. The phone's inbox draws this alone inside a swipe card.
  */
-export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefined; status?: ChatStatus; error?: string | null; agentName?: string | null; waiting?: boolean; dim?: boolean; onCancelQueued?: (text: string) => void; onRetry?: (text: string) => void; older?: (() => void) | null; layout?: MessageLayout; style?: CSSProperties }>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, older = null, layout, style }, ref) {
+export const Thread = forwardRef<
+  ThreadHandle,
+  {
+    rows: TranscriptRow[] | undefined;
+    status?: ChatStatus;
+    error?: string | null;
+    agentName?: string | null;
+    waiting?: boolean;
+    dim?: boolean;
+    onCancelQueued?: (text: string) => void;
+    onRetry?: (text: string) => void;
+    older?: (() => void) | null;
+    layout?: MessageLayout;
+    style?: CSSProperties;
+  }
+>(function Thread({ rows, status = "idle", error = null, agentName, waiting = false, dim = true, onCancelQueued, onRetry, older = null, layout, style }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const list = rows ?? EMPTY;
   const arrivedFrom = useArrivedFrom(rows);
   // A long thread mounts its newest rows and reveals older ones as you scroll up (transcriptWindow.ts).
-  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(scrollRef, list, status, layout?.dividerAt ?? null, layout?.widgets, older);
+  const { unpinned, fresh, onScroll, jumpToLatest, unpin, start, reveal } = useTranscriptScroll(
+    scrollRef,
+    list,
+    status,
+    layout?.dividerAt ?? null,
+    layout?.widgets,
+    older,
+  );
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
   // "Open the message" from a task in Tasks: scroll to the message it came from (tasks/messageTasks.tsx).
   useRevealMessage(scrollRef, rows, reveal, unpin);
@@ -365,10 +503,45 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
   const who = agentName ?? "the agent";
   return (
     <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <div ref={scrollRef} onScroll={onScroll} data-thread-scroll style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "contain", padding: "16px 20px", fontSize: 13.5, lineHeight: 1.5, color: "var(--loki-fg)", ...style }}>
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        data-thread-scroll
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          overscrollBehavior: "contain",
+          padding: "16px 20px",
+          fontSize: 13.5,
+          lineHeight: 1.5,
+          color: "var(--loki-fg)",
+          ...style,
+        }}
+      >
         {!rows && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>loading the thread…</div>}
-        {rows && rows.length === 0 && <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>}
-        {rows && <Transcript rows={rows} streaming={status === "streaming"} dim={dim} onCancelQueued={onCancelQueued ? cancelQueued : undefined} people={layout?.people} dividerAt={layout?.dividerAt} dividerDay={layout?.dividerDay} widgets={layout?.widgets} onFrameWidget={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} inline={layout?.inline} from={start} arrivedFrom={arrivedFrom} busy={status !== "idle"} />}
+        {rows && rows.length === 0 && (
+          <div style={{ color: "var(--loki-muted)", fontSize: 12 }}>nothing here yet — everything you send lands in {who}'s transcript</div>
+        )}
+        {rows && (
+          <Transcript
+            rows={rows}
+            streaming={status === "streaming"}
+            dim={dim}
+            onCancelQueued={onCancelQueued ? cancelQueued : undefined}
+            people={layout?.people}
+            dividerAt={layout?.dividerAt}
+            dividerDay={layout?.dividerDay}
+            widgets={layout?.widgets}
+            onFrameWidget={layout?.onFrameWidget}
+            onShowDesk={layout?.onShowDesk}
+            inline={layout?.inline}
+            from={start}
+            arrivedFrom={arrivedFrom}
+            busy={status !== "idle"}
+          />
+        )}
         {status === "thinking" && !waiting && (
           <div className="loki-thinking" role="status">
             thinking
@@ -383,7 +556,13 @@ export const Thread = forwardRef<ThreadHandle, { rows: TranscriptRow[] | undefin
         {error && <ThreadError error={error} rows={rows ?? []} onRetry={status === "idle" ? onRetry : undefined} />}
       </div>
       {unpinned && (
-        <Chip float onClick={jumpToLatest} aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"} className="loki-latest-chip" style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}>
+        <Chip
+          float
+          onClick={jumpToLatest}
+          aria-label={fresh > 0 ? `jump to ${fresh} new ${fresh === 1 ? "message" : "messages"}` : "jump to latest"}
+          className="loki-latest-chip"
+          style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)" }}
+        >
           {/* Keyed by the count: a new message makes a new label, which pops (chat.css). */}
           <span key={fresh}>{fresh > 0 ? `↓ ${fresh} new` : "↓ latest"}</span>
         </Chip>

@@ -6,7 +6,20 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { AgentFace } from "../desk/AgentChip";
 import { avatarUrl } from "../desk/env";
 import { ColumnHeader } from "./ListColumn";
-import { canArchive, canMove, canPin, canRename, doneAction, loadSidebar, offscreenWaits, saveSidebar, sidebarModel, toggleFold, type SidebarPref, type SidebarRow } from "./sidebarModel";
+import {
+  canArchive,
+  canMove,
+  canPin,
+  canRename,
+  doneAction,
+  loadSidebar,
+  offscreenWaits,
+  saveSidebar,
+  sidebarModel,
+  toggleFold,
+  type SidebarPref,
+  type SidebarRow,
+} from "./sidebarModel";
 import type { CatchUp, Desk } from "./types";
 import { NO_RENAME_REASON, RenameDesk, renameDesk } from "../desk/RenameDesk";
 import { ChangeFolder, type FolderApi } from "../desk/NewDesk";
@@ -65,7 +78,22 @@ export interface DeskSidebarProps {
  * desk; hover buttons and the row's context menu pin and archive. When a desk that needs you is scrolled
  * out of sight, a pill at that edge says so and brings it into view. Folds and scroll outlive restarts.
  */
-export function DeskSidebar({ desks, agents, items, current, connected, onOpen, onNew, onPin, onArchive, onRename, onMove, folders, onDone, avatar }: DeskSidebarProps) {
+export function DeskSidebar({
+  desks,
+  agents,
+  items,
+  current,
+  connected,
+  onOpen,
+  onNew,
+  onPin,
+  onArchive,
+  onRename,
+  onMove,
+  folders,
+  onDone,
+  avatar,
+}: DeskSidebarProps) {
   const [query, setQuery] = useState("");
   const [pref, setPref] = useState<SidebarPref>(() => {
     const s = store();
@@ -83,7 +111,10 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
   const model = useMemo(() => sidebarModel(desks, items, { query, current, agents }), [desks, items, query, current, agents]);
   const filtering = query.trim() !== "";
   const folded = (id: string) => isFolded(pref, filtering, id);
-  const waiting = useMemo(() => model.sections.filter((s) => !isFolded(pref, filtering, s.id)).flatMap((s) => s.rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope)), [model, pref, filtering]);
+  const waiting = useMemo(
+    () => model.sections.filter((s) => !isFolded(pref, filtering, s.id)).flatMap((s) => s.rows.filter((r) => r.kind === "waits").map((r) => r.desk.scope)),
+    [model, pref, filtering],
+  );
 
   useEffect(() => {
     const s = store();
@@ -152,7 +183,13 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           </IconButton>
         )}
         {archive && (
-          <IconButton size={24} label={archived ? "Restore" : "Archive"} title={connected ? (archived ? "Restore from the archive" : "Archive") : NO_ARCHIVE_REASON} disabled={!connected} onClick={() => onArchive(d, !archived)}>
+          <IconButton
+            size={24}
+            label={archived ? "Restore" : "Archive"}
+            title={connected ? (archived ? "Restore from the archive" : "Archive") : NO_ARCHIVE_REASON}
+            disabled={!connected}
+            onClick={() => onArchive(d, !archived)}
+          >
             <Icon name={archived ? "history" : "archive"} size={14} />
           </IconButton>
         )}
@@ -166,7 +203,13 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
     return (
       <ListRow
         key={d.scope}
-        lead={r.main && !inPinned ? <AgentFace name={d.agentName} src={d.agentId ? avatar(d.agentId) : null} size={20} /> : <ListIcon name={d.status === "live" ? "desk" : "archive"} />}
+        lead={
+          r.main && !inPinned ? (
+            <AgentFace name={d.agentName} src={d.agentId ? avatar(d.agentId) : null} size={20} />
+          ) : (
+            <ListIcon name={d.status === "live" ? "desk" : "archive"} />
+          )
+        }
         title={name}
         flags={
           d.pinned && !inPinned ? (
@@ -286,7 +329,13 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
             );
           })}
           {model.archived.length > 0 && (
-            <ListSection title="Archived" icon="archive" count={model.archived.length} open={!folded(ARCHIVED)} onToggle={filtering ? undefined : () => fold(ARCHIVED)}>
+            <ListSection
+              title="Archived"
+              icon="archive"
+              count={model.archived.length}
+              open={!folded(ARCHIVED)}
+              onToggle={filtering ? undefined : () => fold(ARCHIVED)}
+            >
               {model.archived.map((r) => rowOf(r, false))}
             </ListSection>
           )}
@@ -311,17 +360,40 @@ export function DeskSidebar({ desks, agents, items, current, connected, onOpen, 
           )}
         </div>
         {pills.up && (
-          <button type="button" className="loki-sidebar-pill loki-sidebar-pill--up" onClick={() => reveal(pills.up)} aria-label="Scroll up to a chat that needs you">
+          <button
+            type="button"
+            className="loki-sidebar-pill loki-sidebar-pill--up"
+            onClick={() => reveal(pills.up)}
+            aria-label="Scroll up to a chat that needs you"
+          >
             <span aria-hidden>↑</span> Needs you
           </button>
         )}
         {pills.down && (
-          <button type="button" className="loki-sidebar-pill loki-sidebar-pill--down" onClick={() => reveal(pills.down)} aria-label="Scroll down to a chat that needs you">
+          <button
+            type="button"
+            className="loki-sidebar-pill loki-sidebar-pill--down"
+            onClick={() => reveal(pills.down)}
+            aria-label="Scroll down to a chat that needs you"
+          >
             <span aria-hidden>↓</span> Needs you
           </button>
         )}
       </div>
-      {menu && <RowMenu {...menu} item={items.find((i) => i.agentId === menu.desk.agentId && i.id === menu.desk.conversationId) ?? null} connected={connected} onClose={() => setMenu(null)} onOpen={onOpen} onPin={onPin} onArchive={onArchive} onRename={setRenaming} onMove={onMove && folders ? setMoving : undefined} onDone={onDone} />}
+      {menu && (
+        <RowMenu
+          {...menu}
+          item={items.find((i) => i.agentId === menu.desk.agentId && i.id === menu.desk.conversationId) ?? null}
+          connected={connected}
+          onClose={() => setMenu(null)}
+          onOpen={onOpen}
+          onPin={onPin}
+          onArchive={onArchive}
+          onRename={setRenaming}
+          onMove={onMove && folders ? setMoving : undefined}
+          onDone={onDone}
+        />
+      )}
       {renaming && <RenameDesk name={renaming.title ?? ""} onClose={() => setRenaming(null)} onRename={(name) => onRename(renaming, name)} />}
       {moving && onMove && folders && moving.agentId && moving.conversationId && (
         <ChangeFolder
@@ -347,7 +419,29 @@ function FinishedRing({ note }: { note: string }) {
 }
 
 /** A row's context menu at the pointer: open, mark done or not done, rename, change folder, pin or unpin, archive or restore, as the desk allows. ↑↓ Enter Esc, or click; a press outside closes it. */
-function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArchive, onRename, onMove, onDone }: { desk: DeskSummary; item: AttentionItem | null; x: number; y: number; connected: boolean; onClose: () => void; onRename: (d: DeskSummary) => void; onMove?: (d: DeskSummary) => void } & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
+function RowMenu({
+  desk: d,
+  item,
+  x,
+  y,
+  connected,
+  onClose,
+  onOpen,
+  onPin,
+  onArchive,
+  onRename,
+  onMove,
+  onDone,
+}: {
+  desk: DeskSummary;
+  item: AttentionItem | null;
+  x: number;
+  y: number;
+  connected: boolean;
+  onClose: () => void;
+  onRename: (d: DeskSummary) => void;
+  onMove?: (d: DeskSummary) => void;
+} & Pick<DeskSidebarProps, "onOpen" | "onPin" | "onArchive" | "onDone">) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => {
@@ -365,7 +459,8 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
       window.removeEventListener("pointerdown", away, true);
       // Closed with Esc or a pick that moves focus nowhere: focus goes back to the desk's row, not the page.
       const a = document.activeElement;
-      if (!a || a === document.body || node?.contains(a)) document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
+      if (!a || a === document.body || node?.contains(a))
+        document.querySelector<HTMLElement>(`[data-launch="${CSS.escape(launchOf(d.scope))}"]`)?.focus({ preventScroll: true });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -432,7 +527,19 @@ function RowMenu({ desk: d, item, x, y, connected, onClose, onOpen, onPin, onArc
  * The sidebar wired to the window's models, as the tree drawer it replaced was: pin through the mod,
  * archive through loki's daemon and then a fresh desks list, each with a notice.
  */
-export function DeskSidebarView({ desk, catchUp, notice, onOpen, onNew }: { desk: Desk; catchUp: CatchUp; notice: (m: string) => void; onOpen: (scope: string) => void; onNew: (agentId: string | null) => void }) {
+export function DeskSidebarView({
+  desk,
+  catchUp,
+  notice,
+  onOpen,
+  onNew,
+}: {
+  desk: Desk;
+  catchUp: CatchUp;
+  notice: (m: string) => void;
+  onOpen: (scope: string) => void;
+  onNew: (agentId: string | null) => void;
+}) {
   return (
     <DeskSidebar
       desks={desk.desks.list}

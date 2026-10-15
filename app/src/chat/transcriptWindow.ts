@@ -47,14 +47,24 @@ export function threadId(rows: readonly TranscriptRow[] | undefined): string {
 }
 
 /** Text as find compares it: no case, no markdown marks, runs of space as one. */
-const plain = (s: string) => s.replace(/[*_`~#>|\\[\]]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+const plain = (s: string) =>
+  s
+    .replace(/[*_`~#>|\\[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 
 /**
  * Find runs on the browser's own text search, which only sees mounted rows: the start that mounts the oldest
  * row (or widget row) whose text holds the query, or `start` when nothing above the window does. Matched on
  * the markdown with its marks stripped, so "**north** region" is found by "north region".
  */
-export function findStart(rows: readonly TranscriptRow[], start: number, query: string, marks: ReadonlyArray<{ before: number; who: string; change: string; title: string }> = []): number {
+export function findStart(
+  rows: readonly TranscriptRow[],
+  start: number,
+  query: string,
+  marks: ReadonlyArray<{ before: number; who: string; change: string; title: string }> = [],
+): number {
   const q = plain(query);
   if (!q) return start;
   let at = start;

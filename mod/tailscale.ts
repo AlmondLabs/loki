@@ -30,7 +30,16 @@ const MAX_ERROR = 400;
 
 /** First existing of LOKI_TAILSCALE_BIN, the app bundle's CLI, Homebrew, /usr/local, then PATH. */
 export function findTailscale(look: Look = {}): string | null {
-  return firstExisting([envVar("LOKI_TAILSCALE_BIN", look), "/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale", ...onPath("tailscale", look)], look);
+  return firstExisting(
+    [
+      envVar("LOKI_TAILSCALE_BIN", look),
+      "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+      "/opt/homebrew/bin/tailscale",
+      "/usr/local/bin/tailscale",
+      ...onPath("tailscale", look),
+    ],
+    look,
+  );
 }
 
 /** `tailscale status --json` → running, the first IPv4 in Self.TailscaleIPs, Self.DNSName without the dot. */

@@ -51,7 +51,11 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
   const out: HarnessEvent[] = [];
   for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="([^"]*)")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
     const desk = m[1] ?? null;
-    const lines = m[2].split("\n").map((l) => l.trim()).filter((l) => l.startsWith("- ")).map((l) => l.slice(2));
+    const lines = m[2]
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.slice(2));
     out.push({
       text: "canvas activity",
       summary: `${lines.length} ${lines.length === 1 ? "gesture" : "gestures"}${desk ? ` on ${desk}` : ""}`,
@@ -59,7 +63,10 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     });
   }
   for (const m of text.matchAll(/<loki-tasks>([\s\S]*?)<\/loki-tasks>/g)) {
-    const lines = m[1].split("\n").filter((l) => l.startsWith("- ")).map((l) => l.slice(2).trim());
+    const lines = m[1]
+      .split("\n")
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.slice(2).trim());
     out.push({
       text: "assigned tasks",
       summary: lines.length ? `${lines.length} assigned to this chat` : "none assigned any more",
@@ -87,7 +94,11 @@ export function extractHarnessEvents(text: string): HarnessEvent[] {
     try {
       const alert = JSON.parse(m[1]) as { message?: string };
       const msg = typeof alert.message === "string" ? alert.message : "";
-      out.push({ text: /hidden from view|compact/i.test(msg) ? "context compacted" : "system alert", summary: msg.split("\n")[0]?.slice(0, 160) ?? null, detail: msg || null });
+      out.push({
+        text: /hidden from view|compact/i.test(msg) ? "context compacted" : "system alert",
+        summary: msg.split("\n")[0]?.slice(0, 160) ?? null,
+        detail: msg || null,
+      });
     } catch {
       // not JSON after all; leave it to the text
     }
@@ -112,7 +123,12 @@ export function messageFiles(text: string): FileRef[] {
     const path = attrs.get("local_path");
     if (!path) continue;
     const size = Number(attrs.get("size_bytes"));
-    out.push({ path, name: attrs.get("name") || path.split("/").pop() || path, ...(Number.isFinite(size) ? { size } : {}), ...(attrs.get("mime_type") ? { mime: attrs.get("mime_type") } : {}) });
+    out.push({
+      path,
+      name: attrs.get("name") || path.split("/").pop() || path,
+      ...(Number.isFinite(size) ? { size } : {}),
+      ...(attrs.get("mime_type") ? { mime: attrs.get("mime_type") } : {}),
+    });
   }
   return out;
 }
@@ -187,7 +203,12 @@ export function toolInput(name: string, input: unknown): string | undefined {
 export function toolOutput(raw: unknown): string | undefined {
   let text: string;
   if (typeof raw === "string") text = raw;
-  else if (Array.isArray(raw)) text = raw.map((p) => (typeof p === "string" ? p : p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : "")).join("\n");
+  else if (Array.isArray(raw))
+    text = raw
+      .map((p) =>
+        typeof p === "string" ? p : p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : "",
+      )
+      .join("\n");
   else if (raw === undefined || raw === null) return undefined;
   else text = JSON.stringify(raw, null, 2);
   return text ? cap(text) : undefined;

@@ -266,4 +266,3 @@ export function useRouteState(): RouteState {
   }, []);
   return state;
 }
-

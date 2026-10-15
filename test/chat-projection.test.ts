@@ -34,8 +34,16 @@ describe("chat projection", () => {
       await chats.attach(AGENT, store);
       expect(chats.page("local-conv-1", AGENT, 1000)).toEqual({ rows: foldSteps(converted.flatMap(entrySteps)), more: false });
       expect(chats.page("local-conv-1", AGENT, 2).more).toBe(true);
-      expect(chats.info("local-conv-1", AGENT)).toMatchObject({ agentId: AGENT, title: "Readme", archived: false, model: `${model.provider}/${model.modelId}`, lastMessageAt: "2026-10-01T10:00:06.000Z" });
-      expect(chats.list()).toEqual([{ conversationId: "local-conv-1", agentId: AGENT, archived: false, hidden: false, lastMessageAt: "2026-10-01T10:00:06.000Z" }]);
+      expect(chats.info("local-conv-1", AGENT)).toMatchObject({
+        agentId: AGENT,
+        title: "Readme",
+        archived: false,
+        model: `${model.provider}/${model.modelId}`,
+        lastMessageAt: "2026-10-01T10:00:06.000Z",
+      });
+      expect(chats.list()).toEqual([
+        { conversationId: "local-conv-1", agentId: AGENT, archived: false, hidden: false, lastMessageAt: "2026-10-01T10:00:06.000Z" },
+      ]);
       expect(chats.agentOf("local-conv-1")).toBe(AGENT);
       expect(chats.folders()).toEqual({ byAgent: { [AGENT]: ["/work/loki"] }, byConversation: { [conversationDirName("local-conv-1", AGENT)]: "/work/loki" } });
     } finally {

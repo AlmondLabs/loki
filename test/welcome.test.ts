@@ -5,7 +5,11 @@ import { nodeHelp, type DaemonStatus, type NodeMissing } from "../app/src/shell/
 import { DaemonProblem, NodeNeeded } from "../app/src/shell/Welcome.tsx";
 
 const missing = (os: NodeMissing["os"], found: string | null = null, at: string | null = null): NodeMissing => ({ os, found, at, needed: "22.19" });
-const noNode = (os: NodeMissing["os"], found?: string, at?: string): DaemonStatus => ({ node: null, error: "no Node", nodeMissing: missing(os, found ?? null, at ?? null) });
+const noNode = (os: NodeMissing["os"], found?: string, at?: string): DaemonStatus => ({
+  node: null,
+  error: "no Node",
+  nodeMissing: missing(os, found ?? null, at ?? null),
+});
 const html = (status: DaemonStatus | null) => renderToStaticMarkup(createElement(DaemonProblem, { status, onRetry: async () => {} }));
 
 /** Every element in a rendered-to-elements tree (props.children followed), for finding a handler without a DOM. */

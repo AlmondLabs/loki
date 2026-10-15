@@ -20,7 +20,13 @@ export function taskFrames({ tasks: store, folderFor }: TaskDeps): FrameHandlers
     task_create: async ({ title, description, labels, priority, desk, agentId, agentName, conversationId, source }, ctx) => {
       // A message's source needs its conversation: without one there is no message to link back to.
       const from = source && conversationId ? source : undefined;
-      const task = await store.create({ title, description, labels, priority, stamp: { by: "you", agent: agentName, agentId, conversation: conversationId, desk, folder: folderFor?.(agentId, conversationId) ?? null, source: from } });
+      const task = await store.create({
+        title,
+        description,
+        labels,
+        priority,
+        stamp: { by: "you", agent: agentName, agentId, conversation: conversationId, desk, folder: folderFor?.(agentId, conversationId) ?? null, source: from },
+      });
       changed(ctx);
       return reply({ task });
     },

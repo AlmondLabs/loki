@@ -126,7 +126,10 @@ export function TasksPane({
   // Selection and cursor follow the data, read against it at render: a task that left the list leaves both,
   // and the cursor lands on the first card when it has nowhere else to be.
   const cursor = cursorRaw && byId.has(cursorRaw) ? cursorRaw : (all[0]?.id ?? null);
-  const selected = useMemo(() => ([...selectedRaw].every((id) => byId.has(id)) ? selectedRaw : new Set([...selectedRaw].filter((id) => byId.has(id)))), [selectedRaw, byId]);
+  const selected = useMemo(
+    () => ([...selectedRaw].every((id) => byId.has(id)) ? selectedRaw : new Set([...selectedRaw].filter((id) => byId.has(id)))),
+    [selectedRaw, byId],
+  );
 
   // A message's chip asked for this task: its card takes focus once it is drawn (the list may still be loading).
   const focusTask = useRef<string | null>(focusId);
@@ -154,10 +157,11 @@ export function TasksPane({
   const targets = (): string[] => (selected.size ? [...selected] : cursor ? [cursor] : []);
   const actionable = (ids: string[]) => ids.filter((id) => byId.get(id)?.status !== "closed");
   /** What Reopen can take back: an agent's done?, or a task that is done. */
-  const reopenable = (ids: string[]) => ids.filter((id) => {
-    const t = byId.get(id);
-    return !!t && (isWaiting(t) || t.status === "closed");
-  });
+  const reopenable = (ids: string[]) =>
+    ids.filter((id) => {
+      const t = byId.get(id);
+      return !!t && (isWaiting(t) || t.status === "closed");
+    });
 
   const toggle = (id: string, range = false) => {
     setSelected((s) => {
@@ -217,7 +221,8 @@ export function TasksPane({
    * second time; everything else (X, ⏎, ⌫, /, the chords) bubbles to the keymap as before.
    */
   const onCardKey = (e: React.KeyboardEvent) => {
-    const dir: Dir | null = e.key === "ArrowUp" ? "up" : e.key === "ArrowDown" ? "down" : e.key === "ArrowLeft" ? "left" : e.key === "ArrowRight" ? "right" : null;
+    const dir: Dir | null =
+      e.key === "ArrowUp" ? "up" : e.key === "ArrowDown" ? "down" : e.key === "ArrowLeft" ? "left" : e.key === "ArrowRight" ? "right" : null;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (dir) {
       e.preventDefault();
@@ -318,7 +323,9 @@ export function TasksPane({
 
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", background: "var(--loki-bg)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 24px 10px", borderBottom: "1px solid var(--loki-border)", flexWrap: "wrap" }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 24px 10px", borderBottom: "1px solid var(--loki-border)", flexWrap: "wrap" }}
+      >
         <Field
           ref={filterRef}
           type="search"
@@ -340,14 +347,22 @@ export function TasksPane({
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
         <span style={{ flex: 1 }} />
         <div role="group" aria-label={`Layout (${keyFor("tasks.layout")})`} style={{ display: "flex", gap: 4 }}>
-          <Chip active={prefs.layout === "board"} aria-pressed={prefs.layout === "board"} onClick={() => setPrefs({ layout: "board" })}>Board</Chip>
-          <Chip active={prefs.layout === "table"} aria-pressed={prefs.layout === "table"} onClick={() => setPrefs({ layout: "table" })}>Table</Chip>
+          <Chip active={prefs.layout === "board"} aria-pressed={prefs.layout === "board"} onClick={() => setPrefs({ layout: "board" })}>
+            Board
+          </Chip>
+          <Chip active={prefs.layout === "table"} aria-pressed={prefs.layout === "table"} onClick={() => setPrefs({ layout: "table" })}>
+            Table
+          </Chip>
         </div>
         {prefs.layout === "board" && (
           <div role="group" aria-label={`Group by (${keyFor("tasks.groupBy")})`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span className="loki-meta" aria-hidden>group by</span>
+            <span className="loki-meta" aria-hidden>
+              group by
+            </span>
             {GROUPS.map(([g, label]) => (
-              <Chip key={g} active={prefs.groupBy === g} aria-pressed={prefs.groupBy === g} onClick={() => setPrefs({ groupBy: g })}>{label}</Chip>
+              <Chip key={g} active={prefs.groupBy === g} aria-pressed={prefs.groupBy === g} onClick={() => setPrefs({ groupBy: g })}>
+                {label}
+              </Chip>
             ))}
           </div>
         )}
@@ -371,50 +386,95 @@ export function TasksPane({
       )}
       {/* 168px columns: the four fit beside the list column in a 1100-wide window (1100 − rail − 260) without scrolling sideways. */}
       {!missing && prefs.layout === "board" && (
-        <div ref={gridRef} style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: columns.length > 1 && all.length > 0 ? `repeat(${columns.length}, minmax(168px, 1fr))` : "minmax(220px, 760px)", gap: 14, padding: "14px 24px", overflowX: "auto" }}>
+        <div
+          ref={gridRef}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: "grid",
+            gridTemplateColumns: columns.length > 1 && all.length > 0 ? `repeat(${columns.length}, minmax(168px, 1fr))` : "minmax(220px, 760px)",
+            gap: 14,
+            padding: "14px 24px",
+            overflowX: "auto",
+          }}
+        >
           {all.length === 0 && tasks !== null && (
             <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0, padding: "10px 6px" }}>
               {emptyView(view, query)}
             </p>
           )}
           {/* A view with nothing in it says so once, in its own words, rather than four empty columns. */}
-          {all.length > 0 && columns.map((col) => (
-            <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
-              <header className="loki-label" style={{ display: "flex", justifyContent: "space-between", padding: "0 4px 8px", color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)" }}>
-                <span>{col.label}</span>
-                <span>{col.tasks.length || ""}</span>
-              </header>
-              {col.tasks.length > 0 ? (
-                <div role="listbox" aria-label={col.label} aria-multiselectable="true" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "grid", alignContent: "start", gap: 8, paddingBottom: 8 }}>
-                  {col.tasks.map((t) => (
-                    <TaskCard key={t.id} {...cardProps(t)} showStatus={prefs.groupBy !== "status"} assignedTitle={t.metadata.assignedDesk ? deskTitle.get(t.metadata.assignedDesk) ?? t.metadata.assignedDesk : null} />
-                  ))}
-                </div>
-              ) : (
-                tasks !== null && (
-                  <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0, padding: "10px 6px" }}>
-                    {emptyColumn(col, query)}
-                  </p>
-                )
-              )}
-            </section>
-          ))}
+          {all.length > 0 &&
+            columns.map((col) => (
+              <section key={col.id} aria-label={col.label} style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0 }}>
+                <header
+                  className="loki-label"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "0 4px 8px",
+                    color: col.id === "done" ? "var(--loki-muted)" : "var(--loki-fg)",
+                  }}
+                >
+                  <span>{col.label}</span>
+                  <span>{col.tasks.length || ""}</span>
+                </header>
+                {col.tasks.length > 0 ? (
+                  <div
+                    role="listbox"
+                    aria-label={col.label}
+                    aria-multiselectable="true"
+                    style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "grid", alignContent: "start", gap: 8, paddingBottom: 8 }}
+                  >
+                    {col.tasks.map((t) => (
+                      <TaskCard
+                        key={t.id}
+                        {...cardProps(t)}
+                        showStatus={prefs.groupBy !== "status"}
+                        assignedTitle={t.metadata.assignedDesk ? (deskTitle.get(t.metadata.assignedDesk) ?? t.metadata.assignedDesk) : null}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  tasks !== null && (
+                    <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0, padding: "10px 6px" }}>
+                      {emptyColumn(col, query)}
+                    </p>
+                  )
+                )}
+              </section>
+            ))}
         </div>
       )}
 
-      <div className="loki-meta loki-meta--wrap" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px 12px", borderTop: "1px solid var(--loki-border)", flexWrap: "wrap" }}>
+      <div
+        className="loki-meta loki-meta--wrap"
+        style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 24px 12px", borderTop: "1px solid var(--loki-border)", flexWrap: "wrap" }}
+      >
         {sel.length > 0 || selReopen.length > 0 ? (
           <>
             <span style={{ color: "var(--loki-fg)" }}>{selected.size} selected</span>
             {sel.length > 0 && (
               <>
-                <Button size="sm" tone="paper" kbd={keyFor("tasks.assign")} onClick={() => onAssign(sel, false)}>assign to a chat</Button>
-                <Button size="sm" tone="positive" kbd={keyFor("tasks.dispatch")} onClick={() => onAssign(sel, true)}>dispatch now</Button>
-                <Button size="sm" tone="paper" kbd={keyFor("tasks.done")} onClick={() => onClose(sel)}>{selWaiting.length === sel.length ? "confirm done" : "done"}</Button>
+                <Button size="sm" tone="paper" kbd={keyFor("tasks.assign")} onClick={() => onAssign(sel, false)}>
+                  assign to a chat
+                </Button>
+                <Button size="sm" tone="positive" kbd={keyFor("tasks.dispatch")} onClick={() => onAssign(sel, true)}>
+                  dispatch now
+                </Button>
+                <Button size="sm" tone="paper" kbd={keyFor("tasks.done")} onClick={() => onClose(sel)}>
+                  {selWaiting.length === sel.length ? "confirm done" : "done"}
+                </Button>
               </>
             )}
-            {selReopen.length > 0 && <Button size="sm" tone="paper" kbd={keyFor("tasks.reopen")} onClick={() => onReopen(selReopen)}>reopen</Button>}
-            <Button size="sm" kbd={keyFor("tasks.clear")} onClick={() => setSelected(new Set())}>clear</Button>
+            {selReopen.length > 0 && (
+              <Button size="sm" tone="paper" kbd={keyFor("tasks.reopen")} onClick={() => onReopen(selReopen)}>
+                reopen
+              </Button>
+            )}
+            <Button size="sm" kbd={keyFor("tasks.clear")} onClick={() => setSelected(new Set())}>
+              clear
+            </Button>
           </>
         ) : (
           <span style={{ fontFamily: "var(--loki-mono)", fontSize: 10.5 }}>{TASK_KEYS}</span>
@@ -429,15 +489,30 @@ function MissingAgent({ agent, tasks, onPick }: { agent: string; tasks: Task[]; 
   const { views, agents } = useMemo(() => taskViews(tasks), [tasks]);
   const all = views[0];
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 24px", display: "grid", alignContent: "start", gap: 12, width: 360, maxWidth: "100%" }}>
+    <div
+      style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 24px", display: "grid", alignContent: "start", gap: 12, width: 360, maxWidth: "100%" }}
+    >
       <p role="status" className="loki-meta loki-meta--wrap" style={{ margin: 0 }}>
         {missingAgentLine(agent)}
       </p>
       <ListSection title="Agents">
         {agents.map((v) => (
-          <ListRow key={v.view} lead={<AgentFace name={v.label} src={null} size={20} />} title={v.label} time={String(v.count)} label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`} onOpen={() => onPick(v.view)} />
+          <ListRow
+            key={v.view}
+            lead={<AgentFace name={v.label} src={null} size={20} />}
+            title={v.label}
+            time={String(v.count)}
+            label={`${v.label}, ${v.count} task${v.count === 1 ? "" : "s"}`}
+            onOpen={() => onPick(v.view)}
+          />
         ))}
-        <ListRow lead={<ListIcon name="menu" />} title={all.label} time={String(all.count)} label={`${all.label}, ${all.count} task${all.count === 1 ? "" : "s"}`} onOpen={() => onPick("all")} />
+        <ListRow
+          lead={<ListIcon name="menu" />}
+          title={all.label}
+          time={String(all.count)}
+          label={`${all.label}, ${all.count} task${all.count === 1 ? "" : "s"}`}
+          onOpen={() => onPick("all")}
+        />
       </ListSection>
     </div>
   );
@@ -499,10 +574,38 @@ type CardProps = {
 };
 
 /** The Table: a header of sortable columns over one listbox of rows. */
-function TaskTable({ rows, sort, onSort, chatName, empty, card }: { rows: Task[]; sort: { key: SortKey; dir: "asc" | "desc" }; onSort: (key: SortKey) => void; chatName: (desk: string) => string; empty: string | null; card: (t: Task) => CardProps }) {
+function TaskTable({
+  rows,
+  sort,
+  onSort,
+  chatName,
+  empty,
+  card,
+}: {
+  rows: Task[];
+  sort: { key: SortKey; dir: "asc" | "desc" };
+  onSort: (key: SortKey) => void;
+  chatName: (desk: string) => string;
+  empty: string | null;
+  card: (t: Task) => CardProps;
+}) {
   return (
     <div style={{ minWidth: 820 }}>
-      <div role="group" aria-label="Sort by" style={{ display: "grid", gridTemplateColumns: TABLE_GRID, gap: 12, padding: "6px 12px", borderBottom: "1px solid var(--loki-border)", position: "sticky", top: 0, background: "var(--loki-bg)", zIndex: 1 }}>
+      <div
+        role="group"
+        aria-label="Sort by"
+        style={{
+          display: "grid",
+          gridTemplateColumns: TABLE_GRID,
+          gap: 12,
+          padding: "6px 12px",
+          borderBottom: "1px solid var(--loki-border)",
+          position: "sticky",
+          top: 0,
+          background: "var(--loki-bg)",
+          zIndex: 1,
+        }}
+      >
         {TABLE_COLUMNS.map(([key, label]) => (
           <button
             key={key}
@@ -511,7 +614,15 @@ function TaskTable({ rows, sort, onSort, chatName, empty, card }: { rows: Task[]
             aria-label={sort.key === key ? `${label}, sorted ${sort.dir === "asc" ? "ascending" : "descending"}` : `sort by ${label}`}
             className="loki-label"
             onClick={() => onSort(key)}
-            style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, color: sort.key === key ? "var(--loki-fg)" : "var(--loki-muted)", whiteSpace: "nowrap" }}
+            style={{
+              all: "unset",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              color: sort.key === key ? "var(--loki-fg)" : "var(--loki-muted)",
+              whiteSpace: "nowrap",
+            }}
           >
             {label}
             {sort.key === key && <span aria-hidden>{sort.dir === "asc" ? "↑" : "↓"}</span>}
@@ -534,7 +645,19 @@ function TaskTable({ rows, sort, onSort, chatName, empty, card }: { rows: Task[]
 }
 
 /** One Table row: the title, then a cell per column; a done? row carries Confirm and Reopen under its title. */
-function TaskRow({ task: t, selected, focused, tabIndex, onClick, onFocus, onKeyDown, onConfirm, onReopen, onOpenSource, chatName }: CardProps & { chatName: (desk: string) => string }) {
+function TaskRow({
+  task: t,
+  selected,
+  focused,
+  tabIndex,
+  onClick,
+  onFocus,
+  onKeyDown,
+  onConfirm,
+  onReopen,
+  onOpenSource,
+  chatName,
+}: CardProps & { chatName: (desk: string) => string }) {
   const done = t.status === "closed";
   const cell = (key: SortKey) => cellText(t, key, chatName);
   return (
@@ -569,14 +692,31 @@ function TaskRow({ task: t, selected, focused, tabIndex, onClick, onFocus, onKey
       <span style={{ color: isWaiting(t) ? "var(--loki-accent)" : done ? "var(--loki-muted)" : undefined }}>{cell("status")}</span>
       <span>{t.assignee ? <AgentChip name={t.assignee} size={9.5} /> : <span className="loki-meta">—</span>}</span>
       <span>{t.metadata.by === "you" ? "you" : t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : filedBy(t)}</span>
-      <span className="loki-meta" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell("chat") || "—"}</span>
-      <span className="loki-meta" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.metadata.folder}>{folderName(t.metadata.folder) ?? "—"}</span>
+      <span className="loki-meta" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {cell("chat") || "—"}
+      </span>
+      <span className="loki-meta" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={t.metadata.folder}>
+        {folderName(t.metadata.folder) ?? "—"}
+      </span>
       <span className="loki-meta">{ago(done ? t.closedAt : t.updatedAt)}</span>
     </div>
   );
 }
 
-function TaskCard({ task: t, selected, focused, tabIndex, assignedTitle, showStatus, onClick, onFocus, onKeyDown, onConfirm, onReopen, onOpenSource }: CardProps & { assignedTitle: string | null; showStatus: boolean }) {
+function TaskCard({
+  task: t,
+  selected,
+  focused,
+  tabIndex,
+  assignedTitle,
+  showStatus,
+  onClick,
+  onFocus,
+  onKeyDown,
+  onConfirm,
+  onReopen,
+  onOpenSource,
+}: CardProps & { assignedTitle: string | null; showStatus: boolean }) {
   const uid = useId();
   const done = t.status === "closed";
   // A task from a message shows the message's quote, which is what its description holds.
@@ -610,7 +750,15 @@ function TaskCard({ task: t, selected, focused, tabIndex, assignedTitle, showSta
       <TaskTitle task={t} done={done} selected={selected} />
       {waiting && <DoneAsked id={`${uid}-done`} task={t} onConfirm={onConfirm} onReopen={onReopen} />}
       {onOpenSource && <SourceLine task={t} onOpen={onOpenSource} />}
-      {showDesc && <div id={`${uid}-desc`} className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{t.description}</div>}
+      {showDesc && (
+        <div
+          id={`${uid}-desc`}
+          className="loki-meta loki-meta--wrap"
+          style={{ lineHeight: 1.45, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+        >
+          {t.description}
+        </div>
+      )}
       <TaskMeta id={`${uid}-meta`} task={t} done={done} showStatus={showStatus} />
       {showAssigned && <AssignedLine id={`${uid}-to`} task={t} title={assignedTitle!} />}
     </div>
@@ -631,8 +779,12 @@ function DoneAsked({ id, task: t, onConfirm, onReopen }: { id?: string; task: Ta
         {t.metadata.doneAsked && t.metadata.doneAsked !== "yes" ? `: ${t.metadata.doneAsked}` : ""}
       </span>
       <span style={{ display: "flex", gap: 6 }}>
-        <Button size="sm" tone="positive" onClick={stop(onConfirm)}>confirm</Button>
-        <Button size="sm" tone="paper" onClick={stop(onReopen)}>reopen</Button>
+        <Button size="sm" tone="positive" onClick={stop(onConfirm)}>
+          confirm
+        </Button>
+        <Button size="sm" tone="paper" onClick={stop(onReopen)}>
+          reopen
+        </Button>
       </span>
     </div>
   );
@@ -661,8 +813,31 @@ function SourceLine({ task: t, onOpen }: { task: Task; onOpen: () => void }) {
 function TaskTitle({ task: t, done, selected }: { task: Task; done: boolean; selected: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-      <span aria-hidden style={{ width: 12, height: 12, marginTop: 3, borderRadius: 3, border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`, background: selected ? "var(--loki-accent)" : "transparent", flex: "0 0 auto" }} />
-      <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.3, color: done ? "var(--loki-muted)" : "var(--loki-fg)", textDecoration: done ? "line-through" : undefined, minWidth: 0, overflowWrap: "anywhere" }}>{t.title}</span>
+      <span
+        aria-hidden
+        style={{
+          width: 12,
+          height: 12,
+          marginTop: 3,
+          borderRadius: 3,
+          border: `1px solid ${selected ? "var(--loki-accent)" : "var(--loki-border)"}`,
+          background: selected ? "var(--loki-accent)" : "transparent",
+          flex: "0 0 auto",
+        }}
+      />
+      <span
+        style={{
+          fontSize: 13.5,
+          fontWeight: 600,
+          lineHeight: 1.3,
+          color: done ? "var(--loki-muted)" : "var(--loki-fg)",
+          textDecoration: done ? "line-through" : undefined,
+          minWidth: 0,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {t.title}
+      </span>
     </div>
   );
 }
@@ -677,7 +852,9 @@ function TaskMeta({ id, task: t, done, showStatus }: { id: string; task: Task; d
       {showStatus && <span>{STATUS_LABEL[columnOf(t) ?? "open"].replace(" · 7d", "")}</span>}
       {t.metadata.agent ? <AgentChip name={t.metadata.agent} size={9.5} /> : t.metadata.by === "you" ? <span>you</span> : null}
       {t.labels.map((l) => (
-        <Chip key={l} static tag>{l}</Chip>
+        <Chip key={l} static tag>
+          {l}
+        </Chip>
       ))}
       <span style={{ marginLeft: "auto" }}>{ago(done ? t.closedAt : t.updatedAt)}</span>
     </div>

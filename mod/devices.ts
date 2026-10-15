@@ -30,7 +30,8 @@ export class DeviceStore {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
       if (Array.isArray(parsed)) {
         this.devices = parsed.filter(
-          (d): d is DeviceRecord => typeof d === "object" && d !== null && typeof (d as DeviceRecord).id === "string" && typeof (d as DeviceRecord).tokenHash === "string",
+          (d): d is DeviceRecord =>
+            typeof d === "object" && d !== null && typeof (d as DeviceRecord).id === "string" && typeof (d as DeviceRecord).tokenHash === "string",
         );
       }
     } catch {

@@ -75,7 +75,17 @@ export function Welcome({
       )}
 
       <Step n={1} title="A model provider" done={connected} active={!showAgent && !nodeStep}>
-        <ProviderStep nodeStep={nodeStep} showAgent={showAgent} connected={connected} providers={providers} onLoadProviders={onLoadProviders} onConnect={onConnect} onDisconnect={onDisconnect} onModelsChanged={onModelsChanged} onNext={() => (setSkipProvider(true), onLoadModels())} />
+        <ProviderStep
+          nodeStep={nodeStep}
+          showAgent={showAgent}
+          connected={connected}
+          providers={providers}
+          onLoadProviders={onLoadProviders}
+          onConnect={onConnect}
+          onDisconnect={onDisconnect}
+          onModelsChanged={onModelsChanged}
+          onNext={() => (setSkipProvider(true), onLoadModels())}
+        />
       </Step>
 
       <Step n={2} title="Your first agent" active={showAgent}>
@@ -86,7 +96,17 @@ export function Welcome({
 }
 
 /** Step 1: waits for the daemon, then the provider shortlist with "next" / "skip for now", then a line naming what connected. */
-function ProviderStep({ nodeStep, showAgent, connected, providers, onLoadProviders, onConnect, onDisconnect, onModelsChanged, onNext }: ProviderProps & { nodeStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
+function ProviderStep({
+  nodeStep,
+  showAgent,
+  connected,
+  providers,
+  onLoadProviders,
+  onConnect,
+  onDisconnect,
+  onModelsChanged,
+  onNext,
+}: ProviderProps & { nodeStep: boolean; showAgent: boolean; connected: boolean; onNext: () => void }) {
   if (nodeStep) return <span className="loki-meta loki-meta--wrap">once loki is running</span>;
   if (!showAgent)
     return (
@@ -102,26 +122,73 @@ function ProviderStep({ nodeStep, showAgent, connected, providers, onLoadProvide
         </div>
       </div>
     );
-  return <span className="loki-meta loki-meta--wrap">{connected ? `${providers!.filter(isConnected).map((p) => p.display_name).join(", ")}` : "none yet — Settings › providers, any time"}</span>;
+  return (
+    <span className="loki-meta loki-meta--wrap">
+      {connected
+        ? `${providers!
+            .filter(isConnected)
+            .map((p) => p.display_name)
+            .join(", ")}`
+        : "none yet — Settings › providers, any time"}
+    </span>
+  );
 }
 
 /** Step 2: the form for the first agent; ↵ anywhere but the persona creates it. */
-function AgentForm({ draft, nameRef, models, canGoBack, onBack }: { draft: ReturnType<typeof useAgentDraft>; nameRef: RefObject<HTMLInputElement | null>; models: string[] | null; canGoBack: boolean; onBack: () => void }) {
+function AgentForm({
+  draft,
+  nameRef,
+  models,
+  canGoBack,
+  onBack,
+}: {
+  draft: ReturnType<typeof useAgentDraft>;
+  nameRef: RefObject<HTMLInputElement | null>;
+  models: string[] | null;
+  canGoBack: boolean;
+  onBack: () => void;
+}) {
   const { name, setName, description, setDescription, persona, setPersona, model, setModel, busy, error, create } = draft;
   return (
     <div style={{ display: "grid", gap: 10 }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA" && void create()}>
       <Labelled label="Name">
-        <Field ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="atlas, scout, sage…" autoComplete="off" data-1p-ignore data-form-type="other" />
+        <Field
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="atlas, scout, sage…"
+          autoComplete="off"
+          data-1p-ignore
+          data-form-type="other"
+        />
       </Labelled>
       <Labelled label="Description">
-        <Field value={description} onChange={(e) => setDescription(e.target.value)} placeholder="what this agent is for (optional)" autoComplete="off" data-form-type="other" />
+        <Field
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="what this agent is for (optional)"
+          autoComplete="off"
+          data-form-type="other"
+        />
       </Labelled>
       <Labelled label="Persona">
         <TextArea rows={4} value={persona} onChange={(e) => setPersona(e.target.value)} placeholder={PERSONA_HINT} data-form-type="other" />
       </Labelled>
       <Labelled label="Model">
-        <Field mono list="loki-welcome-models" value={model} onChange={(e) => setModel(e.target.value)} placeholder={models === null ? "loading the model list…" : models.length ? "the default, or pick one" : "no models yet — connect a provider first"} autoComplete="off" data-form-type="other" />
-        <datalist id="loki-welcome-models">{(models ?? []).map((m) => <option key={m} value={m} />)}</datalist>
+        <Field
+          mono
+          list="loki-welcome-models"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder={models === null ? "loading the model list…" : models.length ? "the default, or pick one" : "no models yet — connect a provider first"}
+          autoComplete="off"
+          data-form-type="other"
+        />
+        <datalist id="loki-welcome-models">
+          {(models ?? []).map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
       </Labelled>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
         {error && <span className="loki-meta loki-meta--negative loki-meta--wrap">{error}</span>}
@@ -176,12 +243,24 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
       {missing.found && (
         <div className="loki-meta loki-meta--wrap">
           The Node found is {missing.found}
-          {missing.at ? <> at <code style={mono}>{missing.at}</code></> : null}, older than {missing.needed}.
+          {missing.at ? (
+            <>
+              {" "}
+              at <code style={mono}>{missing.at}</code>
+            </>
+          ) : null}
+          , older than {missing.needed}.
         </div>
       )}
       <div className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.5 }}>
         <code style={mono}>{help.command}</code>
-        {help.also ? <> or <code style={mono}>{help.also}</code></> : null} {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
+        {help.also ? (
+          <>
+            {" "}
+            or <code style={mono}>{help.also}</code>
+          </>
+        ) : null}{" "}
+        {help.note} Or get it from <a href="https://nodejs.org/">nodejs.org</a>. Then check again.
       </div>
       <Button size="sm" tone="positive" disabled={busy} onClick={onRecheck} style={{ justifySelf: "start" }}>
         {busy ? "checking…" : "check again"}
@@ -193,7 +272,20 @@ export function NodeNeeded({ missing, busy, onRecheck }: { missing: NodeMissing;
 function Step({ n, title, done, active, children }: { n: number; title: string; done?: boolean; active: boolean; children: React.ReactNode }) {
   return (
     <section style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 14, opacity: active || done ? 1 : 0.7 }}>
-      <span aria-hidden style={{ width: 24, height: 24, borderRadius: "var(--loki-radius-lg)", display: "grid", placeItems: "center", fontSize: 12, fontWeight: 600, border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`, color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)" }}>
+      <span
+        aria-hidden
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: "var(--loki-radius-lg)",
+          display: "grid",
+          placeItems: "center",
+          fontSize: 12,
+          fontWeight: 600,
+          border: `1px solid ${done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-border)"}`,
+          color: done ? "var(--loki-positive)" : active ? "var(--loki-accent)" : "var(--loki-muted)",
+        }}
+      >
         {done ? "✓" : n}
       </span>
       <div style={{ display: "grid", gap: 8 }}>
@@ -208,7 +300,9 @@ function Step({ n, title, done, active, children }: { n: number; title: string; 
 function Labelled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 10, alignItems: "start", fontSize: 12 }}>
-      <span className="loki-label" style={{ paddingTop: 9 }}>{label}</span>
+      <span className="loki-label" style={{ paddingTop: 9 }}>
+        {label}
+      </span>
       <span style={{ display: "grid", gap: 4, minWidth: 0 }}>{children}</span>
     </label>
   );

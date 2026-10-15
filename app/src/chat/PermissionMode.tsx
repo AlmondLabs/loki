@@ -25,10 +25,19 @@ export function ModeChip({ mode, onClick, busy, className }: { mode: PermissionM
   const info = modeInfo(mode);
   const loud = info.id === "unrestricted";
   return (
-    <Chip className={className} style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined} onClick={onClick} title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`} aria-label="permission mode" aria-busy={busy || undefined}>
+    <Chip
+      className={className}
+      style={loud ? { color: "var(--loki-negative)", borderColor: "var(--loki-negative)" } : undefined}
+      onClick={onClick}
+      title={`permissions: ${info.label} — ${info.description}. Click to change for this conversation`}
+      aria-label="permission mode"
+      aria-busy={busy || undefined}
+    >
       <Shield mode={info.id} />
       {busy ? "changing…" : info.short}
-      <span aria-hidden style={{ fontSize: 9.5 }}>▾</span>
+      <span aria-hidden style={{ fontSize: 9.5 }}>
+        ▾
+      </span>
     </Chip>
   );
 }
@@ -44,12 +53,29 @@ function Shield({ mode }: { mode: PermissionMode }) {
 }
 
 /** The menu: four rows with a line each; ↑↓ / Enter / Esc, or click. */
-export function ModeMenu({ open, current, onPick, onClose, anchor = "left", side }: { open: boolean; current: PermissionMode | null; onPick: (m: PermissionMode) => void; onClose: () => void; anchor?: "left" | "right"; side?: "below" | "above" }) {
+export function ModeMenu({
+  open,
+  current,
+  onPick,
+  onClose,
+  anchor = "left",
+  side,
+}: {
+  open: boolean;
+  current: PermissionMode | null;
+  onPick: (m: PermissionMode) => void;
+  onClose: () => void;
+  anchor?: "left" | "right";
+  side?: "below" | "above";
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const el = ref.current;
-    const idx = Math.max(0, MODES.findIndex((m) => m.id === (current ?? "unrestricted")));
+    const idx = Math.max(
+      0,
+      MODES.findIndex((m) => m.id === (current ?? "unrestricted")),
+    );
     el?.querySelectorAll<HTMLElement>('[role="menuitemradio"]')[idx]?.focus();
   }, [open, current]);
   if (!open) return null;
@@ -74,13 +100,22 @@ export function ModeMenu({ open, current, onPick, onClose, anchor = "left", side
       }}
     >
       {MODES.map((m) => (
-        <Row key={m.id} dense role="menuitemradio" aria-checked={m.id === (current ?? "unrestricted")} onClick={() => onPick(m.id)} style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8 }}>
+        <Row
+          key={m.id}
+          dense
+          role="menuitemradio"
+          aria-checked={m.id === (current ?? "unrestricted")}
+          onClick={() => onPick(m.id)}
+          style={{ display: "grid", gridTemplateColumns: "16px 1fr auto", gap: 8 }}
+        >
           <span style={{ color: m.id === "unrestricted" ? "var(--loki-negative)" : "var(--loki-muted)", display: "grid", placeItems: "center" }}>
             <Shield mode={m.id} />
           </span>
           <span style={{ display: "grid" }}>
             <span style={{ fontSize: 13.5 }}>{m.label}</span>
-            <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>{m.description}</span>
+            <span className="loki-meta loki-meta--wrap" style={{ lineHeight: 1.4 }}>
+              {m.description}
+            </span>
           </span>
           <span style={{ fontSize: 10.5, color: "var(--loki-accent)" }}>{m.id === (current ?? "unrestricted") ? "current" : ""}</span>
         </Row>

@@ -14,7 +14,19 @@ import type { IconName } from "./icons";
 /** Tools that run a shell command: they count as commands, the rest as tools. */
 const SHELL = new Set(["Bash", "bash_background", "BashOutput", "Shell", "run_command", "execute_command", "exec_command", "shell", "local_shell"]);
 /** Tools that change files: Claude-style edits and Codex-style patches (the agent's memory files too). */
-const EDITS = new Set(["Edit", "MultiEdit", "NotebookEdit", "Write", "ApplyPatch", "apply_patch", "memory_apply_patch", "memory", "memory_write", "memory_edit", "memory_delete"]);
+const EDITS = new Set([
+  "Edit",
+  "MultiEdit",
+  "NotebookEdit",
+  "Write",
+  "ApplyPatch",
+  "apply_patch",
+  "memory_apply_patch",
+  "memory",
+  "memory_write",
+  "memory_edit",
+  "memory_delete",
+]);
 /** Tools that hand work to another agent. */
 const AGENTS = new Set(["Task", "Agent", "SendAgentMessage"]);
 
@@ -112,10 +124,12 @@ export function stepKind(row: TranscriptRow): StepKind {
 }
 
 /** Whether a step failed: a tool's result said so, or a background task's notice did. */
-export const stepFailed = (row: TranscriptRow): boolean => (row.role === "event" ? isBackgroundTask(row) && /\b(failed|error|killed)\b/.test(row.text) : !!row.tool?.failed);
+export const stepFailed = (row: TranscriptRow): boolean =>
+  row.role === "event" ? isBackgroundTask(row) && /\b(failed|error|killed)\b/.test(row.text) : !!row.tool?.failed;
 
 /** A tool row's name: its step's, or (rows from before steps were kept) the label's head. */
-export const stepName = (row: TranscriptRow): string => (row.role === "event" ? (isBackgroundTask(row) ? "Background task" : "Skill") : (row.tool?.name ?? row.text.split(" · ")[0].trim()));
+export const stepName = (row: TranscriptRow): string =>
+  row.role === "event" ? (isBackgroundTask(row) ? "Background task" : "Skill") : (row.tool?.name ?? row.text.split(" · ")[0].trim());
 
 /** The step's second line: what the agent said it is for, else what it was done to (the label's tail), or nothing. */
 export function stepTarget(row: TranscriptRow): string | null {
@@ -173,8 +187,18 @@ export function workSummary(rows: TranscriptRow[], running = false): string {
   const commands = count("command");
   const tools = rows.length - background - commands;
   const counted = (n: number, one: string, many: string) => (n === 1 ? one : `${n} ${many}`);
-  const nouns = [background && counted(background, "a background task", "background tasks"), commands && counted(commands, "a command", "commands"), tools && counted(tools, "a tool", "tools")].filter((x): x is string => !!x);
-  const verbs = [background && `ran ${counted(background, "a background task", "background tasks")}`, commands && `ran ${counted(commands, "a command", "commands")}`, tools && `used ${counted(tools, "a tool", "tools")}`].filter((x): x is string => !!x).join(", ");
+  const nouns = [
+    background && counted(background, "a background task", "background tasks"),
+    commands && counted(commands, "a command", "commands"),
+    tools && counted(tools, "a tool", "tools"),
+  ].filter((x): x is string => !!x);
+  const verbs = [
+    background && `ran ${counted(background, "a background task", "background tasks")}`,
+    commands && `ran ${counted(commands, "a command", "commands")}`,
+    tools && `used ${counted(tools, "a tool", "tools")}`,
+  ]
+    .filter((x): x is string => !!x)
+    .join(", ");
   const what = took ? `Worked ${took} · ${nouns.join(", ")}` : verbs.charAt(0).toUpperCase() + verbs.slice(1);
   const failed = rows.filter(stepFailed).length;
   return failed ? `${what} · ${failed} failed` : what;

@@ -33,7 +33,11 @@ const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents",
  * its desk on Messages too, where the question or approval shows in the thread, rather than dropping into
  * the Inbox pass mid-queue. An agent opens Agents on that agent; a page, its section or Preferences on that page.
  */
-export type SearchTarget = { kind: "desk"; agentId: string; conversationId: string } | { kind: "agent"; agentId: string } | { kind: "section"; segment: Exclude<Segment, "settings"> } | { kind: "preferences"; page: SettingsPage | null };
+export type SearchTarget =
+  | { kind: "desk"; agentId: string; conversationId: string }
+  | { kind: "agent"; agentId: string }
+  | { kind: "section"; segment: Exclude<Segment, "settings"> }
+  | { kind: "preferences"; page: SettingsPage | null };
 
 /** What the row starts with: the agent's face, or an icon. */
 export type Lead = { agent: { id: string; name: string } } | { icon: IconName };
@@ -84,13 +88,55 @@ const PREF_WORDS: Partial<Record<SettingsPage, string[]>> = {
 
 /** The places search opens by name: the rail's sections, Preferences, and each Preferences page. */
 export const DESTINATIONS: readonly Page[] = [
-  { key: "page:desk", target: { kind: "section", segment: "desk" }, icon: "desk", label: "Chats", line: "The chat you were on", keywords: ["chats", "desks", "desk", "canvas", "home"] },
-  { key: "page:inbox", target: { kind: "section", segment: "inbox" }, icon: "inbox", label: "Inbox", line: "What waits on you", keywords: ["catch up", "waiting", "approvals"] },
-  { key: "page:tasks", target: { kind: "section", segment: "tasks" }, icon: "check", label: "Tasks", line: "Tasks for your agents", keywords: ["tasks", "todo", "kanban"] },
-  { key: "page:agents", target: { kind: "section", segment: "agents" }, icon: "agents", label: "Agents", line: `Every agent on ${osWords().machine}`, keywords: ["dms", "people", "memory"] },
-  { key: "page:learn", target: { kind: "section", segment: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
+  {
+    key: "page:desk",
+    target: { kind: "section", segment: "desk" },
+    icon: "desk",
+    label: "Chats",
+    line: "The chat you were on",
+    keywords: ["chats", "desks", "desk", "canvas", "home"],
+  },
+  {
+    key: "page:inbox",
+    target: { kind: "section", segment: "inbox" },
+    icon: "inbox",
+    label: "Inbox",
+    line: "What waits on you",
+    keywords: ["catch up", "waiting", "approvals"],
+  },
+  {
+    key: "page:tasks",
+    target: { kind: "section", segment: "tasks" },
+    icon: "check",
+    label: "Tasks",
+    line: "Tasks for your agents",
+    keywords: ["tasks", "todo", "kanban"],
+  },
+  {
+    key: "page:agents",
+    target: { kind: "section", segment: "agents" },
+    icon: "agents",
+    label: "Agents",
+    line: `Every agent on ${osWords().machine}`,
+    keywords: ["dms", "people", "memory"],
+  },
+  {
+    key: "page:learn",
+    target: { kind: "section", segment: "learn" },
+    icon: "learn",
+    label: "Learn",
+    line: "What your agents learned, to review",
+    keywords: ["recall", "cards", "lessons", "review"],
+  },
   { key: "prefs", target: { kind: "preferences", page: null }, icon: "settings", label: "Preferences", line: "Settings", keywords: ["settings"] },
-  ...PAGES.map(({ id }) => ({ key: `prefs:${id}`, target: { kind: "preferences", page: id } as SearchTarget, icon: "settings" as IconName, label: pageTitle(id), line: "Preferences", keywords: PREF_WORDS[id] ?? [] })),
+  ...PAGES.map(({ id }) => ({
+    key: `prefs:${id}`,
+    target: { kind: "preferences", page: id } as SearchTarget,
+    icon: "settings" as IconName,
+    label: pageTitle(id),
+    line: "Preferences",
+    keywords: PREF_WORDS[id] ?? [],
+  })),
 ];
 
 /** The recent places, the desktop's own key (the phone's are loki.phone.*). */
@@ -127,7 +173,16 @@ const deskHit = (d: OpenableDesk, agentName: string): SearchHit => ({
   lead: { icon: d.status === "live" ? "desk" : "archive" },
   dim: d.status !== "live",
 });
-const agentHit = (a: { id: string; name: string }): SearchHit => ({ key: `agent:${a.id}`, place: `agent:${a.id}`, group: "agents", title: a.name, preview: "Agent", target: { kind: "agent", agentId: a.id }, lead: { agent: a }, dim: false });
+const agentHit = (a: { id: string; name: string }): SearchHit => ({
+  key: `agent:${a.id}`,
+  place: `agent:${a.id}`,
+  group: "agents",
+  title: a.name,
+  preview: "Agent",
+  target: { kind: "agent", agentId: a.id },
+  lead: { agent: a },
+  dim: false,
+});
 const itemHit = (i: AttentionItem, agentName: string): SearchHit => ({
   key: `waiting:${i.agentId}/${i.id}`,
   place: deskPlace(scopeFor(i.id, i.agentId)),
@@ -138,7 +193,16 @@ const itemHit = (i: AttentionItem, agentName: string): SearchHit => ({
   lead: { agent: { id: i.agentId, name: agentName } },
   dim: false,
 });
-const pageHit = (p: Page): SearchHit => ({ key: p.key, place: p.key, group: "pages", title: p.label, preview: p.line, target: p.target, lead: { icon: p.icon }, dim: false });
+const pageHit = (p: Page): SearchHit => ({
+  key: p.key,
+  place: p.key,
+  group: "pages",
+  title: p.label,
+  preview: p.line,
+  target: p.target,
+  lead: { icon: p.icon },
+  dim: false,
+});
 
 // ---- the index ------------------------------------------------------------------------------------
 
@@ -148,7 +212,9 @@ export type SearchIndex = CoreIndex<SearchHit>;
 export function buildIndex(src: SearchSources): SearchIndex {
   const name = agentNamer(src);
   const out: Indexed<SearchHit>[] = [];
-  for (const d of src.desks) if (openable(d)) out.push({ hit: deskHit(d, name(d.agentId, d.agentName)), fields: [deskTitle(d), name(d.agentId, d.agentName)], recency: time(d.lastActive) });
+  for (const d of src.desks)
+    if (openable(d))
+      out.push({ hit: deskHit(d, name(d.agentId, d.agentName)), fields: [deskTitle(d), name(d.agentId, d.agentName)], recency: time(d.lastActive) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
   // What needs you: the waiting group; every chat is findable by its title among the chats above.
   for (const i of catchUpQueue(src.items)) {

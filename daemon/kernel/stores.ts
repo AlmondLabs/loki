@@ -19,7 +19,13 @@ export class StoreManager {
   private readonly openStore: (file: string) => Promise<AgentStore>;
 
   /** `openStore` opens one store; tests open them on memory. */
-  constructor(dir: string, options: StoreOptions, context: Context, report: (message: string) => void = () => {}, openStore?: (file: string) => Promise<AgentStore>) {
+  constructor(
+    dir: string,
+    options: StoreOptions,
+    context: Context,
+    report: (message: string) => void = () => {},
+    openStore?: (file: string) => Promise<AgentStore>,
+  ) {
     this.dir = dir;
     this.context = context;
     this.report = report;

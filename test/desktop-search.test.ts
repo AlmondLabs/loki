@@ -12,11 +12,41 @@ import type { DeskSummary } from "../core/frame-types.ts";
  */
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
-  ({ scope: scope as DeskSummary["scope"], title: scope, status: "live", agentName: "friday", agentId: "a1", conversationId: scope, model: null, reasoningEffort: null, pinned: false, widgets: 0, active: false, lastActive: "2026-09-08T10:00:00Z", ...over }) as DeskSummary;
-const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem => ({ id, agentId: "a1", agentName: "friday", title: id, status: "approval", lastMessageAt: "2026-09-08T10:00:00Z", lastAssistantText: "the quarterly zebra forecast", ...over }) as unknown as AttentionItem;
+  ({
+    scope: scope as DeskSummary["scope"],
+    title: scope,
+    status: "live",
+    agentName: "friday",
+    agentId: "a1",
+    conversationId: scope,
+    model: null,
+    reasoningEffort: null,
+    pinned: false,
+    widgets: 0,
+    active: false,
+    lastActive: "2026-09-08T10:00:00Z",
+    ...over,
+  }) as DeskSummary;
+const item = (id: string, over: Partial<AttentionItem> = {}): AttentionItem =>
+  ({
+    id,
+    agentId: "a1",
+    agentName: "friday",
+    title: id,
+    status: "approval",
+    lastMessageAt: "2026-09-08T10:00:00Z",
+    lastAssistantText: "the quarterly zebra forecast",
+    ...over,
+  }) as unknown as AttentionItem;
 
 const src: SearchSources = {
-  desks: [desk("a1/c-rev", { title: "Revenue dashboard", conversationId: "c-rev" }), desk("a1/c-ops", { title: "Ops review", conversationId: "c-ops" }), desk("a1/default", { title: null, conversationId: "default" }), desk("shared", { title: "shared sheet", agentId: null, conversationId: null }), desk("a1/c-old", { title: "Old notes", conversationId: "c-old", status: "archived" })],
+  desks: [
+    desk("a1/c-rev", { title: "Revenue dashboard", conversationId: "c-rev" }),
+    desk("a1/c-ops", { title: "Ops review", conversationId: "c-ops" }),
+    desk("a1/default", { title: null, conversationId: "default" }),
+    desk("shared", { title: "shared sheet", agentId: null, conversationId: null }),
+    desk("a1/c-old", { title: "Old notes", conversationId: "c-old", status: "archived" }),
+  ],
   agents: [
     { id: "a1", name: "friday" },
     { id: "a2", name: "ira" },

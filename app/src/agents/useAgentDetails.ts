@@ -44,7 +44,7 @@ export function useAgentDetails({
   }, [selected]);
 
   const d = selected ? details[selected] : undefined;
-  const log = selected ? commits[selected] ?? [] : [];
+  const log = selected ? (commits[selected] ?? []) : [];
   const flash = (m: string) => {
     setNotice(m);
     setTimeout(() => setNotice((c) => (c === m ? null : c)), 3000);
@@ -136,7 +136,24 @@ export function useAgentDetails({
     flash(`reverted ${sha.slice(0, 8)}: the undo is the newest commit`);
     void load(selected);
   };
-  return { d, log, notice, flash, save, confirmDelete, setConfirmDelete, remove, removeSkill, addSkill, installSkill, refreshing, needsSource, setNeedsSource, refreshSkill, revertCommit };
+  return {
+    d,
+    log,
+    notice,
+    flash,
+    save,
+    confirmDelete,
+    setConfirmDelete,
+    remove,
+    removeSkill,
+    addSkill,
+    installSkill,
+    refreshing,
+    needsSource,
+    setNeedsSource,
+    refreshSkill,
+    revertCommit,
+  };
 }
 
 export type AgentStore = ReturnType<typeof useAgentDetails>;

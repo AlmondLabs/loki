@@ -43,7 +43,10 @@ export const NO_LOOKS: Looks = { sent: null, held: null };
  * settles, or when you leave or look away first (then the mark says you saw it up to there). Otherwise each new
  * stamp is sent once, as before.
  */
-export function nextLook(prev: Looks, now: { looking: boolean; stamp: string | null; running: boolean } & Partial<LookTarget>): { looks: Looks; send: LookTarget[] } {
+export function nextLook(
+  prev: Looks,
+  now: { looking: boolean; stamp: string | null; running: boolean } & Partial<LookTarget>,
+): { looks: Looks; send: LookTarget[] } {
   const send: LookTarget[] = [];
   let { sent, held } = prev;
   const here = now.agentId && now.conversationId ? { agentId: now.agentId, conversationId: now.conversationId } : null;
@@ -53,7 +56,8 @@ export function nextLook(prev: Looks, now: { looking: boolean; stamp: string | n
     held = null;
   }
   if (now.looking && here) {
-    if (!now.stamp) held = null; // nothing new to look at any more (the look landed, from here or the phone)
+    if (!now.stamp)
+      held = null; // nothing new to look at any more (the look landed, from here or the phone)
     else if (now.running) held = now.stamp === sent ? null : { ...here, stamp: now.stamp };
     else if (now.stamp !== sent) {
       send.push(here);
@@ -71,7 +75,12 @@ export function nextLook(prev: Looks, now: { looking: boolean; stamp: string | n
  * Returns the look to draw the New line from: the one from before this open, held while it stays open
  * (holdMark), so the line does not vanish the moment the open stamps its own look.
  */
-export function useViewed(key: string | null, item: AttentionItem | null, showing: boolean, markViewed: (agentId: string, conversationId: string) => void): string | null {
+export function useViewed(
+  key: string | null,
+  item: AttentionItem | null,
+  showing: boolean,
+  markViewed: (agentId: string, conversationId: string) => void,
+): string | null {
   const [held, setHeld] = useState<HeldMark | null>(null);
   const next = holdMark(held, showing ? key : null, item);
   if (next !== held) setHeld(next);
@@ -85,7 +94,8 @@ export function useViewed(key: string | null, item: AttentionItem | null, showin
   useEffect(() => {
     markRef.current = markViewed;
   });
-  const agentId = item?.agentId, conversationId = item?.id;
+  const agentId = item?.agentId,
+    conversationId = item?.id;
   useEffect(() => {
     const r = nextLook(looks.current, { looking, stamp, running, agentId, conversationId });
     looks.current = r.looks;

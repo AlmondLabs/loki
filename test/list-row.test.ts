@@ -39,12 +39,25 @@ describe("list row markup", () => {
     expect(out).toContain(">3h<");
   });
   test("a folded section says so and draws no list", () => {
-    const out = html(createElement(ListSection, { title: "Friday", open: false, onToggle: () => {}, children: createElement(ListRow, { title: "x", onOpen: () => {} }) }));
+    const out = html(
+      createElement(ListSection, { title: "Friday", open: false, onToggle: () => {}, children: createElement(ListRow, { title: "x", onOpen: () => {} }) }),
+    );
     expect(out).toContain('aria-expanded="false"');
     expect(out).not.toContain("loki-list-row");
   });
   test("the pane header's tab row is a tablist with one selected tab, reachable by Tab", () => {
-    const out = html(createElement(PaneHeader, { title: "Loki mobile", tabs: [{ id: "messages", label: "Messages" }, { id: "desk", label: "Desk" }], tab: "desk", onTab: () => {}, tabsLabel: "Desk views" }));
+    const out = html(
+      createElement(PaneHeader, {
+        title: "Loki mobile",
+        tabs: [
+          { id: "messages", label: "Messages" },
+          { id: "desk", label: "Desk" },
+        ],
+        tab: "desk",
+        onTab: () => {},
+        tabsLabel: "Desk views",
+      }),
+    );
     expect(out).toContain('role="tablist"');
     expect(out).toContain('aria-label="Desk views"');
     expect(out.match(/aria-selected="true"/g)?.length).toBe(1);

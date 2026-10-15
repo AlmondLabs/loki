@@ -8,7 +8,9 @@ const item = attentionItem;
 
 describe("catch up queue merge", () => {
   test("new items join behind the head by score; the current card never moves; a chat whose agent is mid-turn drops out, a read one stays", () => {
-    const a = item("a"), b = item("b"), c = item("c");
+    const a = item("a"),
+      b = item("b"),
+      c = item("c");
     const q = mergeQueue([a, b], [a, item("b", { status: "running" }), c], []);
     expect(q.map((i) => i.id)).toEqual(["a", "c"]);
     // a chat you have read is still in the Inbox: it stays until it is archived
@@ -46,7 +48,13 @@ describe("catch up queue merge", () => {
     const q = mergeQueue([head, old], [head, old, quiet, focused], []);
     expect(q.map((i) => i.id)).toEqual(["head", "focused", "quiet", "old"]);
     // the head stays even when something blocked arrives; the blocked card is next
-    const blocked = stamp(item("blocked", { status: "approval", pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" }, lastMessageAt: "2026-09-16T09:59:30Z" }));
+    const blocked = stamp(
+      item("blocked", {
+        status: "approval",
+        pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" },
+        lastMessageAt: "2026-09-16T09:59:30Z",
+      }),
+    );
     expect(mergeQueue(q, [head, old, quiet, focused, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "focused", "quiet", "old"]);
   });
 

@@ -30,7 +30,13 @@ export const ToolSteps = memo(
     };
     return (
       <div data-row="tool" data-arrived={arrived} className="loki-steps">
-        <button type="button" className="loki-steps-line" data-running={running || undefined} aria-expanded={open} onClick={() => (open ? setOpen(false) : show(null))}>
+        <button
+          type="button"
+          className="loki-steps-line"
+          data-running={running || undefined}
+          aria-expanded={open}
+          onClick={() => (open ? setOpen(false) : show(null))}
+        >
           <span className="loki-steps-label">{workSummary(rows, running)}</span>
           <Icon name={!touch && open ? "chevron-down" : "chevron-right"} size={14} className="loki-steps-chev" />
         </button>
@@ -40,7 +46,12 @@ export const ToolSteps = memo(
             <span>{stepTarget(rows[failure]) ?? stepName(rows[failure])} failed</span>
           </button>
         )}
-        {open && (touch ? <StepsSheet rows={rows} title={workSummary(rows)} start={at} onClose={() => setOpen(false)} /> : <StepsList rows={rows} openAt={at} onOpen={setAt} />)}
+        {open &&
+          (touch ? (
+            <StepsSheet rows={rows} title={workSummary(rows)} start={at} onClose={() => setOpen(false)} />
+          ) : (
+            <StepsList rows={rows} openAt={at} onOpen={setAt} />
+          ))}
       </div>
     );
   },
@@ -69,7 +80,9 @@ function StepDetail({ row }: { row: TranscriptRow }) {
       <div className="loki-steps-detail">
         <section>
           <h3 className="loki-steps-heading">{stepKind(row) === "skill" ? "Skill" : stepFailed(row) ? "Result · failed" : "Result"}</h3>
-          <pre className="loki-steps-code" data-failed={stepFailed(row) || undefined}>{row.detail}</pre>
+          <pre className="loki-steps-code" data-failed={stepFailed(row) || undefined}>
+            {row.detail}
+          </pre>
         </section>
       </div>
     ) : (
@@ -95,7 +108,13 @@ function StepDetail({ row }: { row: TranscriptRow }) {
       )}
       <section>
         <h3 className="loki-steps-heading">{t.failed ? "Output · failed" : "Output"}</h3>
-        {t.output ? <pre className="loki-steps-code" data-failed={t.failed || undefined}>{t.output}</pre> : <p className="loki-steps-none">{t.failed ? "It failed without saying why." : "Nothing came back yet."}</p>}
+        {t.output ? (
+          <pre className="loki-steps-code" data-failed={t.failed || undefined}>
+            {t.output}
+          </pre>
+        ) : (
+          <p className="loki-steps-none">{t.failed ? "It failed without saying why." : "Nothing came back yet."}</p>
+        )}
       </section>
     </div>
   );
@@ -105,7 +124,12 @@ function StepDetail({ row }: { row: TranscriptRow }) {
 type Filter = "all" | "failed" | "steps" | "housekeeping";
 /** Past this many steps a stretch offers the filter chips. */
 const FILTER_FROM = 8;
-const CHIPS: ReadonlyArray<[Filter, string]> = [["all", "All"], ["failed", "Failed"], ["steps", "Steps"], ["housekeeping", "Files and search"]];
+const CHIPS: ReadonlyArray<[Filter, string]> = [
+  ["all", "All"],
+  ["failed", "Failed"],
+  ["steps", "Steps"],
+  ["housekeeping", "Files and search"],
+];
 const KEEP: Record<Filter, (row: TranscriptRow) => boolean> = { all: () => true, failed: stepFailed, steps: isNamedStep, housekeeping: (r) => !isNamedStep(r) };
 
 /** The steps a filter keeps, by their index in the stretch. */
@@ -148,7 +172,13 @@ function StepsList({ rows, openAt, onOpen }: { rows: TranscriptRow[]; openAt: nu
       <ol className="loki-steps-list">
         {shownSteps(rows, filter).map((at) => (
           <li key={at}>
-            <button type="button" className="loki-steps-step" data-minor={!isNamedStep(rows[at]) || undefined} aria-expanded={openAt === at} onClick={() => onOpen(openAt === at ? null : at)}>
+            <button
+              type="button"
+              className="loki-steps-step"
+              data-minor={!isNamedStep(rows[at]) || undefined}
+              aria-expanded={openAt === at}
+              onClick={() => onOpen(openAt === at ? null : at)}
+            >
               <StepLine row={rows[at]} size={16} />
             </button>
             {openAt === at && <StepDetail row={rows[at]} />}

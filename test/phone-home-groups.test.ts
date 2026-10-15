@@ -5,7 +5,22 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () => {
-  const desk = (scope: string, agentId: string, agentName: string, lastActive: string, extra: Partial<DeskSummary> = {}): DeskSummary => ({ scope, title: scope, status: "live", agentName, agentId, conversationId: scope, model: null, reasoningEffort: null, pinned: false, widgets: 0, active: false, lastActive, ...extra }) as DeskSummary;
+  const desk = (scope: string, agentId: string, agentName: string, lastActive: string, extra: Partial<DeskSummary> = {}): DeskSummary =>
+    ({
+      scope,
+      title: scope,
+      status: "live",
+      agentName,
+      agentId,
+      conversationId: scope,
+      model: null,
+      reasoningEffort: null,
+      pinned: false,
+      widgets: 0,
+      active: false,
+      lastActive,
+      ...extra,
+    }) as DeskSummary;
   const desks = [
     desk("a1", "ira", "ira", "2026-09-25T10:00:00Z"),
     desk("default", "ira", "ira", "2026-09-20T10:00:00Z", { title: null }),
@@ -13,7 +28,10 @@ describe("Home's desks group as the desktop sidebar's (homeDeskSections)", () =>
     desk("b2", "kai", "kai", "2026-09-24T12:00:00Z", { pinned: true }),
     desk("c1", "juno", "juno", "2026-09-10T12:00:00Z", { status: "archived" }),
   ];
-  const agents = [{ id: "ira", name: "ira" }, { id: "kai", name: "kai" }];
+  const agents = [
+    { id: "ira", name: "ira" },
+    { id: "kai", name: "kai" },
+  ];
 
   test("Pinned first, then one section per agent by its latest activity, the main chat first; archived desks stay out", () => {
     const groups = homeDeskSections(desks, [], [], "", agents);

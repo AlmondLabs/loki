@@ -3,7 +3,26 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { attachPreview, dayNumber, hasPreviewFiles, isNightlyVersion, isStableVersion, latestStable, nextStable, nightlyVersion, plan, previewAction, previewLine, previewPr, publish, releaseNotes, releasePr, setVersion, shipping, stableVersion } from "../scripts/release.ts";
+import {
+  attachPreview,
+  dayNumber,
+  hasPreviewFiles,
+  isNightlyVersion,
+  isStableVersion,
+  latestStable,
+  nextStable,
+  nightlyVersion,
+  plan,
+  previewAction,
+  previewLine,
+  previewPr,
+  publish,
+  releaseNotes,
+  releasePr,
+  setVersion,
+  shipping,
+  stableVersion,
+} from "../scripts/release.ts";
 import { channelOf, isNewerVersion, nightlyVersionIn } from "../core/version.ts";
 
 /** Releases on merge (scripts/release.ts): a stable is YYYY.MMDD.N, numbered when it is built; the tags are the truth. */
@@ -75,14 +94,26 @@ describe("what a run does", () => {
   test("the Windows and Linux PR landing is a preview of the stable it names; one naming no release builds nothing", () => {
     const shipped = ["2026.10.11", "2026.1011.0"];
     const withTag = [...tags, "v2026.1011.0"];
-    expect(plan({ today: OCT11, sha: "abc", tags: withTag, shipped, commitsSinceStable: 2, previewMerged: "v2026.1011.0\n" })).toMatchObject({ kind: "preview", version: "2026.1011.0", nextPreview: "2026.1011.0" });
-    expect(plan({ today: OCT11, sha: "abc", tags, shipped: ["2026.10.11"], commitsSinceStable: 2, previewMerged: "v2026.1011.0" })).toMatchObject({ kind: "none" });
+    expect(plan({ today: OCT11, sha: "abc", tags: withTag, shipped, commitsSinceStable: 2, previewMerged: "v2026.1011.0\n" })).toMatchObject({
+      kind: "preview",
+      version: "2026.1011.0",
+      nextPreview: "2026.1011.0",
+    });
+    expect(plan({ today: OCT11, sha: "abc", tags, shipped: ["2026.10.11"], commitsSinceStable: 2, previewMerged: "v2026.1011.0" })).toMatchObject({
+      kind: "none",
+    });
     // a preview merge is never a stable too, even when the release marker moved in the same push
-    expect(plan({ today: OCT11, sha: "abc", tags: withTag, shipped, commitsSinceStable: 2, releaseMerged: true, previewMerged: "v2026.1011.0" }).kind).toBe("preview");
+    expect(plan({ today: OCT11, sha: "abc", tags: withTag, shipped, commitsSinceStable: 2, releaseMerged: true, previewMerged: "v2026.1011.0" }).kind).toBe(
+      "preview",
+    );
   });
 
   test("before any stable, the first merge is a nightly of the first stable", () => {
-    expect(plan({ today: OCT11, sha: "abc1234", tags: [], commitsSinceStable: 40 })).toMatchObject({ kind: "nightly", version: "2026.1011.0-nightly.abc1234", nextPreview: "" });
+    expect(plan({ today: OCT11, sha: "abc1234", tags: [], commitsSinceStable: 40 })).toMatchObject({
+      kind: "nightly",
+      version: "2026.1011.0-nightly.abc1234",
+      nextPreview: "",
+    });
   });
 
   test("release commits (the release PR's, the Windows and Linux PR's) are not something to ship on their own", () => {
@@ -98,7 +129,11 @@ describe("what a run does", () => {
 
 describe("the release PR: no version of its own", () => {
   test("its title names no version, its one file records main, and its body says how the number is decided", () => {
-    const { title, body, marker } = releasePr({ notes: "## 2026.1011.0\n\n- **inbox: a priority queue** (aaaaaaa)\n", mainSha: "f00dfeed", ifMergedNow: "2026.1011.0" });
+    const { title, body, marker } = releasePr({
+      notes: "## 2026.1011.0\n\n- **inbox: a priority queue** (aaaaaaa)\n",
+      mainSha: "f00dfeed",
+      ifMergedNow: "2026.1011.0",
+    });
     expect(title).toBe("release: the next stable");
     expect(title).not.toMatch(/\d{4}\./);
     expect(marker).toBe("f00dfeed\n");
@@ -141,7 +176,10 @@ describe("notes and files", () => {
       writeFileSync(join(dir, "package.json"), '{\n  "name": "loki",\n  "version": "0.1.0",\n  "dependencies": { "x": "0.1.0" }\n}\n');
       writeFileSync(join(dir, "src-tauri", "tauri.conf.json"), '{\n  "productName": "loki",\n  "version": "0.1.0"\n}\n');
       writeFileSync(join(dir, "src-tauri", "Cargo.toml"), '[package]\nname = "loki"\nversion = "0.1.0"\n\n[dependencies]\nserde = { version = "1" }\n');
-      writeFileSync(join(dir, "src-tauri", "Cargo.lock"), '[[package]]\nname = "libc"\nversion = "0.1.0"\n\n[[package]]\nname = "loki"\nversion = "0.1.0"\ndependencies = []\n');
+      writeFileSync(
+        join(dir, "src-tauri", "Cargo.lock"),
+        '[[package]]\nname = "libc"\nversion = "0.1.0"\n\n[[package]]\nname = "loki"\nversion = "0.1.0"\ndependencies = []\n',
+      );
       expect(setVersion("2026.1011.0", dir).sort()).toEqual(["package.json", "src-tauri/Cargo.lock", "src-tauri/Cargo.toml", "src-tauri/tauri.conf.json"]);
       expect(readFileSync(join(dir, "package.json"), "utf8")).toContain('"version": "2026.1011.0"');
       expect(readFileSync(join(dir, "package.json"), "utf8")).toContain('"x": "0.1.0"');
@@ -156,7 +194,6 @@ describe("notes and files", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-
 });
 
 describe("publish: the Mac's files, in one call", () => {
@@ -175,7 +212,10 @@ describe("publish: the Mac's files, in one call", () => {
     const { calls, gh } = fakeGh();
     const dmg = "dist/loki_2026.1011.1-nightly.a96ee85_universal.dmg";
     publish({ kind: "nightly", version: "2026.1011.1-nightly.a96ee85", files: [dmg], sha: "abc", notesFile: "notes.md", gh });
-    expect(calls.map((c) => c.slice(0, 2))).toEqual([["release", "delete"], ["release", "create"]]);
+    expect(calls.map((c) => c.slice(0, 2))).toEqual([
+      ["release", "delete"],
+      ["release", "create"],
+    ]);
     const create = calls[1];
     expect(create).toContain("nightly");
     expect(create).toContain("--prerelease");
@@ -197,14 +237,18 @@ describe("publish: the Mac's files, in one call", () => {
 
   test("a stable whose number is already a release fails, and touches nothing: two builds' files never share a release", () => {
     const { calls, gh } = fakeGh("someone else's notes");
-    expect(() => publish({ kind: "stable", version: "2026.1011.0", files: ["dist/loki_2026.1011.0_universal.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(/already exists/);
+    expect(() => publish({ kind: "stable", version: "2026.1011.0", files: ["dist/loki_2026.1011.0_universal.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(
+      /already exists/,
+    );
     expect(calls.filter((c) => c[1] !== "view")).toEqual([]);
   });
 
   test("no files, or a version of the wrong kind, publishes nothing", () => {
     const { calls, gh } = fakeGh();
     expect(() => publish({ kind: "nightly", version: "2026.1011.1-nightly.a96ee85", files: [], sha: "abc", notesFile: "n", gh })).toThrow(/no files/);
-    expect(() => publish({ kind: "stable", version: "2026.1011.1-nightly.a96ee85", files: ["x.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(/looks like 2026.1011.0/);
+    expect(() => publish({ kind: "stable", version: "2026.1011.1-nightly.a96ee85", files: ["x.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(
+      /looks like 2026.1011.0/,
+    );
     expect(() => publish({ kind: "stable", version: "2026.10.11", files: ["x.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(/looks like 2026.1011.0/); // no new stable in the old scheme
     expect(() => publish({ kind: "preview", version: "2026.1011.0", files: ["x.dmg"], sha: "abc", notesFile: "n", gh })).toThrow(/stable or nightly/);
     expect(calls).toEqual([]);
@@ -288,8 +332,17 @@ describe("the Windows and Linux PR: their files on the newest stable", () => {
 
 describe("the workflow: releases on merge, nothing on a schedule", () => {
   type Step = { id?: string; uses?: string; with?: Record<string, unknown>; run?: string };
-  type Job = { if?: string; needs?: string | string[]; outputs?: Record<string, string>; concurrency?: { group?: string; "cancel-in-progress"?: unknown }; steps: Step[] };
-  const wf = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "release.yml"), "utf8")) as { on: Record<string, unknown>; jobs: Record<string, Job> };
+  type Job = {
+    if?: string;
+    needs?: string | string[];
+    outputs?: Record<string, string>;
+    concurrency?: { group?: string; "cancel-in-progress"?: unknown };
+    steps: Step[];
+  };
+  const wf = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github", "workflows", "release.yml"), "utf8")) as {
+    on: Record<string, unknown>;
+    jobs: Record<string, Job>;
+  };
 
   test("it runs on a push to main and by hand, never on a schedule; a merge of docs alone ships nothing", () => {
     expect(Object.keys(wf.on).sort()).toEqual(["push", "workflow_dispatch"]);

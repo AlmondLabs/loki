@@ -37,11 +37,7 @@ export class GestureLog {
 }
 
 /** Human line for a gesture, or null for gestures the agent need not hear about. */
-export function describeGesture(
-  g: Gesture,
-  entry: WidgetManifestEntry | undefined,
-  before?: Record<string, unknown>,
-): { line: string; key: string } | null {
+export function describeGesture(g: Gesture, entry: WidgetManifestEntry | undefined, before?: Record<string, unknown>): { line: string; key: string } | null {
   const name = entry ? `"${entry.title}" (${entry.id})` : `"${g.id}"`;
   switch (g.kind) {
     case "focus":

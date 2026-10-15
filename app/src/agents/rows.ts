@@ -11,7 +11,11 @@ export interface AgentDmRow extends AgentRowModel {
  * The Agents column's rows in the daemon's order (chat_agents) (plan 013 U10): the phone's agentRows, with the first
  * line of the agent's newest reply as the preview — what it said last, as a DM does — else its live desks.
  */
-export function agentDmRows(agents: Array<{ id: string; name: string }>, desks: Array<{ agentId: string | null; status: string }>, items: AttentionItem[]): AgentDmRow[] {
+export function agentDmRows(
+  agents: Array<{ id: string; name: string }>,
+  desks: Array<{ agentId: string | null; status: string }>,
+  items: AttentionItem[],
+): AgentDmRow[] {
   return agentRows(agents, desks, items).map((r) => {
     const newest = items
       .filter((i) => i.agentId === r.id && !i.archived && i.lastAssistantText?.trim())

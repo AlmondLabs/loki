@@ -15,7 +15,13 @@ export type AssignTarget = Pick<DeskSummary, "scope" | "agentId" | "conversation
  * changed, when the segment opens, and slowly while it shows (Dolt has no file to watch). Every move
  * reports through `notice` and refreshes the list afterwards.
  */
-export function useTasks(desk: Desk, segment: Segment, notice: (m: string) => void, link: { send: CatchUp["send"]; openDesk: (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void }, capture?: (event: string, properties?: Record<string, unknown>) => void) {
+export function useTasks(
+  desk: Desk,
+  segment: Segment,
+  notice: (m: string) => void,
+  link: { send: CatchUp["send"]; openDesk: (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void },
+  capture?: (event: string, properties?: Record<string, unknown>) => void,
+) {
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +56,11 @@ export function useTasks(desk: Desk, segment: Segment, notice: (m: string) => vo
    */
   const assignTo = async (target: AssignTarget, ids: string[], start: boolean) => {
     if (!target.conversationId) return notice("that chat has no conversation to assign to");
-    const r = await desk.tasks.assign(ids, { agentId: target.agentId, agentName: target.agentName, conversationId: target.conversationId, desk: target.scope }, start);
+    const r = await desk.tasks.assign(
+      ids,
+      { agentId: target.agentId, agentName: target.agentName, conversationId: target.conversationId, desk: target.scope },
+      start,
+    );
     if (!r.ok) return notice(r.message);
     const assigned = r.tasks.length ? r.tasks : (tasks ?? []).filter((t) => ids.includes(t.id));
     if (start && target.agentId) {
@@ -58,7 +68,9 @@ export function useTasks(desk: Desk, segment: Segment, notice: (m: string) => vo
       link.send(rt, dispatchMessage(assigned), [], { desk: target.title });
       link.openDesk(target.agentId, target.conversationId, { chat: true });
     } else {
-      notice(`${ids.length === 1 ? "task" : `${ids.length} tasks`} assigned to ${target.title ?? target.scope}${target.agentName ? ` · ${target.agentName} hears about it on your next message there` : ""}`);
+      notice(
+        `${ids.length === 1 ? "task" : `${ids.length} tasks`} assigned to ${target.title ?? target.scope}${target.agentName ? ` · ${target.agentName} hears about it on your next message there` : ""}`,
+      );
     }
     void refresh();
   };

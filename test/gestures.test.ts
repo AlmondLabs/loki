@@ -3,16 +3,22 @@ import { GestureLog, attachDeskContext, describeGesture, formatDeskContext } fro
 import type { WidgetManifestEntry } from "../core/desk-core.ts";
 
 const entry: WidgetManifestEntry = {
-  id: "c1/sleep", scope: "c1", name: "sleep", kind: "json", file: "c1/sleep.json", title: "Sleep", type: "slider-control",
-  data: { value: 6 }, hash: "abc", updatedAt: 0,
+  id: "c1/sleep",
+  scope: "c1",
+  name: "sleep",
+  kind: "json",
+  file: "c1/sleep.json",
+  title: "Sleep",
+  type: "slider-control",
+  data: { value: 6 },
+  hash: "abc",
+  updatedAt: 0,
 };
 
 describe("describeGesture", () => {
   test("move/close/set produce lines; focus is silent", () => {
     expect(describeGesture({ kind: "focus", id: "c1/sleep" }, entry)).toBeNull();
-    expect(describeGesture({ kind: "move", id: "c1/sleep", position: { x: 10.4, y: 20.6 } }, entry)!.line).toBe(
-      'moved "Sleep" (c1/sleep) to (10, 21)',
-    );
+    expect(describeGesture({ kind: "move", id: "c1/sleep", position: { x: 10.4, y: 20.6 } }, entry)!.line).toBe('moved "Sleep" (c1/sleep) to (10, 21)');
     expect(describeGesture({ kind: "close", id: "c1/sleep" }, entry)!.line).toMatch(/^minimised "Sleep" \(c1\/sleep\)/);
     expect(describeGesture({ kind: "open", id: "c1/sleep" }, entry)!.line).toBe('restored "Sleep" (c1/sleep) from the tray');
     expect(describeGesture({ kind: "set", id: "c1/sleep", path: "value", value: 7 }, entry, { value: 6 })!.line).toBe(
@@ -47,7 +53,10 @@ describe("attachDeskContext", () => {
     expect(attachDeskContext("hi", block)).toBe(`hi\n\n${block}`);
   });
   test("a message of parts (text and images) gains a text part, and the original is not changed", () => {
-    const content = [{ type: "text", text: "a" }, { type: "image", data: "x", mimeType: "image/png" }];
+    const content = [
+      { type: "text", text: "a" },
+      { type: "image", data: "x", mimeType: "image/png" },
+    ];
     const out = attachDeskContext(content, block) as unknown[];
     expect(out).toHaveLength(3);
     expect(out[2]).toEqual({ type: "text", text: block });

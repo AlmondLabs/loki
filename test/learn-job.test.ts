@@ -27,7 +27,13 @@ async function setup(opts: { cap?: number } = {}) {
   models.setProvider(faux.provider);
   const agentId = await createAgent(dir, { name: "Ada", model: `${faux.provider.id}/${faux.getModel().id}` });
   const registry = createRegistry();
-  const stores = new StoreManager(join(dir, "stores"), { models, registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx));
+  const stores = new StoreManager(
+    join(dir, "stores"),
+    { models, registry },
+    ctx,
+    () => {},
+    () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx),
+  );
   const chats = new ChatProjection(ctx, () => "Ada");
   chats.follow(stores);
   const state = new PassState(join(dir, "state"));
@@ -37,7 +43,20 @@ async function setup(opts: { cap?: number } = {}) {
   let now = new Date(Date.now() + 60_000);
   const reports: string[] = [];
   const prompts: string[] = [];
-  const runner = new PassRunner({ stores, chats, registry, state, backendDir: dir, context: ctx, jobs: [learnJob({ store: recall, state, chats })], busy: async () => false, isSubagent: () => false, report: (m) => reports.push(m), now: () => now, quietMs: 0 });
+  const runner = new PassRunner({
+    stores,
+    chats,
+    registry,
+    state,
+    backendDir: dir,
+    context: ctx,
+    jobs: [learnJob({ store: recall, state, chats })],
+    busy: async () => false,
+    isSubagent: () => false,
+    report: (m) => reports.push(m),
+    now: () => now,
+    quietMs: 0,
+  });
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
   const model = { provider: faux.provider.id, modelId: faux.getModel().id };
@@ -47,17 +66,33 @@ async function setup(opts: { cap?: number } = {}) {
   };
   // The person's chats get "ok"; Learn's ask gets the next scripted answer, and the prompt is kept.
   const answers: Array<ReturnType<typeof json>> = [];
-  faux.setResponses(Array.from({ length: 40 }, () => (c: { messages: unknown }) => {
-    const text = JSON.stringify(c.messages);
-    if (!text.includes("spaced-repetition cards")) return fauxAssistantMessage("ok");
-    prompts.push(text);
-    return answers.shift() ?? json({ cards: [], revisions: [] });
-  }));
+  faux.setResponses(
+    Array.from({ length: 40 }, () => (c: { messages: unknown }) => {
+      const text = JSON.stringify(c.messages);
+      if (!text.includes("spaced-repetition cards")) return fauxAssistantMessage("ok");
+      prompts.push(text);
+      return answers.shift() ?? json({ cards: [], revisions: [] });
+    }),
+  );
   const cleanup = async () => {
     await stores.closeAll();
     rmSync(dir, { recursive: true, force: true });
   };
-  return { dir, agentId, chats, state, recall, runner, reports, prompts, answers, say, cleanup, setNow: (d: Date) => (now = d), entries: (c: string) => chats.answers(c, agentId, 0).entries };
+  return {
+    dir,
+    agentId,
+    chats,
+    state,
+    recall,
+    runner,
+    reports,
+    prompts,
+    answers,
+    say,
+    cleanup,
+    setNow: (d: Date) => (now = d),
+    entries: (c: string) => chats.answers(c, agentId, 0).entries,
+  };
 }
 
 describe("Learn on the background passes", () => {
@@ -66,7 +101,15 @@ describe("Learn on the background passes", () => {
     try {
       await s.say("c1", LONG);
       await s.say("c2", `and later, how tides shape an estuary: ${LONG}`);
-      s.answers.push(json({ cards: [{ slice: "s1", ...card("How does a river delta build land?") }, { slice: "s2", ...card("What shapes an estuary?") }], revisions: [] }));
+      s.answers.push(
+        json({
+          cards: [
+            { slice: "s1", ...card("How does a river delta build land?") },
+            { slice: "s2", ...card("What shapes an estuary?") },
+          ],
+          revisions: [],
+        }),
+      );
       await s.runner.sweep();
       expect(s.prompts).toHaveLength(1);
       expect(s.prompts[0]).toContain('id=\\"s1\\"');
@@ -85,7 +128,13 @@ describe("Learn on the background passes", () => {
     const s = await setup();
     try {
       await s.say("c1", LONG);
-      s.answers.push(json({ cards: [card("How does a river delta build land?")], revisions: [], leads: [{ title: "Sediment transport", why: "you asked how", depth: "primer" }] }));
+      s.answers.push(
+        json({
+          cards: [card("How does a river delta build land?")],
+          revisions: [],
+          leads: [{ title: "Sediment transport", why: "you asked how", depth: "primer" }],
+        }),
+      );
       await s.runner.sweep();
       expect(s.recall.cards().map((c) => c.card.front)).toEqual(["How does a river delta build land?"]);
       expect(s.recall.cards()[0].card.source).toMatchObject({ agentId: s.agentId, conversationId: "c1", title: "chat c1" });
@@ -139,7 +188,15 @@ describe("Learn on the background passes", () => {
   test("a card like a deleted one is not written, and the deleted one is quoted to the model", async () => {
     const s = await setup();
     try {
-      s.recall.add({ id: "k1", ...card("What is a delta?"), source: { agentId: s.agentId, agentName: "Ada", conversationId: "old", title: null, at: null }, createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z", updatedBy: "recall", previous: [] });
+      s.recall.add({
+        id: "k1",
+        ...card("What is a delta?"),
+        source: { agentId: s.agentId, agentName: "Ada", conversationId: "old", title: null, at: null },
+        createdAt: "2026-10-01T00:00:00Z",
+        updatedAt: "2026-10-01T00:00:00Z",
+        updatedBy: "recall",
+        previous: [],
+      });
       s.recall.reject("k1");
       await s.say("c1", LONG);
       s.answers.push(json({ cards: [card("What is a delta?")], revisions: [] }));
@@ -156,7 +213,17 @@ describe("Learn on the background passes", () => {
     try {
       await s.say("old", LONG);
       s.state.setCursor("learn", s.agentId, "old", s.entries("old"));
-      s.recall.add({ id: "k1", front: "Why does a delta grow?", back: "rivers", tags: [], source: { agentId: s.agentId, agentName: "Ada", conversationId: "old", title: "old", at: null }, createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z", updatedBy: "recall", previous: [] });
+      s.recall.add({
+        id: "k1",
+        front: "Why does a delta grow?",
+        back: "rivers",
+        tags: [],
+        source: { agentId: s.agentId, agentName: "Ada", conversationId: "old", title: "old", at: null },
+        createdAt: "2026-10-01T00:00:00Z",
+        updatedAt: "2026-10-01T00:00:00Z",
+        updatedBy: "recall",
+        previous: [],
+      });
       // Missed again and again since it was last written.
       for (const day of [2, 3, 4, 5]) s.recall.grade("k1", 1, new Date(`2026-10-0${day}T00:00:00Z`).getTime());
       await s.say("c1", LONG);
@@ -174,11 +241,27 @@ describe("Learn on the background passes", () => {
   test("leads like a dismissed one are dropped, and none are named once the open pile is full", async () => {
     const s = await setup();
     try {
-      const lead = (id: string, title: string) => ({ id, title, why: "w", depth: "primer" as const, source: { agentId: s.agentId, agentName: "Ada", conversationId: "x", title: null, at: null }, createdAt: "2026-10-01T00:00:00Z" });
+      const lead = (id: string, title: string) => ({
+        id,
+        title,
+        why: "w",
+        depth: "primer" as const,
+        source: { agentId: s.agentId, agentName: "Ada", conversationId: "x", title: null, at: null },
+        createdAt: "2026-10-01T00:00:00Z",
+      });
       s.recall.addLead(lead("d1", "Sediment transport"));
       s.recall.dismissLead("d1");
       await s.say("c1", LONG);
-      s.answers.push(json({ cards: [], revisions: [], leads: [{ title: "Sediment transport", why: "again", depth: "primer" }, { title: "Tidal deltas", why: "you asked", depth: "course" }] }));
+      s.answers.push(
+        json({
+          cards: [],
+          revisions: [],
+          leads: [
+            { title: "Sediment transport", why: "again", depth: "primer" },
+            { title: "Tidal deltas", why: "you asked", depth: "course" },
+          ],
+        }),
+      );
       await s.runner.sweep();
       expect(s.recall.leads().map((l) => l.title)).toEqual(["Tidal deltas"]);
       for (let i = 0; i < 11; i++) s.recall.addLead(lead(`o${i}`, `Open lead number ${i} about something distinct ${i}`));

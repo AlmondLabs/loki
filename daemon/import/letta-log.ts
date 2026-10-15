@@ -19,12 +19,7 @@ import type { TranscriptRow } from "../../core/attention/transcript.ts";
  * (background task results, compaction) become event rows; thinking is
  * skipped. Only the last `limit` rows are returned, oldest first.
  */
-export function readLocalTranscript(
-  conversationId: string,
-  agentId: string | null | undefined,
-  limit: number,
-  backendDir: string,
-): TranscriptRow[] {
+export function readLocalTranscript(conversationId: string, agentId: string | null | undefined, limit: number, backendDir: string): TranscriptRow[] {
   return readLocalTranscriptPage(conversationId, agentId, limit, backendDir).rows;
 }
 
@@ -48,7 +43,11 @@ export function readLocalTranscriptPage(
  */
 function logSteps(line: string): Step[] {
   if (!line.trim()) return [];
-  let entry: { type?: string; timestamp?: unknown; message?: { role?: string; content?: unknown; toolCallId?: unknown; isError?: unknown; metadata?: { created_at?: unknown } } };
+  let entry: {
+    type?: string;
+    timestamp?: unknown;
+    message?: { role?: string; content?: unknown; toolCallId?: unknown; isError?: unknown; metadata?: { created_at?: unknown } };
+  };
   try {
     entry = JSON.parse(line) as typeof entry;
   } catch {

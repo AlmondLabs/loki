@@ -96,7 +96,10 @@ export class ChatProjection implements ChatSource {
     // Subscribed first, so nothing committed while the chats load is missed; what loads later replaces what it saw.
     const pending: CommitPublication[] = [];
     let loading = true;
-    this.unsubscribe.set(agentId, store.harness.subscribeCommits((publication) => (loading ? pending.push(publication) : this.apply(agentId, publication))));
+    this.unsubscribe.set(
+      agentId,
+      store.harness.subscribeCommits((publication) => (loading ? pending.push(publication) : this.apply(agentId, publication))),
+    );
     const index = await store.harness.snapshot(ChatIndex, this.context);
     await Promise.all(
       Object.entries(index?.chats ?? {}).map(async ([chatId, conversationId]) => {
@@ -107,7 +110,15 @@ export class ChatProjection implements ChatSource {
           store.chatInfo(conversation.id, this.context),
           store.agentSettings(conversation.id, this.context),
         ]);
-        this.chats.set(this.key(agentId, chatId), { agentId, chatId, conversationId, info: info ?? null, settings: (settings ?? {}) as AgentSettings, entries: entries.map(keep), lastId: entries.at(-1)?.id ?? 0 });
+        this.chats.set(this.key(agentId, chatId), {
+          agentId,
+          chatId,
+          conversationId,
+          info: info ?? null,
+          settings: (settings ?? {}) as AgentSettings,
+          entries: entries.map(keep),
+          lastId: entries.at(-1)?.id ?? 0,
+        });
       }),
     );
     loading = false;
@@ -130,7 +141,11 @@ export class ChatProjection implements ChatSource {
 
   /** Whether a chat's context was compacted at or after position `from` (daemon/passes.ts: reflection runs on it then). */
   compactedSince(conversationId: string, agentId: string, from: number): boolean {
-    return this.find(conversationId, agentId)?.entries.slice(Math.max(0, from)).some((e) => e.compaction === true) ?? false;
+    return (
+      this.find(conversationId, agentId)
+        ?.entries.slice(Math.max(0, from))
+        .some((e) => e.compaction === true) ?? false
+    );
   }
 
   private key(agentId: string, chatId: string): string {

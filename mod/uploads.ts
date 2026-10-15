@@ -69,7 +69,9 @@ export function uploadRoute(
   if (url.pathname !== "/uploads") return false;
   const cors = { "access-control-allow-origin": "*", "access-control-allow-methods": "POST, DELETE", "access-control-allow-headers": "content-type" };
   const reply = (status: number, body?: object): true => {
-    res.writeHead(status, { ...(body ? { "content-type": "application/json", "cache-control": "no-store" } : {}), ...cors }).end(body ? JSON.stringify(body) : undefined);
+    res
+      .writeHead(status, { ...(body ? { "content-type": "application/json", "cache-control": "no-store" } : {}), ...cors })
+      .end(body ? JSON.stringify(body) : undefined);
     return true;
   };
   if (req.method === "OPTIONS") return reply(204);

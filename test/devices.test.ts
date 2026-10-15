@@ -58,7 +58,12 @@ describe("device store", () => {
       const a = store.mint("a");
       const b = store.mint("b");
       const again = new DeviceStore(path, { now: () => now });
-      expect(again.list().map((d) => d.id).sort()).toEqual([a.id, b.id].sort());
+      expect(
+        again
+          .list()
+          .map((d) => d.id)
+          .sort(),
+      ).toEqual([a.id, b.id].sort());
       expect(again.verify(a.token)?.name).toBe("a");
       expect(again.verify(b.token)?.name).toBe("b");
 

@@ -27,7 +27,10 @@ export function askExtension(approvals: Approvals): Extension {
                 properties: {
                   question: { type: "string" },
                   header: { type: "string", description: "A short label, a few words" },
-                  options: { type: "array", items: { type: "object", properties: { label: { type: "string" }, description: { type: "string" } }, required: ["label"] } },
+                  options: {
+                    type: "array",
+                    items: { type: "object", properties: { label: { type: "string" }, description: { type: "string" } }, required: ["label"] },
+                  },
                   multiSelect: { type: "boolean" },
                 },
                 required: ["question", "options"],

@@ -6,9 +6,17 @@ describe("harness markup", () => {
   test("task notifications and compaction alerts become events; the rest of the text stays", () => {
     const text = `${notif}\n\nplease continue`;
     const events = extractHarnessEvents(text);
-    expect(events).toEqual([{ text: "background task bash_24 completed", summary: 'Background command "Re-auth dev" completed', detail: "$ cd /tmp\nnohup aws sso login > /tmp/x 2>&1 &" }]);
+    expect(events).toEqual([
+      {
+        text: "background task bash_24 completed",
+        summary: 'Background command "Re-auth dev" completed',
+        detail: "$ cd /tmp\nnohup aws sso login > /tmp/x 2>&1 &",
+      },
+    ]);
     expect(stripHarnessMarkup(text).trim()).toBe("please continue");
-    const alert = extractHarnessEvents('{"type":"system_alert","message":"Note: 14 messages from the beginning of the conversation have been hidden from view due to memory constraints.\\nSummary…"}');
+    const alert = extractHarnessEvents(
+      '{"type":"system_alert","message":"Note: 14 messages from the beginning of the conversation have been hidden from view due to memory constraints.\\nSummary…"}',
+    );
     expect(alert[0]).toMatchObject({ text: "context compacted" });
     expect(stripHarnessMarkup('{"type":"system_alert","message":"x"}').trim()).toBe("");
     expect(decodeEntities("a &lt;b&gt; &amp;&quot;")).toBe('a <b> &"');
@@ -17,16 +25,33 @@ describe("harness markup", () => {
 
 describe("the mod's desk block and a loaded skill are events, not the user's words", () => {
   test("desk activity becomes one event with the gestures as detail; older 'loci' builds are read too", () => {
-    const text = 'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.letta/loki/widgets/local-conv-1/; call desk_state for the full picture.\n</loci-desk>';
-    expect(extractHarnessEvents(text)).toEqual([{ text: "canvas activity", summary: "2 gestures on local-conv-1", detail: 'moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\nclosed "loci" (shared/welcome) — the file still exists' }]);
+    const text =
+      'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.letta/loki/widgets/local-conv-1/; call desk_state for the full picture.\n</loci-desk>';
+    expect(extractHarnessEvents(text)).toEqual([
+      {
+        text: "canvas activity",
+        summary: "2 gestures on local-conv-1",
+        detail: 'moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\nclosed "loci" (shared/welcome) — the file still exists',
+      },
+    ]);
     expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
     expect(stripHarnessMarkup('<loki-desk desk="d">\n- x\n</loki-desk>').trim()).toBe("");
   });
   test("assigned tasks become one quiet event, hidden from the user's words", () => {
-    const text = "morning\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (2):\n- lk-a1  P1  rotate SSO creds — filed by the user\n    the audit starts on the 6th\n- lk-b2  P2  update the runbook — filed by friday\nPick one up when the user's message is about it.\n</loki-tasks>";
-    expect(extractHarnessEvents(text)).toEqual([{ text: "assigned tasks", summary: "2 assigned to this chat", detail: "lk-a1  P1  rotate SSO creds — filed by the user\nlk-b2  P2  update the runbook — filed by friday" }]);
+    const text =
+      "morning\n\n<loki-tasks>\nTasks assigned to this conversation on the user's task list (2):\n- lk-a1  P1  rotate SSO creds — filed by the user\n    the audit starts on the 6th\n- lk-b2  P2  update the runbook — filed by friday\nPick one up when the user's message is about it.\n</loki-tasks>";
+    expect(extractHarnessEvents(text)).toEqual([
+      {
+        text: "assigned tasks",
+        summary: "2 assigned to this chat",
+        detail: "lk-a1  P1  rotate SSO creds — filed by the user\nlk-b2  P2  update the runbook — filed by friday",
+      },
+    ]);
     expect(stripHarnessMarkup(text).trim()).toBe("morning");
-    expect(extractHarnessEvents("<loki-tasks>\nNo tasks are assigned to this conversation on the user's task list any more.\n</loki-tasks>")[0]).toMatchObject({ summary: "none assigned any more", detail: null });
+    expect(extractHarnessEvents("<loki-tasks>\nNo tasks are assigned to this conversation on the user's task list any more.\n</loki-tasks>")[0]).toMatchObject({
+      summary: "none assigned any more",
+      detail: null,
+    });
   });
   test("a skill body becomes a 'skill loaded' event named after the skill", () => {
     const text = 'summarise this\n<skill_content name="unslop">\n# Unslop\n\nEdit text to remove AI patterns.\n</skill_content>';
@@ -34,4 +59,3 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
     expect(stripHarnessMarkup(text).trim()).toBe("summarise this");
   });
 });
-

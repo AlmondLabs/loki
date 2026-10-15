@@ -16,7 +16,17 @@ import { Icon } from "../shared/icons";
 /** Errors are the canvas copy's to report: two copies reporting would clear each other's. Also the read-only gesture. */
 const quiet = () => {};
 
-export function InlineWidget({ entry, overlay, gesture, onOpen }: { entry: WidgetManifestEntry; overlay?: Record<string, unknown>; gesture?: (g: Gesture) => void; onOpen?: () => void }) {
+export function InlineWidget({
+  entry,
+  overlay,
+  gesture,
+  onOpen,
+}: {
+  entry: WidgetManifestEntry;
+  overlay?: Record<string, unknown>;
+  gesture?: (g: Gesture) => void;
+  onOpen?: () => void;
+}) {
   const send = gesture ?? quiet;
   let body: ReactNode;
   if (entry.kind === "module" && !gesture) body = <p className="loki-inline-widget-note">This widget runs on the Mac: open the chat there to use it.</p>;

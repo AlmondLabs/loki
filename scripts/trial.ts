@@ -80,11 +80,7 @@ async function daemonStore() {
   models.setProvider(openrouterProvider());
   const registry = createRegistry();
   registry.install(CodingTools);
-  return AgentStore.open(
-    { storage: new MemoryStorage() },
-    { models, registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }) },
-    ctx,
-  );
+  return AgentStore.open({ storage: new MemoryStorage() }, { models, registry, env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }) }, ctx);
 }
 
 let chatSeq = 0;
@@ -99,7 +95,8 @@ async function daemonTurn(store: AgentStore, instructions: string, prompt: Promp
     const content = live?.generation?.message?.content ?? [];
     // A short answer can arrive whole, with no partial committed first: its entry is then the first output.
     const answered = value.entries.some((e) => e.kind === "pi.assistant");
-    if (answered || content.some((p) => (p.type === "text" && p.text) || p.type === "thinking" || p.type === "toolCall") || (live?.tools?.length ?? 0) > 0) firstOutputAt = Date.now();
+    if (answered || content.some((p) => (p.type === "text" && p.text) || p.type === "thinking" || p.type === "toolCall") || (live?.tools?.length ?? 0) > 0)
+      firstOutputAt = Date.now();
   });
   const before = (await store.entries(chat, ctx)).length;
   const sentAt = Date.now();
@@ -147,7 +144,11 @@ let eventLoopP99Ms: number | null = null;
     histogram.disable();
     eventLoopP99Ms = histogram.percentile(99) / 1e6;
     for (const r of concurrent) {
-      results.push(r.status === "fulfilled" ? { backend: "daemon", prompt: "concurrent", run: 0, ok: true, timings: r.value } : { backend: "daemon", prompt: "concurrent", run: 0, ok: false, error: String(r.reason) });
+      results.push(
+        r.status === "fulfilled"
+          ? { backend: "daemon", prompt: "concurrent", run: 0, ok: true, timings: r.value }
+          : { backend: "daemon", prompt: "concurrent", run: 0, ok: false, error: String(r.reason) },
+      );
     }
   } finally {
     await store.close(ctx);

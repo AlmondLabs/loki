@@ -126,7 +126,10 @@ export class PassRunner {
 
   start(): void {
     this.stop();
-    this.timer = setInterval(() => void this.sweep().catch((e: unknown) => this.deps.report?.(`background passes: ${String(e)}`)), this.deps.sweepMs ?? SWEEP_MS);
+    this.timer = setInterval(
+      () => void this.sweep().catch((e: unknown) => this.deps.report?.(`background passes: ${String(e)}`)),
+      this.deps.sweepMs ?? SWEEP_MS,
+    );
     this.timer.unref?.();
   }
 
@@ -137,7 +140,16 @@ export class PassRunner {
 
   /** The person's chats: not hidden (a pass's own chats among them), not a helper's. */
   private chats() {
-    return this.deps.chats.list().filter((row) => !row.hidden && !isReflectionChat(row.conversationId) && !isDoctorChat(row.conversationId) && !isWriterChat(row.conversationId) && !this.deps.isSubagent(row.agentId));
+    return this.deps.chats
+      .list()
+      .filter(
+        (row) =>
+          !row.hidden &&
+          !isReflectionChat(row.conversationId) &&
+          !isDoctorChat(row.conversationId) &&
+          !isWriterChat(row.conversationId) &&
+          !this.deps.isSubagent(row.agentId),
+      );
   }
 
   /** One look over every chat: queue a batch for each agent with chats due, then work the queue. */
@@ -189,7 +201,10 @@ export class PassRunner {
   private enqueue(job: PassJob, agentId: string, chatIds: string[], force: boolean): Promise<RunOutcome> {
     const fresh = chatIds.filter((c) => !this.queued.has(`${job.name}\u0000${agentId}\u0000${c}`));
     if (!fresh.length) return Promise.resolve("skipped");
-    return this.schedule(fresh.map((c) => `${job.name}\u0000${agentId}\u0000${c}`), () => this.run(job, agentId, fresh, force));
+    return this.schedule(
+      fresh.map((c) => `${job.name}\u0000${agentId}\u0000${c}`),
+      () => this.run(job, agentId, fresh, force),
+    );
   }
 
   /** Put a run in the queue under its keys; it resolves with the run's own result once its turn has come and gone. */
@@ -277,7 +292,14 @@ export class PassRunner {
       }
       if (stretch.lines < this.deps.chats.answers(chatId, agentId, 0).entries) leftover = true; // more than one run reads
       room -= stretch.transcript.length;
-      parts.push({ chatId, title: this.deps.chats.info(chatId, agentId)?.title ?? null, rows: stretch.rows, material: stretch.transcript, from: cursor, lines: stretch.lines });
+      parts.push({
+        chatId,
+        title: this.deps.chats.info(chatId, agentId)?.title ?? null,
+        rows: stretch.rows,
+        material: stretch.transcript,
+        from: cursor,
+        lines: stretch.lines,
+      });
     }
     return { parts, busy, leftover };
   }
@@ -291,7 +313,18 @@ export class PassRunner {
     let requestId: string | null = null;
     const finish = (outcome: RunOutcome, extra: Record<string, unknown> = {}) => {
       const read = parts.reduce((n, p) => n + p.lines - p.from, 0);
-      this.deps.capture?.("pass_finished", { job: job.name, agent: agentId, chat: parts[0]?.chatId ?? chatIds[0], chats: parts.map((p) => p.chatId), entries_read: read, outcome, duration_ms: this.now().getTime() - started.getTime(), request_id: requestId, items: {}, ...extra });
+      this.deps.capture?.("pass_finished", {
+        job: job.name,
+        agent: agentId,
+        chat: parts[0]?.chatId ?? chatIds[0],
+        chats: parts.map((p) => p.chatId),
+        entries_read: read,
+        outcome,
+        duration_ms: this.now().getTime() - started.getTime(),
+        request_id: requestId,
+        items: {},
+        ...extra,
+      });
       return outcome;
     };
     try {
@@ -311,9 +344,19 @@ export class PassRunner {
       }
       // The pass chat is reset, not recreated, and pi-durable answers a repeated request id with the old submission:
       // each attempt gets its own id, so a retry (or Learn's capped stretch the next day) is really asked again.
-      const which = createHash("sha256").update(parts.map((p) => `${p.chatId}@${p.lines}`).join("\n")).digest("hex").slice(0, 12);
+      const which = createHash("sha256")
+        .update(parts.map((p) => `${p.chatId}@${p.lines}`).join("\n"))
+        .digest("hex")
+        .slice(0, 12);
       requestId = `pass:${job.name}:${agentId}:${which}:${started.getTime().toString(36)}`;
-      const answer = await this.ask(agentId, record?.model ?? "", { chatId: job.chatId(agentId), title: job.title, instructions: job.instructions, tools: job.tools(this.deps.registry).map((t) => t.name), prompt, requestId });
+      const answer = await this.ask(agentId, record?.model ?? "", {
+        chatId: job.chatId(agentId),
+        title: job.title,
+        instructions: job.instructions,
+        tools: job.tools(this.deps.registry).map((t) => t.name),
+        prompt,
+        requestId,
+      });
       const result = await job.apply(input, answer);
       if (!result.capped) advance();
       for (const p of parts) this.failedAt.delete(keyOf(p.chatId));
@@ -334,12 +377,24 @@ export class PassRunner {
    * Ask the agent something in a pass's hidden chat, cleared first and set up with the pass's instructions and tools,
    * and read back what it said and which tools it called. A run past the time limit is stopped and fails.
    */
-  private async ask(agentId: string, agentModel: string, spec: { chatId: string; title: string; instructions: string; tools: readonly string[]; prompt: string; requestId: string }): Promise<PassAnswer> {
+  private async ask(
+    agentId: string,
+    agentModel: string,
+    spec: { chatId: string; title: string; instructions: string; tools: readonly string[]; prompt: string; requestId: string },
+  ): Promise<PassAnswer> {
     const { context } = this.deps;
     const store = await this.deps.stores.get(agentId);
     const model = modelRef(agentModel);
     const tools = new Set(spec.tools);
-    const agent = { tools: this.deps.registry.snapshot().tools().filter((t) => tools.has(t.tool.name)).map((t) => t.tool), instructions: spec.instructions, ...(model ? { model } : {}) };
+    const agent = {
+      tools: this.deps.registry
+        .snapshot()
+        .tools()
+        .filter((t) => tools.has(t.tool.name))
+        .map((t) => t.tool),
+      instructions: spec.instructions,
+      ...(model ? { model } : {}),
+    };
     let chat = await store.chat(spec.chatId, context);
     if (!chat) chat = await store.createChat(spec.chatId, { title: spec.title, hidden: true, agent }, context);
     else {
@@ -367,7 +422,11 @@ export class PassRunner {
       const m = entry.model?.[0] as { role?: string; content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
       if (entry.kind !== "pi.assistant" || m?.role !== "assistant") continue;
       for (const part of m.content ?? []) if (part.type === "toolCall" && part.name) answer.toolCalls.push(part.name);
-      const text = (m.content ?? []).filter((p) => p.type === "text").map((p) => p.text).join("").trim();
+      const text = (m.content ?? [])
+        .filter((p) => p.type === "text")
+        .map((p) => p.text)
+        .join("")
+        .trim();
       if (text) answer.text = text;
     }
     return answer;
@@ -389,14 +448,29 @@ export class PassRunner {
     const started = this.now();
     const requestId = `pass:doctor:${agentId}:${started.getTime().toString(36)}`;
     const finish = (result: DoctorResult, extra: Record<string, unknown> = {}) => {
-      this.deps.capture?.("pass_finished", { job: "doctor", agent: agentId, outcome: result.outcome, duration_ms: this.now().getTime() - started.getTime(), request_id: requestId, items: { memory_changes: result.changes }, ...extra });
+      this.deps.capture?.("pass_finished", {
+        job: "doctor",
+        agent: agentId,
+        outcome: result.outcome,
+        duration_ms: this.now().getTime() - started.getTime(),
+        request_id: requestId,
+        items: { memory_changes: result.changes },
+        ...extra,
+      });
       return result;
     };
     try {
       const record = readLocalAgent(agentId, this.deps.backendDir);
       const dump = memoryDump(memoryRoot(this.deps.backendDir, agentId));
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
-      const answer = await this.ask(agentId, record?.model ?? "", { chatId: doctorChatId(agentId), title: "doctor", instructions: DOCTOR_INSTRUCTIONS, tools: DOCTOR_TOOLS, prompt: doctorPrompt(dump, started), requestId });
+      const answer = await this.ask(agentId, record?.model ?? "", {
+        chatId: doctorChatId(agentId),
+        title: "doctor",
+        instructions: DOCTOR_INSTRUCTIONS,
+        tools: DOCTOR_TOOLS,
+        prompt: doctorPrompt(dump, started),
+        requestId,
+      });
       const changes = answer.toolCalls.filter((t) => t !== "memory_read" && MEMORY_TOOLS.includes(t)).length;
       const report = answer.text || (changes ? `${changes} change${changes === 1 ? "" : "s"} to memory` : "memory looks healthy");
       return finish({ outcome: changes ? "changed" : "nothing", changes, report }, { files: dump.files, chars: dump.chars });

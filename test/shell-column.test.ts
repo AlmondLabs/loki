@@ -1,5 +1,18 @@
 import { describe, expect, test } from "vitest";
-import { COLUMN_DEFAULT, COLUMN_KEY, COLUMN_MAX, COLUMN_MIN, NARROW_BELOW, clampColumn, columnShown, columnStore, hasColumn, loadColumn, saveColumn, toggleColumn } from "../app/src/shell/column.ts";
+import {
+  COLUMN_DEFAULT,
+  COLUMN_KEY,
+  COLUMN_MAX,
+  COLUMN_MIN,
+  NARROW_BELOW,
+  clampColumn,
+  columnShown,
+  columnStore,
+  hasColumn,
+  loadColumn,
+  saveColumn,
+  toggleColumn,
+} from "../app/src/shell/column.ts";
 
 /**
  * The list column between the rail and the main pane (plan 013 U3): its width is clamped and kept, its

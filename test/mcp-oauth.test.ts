@@ -31,10 +31,20 @@ async function oauthServer() {
       req.on("data", (c) => (b += c));
       req.on("end", () => r(b));
     });
-    const json = (status: number, value: unknown, headers: Record<string, string> = {}) => res.writeHead(status, { "content-type": "application/json", ...headers }).end(JSON.stringify(value));
+    const json = (status: number, value: unknown, headers: Record<string, string> = {}) =>
+      res.writeHead(status, { "content-type": "application/json", ...headers }).end(JSON.stringify(value));
     if (url.pathname.startsWith("/.well-known/oauth-protected-resource")) return json(200, { resource: `${base}/mcp`, authorization_servers: [base] });
     if (url.pathname === "/.well-known/oauth-authorization-server")
-      return json(200, { issuer: base, authorization_endpoint: `${base}/authorize`, token_endpoint: `${base}/token`, registration_endpoint: `${base}/register`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], code_challenge_methods_supported: ["S256"], token_endpoint_auth_methods_supported: ["none"] });
+      return json(200, {
+        issuer: base,
+        authorization_endpoint: `${base}/authorize`,
+        token_endpoint: `${base}/token`,
+        registration_endpoint: `${base}/register`,
+        response_types_supported: ["code"],
+        grant_types_supported: ["authorization_code", "refresh_token"],
+        code_challenge_methods_supported: ["S256"],
+        token_endpoint_auth_methods_supported: ["none"],
+      });
     if (url.pathname === "/register" && req.method === "POST") {
       seen.registrations++;
       return json(201, { ...JSON.parse(body), client_id: "loki-test-client" });
@@ -52,7 +62,12 @@ async function oauthServer() {
       seen.tokenRequests++;
       const p = new URLSearchParams(body);
       const pending = codes.get(p.get("code") ?? "");
-      const verified = pending && createHash("sha256").update(p.get("code_verifier") ?? "").digest("base64url") === pending.challenge && p.get("redirect_uri") === pending.redirect;
+      const verified =
+        pending &&
+        createHash("sha256")
+          .update(p.get("code_verifier") ?? "")
+          .digest("base64url") === pending.challenge &&
+        p.get("redirect_uri") === pending.redirect;
       if (!verified) return json(400, { error: "invalid_grant" });
       codes.delete(p.get("code")!);
       const token = `token-${issued.size + 1}`;
@@ -61,7 +76,8 @@ async function oauthServer() {
     }
     if (url.pathname === "/mcp") {
       const bearer = req.headers.authorization?.replace(/^Bearer /, "");
-      if (!bearer || !issued.has(bearer)) return res.writeHead(401, { "www-authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"` }).end();
+      if (!bearer || !issued.has(bearer))
+        return res.writeHead(401, { "www-authenticate": `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"` }).end();
       if (req.method !== "POST") return res.writeHead(405).end();
       seen.mcpWithToken++;
       const reply = answer(JSON.parse(body));
@@ -128,7 +144,12 @@ describe("signing in to a remote MCP server (OAuth)", () => {
   test("a server with its own Authorization header never signs in; an error from the server's page is said plainly", async () => {
     const fake = await oauthServer();
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-oauth-"));
-    const mcp = new McpTools({ registry: createRegistry(), configPath: join(dir, "mcp.json"), lokiDir: dir, redirect: "http://127.0.0.1:41414/mcp/oauth/callback" });
+    const mcp = new McpTools({
+      registry: createRegistry(),
+      configPath: join(dir, "mcp.json"),
+      lokiDir: dir,
+      redirect: "http://127.0.0.1:41414/mcp/oauth/callback",
+    });
     try {
       mcp.setServer("token", { url: `${fake.base}/mcp`, headers: { Authorization: "Bearer wrong" } });
       await until(() => mcp.view().servers[0]?.state === "down");
@@ -137,7 +158,11 @@ describe("signing in to a remote MCP server (OAuth)", () => {
       mcp.setServer("issues", { url: `${fake.base}/mcp`, headers: {} });
       await until(() => mcp.view().servers[0]?.signIn?.url != null);
       const state = new URL(mcp.view().servers[0].signIn!.url!).searchParams.get("state")!;
-      expect(await mcp.finishAuth({ state, error: "access_denied", error_description: "You said no" })).toEqual({ ok: false, server: "issues", message: "issues did not sign in: You said no" });
+      expect(await mcp.finishAuth({ state, error: "access_denied", error_description: "You said no" })).toEqual({
+        ok: false,
+        server: "issues",
+        message: "issues did not sign in: You said no",
+      });
     } finally {
       await mcp.close();
       await fake.close();
@@ -147,7 +172,11 @@ describe("signing in to a remote MCP server (OAuth)", () => {
 
   test("the callback route answers GET with a page (its message escaped), refuses other methods, and leaves other paths alone", async () => {
     const calls: Array<Record<string, string>> = [];
-    const srv = await startServer({ port: 0, token: "t", routes: [oauthCallbackRoute("/mcp/oauth/callback", async (p) => (calls.push(p), { ok: p.code === "good", message: `<b>${p.code}</b>` }))] });
+    const srv = await startServer({
+      port: 0,
+      token: "t",
+      routes: [oauthCallbackRoute("/mcp/oauth/callback", async (p) => (calls.push(p), { ok: p.code === "good", message: `<b>${p.code}</b>` }))],
+    });
     try {
       const base = `http://127.0.0.1:${srv.port}`;
       const ok = await fetch(`${base}/mcp/oauth/callback?code=good&state=s`);

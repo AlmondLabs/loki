@@ -17,19 +17,53 @@ import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/mod
 
 const ctx = BACKGROUND_CONTEXT;
 
-async function setup(opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void>; passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"] } = {}) {
+async function setup(
+  opts: { tokensPerSecond?: number; tool?: (done: () => void) => Promise<void>; passes?: ConstructorParameters<typeof DaemonChats>[0]["passes"] } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-backend-"));
   const faux = fauxProvider(opts.tokensPerSecond ? { tokensPerSecond: opts.tokensPerSecond, tokenSize: { min: 3, max: 3 } } : {});
   const models = createModels();
   models.setProvider(faux.provider);
   const mods = new ModRegistry(() => {});
   const tool = opts.tool;
-  if (tool) mods.registry.install(defineExtension({ name: "t", tools: [defineTool({ name: "slow", description: "slow", parameters: { type: "object", properties: {} } as never, execute: async () => (await tool(() => {}), { content: [{ type: "text", text: "slow done" }] }) })] }));
-  await mods.load({ name: "rider", apiVersion: 1, activate: (api) => void api.message.transform((m) => (typeof m.content === "string" ? `${m.content}\n<loki-desk/>` : m.content)) });
-  const stores = new StoreManager(join(dir, "stores"), { models, registry: mods.registry }, ctx, () => {}, () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx));
+  if (tool)
+    mods.registry.install(
+      defineExtension({
+        name: "t",
+        tools: [
+          defineTool({
+            name: "slow",
+            description: "slow",
+            parameters: { type: "object", properties: {} } as never,
+            execute: async () => (await tool(() => {}), { content: [{ type: "text", text: "slow done" }] }),
+          }),
+        ],
+      }),
+    );
+  await mods.load({
+    name: "rider",
+    apiVersion: 1,
+    activate: (api) => void api.message.transform((m) => (typeof m.content === "string" ? `${m.content}\n<loki-desk/>` : m.content)),
+  });
+  const stores = new StoreManager(
+    join(dir, "stores"),
+    { models, registry: mods.registry },
+    ctx,
+    () => {},
+    () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx),
+  );
   const approvals = new Approvals();
   const providers = new Providers(models, new KeychainCredentials(memorySecrets()));
-  const chats = new DaemonChats({ stores, mods, approvals, providers, models, backendDir: join(dir, "backend"), context: ctx, ...(opts.passes ? { passes: opts.passes } : {}) });
+  const chats = new DaemonChats({
+    stores,
+    mods,
+    approvals,
+    providers,
+    models,
+    backendDir: join(dir, "backend"),
+    context: ctx,
+    ...(opts.passes ? { passes: opts.passes } : {}),
+  });
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
   chats.attach((_agentId, conversationId, events) => pushed.push({ conversationId, events }));
   const sent: string[] = [];
@@ -61,13 +95,24 @@ describe("the daemon's chats", () => {
       const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
       await s.chats.open(agent.id, conversationId);
-      notice = () => s.chats.deliver(agent.id, conversationId, "<task-notification>\n<task-id>bg-1</task-id>\n<status>completed</status>\n</task-notification>", "steer");
+      notice = () =>
+        s.chats.deliver(agent.id, conversationId, "<task-notification>\n<task-id>bg-1</task-id>\n<status>completed</status>\n</task-notification>", "steer");
       let asked = 0;
-      s.faux.setResponses([() => (asked++, fauxAssistantMessage(fauxToolCall("slow", {}), { stopReason: "toolUse" })), () => (asked++, fauxAssistantMessage("Done.")), () => (asked++, fauxAssistantMessage("Extra."))]);
+      s.faux.setResponses([
+        () => (asked++, fauxAssistantMessage(fauxToolCall("slow", {}), { stopReason: "toolUse" })),
+        () => (asked++, fauxAssistantMessage("Done.")),
+        () => (asked++, fauxAssistantMessage("Extra.")),
+      ]);
       await s.chats.send({ agentId: agent.id, conversationId, text: "go", images: [], sendId: "s1", context: null });
       await until(() => kinds(s.pushed).includes("turn_end"), 10_000);
       await new Promise((r) => setTimeout(r, 300));
-      const steps = s.pushed.flatMap((p) => p.events).flatMap((e) => (e.kind === "step" && (e.step.kind === "user" || (e.step.kind === "assistant" && !e.step.chunk)) ? [e.step.kind === "user" ? e.step.raw.split("\n")[0] : e.step.text] : []));
+      const steps = s.pushed
+        .flatMap((p) => p.events)
+        .flatMap((e) =>
+          e.kind === "step" && (e.step.kind === "user" || (e.step.kind === "assistant" && !e.step.chunk))
+            ? [e.step.kind === "user" ? e.step.raw.split("\n")[0] : e.step.text]
+            : [],
+        );
       expect(steps.filter((t) => t)).toEqual(["go", "<task-notification>", "Done."]);
       expect(kinds(s.pushed).filter((k) => k === "turn_end")).toHaveLength(1);
       expect(asked).toBe(2);
@@ -99,7 +144,12 @@ describe("the daemon's chats", () => {
       applyChatEvent(l, { kind: "streaming", text: state.streaming!.text, at: state.streaming!.at });
       expect(l.thread.rows()!.at(-1)!.text.startsWith("Keep `farm")).toBe(true); // from its first word, while it streams
       for (const p of s.pushed.slice(at)) for (const e of p.events) applyChatEvent(l, e);
-      expect(l.thread.rows()!.filter((r) => r.role === "assistant").map((r) => r.text)).toEqual([REPLY]);
+      expect(
+        l.thread
+          .rows()!
+          .filter((r) => r.role === "assistant")
+          .map((r) => r.text),
+      ).toEqual([REPLY]);
       expect((await s.chats.open(agent.id, conversationId)).streaming).toBeUndefined(); // nothing in flight once done
     } finally {
       await s.cleanup();
@@ -113,11 +163,25 @@ describe("the daemon's chats", () => {
       expect(await s.chats.agents()).toEqual([{ id: agent.id, name: "Ada" }]);
       // With no persona of yours, the agent's memory starts with its name; with one, with your words.
       expect(readFileSync(join(s.dir, "backend", "memfs", agent.id, "memory", "system", "persona.md"), "utf8")).toBe("I am Ada.\n");
-      const told = await s.chats.createAgent({ name: "Bo", description: "reviews pull requests", persona: "  A careful reviewer who asks before changing code.  ", model: s.handle });
-      expect(readFileSync(join(s.dir, "backend", "memfs", told.id, "memory", "system", "persona.md"), "utf8")).toBe("A careful reviewer who asks before changing code.\n");
+      const told = await s.chats.createAgent({
+        name: "Bo",
+        description: "reviews pull requests",
+        persona: "  A careful reviewer who asks before changing code.  ",
+        model: s.handle,
+      });
+      expect(readFileSync(join(s.dir, "backend", "memfs", told.id, "memory", "system", "persona.md"), "utf8")).toBe(
+        "A careful reviewer who asks before changing code.\n",
+      );
       expect(await (await s.stores.get(agent.id)).chat("default", ctx)).toBeDefined();
       const { conversationId } = await s.chats.create(agent.id, "/work", "Plans");
-      expect(await s.chats.open(agent.id, conversationId)).toEqual({ agentId: agent.id, conversationId, loop: "idle", turnId: null, mode: "unrestricted", cwd: "/work" });
+      expect(await s.chats.open(agent.id, conversationId)).toEqual({
+        agentId: agent.id,
+        conversationId,
+        loop: "idle",
+        turnId: null,
+        mode: "unrestricted",
+        cwd: "/work",
+      });
       s.faux.setResponses([s.reply("Hello back")]);
       expect(await s.chats.send({ agentId: agent.id, conversationId, text: "hello", images: [], sendId: "s1", context: null })).toBe(true);
       await until(() => kinds(s.pushed).includes("turn_end"));
@@ -200,7 +264,10 @@ describe("the daemon's chats", () => {
 
   test("/doctor waits for the memory review and answers with its report, and where to see and undo each change", async () => {
     const reviewed: string[] = [];
-    const results = [{ outcome: "changed" as const, changes: 2, report: "- merged two deploy notes\n- the launch has passed" }, { outcome: "skipped" as const, changes: 0, report: "a memory review of this agent is already running" }];
+    const results = [
+      { outcome: "changed" as const, changes: 2, report: "- merged two deploy notes\n- the launch has passed" },
+      { outcome: "skipped" as const, changes: 0, report: "a memory review of this agent is already running" },
+    ];
     const runner = { runDoctor: async (agentId: string) => (reviewed.push(agentId), results.shift()!) };
     const s = await setup({ passes: { runner: runner as never, state: {} as never } });
     try {
@@ -209,7 +276,9 @@ describe("the daemon's chats", () => {
       const run = () => s.chats.command({ agentId: agent.id, conversationId, command: "doctor", args: null });
       const done = await run();
       expect(done.success).toBe(true);
-      expect(done.output).toBe("- merged two deploy notes\n- the launch has passed\n\n2 changes committed by Doctor; Agents › Changes shows each, and Revert undoes one.");
+      expect(done.output).toBe(
+        "- merged two deploy notes\n- the launch has passed\n\n2 changes committed by Doctor; Agents › Changes shows each, and Revert undoes one.",
+      );
       expect(await run()).toEqual({ success: false, output: "a memory review of this agent is already running" });
       expect(reviewed).toEqual([agent.id, agent.id]);
     } finally {
@@ -257,7 +326,14 @@ describe("the daemon's chats", () => {
       const { conversationId } = await s.chats.create(agent.id, null, null);
       await s.chats.open(agent.id, conversationId);
       s.faux.setResponses([s.reply("a cat")]);
-      await s.chats.send({ agentId: agent.id, conversationId, text: "what is this?", images: [{ data: "aGVsbG8=", mediaType: "image/png" }], sendId: "i1", context: null });
+      await s.chats.send({
+        agentId: agent.id,
+        conversationId,
+        text: "what is this?",
+        images: [{ data: "aGVsbG8=", mediaType: "image/png" }],
+        sendId: "i1",
+        context: null,
+      });
       await until(() => kinds(s.pushed).includes("turn_end"));
       expect(s.sent[0]).toContain('"type":"image"');
       expect(s.sent[0]).toContain('"mimeType":"image/png"');

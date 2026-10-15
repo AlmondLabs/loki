@@ -43,7 +43,8 @@ export const EVENTS: Record<string, string> = {
   desk_switched: "the chat on screen changed { desk }",
   chat_opened: "the desk chat opened",
   chat_closed: "the desk chat closed",
-  message_sent: "a message went out { desk, agent, turn_id (the turn running when queued, else the last one), origin: desk | inbox | lesson, images, files, queued }",
+  message_sent:
+    "a message went out { desk, agent, turn_id (the turn running when queued, else the last one), origin: desk | inbox | lesson, images, files, queued }",
   approval_requested: "an agent asked for a tool permission or asked a question { desk, agent, tool, kind: approval | question }",
   approval_decided: "a tool permission decided { desk, agent, turn_id, behavior, wait_ms }",
   question_answered: "an agent's question answered { desk, agent, wait_ms }",
@@ -53,7 +54,8 @@ export const EVENTS: Record<string, string> = {
   folder_changed: "a conversation moved to another folder { desk, agent }",
   inbox_pass_completed: "the inbox deck closed { decided, next, archive, approve, deny, replies, shown, duration_ms }",
   inbox_card_shown: "a card came to the top of the inbox { desk, agent, rank, of, score, focus, reason, status, new, idle_min }",
-  inbox_card_decided: "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
+  inbox_card_decided:
+    "an inbox card decided { action: next | archive | approve | deny | reply | answer | open, via: key | click | swipe | tap, desk, agent, turn_id (the chat's running or last turn), rank, of, score, focus, reason, status, new, idle_min, dwell_ms (only while loki was visible and focused) }",
   inbox_card_undone: "an inbox Next or Archive taken back { action: next | archive, desk, agent }",
   inbox_filtered: "an agent pill chosen in the inbox { agent } (null: All)",
   chat_archived: "a chat archived { desk, turn_id (its last turn), origin: inbox | sidebar | chat_header | phone_list | phone_chat }",
@@ -66,7 +68,8 @@ export const EVENTS: Record<string, string> = {
   widget_trashed: "a widget deleted",
   turn_finished:
     "an agent turn ended, measured by the daemon from its store { desk, chat, agent, model, harness_version, turn_id, origin: message | schedule | background | subagent | recall | reflection | doctor, request_id (a background pass's run only), input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, cache_share, cost, responses, ttft_ms, total_ms, model_ms, tool_ms, overhead_ms, tool_calls, tool_failures, stop_reason, error, error_code }",
-  pass_finished: "a background pass ran on a batch of an agent's chats, or a memory review on its memory (daemon/passes.ts) { job: reflection | learn | doctor, agent, chat (the first), chats, entries_read (across them), files, chars (a review's memory), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
+  pass_finished:
+    "a background pass ran on a batch of an agent's chats, or a memory review on its memory (daemon/passes.ts) { job: reflection | learn | doctor, agent, chat (the first), chats, entries_read (across them), files, chars (a review's memory), outcome: changed | nothing | capped | failed, items (what it wrote, by kind), duration_ms, request_id (joins its turn_finished) }",
   task_confirmed: "a task an agent said was done, answered in Tasks { action: confirm | reopen }",
   task_added: "a task filed from a chat message (Add task) { origin: message | selection, desk }",
   mcp_search: "an agent searched its MCP tools (daemon/mcp/) { hits, loaded (the tool keys it loaded), select (an exact select:) }",
@@ -129,7 +132,12 @@ export function parseEvents(text: string): AnalyticsEvent[] {
       const p = v.properties as Record<string, unknown> | undefined;
       if (!isEventName(v.event) || typeof v.timestamp !== "string" || Number.isNaN(Date.parse(v.timestamp)) || typeof v.distinct_id !== "string") continue;
       if (!p || typeof p !== "object" || !isDeviceType(p.$device_type)) continue;
-      out.push({ event: v.event, timestamp: v.timestamp, distinct_id: v.distinct_id, properties: { ...p, ...renamedViews(p), $device_type: p.$device_type, $lib: "loki" } });
+      out.push({
+        event: v.event,
+        timestamp: v.timestamp,
+        distinct_id: v.distinct_id,
+        properties: { ...p, ...renamedViews(p), $device_type: p.$device_type, $lib: "loki" },
+      });
     } catch {
       // not ours
     }
@@ -224,7 +232,19 @@ export interface PassRow {
 }
 
 /** A turn as the harness section reads it from a turn_finished line; null for a line from before the daemon measured turns. */
-type MeasuredTurn = { model: string; version: string; ttft: number | null; overhead: number; total: number; cost: number; prompt: number; cacheRead: number; error: boolean; tools: number; toolFailures: number };
+type MeasuredTurn = {
+  model: string;
+  version: string;
+  ttft: number | null;
+  overhead: number;
+  total: number;
+  cost: number;
+  prompt: number;
+  cacheRead: number;
+  error: boolean;
+  tools: number;
+  toolFailures: number;
+};
 function measuredTurn(p: Record<string, unknown>): MeasuredTurn | null {
   if (typeof p.total_ms !== "number") return null;
   return {
@@ -262,15 +282,27 @@ function harnessRows(turns: MeasuredTurn[], keyOf: (t: MeasuredTurn) => string):
       ttftMs: spread(ts.flatMap((t) => (t.ttft === null ? [] : [t.ttft]))),
       overheadMs: spread(ts.map((t) => t.overhead)),
       totalMs: spread(ts.map((t) => t.total)),
-      costPerTurn: ratio(sum(ts, (t) => t.cost), ts.length),
-      cacheShare: ratio(sum(ts, (t) => t.cacheRead), sum(ts, (t) => t.prompt)),
+      costPerTurn: ratio(
+        sum(ts, (t) => t.cost),
+        ts.length,
+      ),
+      cacheShare: ratio(
+        sum(ts, (t) => t.cacheRead),
+        sum(ts, (t) => t.prompt),
+      ),
       errorRate: ratio(ts.filter((t) => t.error).length, ts.length),
-      toolFailureRate: ratio(sum(ts, (t) => t.toolFailures), sum(ts, (t) => t.tools)),
+      toolFailureRate: ratio(
+        sum(ts, (t) => t.toolFailures),
+        sum(ts, (t) => t.tools),
+      ),
     }))
     .sort((a, b) => b.turns - a.turns || a.key.localeCompare(b.key));
 }
 
-function passRows(runs: Array<{ job: string; outcome: string; items: Record<string, unknown>; requestId: string | null }>, cost: Map<string, number>): PassRow[] {
+function passRows(
+  runs: Array<{ job: string; outcome: string; items: Record<string, unknown>; requestId: string | null }>,
+  cost: Map<string, number>,
+): PassRow[] {
   const byJob = new Map<string, PassRow & { costed: number; spent: number }>();
   for (const run of runs) {
     const row = byJob.get(run.job) ?? { job: run.job, runs: 0, outcomes: {}, items: {}, costPerRun: null, costed: 0, spent: 0 };
@@ -283,7 +315,9 @@ function passRows(runs: Array<{ job: string; outcome: string; items: Record<stri
     }
     byJob.set(run.job, row);
   }
-  return [...byJob.values()].map(({ costed, spent, ...row }) => ({ ...row, costPerRun: costed ? spent / costed : null })).sort((a, b) => a.job.localeCompare(b.job));
+  return [...byJob.values()]
+    .map(({ costed, spent, ...row }) => ({ ...row, costPerRun: costed ? spent / costed : null }))
+    .sort((a, b) => a.job.localeCompare(b.job));
 }
 
 /** Turns nobody waits on: a helper's, Learn's writer's, reflection's and a memory review's. They are measured, but no one answers them. */
@@ -295,7 +329,8 @@ export const ENGAGED_ACTIONS: ReadonlySet<string> = new Set(["reply", "answer", 
 const RANK_BUCKETS = ["1", "2", "3", "4+"];
 const rankBucket = (rank: number): string => (rank >= 4 ? "4+" : String(Math.max(1, Math.round(rank))));
 const tally = (m: Map<string, number>, key: string, n = 1) => m.set(key, (m.get(key) ?? 0) + n);
-const ranked = (m: Map<string, number>, limit = Infinity): Array<[string, number]> => [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit);
+const ranked = (m: Map<string, number>, limit = Infinity): Array<[string, number]> =>
+  [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit);
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 function median(values: number[]): number | null {
   if (!values.length) return null;
@@ -320,7 +355,22 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   const weekdays = new Array<number>(7).fill(0);
   const inbox = { passes: 0, decided: 0, perPass: null as number | null, next: 0, archive: 0, approve: 0, deny: 0, replies: 0 };
   const perPass: number[] = [];
-  const engagement: AnalyticsReport["engagement"] = { actions: 0, perActiveDay: null, cards: 0, engaged: 0, top: 0, medianRank: null, byReason: [], chats: null, shown: 0, byRank: [], undone: 0, movedOn: 0, respondMinutes: null, decideMinutes: null };
+  const engagement: AnalyticsReport["engagement"] = {
+    actions: 0,
+    perActiveDay: null,
+    cards: 0,
+    engaged: 0,
+    top: 0,
+    medianRank: null,
+    byReason: [],
+    chats: null,
+    shown: 0,
+    byRank: [],
+    undone: 0,
+    movedOn: 0,
+    respondMinutes: null,
+    decideMinutes: null,
+  };
   const engagedRanks: number[] = [];
   const byReason = new Map<string, { cards: number; engaged: number }>();
   const engagedChats = new Set<string>();
@@ -366,8 +416,18 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       if (turn) measured.push(turn);
       if (typeof p.request_id === "string") passCost.set(p.request_id, num(p.cost));
     }
-    if (e.event === "pass_finished") passRuns.push({ job: String(p.job), outcome: String(p.outcome), items: (p.items ?? {}) as Record<string, unknown>, requestId: typeof p.request_id === "string" ? p.request_id : null });
-    const answered = e.event === "message_sent" || e.event === "question_answered" || e.event === "approval_decided" || (e.event === "inbox_card_decided" && ENGAGED_ACTIONS.has(String(p.action)));
+    if (e.event === "pass_finished")
+      passRuns.push({
+        job: String(p.job),
+        outcome: String(p.outcome),
+        items: (p.items ?? {}) as Record<string, unknown>,
+        requestId: typeof p.request_id === "string" ? p.request_id : null,
+      });
+    const answered =
+      e.event === "message_sent" ||
+      e.event === "question_answered" ||
+      e.event === "approval_decided" ||
+      (e.event === "inbox_card_decided" && ENGAGED_ACTIONS.has(String(p.action)));
     if (answered && desk && waiting.has(desk)) {
       respond.push((t - waiting.get(desk)!) / 60_000);
       waiting.delete(desk);
@@ -434,7 +494,13 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
   for (const s of sessionSpan.values()) byDevice[s.device]++;
   const stamps = events.map((e) => Date.parse(e.timestamp));
   return {
-    window: { from: stamps.length ? new Date(Math.min(...stamps)).toISOString() : null, to: stamps.length ? new Date(Math.max(...stamps)).toISOString() : null, days, events: events.length, activeDays: activeDays.size },
+    window: {
+      from: stamps.length ? new Date(Math.min(...stamps)).toISOString() : null,
+      to: stamps.length ? new Date(Math.max(...stamps)).toISOString() : null,
+      days,
+      events: events.length,
+      activeDays: activeDays.size,
+    },
     sessions: {
       count: sessionSpan.size,
       byDevice,
@@ -442,7 +508,9 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       perActiveDay: activeDays.size ? Math.round((sessionSpan.size / activeDays.size) * 10) / 10 : null,
     },
     events: [...rows.values()].sort((a, b) => b.count - a.count || a.event.localeCompare(b.event)),
-    breakdowns: [...breakdown.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([event, values]) => ({ event, property: BREAKDOWN[event], values: ranked(values, 8) })),
+    breakdowns: [...breakdown.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([event, values]) => ({ event, property: BREAKDOWN[event], values: ranked(values, 8) })),
     inbox,
     engagement,
     harness: { turns: measured.length, byModel: harnessRows(measured, (t) => t.model), byVersion: harnessRows(measured, (t) => t.version) },
@@ -467,48 +535,80 @@ function bars(values: number[], labels: (i: number) => string): string {
 export function formatAnalyticsReport(r: AnalyticsReport): string {
   const w = r.window;
   const out: string[] = [];
-  out.push(`analytics · last ${w.days} days${w.from ? ` · ${w.from.slice(0, 10)} → ${w.to!.slice(0, 10)}` : ""} · ${w.events} events on ${w.activeDays} active day${w.activeDays === 1 ? "" : "s"}`);
+  out.push(
+    `analytics · last ${w.days} days${w.from ? ` · ${w.from.slice(0, 10)} → ${w.to!.slice(0, 10)}` : ""} · ${w.events} events on ${w.activeDays} active day${w.activeDays === 1 ? "" : "s"}`,
+  );
   if (!w.events) return out.join("\n");
   const s = r.sessions;
   // Windows and Linux get their words and columns once they have events; a Mac-only log reads as it always has.
   const devices = DEVICE_TYPES.filter((d) => (d !== "windows" && d !== "linux") || r.events.some((e) => e[d] > 0));
-  out.push(`  sessions ${s.count} (${devices.map((d) => `${d} ${s.byDevice[d]}`).join(" · ")}) · median ${s.medianMinutes === null ? "–" : `${Math.round(s.medianMinutes)} min`} · ${s.perActiveDay ?? "–"} an active day`);
+  out.push(
+    `  sessions ${s.count} (${devices.map((d) => `${d} ${s.byDevice[d]}`).join(" · ")}) · median ${s.medianMinutes === null ? "–" : `${Math.round(s.medianMinutes)} min`} · ${s.perActiveDay ?? "–"} an active day`,
+  );
   const width = Math.max(12, ...r.events.map((e) => e.event.length));
-  out.push("", `${"event".padEnd(width + 2)} ${"count".padStart(6)} ${"sessions".padStart(8)} ${devices.map((d) => d.padStart(Math.max(6, d.length))).join(" ")}`);
-  for (const e of r.events) out.push(`  ${e.event.padEnd(width)} ${cell(e.count)} ${cell(e.sessions, 8)} ${devices.map((d) => cell(e[d], Math.max(6, d.length))).join(" ")}`);
+  out.push(
+    "",
+    `${"event".padEnd(width + 2)} ${"count".padStart(6)} ${"sessions".padStart(8)} ${devices.map((d) => d.padStart(Math.max(6, d.length))).join(" ")}`,
+  );
+  for (const e of r.events)
+    out.push(`  ${e.event.padEnd(width)} ${cell(e.count)} ${cell(e.sessions, 8)} ${devices.map((d) => cell(e[d], Math.max(6, d.length))).join(" ")}`);
   if (r.breakdowns.length) {
     out.push("", "breakdowns");
     const bw = Math.max(...r.breakdowns.map((b) => b.event.length + b.property.length + 3));
     for (const b of r.breakdowns) out.push(`  ${`${b.event} · ${b.property}`.padEnd(bw)}  ${b.values.map(([v, n]) => `${v} ${n}`).join(" · ")}`);
   }
   const i = r.inbox;
-  if (i.passes) out.push("", `inbox passes ${i.passes} · ${i.decided} cards · median ${i.perPass} a pass · next ${pct(i.next, i.decided)} · archive ${pct(i.archive, i.decided)} · approve ${pct(i.approve, i.decided)} · deny ${pct(i.deny, i.decided)} · ${i.replies} replies`);
+  if (i.passes)
+    out.push(
+      "",
+      `inbox passes ${i.passes} · ${i.decided} cards · median ${i.perPass} a pass · next ${pct(i.next, i.decided)} · archive ${pct(i.archive, i.decided)} · approve ${pct(i.approve, i.decided)} · deny ${pct(i.deny, i.decided)} · ${i.replies} replies`,
+    );
   const g = r.engagement;
   out.push("", `engagement ${g.actions} messages, answers and decisions · ${g.perActiveDay ?? "–"} an active day`);
   if (g.cards) {
-    out.push(`  inbox cards ${g.cards} · engaged ${pct(g.engaged, g.cards)} · of those, the top card ${pct(g.top, g.engaged)} · median rank ${g.medianRank ?? "–"}`);
+    out.push(
+      `  inbox cards ${g.cards} · engaged ${pct(g.engaged, g.cards)} · of those, the top card ${pct(g.top, g.engaged)} · median rank ${g.medianRank ?? "–"}`,
+    );
     out.push(`  by reason ${g.byReason.map(([reason, v]) => `${reason} ${v.engaged}/${v.cards}`).join(" · ")}`);
-    if (g.chats !== null) out.push(`  engaged with ${g.chats} distinct chat${g.chats === 1 ? "" : "s"} · undone ${g.undone}${g.movedOn ? ` · moved on after acting ${g.movedOn} (not counted)` : ""}`);
+    if (g.chats !== null)
+      out.push(
+        `  engaged with ${g.chats} distinct chat${g.chats === 1 ? "" : "s"} · undone ${g.undone}${g.movedOn ? ` · moved on after acting ${g.movedOn} (not counted)` : ""}`,
+      );
   }
-  if (g.shown) out.push(`  shown ${g.shown} · engaged by rank shown ${g.byRank.map(([rank, v]) => `${rank} ${pct(v.engaged, v.shown)} of ${v.shown}`).join(" · ")}`);
+  if (g.shown)
+    out.push(`  shown ${g.shown} · engaged by rank shown ${g.byRank.map(([rank, v]) => `${rank} ${pct(v.engaged, v.shown)} of ${v.shown}`).join(" · ")}`);
   const mins = (m: number | null) => (m === null ? "–" : m < 1 ? "<1 min" : m < 90 ? `${Math.round(m)} min` : `${Math.round(m / 6) / 10} h`);
-  if (g.respondMinutes !== null || g.decideMinutes !== null) out.push(`  time to respond after a turn ends ${mins(g.respondMinutes)} · an approval or question waits ${mins(g.decideMinutes)} (medians)`);
+  if (g.respondMinutes !== null || g.decideMinutes !== null)
+    out.push(`  time to respond after a turn ends ${mins(g.respondMinutes)} · an approval or question waits ${mins(g.decideMinutes)} (medians)`);
   if (r.harness.turns) {
     out.push("", `harness ${r.harness.turns} turns · p50/p90 · cost a turn, mean · cache share of prompt tokens`);
     const ms = (n: number | null) => (n === null ? "–" : n < 1000 ? `${Math.round(n)}ms` : `${(n / 1000).toFixed(1)}s`);
     const both = (s: Spread) => `${ms(s.p50)}/${ms(s.p90)}`;
     const share = (n: number | null) => (n === null ? "–" : `${Math.round(n * 100)}%`);
     const money = (n: number | null) => (n === null ? "–" : `$${n < 0.01 ? n.toFixed(4) : n.toFixed(3)}`);
-    for (const [title, rows] of [["by model", r.harness.byModel], ["by harness version", r.harness.byVersion]] as const) {
+    for (const [title, rows] of [
+      ["by model", r.harness.byModel],
+      ["by harness version", r.harness.byVersion],
+    ] as const) {
       const kw = Math.max(5, ...rows.map((row) => row.key.length));
-      out.push(`  ${title}`, `    ${"".padEnd(kw)} ${"turns".padStart(5)} ${"ttft".padStart(13)} ${"overhead".padStart(13)} ${"total".padStart(13)} ${"cost".padStart(8)} ${"cache".padStart(5)} ${"errors".padStart(6)} ${"tool fails".padStart(10)}`);
-      for (const row of rows) out.push(`    ${row.key.padEnd(kw)} ${String(row.turns).padStart(5)} ${both(row.ttftMs).padStart(13)} ${both(row.overheadMs).padStart(13)} ${both(row.totalMs).padStart(13)} ${money(row.costPerTurn).padStart(8)} ${share(row.cacheShare).padStart(5)} ${share(row.errorRate).padStart(6)} ${share(row.toolFailureRate).padStart(10)}`);
+      out.push(
+        `  ${title}`,
+        `    ${"".padEnd(kw)} ${"turns".padStart(5)} ${"ttft".padStart(13)} ${"overhead".padStart(13)} ${"total".padStart(13)} ${"cost".padStart(8)} ${"cache".padStart(5)} ${"errors".padStart(6)} ${"tool fails".padStart(10)}`,
+      );
+      for (const row of rows)
+        out.push(
+          `    ${row.key.padEnd(kw)} ${String(row.turns).padStart(5)} ${both(row.ttftMs).padStart(13)} ${both(row.overheadMs).padStart(13)} ${both(row.totalMs).padStart(13)} ${money(row.costPerTurn).padStart(8)} ${share(row.cacheShare).padStart(5)} ${share(row.errorRate).padStart(6)} ${share(row.toolFailureRate).padStart(10)}`,
+        );
     }
   }
   if (r.passes.length) {
     out.push("", "background passes · runs · how they ended · what they wrote · cost a run, mean");
     const money = (n: number | null) => (n === null ? "–" : `$${n < 0.01 ? n.toFixed(4) : n.toFixed(3)}`);
-    const list = (o: Record<string, number>) => Object.entries(o).filter(([, n]) => n).map(([k, n]) => `${k} ${n}`).join(" · ") || "–";
+    const list = (o: Record<string, number>) =>
+      Object.entries(o)
+        .filter(([, n]) => n)
+        .map(([k, n]) => `${k} ${n}`)
+        .join(" · ") || "–";
     for (const p of r.passes) out.push(`  ${p.job.padEnd(10)} ${String(p.runs).padStart(5)} · ${list(p.outcomes)} · ${list(p.items)} · ${money(p.costPerRun)}`);
   }
   out.push("", "when", `  hour  ${bars(r.hours, (h) => (h % 6 === 0 ? String(h).padStart(2, "0") : ""))}`, `  day   ${bars(r.weekdays, (d) => WEEKDAY[d])}`);

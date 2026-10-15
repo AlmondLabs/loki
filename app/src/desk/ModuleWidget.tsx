@@ -177,7 +177,11 @@ export function ModuleWidget({
   return (
     <>
       {shown && <WidgetError message={shown} />}
-      {!shown && !loaded && <div className="loki-muted" style={{ fontSize: 12 }}>loading…</div>}
+      {!shown && !loaded && (
+        <div className="loki-muted" style={{ fontSize: 12 }}>
+          loading…
+        </div>
+      )}
       <iframe
         ref={frameRef}
         src={FRAME_PATH}

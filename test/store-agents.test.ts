@@ -12,7 +12,13 @@ describe("daemon agents", () => {
     try {
       const id = await createAgent(dir, { name: "Ada", description: "A careful helper.", model: "openrouter/~anthropic/claude-haiku-latest" });
       expect(id).toMatch(/^agent-local-[0-9a-f-]{36}$/);
-      expect(readLocalAgent(id, dir)).toMatchObject({ id, name: "Ada", description: "A careful helper.", model: "openrouter/~anthropic/claude-haiku-latest", tags: ["origin:loki"] });
+      expect(readLocalAgent(id, dir)).toMatchObject({
+        id,
+        name: "Ada",
+        description: "A careful helper.",
+        model: "openrouter/~anthropic/claude-haiku-latest",
+        tags: ["origin:loki"],
+      });
       expect(memoryTree(id, dir).map((f) => f.path)).toContain("system/persona.md");
       const log = execFileSync("git", ["-C", join(dir, "memfs", id, "memory"), "log", "--format=%an|%s"], { encoding: "utf8" }).trim();
       expect(log).toBe("Ada|Begin memory");

@@ -11,7 +11,20 @@ import type { DeskSummary } from "../core/frame-types.ts";
  */
 
 const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary =>
-  ({ scope: scope as DeskSummary["scope"], title: scope, status: "live", agentName: "friday", agentId: "a1", conversationId: scope, model: null, pinned: false, widgets: 0, active: false, lastActive: "2026-09-08T10:00:00Z", ...over }) as DeskSummary;
+  ({
+    scope: scope as DeskSummary["scope"],
+    title: scope,
+    status: "live",
+    agentName: "friday",
+    agentId: "a1",
+    conversationId: scope,
+    model: null,
+    pinned: false,
+    widgets: 0,
+    active: false,
+    lastActive: "2026-09-08T10:00:00Z",
+    ...over,
+  }) as DeskSummary;
 const item = (id: string, status: AttentionItem["status"]): AttentionItem => ({ id, agentId: "a1", status }) as unknown as AttentionItem;
 
 const desks = [
@@ -36,7 +49,11 @@ describe("sections", () => {
     expect(secs.find((s) => s.id === "rest")?.label).toBe("Everything else");
   });
   test("nothing waiting, nothing pinned: one section, by last message, labelled plainly", () => {
-    const secs = sectionDesks(desks.map((d) => ({ ...d, pinned: false })), null, []);
+    const secs = sectionDesks(
+      desks.map((d) => ({ ...d, pinned: false })),
+      null,
+      [],
+    );
     expect(secs).toHaveLength(1);
     expect(secs[0].label).toBe("Chats");
     expect(secs[0].desks.map((d) => d.scope)).toEqual(["jira", "aws", "cost", "email", "old"]);
@@ -65,7 +82,10 @@ describe("the filter box's keys", () => {
 });
 
 describe("the live region's words", () => {
-  const chips = [{ id: "a1", name: "friday", count: 3 }, { id: "a2", name: null, count: 0 }];
+  const chips = [
+    { id: "a1", name: "friday", count: 3 },
+    { id: "a2", name: null, count: 0 },
+  ];
   test("all agents, or the agent and its desk count; while typing, how many match", () => {
     expect(statusLine(null, chips, "", 5)).toBe("all agents");
     expect(statusLine("a1", chips, "", 5)).toBe("friday · 3 chats");

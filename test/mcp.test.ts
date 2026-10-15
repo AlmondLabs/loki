@@ -48,7 +48,16 @@ describe("MCP config", () => {
       }),
     );
     expect(c.servers).toEqual([
-      { kind: "local", name: "github", entry: "github", command: "github-mcp-server", args: ["stdio"], env: { GITHUB_TOKEN: "t" }, cwd: null, alwaysLoad: ["list_issues"] },
+      {
+        kind: "local",
+        name: "github",
+        entry: "github",
+        command: "github-mcp-server",
+        args: ["stdio"],
+        env: { GITHUB_TOKEN: "t" },
+        cwd: null,
+        alwaysLoad: ["list_issues"],
+      },
       { kind: "remote", name: "my_linear", entry: "my linear", url: "https://mcp.linear.app/mcp", headers: { Authorization: "Bearer x" }, alwaysLoad: [] },
     ]);
     expect(c.problems).toEqual(['nothing: needs a "command" (a local server) or a "url" (a remote one)', 'ftp: "ftp://nope" is not an http(s) URL']);
@@ -59,7 +68,16 @@ describe("MCP config", () => {
 });
 
 describe("MCP tool names, search and results", () => {
-  const tool = (server: string, name: string, description: string, props: string[] = []): McpTool => ({ key: toolKey(server, name), server, name, title: null, description, inputSchema: { type: "object", properties: Object.fromEntries(props.map((p) => [p, { type: "string" }])) }, readOnly: false, destructive: false });
+  const tool = (server: string, name: string, description: string, props: string[] = []): McpTool => ({
+    key: toolKey(server, name),
+    server,
+    name,
+    title: null,
+    description,
+    inputSchema: { type: "object", properties: Object.fromEntries(props.map((p) => [p, { type: "string" }])) },
+    readOnly: false,
+    destructive: false,
+  });
   const tools = [
     tool("github", "list_pull_requests", "List pull requests of a repository", ["owner", "repo", "state"]),
     tool("github", "create_issue", "Open an issue", ["owner", "repo", "title"]),
@@ -85,7 +103,10 @@ describe("MCP tool names, search and results", () => {
   });
 
   test("select: picks exactly, by server.tool, bare name or key", () => {
-    expect(selected("select:linear.update_issue, github.create_issue", tools)?.map((t) => t.key)).toEqual(["mcp__linear__update_issue", "mcp__github__create_issue"]);
+    expect(selected("select:linear.update_issue, github.create_issue", tools)?.map((t) => t.key)).toEqual([
+      "mcp__linear__update_issue",
+      "mcp__github__create_issue",
+    ]);
     expect(selected("select:list_issues", tools)?.map((t) => t.key)).toEqual(["mcp__linear__list_issues"]);
     expect(selected("select:mcp__github__create_issue", tools)?.map((t) => t.name)).toEqual(["create_issue"]);
     expect(selected("list issues", tools)).toBeNull();
@@ -94,9 +115,25 @@ describe("MCP tool names, search and results", () => {
   test("text, images and resources map across; a big result spills to a file, an error is cut at both ends", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-mcp-results-"));
     try {
-      const small = mapResult({ content: [{ type: "text", text: "hi" }, { type: "image", data: "AAAA", mimeType: "image/png" }, { type: "resource_link", uri: "file:///a", name: "a" }] } as never, { spillDir: dir, name: "x" });
-      expect(small.content).toEqual([{ type: "text", text: "hi" }, { type: "image", data: "AAAA", mimeType: "image/png" }, { type: "text", text: "[resource] a file:///a" }]);
-      expect(mapResult({ content: [], structuredContent: { n: 1 } } as never, { spillDir: dir, name: "x" }).content[0]).toEqual({ type: "text", text: '{\n  "n": 1\n}' });
+      const small = mapResult(
+        {
+          content: [
+            { type: "text", text: "hi" },
+            { type: "image", data: "AAAA", mimeType: "image/png" },
+            { type: "resource_link", uri: "file:///a", name: "a" },
+          ],
+        } as never,
+        { spillDir: dir, name: "x" },
+      );
+      expect(small.content).toEqual([
+        { type: "text", text: "hi" },
+        { type: "image", data: "AAAA", mimeType: "image/png" },
+        { type: "text", text: "[resource] a file:///a" },
+      ]);
+      expect(mapResult({ content: [], structuredContent: { n: 1 } } as never, { spillDir: dir, name: "x" }).content[0]).toEqual({
+        type: "text",
+        text: '{\n  "n": 1\n}',
+      });
       const text = "0123456789".repeat(6000);
       const big = mapResult({ content: [{ type: "text", text }] } as never, { spillDir: dir, name: "mcp__github__search" });
       expect(big.spilled).not.toBeNull();
@@ -105,7 +142,10 @@ describe("MCP tool names, search and results", () => {
       expect(note).toContain("60,000 characters");
       expect(note).toContain(big.spilled!);
       expect(note.endsWith(text.slice(0, START_CHARS))).toBe(true);
-      const err = mapResult({ isError: true, content: [{ type: "text", text: `${"a".repeat(ERROR_KEEP)}${"m".repeat(20000)}${"z".repeat(ERROR_KEEP)}` }] } as never, { spillDir: dir, name: "x" });
+      const err = mapResult(
+        { isError: true, content: [{ type: "text", text: `${"a".repeat(ERROR_KEEP)}${"m".repeat(20000)}${"z".repeat(ERROR_KEEP)}` }] } as never,
+        { spillDir: dir, name: "x" },
+      );
       const errText = (err.content[0] as { text: string }).text;
       expect(err.isError).toBe(true);
       expect(errText.startsWith("a".repeat(ERROR_KEEP))).toBe(true);
@@ -160,7 +200,9 @@ describe("MCP servers", () => {
       expect(fake).toMatchObject({ state: "connected", tools: TOOLS.length });
       expect(missing.state).toBe("down");
       expect(missing.error).toBeTruthy();
-      expect((await servers.call("mcp__fake__create_issue", { repo: "loki", title: "t" })).content).toEqual([{ type: "text", text: 'create_issue {"repo":"loki","title":"t"}' }]);
+      expect((await servers.call("mcp__fake__create_issue", { repo: "loki", title: "t" })).content).toEqual([
+        { type: "text", text: 'create_issue {"repo":"loki","title":"t"}' },
+      ]);
       // A crash mid-call: the server is down, the call fails, and the stderr it printed is in the reason.
       await expect(servers.call("mcp__fake__crash", {})).rejects.toThrow();
       await until(() => servers.status()[0].state === "down", 5000);
@@ -182,7 +224,12 @@ describe("loki.mcp in a chat", () => {
     mcp.setCapture((e, p) => captured.push([e, p]));
     mcp.reload();
     await until(() => mcp.servers.status()[0]?.state === "connected");
-    await until(() => registry.snapshot().tools().some(({ tool }) => tool.name === "mcp__fake__list_issues"));
+    await until(() =>
+      registry
+        .snapshot()
+        .tools()
+        .some(({ tool }) => tool.name === "mcp__fake__list_issues"),
+    );
     const faux = fauxProvider();
     const models = createModels();
     models.setProvider(faux.provider);
@@ -190,7 +237,14 @@ describe("loki.mcp in a chat", () => {
     const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
     const asked: string[] = [];
     // The tools a request offers travel in the transcript's system messages (pi-ai's transcript context).
-    const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { messages: unknown[] }) => (asked.push(getCurrentTools(c.messages as never).map((t) => t.name).join(",")), m);
+    const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { messages: unknown[] }) => (
+      asked.push(
+        getCurrentTools(c.messages as never)
+          .map((t) => t.name)
+          .join(","),
+      ),
+      m
+    );
     const results = async () => (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model?.[0]));
     const cleanup = async () => {
       await mcp.close();
@@ -203,7 +257,9 @@ describe("loki.mcp in a chat", () => {
   test("the section names every server and tool; no MCP tool is offered until mcp_search loads it, then it is a real tool", async () => {
     const s = await setup();
     try {
-      expect(s.mcp.sectionText()).toContain("- fake: A fake issue tracker for tests (6 tools): list_issues, create_issue, delete_repo, dump_logs, always_fails, crash");
+      expect(s.mcp.sectionText()).toContain(
+        "- fake: A fake issue tracker for tests (6 tools): list_issues, create_issue, delete_repo, dump_logs, always_fails, crash",
+      );
       await s.mcp.prepare(s.store, s.chat, ctx);
       s.faux.setResponses([
         s.reply(fauxAssistantMessage(fauxToolCall("mcp_search", { query: "list open issues of a repository" }), { stopReason: "toolUse" })),
@@ -309,7 +365,10 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       writeFileSync(path, JSON.stringify({ note: "mine", mcpServers: { gh: { command: "old", timeout: 30, alwaysLoad: ["a"] } } }));
       editServer(path, "gh", { command: "github-mcp-server", args: ["stdio"], env: { T: "x" }, cwd: null });
       let raw = JSON.parse(readFileSync(path, "utf8"));
-      expect(raw).toEqual({ note: "mine", mcpServers: { gh: { timeout: 30, alwaysLoad: ["a"], command: "github-mcp-server", args: ["stdio"], env: { T: "x" } } } });
+      expect(raw).toEqual({
+        note: "mine",
+        mcpServers: { gh: { timeout: 30, alwaysLoad: ["a"], command: "github-mcp-server", args: ["stdio"], env: { T: "x" } } },
+      });
       editServer(path, "gh", { url: "https://x.example/mcp", headers: {} }, { rename: "github" });
       raw = JSON.parse(readFileSync(path, "utf8"));
       expect(raw.mcpServers).toEqual({ github: { timeout: 30, alwaysLoad: ["a"], url: "https://x.example/mcp" } });
@@ -330,13 +389,25 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
   });
 
   test("${keychain:…} values are filled in when a server connects; a missing secret says which", async () => {
-    const config = { kind: "local" as const, name: "gh", entry: "gh", command: "x", args: [], env: { TOKEN: "Bearer ${keychain:gh.TOKEN}", PLAIN: "p" }, cwd: null, alwaysLoad: [] };
+    const config = {
+      kind: "local" as const,
+      name: "gh",
+      entry: "gh",
+      command: "x",
+      args: [],
+      env: { TOKEN: "Bearer ${keychain:gh.TOKEN}", PLAIN: "p" },
+      cwd: null,
+      alwaysLoad: [],
+    };
     const filled = await withSecrets(config, async (n) => (n === "gh.TOKEN" ? "s3cret" : null));
     expect(filled).toMatchObject({ env: { TOKEN: "Bearer s3cret", PLAIN: "p" } });
     await expect(withSecrets(config, async () => null)).rejects.toThrow(/no secret named gh.TOKEN/);
     const seen: Array<Record<string, string>> = [];
     const mem = inMemory();
-    const servers = new McpServers({ connect: async (c, client, err) => (seen.push(c.kind === "local" ? c.env : c.headers), mem.connect(c, client, err)), resolve: (c) => withSecrets(c, async () => "s3cret") });
+    const servers = new McpServers({
+      connect: async (c, client, err) => (seen.push(c.kind === "local" ? c.env : c.headers), mem.connect(c, client, err)),
+      resolve: (c) => withSecrets(c, async () => "s3cret"),
+    });
     try {
       servers.configure([config]);
       await until(() => servers.status()[0]?.state === "connected");
@@ -352,7 +423,13 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
     const secrets = new Map<string, string>();
     const registry = createRegistry();
     const mem = inMemory();
-    const mcp = new McpTools({ registry, configPath: join(dir, "mcp.json"), lokiDir: dir, servers: new McpServers({ connect: mem.connect }), secrets: { get: async (a) => secrets.get(a) ?? null, set: async (a, v) => void secrets.set(a, v) } });
+    const mcp = new McpTools({
+      registry,
+      configPath: join(dir, "mcp.json"),
+      lokiDir: dir,
+      servers: new McpServers({ connect: mem.connect }),
+      secrets: { get: async (a) => secrets.get(a) ?? null, set: async (a, v) => void secrets.set(a, v) },
+    });
     try {
       mcp.setServer("fake", { command: "x", args: [], env: {}, cwd: null });
       await until(() => mcp.view().servers[0]?.state === "connected");

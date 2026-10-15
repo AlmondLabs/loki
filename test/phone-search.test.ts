@@ -3,7 +3,18 @@ import type { AttentionItem } from "../core/attention/model.ts";
 
 import { formatRoute } from "../app/src/phone/router.ts";
 import { createRecents } from "../app/src/phone/session.ts";
-import { DESTINATIONS, GROUP_MAX, MAX_QUERY, buildIndex, cleanQuery, isPlace, recentPlaceHits, search, tierOf, type SearchSources } from "../app/src/phone/searchIndex.ts";
+import {
+  DESTINATIONS,
+  GROUP_MAX,
+  MAX_QUERY,
+  buildIndex,
+  cleanQuery,
+  isPlace,
+  recentPlaceHits,
+  search,
+  tierOf,
+  type SearchSources,
+} from "../app/src/phone/searchIndex.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
@@ -52,7 +63,11 @@ const item = (id: string, title: string, over: Partial<AttentionItem> = {}): Att
   }) as AttentionItem;
 
 const src = (over: Partial<SearchSources> = {}): SearchSources => ({
-  desks: [desk("Loki mobile"), desk("Mobile budget", { conversationId: "c2", lastActive: "2026-09-22T10:00:00Z" }), desk("Automobile notes", { conversationId: "c3" })],
+  desks: [
+    desk("Loki mobile"),
+    desk("Mobile budget", { conversationId: "c2", lastActive: "2026-09-22T10:00:00Z" }),
+    desk("Automobile notes", { conversationId: "c3" }),
+  ],
   agents: [
     { id: "a1", name: "Friday" },
     { id: "a2", name: "Ledger" },
@@ -62,7 +77,10 @@ const src = (over: Partial<SearchSources> = {}): SearchSources => ({
   ...over,
 });
 
-const titles = (s: SearchSources, q: string, group: string) => search(s, q).find((g) => g.id === group)?.hits.map((h) => h.title) ?? [];
+const titles = (s: SearchSources, q: string, group: string) =>
+  search(s, q)
+    .find((g) => g.id === group)
+    ?.hits.map((h) => h.title) ?? [];
 
 describe("matching", () => {
   test("a blank query is no results (the recents show instead)", () => {
@@ -101,7 +119,9 @@ describe("matching", () => {
     for (const d of DESTINATIONS) expect(d.route.kind).not.toBe("search");
   });
   test("the inbox holds the loaded actionable items only", () => {
-    const s = src({ items: [item("i1", "Approve the invoice"), item("i2", "Invoice draft", { status: "running" }), item("i3", "Invoice idle", { status: "idle" })] });
+    const s = src({
+      items: [item("i1", "Approve the invoice"), item("i2", "Invoice draft", { status: "running" }), item("i3", "Invoice idle", { status: "idle" })],
+    });
     expect(titles(s, "invoice", "inbox")).toEqual(["Approve the invoice"]);
   });
   test("deterministic: the same query on the same data gives the same answer", () => {
@@ -130,12 +150,22 @@ describe("ranking", () => {
   });
   test("a title match beats an agent-name match of the same tier", () => {
     // both exact; the older desk named Atlas still comes before the newer one whose agent is Atlas
-    const s = src({ desks: [desk("Notes", { agentName: "Atlas", conversationId: "n1" }), desk("Atlas", { agentName: "Friday", conversationId: "n2", lastActive: "2026-01-01T00:00:00Z" })] });
+    const s = src({
+      desks: [
+        desk("Notes", { agentName: "Atlas", conversationId: "n1" }),
+        desk("Atlas", { agentName: "Friday", conversationId: "n2", lastActive: "2026-01-01T00:00:00Z" }),
+      ],
+    });
     expect(titles(s, "atlas", "desks")).toEqual(["Atlas", "Notes"]);
   });
   test("ties break by recency, newest first, then by list order", () => {
     const s = src({
-      desks: [desk("Plan A", { conversationId: "p1", lastActive: "2026-09-01T00:00:00Z" }), desk("Plan B", { conversationId: "p2", lastActive: "2026-09-10T00:00:00Z" }), desk("Plan C", { conversationId: "p3", lastActive: null }), desk("Plan D", { conversationId: "p4", lastActive: null })],
+      desks: [
+        desk("Plan A", { conversationId: "p1", lastActive: "2026-09-01T00:00:00Z" }),
+        desk("Plan B", { conversationId: "p2", lastActive: "2026-09-10T00:00:00Z" }),
+        desk("Plan C", { conversationId: "p3", lastActive: null }),
+        desk("Plan D", { conversationId: "p4", lastActive: null }),
+      ],
     });
     expect(titles(s, "plan", "desks")).toEqual(["Plan B", "Plan A", "Plan C", "Plan D"]);
   });
@@ -183,7 +213,11 @@ describe("recent places", () => {
   });
   test("the recents store, read through isPlace, hands back only valid places, bounded", () => {
     const mem = new Map<string, string>();
-    const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+    const storage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+      removeItem: (k: string) => void mem.delete(k),
+    };
     let now = 1;
     const places = createRecents({ storage, key: "p", max: 4, now: () => now++ });
     for (const h of ["#/learn", "#/nowhere", conv, "#/archive", agent, "#/about"]) places.add(h);
@@ -197,7 +231,11 @@ describe("recent places", () => {
 describe("recent searches", () => {
   test("remove takes one entry out; clear takes all", () => {
     const mem = new Map<string, string>();
-    const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+    const storage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+      removeItem: (k: string) => void mem.delete(k),
+    };
     let now = 1;
     const r = createRecents({ storage, key: "s", max: 8, now: () => now++ });
     r.add("alpha");

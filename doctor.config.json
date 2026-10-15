@@ -10,11 +10,6 @@
     "react-doctor/prefer-html-dialog": "off"
   },
   "ignore": {
-    "files": [
-      ".loki-build/**",
-      "src-tauri/target/**",
-      "src-tauri/resources/**",
-      "app/dist/**"
-    ]
+    "files": [".loki-build/**", "src-tauri/target/**", "src-tauri/resources/**", "app/dist/**"]
   }
 }

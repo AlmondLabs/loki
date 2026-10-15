@@ -13,7 +13,11 @@ import { ModRegistry } from "../daemon/mods/registry.ts";
 const modSource = (description: string) =>
   `export default { name: "folder-mod", apiVersion: 1, activate(api) { api.tools.register({ name: "hello", description: ${JSON.stringify(description)}, parameters: { type: "object", properties: {} }, execute: () => "hi" }); } };\n`;
 
-const descriptions = (mods: ModRegistry) => mods.registry.snapshot().tools().map((t) => t.tool.description);
+const descriptions = (mods: ModRegistry) =>
+  mods.registry
+    .snapshot()
+    .tools()
+    .map((t) => t.tool.description);
 
 async function until(check: () => boolean, ms = 3000) {
   const end = Date.now() + ms;

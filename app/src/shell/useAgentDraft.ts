@@ -21,7 +21,12 @@ export function useAgentDraft(onCreate: CreateAgent, onDone: (agentId: string) =
     setBusy(true);
     setError(null);
     try {
-      const r = await onCreate({ name: name.trim(), description: description.trim() || undefined, persona: persona.trim() || undefined, model: model.trim() || undefined });
+      const r = await onCreate({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        persona: persona.trim() || undefined,
+        model: model.trim() || undefined,
+      });
       if ("error" in r) return setError(r.error);
       onDone(r.id);
     } finally {

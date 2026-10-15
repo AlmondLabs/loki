@@ -31,7 +31,8 @@ export function skillsOf(backendDir: string, agentId: string | undefined, global
       out.set(name, { name, description: skillDescription(readFileSync(file, "utf8")), file });
     }
   }
-  for (const g of listGlobalSkills(globalDir)) if (!out.has(g.name)) out.set(g.name, { name: g.name, description: g.description, file: join(g.path, "SKILL.md") });
+  for (const g of listGlobalSkills(globalDir))
+    if (!out.has(g.name)) out.set(g.name, { name: g.name, description: g.description, file: join(g.path, "SKILL.md") });
   return [...out.values()];
 }
 

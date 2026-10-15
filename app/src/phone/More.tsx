@@ -15,7 +15,25 @@ import { Scroll, TopBar } from "./ui";
  * except Updates, whose reload is confirmed in a sheet here. Rows carry `data-launch`, so focus comes back
  * to the one you left from, and the scroll comes back from the scroll memory.
  */
-export function More({ me, link, agents, running, due, archived, servedBuild, banner }: { me: Me; link: LinkState; agents: number; running: number; due: number; archived: number; servedBuild: string | null; banner?: ReactNode }) {
+export function More({
+  me,
+  link,
+  agents,
+  running,
+  due,
+  archived,
+  servedBuild,
+  banner,
+}: {
+  me: Me;
+  link: LinkState;
+  agents: number;
+  running: number;
+  due: number;
+  archived: number;
+  servedBuild: string | null;
+  banner?: ReactNode;
+}) {
   const theme = useTheme();
   const [reload, setReload] = useState(false);
   const update = updateState(servedBuild, currentBuild());

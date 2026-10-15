@@ -42,7 +42,12 @@ export const isBlocked = (i: Unscored): boolean => i.status === "approval" || i.
 export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
   const hours = i.lastMessageAt ? Math.max(0, now - new Date(i.lastMessageAt).getTime()) / 3_600_000 : 0;
   const blocked = isBlocked(i);
-  return (blocked ? BLOCKED_POINTS : 0) + (!blocked && i.unread ? NEW_POINTS : 0) + FOCUS_POINTS * focus + (blocked ? WAITING_POINTS_PER_HOUR : -AGE_POINTS_PER_HOUR) * hours;
+  return (
+    (blocked ? BLOCKED_POINTS : 0) +
+    (!blocked && i.unread ? NEW_POINTS : 0) +
+    FOCUS_POINTS * focus +
+    (blocked ? WAITING_POINTS_PER_HOUR : -AGE_POINTS_PER_HOUR) * hours
+  );
 }
 
 export function reasonOf(i: Unscored, focus = 0): Reason {
@@ -54,7 +59,10 @@ export function reasonOf(i: Unscored, focus = 0): Reason {
 
 /** Highest stamped score first; a stable sort, so equal scores keep the order they came in. */
 export function byScore<T extends { score: number }>(items: readonly T[]): T[] {
-  return items.map((item, index) => ({ item, index })).sort((a, b) => b.item.score - a.item.score || a.index - b.index).map((x) => x.item);
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => b.item.score - a.item.score || a.index - b.index)
+    .map((x) => x.item);
 }
 
 /** Stamp every item's score, reason and focus at one instant, then order them; `focus` is each chat's share by "agentId/conversationId". */

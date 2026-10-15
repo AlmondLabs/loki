@@ -8,7 +8,16 @@ import { watchWidgets, type WidgetsDiff } from "../mod/widgets-fs.ts";
 import { attachWs, startServer } from "../mod/server.ts";
 
 const entry = (scope: string, name: string, title = name): WidgetManifestEntry => ({
-  id: `${scope}/${name}`, scope, name, kind: "json", file: `${scope}/${name}.json`, title, type: "stat", data: {}, hash: "h", updatedAt: 0,
+  id: `${scope}/${name}`,
+  scope,
+  name,
+  kind: "json",
+  file: `${scope}/${name}.json`,
+  title,
+  type: "stat",
+  data: {},
+  hash: "h",
+  updatedAt: 0,
 });
 const diff = (d: Partial<WidgetsDiff>): WidgetsDiff => ({ added: [], changed: [], removed: [], removedEntries: [], initial: false, ...d });
 
@@ -110,7 +119,12 @@ describe("WidgetLog", () => {
     // Used once: the same change again is the agent's.
     log.record(diff({ removed: ["d1/lesson"], removedEntries: [entry("d1", "lesson")] }), t + 600);
     log.record(diff({ added: [entry("d1", "trip")] }), t + 700);
-    expect(log.read("d1").slice(-2).map((r) => r.by)).toEqual(["agent", "agent"]);
+    expect(
+      log
+        .read("d1")
+        .slice(-2)
+        .map((r) => r.by),
+    ).toEqual(["agent", "agent"]);
   });
 
   test("an expectation lapses after its window, and must match the change as well as the widget", () => {
@@ -119,7 +133,10 @@ describe("WidgetLog", () => {
     log.expect("d1/b", "removed", "you", 0);
     log.record(diff({ changed: [entry("d1", "a")] }), 100);
     log.record(diff({ removed: ["d1/b"], removedEntries: [entry("d1", "b")] }), WIDGET_LOG_EXPECT_MS + 1);
-    expect(log.read("d1").map((r) => [r.widgetId, r.by])).toEqual([["d1/a", "agent"], ["d1/b", "agent"]]);
+    expect(log.read("d1").map((r) => [r.widgetId, r.by])).toEqual([
+      ["d1/a", "agent"],
+      ["d1/b", "agent"],
+    ]);
   });
 
   test("the agent's quick edit to a widget loki just wrote gets its own row, not loki's", () => {
@@ -127,7 +144,10 @@ describe("WidgetLog", () => {
     log.expect("d1/lesson", "added", "loki", 0);
     log.record(diff({ added: [entry("d1", "lesson")] }), 10);
     log.record(diff({ changed: [entry("d1", "lesson", "Lesson v2")] }), 20);
-    expect(log.read("d1").map((r) => [r.change, r.by])).toEqual([["added", "loki"], ["changed", "agent"]]);
+    expect(log.read("d1").map((r) => [r.change, r.by])).toEqual([
+      ["added", "loki"],
+      ["changed", "agent"],
+    ]);
   });
 
   test("the watcher's first scan is flagged initial; removals carry the entry that went", async () => {
@@ -153,7 +173,10 @@ describe("WidgetLog", () => {
         log.record(d, 1000);
       }
       expect(diffs.at(-1)!.removedEntries.map((e) => e.title)).toEqual(["Newer"]);
-      expect(log.read("d1").map((r) => [r.change, r.title])).toEqual([["added", "Newer"], ["removed", "Newer"]]);
+      expect(log.read("d1").map((r) => [r.change, r.title])).toEqual([
+        ["added", "Newer"],
+        ["removed", "Newer"],
+      ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

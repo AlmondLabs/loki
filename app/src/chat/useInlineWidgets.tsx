@@ -21,7 +21,13 @@ export const WidgetSourceContext = createContext<InlineWidgetSource | undefined>
  * log, and `inline(widgetId)` for the live widget. The desk's widgets are asked for once something in the thread
  * shows one (watchDesk), and again when they change. `readOnly` is the phone: it draws, it does not edit.
  */
-export function useInlineWidgets(given: InlineWidgetSource | undefined, scope: Scope | null, rows: TranscriptRow[] | undefined, agentName: string | null, opts: { readOnly?: boolean; onOpen?: (widgetId: string) => void } = {}): { widgets: WidgetMark[]; inline: (widgetId: string) => ReactNode } {
+export function useInlineWidgets(
+  given: InlineWidgetSource | undefined,
+  scope: Scope | null,
+  rows: TranscriptRow[] | undefined,
+  agentName: string | null,
+  opts: { readOnly?: boolean; onOpen?: (widgetId: string) => void } = {},
+): { widgets: WidgetMark[]; inline: (widgetId: string) => ReactNode } {
   const provided = useContext(WidgetSourceContext);
   const source = given ?? provided;
   const log = scope ? source?.widgetLogOf(scope) : undefined;
@@ -48,7 +54,14 @@ export function useInlineWidgets(given: InlineWidgetSource | undefined, scope: S
     (widgetId: string): ReactNode => {
       const entry = entries?.find((e) => e.id === widgetId);
       if (!entry) return null;
-      return <InlineWidget entry={entry} overlay={overlay?.[widgetId]} gesture={readOnly ? undefined : (g) => send.current?.(g)} onOpen={canOpen ? () => open.current?.(widgetId) : undefined} />;
+      return (
+        <InlineWidget
+          entry={entry}
+          overlay={overlay?.[widgetId]}
+          gesture={readOnly ? undefined : (g) => send.current?.(g)}
+          onOpen={canOpen ? () => open.current?.(widgetId) : undefined}
+        />
+      );
     },
     [entries, overlay, readOnly, canOpen],
   );

@@ -25,7 +25,8 @@ function parts(result: CallToolResult): Part[] {
   for (const block of result.content ?? []) {
     const b = block as Record<string, unknown> & { type: string };
     if (b.type === "text" && typeof b.text === "string") out.push({ type: "text", text: b.text });
-    else if (b.type === "image" && typeof b.data === "string") out.push({ type: "image", data: b.data, mimeType: typeof b.mimeType === "string" ? b.mimeType : "image/png" });
+    else if (b.type === "image" && typeof b.data === "string")
+      out.push({ type: "image", data: b.data, mimeType: typeof b.mimeType === "string" ? b.mimeType : "image/png" });
     else if (b.type === "resource_link") out.push({ type: "text", text: `[resource] ${String(b.name ?? b.title ?? "")} ${String(b.uri ?? "")}`.trim() });
     else if (b.type === "resource") {
       const r = (b.resource ?? {}) as { uri?: string; text?: string; blob?: string; mimeType?: string };
@@ -53,7 +54,10 @@ let spills = 0;
 export function mapResult(result: CallToolResult, opts: { spillDir: string; name: string }): Mapped {
   const content = parts(result);
   const isError = result.isError === true;
-  const text = content.filter((p): p is Extract<Part, { type: "text" }> => p.type === "text").map((p) => p.text).join("\n");
+  const text = content
+    .filter((p): p is Extract<Part, { type: "text" }> => p.type === "text")
+    .map((p) => p.text)
+    .join("\n");
   const chars = text.length;
   if (isError) return { content: content.map((p) => (p.type === "text" ? { ...p, text: trimError(p.text) } : p)), isError, spilled: null, chars };
   if (chars <= SPILL_CHARS && tokensOf(chars) <= SPILL_TOKENS) return { content, isError, spilled: null, chars };

@@ -60,14 +60,44 @@ export interface Destination {
 /** The places Search can open by name: the tabs and the pages under Home and More. */
 export const DESTINATIONS: readonly Destination[] = [
   { route: { kind: "tab", tab: "home" }, icon: "home", label: "Home", line: "Chats and what needs you", keywords: ["chats", "desks", "start"] },
-  { route: { kind: "tab", tab: "inbox" }, icon: "inbox", label: "Inbox", line: "What waits on you", keywords: ["catch up", "waiting", "approvals", "activity"] },
+  {
+    route: { kind: "tab", tab: "inbox" },
+    icon: "inbox",
+    label: "Inbox",
+    line: "What waits on you",
+    keywords: ["catch up", "waiting", "approvals", "activity"],
+  },
   { route: { kind: "tab", tab: "agents" }, icon: "agents", label: "Agents", line: "Every agent on the Mac", keywords: ["dms", "people"] },
   { route: { kind: "tab", tab: "more" }, icon: "more", label: "More", line: "This phone and the paired Mac", keywords: ["you", "profile"] },
   { route: { kind: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
-  { route: { kind: "learn", view: "leads" }, icon: "learn", label: "Leads", line: "Things worth learning properly, each a lesson away", keywords: ["learn", "lessons", "concepts"] },
-  { route: { kind: "archive" }, icon: "archive", label: "Archived chats", line: "Chats put away, to restore", keywords: ["archive", "restore", "old chats", "desks"] },
-  { route: { kind: "preferences" }, icon: "settings", label: "Preferences", line: "Appearance", keywords: ["settings", "appearance", "theme", "dark mode", "light mode"] },
-  { route: { kind: "connection" }, icon: "link", label: "Connection details", line: "The paired Mac and this phone's pairing", keywords: ["paired mac", "pairing", "wi-fi", "tailscale", "unpair", "network"] },
+  {
+    route: { kind: "learn", view: "leads" },
+    icon: "learn",
+    label: "Leads",
+    line: "Things worth learning properly, each a lesson away",
+    keywords: ["learn", "lessons", "concepts"],
+  },
+  {
+    route: { kind: "archive" },
+    icon: "archive",
+    label: "Archived chats",
+    line: "Chats put away, to restore",
+    keywords: ["archive", "restore", "old chats", "desks"],
+  },
+  {
+    route: { kind: "preferences" },
+    icon: "settings",
+    label: "Preferences",
+    line: "Appearance",
+    keywords: ["settings", "appearance", "theme", "dark mode", "light mode"],
+  },
+  {
+    route: { kind: "connection" },
+    icon: "link",
+    label: "Connection details",
+    line: "The paired Mac and this phone's pairing",
+    keywords: ["paired mac", "pairing", "wi-fi", "tailscale", "unpair", "network"],
+  },
   { route: { kind: "about" }, icon: "info", label: "About loki", line: "Version and build", keywords: ["version", "build", "updates"] },
 ];
 
@@ -116,7 +146,15 @@ const itemHit = (i: AttentionItem): Hit => ({
   lead: { agent: { id: i.agentId, name: i.agentName ?? "agent" } },
   dim: false,
 });
-const pageHit = (d: Destination): Hit => ({ key: `page:${formatRoute(d.route)}`, group: "pages", title: d.label, preview: d.line, route: d.route, lead: { icon: d.icon }, dim: false });
+const pageHit = (d: Destination): Hit => ({
+  key: `page:${formatRoute(d.route)}`,
+  group: "pages",
+  title: d.label,
+  preview: d.line,
+  route: d.route,
+  lead: { icon: d.icon },
+  dim: false,
+});
 
 const openable = (d: DeskSummary): d is DeskSummary & { agentId: string; conversationId: string } => !!d.agentId && !!d.conversationId;
 
@@ -154,7 +192,15 @@ export function placeHit(hash: string, src: SearchSources): Hit | null {
     const a = src.agents.find((x) => x.id === r.agentId);
     if (!a) return null;
     if (r.kind === "agent") return agentHit(a, src.describe?.(a.id));
-    return { key: `file:${hash}`, group: "agents", title: r.path.split("/").pop() || r.path, preview: `${a.name} · memory`, route: r, lead: { icon: "file" }, dim: false };
+    return {
+      key: `file:${hash}`,
+      group: "agents",
+      title: r.path.split("/").pop() || r.path,
+      preview: `${a.name} · memory`,
+      route: r,
+      lead: { icon: "file" },
+      dim: false,
+    };
   }
   if (r.kind === "conversation") {
     const d = src.desks.find((x) => x.agentId === r.agentId && x.conversationId === r.conversationId);

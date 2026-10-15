@@ -107,7 +107,13 @@ export class RecallStore {
       front,
       back,
       tags,
-      ...(changedText ? { updatedAt: new Date(now).toISOString(), updatedBy: by, previous: [...cur.previous, { front: cur.front, back: cur.back, at: cur.updatedAt, by: cur.updatedBy }].slice(-5) } : {}),
+      ...(changedText
+        ? {
+            updatedAt: new Date(now).toISOString(),
+            updatedBy: by,
+            previous: [...cur.previous, { front: cur.front, back: cur.back, at: cur.updatedAt, by: cur.updatedBy }].slice(-5),
+          }
+        : {}),
     };
     writeJson(this.f("cards", id), next);
     return next;

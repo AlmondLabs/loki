@@ -105,7 +105,16 @@ describe("Letta's log as loki showed it (the import's reference)", () => {
       const lines = [
         { type: "session", id: "local-conv-9" },
         { type: "message", message: { role: "user", content: [{ type: "text", text: "<system-reminder>env</system-reminder>\nhello there" }] } },
-        { type: "message", message: { role: "assistant", content: [{ type: "thinking", thinking: "hm" }, { type: "toolCall", id: "t1", name: "Bash", arguments: {} }] } },
+        {
+          type: "message",
+          message: {
+            role: "assistant",
+            content: [
+              { type: "thinking", thinking: "hm" },
+              { type: "toolCall", id: "t1", name: "Bash", arguments: {} },
+            ],
+          },
+        },
         { type: "message", message: { role: "toolResult", toolCallId: "t1", toolName: "Bash", isError: false, content: [{ type: "text", text: "ok" }] } },
         { type: "compaction", summary: "…" },
         { type: "message", message: { role: "assistant", content: [{ type: "text", text: "done." }] } },

@@ -90,10 +90,15 @@ export function buildPrompt(input: PromptInput): string {
     `The front is a question that stands alone without the conversation; the back is the answer in one or two lines. Never write a card close to a rejected one, or one an existing card already covers. Fewer is better, and most stretches of work hold nothing worth a card: zero is the usual answer.`,
     ``,
     `The person ("you") was talking with ${who}.`,
-    input.room > 0 ? `You may write at most ${input.room} new card${input.room === 1 ? "" : "s"} across everything below.` : `Today's quota of new cards is already written: write no new cards this time. Revisions of existing cards are still welcome.`,
+    input.room > 0
+      ? `You may write at most ${input.room} new card${input.room === 1 ? "" : "s"} across everything below.`
+      : `Today's quota of new cards is already written: write no new cards this time. Revisions of existing cards are still welcome.`,
   );
   if (input.rejected.length) {
-    lines.push(``, `Cards the person deleted (do not write these or anything like them; a high review count means it was badly written, a zero means it was unwanted):`);
+    lines.push(
+      ``,
+      `Cards the person deleted (do not write these or anything like them; a high review count means it was badly written, a zero means it was unwanted):`,
+    );
     for (const r of input.rejected.slice(0, 40)) lines.push(`- [${r.reps} reviews] Q: ${oneLine(r.front)} — A: ${oneLine(r.back)}`);
   }
   if (input.existing.length) {
@@ -113,8 +118,10 @@ export function buildPrompt(input: PromptInput): string {
       `For each lead: "title" in a few words (a concept, not a question), "why" quoting the moment in one line, and "depth": "primer" if one sitting would do, "course" if it takes several.`,
     );
     const named = [...leads.open, ...leads.started];
-    if (named.length) lines.push(`Leads already proposed or under way (do not name these or anything close):`, ...named.slice(0, 60).map((t) => `- ${oneLine(t)}`));
-    if (leads.dismissed.length) lines.push(`Leads the person dismissed (never again, nor anything like them):`, ...leads.dismissed.slice(0, 60).map((t) => `- ${oneLine(t)}`));
+    if (named.length)
+      lines.push(`Leads already proposed or under way (do not name these or anything close):`, ...named.slice(0, 60).map((t) => `- ${oneLine(t)}`));
+    if (leads.dismissed.length)
+      lines.push(`Leads the person dismissed (never again, nor anything like them):`, ...leads.dismissed.slice(0, 60).map((t) => `- ${oneLine(t)}`));
   }
   lines.push(``);
   if (input.slices.length === 1 && fresh.length === 1) {
@@ -127,9 +134,16 @@ export function buildPrompt(input: PromptInput): string {
   lines.push(`Name the slice each card, revision and lead came from; a card drawn from two names the one where it was learned first.`);
   for (const s of input.slices) {
     const text = s.text.length > MAX_TRANSCRIPT_CHARS ? s.text.slice(-MAX_TRANSCRIPT_CHARS) : s.text;
-    const attrs = [`id="${s.id}"`, `conversation="${attr(s.title ?? "untitled")}"`, `mode="${s.mode}"`, ...(s.forCard ? [`for="${attr(s.forCard)}"`] : []), `chars="${text.length}"`];
+    const attrs = [
+      `id="${s.id}"`,
+      `conversation="${attr(s.title ?? "untitled")}"`,
+      `mode="${s.mode}"`,
+      ...(s.forCard ? [`for="${attr(s.forCard)}"`] : []),
+      `chars="${text.length}"`,
+    ];
     lines.push(``, `<slice ${attrs.join(" ")}>`);
-    if (s.mode === "replay") lines.push(`(read before; here because card ${s.forCard ?? "above"} keeps failing — use it for that rewrite, and write nothing new from it)`);
+    if (s.mode === "replay")
+      lines.push(`(read before; here because card ${s.forCard ?? "above"} keeps failing — use it for that rewrite, and write nothing new from it)`);
     lines.push(text, `</slice>`);
   }
   lines.push(
@@ -183,7 +197,13 @@ export function parseExtraction(text: string, knownIds: Set<string>, opts: { max
     const front = str(r.front);
     const back = str(r.back);
     if (!front || !back) continue;
-    const tags = Array.isArray(r.tags) ? r.tags.filter((t): t is string => typeof t === "string").map((t) => t.toLowerCase().trim()).filter(Boolean).slice(0, 3) : [];
+    const tags = Array.isArray(r.tags)
+      ? r.tags
+          .filter((t): t is string => typeof t === "string")
+          .map((t) => t.toLowerCase().trim())
+          .filter(Boolean)
+          .slice(0, 3)
+      : [];
     cards.push({ front, back, tags, ...sliceOf(r) });
   }
   const revisions: Revision[] = [];
@@ -201,7 +221,9 @@ export function parseExtraction(text: string, knownIds: Set<string>, opts: { max
   for (const c of Array.isArray(o.leads) ? o.leads : []) {
     if (!c || typeof c !== "object") continue;
     const r = c as Record<string, unknown>;
-    const title = str(r.title).replace(/[.?!]+$/, "").slice(0, 80);
+    const title = str(r.title)
+      .replace(/[.?!]+$/, "")
+      .slice(0, 80);
     const why = str(r.why).slice(0, 300);
     if (!title || !why) continue;
     leads.push({ title, why, depth: r.depth === "course" ? "course" : "primer", ...sliceOf(r) });
@@ -240,5 +262,10 @@ export function similarFront(a: string, b: string): boolean {
   return short.length >= 12 && long.includes(short) && short.length / long.length >= 0.6;
 }
 function norm(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\b(what|which|who|how|why|when|where|is|are|the|a|an|of|to|in|does|do|did)\b/g, " ").replace(/\s+/g, " ").trim();
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\b(what|which|who|how|why|when|where|is|are|the|a|an|of|to|in|does|do|did)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }

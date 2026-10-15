@@ -78,7 +78,17 @@ describe("agents selection", () => {
   test("a junk page in storage falls back; a blocked storage still works in memory", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     expect(createAgentsSelection(memory({ [AGENT_PAGE_KEY]: "global skills" })).get().page).toBe("memory");
-    const blocked = { getItem: () => { throw new Error("no"); }, setItem: () => { throw new Error("no"); }, removeItem: () => { throw new Error("no"); } };
+    const blocked = {
+      getItem: () => {
+        throw new Error("no");
+      },
+      setItem: () => {
+        throw new Error("no");
+      },
+      removeItem: () => {
+        throw new Error("no");
+      },
+    };
     const s = createAgentsSelection(blocked);
     s.pickPage("changes");
     expect(s.get().page).toBe("changes");
@@ -118,9 +128,24 @@ describe("agents selection", () => {
 
 /** The Agents column as Slack DMs (app/src/agents/rows.ts, AgentsColumn). */
 describe("agents column", () => {
-  const item = (agentId: string, id: string, status: string, extra = {}) => ({ id, agentId, status, lastAssistantText: null, lastMessageAt: null, archived: false, ...extra });
-  const agents = [{ id: "a1", name: "ira" }, { id: "a2", name: "friday" }];
-  const desks = [{ agentId: "a1", status: "live" }, { agentId: "a2", status: "live" }, { agentId: "a2", status: "live" }];
+  const item = (agentId: string, id: string, status: string, extra = {}) => ({
+    id,
+    agentId,
+    status,
+    lastAssistantText: null,
+    lastMessageAt: null,
+    archived: false,
+    ...extra,
+  });
+  const agents = [
+    { id: "a1", name: "ira" },
+    { id: "a2", name: "friday" },
+  ];
+  const desks = [
+    { agentId: "a1", status: "live" },
+    { agentId: "a2", status: "live" },
+    { agentId: "a2", status: "live" },
+  ];
   const items = [
     item("a1", "c1", "approval", { lastAssistantText: "Can I run the migration?\nIt drops a table.", lastMessageAt: "2026-09-23T10:00:00Z" }),
     item("a1", "c2", "question", { lastAssistantText: "older", lastMessageAt: "2026-09-22T10:00:00Z" }),
@@ -167,7 +192,23 @@ describe("agents column", () => {
 
 /** The Agents pane (Agents.tsx) with its column outside, in the Shell's ListColumn. */
 describe("agents pane", () => {
-  const props = (agents: Array<{ id: string; name: string }>) => ({ agents, api: {}, avatar: () => "", desks: [], items: [], tasks: null, initialAgentId: null, onOpenDesk: () => {}, onAskToUpdate: () => {}, onUpdateAgent: async () => null, write: {}, reflect: {}, listModels: async () => [], onShowDesks: () => {}, onShowTasks: () => {} });
+  const props = (agents: Array<{ id: string; name: string }>) => ({
+    agents,
+    api: {},
+    avatar: () => "",
+    desks: [],
+    items: [],
+    tasks: null,
+    initialAgentId: null,
+    onOpenDesk: () => {},
+    onAskToUpdate: () => {},
+    onUpdateAgent: async () => null,
+    write: {},
+    reflect: {},
+    listModels: async () => [],
+    onShowDesks: () => {},
+    onShowTasks: () => {},
+  });
   test("no agents: the invitation, as an empty pane, with its new agent button", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");

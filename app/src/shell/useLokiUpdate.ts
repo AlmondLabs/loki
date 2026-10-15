@@ -71,20 +71,41 @@ export function newestWith(releases: Release[], os: Platform = platform): Releas
 export function useLokiUpdate(): LokiUpdate {
   // Fixed at build time: the version string says which channel this build is on.
   const channel = channelOf(__LOKI_VERSION__);
-  const [state, setState] = useState<LokiUpdate>({ current: __LOKI_VERSION__, channel, latest: null, url: null, download: null, issues: __LOKI_REPO__ ? `https://github.com/${__LOKI_REPO__}/issues` : null, newer: false, error: null });
+  const [state, setState] = useState<LokiUpdate>({
+    current: __LOKI_VERSION__,
+    channel,
+    latest: null,
+    url: null,
+    download: null,
+    issues: __LOKI_REPO__ ? `https://github.com/${__LOKI_REPO__}/issues` : null,
+    newer: false,
+    error: null,
+  });
   useEffect(() => {
     if (!__LOKI_REPO__) return;
     let cancelled = false;
     const check = async () => {
       try {
         const listed = channel === "stable" && platform !== "macos";
-        const r = await fetch(`https://api.github.com/repos/${__LOKI_REPO__}/releases${listed ? "?per_page=30" : channel === "nightly" ? "/tags/nightly" : "/latest"}`, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" });
-        if (!r.ok) throw new Error(r.status === 404 ? (channel === "nightly" ? "no nightly published yet" : "no release published yet") : `GitHub answered ${r.status}`);
+        const r = await fetch(
+          `https://api.github.com/repos/${__LOKI_REPO__}/releases${listed ? "?per_page=30" : channel === "nightly" ? "/tags/nightly" : "/latest"}`,
+          { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" },
+        );
+        if (!r.ok)
+          throw new Error(r.status === 404 ? (channel === "nightly" ? "no nightly published yet" : "no release published yet") : `GitHub answered ${r.status}`);
         const j = listed ? newestWith((await r.json()) as Release[]) : ((await r.json()) as Release);
         if (!j) throw new Error("no release has this system's file yet");
         const latest = channel === "nightly" ? nightlyVersionIn(j.name) : (j.tag_name ?? "").replace(/^v/, "");
         if (!latest) throw new Error("release without a version");
-        if (!cancelled) setState((s) => ({ ...s, latest, url: j.html_url ?? null, download: downloadFor(j), newer: channel === "nightly" ? latest !== s.current : isNewerVersion(s.current, latest), error: null }));
+        if (!cancelled)
+          setState((s) => ({
+            ...s,
+            latest,
+            url: j.html_url ?? null,
+            download: downloadFor(j),
+            newer: channel === "nightly" ? latest !== s.current : isNewerVersion(s.current, latest),
+            error: null,
+          }));
       } catch (err) {
         if (!cancelled) setState((s) => ({ ...s, error: err instanceof Error ? err.message : String(err) }));
       }

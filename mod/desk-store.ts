@@ -1,5 +1,16 @@
 import type { DeskState, Gesture, Scope } from "../core/desk-core.ts";
-import { SHARED_SCOPE, applyGesture, applyMeasure, arrangeLayout, clearOverlay, emptyDesk, ensureLayout, forgetWidget, occupiedRects, reveal } from "../core/desk-core.ts";
+import {
+  SHARED_SCOPE,
+  applyGesture,
+  applyMeasure,
+  arrangeLayout,
+  clearOverlay,
+  emptyDesk,
+  ensureLayout,
+  forgetWidget,
+  occupiedRects,
+  reveal,
+} from "../core/desk-core.ts";
 import type { Size } from "../core/desk-core.ts";
 
 export type StoreListener = (scope: Scope, state: DeskState) => void;

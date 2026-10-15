@@ -58,7 +58,10 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
             </span>
           )}
           {notice && <Meta wrap>{notice}</Meta>}
-          <Meta wrap>For every agent: once chats have been quiet for half an hour, the agent reads what was said in them since it last looked, several together and at most every two hours, and keeps in memory what will matter in later chats, what recurs across them most of all. /reflect in a chat does it now.</Meta>
+          <Meta wrap>
+            For every agent: once chats have been quiet for half an hour, the agent reads what was said in them since it last looked, several together and at
+            most every two hours, and keeps in memory what will matter in later chats, what recurs across them most of all. /reflect in a chat does it now.
+          </Meta>
         </div>
       </ListPane>
       <Pane>

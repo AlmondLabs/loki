@@ -47,7 +47,9 @@ export type WindowAction = "minimize" | "toggleMaximize" | "close";
 const currentWindow = () => import("@tauri-apps/api/window").then(({ getCurrentWindow }) => getCurrentWindow());
 
 function windowAction(action: WindowAction) {
-  void currentWindow().then((win) => win[action]()).catch((e) => console.warn(`loki: window ${action}`, e));
+  void currentWindow()
+    .then((win) => win[action]())
+    .catch((e) => console.warn(`loki: window ${action}`, e));
 }
 
 /** Whether the window is maximised, read at mount and again on every resize (maximising, restoring, a snap). */
@@ -160,7 +162,19 @@ export function Sidebar({
             <span style={{ display: "grid", placeItems: "center", marginTop: s.id === "settings" && !column ? "auto" : 0 }}>
               <button
                 onClick={() => onSelect(s.id)}
-                aria-label={isInbox && waiting > 0 ? `${s.label}, ${waiting} waiting` : s.id === "tasks" && openTasks > 0 ? `${s.label}, ${openTasks} open` : s.id === "learn" && dueCards > 0 ? `${s.label}, ${dueCards} due` : s.id === "settings" && updateReady ? `${s.label}, a newer loki is out` : s.id === "settings" && lanOn ? `${s.label}, phones can reach this Mac` : s.label}
+                aria-label={
+                  isInbox && waiting > 0
+                    ? `${s.label}, ${waiting} waiting`
+                    : s.id === "tasks" && openTasks > 0
+                      ? `${s.label}, ${openTasks} open`
+                      : s.id === "learn" && dueCards > 0
+                        ? `${s.label}, ${dueCards} due`
+                        : s.id === "settings" && updateReady
+                          ? `${s.label}, a newer loki is out`
+                          : s.id === "settings" && lanOn
+                            ? `${s.label}, phones can reach this Mac`
+                            : s.label
+                }
                 aria-pressed={active}
                 title={`${s.label} (${s.key})`}
                 className={`loki-rail${isInbox && tick ? " loki-tick" : ""}`}
@@ -184,7 +198,14 @@ export function Sidebar({
                 {s.id === "tasks" && openTasks > 0 && <Badge n={openTasks} tone="quiet" />}
                 {s.id === "learn" && dueCards > 0 && <Badge n={dueCards} tone="quiet" />}
                 {/* A newer loki is out (the accent), or the listener is on and the page is reachable from the Wi‑Fi (a green dot, D11). */}
-                {s.id === "settings" && (lanOn || updateReady) && <Dot aria-hidden halo color={updateReady ? "var(--loki-accent)" : "var(--loki-positive)"} style={{ position: "absolute", top: 3, right: 3 }} />}
+                {s.id === "settings" && (lanOn || updateReady) && (
+                  <Dot
+                    aria-hidden
+                    halo
+                    color={updateReady ? "var(--loki-accent)" : "var(--loki-positive)"}
+                    style={{ position: "absolute", top: 3, right: 3 }}
+                  />
+                )}
               </button>
               <span className="loki-label" style={{ fontSize: 9.5, marginTop: 2, color: active ? "var(--loki-fg)" : "var(--loki-muted)" }}>
                 {s.label}
@@ -206,7 +227,19 @@ function ColumnToggle({ open, onToggle }: { open: boolean; onToggle: () => void 
       aria-pressed={open}
       title={`${open ? "Hide" : "Show"} sidebar (${keyFor("column.toggle")})`}
       className="loki-rail"
-      style={{ marginTop: "auto", width: 36, height: 28, display: "grid", placeItems: "center", border: "1px solid transparent", borderRadius: "var(--loki-radius-md)", background: "transparent", color: "var(--loki-muted)", cursor: "pointer", padding: 0 }}
+      style={{
+        marginTop: "auto",
+        width: 36,
+        height: 28,
+        display: "grid",
+        placeItems: "center",
+        border: "1px solid transparent",
+        borderRadius: "var(--loki-radius-md)",
+        background: "transparent",
+        color: "var(--loki-muted)",
+        cursor: "pointer",
+        padding: 0,
+      }}
     >
       <svg {...common} aria-hidden>
         <rect x="2.5" y="3.5" width="15" height="13" rx="1.5" />
@@ -246,7 +279,16 @@ function Badge({ n, tone }: { n: number; tone: "attention" | "quiet" }) {
 }
 
 /** Every rail icon: an 18px 20-unit box, hairline strokes. */
-const common = { width: 18, height: 18, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.4, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+const common = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 20 20",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.4,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
 
 function Icon({ id }: { id: Segment }) {
   if (id === "desk") {

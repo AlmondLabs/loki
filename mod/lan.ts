@@ -323,7 +323,11 @@ export class LanListener {
         }
       }
       if (profileRoute(req, res, url, this.authorize, this.opts.profile, 401)) return;
-      if (this.opts.uploads && uploadRoute(req, res, url, { authorize: this.authorize, dir: this.opts.uploads, denied: 401, guard: (r) => crossOrigin(r, this.allowedHosts()) })) return;
+      if (
+        this.opts.uploads &&
+        uploadRoute(req, res, url, { authorize: this.authorize, dir: this.opts.uploads, denied: 401, guard: (r) => crossOrigin(r, this.allowedHosts()) })
+      )
+        return;
       // The canvas build can land after the mod started (the app installs it on launch; a developer runs
       // build:app later): look again while it is missing, so phones stop seeing the 503 without a /reload.
       if (this.dist === null && this.opts.appDist === undefined) {
@@ -345,21 +349,24 @@ export class LanListener {
   private pair(req: IncomingMessage, res: ServerResponse): void {
     const ip = req.socket.remoteAddress ?? "?";
     if (this.attempts.blocked(ip)) return void json(res, 429, { error: "too many wrong codes; wait a while" });
-    void readJson(req).then((body) => {
-      // Again once the body is in: requests sent together all passed the first check before any had failed.
-      if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
-      if (!body || typeof body.code !== "string") return json(res, 400, { error: "expected {code, name}" });
-      if (!this.opts.codes.redeem(body.code)) {
-        this.attempts.failed(ip);
-        return json(res, 404, { error: "unknown or expired code" });
-      }
-      this.attempts.clear(ip);
-      const name = typeof body.name === "string" && body.name.trim() ? body.name : "Phone";
-      const { id, token } = this.opts.devices.mint(name);
-      log("lan:paired", { id, name });
-      this.opts.onChange?.("devices", this.status());
-      json(res, 200, { deviceId: id, name: this.opts.devices.get(id)?.name ?? name }, { "set-cookie": setCookie(token) });
-    }, () => json(res, 400, { error: "bad request body" }));
+    void readJson(req).then(
+      (body) => {
+        // Again once the body is in: requests sent together all passed the first check before any had failed.
+        if (this.attempts.blocked(ip)) return json(res, 429, { error: "too many wrong codes; wait a while" });
+        if (!body || typeof body.code !== "string") return json(res, 400, { error: "expected {code, name}" });
+        if (!this.opts.codes.redeem(body.code)) {
+          this.attempts.failed(ip);
+          return json(res, 404, { error: "unknown or expired code" });
+        }
+        this.attempts.clear(ip);
+        const name = typeof body.name === "string" && body.name.trim() ? body.name : "Phone";
+        const { id, token } = this.opts.devices.mint(name);
+        log("lan:paired", { id, name });
+        this.opts.onChange?.("devices", this.status());
+        json(res, 200, { deviceId: id, name: this.opts.devices.get(id)?.name ?? name }, { "set-cookie": setCookie(token) });
+      },
+      () => json(res, 400, { error: "bad request body" }),
+    );
   }
 }
 
@@ -442,7 +449,7 @@ export function requestVia(req: Pick<IncomingMessage, "headers"> & { socket?: { 
   const remote = (req.socket?.remoteAddress ?? "").replace(/^::ffff:/i, "");
   if (isTailnetAddress(remote)) return "tailscale";
   const forwarded = req.headers["x-forwarded-for"];
-  const peer = (Array.isArray(forwarded) ? forwarded[0] : forwarded ?? "").split(",")[0]?.trim() ?? "";
+  const peer = (Array.isArray(forwarded) ? forwarded[0] : (forwarded ?? "")).split(",")[0]?.trim() ?? "";
   if (isLoopback(remote) && isTailnetAddress(peer)) return "tailscale";
   const host = typeof req.headers.host === "string" ? req.headers.host.toLowerCase() : "";
   if (isLoopback(remote) && /\.ts\.net(:\d+)?$/.test(host)) return "tailscale";
@@ -467,7 +474,8 @@ export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfac
   }
   const names = Object.keys(table).sort((a, b) => Number(b === "en0") - Number(a === "en0") || a.localeCompare(b));
   const out: string[] = [];
-  for (const name of names) for (const info of table[name] ?? []) if (!info.internal && (info.family === "IPv4" || (info.family as unknown) === 4)) out.push(info.address);
+  for (const name of names)
+    for (const info of table[name] ?? []) if (!info.internal && (info.family === "IPv4" || (info.family as unknown) === 4)) out.push(info.address);
   return out;
 }
 
@@ -479,13 +487,17 @@ export function lanAddresses(interfaces: () => ReturnType<typeof networkInterfac
 export function bonjourHost(): string | null {
   let name: string | null = null;
   try {
-    name = execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+    name =
+      execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8", timeout: 1500, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
   } catch {
     // not macOS, or scutil unavailable
   }
   if (!name) {
     try {
-      name = hostname().replace(/\.local\.?$/i, "").trim() || null;
+      name =
+        hostname()
+          .replace(/\.local\.?$/i, "")
+          .trim() || null;
     } catch {
       return null;
     }

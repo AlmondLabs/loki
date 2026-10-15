@@ -15,7 +15,11 @@ import { machineWord } from "../mod/skill-sources.ts";
 describe("the words table", () => {
   test("machine and file manager per system", () => {
     expect([osWords("macos").machine, osWords("windows").machine, osWords("linux").machine]).toEqual(["this Mac", "this PC", "this computer"]);
-    expect([osWords("macos").fileManager, osWords("windows").fileManager, osWords("linux").fileManager]).toEqual(["Finder", "File Explorer", "the file manager"]);
+    expect([osWords("macos").fileManager, osWords("windows").fileManager, osWords("linux").fileManager]).toEqual([
+      "Finder",
+      "File Explorer",
+      "the file manager",
+    ]);
   });
 
   test("the upgrade line: the cask on the Mac, the release download elsewhere", () => {
@@ -54,7 +58,10 @@ describe("Hide loki off the Mac is Minimise loki", () => {
     expect(labelOf(hide, "linux")).toBe("Minimise loki");
     expect(keyRows("windows").find((b) => b.id === "window.hide")?.label).toBe("Minimise loki");
     expect(keyRows("macos").find((b) => b.id === "window.hide")?.label).toBe("Hide loki");
-    const sheet = (os: Platform) => keysFor("inbox", KEYMAP, os).flatMap((g) => g.rows).find((b) => b.id === "window.hide")?.label;
+    const sheet = (os: Platform) =>
+      keysFor("inbox", KEYMAP, os)
+        .flatMap((g) => g.rows)
+        .find((b) => b.id === "window.hide")?.label;
     expect(sheet("linux")).toBe("Minimise loki");
     expect(sheet("macos")).toBe("Hide loki");
   });
@@ -71,12 +78,23 @@ describe("the machine comes from the words table", () => {
   /** Phone pairing is on the Mac only (U3): the rail's Settings label says so only while it is on. */
   const MAC_ONLY_LINES = ["shell/Sidebar.tsx: , phones can reach this Mac"];
   const MAC_WORDS = /\b[Tt]his Mac\b|\bFinder\b/;
-  const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : /\.tsx?$/.test(n) && !n.endsWith(".d.ts") ? [join(dir, n)] : []));
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((n) =>
+      statSync(join(dir, n)).isDirectory() ? walk(join(dir, n)) : /\.tsx?$/.test(n) && !n.endsWith(".d.ts") ? [join(dir, n)] : [],
+    );
   const strings = (path: string, source: string): string[] => {
     const src = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
     const out: string[] = [];
     const visit = (n: ts.Node) => {
-      if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && MAC_WORDS.test(n.text)) {
+      if (
+        (ts.isStringLiteral(n) ||
+          ts.isNoSubstitutionTemplateLiteral(n) ||
+          ts.isTemplateHead(n) ||
+          ts.isTemplateMiddle(n) ||
+          ts.isTemplateTail(n) ||
+          ts.isJsxText(n)) &&
+        MAC_WORDS.test(n.text)
+      ) {
         out.push(`${path}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}: ${n.text.trim()}`);
       }
       ts.forEachChild(n, visit);
@@ -85,7 +103,11 @@ describe("the machine comes from the words table", () => {
     return out;
   };
   test("the scan sees strings and JSX text, not comments", () => {
-    expect(strings("x.tsx", '// this Mac\nconst a = "on this Mac";\nconst b = <i title="in Finder">This Mac</i>;').map((s) => s.split(": ")[1])).toEqual(["on this Mac", "in Finder", "This Mac"]);
+    expect(strings("x.tsx", '// this Mac\nconst a = "on this Mac";\nconst b = <i title="in Finder">This Mac</i>;').map((s) => s.split(": ")[1])).toEqual([
+      "on this Mac",
+      "in Finder",
+      "This Mac",
+    ]);
   });
   test("no string outside the table and the Mac-only views", () => {
     const hits = walk(APP)

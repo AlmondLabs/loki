@@ -133,13 +133,23 @@ export function Agents({
   useEffect(() => {
     const step = (d: 1 | -1) => {
       if (agents.length < 2) return;
-      const i = Math.max(0, agents.findIndex((a) => a.id === selected));
+      const i = Math.max(
+        0,
+        agents.findIndex((a) => a.id === selected),
+      );
       setSelected(agents[(i + d + agents.length) % agents.length].id);
     };
     return registerActions({ "agents.prev": () => step(-1), "agents.next": () => step(1) });
   });
 
-  const frame = (pane: React.ReactNode) => (columnOutside ? <Frame>{pane}</Frame> : <Frame column={<AgentsColumn agents={agents} desks={desks} items={items} avatar={avatar} initialAgentId={initialAgentId} selection={selection} />}>{pane}</Frame>);
+  const frame = (pane: React.ReactNode) =>
+    columnOutside ? (
+      <Frame>{pane}</Frame>
+    ) : (
+      <Frame column={<AgentsColumn agents={agents} desks={desks} items={items} avatar={avatar} initialAgentId={initialAgentId} selection={selection} />}>
+        {pane}
+      </Frame>
+    );
 
   if (!agents.length && !creating) return frame(<NoAgents onNew={() => setCreating(true)} />);
   if (creating) {
@@ -185,7 +195,25 @@ export function Agents({
 
   /** The five pages, by name; only the current one is mounted. */
   const pages: Record<AgentPage, React.ReactNode> = {
-    profile: <ProfilePage d={d} selected={selected} mcp={mcp} avatar={avatar(selected)} models={models} onLoadModels={loadModels} onSave={store.save} desks={desks} tasks={tasks} onOpenDesk={onOpenDesk} onShowDesks={onShowDesks} onShowTasks={onShowTasks} confirmDelete={store.confirmDelete} setConfirmDelete={store.setConfirmDelete} onRemove={store.remove} />,
+    profile: (
+      <ProfilePage
+        d={d}
+        selected={selected}
+        mcp={mcp}
+        avatar={avatar(selected)}
+        models={models}
+        onLoadModels={loadModels}
+        onSave={store.save}
+        desks={desks}
+        tasks={tasks}
+        onOpenDesk={onOpenDesk}
+        onShowDesks={onShowDesks}
+        onShowTasks={onShowTasks}
+        confirmDelete={store.confirmDelete}
+        setConfirmDelete={store.setConfirmDelete}
+        onRemove={store.remove}
+      />
+    ),
     memory: <MemoryPage d={d} selected={selected} filePath={filePath} onPickFile={setFilePath} reading={reading} onAskToUpdate={onAskToUpdate} />,
     changes: <ChangesPage log={log} shownSha={shownSha} onPickSha={setSha} reading={reading} onRevert={store.revertCommit} />,
     reflection: <ReflectionPage key={selected} agentId={selected} agentName={d.agent.name} api={api} reflect={reflect} />,
@@ -195,7 +223,12 @@ export function Agents({
     <>
       {header(true)}
       {/* The page under the agent's header and tab row, Slack's Messages | Canvas | Files; the page is remembered for the window. */}
-      <div id={`loki-agent-page-${page}`} role="tabpanel" aria-label={page} style={{ flex: 1, minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)" }}>
+      <div
+        id={`loki-agent-page-${page}`}
+        role="tabpanel"
+        aria-label={page}
+        style={{ flex: 1, minWidth: 0, minHeight: 0, display: "grid", gridTemplateRows: "minmax(0, 1fr)" }}
+      >
         {pages[page]}
       </div>
     </>,
@@ -213,7 +246,9 @@ function NoAgents({ onNew }: { onNew: () => void }) {
     <EmptyPane title="No agents yet.">
       <p>An agent keeps its own memory, chats and skills here.</p>
       <div style={{ marginTop: 12 }}>
-        <Button tone="brass" onClick={onNew}>new agent</Button>
+        <Button tone="brass" onClick={onNew}>
+          new agent
+        </Button>
       </div>
     </EmptyPane>
   );
@@ -225,7 +260,10 @@ function Frame({ column, children }: { column?: React.ReactNode; children?: Reac
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", background: "var(--loki-bg)" }}>
       {column && (
-        <div className="loki-column-body" style={{ position: "relative", width: COLUMN_DEFAULT, flex: "none", borderRight: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}>
+        <div
+          className="loki-column-body"
+          style={{ position: "relative", width: COLUMN_DEFAULT, flex: "none", borderRight: "1px solid var(--loki-border)", background: "var(--loki-panel)" }}
+        >
           {column}
         </div>
       )}
