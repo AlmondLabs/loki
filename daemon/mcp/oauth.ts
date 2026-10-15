@@ -45,11 +45,11 @@ export class OAuthStore {
   }
 
   async delete(server: string, kinds: Kind[] = ["tokens", "client", "verifier"]): Promise<void> {
-    for (const kind of kinds) {
-      this.memory.delete(this.account(server, kind));
-      // A keychain without delete gets an empty value, which reads as nothing.
-      if (this.secrets) await (this.secrets.delete ? this.secrets.delete(this.account(server, kind)) : this.secrets.set(this.account(server, kind), "")).catch(() => {});
-    }
+    const secrets = this.secrets;
+    for (const kind of kinds) this.memory.delete(this.account(server, kind));
+    if (!secrets) return;
+    // Each kind is its own keychain item, so they go together. A keychain without delete gets an empty value, which reads as nothing.
+    await Promise.all(kinds.map((kind) => (secrets.delete ? secrets.delete(this.account(server, kind)) : secrets.set(this.account(server, kind), "")).catch(() => {})));
   }
 }
 
