@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 /**
- * The models you have used lately, for the model picker's quick picks (app/src/chat/ModelPicker.tsx modelLists), most
+ * The models you have used lately, for the model picker's quick picks (app/src/chat/model-picker.tsx modelLists), most
  * recent first: a model picked in loki, or the model of a chat you send a message in, moves to the front. Kept here,
  * so the Mac and the phone share them.
  */

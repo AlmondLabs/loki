@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { MAX_TITLE, titleProblem } from "../scripts/check-pr-title.ts";
 import { previewPr, releasePr } from "../scripts/release.ts";
 
-/** A pull request's title is held to Conventional Commits (docs/STYLE.md §9), since it becomes the merge commit. */
+/** A pull request's title is held to Conventional Commits (docs/style.md §9), since it becomes the merge commit. */
 describe("PR titles", () => {
   test("type(scope): what changed passes, with or without a scope, breaking or not", () => {
     for (const title of [

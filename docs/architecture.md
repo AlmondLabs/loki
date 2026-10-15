@@ -90,7 +90,7 @@ every chat gets, the chats, then the mods.
    sign-in is not offered, because pi-ai implements it by presenting itself as Claude Code; an Anthropic API key
    works instead. Without a reachable keychain, keys come from environment variables only, and the log says so.
 4. **Approvals and questions (`daemon/approvals.ts`, `daemon/ask.ts`).** A hook before every tool call decides by
-   the chat's permission mode (GLOSSARY.md: Permission mode) whether to ask. The question goes to every client
+   the chat's permission mode (glossary.md: Permission mode) whether to ask. The question goes to every client
    following the chat and the first answer wins. The answer is saved with the tool call, so a turn resumed after a
    crash never asks twice. `ask_user` shows a question card the same way.
 5. **Tools.** pi-durable's own `read`, `write`, `edit` and `bash`; loki's `ls`, `find`, `grep` and `view_image`
@@ -199,7 +199,7 @@ Both listeners belong to loki's mod inside the daemon. Each is guarded.
 ## One protocol
 
 Every client speaks loki's frame protocol on `/ws`, and every frame is declared once in the frame table,
-`core/frames.ts` (GLOSSARY.md: Frame, Frame table).
+`core/frames.ts` (glossary.md: Frame, Frame table).
 
 1. **Requests** (`history_get`, `chat_send`, `chat_approve`, `recall_grade` …) carry a `requestId` and are answered by
    their reply or by one `error`.
@@ -309,7 +309,7 @@ place, and the Mac's side of it is what shipped first.
    `cfg(target_os = "macos")` with Mac-only dependencies; dictation, phone pairing and Tailscale are hidden in the
    page, which says the feature "isn't on Windows yet" (or Linux) where it would appear.
 4. **loki's own title strip.** The window is undecorated on Windows and Linux; `TitleStrip` in
-   `app/src/shell/Sidebar.tsx` draws ☰ (the Mac's menu groups) and minimise, maximise and close.
+   `app/src/shell/sidebar.tsx` draws ☰ (the Mac's menu groups) and minimise, maximise and close.
    `tauri-plugin-single-instance` keeps one loki per user, and Linux runs under XWayland (`GDK_BACKEND=x11` unless
    set).
 5. **Finding a leftover daemon.** `procs.rs` reads the process list through `sysinfo` on every system and matches
@@ -323,4 +323,4 @@ place, and the Mac's side of it is what shipped first.
    old-root link and the skill link fall back to a junction where Windows refuses a symlink.
 8. **Builds.** CI runs on a PR: the vitest suite on macOS, Ubuntu and Windows, types, lint and the bundles once, and
    `cargo test` on all three when the shell changes (`ci.yml`, `shell.yml`); a release builds
-   the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner each ([RELEASING.md](RELEASING.md)).
+   the `.dmg`, the NSIS `-setup.exe`, and the AppImage and `.deb` on one runner each ([releasing.md](releasing.md)).

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { NO_LOOKS, nextLook, type Looks } from "../app/src/shared/useViewed.ts";
+import { NO_LOOKS, nextLook, type Looks } from "../app/src/shared/use-viewed.ts";
 
 /**
- * Viewed, not done (shared/useViewed.ts): a conversation on screen is looked at once per new last message. While
+ * Viewed, not done (shared/use-viewed.ts): a conversation on screen is looked at once per new last message. While
  * its reply streams every chunk moves the last message, so the look waits for the turn to settle, or for you to
  * leave or look away first; either way the conversation ends up viewed at what you saw.
  */

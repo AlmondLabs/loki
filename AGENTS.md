@@ -1,12 +1,12 @@
 # AGENTS.md
 
 Instructions for coding agents (Claude Code, Codex, Cursor and the like) working in this repository. People read
-the same rules in [docs/STYLE.md](docs/STYLE.md), which is the source of truth; this file is its short form.
+the same rules in [docs/style.md](docs/style.md), which is the source of truth; this file is its short form.
 
 ## Before you write
 
-- Read [docs/STYLE.md](docs/STYLE.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
-  code lives. Use the words in [GLOSSARY.md](GLOSSARY.md).
+- Read [docs/style.md](docs/style.md) once per session, and [docs/architecture.md](docs/architecture.md) for where
+  code lives. Use the words in [glossary.md](glossary.md).
 - Match the code around you: its comment density, naming and idiom. Leave layout to Prettier (`npm run format`).
 - New behaviour gets a short dated plan in `docs/plans/` first; a change to what loki does gets its part in
   `docs/manual.md` in the same PR.
@@ -16,7 +16,8 @@ the same rules in [docs/STYLE.md](docs/STYLE.md), which is the source of truth; 
 - **No `any`, no `x!`, no floating promises.** Parse `unknown` at the edge; narrow instead of asserting; `await`,
   return, or `void` every promise.
 - **Named exports only**, `import type` for types, `.ts` extensions on imports in `core/`, `mod/` and `daemon/`.
-- **Files**: components PascalCase, hooks `useX.ts`, everything else kebab-case.
+- **Names**: every file kebab-case, components and hooks too (`tasks-pane.tsx`, `use-tasks.ts`); identifiers camelCase,
+  types and components PascalCase, acronyms as words (`agentUrl`); agent tool names and arguments snake_case.
 - **React**: derive values during render; no effect that copies props into state; effects only for the outside
   world, and they clean up.
 - **Every export outside `test/` has a `/** … */` doc comment.** Comments say why, in full sentences and plain words;
@@ -45,4 +46,4 @@ included, before saying it is done.
   it.
 - The PR body: what changed and why, decisions for review, tests, what was checked by hand, the checks run.
   Screenshots for UI changes.
-- Commit or push only when asked; work on a branch, never on `main`.
+- Commit or push only when asked; work on a branch named `type/what-it-does` (`fix/phone-banner`), never on `main`.

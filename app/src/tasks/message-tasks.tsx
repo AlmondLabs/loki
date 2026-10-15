@@ -5,7 +5,7 @@ import { chipState, messageKey, quoteBlock, quoteOf, tasksByMessage, tasksForRow
 import { Button, Field } from "../components";
 import { formatKeys, matches } from "../shell/keymap";
 import { takeReveal, useRevealAsk } from "./reveal-message";
-import type { useDesk } from "../desk/useDesk";
+import type { useDesk } from "../desk/use-desk";
 
 /**
  * "Add task" on a chat message, as Slack's "Add to-do": from a message's action row (the phone: its long press), or

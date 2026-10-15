@@ -10,7 +10,7 @@ import { RENAMED_TOOLS } from "../daemon/tool-kinds.ts";
 
 /**
  * Every chat's built-in tools come from one ordered list (daemon/extensions.ts), each tool says what kind it is on its
- * own definition, and every name is snake_case (docs/STYLE.md, tool names).
+ * own definition, and every name is snake_case (docs/style.md, tool names).
  */
 function builtins() {
   const dir = mkdtempSync(join(tmpdir(), "loki-extensions-"));

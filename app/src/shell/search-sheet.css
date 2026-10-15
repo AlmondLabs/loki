@@ -1,4 +1,4 @@
-/* ⌘K search (SearchSheet.tsx, plan 013 U9): Slack's switcher — the field across the top, grouped rows, the coverage line at the foot. */
+/* ⌘K search (search-sheet.tsx, plan 013 U9): Slack's switcher — the field across the top, grouped rows, the coverage line at the foot. */
 .loki-search {
   max-height: min(560px, 80vh);
   overflow: hidden;

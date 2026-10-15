@@ -27,7 +27,7 @@ describe("widget frame: the sandbox", () => {
     try {
       const { renderToStaticMarkup } = await import("react-dom/server");
       const { createElement } = await import("react");
-      const { ModuleWidget } = await import("../app/src/desk/ModuleWidget.tsx");
+      const { ModuleWidget } = await import("../app/src/desk/module-widget.tsx");
       const entry = { id: "d/w", name: "w.tsx", file: "d/w.tsx", kind: "module", title: "W", hash: "h1" } as never;
       const html = renderToStaticMarkup(createElement(ModuleWidget, { entry, overlay: undefined, gesture: () => {}, onError: () => {} }));
       expect(html).toContain(`sandbox="${WIDGET_SANDBOX}"`);

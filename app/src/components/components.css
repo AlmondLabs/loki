@@ -951,7 +951,7 @@ button.loki-list-section-toggle:hover {
   color: var(--loki-muted);
 }
 
-/* The desk pane (desk/DeskPane.tsx): the header over two stacked tab panels; the hidden one keeps its layout (visibility), so the thread keeps its scroll and the sheet its camera. */
+/* The desk pane (desk/desk-pane.tsx): the header over two stacked tab panels; the hidden one keeps its layout (visibility), so the thread keeps its scroll and the sheet its camera. */
 .loki-desk-pane {
   position: absolute;
   inset: 0;

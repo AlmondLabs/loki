@@ -30,7 +30,7 @@ import type {
 import { parseTaskSource } from "./task-source.ts";
 
 /**
- * The mod's own protocol on `/ws` (GLOSSARY.md: Frame, Frame table), declared once. The app sends requests and
+ * The mod's own protocol on `/ws` (glossary.md: Frame, Frame table), declared once. The app sends requests and
  * sends; the mod answers a request with its reply (or one `error`) and pushes the rest. Every entry here is what
  * the mod's router (mod/bridge.ts) dispatches on, what the app's `request()` and `send()` are typed by, and what
  * a paired phone may send: nothing else lists frames.

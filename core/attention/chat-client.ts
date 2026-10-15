@@ -150,7 +150,7 @@ export class FrameChatClient {
   private async reopen(): Promise<void> {
     const chats = [...this.opened].map((key) => key.split("\u0000"));
     this.opened.clear();
-    await Promise.all(chats.map(([agent_id, conversation_id]) => this.runtimeStart({ agent_id, conversation_id }).catch(() => {})));
+    await Promise.all(chats.map(([agentId, conversationId]) => this.runtimeStart({ agent_id: agentId, conversation_id: conversationId }).catch(() => {})));
   }
 
   isSubscribed(rt: Runtime): boolean {

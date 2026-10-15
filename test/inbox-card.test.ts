@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
-import { CardConversation, Decisions, type CardActions } from "../app/src/phone/Inbox.tsx";
+import { CardConversation, Decisions, type CardActions } from "../app/src/phone/inbox.tsx";
 
 const item = (over: Partial<AttentionItem> = {}): AttentionItem => ({
   id: "c1",

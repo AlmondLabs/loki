@@ -181,10 +181,10 @@
   }
 }
 
-/* Tool and event rows between messages (Transcript.tsx): muted sans meta, the way Slack sets an app's
+/* Tool and event rows between messages (transcript.tsx): muted sans meta, the way Slack sets an app's
    notice in a thread. The detail a row opens is data and keeps its own box. The phone restyles them under
    its own root (phone/phone.css). */
-/* A run of tools (ToolSteps.tsx): one quiet line, "Ran 3 commands ›", breathing while it runs; on the desktop the
+/* A run of tools (tool-steps.tsx): one quiet line, "Ran 3 commands ›", breathing while it runs; on the desktop the
    steps unfold in place under it, and each step its input and output. */
 .loki-steps {
   font-size: 12px;
@@ -405,7 +405,7 @@
   color: var(--loki-fg);
 }
 
-/* The agent's open question and the tool it is paused on (QuestionCard.tsx, ApprovalCard.tsx): a panel between
+/* The agent's open question and the tool it is paused on (question-card.tsx, approval-card.tsx): a panel between
    the thread and the box, edged in the accent blue on its blue wash. The phone draws its own card. */
 .loki-question {
   padding: 8px 20px 10px;
@@ -436,7 +436,7 @@
   color: var(--loki-fg);
 }
 
-/* The message box, one for the phone and the desktop (Conversation.tsx, ChatInput.tsx; 2026-09-24, after
+/* The message box, one for the phone and the desktop (conversation.tsx, chat-input.tsx; 2026-09-24, after
    Claude's): one rounded field a step lifted from the ground, the text on top and a row inside it — "+", the
    model pill, then the mic and send at the end, all one height (28 here, 36 on the phone). Static values live
    here so the phone restyles them by class (phone/phone.css); the gutters stay inline, since the host sets
@@ -633,7 +633,7 @@ button.loki-file-chip:hover {
   max-width: min(300px, calc(100vw - 32px));
 }
 
-/* Select model (ModelPicker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
+/* Select model (model-picker.tsx): a popover over the box here, a bottom sheet on the phone. A title line (a back
    chevron in Effort and More models), a card of choices split by hairlines with a check in the accent on the
    current one, then Effort › and More models › as rounded rows of their own. */
 .loki-model-popover {
@@ -967,7 +967,7 @@ button.loki-file-chip:hover {
   cursor: pointer;
   border-radius: var(--loki-radius-sm);
 }
-/* A widget drawn live in the thread, under its latest row (chat/InlineWidget.tsx): a card as wide as the thread allows. */
+/* A widget drawn live in the thread, under its latest row (chat/inline-widget.tsx): a card as wide as the thread allows. */
 .loki-inline-widget {
   margin: 4px 0 10px 44px;
   max-width: 760px;

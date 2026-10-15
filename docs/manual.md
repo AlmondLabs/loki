@@ -59,7 +59,7 @@ follows each release. Versions are the UTC day and that day's count: `2026.1011.
 minutes after it lands, versioned `2026.1011.1-nightly.a96ee85` after the stable it leads up to and the commit. The two casks
 conflict — both builds share `~/.letta/loki`, the mod shim and the harness port — so switching channels is an
 uninstall and an install. Settings › letta shows which channel a build is on and names the right cask in its
-upgrade line. How releases are cut: [docs/RELEASING.md](RELEASING.md).
+upgrade line. How releases are cut: [docs/releasing.md](releasing.md).
 
 **The `.dmg`** from the latest release: drag loki to Applications, then clear the quarantine flag once (right-click →
 Open is not enough for an unsigned app on macOS 14 and later):

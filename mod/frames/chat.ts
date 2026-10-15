@@ -43,7 +43,7 @@ export interface ChatBackend {
   mcpRestart(name: string): Promise<Replies["chat_mcp"]>;
   mcpSignOut(name: string): Promise<Replies["chat_mcp"]>;
   /** The browser back from an MCP server's sign-in page (mod/server.ts's callback route); not a frame. */
-  mcpOAuthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }>;
+  mcpOauthCallback(params: Record<string, string>): Promise<{ ok: boolean; server: string | null; message: string }>;
   mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<Replies["chat_mcp"]>;
   mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<Replies["chat_mcp_secret"]>;
   enableSkill(path: string): Promise<{ name: string; linkPath: string }>;

@@ -2,14 +2,14 @@ import type { AttentionItem, AttentionStatus } from "../../../core/attention/mod
 import { catchUpQueue, idOf, inboxQueue, type Decision } from "../../../core/attention/queue.ts";
 import { REASON_LABEL } from "../../../core/attention/priority.ts";
 import { Button, Chip, Dot, Empty, Meta } from "../components";
-import { ConversationHeader } from "../chat/Conversation";
+import { ConversationHeader } from "../chat/conversation";
 import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
 
 /** The pieces of a Catch Up card around its Conversation. State lives in CatchUpDeck; these only draw it and call back. */
 
 /**
- * Status → label and colour for an attention item; the phone inbox (app/src/phone/Inbox.tsx) uses the same table.
+ * Status → label and colour for an attention item; the phone inbox (app/src/phone/inbox.tsx) uses the same table.
  * Needs-you statuses take the red attention colour, which is only ever a dot or a badge: their words stay fg.
  */
 export const BADGE: Record<AttentionStatus, { label: string; color: string }> = {

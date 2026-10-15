@@ -1,5 +1,5 @@
 import { useRef, type CSSProperties, type ReactNode } from "react";
-import { useFlip } from "../kit/useFlip";
+import { useFlip } from "../kit/use-flip";
 import { Button, Sheet } from "../components";
 import { Icon } from "./icons";
 import { useScrollMemory } from "./session";
@@ -68,7 +68,7 @@ export function Scroll({
   style?: CSSProperties;
   memory?: string;
   /** No side gutter: edge-to-edge rows (rows.tsx) carry it inside. */ flush?: boolean;
-  /** The rows' arrangement: when it changes, rows glide to their new places (kit/useFlip.ts). */ flip?: string;
+  /** The rows' arrangement: when it changes, rows glide to their new places (kit/use-flip.ts). */ flip?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useScrollMemory(ref, memory);

@@ -15,7 +15,7 @@ import { seenFrames, type SeenDeps } from "./seen.ts";
 /** What every frame handler needs, together: each module takes only its own part. */
 export type ModuleDeps = DesksDeps & SeenDeps & HistoryDeps & FoldersDeps & RecallDeps & TaskDeps & AgentsDeps & LanDeps & ChatDeps;
 
-/** Every feature's frame handlers (GLOSSARY.md: Frame handler), one module per feature. */
+/** Every feature's frame handlers (glossary.md: Frame handler), one module per feature. */
 export function frameModules(deps: ModuleDeps): FrameHandlers[] {
   return [
     desksFrames(deps),

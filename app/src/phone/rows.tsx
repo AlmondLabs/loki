@@ -1,5 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import { AgentFace } from "../desk/AgentChip";
+import { AgentFace } from "../desk/agent-chip";
 import { Icon, type IconName } from "./icons";
 
 /**
@@ -89,7 +89,7 @@ export interface PhoneRowProps {
   dim?: boolean;
   /** `data-launch`, so focus comes back to this row after the page it opened (session.ts). */
   launch?: string;
-  /** What the row is for its glide (kit/useFlip.ts) when that is not its launch key: a conversation, so it glides between sections. */
+  /** What the row is for its glide (kit/use-flip.ts) when that is not its launch key: a conversation, so it glides between sections. */
   flip?: string;
 }
 

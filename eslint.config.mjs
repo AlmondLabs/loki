@@ -1,4 +1,4 @@
-// `npm run lint`: the rules in docs/STYLE.md §2–§4 that a tool can check. typescript-eslint's strict and stylistic sets
+// `npm run lint`: the rules in docs/style.md §2–§4 that a tool can check. typescript-eslint's strict and stylistic sets
 // with type information (no `any`, no `x!`, no floating promises, no dead conditions, one way to write a type), tuned
 // where a rule's noise outweighs its catch, and the React hooks plugin, which carries the React Compiler's rules (the
 // compiler skips a function that breaks one silently; here it is a red check). Layout is Prettier's, not ESLint's.
@@ -38,6 +38,25 @@ export default tseslint.config(
       "react-hooks/set-state-in-effect": "error",
       // `_x` says "unused on purpose" (a destructure that strips a prop, a placeholder parameter).
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrors: "none", ignoreRestSiblings: true }],
+      // Identifiers (docs/style.md §2): camelCase values, PascalCase types and components, UPPER_CASE constants, acronyms
+      // as words (agentUrl, McpTools). Object and type properties are data (snake_case wire and file names, headers),
+      // so they are left as the data has them.
+      "@typescript-eslint/naming-convention": [
+        "error",
+        { selector: "default", format: ["strictCamelCase"], leadingUnderscore: "allow" },
+        // A name taken apart from data or a module keeps the name it had there (`const { agent_id } = runtime`).
+        { selector: ["variable", "parameter"], modifiers: ["destructured"], format: null },
+        // Vite's build-time globals (`__LOKI_VERSION__`), named as build tools name them.
+        { selector: "variable", filter: { regex: "^__[A-Z_]+__$", match: true }, format: null },
+        { selector: "variable", format: ["strictCamelCase", "StrictPascalCase", "UPPER_CASE"], leadingUnderscore: "allow" },
+        { selector: "function", format: ["strictCamelCase", "StrictPascalCase"] },
+        { selector: "parameter", format: ["strictCamelCase", "StrictPascalCase"], leadingUnderscore: "allow" },
+        { selector: "typeLike", format: ["StrictPascalCase"] },
+        { selector: "interface", format: ["StrictPascalCase"], custom: { regex: "^I[A-Z]", match: false } },
+        { selector: "typeParameter", format: ["StrictPascalCase"] },
+        { selector: ["objectLiteralProperty", "typeProperty", "objectLiteralMethod", "typeMethod"], format: null },
+        { selector: "import", format: null },
+      ],
       // Named exports only (STYLE §2); the excepted files are below.
       "no-restricted-exports": ["error", { restrictDefaultExports: { direct: true, named: true, defaultFrom: true, namedFrom: true, namespaceFrom: true } }],
     },

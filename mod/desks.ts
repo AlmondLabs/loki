@@ -49,12 +49,12 @@ export class DeskRegistry {
 
   /** Record a conversation; returns its scope. */
   remember(conversationId: string, agentId: string | null | undefined): Scope {
-    const agent_id = agentId ?? this.byScope.get(scopeFor(conversationId))?.agent_id ?? this.agentOf(conversationId);
-    const scope = scopeFor(conversationId, agent_id);
+    const agent = agentId ?? this.byScope.get(scopeFor(conversationId))?.agent_id ?? this.agentOf(conversationId);
+    const scope = scopeFor(conversationId, agent);
     const prev = this.byScope.get(scope);
-    if (!agent_id) return scope;
-    if (prev?.agent_id !== agent_id || prev.conversation_id !== conversationId) {
-      this.byScope.set(scope, { agent_id, conversation_id: conversationId });
+    if (!agent) return scope;
+    if (prev?.agent_id !== agent || prev.conversation_id !== conversationId) {
+      this.byScope.set(scope, { agent_id: agent, conversation_id: conversationId });
       this.persist();
     }
     return scope;
@@ -73,8 +73,8 @@ export class DeskRegistry {
     let rt: Runtime | null = null;
     if (scope.startsWith("default-")) rt = { agent_id: scope.slice("default-".length), conversation_id: "default" };
     else {
-      const agent_id = this.agentOf(scope);
-      if (agent_id) rt = { agent_id, conversation_id: scope };
+      const agent = this.agentOf(scope);
+      if (agent) rt = { agent_id: agent, conversation_id: scope };
     }
     if (!rt) return undefined;
     this.byScope.set(scope, rt);
@@ -133,7 +133,7 @@ export interface LocalConversationInfo {
   /** The conversation's own model, when it was switched away from the agent's. */
   model: string | null;
   reasoningEffort: ReasoningEffort | null;
-  /** The chat's permission mode (GLOSSARY.md). */
+  /** The chat's permission mode (glossary.md). */
   mode: PermissionMode;
 }
 

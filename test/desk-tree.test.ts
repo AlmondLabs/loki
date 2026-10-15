@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { sectionDesks, statusLine, treeKey } from "../app/src/shell/DeskTree.tsx";
+import { sectionDesks, statusLine, treeKey } from "../app/src/shell/desk-tree.tsx";
 
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { DeskSummary } from "../core/frame-types.ts";
 
 /**
- * The desk tree's order (app/src/shell/DeskTree.tsx), now only Tasks' assign-to-desk picker (the
+ * The desk tree's order (app/src/shell/desk-tree.tsx), now only Tasks' assign-to-desk picker (the
  * sidebar lists desks, ⌘K searches them): waiting on you, pinned, the rest by last message — each desk
  * once — and the picker's keys.
  */

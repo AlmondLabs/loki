@@ -13,7 +13,7 @@ import { CODING_TOOL_KINDS, RENAMED_TOOLS, type ToolKind } from "./tool-kinds.ts
  * The gate is one pi-durable extension, selected by every conversation (subagents included), as the mods are.
  */
 
-/** A chat's permission mode: which tool calls ask the person first (the table is on `asks`, and in GLOSSARY.md). */
+/** A chat's permission mode: which tool calls ask the person first (the table is on `asks`, and in glossary.md). */
 export type PermissionMode = "strict" | "standard" | "acceptEdits" | "unrestricted";
 /** The mode of a chat that has none set: nothing asks. */
 export const DEFAULT_MODE: PermissionMode = "unrestricted";
@@ -38,7 +38,7 @@ export function kindOf(name: string, annotations?: { readOnly?: boolean; destruc
 }
 
 /**
- * Whether the mode asks before this call. The table (GLOSSARY.md, Permission mode):
+ * Whether the mode asks before this call. The table (glossary.md, Permission mode):
  *   strict        every tool, reads included
  *   standard      edits and commands; reads run freely
  *   acceptEdits   commands; edits and reads run freely

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TitleStrip, WindowControls, titlebarHeight } from "../app/src/shell/Sidebar.tsx";
-import { TitleMenuPanel, titleMenus, runMenuItem } from "../app/src/shell/TitleMenu.tsx";
+import { TitleStrip, WindowControls, titlebarHeight } from "../app/src/shell/sidebar.tsx";
+import { TitleMenuPanel, titleMenus, runMenuItem } from "../app/src/shell/title-menu.tsx";
 import { KEYMAP, labelOf, menuSpec, registerActions, resolve } from "../app/src/shell/keymap.ts";
-import { guardBrowserKey } from "../app/src/shell/useShellKeys.ts";
+import { guardBrowserKey } from "../app/src/shell/use-shell-keys.ts";
 import { LAYER } from "../app/src/kit/layers.ts";
 import type { Platform } from "../app/src/desk/env.ts";
 import { must } from "./fixtures/must.ts";

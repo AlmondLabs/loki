@@ -330,7 +330,7 @@ describe("the sidebar, rendered", () => {
   test("Desks header with new desk and the filter; Pinned then agents; the waiting row's badge; the current row; archive folded", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { DeskSidebar } = await import("../app/src/shell/DeskSidebar.tsx");
+    const { DeskSidebar } = await import("../app/src/shell/desk-sidebar.tsx");
     const noop = () => {};
     const html = renderToStaticMarkup(
       createElement(DeskSidebar, {
@@ -367,7 +367,7 @@ describe("the rename dialog, rendered", () => {
   test("titled Rename desk, the field holds the current name, Save waits for a change", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { RenameDesk } = await import("../app/src/desk/RenameDesk.tsx");
+    const { RenameDesk } = await import("../app/src/desk/rename-desk.tsx");
     const html = renderToStaticMarkup(createElement(RenameDesk, { name: "Meeting notes", onClose: () => {}, onRename: () => Promise.resolve(null) }));
     expect(html).toContain('aria-label="Rename chat"');
     expect(html).toContain(">Rename chat<");

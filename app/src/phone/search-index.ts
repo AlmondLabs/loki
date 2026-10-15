@@ -13,7 +13,7 @@ import type { DeskSummary } from "../../../core/frame-types.ts";
  *
  * Ranking is shared/search.ts's one rule: the best tier any field reaches (exact, prefix, word start,
  * substring), a title before a secondary field at the same tier, then the newest, then the order the list
- * already had. This file is the phone's adapter: its hits, routes and pages. Search.tsx draws the groups with the same rows as Home, Agents and More.
+ * already had. This file is the phone's adapter: its hits, routes and pages. search.tsx draws the groups with the same rows as Home, Agents and More.
  */
 
 /** Rows per group; the group says how many matched in all. */
@@ -42,7 +42,7 @@ export interface Hit {
 /** A group of hits; `hits` holds the first GROUP_MAX of `total`. */
 export type Group = HitGroup<Hit, GroupId>;
 
-/** What the phone has loaded, from Phone.tsx: the desks list, the agent list, the attention items, and agent descriptions the Agents cache already holds. */
+/** What the phone has loaded, from phone.tsx: the desks list, the agent list, the attention items, and agent descriptions the Agents cache already holds. */
 export interface SearchSources {
   desks: DeskSummary[];
   agents: Array<{ id: string; name: string }>;
@@ -160,7 +160,7 @@ const pageHit = (d: Destination): Hit => ({
 
 const openable = (d: DeskSummary): d is DeskSummary & { agentId: string; conversationId: string } => !!d.agentId && !!d.conversationId;
 
-/** The sources as searchable entries, fields folded: build once per sources (Search.tsx memoizes it), query per keystroke. */
+/** The sources as searchable entries, fields folded: build once per sources (search.tsx memoizes it), query per keystroke. */
 export type SearchIndex = CoreIndex<Hit>;
 
 /**

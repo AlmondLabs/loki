@@ -2,7 +2,7 @@ import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, tool
 import type { FileRef, TranscriptRow } from "./transcript.ts";
 
 /**
- * A chat's thread, built in one place (GLOSSARY.md: ThreadModel). Every source of a conversation, the history page
+ * A chat's thread, built in one place (glossary.md: ThreadModel). Every source of a conversation, the history page
  * the mod reads from the daemon and the live stream of chat events, is parsed into steps by its own adapter; this folds the
  * steps into rows, keeps the rows that arrived live (your own message the moment you sent it, a queued one, a slash
  * command's row, the reply as it streams), and reconciles them with a history page when one arrives. The rows it

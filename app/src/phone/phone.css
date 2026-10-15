@@ -434,7 +434,7 @@ html:has(.loki-phone-shell) {
 
 /* One vertical scroll owner per screen; it contains its own overscroll so the page never moves. */
 .loki-phone-scroll {
-  position: relative; /* a row that leaves fades where it stood, inside the scroll (kit/useFlip.ts) */
+  position: relative; /* a row that leaves fades where it stood, inside the scroll (kit/use-flip.ts) */
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -443,7 +443,7 @@ html:has(.loki-phone-shell) {
   padding: var(--phone-space-3) calc(var(--phone-gutter) + var(--phone-safe-right)) var(--phone-space-6) calc(var(--phone-gutter) + var(--phone-safe-left));
 }
 /* The end of every scroll owner clears the floating navigation once, so its last row can scroll out from
-   under the capsule; --phone-nav-clearance is set on the shell by the dock (TabBar.tsx) and absent — zero —
+   under the capsule; --phone-nav-clearance is set on the shell by the dock (tab-bar.tsx) and absent — zero —
    while the navigation is hidden. A screen with a fixed bottom stops above the dock instead. */
 .loki-phone-scroll::after {
   content: "";
@@ -454,7 +454,7 @@ html:has(.loki-phone-shell) {
   margin-bottom: var(--phone-nav-clearance, 0px);
 }
 
-/* ---- The floating navigation (TabBar.tsx) ------------------------------------------------------- */
+/* ---- The floating navigation (tab-bar.tsx) ------------------------------------------------------- */
 /* The dock hovers over the bottom of the screen, just above the home indicator: nothing paints a band
    under it; the space around the capsule is the screen behind. Only its controls take touches. */
 .loki-phone-dock {
@@ -614,7 +614,7 @@ html:has(.loki-phone-shell) {
   background: transparent;
 }
 
-/* ---- More (More.tsx): named rows, a chevron on each ---------------------------------------------- */
+/* ---- More (more.tsx): named rows, a chevron on each ---------------------------------------------- */
 .loki-phone-list {
   list-style: none;
   margin: 0;
@@ -651,7 +651,7 @@ html:has(.loki-phone-shell) {
   font-size: var(--phone-text-body);
 }
 
-/* ---- Search (Search.tsx): the field stays put, results scroll beneath it -------------------------- */
+/* ---- Search (search.tsx): the field stays put, results scroll beneath it -------------------------- */
 /* The bar is intrinsic and the list takes the rest: with the keyboard up the shell is fitted to the visible
    viewport (viewport.ts), so the field stays in view and only the results give up height. */
 .loki-phone-search-bar {
@@ -791,7 +791,7 @@ html:has(.loki-phone-shell) {
 
 /* ---- Reading ------------------------------------------------------------------------------------- */
 /* The desktop's transcript caps a bubble at 78% of the column; on a phone the column is the measure, so
-   messages span it (the cap is an inline style in chat/Transcript.tsx). */
+   messages span it (the cap is an inline style in chat/transcript.tsx). */
 .loki-phone-thread [data-row="user"] > div,
 .loki-phone-thread [data-row="assistant"] > div {
   max-width: 100% !important;
@@ -858,7 +858,7 @@ html:has(.loki-phone-shell) {
   padding: 0 0 var(--phone-space-6);
 }
 
-/* ---- Home's header (Home.tsx) -------------------------------------------------------------------- */
+/* ---- Home's header (home.tsx) -------------------------------------------------------------------- */
 .loki-phone-home-top {
   border-bottom: none;
   background: var(--loki-panel-header);
@@ -1569,7 +1569,7 @@ span.loki-phone-section-btn {
   }
 }
 
-/* ---- Messages: the shared transcript's avatar-led layout (chat/Transcript.tsx, `people`) ---------- */
+/* ---- Messages: the shared transcript's avatar-led layout (chat/transcript.tsx, `people`) ---------- */
 .loki-phone-thread .loki-msg[data-row] {
   display: flex;
   align-items: flex-start;
@@ -1607,7 +1607,7 @@ span.loki-phone-section-btn {
   margin-top: var(--phone-space-1);
 }
 /* Under every message, its copy button, always there (a phone has no hover), its touch area the full 44. A long
-   press on the message opens its actions (phone/useMessageActions.tsx), so the browser's own selection and callout
+   press on the message opens its actions (phone/use-message-actions.tsx), so the browser's own selection and callout
    stay off the thread; Select text in that sheet gives the text back to select. */
 .loki-phone .loki-msg-actions {
   display: flex;
@@ -1721,7 +1721,7 @@ span.loki-phone-section-btn {
   line-height: var(--phone-leading-tight);
   color: var(--loki-fg);
 }
-/* ---- The full conversation (Conversation.tsx) ------------------------------------------------------ */
+/* ---- The full conversation (conversation.tsx) ------------------------------------------------------ */
 /* Regions: the header, the thread (the one scroll owner), the question or approval, the notice, the box.
    The navigation is hidden on this page, so the box owns the bottom inset (through the shared gutter). */
 .loki-phone-convo-head {
@@ -2044,7 +2044,7 @@ span.loki-phone-section-btn {
   min-height: 32px;
 }
 
-/* A run of tools, opened (ToolSteps.tsx): a bottom sheet with the grip, a round close (or back, in a step) and the
+/* A run of tools, opened (tool-steps.tsx): a bottom sheet with the grip, a round close (or back, in a step) and the
    title; the steps on a thin timeline, each its icon, a verb and what it was done to; a step opens its input and
    output in the same sheet. */
 .loki-sheet-card.loki-phone-sheet.loki-steps-sheet {
@@ -2279,7 +2279,7 @@ span.loki-phone-section-btn {
   overflow-y: auto;
 }
 
-/* ---- More, Preferences, the connection and About (More.tsx, Settings.tsx; rows.tsx RowGroup) --------- */
+/* ---- More, Preferences, the connection and About (more.tsx, settings.tsx; rows.tsx RowGroup) --------- */
 /* Slack's You sheet: the profile, then groups of rows split by one hairline each — no rule under every row. */
 .loki-phone-me {
   display: flex;
@@ -2535,7 +2535,7 @@ span.loki-phone-section-btn {
   background: var(--loki-bg);
 }
 
-/* ---- Learn (Recall.tsx) ----------------------------------------------------------------------------- */
+/* ---- Learn (recall.tsx) ----------------------------------------------------------------------------- */
 .loki-phone-learn {
   display: grid;
   gap: var(--phone-space-4);
@@ -2626,7 +2626,7 @@ span.loki-phone-section-btn {
   overflow-wrap: anywhere;
 }
 
-/* ---- Pairing (Pair.tsx) ----------------------------------------------------------------------------- */
+/* ---- Pairing (pair.tsx) ----------------------------------------------------------------------------- */
 .loki-phone-pair {
   justify-content: center;
   padding: calc(var(--phone-space-6) + var(--phone-safe-top)) calc(var(--phone-space-6) + var(--phone-safe-right))
@@ -3048,7 +3048,7 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   animation: loki-banner-in var(--spring-snappy-ms) var(--spring-snappy);
 }
 
-/* Learn (phone/Learn.tsx): the next card rises into the place of the one graded away; the turn to the answer
+/* Learn (phone/learn.tsx): the next card rises into the place of the one graded away; the turn to the answer
    and the throw are the card's own (Web Animations), so this is only the arrival. */
 @keyframes loki-card-rise {
   from {

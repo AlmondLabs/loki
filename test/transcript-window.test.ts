@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Transcript } from "../app/src/chat/Transcript.tsx";
+import { Transcript } from "../app/src/chat/transcript.tsx";
 import { CHUNK, WINDOW, anchorTop, findStart, keepStart, openStart, revealStart, threadId } from "../app/src/chat/transcript-window.ts";
 import { clockLabel, dayLabel, formattersBuilt } from "../app/src/shared/thread.ts";
-import { olderRowsAbove } from "../app/src/chat/useTranscriptScroll.ts";
+import { olderRowsAbove } from "../app/src/chat/use-transcript-scroll.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 
 /**

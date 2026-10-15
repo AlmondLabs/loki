@@ -31,10 +31,10 @@ export function isPalette(value: unknown): value is Palette {
   return typeof value === "string" && (PALETTES as readonly string[]).includes(value);
 }
 
-type Storage_ = Pick<Storage, "getItem"> | null;
-const defaultStorage = (): Storage_ => (typeof localStorage === "undefined" ? null : localStorage);
+type MaybeStorage = Pick<Storage, "getItem"> | null;
+const defaultStorage = (): MaybeStorage => (typeof localStorage === "undefined" ? null : localStorage);
 
-function stored<T>(storage: Storage_, key: string, accept: (value: unknown) => value is T, fallback: T): T {
+function stored<T>(storage: MaybeStorage, key: string, accept: (value: unknown) => value is T, fallback: T): T {
   if (!storage) return fallback;
   try {
     const value = storage.getItem(key);
@@ -45,12 +45,12 @@ function stored<T>(storage: Storage_, key: string, accept: (value: unknown) => v
 }
 
 /** The stored appearance choice; "system" when none is stored or it cannot be read. */
-export function storedTheme(storage: Storage_ = defaultStorage()): ThemePreference {
+export function storedTheme(storage: MaybeStorage = defaultStorage()): ThemePreference {
   return stored(storage, THEME_STORAGE_KEY, isThemePreference, "system");
 }
 
 /** The stored palette; loki's own when none is stored or it cannot be read. */
-export function storedPalette(storage: Storage_ = defaultStorage()): Palette {
+export function storedPalette(storage: MaybeStorage = defaultStorage()): Palette {
   return stored(storage, PALETTE_STORAGE_KEY, isPalette, "loki");
 }
 

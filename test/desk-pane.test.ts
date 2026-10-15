@@ -16,7 +16,7 @@ import {
   tickFor,
 } from "../app/src/desk/pane.ts";
 import { createDrafts, draftKey } from "../app/src/shared/drafts.ts";
-import { draftWriter } from "../app/src/chat/useDraft.ts";
+import { draftWriter } from "../app/src/chat/use-draft.ts";
 
 /**
  * The desk pane (plan 013 U5): a desk opens as a Slack channel on its Messages tab; the Desk tab is today's
@@ -180,7 +180,7 @@ describe("messages: copy under every message", () => {
   test("yours and the agent's each carry a copy button under them; the one still streaming waits until it is done", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { Transcript } = await import("../app/src/chat/Transcript.tsx");
+    const { Transcript } = await import("../app/src/chat/transcript.tsx");
     const done = renderToStaticMarkup(createElement(Transcript, { rows, people }));
     expect(done.match(/class="loki-msg-actions"/g)?.length).toBe(3);
     expect(done).toContain('aria-label="copy as markdown"');
@@ -194,7 +194,7 @@ describe("desk pane: hidden behind other sections", () => {
   // The shell hides the whole pane with visibility while the Inbox or Tasks shows; a panel that set itself
   // "visible" overrode that, and the thread's day pills showed through the Inbox (U13).
   test("the tab panels inherit visibility, never force it on", () => {
-    const src = readFileSync(new URL("../app/src/desk/DeskPane.tsx", import.meta.url), "utf8");
+    const src = readFileSync(new URL("../app/src/desk/desk-pane.tsx", import.meta.url), "utf8");
     const panels = src.match(/visibility: tab === "(messages|desk)" \? "[a-z]+"/g) ?? [];
     expect(panels).toHaveLength(2);
     for (const p of panels) expect(p.endsWith('"inherit"')).toBe(true);

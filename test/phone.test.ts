@@ -29,7 +29,7 @@ import {
   shouldAutoReload,
   stripFrontmatter,
 } from "../app/src/phone/model.ts";
-import { deskMark } from "../app/src/shell/DeskTree.tsx";
+import { deskMark } from "../app/src/shell/desk-tree.tsx";
 import type { AttentionItem } from "../core/attention/model.ts";
 
 import { PAIRING_ALPHABET, PAIRING_LENGTH } from "../core/pairing-code.ts";
@@ -572,9 +572,9 @@ describe("Preferences: appearance on the phone is System, Light or Dark — no p
   });
   test("the phone's Preferences page does not render the palette picker; the desktop's control keeps it", async () => {
     const { readFileSync } = await import("node:fs");
-    const settings = readFileSync(new URL("../app/src/phone/Preferences.tsx", import.meta.url), "utf8");
+    const settings = readFileSync(new URL("../app/src/phone/preferences.tsx", import.meta.url), "utf8");
     expect(settings).not.toMatch(/ThemeChoice|PALETTES|setPalette/);
-    const desktop = readFileSync(new URL("../app/src/settings/ThemeChoice.tsx", import.meta.url), "utf8");
+    const desktop = readFileSync(new URL("../app/src/settings/theme-choice.tsx", import.meta.url), "utf8");
     expect(desktop).toMatch(/PALETTES\.map/);
   });
 });

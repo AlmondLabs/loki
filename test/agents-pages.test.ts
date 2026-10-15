@@ -165,7 +165,7 @@ describe("agents column", () => {
   test("rows with faces, the waiting badge with its count in words, the shown agent current, and + new agent in the header", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { AgentsColumn } = await import("../app/src/agents/AgentsColumn.tsx");
+    const { AgentsColumn } = await import("../app/src/agents/agents-column.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
     selection.pickAgent("a2");
@@ -182,7 +182,7 @@ describe("agents column", () => {
   test("while the new-agent form is open no row is current", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { AgentsColumn } = await import("../app/src/agents/AgentsColumn.tsx");
+    const { AgentsColumn } = await import("../app/src/agents/agents-column.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
     selection.setCreating(true);
@@ -191,7 +191,7 @@ describe("agents column", () => {
   });
 });
 
-/** The Agents pane (Agents.tsx) with its column outside, in the Shell's ListColumn. */
+/** The Agents pane (agents.tsx) with its column outside, in the Shell's ListColumn. */
 describe("agents pane", () => {
   const props = (agents: Array<{ id: string; name: string }>) => ({
     agents,
@@ -213,7 +213,7 @@ describe("agents pane", () => {
   test("no agents: the invitation, as an empty pane, with its new agent button", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { Agents } = await import("../app/src/agents/Agents.tsx");
+    const { Agents } = await import("../app/src/agents/agents.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const html = renderToStaticMarkup(createElement(Agents, { ...props([]), columnOutside: true, selection: createAgentsSelection(null) } as never));
     expect(html).toContain("loki-empty-pane");
@@ -224,7 +224,7 @@ describe("agents pane", () => {
   test("with the column inside (no Shell column), the list sits beside the pane", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
-    const { Agents } = await import("../app/src/agents/Agents.tsx");
+    const { Agents } = await import("../app/src/agents/agents.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const html = renderToStaticMarkup(createElement(Agents, { ...props([]), selection: createAgentsSelection(null) } as never));
     expect(html).toContain(">Agents</h2>");

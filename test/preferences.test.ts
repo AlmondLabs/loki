@@ -3,12 +3,12 @@ import { afterSegmentKey } from "../app/src/settings/preferences.ts";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PAGES, pageAfterKey, pageTitle, savedPage } from "../app/src/settings/pages.ts";
-import { PageList } from "../app/src/settings/PageList.tsx";
-import { Phone, type PhoneApi } from "../app/src/settings/Phone.tsx";
-import { GlobalKeyRow } from "../app/src/settings/Settings.tsx";
+import { PageList } from "../app/src/settings/page-list.tsx";
+import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
+import { GlobalKeyRow } from "../app/src/settings/settings.tsx";
 import { lanStatusFromFrame } from "../app/src/phone/model.ts";
-import { shortcutAvailable, type GlobalShortcut } from "../app/src/shell/useGlobalShortcut.ts";
-import { dictateTitle, dictationSupported } from "../app/src/chat/useDictation.ts";
+import { shortcutAvailable, type GlobalShortcut } from "../app/src/shell/use-global-shortcut.ts";
+import { dictateTitle, dictationSupported } from "../app/src/chat/use-dictation.ts";
 import { notYetOn } from "../app/src/desk/env.ts";
 
 describe("Preferences: the segment keys over the sheet", () => {

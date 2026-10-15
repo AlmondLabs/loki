@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { modelEntriesFromWire, reasoningEffortFromSettings, type ModelEntry } from "../core/models.ts";
-import { effortEntriesFor, groupModelEntries, preferredModelEntry } from "../app/src/chat/ModelPicker.tsx";
+import { effortEntriesFor, groupModelEntries, preferredModelEntry } from "../app/src/chat/model-picker.tsx";
 
 const entries: ModelEntry[] = [
   { id: "gpt-low", handle: "openai/gpt-5", label: "GPT-5 Low", reasoningEffort: "low" },

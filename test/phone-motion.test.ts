@@ -74,7 +74,7 @@ describe("gestures", () => {
   });
 });
 
-import { rehypeWords } from "../app/src/chat/Transcript.tsx";
+import { rehypeWords } from "../app/src/chat/transcript.tsx";
 
 describe("streaming words (Transcript's rehypeWords)", () => {
   interface N {

@@ -363,7 +363,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       profile: (agentId) => profilePath(agentId),
       uploads: paths.uploads,
       // Back from signing in to a remote MCP server (daemon/mcp/oauth.ts): only on this loopback server.
-      routes: [oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOAuthCallback(params))],
+      routes: [oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params))],
       health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: ws?.clientCount() ?? 0 }),
     }).then((s) => {
       ws = attachWs(s.server, token, bridge);
