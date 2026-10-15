@@ -149,12 +149,12 @@ export const recentPlaces = createRecents({ key: PLACES_KEY, max: 8 });
 
 // ---- hits -----------------------------------------------------------------------------------------
 
-type OpenableDesk = DeskSummary & { agentId: string; conversationId: string };
+type OpenableDesk = DeskSummary & { agent_id: string; conversation_id: string };
 /** Desks search can open: a real conversation, not the shared scope, not deleted. */
-const openable = (d: DeskSummary): d is OpenableDesk => !!d.agentId && !!d.conversationId && d.status !== "deleted";
+const openable = (d: DeskSummary): d is OpenableDesk => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
 /** The sidebar's name for a desk (DeskSidebar): its title, else Main chat, New desk, or its scope. */
-const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversationId === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
+const deskTitle = (d: DeskSummary): string => d.title ?? (d.conversation_id === "default" ? "Main chat" : d.status === "live" ? "New chat" : d.scope);
 const time = (iso: string | null | undefined): number => {
   const t = iso ? Date.parse(iso) : NaN;
   return Number.isFinite(t) ? t : 0;
@@ -173,7 +173,7 @@ const deskHit = (d: OpenableDesk, agentName: string): SearchHit => ({
   group: "desks",
   title: deskTitle(d),
   preview: d.status === "live" ? agentName : `${agentName} · archived`,
-  target: { kind: "desk", agentId: d.agentId, conversationId: d.conversationId },
+  target: { kind: "desk", agentId: d.agent_id, conversationId: d.conversation_id },
   lead: { icon: d.status === "live" ? "desk" : "archive" },
   dim: d.status !== "live",
 });
@@ -188,13 +188,13 @@ const agentHit = (a: { id: string; name: string }): SearchHit => ({
   dim: false,
 });
 const itemHit = (i: AttentionItem, agentName: string): SearchHit => ({
-  key: `waiting:${i.agentId}/${i.id}`,
-  place: deskPlace(scopeFor(i.id, i.agentId)),
+  key: `waiting:${i.agent_id}/${i.id}`,
+  place: deskPlace(scopeFor(i.id, i.agent_id)),
   group: "waiting",
   title: i.title || "Untitled conversation",
   preview: [agentName, WAITS[i.status]].filter(Boolean).join(" · "),
-  target: { kind: "desk", agentId: i.agentId, conversationId: i.id },
-  lead: { agent: { id: i.agentId, name: agentName } },
+  target: { kind: "desk", agentId: i.agent_id, conversationId: i.id },
+  lead: { agent: { id: i.agent_id, name: agentName } },
   dim: false,
 });
 const pageHit = (p: Page): SearchHit => ({
@@ -219,12 +219,12 @@ export function buildIndex(src: SearchSources): SearchIndex {
   const out: Array<Indexed<SearchHit>> = [];
   for (const d of src.desks)
     if (openable(d))
-      out.push({ hit: deskHit(d, name(d.agentId, d.agentName)), fields: [deskTitle(d), name(d.agentId, d.agentName)], recency: time(d.lastActive) });
+      out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: time(d.last_active) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
   // What needs you: the waiting group; every chat is findable by its title among the chats above.
   for (const i of catchUpQueue(src.items)) {
-    const n = name(i.agentId, i.agentName);
-    out.push({ hit: itemHit(i, n), fields: [i.title ?? "", n], recency: time(i.lastMessageAt) });
+    const n = name(i.agent_id, i.agent_name);
+    out.push({ hit: itemHit(i, n), fields: [i.title ?? "", n], recency: time(i.last_message_at) });
   }
   for (const p of DESTINATIONS) out.push({ hit: pageHit(p), fields: [p.label, ...p.keywords], recency: 0 });
   return buildSearchIndex(out);
@@ -252,7 +252,7 @@ export function placeHit(key: string, src: SearchSources): SearchHit | null {
   const [kind, rest] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
   if (kind === "desk") {
     const d = src.desks.find((x) => x.scope === rest);
-    return d && openable(d) ? deskHit(d, agentNamer(src)(d.agentId, d.agentName)) : null;
+    return d && openable(d) ? deskHit(d, agentNamer(src)(d.agent_id, d.agent_name)) : null;
   }
   if (kind === "agent") {
     const a = src.agents.find((x) => x.id === rest);

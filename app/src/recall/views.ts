@@ -13,7 +13,7 @@ export function learnViews(snap: RecallSnapshot | null, due: number): Array<{ vi
     review: snap ? due : 0,
     leads: snap?.leads.length ?? 0,
     all: snap?.cards.length ?? 0,
-    deleted: (snap?.rejected.length ?? 0) + (snap?.dismissedLeads.length ?? 0),
+    deleted: (snap?.rejected.length ?? 0) + (snap?.dismissed_leads.length ?? 0),
   };
   return LEARN_VIEWS.map((view) => ({ view, label: LABEL[view], count: count[view] }));
 }

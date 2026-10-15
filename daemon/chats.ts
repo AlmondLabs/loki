@@ -261,18 +261,19 @@ export class ChatProjection implements ChatSource {
 
   digest(conversationId: string, agentId: string | null): LocalDigest {
     const chat = this.find(conversationId, agentId);
-    let lastRole: LocalDigest["lastRole"] = null;
+    let lastRole: LocalDigest["last_role"] = null;
     let lastAssistantText: string | null = null;
     const entries = chat?.entries ?? [];
     for (let i = entries.length - 1; i >= 0; i--) {
       const e = entries[i];
-      if (e.role === "user" && e.text) return { lastRole: lastRole ?? "user", lastAssistantText, lastAsk: isScheduledPrompt(e.text) ? "schedule" : "person" };
+      if (e.role === "user" && e.text)
+        return { last_role: lastRole ?? "user", last_assistant_text: lastAssistantText, last_ask: isScheduledPrompt(e.text) ? "schedule" : "person" };
       if (e.role === "assistant" && e.text && !lastRole) {
         lastRole = "assistant";
         lastAssistantText = e.text.slice(-DIGEST_TEXT_LIMIT);
       }
     }
-    return { lastRole, lastAssistantText, lastAsk: null };
+    return { last_role: lastRole, last_assistant_text: lastAssistantText, last_ask: null };
   }
 
   folders(): RecentFolders {
@@ -286,6 +287,6 @@ export class ChatProjection implements ChatSource {
       const list = (byAgent[chat.agentId] ??= []);
       if (!list.includes(cwd)) list.push(cwd);
     }
-    return { byAgent, byConversation };
+    return { by_agent: byAgent, by_conversation: byConversation };
   }
 }

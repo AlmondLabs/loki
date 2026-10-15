@@ -41,7 +41,7 @@ describe("tasks: parsing", () => {
     const [one] = parseTasks(JSON.stringify(raw()));
     expect(one.assignee).toBeNull();
     expect(one.metadata.agent).toBe("friday");
-    expect(one.closedAt).toBeNull();
+    expect(one.closed_at).toBeNull();
   });
   test("a warning line before the JSON is skipped", () => {
     expect(parseTasks("warning: beads.role not configured\n" + JSON.stringify([raw()]))).toHaveLength(1);
@@ -64,7 +64,7 @@ describe("tasks: bd arguments", () => {
     expect(args.slice(-2)).toEqual(["--", "write the quiz plan"]); // last, after --: never read as an option
     expect(args).toContain("--json");
     const md = JSON.parse(args[args.indexOf("--metadata") + 1]) as unknown;
-    expect(md).toEqual({ by: "agent", agent: "ira", agentId: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" });
+    expect(md).toEqual({ by: "agent", agent: "ira", agent_id: "a1", conversation: "c9", desk: "c9", folder: "/Users/x/Documents/personal/Almonds" });
     expect(args[args.indexOf("-l") + 1]).toBe("almonds,plan"); // folder label deduped against the agent's
     expect(args[args.indexOf("-p") + 1]).toBe("1");
   });
@@ -83,7 +83,7 @@ describe("tasks: bd arguments", () => {
   test("assign sets assignee and the target in metadata; dispatch also starts it", () => {
     const a = assignArgs(["lk-a1", "lk-b2"], { agent: "friday", agentId: "ag", conversation: "c2", desk: "c2" });
     expect(a.slice(0, 3)).toEqual(["update", "lk-a1", "lk-b2"]);
-    expect(a).toContain("assignedTo=c2");
+    expect(a).toContain("assigned_to=c2");
     expect(a[a.indexOf("--assignee") + 1]).toBe("friday");
     expect(a).not.toContain("--status");
     expect(assignArgs(["lk-a1"], { agent: null, agentId: null, conversation: "c2", desk: "c2" }, "in_progress")).toContain("in_progress");
@@ -109,18 +109,18 @@ describe("tasks: turn-start block", () => {
     priority: 1,
     labels: [],
     assignee: null,
-    createdAt: "",
-    updatedAt: "",
-    closedAt: null,
+    created_at: "",
+    updated_at: "",
+    closed_at: null,
     metadata: {},
     ...over,
   });
   test("only tasks assigned to this conversation, never closed ones", () => {
     const block = formatTasksContext(
       [
-        t({ metadata: { assignedTo: "c1", by: "agent", agent: "friday" } }),
-        t({ id: "lk-b2", metadata: { assignedTo: "c2" } }),
-        t({ id: "lk-c3", status: "closed", metadata: { assignedTo: "c1" } }),
+        t({ metadata: { assigned_to: "c1", by: "agent", agent: "friday" } }),
+        t({ id: "lk-b2", metadata: { assigned_to: "c2" } }),
+        t({ id: "lk-c3", status: "closed", metadata: { assigned_to: "c1" } }),
       ],
       { conversation: "c1" },
     );
@@ -144,10 +144,10 @@ describe("tasks: told once, again only on a change", () => {
     priority: 1,
     labels: [],
     assignee: null,
-    createdAt: "",
-    updatedAt: "",
-    closedAt: null,
-    metadata: { assignedTo: "c1" },
+    created_at: "",
+    updated_at: "",
+    closed_at: null,
+    metadata: { assigned_to: "c1" },
     ...over,
   });
   const deliver = (n: TasksNotice, conv: string, tasks: Task[]) => {
@@ -296,14 +296,14 @@ describe("tasks: an agent's done?, and reopening", () => {
       "update",
       "lk-a1",
       "--set-metadata",
-      "doneAsked=migrated staging",
+      "done_asked=migrated staging",
       "--set-metadata",
-      "doneAskedAt=2026-10-13T10:00:00.000Z",
+      "done_asked_at=2026-10-13T10:00:00.000Z",
       "--set-metadata",
-      "doneAskedBy=friday",
+      "done_asked_by=friday",
       "--json",
     ]);
-    expect(askDoneArgs("lk-a1", {}, now)).toContain("doneAsked=yes");
+    expect(askDoneArgs("lk-a1", {}, now)).toContain("done_asked=yes");
   });
 
   test("reopen clears an agent's done? and reopens only what is closed", async () => {
@@ -319,7 +319,7 @@ describe("tasks: an agent's done?, and reopening", () => {
     });
     const tasks = await store.reopen(["lk-a1", "lk-b2"]);
     expect(calls).toEqual([
-      ["update", "lk-a1", "lk-b2", "--unset-metadata", "doneAsked", "--unset-metadata", "doneAskedBy", "--unset-metadata", "doneAskedAt", "--json"],
+      ["update", "lk-a1", "lk-b2", "--unset-metadata", "done_asked", "--unset-metadata", "done_asked_by", "--unset-metadata", "done_asked_at", "--json"],
       ["reopen", "lk-b2", "--json"],
     ]);
     expect(tasks.map((t) => [t.id, t.status])).toEqual([

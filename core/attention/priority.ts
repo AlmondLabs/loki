@@ -47,7 +47,7 @@ export const isBlocked = (i: Unscored): boolean => i.status === "approval" || i.
 
 /** A card's score at `now` given its chat's focus share, by the formula above. */
 export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
-  const hours = i.lastMessageAt ? Math.max(0, now - new Date(i.lastMessageAt).getTime()) / 3_600_000 : 0;
+  const hours = i.last_message_at ? Math.max(0, now - new Date(i.last_message_at).getTime()) / 3_600_000 : 0;
   const blocked = isBlocked(i);
   return (
     (blocked ? BLOCKED_POINTS : 0) +
@@ -77,7 +77,7 @@ export function byScore<T extends { score: number }>(items: readonly T[]): T[] {
 export function scored(items: readonly Unscored[], now = Date.now(), focus: Record<string, number> = {}): AttentionItem[] {
   return byScore(
     items.map((i) => {
-      const f = focus[`${i.agentId}/${i.id}`] ?? 0;
+      const f = focus[`${i.agent_id}/${i.id}`] ?? 0;
       return { ...i, focus: f, score: scoreOf(i, now, f), reason: reasonOf(i, f) };
     }),
   );

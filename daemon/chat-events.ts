@@ -58,13 +58,13 @@ export class ChatEventConverter {
       }
       case "run_start":
         this.turnId = turnIdOf(this.agentId, ev.inputs);
-        return [{ kind: "loop", state: "running", ...(this.turnId ? { turnId: this.turnId } : {}) }];
+        return [{ kind: "loop", state: "running", ...(this.turnId ? { turn_id: this.turnId } : {}) }];
       case "run_end": {
         const turnId = turnIdOf(this.agentId, ev.inputs) ?? this.turnId;
         this.turnId = null;
         this.partial = null;
         this.blocks.clear();
-        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turnId } : {}) }];
+        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end", ...(turnId ? { turn_id: turnId } : {}) }];
       }
       case "message_start":
         if (ev.message.role !== "user") {
@@ -120,7 +120,7 @@ export class ChatEventConverter {
           { kind: "error", message: unanswered(ev.record.reason) },
           { kind: "settle" },
           { kind: "loop", state: "idle" },
-          { kind: "turn_end", turnId: turnIdOf(this.agentId, [ev.record.id]) ?? undefined },
+          { kind: "turn_end", turn_id: turnIdOf(this.agentId, [ev.record.id]) ?? undefined },
         ];
       default:
         return [];

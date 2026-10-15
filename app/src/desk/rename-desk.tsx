@@ -109,9 +109,9 @@ export const NO_RENAME_REASON = "Not connected";
  * only re-broadcasts titles at a turn's end) and the desks list is asked for again, as archive does.
  */
 export function renameDesk(desk: Desk, catchUp: CatchUp, notice: (m: string) => void) {
-  return async (d: Pick<DeskSummary, "scope" | "conversationId">, name: string): Promise<string | null> => {
-    if (!d.conversationId) return "this chat has no conversation to rename";
-    const err = await catchUp.renameConversation(d.conversationId, name);
+  return async (d: Pick<DeskSummary, "scope" | "conversation_id">, name: string): Promise<string | null> => {
+    if (!d.conversation_id) return "this chat has no conversation to rename";
+    const err = await catchUp.renameConversation(d.conversation_id, name);
     if (err) return err;
     desk.setDeskTitle(d.scope, name);
     desk.desks.request();

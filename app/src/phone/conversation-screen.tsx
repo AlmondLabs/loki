@@ -160,8 +160,8 @@ export function ConversationScreen({
     readOnly: true,
   });
   const layout = useMemo(
-    () => ({ people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline }),
-    [people, dividerAt, item?.lastMessageAt, widgets, inline],
+    () => ({ people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline }),
+    [people, dividerAt, item?.last_message_at, widgets, inline],
   );
   const messageTasks = useMessageTasksScope(
     { agentId: thread.agentId, agentName: thread.agentName, conversationId: thread.conversationId, desk: scopeFor(thread.conversationId, thread.agentId) },

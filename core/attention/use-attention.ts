@@ -301,15 +301,17 @@ export function useAttention(opts: UseAttentionOptions) {
       const rows = await optsRef.current.listConversations();
       if (cancelled) return;
       const convs: ConversationInfo[] = rows
-        .map(({ lastRole: _r, lastAssistantText: _t, lastAsk: _a, ...c }) => c)
-        .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+        .map(({ last_role: _r, last_assistant_text: _t, last_ask: _a, ...c }) => c)
+        .sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
       lastReload.current = Date.now();
-      knownRef.current = new Set(convs.map((c) => keyOf(c.agentId, c.id)));
+      knownRef.current = new Set(convs.map((c) => keyOf(c.agent_id, c.id)));
       setConversations(convs);
-      setDigests(new Map(rows.map((r) => [keyOf(r.agentId, r.id), { lastRole: r.lastRole, lastAssistantText: r.lastAssistantText, lastAsk: r.lastAsk }])));
+      setDigests(
+        new Map(rows.map((r) => [keyOf(r.agent_id, r.id), { last_role: r.last_role, last_assistant_text: r.last_assistant_text, last_ask: r.last_ask }])),
+      );
       // Live events (approvals, questions, streaming) need the chat opened on the daemon (chat_open); the newest are.
       for (const c of convs.slice(0, subscribeLimit)) {
-        const rt: Runtime = { agent_id: c.agentId, conversation_id: c.id };
+        const rt: Runtime = { agent_id: c.agent_id, conversation_id: c.id };
         // a conversation we cannot reach still lists; it just has no live half
         if (!sock.isSubscribed(rt)) await sock.runtimeStart(rt).catch(() => {});
         if (stopped()) return;
@@ -376,9 +378,9 @@ export function useAttention(opts: UseAttentionOptions) {
       const at = queue.findIndex((i) => idOf(i) === idOf(item));
       const it = queue[at] ?? item;
       return {
-        desk: deskOf(item.agentId, item.id),
-        agent: item.agentId,
-        turn_id: turnOf(item.agentId, item.id),
+        desk: deskOf(item.agent_id, item.id),
+        agent: item.agent_id,
+        turn_id: turnOf(item.agent_id, item.id),
         rank: at >= 0 ? at + 1 : null,
         of: queue.length,
         score: Math.round(it.score * 10) / 10,
@@ -386,7 +388,7 @@ export function useAttention(opts: UseAttentionOptions) {
         reason: it.reason,
         status: it.status,
         new: it.unread,
-        idle_min: minutesSince(it.lastMessageAt, Date.now()),
+        idle_min: minutesSince(it.last_message_at, Date.now()),
       };
     },
     [turnOf],
@@ -412,14 +414,14 @@ export function useAttention(opts: UseAttentionOptions) {
       });
       // Next on a card that was on top for its focus: not what you are on now, so its focus halves (focus.ts SKIP_FACTOR).
       // Not after you just acted on it: that is moving on, and your reply is what gave it the focus.
-      if (skipsFocus(lastDecision.current, idOf(item), action, props.reason)) optsRef.current.engage?.(item.agentId, item.id, "skip");
+      if (skipsFocus(lastDecision.current, idOf(item), action, props.reason)) optsRef.current.engage?.(item.agent_id, item.id, "skip");
       lastDecision.current = { id: idOf(item), action };
     },
     [clock, cardProps],
   );
   /** A Next or an Archive taken back: the ranking's miss, or a slip. */
   const undone = useCallback((item: AttentionItem, action: "next" | "archive") => {
-    optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agentId, item.id), agent: item.agentId });
+    optsRef.current.capture?.("inbox_card_undone", { action, desk: deskOf(item.agent_id, item.id), agent: item.agent_id });
   }, []);
   /** An agent pill chosen in the Inbox (null: All). */
   const filtered = useCallback((agent: string | null) => {
@@ -467,7 +469,14 @@ export function useAttention(opts: UseAttentionOptions) {
       const rt = await sock.createConversation(agentId, cwd, name);
       const agentName = agents.find((a) => a.id === agentId)?.name ?? null;
       setConversations((c) => [
-        { id: rt.conversation_id, agentId: rt.agent_id, agentName, title: name?.trim() || null, lastMessageAt: new Date().toISOString(), archived: false },
+        {
+          id: rt.conversation_id,
+          agent_id: rt.agent_id,
+          agent_name: agentName,
+          title: name?.trim() || null,
+          last_message_at: new Date().toISOString(),
+          archived: false,
+        },
         ...c,
       ]);
       return rt;
@@ -932,7 +941,7 @@ export function useAttention(opts: UseAttentionOptions) {
     } catch (err) {
       return { applied: null, error: err instanceof Error ? err.message : String(err) };
     }
-    optsRef.current.capture?.("model_switched", { model: applied.handle, effort: applied.reasoningEffort });
+    optsRef.current.capture?.("model_switched", { model: applied.handle, effort: applied.reasoning_effort });
     return { applied, error: null };
   }, []);
 
@@ -951,7 +960,7 @@ export function useAttention(opts: UseAttentionOptions) {
           return null;
         }
       },
-      set: async (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; dailyCap?: number } }): Promise<string | null> => {
+      set: async (s: { reflection?: { enabled: boolean }; learn?: { enabled?: boolean; daily_cap?: number } }): Promise<string | null> => {
         const sock = socketRef.current;
         if (!sock) return "not connected to loki's daemon";
         try {
@@ -976,8 +985,8 @@ export function useAttention(opts: UseAttentionOptions) {
     [],
   );
 
-  const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agentId, item.id), []);
-  const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agentId, item.id), []);
+  const markDone = useCallback((item: AttentionItem) => optsRef.current.markSeen(item.agent_id, item.id), []);
+  const markNotDone = useCallback((item: AttentionItem) => optsRef.current.unmarkSeen(item.agent_id, item.id), []);
   /** Done with a chat: it is archived and leaves the Inbox; resolves to an error or null. */
   const archive = useCallback((item: AttentionItem) => archiveConversation(item.id, true, "inbox"), [archiveConversation]);
   /** Undo of an archive: the chat comes back. */

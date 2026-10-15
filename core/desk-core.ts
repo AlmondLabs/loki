@@ -61,7 +61,7 @@ export interface WidgetManifestEntry {
   hash: string;
   /** Syntax/parse error found by the mod, or runtime error reported by the tab. */
   error?: string;
-  updatedAt: number;
+  updated_at: number;
 }
 
 /** What happened to a widget file, as its change log records it. */
@@ -81,7 +81,7 @@ export interface WidgetLogEntry {
   at: number;
   scope: Scope;
   /** The widget's "<scope>/<name>" id, as in WidgetManifestEntry.id. */
-  widgetId: string;
+  widget_id: string;
   name: string;
   title: string;
   kind: WidgetKind;
@@ -163,9 +163,9 @@ const overlaps = (a: Rect, b: Rect, gap: number) => a.x < b.x + b.w + gap && a.x
  * anything and without running past the row width. Reads left to right, top
  * to bottom, the way a person tidies a desk.
  */
-export function findFreeSpot(obstacles: Rect[], size: Size = DEFAULT_SIZE, opts: { origin?: Position; rowWidth?: number; gap?: number } = {}): Position {
+export function findFreeSpot(obstacles: Rect[], size: Size = DEFAULT_SIZE, opts: { origin?: Position; row_width?: number; gap?: number } = {}): Position {
   const origin = opts.origin ?? ORIGIN;
-  const rowWidth = opts.rowWidth ?? ROW_WIDTH;
+  const rowWidth = opts.row_width ?? ROW_WIDTH;
   const gap = opts.gap ?? GAP;
   const candidates: Position[] = [origin];
   for (const o of obstacles) {
@@ -357,15 +357,15 @@ export function conversationDirName(conversationId: string, agentId?: string | n
 }
 
 /** The kit vocabulary — one line per type, what the agent reads. */
-export const KIT: Record<string, { dataShape: string }> = {
-  "info-card": { dataShape: "{ lines: string[] }" },
-  stat: { dataShape: "{ value: string|number, label?: string, unit?: string, delta?: number }" },
+export const KIT: Record<string, { data_shape: string }> = {
+  "info-card": { data_shape: "{ lines: string[] }" },
+  stat: { data_shape: "{ value: string|number, label?: string, unit?: string, delta?: number }" },
   "slider-control": {
-    dataShape: "{ label: string, value: number, min: number, max: number, step?: number, unit?: string }",
+    data_shape: "{ label: string, value: number, min: number, max: number, step?: number, unit?: string }",
   },
-  "list-card": { dataShape: "{ items: Array<{ text: string, done?: boolean }> }" },
+  "list-card": { data_shape: "{ items: Array<{ text: string, done?: boolean }> }" },
   "chart-card": {
-    dataShape: '{ kind: "line"|"bar"|"area", points: Array<{ x: string|number, y: number }>, yLabel?: string }',
+    data_shape: '{ kind: "line"|"bar"|"area", points: Array<{ x: string|number, y: number }>, yLabel?: string }',
   },
 };
 /** Every kit type a JSON widget may name. */

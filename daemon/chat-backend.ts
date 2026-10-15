@@ -117,7 +117,7 @@ export class DaemonChats implements ChatBackend {
   }
 
   approve(p: PayloadOf<"chat_approve">): Promise<boolean> {
-    return settled(() => this.deps.approvals.decide(p.approvalId, p.allow, p.message ?? undefined, p.always));
+    return settled(() => this.deps.approvals.decide(p.approval_id, p.allow, p.message ?? undefined, p.always));
   }
 
   approvals(): Promise<{ always: string[] }> {
@@ -159,7 +159,7 @@ export class DaemonChats implements ChatBackend {
   }
 
   mcpAgent(p: PayloadOf<"chat_mcp_agent">): Promise<McpView> {
-    return settled(() => this.mcpTools.setAgentServer(p.agentId, p.server, p.on));
+    return settled(() => this.mcpTools.setAgentServer(p.agent_id, p.server, p.on));
   }
 
   async mcpSecret(p: PayloadOf<"chat_mcp_secret">): Promise<{ ref: string }> {
@@ -167,7 +167,7 @@ export class DaemonChats implements ChatBackend {
   }
 
   answer(p: PayloadOf<"chat_answer">): Promise<boolean> {
-    return settled(() => this.deps.approvals.answer(p.questionId, p.input));
+    return settled(() => this.deps.approvals.answer(p.question_id, p.input));
   }
 
   /**
@@ -209,10 +209,10 @@ export class DaemonChats implements ChatBackend {
     // The answer in flight so far: the client that opens now missed its first pieces (they went out before it listened).
     const streaming = view?.run ? (this.converters.get(`${agentId}\u0000${conversationId}`)?.inFlight() ?? null) : null;
     return {
-      agentId,
-      conversationId,
+      agent_id: agentId,
+      conversation_id: conversationId,
       loop: waiting ? "approval" : view?.run ? "running" : "idle",
-      turnId: view?.run ? turnIdOf(agentId, view.run.inputs) : null,
+      turn_id: view?.run ? turnIdOf(agentId, view.run.inputs) : null,
       mode: isPermissionMode(info?.mode) ? info.mode : "unrestricted",
       cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null,
       ...(streaming ? { streaming } : {}),
@@ -236,25 +236,25 @@ export class DaemonChats implements ChatBackend {
   }
 
   async send(p: PayloadOf<"chat_send">): Promise<boolean> {
-    const { store, chat } = await this.chat(p.agentId, p.conversationId);
+    const { store, chat } = await this.chat(p.agent_id, p.conversation_id);
     await this.healModel(store, chat);
     await this.deps.mcp?.prepare(store, chat, this.deps.context);
-    await this.watch(store, chat, p.agentId, p.conversationId);
-    const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.mediaType }));
+    await this.watch(store, chat, p.agent_id, p.conversation_id);
+    const images = p.images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type }));
     const parts = [
       ...(p.context ? [{ type: "text" as const, text: p.context }] : []),
       ...(p.text.trim() ? [{ type: "text" as const, text: p.text }] : []),
       ...images,
     ];
-    const agentName = readLocalAgent(p.agentId, this.deps.backendDir)?.name ?? "";
+    const agentName = readLocalAgent(p.agent_id, this.deps.backendDir)?.name ?? "";
     const content = this.deps.mods.transformMessage({
-      chatId: p.conversationId,
-      agentId: p.agentId,
+      chatId: p.conversation_id,
+      agentId: p.agent_id,
       agentName,
       content: parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts,
       typed: p.text.trim() !== "",
     });
-    await chat.submit({ type: "input", content: content as never, ...(p.sendId ? { requestId: p.sendId } : {}) }, this.deps.context);
+    await chat.submit({ type: "input", content: content as never, ...(p.send_id ? { requestId: p.send_id } : {}) }, this.deps.context);
     return true;
   }
 
@@ -284,13 +284,13 @@ export class DaemonChats implements ChatBackend {
   }
 
   async update(p: PayloadOf<"chat_update">): Promise<void> {
-    const store = await this.deps.stores.get(p.agentId);
+    const store = await this.deps.stores.get(p.agent_id);
     const change = {
       ...(p.title !== undefined ? { title: p.title } : {}),
       ...(p.archived !== undefined ? { archived: p.archived } : {}),
       ...(p.hidden !== undefined ? { hidden: p.hidden } : {}),
     };
-    if (!(await store.updateChat(p.conversationId, change, this.deps.context))) throw new Error(`no chat ${p.conversationId}`);
+    if (!(await store.updateChat(p.conversation_id, change, this.deps.context))) throw new Error(`no chat ${p.conversation_id}`);
   }
 
   async folder(agentId: string, conversationId: string, cwd: string): Promise<ChatState> {
@@ -301,10 +301,10 @@ export class DaemonChats implements ChatBackend {
   }
 
   async model(p: PayloadOf<"chat_model">): Promise<void> {
-    const { chat } = await this.chat(p.agentId, p.conversationId);
+    const { chat } = await this.chat(p.agent_id, p.conversation_id);
     const model = modelRef(p.handle);
     if (!model) throw new Error(`not a model handle: ${p.handle}`);
-    const level = thinkingLevel(p.reasoningEffort);
+    const level = thinkingLevel(p.reasoning_effort);
     await chat.configure({ model, ...(level ? { thinkingLevel: level as never } : {}) }, this.deps.context);
   }
 
@@ -332,13 +332,13 @@ export class DaemonChats implements ChatBackend {
   }
 
   async updateAgent(p: PayloadOf<"chat_agent_update">): Promise<void> {
-    const file = join(this.deps.backendDir, "agents", `${backendName(p.agentId)}.json`);
+    const file = join(this.deps.backendDir, "agents", `${backendName(p.agent_id)}.json`);
     const record = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
     if (p.name !== undefined) record.name = p.name;
     if (p.description !== undefined) record.description = p.description;
     if (p.model !== undefined) record.model = p.model;
-    writeRecord(this.deps.backendDir, p.agentId, record);
-    if (p.name !== undefined) await (await this.deps.stores.get(p.agentId)).setAgent({ id: p.agentId, name: p.name }, this.deps.context);
+    writeRecord(this.deps.backendDir, p.agent_id, record);
+    if (p.name !== undefined) await (await this.deps.stores.get(p.agent_id)).setAgent({ id: p.agent_id, name: p.name }, this.deps.context);
   }
 
   providers() {
@@ -381,7 +381,7 @@ export class DaemonChats implements ChatBackend {
 
   /** The slash commands the daemon runs: /compact [instructions], /clear, /remember [what], /reflect, /doctor. */
   async command(p: PayloadOf<"chat_command">): Promise<{ success: boolean; output: string }> {
-    const { chat } = await this.chat(p.agentId, p.conversationId);
+    const { chat } = await this.chat(p.agent_id, p.conversation_id);
     switch (p.command) {
       case "compact":
         await chat.compact(p.args?.trim() || undefined, this.deps.context);
@@ -395,19 +395,19 @@ export class DaemonChats implements ChatBackend {
         const text = what
           ? `Please remember this in your memory: ${what}`
           : "Look back over this conversation and save to your memory whatever is worth keeping.";
-        await this.deps.mcp?.prepare(await this.deps.stores.get(p.agentId), chat, this.deps.context);
+        await this.deps.mcp?.prepare(await this.deps.stores.get(p.agent_id), chat, this.deps.context);
         await chat.submit({ type: "input", content: text }, this.deps.context);
         return { success: true, output: "asked the agent to remember" };
       }
       case "reflect":
         if (!this.deps.passes) return { success: false, output: "reflection is not running" };
         // The pass runs on its own, even with reflection off; its memory changes show on the agent's page when it is done.
-        void this.deps.passes.runner.runNow("reflection", p.agentId, p.conversationId).catch(() => {});
+        void this.deps.passes.runner.runNow("reflection", p.agent_id, p.conversation_id).catch(() => {});
         return { success: true, output: "reflecting on this chat; its memory changes show on the agent's page" };
       case "doctor": {
         if (!this.deps.passes) return { success: false, output: "the background passes are not running" };
         // Waits for the review: its report is the command's answer, and each change is a commit on the agent's Changes page.
-        const r = await this.deps.passes.runner.runDoctor(p.agentId);
+        const r = await this.deps.passes.runner.runDoctor(p.agent_id);
         const tail = r.changes
           ? `\n\n${r.changes} change${r.changes === 1 ? "" : "s"} committed by Doctor; Agents › Changes shows each, and Revert undoes one.`
           : "";
@@ -441,12 +441,12 @@ export class DaemonChats implements ChatBackend {
   }
 
   async writeMemory(p: PayloadOf<"chat_memory_write">): Promise<void> {
-    await editMemoryFile(this.deps.backendDir, p.agentId, p.path, p.content, p.message);
+    await editMemoryFile(this.deps.backendDir, p.agent_id, p.path, p.content, p.message);
   }
 
   /** One memory commit undone, by a new commit as yours (the Agents page's Revert). */
   async revertMemory(p: PayloadOf<"chat_memory_revert">): Promise<void> {
-    await revertMemoryCommit(this.deps.backendDir, p.agentId, p.sha);
+    await revertMemoryCommit(this.deps.backendDir, p.agent_id, p.sha);
   }
 
   async deleteAgent(agentId: string): Promise<void> {

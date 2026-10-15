@@ -4,47 +4,47 @@ import { fail, reply, type FrameHandlers } from "../mod/frames/context.ts";
 import { bridgeWith, client, settled } from "./fixtures/frames.ts";
 
 describe("the frame router", () => {
-  test("a request's reply goes out under the table's name, with its requestId", () => {
-    const skills: FrameHandlers = { skills_global: () => reply({ skills: [{ name: "unslop", path: "/skills/unslop", isLink: false, description: null }] }) };
+  test("a request's reply goes out under the table's name, with its request_id", () => {
+    const skills: FrameHandlers = { skills_global: () => reply({ skills: [{ name: "unslop", path: "/skills/unslop", is_link: false, description: null }] }) };
     const { bridge } = bridgeWith({ modules: [skills] });
     const c = client("d1");
-    bridge.onMessage(c, { type: "skills_global", requestId: "r1" });
+    bridge.onMessage(c, { type: "skills_global", request_id: "r1" });
     expect(c.sent.at(-1)).toEqual({
       type: "skills_global",
-      requestId: "r1",
-      skills: [{ name: "unslop", path: "/skills/unslop", isLink: false, description: null }],
+      request_id: "r1",
+      skills: [{ name: "unslop", path: "/skills/unslop", is_link: false, description: null }],
     });
   });
 
-  test("every way a request can fail answers error with its requestId: refused, malformed, failed, thrown, rejected", async () => {
+  test("every way a request can fail answers error with its request_id: refused, malformed, failed, thrown, rejected", async () => {
     const agents: FrameHandlers = {
-      memory_read: ({ agentId, path }) =>
+      memory_read: ({ agent_id: agentId, path }) =>
         path === "gone.md"
           ? fail("no such file")
           : path === "boom.md"
             ? (() => {
                 throw new Error("disk on fire");
               })()
-            : reply({ agentId, path, content: "x" }),
+            : reply({ agent_id: agentId, path, content: "x" }),
       skill_install: () => Promise.reject(new Error("the installer crashed")),
     };
     const { bridge } = bridgeWith({ modules: [agents] });
     const c = client("d1");
-    bridge.onMessage(c, { type: "memory_read", requestId: "r1", agentId: "agent-1" });
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r1", message: "path required" });
-    bridge.onMessage(c, { type: "memory_read", requestId: "r2", agentId: "agent-1", path: "gone.md" });
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r2", message: "no such file" });
-    bridge.onMessage(c, { type: "memory_read", requestId: "r3", agentId: "agent-1", path: "boom.md" });
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r3", message: "disk on fire" });
-    bridge.onMessage(c, { type: "skill_install", requestId: "r4", agentId: "agent-1", source: "x" });
+    bridge.onMessage(c, { type: "memory_read", request_id: "r1", agent_id: "agent-1" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r1", message: "path required" });
+    bridge.onMessage(c, { type: "memory_read", request_id: "r2", agent_id: "agent-1", path: "gone.md" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r2", message: "no such file" });
+    bridge.onMessage(c, { type: "memory_read", request_id: "r3", agent_id: "agent-1", path: "boom.md" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r3", message: "disk on fire" });
+    bridge.onMessage(c, { type: "skill_install", request_id: "r4", agent_id: "agent-1", source: "x" });
     await settled();
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r4", message: "the installer crashed" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r4", message: "the installer crashed" });
     const phone = client("d1", "dev-1");
-    bridge.onMessage(phone, { type: "skill_install", requestId: "r5", agentId: "agent-1", source: "x" });
-    expect(phone.sent.at(-1)).toEqual({ type: "error", requestId: "r5", message: "skill_install is not available on the phone" });
+    bridge.onMessage(phone, { type: "skill_install", request_id: "r5", agent_id: "agent-1", source: "x" });
+    expect(phone.sent.at(-1)).toEqual({ type: "error", request_id: "r5", message: "skill_install is not available on the phone" });
   });
 
-  test("a send that is malformed, or whose handler fails, answers an error push without a requestId", () => {
+  test("a send that is malformed, or whose handler fails, answers an error push without a request_id", () => {
     const lan: FrameHandlers = {
       lan_via_set: () => {
         throw new Error("the listener is closing");

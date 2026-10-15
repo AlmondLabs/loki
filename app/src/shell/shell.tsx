@@ -162,9 +162,9 @@ export function Shell() {
   const pickModel = async (scope: string, rt: Runtime, selection: ModelSelection) => {
     const { applied, error } = await catchUp.updateModel(rt, selection);
     if (error || !applied) return notice(`model: ${error ?? "the daemon did not return the applied model"}`);
-    desk.setDeskModel(scope, applied.handle, applied.reasoningEffort);
+    desk.setDeskModel(scope, applied.handle, applied.reasoning_effort);
     desk.models.used(applied.handle);
-    const effort = applied.reasoningEffort ? ` · effort ${effortLabel(applied.reasoningEffort)}` : "";
+    const effort = applied.reasoning_effort ? ` · effort ${effortLabel(applied.reasoning_effort)}` : "";
     notice(`${rt.conversation_id === "default" ? "the agent now runs on" : "this conversation now runs on"} ${applied.handle.split("/").pop()}${effort}`);
   };
   const [modelPickerTick, setModelPickerTick] = useState(0);
@@ -245,9 +245,9 @@ export function Shell() {
   /** A task's source in Tasks: its chat opens on Messages, scrolled to the message it came from. */
   const openTaskSource = (t: Task) => {
     const s = taskSource(t);
-    if (!s?.conversation || !s.agentId) return notice("that task's chat is not known");
+    if (!s?.conversation || !s.agent_id) return notice("that task's chat is not known");
     requestReveal(s.conversation, s);
-    openDesk(s.agentId, s.conversation, { chat: true });
+    openDesk(s.agent_id, s.conversation, { chat: true });
   };
   const recall = useRecall(desk, segment, notice);
   const update = useLokiUpdate();
@@ -266,7 +266,13 @@ export function Shell() {
       // The task list asked for a new desk as the target: assign (or dispatch) there, then go.
       const agentName = catchUp.agents.find((a) => a.id === rt.agent_id)?.name ?? null;
       await tasks.assignTo(
-        { scope: scopeFor(rt.conversation_id, rt.agent_id), agentId: rt.agent_id, agentName, conversationId: rt.conversation_id, title: name || null },
+        {
+          scope: scopeFor(rt.conversation_id, rt.agent_id),
+          agent_id: rt.agent_id,
+          agent_name: agentName,
+          conversation_id: rt.conversation_id,
+          title: name || null,
+        },
         pending.ids,
         pending.start,
       );

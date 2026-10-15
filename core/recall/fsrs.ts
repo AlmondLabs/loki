@@ -27,7 +27,7 @@ export interface Schedule {
   /** ISO time the card is next due. A new card is due at once. */
   due: string;
   /** ISO time of the last review; null for a new card. */
-  lastReview: string | null;
+  last_review: string | null;
   reps: number;
   /** Times the card was forgotten (graded again) after having been learned. */
   lapses: number;
@@ -49,13 +49,13 @@ const DAY = 86_400_000;
 
 /** The schedule of a card never reviewed: due at `now`, with stability and difficulty 0. */
 export function newSchedule(now = Date.now()): Schedule {
-  return { stability: 0, difficulty: 0, due: new Date(now).toISOString(), lastReview: null, reps: 0, lapses: 0, recent: [] };
+  return { stability: 0, difficulty: 0, due: new Date(now).toISOString(), last_review: null, reps: 0, lapses: 0, recent: [] };
 }
 
 /** Probability of recall after `elapsedDays` at stability `s`. */
 export function retrievability(s: Schedule, now = Date.now()): number {
-  if (!s.lastReview || s.stability <= 0) return 0;
-  const days = Math.max(0, (now - new Date(s.lastReview).getTime()) / DAY);
+  if (!s.last_review || s.stability <= 0) return 0;
+  const days = Math.max(0, (now - new Date(s.last_review).getTime()) / DAY);
   return Math.pow(1 + (FACTOR * days) / s.stability, DECAY);
 }
 
@@ -86,7 +86,7 @@ function nextForgetStability(d: number, s: number, r: number): number {
 export function review(s: Schedule, grade: Grade, now = Date.now()): Schedule {
   const at = new Date(now).toISOString();
   const recent = [...s.recent, grade].slice(-5);
-  const first = !s.lastReview || s.stability <= 0;
+  const first = !s.last_review || s.stability <= 0;
   let stability: number;
   let difficulty: number;
   let lapses = s.lapses;
@@ -104,7 +104,7 @@ export function review(s: Schedule, grade: Grade, now = Date.now()): Schedule {
     }
   }
   const due = grade === 1 ? new Date(now + RELEARN_MINUTES * 60_000).toISOString() : new Date(now + intervalDays(stability) * DAY).toISOString();
-  return { stability, difficulty, due, lastReview: at, reps: s.reps + 1, lapses, recent };
+  return { stability, difficulty, due, last_review: at, reps: s.reps + 1, lapses, recent };
 }
 
 /** What each grade would schedule from here — for showing "1d · 4d · 10d" under the buttons. */
@@ -128,7 +128,7 @@ export function describeGap(ms: number): string {
 /** Whether a card is due for review at `now`. */
 export const isDue = (s: Schedule, now = Date.now()) => new Date(s.due).getTime() <= now;
 /** Whether a card has never been reviewed. */
-export const isNew = (s: Schedule) => s.lastReview === null;
+export const isNew = (s: Schedule) => s.last_review === null;
 
 /** A card the scheduler cannot hold: three of the last four answers were "again". The worker rewrites or splits it. */
 export function keepsFailing(s: Schedule): boolean {

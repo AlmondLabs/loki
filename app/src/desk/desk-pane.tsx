@@ -116,7 +116,15 @@ export function DeskPane(props: DeskPaneProps) {
     : undefined;
   // The rows are drawn live under their latest change (chat/use-inline-widgets.tsx); "Show on canvas" frames them there.
   const { widgets, inline } = useInlineWidgets(desk, desk.scope, view.rows, agentName, { onOpen: frameWidget });
-  const layout = { people, dividerAt, dividerDay: dayLabel(item?.lastMessageAt), widgets, inline, onFrameWidget: frameWidget, onShowDesk: () => onTab("desk") };
+  const layout = {
+    people,
+    dividerAt,
+    dividerDay: dayLabel(item?.last_message_at),
+    widgets,
+    inline,
+    onFrameWidget: frameWidget,
+    onShowDesk: () => onTab("desk"),
+  };
 
   // Focus across the tab switch (useTabFocus): the pane's root, and what the thread last held.
   const paneRef = useRef<HTMLDivElement>(null);

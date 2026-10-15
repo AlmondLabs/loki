@@ -2,16 +2,17 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { DeviceSummary, DeviceVia } from "../core/frame-types.ts";
+import { migrateKeys } from "../core/snake-keys.ts";
 
 /**
  * Paired phones. Each holds a 32-byte token (in an HttpOnly cookie, see mod/lan.ts);
  * the file at state/devices.json keeps only the token's sha256, so reading the file
  * never yields a usable credential.
- *   [{ id, name, tokenHash, createdAt, lastSeenAt, lastVia? }]
+ *   [{ id, name, token_hash, created_at, last_seen_at, last_via? }]
  */
 export interface DeviceRecord extends DeviceSummary {
   /** sha256 hex of the device token. */
-  tokenHash: string;
+  token_hash: string;
 }
 
 const SEEN_WRITE_INTERVAL_MS = 60_000;
@@ -32,12 +33,13 @@ export class DeviceStore {
     this.path = path;
     this.now = opts.now ?? Date.now;
     try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      const { value: parsed, changed } = migrateKeys(JSON.parse(readFileSync(path, "utf8")) as unknown);
       if (Array.isArray(parsed)) {
         this.devices = parsed.filter(
           (d): d is DeviceRecord =>
-            typeof d === "object" && d !== null && typeof (d as DeviceRecord).id === "string" && typeof (d as DeviceRecord).tokenHash === "string",
+            typeof d === "object" && d !== null && typeof (d as DeviceRecord).id === "string" && typeof (d as DeviceRecord).token_hash === "string",
         );
+        if (changed) this.persist();
       }
     } catch {
       this.devices = [];
@@ -51,33 +53,33 @@ export class DeviceStore {
     let id = randomBytes(6).toString("hex");
     while (this.devices.some((d) => d.id === id)) id = randomBytes(6).toString("hex");
     const clean = name.trim().slice(0, 64) || "Phone";
-    this.devices.push({ id, name: clean, tokenHash: hashToken(token), createdAt: at, lastSeenAt: at });
+    this.devices.push({ id, name: clean, token_hash: hashToken(token), created_at: at, last_seen_at: at });
     this.persist();
     return { id, token };
   }
 
   /**
-   * The device a token belongs to, or null. Refreshes lastSeenAt and, when given, the route the request
+   * The device a token belongs to, or null. Refreshes last_seen_at and, when given, the route the request
    * came in by; the file is rewritten at most once a minute per device, or at once when the route changed
    * (that is the fact Settings shows, and a phone switching Wi‑Fi for the tailnet should read so right away).
    */
   verify(token: string, via?: DeviceVia): DeviceRecord | null {
     if (typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return null;
     const hash = hashToken(token);
-    const device = this.devices.find((d) => d.tokenHash === hash);
+    const device = this.devices.find((d) => d.token_hash === hash);
     if (!device) return null;
     const now = this.now();
-    const routeChanged = via !== undefined && via !== device.lastVia;
-    if (routeChanged || now - Date.parse(device.lastSeenAt) >= SEEN_WRITE_INTERVAL_MS) {
-      device.lastSeenAt = new Date(now).toISOString();
-      if (via !== undefined) device.lastVia = via;
+    const routeChanged = via !== undefined && via !== device.last_via;
+    if (routeChanged || now - Date.parse(device.last_seen_at) >= SEEN_WRITE_INTERVAL_MS) {
+      device.last_seen_at = new Date(now).toISOString();
+      if (via !== undefined) device.last_via = via;
       this.persist();
       this.onSeen?.(device);
     }
     return device;
   }
 
-  /** Called when a verify moved a device's lastSeenAt on disk (so the canvas's list can follow). */
+  /** Called when a verify moved a device's last_seen_at on disk (so the canvas's list can follow). */
   onSeen: ((device: DeviceRecord) => void) | null = null;
 
   forget(id: string): boolean {
@@ -93,7 +95,13 @@ export class DeviceStore {
   }
 
   list(): DeviceSummary[] {
-    return this.devices.map(({ id, name, createdAt, lastSeenAt, lastVia }) => ({ id, name, createdAt, lastSeenAt, ...(lastVia ? { lastVia } : {}) }));
+    return this.devices.map(({ id, name, created_at: createdAt, last_seen_at: lastSeenAt, last_via: lastVia }) => ({
+      id,
+      name,
+      created_at: createdAt,
+      last_seen_at: lastSeenAt,
+      ...(lastVia ? { last_via: lastVia } : {}),
+    }));
   }
 
   private persist(): void {

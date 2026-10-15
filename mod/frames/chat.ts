@@ -88,14 +88,18 @@ async function agentsChange<R>(work: Promise<Outcome<R>>, ctx: FrameContext): Pr
 export function chatFrames(deps: ChatDeps): FrameHandlers {
   const b = deps.chat;
   return {
-    chat_open: ({ agentId, conversationId, mode }) => served(b, (x) => x.open(agentId, conversationId, mode)),
+    chat_open: ({ agent_id: agentId, conversation_id: conversationId, mode }) => served(b, (x) => x.open(agentId, conversationId, mode)),
     chat_approve: (p) => served(b, async (x) => ({ accepted: await x.approve(p) })),
     chat_answer: (p) => served(b, async (x) => ({ accepted: await x.answer(p) })),
-    chat_create: ({ agentId, cwd, title }) => served(b, (x) => x.create(agentId, cwd, title)),
+    chat_create: ({ agent_id: agentId, cwd, title }) =>
+      served(b, async (x) => {
+        const made = await x.create(agentId, cwd, title);
+        return { agent_id: made.agentId, conversation_id: made.conversationId };
+      }),
     chat_send: (p) => served(b, async (x) => ({ accepted: await x.send(p) })),
-    chat_abort: ({ agentId, conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),
+    chat_abort: ({ agent_id: agentId, conversation_id: conversationId }) => served(b, async (x) => (await x.abort(agentId, conversationId), DONE)),
     chat_update: (p) => served(b, async (x) => (await x.update(p), DONE)),
-    chat_folder: ({ agentId, conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
+    chat_folder: ({ agent_id: agentId, conversation_id: conversationId, cwd }) => served(b, (x) => x.folder(agentId, conversationId, cwd)),
     chat_model: (p) => served(b, async (x) => (await x.model(p), DONE)),
     chat_models: () => served(b, async (x) => ({ entries: await x.models() })),
     chat_agents: () => served(b, async (x) => ({ agents: await x.agents() })),
@@ -109,7 +113,7 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
         served(b, async (x) => (await x.updateAgent(p), DONE)),
         ctx,
       ),
-    chat_agent_delete: ({ agentId }, ctx) =>
+    chat_agent_delete: ({ agent_id: agentId }, ctx) =>
       agentsChange(
         served(b, async (x) => (await x.deleteAgent(agentId), DONE)),
         ctx,
@@ -123,7 +127,11 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_passes_get: () => served(b, (x) => x.passes()),
     chat_passes_set: (p) => served(b, (x) => x.setPasses(p)),
     chat_command: (p) => served(b, (x) => x.command(p)),
-    chat_skill_enable: ({ path }) => served(b, (x) => x.enableSkill(path)),
+    chat_skill_enable: ({ path }) =>
+      served(b, async (x) => {
+        const { name, linkPath } = await x.enableSkill(path);
+        return { name, link_path: linkPath };
+      }),
     chat_skill_disable: ({ name }) => served(b, async (x) => (await x.disableSkill(name), DONE)),
     chat_memory_write: (p) => served(b, async (x) => (await x.writeMemory(p), DONE)),
     chat_memory_revert: (p) => served(b, async (x) => (await x.revertMemory(p), DONE)),
@@ -137,9 +145,10 @@ export function chatFrames(deps: ChatDeps): FrameHandlers {
     chat_mcp_agent: (p) => served(b, (x) => x.mcpAgent(p)),
     chat_mcp_secret: (p) => served(b, (x) => x.mcpSecret(p)),
     chat_providers: () => served(b, async (x) => ({ providers: await x.providers() })),
-    chat_provider_connect: ({ providerId, apiKey }) =>
+    chat_provider_connect: ({ provider_id: providerId, api_key: apiKey }) =>
       served(b, async (x) => (await x.connectProvider(providerId, apiKey), { providers: await x.providers() })),
-    chat_provider_disconnect: ({ providerId }) => served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),
-    chat_provider_signin: ({ providerId, code }) => served(b, (x) => x.signIn(providerId, code)),
+    chat_provider_disconnect: ({ provider_id: providerId }) =>
+      served(b, async (x) => (await x.disconnectProvider(providerId), { providers: await x.providers() })),
+    chat_provider_signin: ({ provider_id: providerId, code }) => served(b, (x) => x.signIn(providerId, code)),
   };
 }

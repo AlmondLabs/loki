@@ -425,9 +425,9 @@ describe("analytics: through the bridge", () => {
       capture: (_c, event, properties) => recorded.push(properties ? `${event} ${JSON.stringify(properties)}` : event),
     });
     const c = client("c1", "dev-1");
-    bridge.onMessage(c, { type: "seen_mark", agentId: "a", conversationId: "x" });
-    bridge.onMessage(c, { type: "seen_unmark", agentId: "a", conversationId: "x" });
-    bridge.onMessage(c, { type: "viewed_mark", agentId: "a", conversationId: "x" }); // a look is not a decision: no event
+    bridge.onMessage(c, { type: "seen_mark", agent_id: "a", conversation_id: "x" });
+    bridge.onMessage(c, { type: "seen_unmark", agent_id: "a", conversation_id: "x" });
+    bridge.onMessage(c, { type: "viewed_mark", agent_id: "a", conversation_id: "x" }); // a look is not a decision: no event
     expect(recorded).toEqual(["conversation_marked_seen", "conversation_kept_unread"]);
   });
 });

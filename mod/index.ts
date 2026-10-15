@@ -131,7 +131,7 @@ export default function activate(api: ModApi, host: Host): () => void {
     }
     const landed = diff.added.at(-1);
     if (landed && !landed.error) {
-      broadcast({ type: "camera", widgetId: landed.id }, landed.scope === SHARED_SCOPE ? undefined : landed.scope);
+      broadcast({ type: "camera", widget_id: landed.id }, landed.scope === SHARED_SCOPE ? undefined : landed.scope);
     }
     broadcastWidgetChanges(widgetLog, diff, broadcast);
   });
@@ -140,13 +140,13 @@ export default function activate(api: ModApi, host: Host): () => void {
   // Read from the daemon's stores (`chats`), and run by it (`chat`: sending, streaming, models, agents) through the
   // mod's frames; what happens in a chat goes to every client.
   const { chats, chat: chatBackend } = host;
-  chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agentId, conversationId, events }));
+  chatBackend.attach((agentId, conversationId, events) => broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events }));
   const desks = new DeskRegistry(join(paths.state, "desks.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
   // The task list (beads). Reads are cached so turn_start can attach assigned tasks without waiting on bd.
   const tasks = new TaskStore();
   const folderFor = (agentId: string | null, conversationId: string | null): string | null =>
-    conversationId ? (chats.folders().byConversation[conversationDirName(conversationId, agentId)] ?? null) : null;
+    conversationId ? (chats.folders().by_conversation[conversationDirName(conversationId, agentId)] ?? null) : null;
   const refreshTasks = () => {
     if (!tasks.ready()) return;
     void tasks.list().catch((err: unknown) => log("tasks:list-error", err instanceof Error ? err.message : String(err)));
@@ -156,28 +156,37 @@ export default function activate(api: ModApi, host: Host): () => void {
   log("tasks:store", { dir: tasks.dir, ready: tasks.ready() });
 
   // --- transport -------------------------------------------------------
-  const deskInfo = (scope: Scope): DeskInfo & { lastActive: string | null } => {
+  const deskInfo = (scope: Scope): DeskInfo & { last_active: string | null } => {
     if (scope === SHARED_SCOPE)
-      return { title: "shared", status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
+      return { title: "shared", status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null, last_active: null };
     const rt = desks.get(scope);
-    if (!rt) return { title: null, status: "none", agentName: null, agentId: null, model: null, reasoningEffort: null, lastActive: null };
+    if (!rt) return { title: null, status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null, last_active: null };
     const agentName = lookupLocalAgentName(rt.agent_id);
     const agent = readLocalAgent(rt.agent_id);
     const agentModel = agent?.model ?? null;
-    const agentEffort = reasoningEffortFromSettings(agent?.modelSettings);
+    const agentEffort = reasoningEffortFromSettings(agent?.model_settings);
     const info = chats.info(rt.conversation_id, rt.agent_id);
     const mode = info?.mode ?? "unrestricted";
     if (!info)
-      return { title: null, status: "deleted", agentName, agentId: rt.agent_id, model: agentModel, reasoningEffort: agentEffort, mode, lastActive: null };
+      return {
+        title: null,
+        status: "deleted",
+        agent_name: agentName,
+        agent_id: rt.agent_id,
+        model: agentModel,
+        reasoning_effort: agentEffort,
+        mode,
+        last_active: null,
+      };
     return {
       title: info.title,
       status: info.archived ? "archived" : "live",
-      agentName,
-      agentId: rt.agent_id,
+      agent_name: agentName,
+      agent_id: rt.agent_id,
       model: info.model ?? agentModel,
-      reasoningEffort: info.model ? info.reasoningEffort : (info.reasoningEffort ?? agentEffort),
+      reasoning_effort: info.model ? info.reasoningEffort : (info.reasoningEffort ?? agentEffort),
       mode,
-      lastActive: info.lastMessageAt,
+      last_active: info.lastMessageAt,
     };
   };
   const listDesks = (): DeskSummary[] => {
@@ -208,16 +217,16 @@ export default function activate(api: ModApi, host: Host): () => void {
           scope,
           title: info.title,
           status: info.status,
-          agentName: info.agentName,
-          agentId: info.agentId,
-          conversationId: desks.get(scope)?.conversation_id ?? null,
+          agent_name: info.agent_name,
+          agent_id: info.agent_id,
+          conversation_id: desks.get(scope)?.conversation_id ?? null,
           pinned: pins.has(`${desks.get(scope)?.agent_id ?? ""}/${desks.get(scope)?.conversation_id ?? ""}`),
           model: info.model,
-          reasoningEffort: info.reasoningEffort,
+          reasoning_effort: info.reasoning_effort,
           mode: info.mode ?? null,
           widgets: widgets.entries(scope).length,
           active: scope === activeScope,
-          lastActive: info.lastActive,
+          last_active: info.last_active,
         };
       }),
     );
@@ -241,15 +250,15 @@ export default function activate(api: ModApi, host: Host): () => void {
       if (isLearnTitle(info?.title)) continue; // a lesson is precisely the thing that can wait: a desk, never an inbox card
       out.push({
         id: c.conversationId,
-        agentId: c.agentId,
-        agentName: names.get(c.agentId) ?? null,
+        agent_id: c.agentId,
+        agent_name: names.get(c.agentId) ?? null,
         title: info?.title ?? null,
-        lastMessageAt: c.lastMessageAt,
+        last_message_at: c.lastMessageAt,
         archived: false,
         ...chats.digest(c.conversationId, c.agentId),
       });
     }
-    return out.sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""));
+    return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   };
   const deleteWidgetFile = (id: string): string | null => {
     const entry = widgets.get(id);
@@ -281,10 +290,10 @@ export default function activate(api: ModApi, host: Host): () => void {
     const last = passes.learnLast();
     return {
       enabled: s.enabled,
-      dailyCap: s.dailyCap,
-      lastRunAt: last?.at ?? null,
-      lastRunNote: last?.note ?? null,
-      writtenToday: passes.writtenOn(isoDay(Date.now())),
+      daily_cap: s.daily_cap,
+      last_run_at: last?.at ?? null,
+      last_run_note: last?.note ?? null,
+      written_today: passes.writtenOn(isoDay(Date.now())),
     };
   };
   // A lesson's chat is made by the daemon, in process.
@@ -304,10 +313,10 @@ export default function activate(api: ModApi, host: Host): () => void {
       },
       run: async () => {
         await chatBackend.runLearn();
-        return { note: learnStatus().lastRunNote ?? "nothing new" };
+        return { note: learnStatus().last_run_note ?? "nothing new" };
       },
       startLesson: startLessonViaChats(chatBackend, lessons),
-      lessonEmpty: (l) => chats.info(l.conversationId, l.agentId)?.lastMessageAt == null,
+      lessonEmpty: (l) => chats.info(l.conversation_id, l.agent_id)?.lastMessageAt == null,
     },
     deskInfo,
     deleteWidgetFile,
@@ -329,7 +338,7 @@ export default function activate(api: ModApi, host: Host): () => void {
       pairBegin: () => {
         const { code, expiresAt } = codes.mint();
         log("lan:pair-code", { expiresAt });
-        return { code, url: phones().pairUrl(code), expiresAt };
+        return { code, url: phones().pairUrl(code), expires_at: expiresAt };
       },
       devices: () => devices.list(),
       forget: (id) => phones().forget(id),
@@ -492,9 +501,9 @@ export default function activate(api: ModApi, host: Host): () => void {
                 scope,
                 title: info.title,
                 status: info.status,
-                agentName: info.agentName,
+                agent_name: info.agent_name,
                 model: info.model,
-                reasoningEffort: info.reasoningEffort,
+                reasoning_effort: info.reasoning_effort,
                 mode: info.mode ?? null,
               },
               scope === SHARED_SCOPE ? undefined : scope,

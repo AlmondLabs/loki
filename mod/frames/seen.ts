@@ -18,24 +18,24 @@ export function seenFrames(deps: SeenDeps): FrameHandlers {
   const { seen } = deps;
   return {
     seen_list: (_, ctx) => ctx.push(seenFrame(deps)),
-    seen_mark: ({ agentId, conversationId }, ctx) => {
+    seen_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moved = seen?.mark(agentId, conversationId);
       ctx.track("conversation_marked_seen");
       if (moved) ctx.broadcast(seenFrame(deps));
     },
-    seen_unmark: ({ agentId, conversationId }, ctx) => {
+    seen_unmark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const moved = seen?.unmark(agentId, conversationId);
       ctx.track("conversation_kept_unread");
       if (moved) ctx.broadcast(seenFrame(deps));
     },
     // Not tracked: a look happens on every open, it is not a decision.
-    viewed_mark: ({ agentId, conversationId }, ctx) => {
+    viewed_mark: ({ agent_id: agentId, conversation_id: conversationId }, ctx) => {
       const looked = seen?.view(agentId, conversationId);
       const engaged = seen?.engage(agentId, conversationId, "open"); // opening and reading is engagement too
       if (looked || engaged) ctx.broadcast(seenFrame(deps));
     },
     // Messages are counted at turn_start (every surface, the terminal too); opens at viewed_mark. What is left: answers and decisions.
-    focus_add: ({ agentId, conversationId, action }, ctx) => {
+    focus_add: ({ agent_id: agentId, conversation_id: conversationId, action }, ctx) => {
       if (seen?.engage(agentId, conversationId, action)) ctx.broadcast(seenFrame(deps));
     },
   };

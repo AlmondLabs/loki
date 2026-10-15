@@ -1,4 +1,5 @@
 import type { DeviceSummary, LanStatus, LanVia } from "../../core/frame-types.ts";
+import type { Pushes } from "../../core/frames.ts";
 import type { FrameHandlers } from "./context.ts";
 
 /** What the phone settings' frame handler needs from its host; without `lan` every frame fails with an error. */
@@ -14,7 +15,7 @@ export interface LanDeps {
     /** `tailscale serve` on or off for the listener. */
     setServe: (enabled: boolean) => Promise<LanStatus>;
     /** Mint a pairing code and the URL the QR carries. */
-    pairBegin: () => { code: string; url: string; expiresAt: string };
+    pairBegin: () => Pushes["pair_code"];
     devices: () => DeviceSummary[];
     /** Forget a device and close its sockets. */
     forget: (id: string) => boolean;

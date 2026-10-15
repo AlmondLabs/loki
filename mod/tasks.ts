@@ -6,6 +6,7 @@ import { log } from "./log.ts";
 import { envVar, execProgram, firstExisting, onPath, type Look } from "./programs.ts";
 import type { Task } from "../core/frame-types.ts";
 import { NOTE_MAX, oneLine, sourceMetadata, type TaskSource } from "../core/task-source.ts";
+import { migrateKeys, OLD_TASK_METADATA_KEYS } from "../core/snake-keys.ts";
 
 /**
  * Tasks: the shared task list, kept by beads (`bd`, embedded Dolt) in ONE shared
@@ -75,24 +76,24 @@ export function tasksDir(home = lokiDir(), env: NodeJS.ProcessEnv = process.env)
  * An agent's word that a task the person filed is done, kept on the task until the person answers: the agent's reason
  * (or "yes"), who said it, and when. Confirm closes the task; Reopen clears these (TaskStore.reopen).
  */
-export const DONE_ASKED = ["doneAsked", "doneAskedBy", "doneAskedAt"] as const;
+export const DONE_ASKED = ["done_asked", "done_asked_by", "done_asked_at"] as const;
 
 /**
  * The bd arguments that record an agent's word that a task is done (DONE_ASKED), stamped with the time and, when
  * known, who said it.
  */
 export function askDoneArgs(id: string, ask: { reason?: string | null; by?: string | null }, now = new Date()): string[] {
-  const args = ["update", id, "--set-metadata", `doneAsked=${ask.reason?.trim() || "yes"}`, "--set-metadata", `doneAskedAt=${now.toISOString()}`];
-  if (ask.by) args.push("--set-metadata", `doneAskedBy=${ask.by}`);
+  const args = ["update", id, "--set-metadata", `done_asked=${ask.reason?.trim() || "yes"}`, "--set-metadata", `done_asked_at=${now.toISOString()}`];
+  if (ask.by) args.push("--set-metadata", `done_asked_by=${ask.by}`);
   return [...args, "--json"];
 }
 
 /** The newest progress note, on the task itself: its opening on one line, and when. */
-export const LAST_NOTE = ["lastNote", "lastNoteAt"] as const;
+export const LAST_NOTE = ["last_note", "last_note_at"] as const;
 
 /** The bd arguments that keep a progress note on the task (LAST_NOTE): its opening on one line, and the time. */
 export function noteArgs(id: string, text: string, now = new Date()): string[] {
-  return ["update", id, "--set-metadata", `lastNote=${oneLine(text, NOTE_MAX)}`, "--set-metadata", `lastNoteAt=${now.toISOString()}`, "--json"];
+  return ["update", id, "--set-metadata", `last_note=${oneLine(text, NOTE_MAX)}`, "--set-metadata", `last_note_at=${now.toISOString()}`, "--json"];
 }
 
 /** LOKI_BD, then PATH (`bd.exe` on Windows), then Homebrew, /usr/local, Go's and ~/.local's bin. */
@@ -136,6 +137,8 @@ export function parseTask(raw: Record<string, unknown>): Task {
   const md = (raw.metadata && typeof raw.metadata === "object" ? raw.metadata : {}) as Record<string, unknown>;
   const metadata: Record<string, string> = {};
   for (const [k, v] of Object.entries(md)) if (v != null) metadata[k] = fieldText(v);
+  // Keys saved camelCase before October 2026 read under their names now; TaskStore.list rewrites them in beads once.
+  const { value: current } = migrateKeys(metadata, OLD_TASK_METADATA_KEYS);
   return {
     id: fieldText(raw.id),
     title: fieldText(raw.title),
@@ -144,11 +147,30 @@ export function parseTask(raw: Record<string, unknown>): Task {
     priority: typeof raw.priority === "number" ? raw.priority : Number(raw.priority ?? 2) || 2,
     labels: Array.isArray(raw.labels) ? (raw.labels as unknown[]).filter((l): l is string => typeof l === "string") : [],
     assignee: typeof raw.assignee === "string" && raw.assignee ? raw.assignee : null,
-    createdAt: fieldText(raw.created_at),
-    updatedAt: fieldText(raw.updated_at ?? raw.created_at),
-    closedAt: typeof raw.closed_at === "string" ? raw.closed_at : null,
-    metadata,
+    created_at: fieldText(raw.created_at),
+    updated_at: fieldText(raw.updated_at ?? raw.created_at),
+    closed_at: typeof raw.closed_at === "string" ? raw.closed_at : null,
+    metadata: current,
   };
+}
+
+/**
+ * The bd arguments that move a task's metadata off its camelCase keys from before October 2026 (each value set under
+ * its new key, the old key unset), or null when it has none. Exported for tests.
+ */
+export function metadataMigrationArgs(raw: Record<string, unknown>): string[] | null {
+  const id = fieldText(raw.id);
+  const md = raw.metadata && typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : {};
+  const old = Object.keys(md).filter((k) => OLD_TASK_METADATA_KEYS[k] !== undefined);
+  if (!id || !taskIds([id]).length || !old.length) return null;
+  const args = ["update", id];
+  for (const k of old) {
+    const value = md[k];
+    const now = OLD_TASK_METADATA_KEYS[k];
+    if (now && value != null && md[now] == null) args.push("--set-metadata", `${now}=${fieldText(value)}`);
+    args.push("--unset-metadata", k);
+  }
+  return [...args, "--json"];
 }
 
 /**
@@ -156,13 +178,18 @@ export function parseTask(raw: Record<string, unknown>): Task {
  * anything else that is not JSON throws.
  */
 export function parseTasks(stdout: string): Task[] {
+  return rawTasks(stdout).map(parseTask);
+}
+
+/** bd's JSON output as the objects it holds, before parseTask: a list or a single object; empty for no output. */
+function rawTasks(stdout: string): Array<Record<string, unknown>> {
   const text = stdout.trim();
   if (!text) return [];
   // bd prints warnings to stderr, but be tolerant of a stray line before the JSON.
   const start = Math.min(...["[", "{"].map((c) => text.indexOf(c)).filter((i) => i >= 0));
   const parsed: unknown = JSON.parse(Number.isFinite(start) ? text.slice(start) : text);
   const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? [parsed] : [];
-  return list.filter((r): r is Record<string, unknown> => !!r && typeof r === "object").map(parseTask);
+  return list.filter((r): r is Record<string, unknown> => !!r && typeof r === "object");
 }
 
 /** The bd arguments for one create, without the binary. Exported for tests. */
@@ -170,7 +197,7 @@ export function createArgs(t: CreateTask): string[] {
   const labels = [...new Set([...(t.labels ?? []), projectLabel(t.stamp.folder)].filter((l): l is string => !!l))];
   const metadata: Record<string, string> = { by: t.stamp.by };
   if (t.stamp.agent) metadata.agent = t.stamp.agent;
-  if (t.stamp.agentId) metadata.agentId = t.stamp.agentId;
+  if (t.stamp.agentId) metadata.agent_id = t.stamp.agentId;
   if (t.stamp.conversation) metadata.conversation = t.stamp.conversation;
   if (t.stamp.desk) metadata.desk = t.stamp.desk;
   if (t.stamp.folder) metadata.folder = t.stamp.folder;
@@ -207,14 +234,14 @@ export function closeArgs(ids: string[], reason?: string, as: CloseAs = {}): str
 export const taskIds = (ids: string[]): string[] => ids.filter((id) => typeof id === "string" && /^[A-Za-z0-9][\w.-]*$/.test(id));
 
 /**
- * The bd arguments that assign tasks to a chat (assignedTo, assignedDesk, the agent and the time), and start them when
+ * The bd arguments that assign tasks to a chat (assigned_to, assigned_desk, the agent and the time), and start them when
  * the status is in_progress.
  */
 export function assignArgs(ids: string[], target: AssignTarget, status: "open" | "in_progress" = "open"): string[] {
-  const args = ["update", ...ids, "--set-metadata", `assignedTo=${target.conversation}`, "--set-metadata", `assignedDesk=${target.desk}`, "--json"];
-  if (target.agent) args.push("--assignee", target.agent, "--set-metadata", `assignedAgent=${target.agent}`);
-  if (target.agentId) args.push("--set-metadata", `assignedAgentId=${target.agentId}`);
-  args.push("--set-metadata", `assignedAt=${new Date().toISOString()}`);
+  const args = ["update", ...ids, "--set-metadata", `assigned_to=${target.conversation}`, "--set-metadata", `assigned_desk=${target.desk}`, "--json"];
+  if (target.agent) args.push("--assignee", target.agent, "--set-metadata", `assigned_agent=${target.agent}`);
+  if (target.agentId) args.push("--set-metadata", `assigned_agent_id=${target.agentId}`);
+  args.push("--set-metadata", `assigned_at=${new Date().toISOString()}`);
   if (status === "in_progress") args.push("--status", "in_progress");
   return args;
 }
@@ -232,7 +259,7 @@ const PRIORITY = ["P0", "P1", "P2", "P3", "P4"];
  * assigned to it. Written so the agent knows these are queued, not the request.
  */
 export function formatTasksContext(tasks: Task[], opts: { conversation: string }): string | null {
-  const mine = tasks.filter((t) => t.metadata.assignedTo === opts.conversation && t.status !== "closed");
+  const mine = tasks.filter((t) => t.metadata.assigned_to === opts.conversation && t.status !== "closed");
   if (!mine.length) return null;
   const lines = mine.map((t) => {
     // bd's metadata as the task file holds it: any key may be missing.
@@ -360,7 +387,15 @@ export class TaskStore {
     return this.serial(async () => {
       const args = ["list", "--json", "--flat", "-n", "0"];
       if (opts.all) args.push("--all");
-      const tasks = parseTasks(await this.run(args));
+      const out = await this.run(args);
+      const tasks = parseTasks(out);
+      // Tasks still on their camelCase metadata keys move to the new ones, one bd call each, the first time they are seen.
+      for (const migrateArgs of rawTasks(out)
+        .map((r) => metadataMigrationArgs(r))
+        .filter((a): a is string[] => a !== null))
+        await this.run(migrateArgs).catch((err: unknown) =>
+          log("tasks:migrate-failed", { id: migrateArgs[1], error: err instanceof Error ? err.message : String(err) }),
+        );
       if (!opts.all) this.cache = tasks;
       else this.cache = tasks.filter((t) => t.status !== "closed");
       this.cacheAt = Date.now();

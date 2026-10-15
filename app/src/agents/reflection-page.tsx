@@ -71,9 +71,9 @@ export function ReflectionPage({ agentId, agentName, api, reflect }: { agentId: 
         </div>
         {state === undefined ? (
           <Meta>reading…</Meta>
-        ) : state?.lastCommit ? (
+        ) : state?.last_commit ? (
           <Meta wrap>
-            {ago(state.lastCommit.at)} · {state.lastCommit.message}
+            {ago(state.last_commit.at)} · {state.last_commit.message}
           </Meta>
         ) : (
           <Meta wrap>reflection has not changed {agentName}'s memory yet</Meta>

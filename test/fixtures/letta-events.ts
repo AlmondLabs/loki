@@ -52,8 +52,8 @@ export function lettaChatEvents(ev: ServerEvent, now: string): ChatEvent[] {
       if (req?.subtype !== "can_use_tool") return [];
       const requestId = String(ev.request_id);
       return req.tool_name === "AskUserQuestion"
-        ? [{ kind: "question", requestId, input: req.input }]
-        : [{ kind: "approval", requestId, toolName: req.tool_name ?? "tool", input: req.input }];
+        ? [{ kind: "question", request_id: requestId, input: req.input }]
+        : [{ kind: "approval", request_id: requestId, tool_name: req.tool_name ?? "tool", input: req.input }];
     }
     case "update_device_status": {
       const status = ev.device_status as { current_permission_mode?: string; current_working_directory?: string } | undefined;

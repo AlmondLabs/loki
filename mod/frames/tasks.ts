@@ -18,7 +18,10 @@ export function taskFrames({ tasks: store, folderFor }: TaskDeps): FrameHandlers
   const changed = (ctx: FrameContext) => ctx.broadcast({ type: "tasks_changed" });
   return {
     tasks_list: async ({ all }) => reply({ tasks: await store.list({ all }) }),
-    task_create: async ({ title, description, labels, priority, desk, agentId, agentName, conversationId, source }, ctx) => {
+    task_create: async (
+      { title, description, labels, priority, desk, agent_id: agentId, agent_name: agentName, conversation_id: conversationId, source },
+      ctx,
+    ) => {
       // A message's source needs its conversation: without one there is no message to link back to.
       const from = source && conversationId ? source : undefined;
       const task = await store.create({
@@ -31,7 +34,7 @@ export function taskFrames({ tasks: store, folderFor }: TaskDeps): FrameHandlers
       changed(ctx);
       return reply({ task });
     },
-    task_assign: async ({ ids, conversationId, desk, agentId, agentName, start }, ctx) => {
+    task_assign: async ({ ids, conversation_id: conversationId, desk, agent_id: agentId, agent_name: agentName, start }, ctx) => {
       const tasks = await store.assign(ids, { agent: agentName, agentId, conversation: conversationId, desk }, start ? "in_progress" : "open");
       changed(ctx);
       return reply({ tasks });

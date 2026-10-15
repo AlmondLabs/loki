@@ -86,11 +86,11 @@ const card = (id: string, over: Partial<Card> = {}): Card => ({
   front: `q ${id}`,
   back: `a ${id}`,
   tags: [],
-  createdAt: "2026-09-10T08:00:00Z",
-  updatedAt: "2026-09-10T08:00:00Z",
-  updatedBy: "recall",
+  created_at: "2026-09-10T08:00:00Z",
+  updated_at: "2026-09-10T08:00:00Z",
+  updated_by: "recall",
   previous: [],
-  source: { agentId: "a", agentName: "ira", conversationId: "c", title: "main chat", at: null },
+  source: { agent_id: "a", agent_name: "ira", conversation_id: "c", title: "main chat", at: null },
   ...over,
 });
 
@@ -99,9 +99,9 @@ describe("recall queue", () => {
     const later = new Date(T0 + DAY).toISOString();
     const rows: CardWithSchedule[] = [
       { card: card("due-late"), schedule: { ...review(newSchedule(T0 - 10 * DAY), 3, T0 - 10 * DAY), due: new Date(T0 - DAY).toISOString() } },
-      { card: card("new-2", { createdAt: "2026-09-10T08:30:00Z" }), schedule: newSchedule(T0) },
+      { card: card("new-2", { created_at: "2026-09-10T08:30:00Z" }), schedule: newSchedule(T0) },
       { card: card("due-very-late"), schedule: { ...review(newSchedule(T0 - 10 * DAY), 3, T0 - 10 * DAY), due: new Date(T0 - 3 * DAY).toISOString() } },
-      { card: card("new-1", { createdAt: "2026-09-10T08:00:00Z" }), schedule: newSchedule(T0) },
+      { card: card("new-1", { created_at: "2026-09-10T08:00:00Z" }), schedule: newSchedule(T0) },
       { card: card("tomorrow"), schedule: { ...review(newSchedule(T0), 3, T0), due: later } },
     ];
     expect(reviewQueue(rows, T0).map((r) => r.card.id)).toEqual(["new-1", "new-2", "due-very-late", "due-late"]);
@@ -110,9 +110,11 @@ describe("recall queue", () => {
   test("an update by the worker after the last review is flagged; the person's own edit is not", () => {
     const s = review(newSchedule(T0), 3, T0);
     const prev = [{ front: "old", back: "old", at: "2026-09-10T08:00:00Z", by: "recall" as const }];
-    expect(updatedSinceReview({ card: card("x", { previous: prev, updatedAt: new Date(T0 + DAY).toISOString() }), schedule: s })).toBe(true);
-    expect(updatedSinceReview({ card: card("x", { previous: prev, updatedAt: "2026-09-10T08:30:00Z" }), schedule: s })).toBe(false);
-    expect(updatedSinceReview({ card: card("x", { previous: prev, updatedBy: "you", updatedAt: new Date(T0 + DAY).toISOString() }), schedule: s })).toBe(false);
+    expect(updatedSinceReview({ card: card("x", { previous: prev, updated_at: new Date(T0 + DAY).toISOString() }), schedule: s })).toBe(true);
+    expect(updatedSinceReview({ card: card("x", { previous: prev, updated_at: "2026-09-10T08:30:00Z" }), schedule: s })).toBe(false);
+    expect(updatedSinceReview({ card: card("x", { previous: prev, updated_by: "you", updated_at: new Date(T0 + DAY).toISOString() }), schedule: s })).toBe(
+      false,
+    );
     expect(updatedSinceReview({ card: card("x"), schedule: newSchedule(T0) })).toBe(false); // never edited
   });
   test("anki export: front TAB back TAB tags, newlines as <br>", () => {

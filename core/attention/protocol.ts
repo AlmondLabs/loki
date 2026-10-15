@@ -16,7 +16,7 @@ export type ServerEvent = Record<string, unknown> & { type: string; runtime?: Ru
  */
 export interface PassSettings {
   reflection: { enabled: boolean };
-  learn: { enabled: boolean; dailyCap: number };
+  learn: { enabled: boolean; daily_cap: number };
 }
 
 /** One credential the harness asks for when connecting a provider. */

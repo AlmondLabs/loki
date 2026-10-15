@@ -15,10 +15,10 @@ import { must } from "./fixtures/must.ts";
  */
 
 const MODELS: ModelEntry[] = [
-  { id: "opus-low", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", isFeatured: true, reasoningEffort: "low" },
-  { id: "opus-medium", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", isFeatured: true, reasoningEffort: "medium" },
-  { id: "opus-high", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", isFeatured: true, reasoningEffort: "high" },
-  { id: "sonnet", handle: "anthropic/claude-sonnet-5", label: "Sonnet 5", isFeatured: true },
+  { id: "opus-low", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", is_featured: true, reasoning_effort: "low" },
+  { id: "opus-medium", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", is_featured: true, reasoning_effort: "medium" },
+  { id: "opus-high", handle: "anthropic/claude-opus-5-5", label: "Opus 5.5", description: "For complex work", is_featured: true, reasoning_effort: "high" },
+  { id: "sonnet", handle: "anthropic/claude-sonnet-5", label: "Sonnet 5", is_featured: true },
   { id: "gpt", handle: "openai/gpt-6", label: "GPT-6" },
   { id: "llama", handle: "ollama/llama-5", label: "ollama/llama-5" },
 ];
@@ -176,17 +176,17 @@ describe("select model", () => {
     // a current model outside the featured set still shows, so its check is in view
     expect(modelLists(MODELS, "openai/gpt-6").short.map((g) => g.handle)).toContain("openai/gpt-6");
     // nothing featured: the first few
-    const plain = MODELS.map(({ isFeatured: _f, ...e }) => e);
+    const plain = MODELS.map(({ is_featured: _f, ...e }) => e);
     expect(modelLists(plain, null).short.length).toBeGreaterThan(0);
   });
 
   test("quick picks lead with the models used lately, then featured ones up to five, only ones the account can reach", () => {
     const many: ModelEntry[] = [
       ...MODELS,
-      { id: "f1", handle: "letta/f1", label: "F1", isFeatured: true },
-      { id: "f2", handle: "letta/f2", label: "F2", isFeatured: true },
-      { id: "f3", handle: "letta/f3", label: "F3", isFeatured: true },
-      { id: "gated", handle: "letta/gated", label: "Gated", isFeatured: true, available: false },
+      { id: "f1", handle: "letta/f1", label: "F1", is_featured: true },
+      { id: "f2", handle: "letta/f2", label: "F2", is_featured: true },
+      { id: "f3", handle: "letta/f3", label: "F3", is_featured: true },
+      { id: "gated", handle: "letta/gated", label: "Gated", is_featured: true, available: false },
     ];
     // gpt and llama were used lately (gpt the latest); the featured ones fill the rest, the unreachable one never
     const used = withRecent(many, ["openai/gpt-6", "ollama/llama-5"]);
@@ -209,7 +209,7 @@ describe("select model", () => {
         .at(-1),
     ).toBe("letta/f3");
     // nothing recent or featured: the first few the account can reach
-    const plain = many.map(({ isFeatured: _f, ...e }) => e);
+    const plain = many.map(({ is_featured: _f, ...e }) => e);
     expect(modelLists(plain, null).short.map((g) => g.handle)).not.toContain("letta/gated");
   });
 
@@ -258,7 +258,7 @@ describe("select model", () => {
     expect([...html.matchAll(/class="loki-model-name">([^<]+)</g)].map((m) => m[1])).toEqual(["Low", "Medium", "High"]);
     expect(html).toMatch(/aria-checked="true"[^>]*data-choice="medium"/);
     (must(choice(tree, "high"), "the high choice").props.onClick as () => void)();
-    expect(picked).toEqual([{ id: "opus-high", handle: CURRENT, reasoningEffort: "high" }]);
+    expect(picked).toEqual([{ id: "opus-high", handle: CURRENT, reasoning_effort: "high" }]);
   });
 
   test("More models › lists the rest", () => {

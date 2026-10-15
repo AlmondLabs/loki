@@ -679,7 +679,7 @@ function Stack({
             transition: reduced ? "none" : `transform ${fly.ms}ms ${fly.easing}, opacity ${fly.ms}ms ease-in`,
           }}
         >
-          <ReadOnlyThread item={item} view={conversation(item.agentId, item.id)} />
+          <ReadOnlyThread item={item} view={conversation(item.agent_id, item.id)} />
         </Card>
       );
     if (role === "top") {
@@ -701,7 +701,7 @@ function Stack({
             onOpen(item);
           }}
         >
-          <CardConversation item={item} view={conversation(item.agentId, item.id)} banner={banner} card={card} onHold={() => deck.hold(item)} />
+          <CardConversation item={item} view={conversation(item.agent_id, item.id)} banner={banner} card={card} onHold={() => deck.hold(item)} />
         </Card>
       );
     }
@@ -748,7 +748,7 @@ function Card({
       className="loki-phone-card"
       data-role={role}
       data-refused={refused || undefined}
-      aria-label={top ? `${title}, with ${item.agentName ?? "the agent"}` : undefined}
+      aria-label={top ? `${title}, with ${item.agent_name ?? "the agent"}` : undefined}
       aria-hidden={!top || undefined}
       inert={!top}
       {...(top ? handlers : {})}
@@ -759,11 +759,11 @@ function Card({
           type="button"
           className="loki-phone-card-who"
           onClick={onOpen}
-          aria-label={`Open ${title} with ${item.agentName ?? "the agent"}`}
+          aria-label={`Open ${title} with ${item.agent_name ?? "the agent"}`}
           tabIndex={top ? undefined : -1}
         >
-          <Avatar name={item.agentName} src={avatarUrl(item.agentId)} size={28} />
-          <span className="loki-phone-ellipsis">{item.agentName ?? "agent"}</span>
+          <Avatar name={item.agent_name} src={avatarUrl(item.agent_id)} size={28} />
+          <span className="loki-phone-ellipsis">{item.agent_name ?? "agent"}</span>
           <Icon name="chevron-down" size={16} />
         </button>
         <span className="loki-phone-card-desk">
@@ -798,18 +798,18 @@ export function CardConversation({
   card: CardActions;
   onHold: () => void;
 }) {
-  const [draft, setDraft] = useDraft(draftKey(item.agentId, item.id));
-  const agentName = item.agentName ?? "the agent";
+  const [draft, setDraft] = useDraft(draftKey(item.agent_id, item.id));
+  const agentName = item.agent_name ?? "the agent";
   const people = useMemo(
-    () => ({ assistant: { name: item.agentName ?? "agent", avatar: avatarUrl(item.agentId) }, user: { name: "You" } }),
-    [item.agentName, item.agentId],
+    () => ({ assistant: { name: item.agent_name ?? "agent", avatar: avatarUrl(item.agent_id) }, user: { name: "You" } }),
+    [item.agent_name, item.agent_id],
   );
   const dividerAt = unreadBoundary(view.rows, item.unread, item.seenAt, item.viewedAt);
   // The chat's widgets, drawn under the rows that made them; read only here (the phone may not change a desk).
-  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(item.id, item.agentId), view.rows, item.agentName ?? null, { readOnly: true });
+  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(item.id, item.agent_id), view.rows, item.agent_name ?? null, { readOnly: true });
   const layout = useMemo(
-    () => ({ people, dividerAt, dividerDay: dayLabel(item.lastMessageAt), widgets, inline }),
-    [people, dividerAt, item.lastMessageAt, widgets, inline],
+    () => ({ people, dividerAt, dividerDay: dayLabel(item.last_message_at), widgets, inline }),
+    [people, dividerAt, item.last_message_at, widgets, inline],
   );
   const question = view.question ?? null;
   const approval = view.pending ?? item.pendingApproval;
@@ -824,7 +824,7 @@ export function CardConversation({
   const model = card.model;
   const onPick = model?.onPick;
   const onStop = card.onStop;
-  const message = useMessageActions({ user: "You", assistant: item.agentName ?? "Agent" });
+  const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
   return message.wrap(
     <>
       {message.sheet}
@@ -868,7 +868,7 @@ export function CardConversation({
 
 /** The card flying off: its thread as it was, nothing to type into. */
 function ReadOnlyThread({ item, view }: { item: AttentionItem; view: CardView }) {
-  return <Thread rows={view.rows} status={view.status} agentName={item.agentName} dim={false} older={view.older ?? null} />;
+  return <Thread rows={view.rows} status={view.status} agentName={item.agent_name} dim={false} older={view.older ?? null} />;
 }
 
 /**

@@ -46,13 +46,13 @@ const task = (id: string, metadata: Record<string, string>, status = "open"): Ta
   priority: 2,
   labels: [],
   assignee: null,
-  createdAt: "",
-  updatedAt: "",
-  closedAt: status === "closed" ? "2026-10-15T10:00:00Z" : null,
+  created_at: "",
+  updated_at: "",
+  closed_at: status === "closed" ? "2026-10-15T10:00:00Z" : null,
   metadata,
 });
 const fromReply = (id: string, extra: Record<string, string> = {}, status = "open") =>
-  task(id, { by: "you", conversation: "c1", agentId: "a1", ...sourceMetadata(source), ...extra }, status);
+  task(id, { by: "you", conversation: "c1", agent_id: "a1", ...sourceMetadata(source), ...extra }, status);
 
 describe("the source: which message a task came from", () => {
   test("a message is named by its role and its text's hash, the same however its edges or line endings read", () => {
@@ -95,16 +95,16 @@ describe("the source: which message a task came from", () => {
     const md = JSON.parse(args[args.indexOf("--metadata") + 1]) as Record<string, string>;
     expect(md).toEqual({
       by: "you",
-      agentId: "a1",
+      agent_id: "a1",
       conversation: "c1",
       desk: "a1/c1",
       origin: "message",
-      msgRole: "assistant",
-      msgKey: source.key,
-      msgAt: source.at,
+      msg_role: "assistant",
+      msg_key: source.key,
+      msg_at: source.at,
       quote: source.quote,
     });
-    expect(taskSource(task("lk-1", md))).toMatchObject({ ...source, conversation: "c1", agentId: "a1" });
+    expect(taskSource(task("lk-1", md))).toMatchObject({ ...source, conversation: "c1", agent_id: "a1" });
     expect(taskSource(task("lk-2", { by: "you" }))).toBeNull();
   });
 
@@ -129,8 +129,8 @@ describe("filing it", () => {
     const store = { create: (t: { stamp: unknown }) => (made.push(t.stamp), Promise.resolve(fromReply("lk-1"))) } as unknown as TaskStore;
     const { bridge, broadcasts } = bridgeWith({ tasks: store });
     const c = client("d1");
-    bridge.onMessage(c, { type: "task_create", requestId: "r1", title: "migrate staging", conversationId: "c1", agentId: "a1", desk: "a1/c1", source });
-    bridge.onMessage(c, { type: "task_create", requestId: "r2", title: "loose", source });
+    bridge.onMessage(c, { type: "task_create", request_id: "r1", title: "migrate staging", conversation_id: "c1", agent_id: "a1", desk: "a1/c1", source });
+    bridge.onMessage(c, { type: "task_create", request_id: "r2", title: "loose", source });
     await settled();
     expect(made[0]).toMatchObject({ by: "you", conversation: "c1", agentId: "a1", source });
     expect((made[1] as { source?: unknown }).source).toBeUndefined();
@@ -141,8 +141,8 @@ describe("filing it", () => {
     const store = { create: () => Promise.resolve(fromReply("lk-1")), list: () => Promise.resolve([fromReply("lk-1")]) } as unknown as TaskStore;
     const { bridge } = bridgeWith({ tasks: store });
     const phone = { ...client("d1"), deviceId: "phone-1" };
-    bridge.onMessage(phone, { type: "task_create", requestId: "r1", title: "migrate staging", conversationId: "c1", source });
-    bridge.onMessage(phone, { type: "tasks_list", requestId: "r2", all: true });
+    bridge.onMessage(phone, { type: "task_create", request_id: "r1", title: "migrate staging", conversation_id: "c1", source });
+    bridge.onMessage(phone, { type: "tasks_list", request_id: "r2", all: true });
     await settled();
     expect(phone.sent.map((m) => m.type)).toEqual(["task_created", "tasks"]);
   });
@@ -154,15 +154,15 @@ describe("filing it", () => {
       run: (args) => {
         calls.push(args);
         return Promise.resolve(
-          args[0] === "update" ? JSON.stringify([{ id: "lk-1", title: "t", status: "open", metadata: { lastNote: "staging done" } }]) : "",
+          args[0] === "update" ? JSON.stringify([{ id: "lk-1", title: "t", status: "open", metadata: { last_note: "staging done" } }]) : "",
         );
       },
     });
     const [updated] = await store.comment("lk-1", "  staging done\n\nprod next  ");
     expect(calls[0]).toEqual(["comment", "lk-1", "staging done\n\nprod next"]);
-    expect(calls[1]).toEqual(noteArgs("lk-1", "staging done\n\nprod next", new Date(calls[1][5].slice("lastNoteAt=".length))));
-    expect(calls[1][3]).toBe("lastNote=staging done prod next");
-    expect(updated.metadata.lastNote).toBe("staging done");
+    expect(calls[1]).toEqual(noteArgs("lk-1", "staging done\n\nprod next", new Date(calls[1][5].slice("last_note_at=".length))));
+    expect(calls[1][3]).toBe("last_note=staging done prod next");
+    expect(updated.metadata.last_note).toBe("staging done");
     await expect(store.comment("-rf", "x")).rejects.toThrow(/no task/);
   });
 });
@@ -221,9 +221,9 @@ describe("the chip on the message", () => {
     const open = thread([fromReply("lk-1")]);
     expect(open).toContain("task · open");
     expect(open).not.toContain("loki-msg-task-note");
-    const noted = thread([fromReply("lk-1", { lastNote: "staging migrated, prod next" })]);
+    const noted = thread([fromReply("lk-1", { last_note: "staging migrated, prod next" })]);
     expect(noted).toContain("staging migrated, prod next");
-    const waiting = thread([fromReply("lk-1", { lastNote: "old", doneAsked: "prod migrated too", doneAskedBy: "friday" })]);
+    const waiting = thread([fromReply("lk-1", { last_note: "old", done_asked: "prod migrated too", done_asked_by: "friday" })]);
     expect(waiting).toContain("done? · waiting for you");
     expect(waiting).toContain("prod migrated too");
     expect(waiting).toContain(">confirm<");
@@ -232,13 +232,13 @@ describe("the chip on the message", () => {
     expect(done).toContain('data-state="done"');
     expect(done).toContain("✓");
     expect(done).not.toContain(">confirm<");
-    expect([fromReply("a"), fromReply("b", { doneAsked: "yes" }), fromReply("c", {}, "closed")].map(chipState)).toEqual(["open", "waiting", "done"]);
+    expect([fromReply("a"), fromReply("b", { done_asked: "yes" }), fromReply("c", {}, "closed")].map(chipState)).toEqual(["open", "waiting", "done"]);
   });
 
   test("a new list (an agent commented, then said done?) redraws the chip", () => {
     const before = thread([fromReply("lk-1")]);
-    const after = thread([fromReply("lk-1", { lastNote: "half way" })]);
-    const asked = thread([fromReply("lk-1", { lastNote: "half way", doneAsked: "yes" })]);
+    const after = thread([fromReply("lk-1", { last_note: "half way" })]);
+    const asked = thread([fromReply("lk-1", { last_note: "half way", done_asked: "yes" })]);
     expect(before).not.toContain("half way");
     expect(after).toContain("half way");
     expect(asked).toContain("done? · waiting for you");

@@ -125,7 +125,7 @@ async function readEntry(root: string, scope: Scope, fileName: string, cache?: S
     return null;
   }
   const id = `${scope}/${parts.stem}`;
-  const base = { id, scope, name: parts.stem, kind, file: `${scope}/${fileName}`, hash: hashOf(text), updatedAt: mtime };
+  const base = { id, scope, name: parts.stem, kind, file: `${scope}/${fileName}`, hash: hashOf(text), updated_at: mtime };
 
   if (kind === "json") {
     const p = parseJsonWidget(text);

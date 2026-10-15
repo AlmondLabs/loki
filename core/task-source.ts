@@ -89,25 +89,25 @@ export function parseTaskSource(v: unknown): TaskSource | undefined {
 
 /** The source stamped on a task's metadata (mod/tasks.ts createArgs). */
 export function sourceMetadata(s: TaskSource): Record<string, string> {
-  const md: Record<string, string> = { origin: s.origin, msgRole: s.role, msgKey: s.key };
-  if (s.at) md.msgAt = s.at;
+  const md: Record<string, string> = { origin: s.origin, msg_role: s.role, msg_key: s.key };
+  if (s.at) md.msg_at = s.at;
   if (s.quote) md.quote = s.quote;
   return md;
 }
 
 /** The source a task was filed from, read back from its metadata; null for a task not filed from a message. */
-export function taskSource(t: Task): (TaskSource & { conversation: string | null; agentId: string | null }) | null {
+export function taskSource(t: Task): (TaskSource & { conversation: string | null; agent_id: string | null }) | null {
   // The metadata is the task file's, read from disk: any key may be missing.
   const md: Partial<Record<string, string>> = t.metadata;
-  if ((md.origin !== "message" && md.origin !== "selection") || (md.msgRole !== "user" && md.msgRole !== "assistant") || !md.msgKey) return null;
+  if ((md.origin !== "message" && md.origin !== "selection") || (md.msg_role !== "user" && md.msg_role !== "assistant") || !md.msg_key) return null;
   return {
     origin: md.origin,
-    role: md.msgRole,
-    key: md.msgKey,
-    at: md.msgAt ?? null,
+    role: md.msg_role,
+    key: md.msg_key,
+    at: md.msg_at ?? null,
     quote: md.quote ?? "",
     conversation: md.conversation ?? null,
-    agentId: md.agentId ?? null,
+    agent_id: md.agent_id ?? null,
   };
 }
 
@@ -144,5 +144,5 @@ export type ChipState = "open" | "waiting" | "done";
 /** The state of a task's chip on its message: done once closed, waiting while an agent has asked whether it is done, open otherwise. */
 export function chipState(t: Task): ChipState {
   if (t.status === "closed") return "done";
-  return t.metadata.doneAsked ? "waiting" : "open";
+  return t.metadata.done_asked ? "waiting" : "open";
 }

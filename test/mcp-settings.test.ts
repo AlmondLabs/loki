@@ -12,8 +12,8 @@ const server = (config: McpServerView["config"]): McpServerView => ({
   tools: [],
   tokens: 0,
   config,
-  offFor: [],
-  signIn: null,
+  off_for: [],
+  sign_in: null,
 });
 
 describe("Settings › MCP's form", () => {

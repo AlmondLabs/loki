@@ -446,18 +446,18 @@ describe("MCP settings: the file, secrets, and per-agent switches", () => {
       mcp.setServer("fake", { command: "x", args: [], env: {}, cwd: null });
       await until(() => mcp.view().servers[0]?.state === "connected");
       const v = mcp.view();
-      expect(v.servers[0]).toMatchObject({ name: "fake", entry: "fake", kind: "local", purpose: "A fake issue tracker for tests", offFor: [] });
+      expect(v.servers[0]).toMatchObject({ name: "fake", entry: "fake", kind: "local", purpose: "A fake issue tracker for tests", off_for: [] });
       expect(v.servers[0].tools).toHaveLength(6);
-      expect(v.servers[0].tools[0]).toMatchObject({ name: "list_issues", readOnly: true, alwaysLoad: false });
+      expect(v.servers[0].tools[0]).toMatchObject({ name: "list_issues", read_only: true, always_load: false });
       expect(v.servers[0].tokens).toBe(v.servers[0].tools.reduce((n, t) => n + t.tokens, 0));
       expect(v.servers[0].tools[0].tokens).toBeGreaterThan(10);
       mcp.setAlwaysLoad("fake", ["list_issues"]);
-      await until(() => mcp.view().servers[0]?.tools[0]?.alwaysLoad);
+      await until(() => mcp.view().servers[0]?.tools[0]?.always_load);
       expect(await mcp.storeSecret("fake.TOKEN", "s3cret")).toBe("${keychain:fake.TOKEN}");
       expect(secrets.get("mcp.fake.TOKEN")).toBe("s3cret");
       // Switched off for one agent: out of that agent's section, while another agent still sees it.
       mcp.setAgentServer("agent-local-a", "fake", false);
-      expect(mcp.view().servers[0].offFor).toEqual(["agent-local-a"]);
+      expect(mcp.view().servers[0].off_for).toEqual(["agent-local-a"]);
       expect(mcp.sectionText("agent-local-a")).toBeUndefined();
       expect(mcp.sectionText("agent-local-b")).toContain("- fake");
       expect(JSON.parse(readFileSync(join(dir, "state", "mcp-agents.json"), "utf8"))).toEqual({ off: { "agent-local-a": ["fake"] } });

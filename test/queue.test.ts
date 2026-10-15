@@ -25,10 +25,10 @@ describe("catch up queue merge", () => {
     // same message, still unread (kept unread): not re-queued
     expect(mergeQueue([], [a], decided)).toEqual([]);
     // only the timestamp moved (turn boundary, list refresh, streaming): NOT re-queued
-    const bumped = item("a", { lastMessageAt: "2026-09-05T10:05:00Z" });
+    const bumped = item("a", { last_message_at: "2026-09-05T10:05:00Z" });
     expect(mergeQueue([], [bumped], decided)).toEqual([]);
     // the agent said something new: re-queued
-    const later = item("a", { lastMessageAt: "2026-09-05T10:05:00Z", lastAssistantText: "here is the answer" });
+    const later = item("a", { last_message_at: "2026-09-05T10:05:00Z", lastAssistantText: "here is the answer" });
     expect(mergeQueue([], [later], decided).map((i) => i.id)).toEqual(["a"]);
     // a completed turn with no new text (e.g. it only wrote a file): re-queued
     expect(mergeQueue([], [item("a", { turns: 1 })], decided).map((i) => i.id)).toEqual(["a"]);
@@ -41,10 +41,10 @@ describe("catch up queue merge", () => {
     const now = new Date("2026-09-16T10:00:00Z").getTime();
     // items arrive stamped, as buildItems hands them over; "focused" is the chat you have been working in
     const stamp = (i: AttentionItem) => scored([i], now, { "a1/focused": 0.5 })[0];
-    const head = stamp(item("head", { lastMessageAt: "2026-09-16T06:00:00Z" }));
-    const old = stamp(item("old", { lastMessageAt: "2026-09-16T07:00:00Z" }));
-    const quiet = stamp(item("quiet", { lastMessageAt: "2026-09-16T09:59:00Z" }));
-    const focused = stamp(item("focused", { lastMessageAt: "2026-09-16T09:58:00Z" }));
+    const head = stamp(item("head", { last_message_at: "2026-09-16T06:00:00Z" }));
+    const old = stamp(item("old", { last_message_at: "2026-09-16T07:00:00Z" }));
+    const quiet = stamp(item("quiet", { last_message_at: "2026-09-16T09:59:00Z" }));
+    const focused = stamp(item("focused", { last_message_at: "2026-09-16T09:58:00Z" }));
     const q = mergeQueue([head, old], [head, old, quiet, focused], []);
     expect(q.map((i) => i.id)).toEqual(["head", "focused", "quiet", "old"]);
     // the head stays even when something blocked arrives; the blocked card is next
@@ -52,7 +52,7 @@ describe("catch up queue merge", () => {
       item("blocked", {
         status: "approval",
         pendingApproval: { requestId: "p", toolName: "Bash", input: {}, at: "2026-09-16T09:59:30Z" },
-        lastMessageAt: "2026-09-16T09:59:30Z",
+        last_message_at: "2026-09-16T09:59:30Z",
       }),
     );
     expect(mergeQueue(q, [head, old, quiet, focused, blocked], []).map((i) => i.id)).toEqual(["head", "blocked", "focused", "quiet", "old"]);

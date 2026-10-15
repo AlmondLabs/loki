@@ -161,10 +161,10 @@ describe("lan_status with the route fields (addendum 3)", () => {
     addresses: ["172.20.0.90"],
     host: "my-macbook-pro.local",
     port: 41415,
-    appServed: true,
+    app_served: true,
     error: null,
   };
-  const running = { installed: true, running: true, ip: "100.101.102.103", name: "my-macbook-pro.tail1234.ts.net", serveUrl: null, error: null };
+  const running = { installed: true, running: true, ip: "100.101.102.103", name: "my-macbook-pro.tail1234.ts.net", serve_url: null, error: null };
   test("an older mod sends neither field: no Tailscale, the Wi‑Fi route", () => {
     const s = lanStatusFromFrame(base);
     expect(s.tailscale).toBeNull();
@@ -177,7 +177,7 @@ describe("lan_status with the route fields (addendum 3)", () => {
     expect(s.via).toBe("tailscale");
     expect(s.tailscale?.name).toBe("my-macbook-pro.tail1234.ts.net");
     expect(pairOrigin(s)).toBe("http://my-macbook-pro.tail1234.ts.net:41415");
-    const served = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, serveUrl: "https://my-macbook-pro.tail1234.ts.net" } });
+    const served = lanStatusFromFrame({ ...base, via: "tailscale", tailscale: { ...running, serve_url: "https://my-macbook-pro.tail1234.ts.net" } });
     expect(pairOrigin(served)).toBe("https://my-macbook-pro.tail1234.ts.net");
   });
   test("via tailscale while it is not running falls back to the Wi‑Fi", () => {
@@ -216,7 +216,7 @@ describe("lan_status with the route fields (addendum 3)", () => {
       running: false,
       ip: null,
       name: null,
-      serveUrl: null,
+      serve_url: null,
       error: "tailscale serve: HTTPS is not enabled for this tailnet",
     });
     expect(pairOrigin(lanStatusFromFrame({ enabled: true }))).toBeNull();
@@ -225,11 +225,11 @@ describe("lan_status with the route fields (addendum 3)", () => {
 
 describe("agents on the phone", () => {
   const desks = [
-    { agentId: "a1", status: "live" },
-    { agentId: "a1", status: "live" },
-    { agentId: "a1", status: "archived" },
-    { agentId: "a2", status: "live" },
-    { agentId: null, status: "live" },
+    { agent_id: "a1", status: "live" },
+    { agent_id: "a1", status: "live" },
+    { agent_id: "a1", status: "archived" },
+    { agent_id: "a2", status: "live" },
+    { agent_id: null, status: "live" },
   ];
   test("live desks per agent", () => {
     expect(liveDeskCount(desks, "a1")).toBe(2);
@@ -244,13 +244,13 @@ describe("agents on the phone", () => {
   test("memory folders: system first, root last, skills and the face left out", () => {
     const at = "2026-09-07T12:00:00Z";
     const folders = memoryFolders([
-      { path: "reference/notes.md", bytes: 10, modifiedAt: at },
-      { path: "profile.png", bytes: 999, modifiedAt: at },
-      { path: "skills/loki/SKILL.md", bytes: 5, modifiedAt: at },
-      { path: "system/persona.md", bytes: 20, modifiedAt: at },
-      { path: "system/human.md", bytes: 30, modifiedAt: at },
-      { path: "README.md", bytes: 1, modifiedAt: at },
-      { path: "reference/deep/more.md", bytes: 2, modifiedAt: at },
+      { path: "reference/notes.md", bytes: 10, modified_at: at },
+      { path: "profile.png", bytes: 999, modified_at: at },
+      { path: "skills/loki/SKILL.md", bytes: 5, modified_at: at },
+      { path: "system/persona.md", bytes: 20, modified_at: at },
+      { path: "system/human.md", bytes: 30, modified_at: at },
+      { path: "README.md", bytes: 1, modified_at: at },
+      { path: "reference/deep/more.md", bytes: 2, modified_at: at },
     ]);
     expect(folders.map((f) => f.name)).toEqual(["system", "reference", ""]);
     expect(folders[0].files.map((f) => f.name)).toEqual(["persona.md", "human.md"]);
@@ -264,12 +264,12 @@ describe("the desk's attention dot (shell/DeskTree deskMark, shared with Home)",
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({
       id: "c",
-      agentId: "a",
-      agentName: "ira",
+      agent_id: "a",
+      agent_name: "ira",
       title: "t",
       status: "done",
       unread: false,
-      lastMessageAt: null,
+      last_message_at: null,
       lastAssistantText: null,
       pendingApproval: null,
       pendingQuestion: null,
@@ -336,28 +336,28 @@ describe("reloading a newer canvas", () => {
 
 describe("Home: shortcuts, attention and desks (U3)", () => {
   const desk = (over: Partial<DeskSummary>): DeskSummary => ({
-    scope: `${over.agentId ?? "a1"}/${over.conversationId ?? "c"}`,
+    scope: `${over.agent_id ?? "a1"}/${over.conversation_id ?? "c"}`,
     title: "t",
     status: "live",
-    agentName: "ira",
-    agentId: "a1",
-    conversationId: "c",
+    agent_name: "ira",
+    agent_id: "a1",
+    conversation_id: "c",
     model: null,
-    reasoningEffort: null,
+    reasoning_effort: null,
     widgets: 0,
     active: false,
-    lastActive: null,
+    last_active: null,
     ...over,
   });
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({
       id: "c",
-      agentId: "a1",
-      agentName: "ira",
+      agent_id: "a1",
+      agent_name: "ira",
       title: "t",
       status: "done",
       unread: true,
-      lastMessageAt: null,
+      last_message_at: null,
       lastAssistantText: null,
       pendingApproval: null,
       pendingQuestion: null,
@@ -366,17 +366,17 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
       ...over,
     }) as AttentionItem;
   const desks = [
-    desk({ conversationId: "c1", title: "Loki mobile", lastActive: "2026-09-20T10:00:00Z" }),
-    desk({ conversationId: "c2", title: "QuizUp", agentId: "a2", agentName: "jira", lastActive: "2026-09-21T10:00:00Z" }),
-    desk({ conversationId: "c3", title: "DSPy", lastActive: "2026-09-19T10:00:00Z", pinned: true }),
-    desk({ conversationId: "c4", title: "Old one", status: "archived" }),
-    desk({ conversationId: "c5", title: "Older", status: "archived", agentId: "a2", agentName: "jira" }),
-    desk({ scope: "shared", title: null, status: "archived", agentId: null, agentName: null, conversationId: null }),
+    desk({ conversation_id: "c1", title: "Loki mobile", last_active: "2026-09-20T10:00:00Z" }),
+    desk({ conversation_id: "c2", title: "QuizUp", agent_id: "a2", agent_name: "jira", last_active: "2026-09-21T10:00:00Z" }),
+    desk({ conversation_id: "c3", title: "DSPy", last_active: "2026-09-19T10:00:00Z", pinned: true }),
+    desk({ conversation_id: "c4", title: "Old one", status: "archived" }),
+    desk({ conversation_id: "c5", title: "Older", status: "archived", agent_id: "a2", agent_name: "jira" }),
+    desk({ scope: "shared", title: null, status: "archived", agent_id: null, agent_name: null, conversation_id: null }),
   ];
   const items = [
     item({ id: "c1", status: "approval" }),
-    item({ id: "c9", agentId: "a2", agentName: "jira", status: "question", title: "Main chat" }),
-    item({ id: "c2", agentId: "a2", agentName: "jira", status: "running", unread: false }),
+    item({ id: "c9", agent_id: "a2", agent_name: "jira", status: "question", title: "Main chat" }),
+    item({ id: "c2", agent_id: "a2", agent_name: "jira", status: "running", unread: false }),
     item({ id: "c3", status: "idle", unread: false }), // a quiet chat: in the Inbox, but not waiting on you
   ];
 
@@ -400,23 +400,23 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
   test("an actionable desk appears once: in attention, not again in the desk list", () => {
     const s = homeSections(desks, items, null, "");
     expect(s.attention.map((a) => a.item.id)).toEqual(["c1", "c9"]);
-    expect(s.desks.map((d) => d.conversationId)).toEqual(["c3", "c2"]); // pinned first, then by recency; c1 is above
+    expect(s.desks.map((d) => d.conversation_id)).toEqual(["c3", "c2"]); // pinned first, then by recency; c1 is above
     expect(s.more).toBe(0);
-    const keys = [...s.attention.map((a) => `${a.item.agentId}/${a.item.id}`), ...s.desks.map((d) => `${d.agentId}/${d.conversationId}`)];
+    const keys = [...s.attention.map((a) => `${a.item.agent_id}/${a.item.id}`), ...s.desks.map((d) => `${d.agent_id}/${d.conversation_id}`)];
     expect(new Set(keys).size).toBe(keys.length);
   });
   test("attention past the cap stays in the desk list, marked, rather than vanishing", () => {
     const many = Array.from({ length: HOME_ATTENTION_MAX + 2 }, (_, n) => item({ id: `k${n}`, status: "question" }));
-    const lots = many.map((i) => desk({ conversationId: i.id, title: i.id }));
+    const lots = many.map((i) => desk({ conversation_id: i.id, title: i.id }));
     const s = homeSections(lots, many, null, "");
     expect(s.attention.length).toBe(HOME_ATTENTION_MAX);
     expect(s.more).toBe(2);
-    expect(s.desks.map((d) => d.conversationId).sort()).toEqual([`k${HOME_ATTENTION_MAX}`, `k${HOME_ATTENTION_MAX + 1}`]);
+    expect(s.desks.map((d) => d.conversation_id).sort()).toEqual([`k${HOME_ATTENTION_MAX}`, `k${HOME_ATTENTION_MAX + 1}`]);
   });
   test("the agent scope and the filter narrow both sections", () => {
     const scoped = homeSections(desks, items, "a2", "");
     expect(scoped.attention.map((a) => a.item.id)).toEqual(["c9"]);
-    expect(scoped.desks.map((d) => d.conversationId)).toEqual(["c2"]);
+    expect(scoped.desks.map((d) => d.conversation_id)).toEqual(["c2"]);
     const typed = homeSections(desks, items, null, "loki");
     // the approval's own title is "t"; it matches by its desk's name, and stays in attention only
     expect(typed.attention.map((a) => [a.item.id, a.desk?.title])).toEqual([["c1", "Loki mobile"]]);
@@ -424,10 +424,10 @@ describe("Home: shortcuts, attention and desks (U3)", () => {
     expect(homeSections(desks, items, null, "main").attention.map((a) => [a.item.id, a.desk])).toEqual([["c9", undefined]]);
   });
   test("the archive list: no shared sheet, the agent scope and the filter apply", () => {
-    expect(archiveList(desks, null, "").map((d) => d.conversationId)).toEqual(["c4", "c5"]);
-    expect(archiveList(desks, "a2", "").map((d) => d.conversationId)).toEqual(["c5"]);
-    expect(archiveList(desks, null, "old ").map((d) => d.conversationId)).toEqual(["c4", "c5"]);
-    expect(archiveList(desks, null, "older").map((d) => d.conversationId)).toEqual(["c5"]);
+    expect(archiveList(desks, null, "").map((d) => d.conversation_id)).toEqual(["c4", "c5"]);
+    expect(archiveList(desks, "a2", "").map((d) => d.conversation_id)).toEqual(["c5"]);
+    expect(archiveList(desks, null, "old ").map((d) => d.conversation_id)).toEqual(["c4", "c5"]);
+    expect(archiveList(desks, null, "older").map((d) => d.conversation_id)).toEqual(["c5"]);
     expect(archiveList([], null, "")).toEqual([]);
   });
 });
@@ -447,25 +447,25 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
     scope: "s",
     title: "t",
     status: "live",
-    agentName: "ira",
-    agentId: "a1",
-    conversationId: "c",
+    agent_name: "ira",
+    agent_id: "a1",
+    conversation_id: "c",
     model: null,
-    reasoningEffort: null,
+    reasoning_effort: null,
     widgets: 0,
     active: false,
-    lastActive: null,
+    last_active: null,
     ...over,
   });
   const item = (over: Partial<AttentionItem>): AttentionItem =>
     ({
       id: "c",
-      agentId: "a1",
-      agentName: "ira",
+      agent_id: "a1",
+      agent_name: "ira",
       title: "t",
       status: "done",
       unread: true,
-      lastMessageAt: null,
+      last_message_at: null,
       lastAssistantText: null,
       pendingApproval: null,
       pendingQuestion: null,
@@ -478,11 +478,11 @@ describe("Agents: Slack's DM list, one row per agent (U6)", () => {
     { id: "a2", name: "jira" },
     { id: "a3", name: "a very long agent name that will not fit on one line of a phone" },
   ];
-  const desks = [desk({ scope: "a1/c1" }), desk({ scope: "a1/c2" }), desk({ scope: "a1/c3", status: "archived" }), desk({ scope: "a2/c4", agentId: "a2" })];
+  const desks = [desk({ scope: "a1/c1" }), desk({ scope: "a1/c2" }), desk({ scope: "a1/c3", status: "archived" }), desk({ scope: "a2/c4", agent_id: "a2" })];
   const items = [
     item({ id: "c1", status: "question" }),
     item({ id: "c2", status: "approval" }),
-    item({ id: "c4", agentId: "a2", status: "running", unread: false }),
+    item({ id: "c4", agent_id: "a2", status: "running", unread: false }),
     item({ id: "c5", status: "idle", unread: false }),
   ];
   const rows = agentRows(agents, desks, items);

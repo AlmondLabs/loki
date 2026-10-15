@@ -49,7 +49,7 @@ const recallSnapshot = (r: RequestResult<RecallSnapshot>): RecallSnapshot | null
     rejected: reply.rejected,
     worker: reply.worker,
     leads: reply.leads ?? [],
-    dismissedLeads: reply.dismissedLeads ?? [],
+    dismissed_leads: reply.dismissed_leads ?? [],
     lessons: reply.lessons ?? [],
   };
 };
@@ -148,7 +148,7 @@ export function useDesk() {
       };
       const timer = window.setTimeout(() => done(null), timeoutMs);
       waiters.current.set(requestId, done);
-      const frame = { type, requestId, ...payload };
+      const frame = { type, request_id: requestId, ...payload };
       if (!sendRaw(frame)) {
         retry = window.setInterval(() => {
           if (sendRaw(frame) && retry !== null) {
@@ -225,12 +225,12 @@ export function useDesk() {
       labels?: string[];
       priority?: number;
       desk?: string | null;
-      agentId?: string | null;
-      agentName?: string | null;
-      conversationId?: string | null;
+      agent_id?: string | null;
+      agent_name?: string | null;
+      conversation_id?: string | null;
       source?: TaskSource;
     }) => taskCall("task_create", t),
-    assign: (ids: string[], target: { agentId: string | null; agentName: string | null; conversationId: string; desk: string }, start: boolean) =>
+    assign: (ids: string[], target: { agent_id: string | null; agent_name: string | null; conversation_id: string; desk: string }, start: boolean) =>
       taskCall("task_assign", { ids, ...target, start }),
     close: (ids: string[], reason?: string) => taskCall("task_close", { ids, reason }),
     reopen: (ids: string[]) => taskCall("task_reopen", { ids }),
@@ -250,7 +250,7 @@ export function useDesk() {
     reject: (id: string) => recallCall("recall_reject", { id }),
     restore: (id: string) => recallCall("recall_restore", { id }),
     forget: (id: string) => recallCall("recall_forget", { id }),
-    settings: (s: { enabled?: boolean; dailyCap?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
+    settings: (s: { enabled?: boolean; daily_cap?: number }) => request("recall_settings", s, 15_000).then(recallSnapshot),
     /** Run the worker now; resolves to its one-line note (or the error). */
     run: () => request("recall_run", {}, 240_000).then((r) => (r.ok ? r.reply.note : r.error)),
     /** Anki's plain-text import format, or null. */
@@ -261,39 +261,39 @@ export function useDesk() {
     leadStart: (id: string): Promise<{ ok: true; agentId: string; conversationId: string } | { ok: false; message: string }> =>
       request("recall_lead_start", { id }, 60_000).then((r) =>
         r.ok
-          ? { ok: true, agentId: r.reply.agentId, conversationId: r.reply.conversationId }
-          : { ok: false, message: r.timedOut ? "the lesson did not start" : r.error },
+          ? { ok: true, agentId: r.reply.agent_id, conversationId: r.reply.conversation_id }
+          : { ok: false, message: r.timed_out ? "the lesson did not start" : r.error },
       ),
   };
 
   /** The Agents page, through the mod: the local record and the memory filesystem (read-only). */
   const agents = {
     get: (agentId: string) =>
-      request("agent_get", { agentId }, 10_000).then((r) =>
+      request("agent_get", { agent_id: agentId }, 10_000).then((r) =>
         r.ok
           ? {
               agent: r.reply.agent,
               files: r.reply.files,
               skills: r.reply.skills,
-              hasProfile: r.reply.hasProfile,
-              lastCommit: r.reply.lastCommit,
+              hasProfile: r.reply.has_profile,
+              lastCommit: r.reply.last_commit,
             }
           : null,
       ),
-    read: (agentId: string, path: string) => request("memory_read", { agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
+    read: (agentId: string, path: string) => request("memory_read", { agent_id: agentId, path }, 10_000).then((r) => (r.ok ? r.reply.content : null)),
     log: (agentId: string, path?: string, limit?: number) =>
-      request("memory_log", { agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
-    diff: (agentId: string, sha: string) => request("memory_diff", { agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
+      request("memory_log", { agent_id: agentId, path, limit }, 15_000).then((r): MemoryCommit[] => (r.ok ? r.reply.commits : [])),
+    diff: (agentId: string, sha: string) => request("memory_diff", { agent_id: agentId, sha }, 15_000).then((r) => (r.ok ? r.reply.diff : null)),
     reflection: (agentId: string) =>
-      request("reflection_state", { agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { lastCommit: r.reply.lastCommit } : null)),
+      request("reflection_state", { agent_id: agentId }, 15_000).then((r): ReflectionState | null => (r.ok ? { last_commit: r.reply.last_commit } : null)),
     globalSkills: () => request("skills_global", {}, 10_000).then((r): GlobalSkill[] => (r.ok ? r.reply.skills : [])),
     /** Install a skill from a source into the agent's memory, through the mod (mod/skills.ts); resolves to an error message or null. */
     installSkill: (agentId: string, source: string, force = false) =>
-      request("skill_install", { agentId, source, force }, 130_000).then((r) => (r.ok ? null : r.timedOut ? "install timed out" : r.error)),
+      request("skill_install", { agent_id: agentId, source, force }, 130_000).then((r) => (r.ok ? null : r.timed_out ? "install timed out" : r.error)),
     /** Refresh an installed skill from its upstream (mod/skill-sources.ts); the outcome, or `{ error }`. */
     refreshSkill: (agentId: string, name: string, source?: string) =>
-      request("skill_refresh", { agentId, name, source }, 130_000).then((r): RefreshOutcome | { error: string } =>
-        r.ok ? r.reply : { error: r.timedOut ? "refresh timed out" : r.error },
+      request("skill_refresh", { agent_id: agentId, name, source }, 130_000).then((r): RefreshOutcome | { error: string } =>
+        r.ok ? r.reply : { error: r.timed_out ? "refresh timed out" : r.error },
       ),
   };
 
@@ -339,7 +339,7 @@ export function useDesk() {
           staleListeners.current.add(fn);
           return () => staleListeners.current.delete(fn);
         },
-        agentOf: (conversationId) => deskList.find((d) => d.conversationId === conversationId)?.agentId ?? null,
+        agentOf: (conversationId) => deskList.find((d) => d.conversation_id === conversationId)?.agent_id ?? null,
         // A sign-in page opens in the browser: the shell's opener in the app, a new tab in a browser.
         openUrl: (url) => {
           if (inTauri)
@@ -351,12 +351,13 @@ export function useDesk() {
     seen: seenMap,
     /** Each chat's engagement weight (the mod's; core/attention/focus.ts), and the report of one the mod cannot see. */
     focus: focusMap,
-    engage: (agentId: string, conversationId: string, action: EngageAction) => send({ type: "focus_add", agentId, conversationId, action }),
-    markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agentId, conversationId }),
-    unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agentId, conversationId }),
+    engage: (agentId: string, conversationId: string, action: EngageAction) =>
+      send({ type: "focus_add", agent_id: agentId, conversation_id: conversationId, action }),
+    markSeen: (agentId: string, conversationId: string) => send({ type: "seen_mark", agent_id: agentId, conversation_id: conversationId }),
+    unmarkSeen: (agentId: string, conversationId: string) => send({ type: "seen_unmark", agent_id: agentId, conversation_id: conversationId }),
     /** A look, not done: opening a conversation, or a message arriving while it is open (shared/use-viewed.ts). */
     viewed: viewedMap,
-    markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agentId, conversationId }),
+    markViewed: (agentId: string, conversationId: string) => send({ type: "viewed_mark", agent_id: agentId, conversation_id: conversationId }),
     /** Every open conversation the mod knows from the daemon, with who spoke last; the inbox's list. Empty when the mod does not answer. */
     listInbox: (): Promise<InboxConversation[]> => request("inbox_list", {}, 8000).then((r) => (r.ok ? r.reply.conversations : [])),
     /**
@@ -364,23 +365,23 @@ export function useDesk() {
      * The reply's widget change log lands in that desk's store on the way (the thread's widget rows).
      */
     loadHistory: (agentId: string, conversationId: string, limit?: number): Promise<{ rows: TranscriptRow[]; more: boolean }> =>
-      request("history_get", { agentId, conversationId, ...(limit ? { limit } : {}) }, 8000).then((r) => {
+      request("history_get", { agent_id: agentId, conversation_id: conversationId, ...(limit ? { limit } : {}) }, 8000).then((r) => {
         if (!r.ok) return { rows: [], more: false };
-        setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widgetLog));
+        setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
         return { rows: r.reply.messages, more: r.reply.more };
       }),
     /** Working folders for "new desk" — all answered by the mod, which can see the disk. */
     folders: {
       recent: () =>
         request("folders_get", {}, 4000).then((r) =>
-          r.ok ? { byAgent: r.reply.byAgent, byConversation: r.reply.byConversation } : { byAgent: {}, byConversation: {} },
+          r.ok ? { byAgent: r.reply.by_agent, byConversation: r.reply.by_conversation } : { byAgent: {}, byConversation: {} },
         ),
       complete: (prefix: string) => request("folder_complete", { prefix }, 3000).then((r) => (r.ok ? r.reply.matches : [])),
       check: (path: string) =>
         request("folder_check", { path }, 3000).then((r) =>
           r.ok ? { ok: r.reply.ok, path: r.reply.path, branch: r.reply.branch, reason: r.reply.reason } : { ok: false, path, branch: null, reason: r.error },
         ),
-      pick: (defaultPath?: string) => request("folder_pick", { defaultPath }, 180_000).then((r) => (r.ok ? r.reply.path : null)),
+      pick: (defaultPath?: string) => request("folder_pick", { default_path: defaultPath }, 180_000).then((r) => (r.ok ? r.reply.path : null)),
     },
   };
 
@@ -431,10 +432,10 @@ export function useDesk() {
   const setDeskModel = (s: Scope, handle: string, effort: ReasoningEffort | null) => {
     setModels((t) => ({ ...t, [s]: handle }));
     setReasoningEfforts((current) => withReasoningEffort(current, s, effort));
-    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, model: handle, reasoningEffort: effort } : d)));
+    setDeskList((l) => l.map((d) => (d.scope === s ? { ...d, model: handle, reasoning_effort: effort } : d)));
   };
   const modelOf = (s: Scope): string | null => models[s] ?? deskList.find((d) => d.scope === s)?.model ?? null;
-  const reasoningEffortOf = (s: Scope): ReasoningEffort | null => reasoningEfforts[s] ?? deskList.find((d) => d.scope === s)?.reasoningEffort ?? null;
+  const reasoningEffortOf = (s: Scope): ReasoningEffort | null => reasoningEfforts[s] ?? deskList.find((d) => d.scope === s)?.reasoning_effort ?? null;
   const mode = modes[scope] ?? null;
   const setDeskMode = (s: Scope, m: string) => {
     setModes((t) => ({ ...t, [s]: m }));
@@ -478,7 +479,7 @@ export function useDesk() {
       request: requestDesks,
       switchTo: switchDesk,
       /** Pin or unpin; the mod rewrites its pins file (mod/pins.ts) and broadcasts the list back. */
-      pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agentId, conversationId, pinned }),
+      pin: (agentId: string, conversationId: string, pinned: boolean) => send({ type: "pin_set", agent_id: agentId, conversation_id: conversationId, pinned }),
     },
     attention,
     phone,

@@ -62,7 +62,7 @@ const openLearn = (view: LearnPage) => navigate({ kind: "learn", view });
 /** Learn's lists, each with what it holds. Before the Mac answers, their shapes; with the writer off and nothing written, why. */
 function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: ReactNode; back: ReactNode }) {
   const snap = recall.snap;
-  const deleted = snap ? snap.rejected.length + snap.dismissedLeads.length : 0;
+  const deleted = snap ? snap.rejected.length + snap.dismissed_leads.length : 0;
   return (
     <div className="loki-phone-page">
       <TopBar left={back} title="Learn" />
@@ -72,7 +72,7 @@ function LearnHome({ recall, banner, back }: { recall: RecallModel; banner: Reac
           <SkeletonRows label="Loading Learn…" rows={4} />
         ) : (
           <>
-            {snap.cards.length === 0 && snap.leads.length === 0 && !snap.worker.enabled && <Off dailyCap={snap.worker.dailyCap} />}
+            {snap.cards.length === 0 && snap.leads.length === 0 && !snap.worker.enabled && <Off dailyCap={snap.worker.daily_cap} />}
             <RowGroup>
               <MenuRow
                 icon="refresh"
@@ -126,7 +126,7 @@ function Review({ recall, pass, banner, back }: { recall: RecallModel; pass: Dec
           {!recall.snap ? (
             <SkeletonCard label="Loading the cards…" />
           ) : !current && cards.length === 0 && !recall.snap.worker.enabled ? (
-            <Off dailyCap={recall.snap.worker.dailyCap} />
+            <Off dailyCap={recall.snap.worker.daily_cap} />
           ) : !current ? (
             <Rest cards={cards.length} passed={pass.passed.size} nextDue={pass.nextDue} />
           ) : (
@@ -160,10 +160,10 @@ const DEPTH: Record<Lead["depth"], string> = { primer: "A primer · one sitting"
 function LeadSource({ source, at, aside }: { source: CardSource; at: string; aside?: ReactNode }) {
   return (
     <div className="loki-phone-learn-source">
-      <Avatar name={source.agentName ?? "agent"} src={source.agentId ? avatarUrl(source.agentId) : null} size={36} />
+      <Avatar name={source.agent_name ?? "agent"} src={source.agent_id ? avatarUrl(source.agent_id) : null} size={36} />
       <div className="loki-phone-row-copy">
         <span className="loki-phone-learn-who">
-          <span className="loki-phone-ellipsis">{source.agentName ?? "A conversation"}</span>
+          <span className="loki-phone-ellipsis">{source.agent_name ?? "A conversation"}</span>
           {aside}
         </span>
         <span className="loki-phone-row-preview">
@@ -220,7 +220,7 @@ function Leads({
               const busy = recall.starting === l.id;
               return (
                 <section key={l.id} aria-label={`lead: ${l.title}`} className="loki-phone-learn-card">
-                  <LeadSource source={l.source} at={l.createdAt} />
+                  <LeadSource source={l.source} at={l.created_at} />
                   <div className="loki-phone-learn-front">{l.title}</div>
                   <p className="loki-phone-lead-why">{l.why}</p>
                   <p className="loki-phone-meta">{DEPTH[l.depth]}</p>
@@ -238,12 +238,12 @@ function Leads({
                     <Button size="touch" onClick={() => void recall.dismissLead(l.id)}>
                       Not this
                     </Button>
-                    {l.source.agentId && l.source.conversationId && (
+                    {l.source.agent_id && l.source.conversation_id && (
                       <Button
                         size="touch"
                         tone="paper"
                         onClick={() => {
-                          const { agentId, conversationId } = l.source;
+                          const { agent_id: agentId, conversation_id: conversationId } = l.source;
                           if (agentId && conversationId) onOpen(agentId, conversationId);
                         }}
                       >
@@ -292,15 +292,15 @@ function Lessons({
         ) : (
           <ul className="loki-phone-list" aria-label="lessons under way">
             {lessons.map((s) => (
-              <li key={s.conversationId} className="loki-phone-row-item">
-                <button type="button" className="loki-phone-row" onClick={() => onOpen(s.agentId, s.conversationId)}>
-                  <Avatar name={s.lead.source.agentName ?? "agent"} src={avatarUrl(s.agentId)} />
+              <li key={s.conversation_id} className="loki-phone-row-item">
+                <button type="button" className="loki-phone-row" onClick={() => onOpen(s.agent_id, s.conversation_id)}>
+                  <Avatar name={s.lead.source.agent_name ?? "agent"} src={avatarUrl(s.agent_id)} />
                   <span className="loki-phone-row-copy">
                     <span className="loki-phone-row-title">
                       <span className="loki-phone-ellipsis">{s.lead.title}</span>
                     </span>
                     <span className="loki-phone-row-preview">
-                      {s.lead.source.agentName ?? "agent"} · {s.empty ? "brief not sent" : `started ${ago(s.startedAt)}`}
+                      {s.lead.source.agent_name ?? "agent"} · {s.empty ? "brief not sent" : `started ${ago(s.started_at)}`}
                     </span>
                   </span>
                 </button>
@@ -308,7 +308,7 @@ function Lessons({
                   <button
                     type="button"
                     className="loki-phone-row-action"
-                    onClick={() => onBegin(s.agentId, s.conversationId, lessonBrief(s.lead), learnTitle(s.lead.title))}
+                    onClick={() => onBegin(s.agent_id, s.conversation_id, lessonBrief(s.lead), learnTitle(s.lead.title))}
                   >
                     Send the brief
                   </button>
@@ -326,7 +326,7 @@ function Lessons({
 function Deleted({ recall, banner, back }: { recall: RecallModel; banner: ReactNode; back: ReactNode }) {
   const snap = recall.snap;
   const cards = snap?.rejected ?? [];
-  const leads = snap?.dismissedLeads ?? [];
+  const leads = snap?.dismissed_leads ?? [];
   return (
     <div className="loki-phone-page">
       <TopBar left={back} title="Deleted" />
@@ -415,13 +415,13 @@ function Rest({ cards, passed, nextDue }: { cards: number; passed: number; nextD
 /** Where the card came from, as a message header: the agent's face and name, the conversation and when, and what is new about it. */
 function Source({ c }: { c: CardWithSchedule }) {
   const { source } = c.card;
-  const fresh = isNew(c.schedule) ? "New" : updatedSinceReview(c) ? `Updated ${ago(c.card.updatedAt)}` : null;
+  const fresh = isNew(c.schedule) ? "New" : updatedSinceReview(c) ? `Updated ${ago(c.card.updated_at)}` : null;
   return (
     <div className="loki-phone-learn-source">
-      <Avatar name={source.agentName ?? "agent"} src={source.agentId ? avatarUrl(source.agentId) : null} size={36} />
+      <Avatar name={source.agent_name ?? "agent"} src={source.agent_id ? avatarUrl(source.agent_id) : null} size={36} />
       <div className="loki-phone-row-copy">
         <span className="loki-phone-learn-who">
-          <span className="loki-phone-ellipsis">{source.agentName ?? "A conversation"}</span>
+          <span className="loki-phone-ellipsis">{source.agent_name ?? "A conversation"}</span>
           {fresh && <span className="loki-phone-learn-tag">{fresh}</span>}
         </span>
         <span className="loki-phone-row-preview">

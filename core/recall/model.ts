@@ -7,9 +7,9 @@ import { isDue, isNew, type Schedule } from "./fsrs.ts";
  * next. Content (agent-editable) and schedule (the person's review history) are kept apart.
  */
 export interface CardSource {
-  agentId: string | null;
-  agentName: string | null;
-  conversationId: string | null;
+  agent_id: string | null;
+  agent_name: string | null;
+  conversation_id: string | null;
   /** The conversation's title (a desk name, "main chat") when known. */
   title: string | null;
   /** ISO time of the message the fact was drawn from. */
@@ -26,10 +26,10 @@ export interface Card {
   back: string;
   tags: string[];
   source: CardSource;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
   /** Who last changed the text: the worker ("recall") or the person ("you"). */
-  updatedBy: "recall" | "you";
+  updated_by: "recall" | "you";
   /** Earlier wordings, oldest first, so an update the worker made can be read against what it replaced. */
   previous: Array<{ front: string; back: string; at: string; by: "recall" | "you" }>;
 }
@@ -62,7 +62,7 @@ export interface Lead {
   /** A primer fits one sitting; a course takes several. */
   depth: "primer" | "course";
   source: CardSource;
-  createdAt: string;
+  created_at: string;
 }
 /** A lead the person dismissed, kept with when, so it is quoted back to the writer and never proposed again. */
 export interface DismissedLead {
@@ -72,9 +72,9 @@ export interface DismissedLead {
 /** A lead the person started: the `[Learn] · <title>` conversation it became. */
 export interface Lesson {
   lead: Lead;
-  agentId: string;
-  conversationId: string;
-  startedAt: string;
+  agent_id: string;
+  conversation_id: string;
+  started_at: string;
   /** Set by the mod's snapshot: the conversation holds no message yet, so the brief never arrived (the app sends it again). */
   empty?: boolean;
 }
@@ -98,18 +98,18 @@ export interface RecallSnapshot {
   /** The worker: when it last ran, what it did, and what it is set to. */
   worker: WorkerStatus;
   leads: Lead[];
-  dismissedLeads: DismissedLead[];
+  dismissed_leads: DismissedLead[];
   lessons: Lesson[];
 }
 
 /** Learn's settings and last run (daemon/passes-state.ts), as the Learn section shows them. */
 export interface WorkerStatus {
   enabled: boolean;
-  dailyCap: number;
-  lastRunAt: string | null;
-  lastRunNote: string | null;
+  daily_cap: number;
+  last_run_at: string | null;
+  last_run_note: string | null;
   /** Cards written today, against the cap. */
-  writtenToday: number;
+  written_today: number;
 }
 
 /**
@@ -118,7 +118,7 @@ export interface WorkerStatus {
  */
 export function reviewQueue(cards: CardWithSchedule[], now = Date.now()): CardWithSchedule[] {
   const due = cards.filter((c) => isDue(c.schedule, now));
-  const fresh = due.filter((c) => isNew(c.schedule)).sort((a, b) => a.card.createdAt.localeCompare(b.card.createdAt));
+  const fresh = due.filter((c) => isNew(c.schedule)).sort((a, b) => a.card.created_at.localeCompare(b.card.created_at));
   const rest = due.filter((c) => !isNew(c.schedule)).sort((a, b) => a.schedule.due.localeCompare(b.schedule.due));
   return [...fresh, ...rest];
 }
@@ -128,7 +128,7 @@ export const dueCount = (cards: CardWithSchedule[], now = Date.now()) => cards.f
 
 /** True when the worker changed the text after the person last saw the card. */
 export function updatedSinceReview(c: CardWithSchedule): boolean {
-  return c.card.updatedBy === "recall" && c.card.previous.length > 0 && (!c.schedule.lastReview || c.card.updatedAt > c.schedule.lastReview);
+  return c.card.updated_by === "recall" && c.card.previous.length > 0 && (!c.schedule.last_review || c.card.updated_at > c.schedule.last_review);
 }
 
 /** Anki's plain-text import: one card per line, front TAB back TAB tags. */

@@ -18,9 +18,9 @@ describe("agent and phone-listener frames", () => {
     } as unknown as NonNullable<AgentsDeps["agents"]>;
     const { bridge } = bridgeWith({ agents });
     const c = client("d1");
-    bridge.onMessage(c, { type: "agent_get", requestId: "r1", agentId: "agent-1" });
+    bridge.onMessage(c, { type: "agent_get", request_id: "r1", agent_id: "agent-1" });
     await settled();
-    expect(c.sent.at(-1)).toEqual({ type: "error", requestId: "r1", message: "memory is not a git repo" });
+    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r1", message: "memory is not a git repo" });
   });
 
   test("a listener refresh that fails answers an error push", async () => {

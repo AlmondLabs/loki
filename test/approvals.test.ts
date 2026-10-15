@@ -73,7 +73,7 @@ const until = async (check: () => boolean, ms = 2000) => {
   while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 5));
 };
 
-const approvalIds = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.requestId] : []));
+const approvalIds = (pushed: ChatEvent[]) => pushed.flatMap((e) => (e.kind === "approval" ? [e.request_id] : []));
 
 describe("approvals in a chat", () => {
   test("always allow: the tool stops asking (but in strict mode), in every chat, kept across a restart, until taken back", async () => {
@@ -124,7 +124,7 @@ describe("approvals in a chat", () => {
       const run = (await s.chat.submit({ type: "input", content: "go" }, ctx)).wait(ctx);
       await until(() => approvalIds(s.pushed).length === 1);
       expect(s.ran).toEqual([]);
-      expect(s.approvals.waitingIn("agent-local-a", "c")).toEqual([{ kind: "approval", requestId: "approval-t1", toolName: "bash", input: { x: "1" } }]);
+      expect(s.approvals.waitingIn("agent-local-a", "c")).toEqual([{ kind: "approval", request_id: "approval-t1", tool_name: "bash", input: { x: "1" } }]);
       expect(s.pushed).toContainEqual({ kind: "loop", state: "approval" });
       expect(s.approvals.decide("approval-t1", true)).toBe(true);
       expect(s.approvals.decide("approval-t1", true)).toBe(false); // a second client's answer finds nothing waiting
@@ -213,7 +213,7 @@ describe("approvals in a chat", () => {
       ]);
       const run = (await s.chat.submit({ type: "input", content: "pick" }, ctx)).wait(ctx);
       await until(() => s.pushed.some((e) => e.kind === "question"));
-      expect(s.pushed.find((e) => e.kind === "question")).toEqual({ kind: "question", requestId: "question-q1", input });
+      expect(s.pushed.find((e) => e.kind === "question")).toEqual({ kind: "question", request_id: "question-q1", input });
       expect(s.approvals.answer("question-q1", { ...input, answers: { "Which colour?": "Blue" } })).toBe(true);
       await run;
       expect(s.sent[1]).toContain('\\"Which colour?\\": Blue');

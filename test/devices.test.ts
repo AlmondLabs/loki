@@ -7,7 +7,7 @@ import { DeviceStore } from "../mod/devices.ts";
 import { must } from "./fixtures/must.ts";
 
 /** The device records as written to the file. */
-const onDisk = (path: string) => JSON.parse(readFileSync(path, "utf8")) as Array<{ id: string; lastSeenAt?: string; lastVia?: string }>;
+const onDisk = (path: string) => JSON.parse(readFileSync(path, "utf8")) as Array<{ id: string; last_seen_at?: string; last_via?: string }>;
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -24,11 +24,11 @@ describe("device store", () => {
       expect(raw).not.toContain(token);
       const file = JSON.parse(raw) as Array<Record<string, unknown>>;
       expect(file).toHaveLength(1);
-      expect(file[0]).toMatchObject({ id, name: "Deepak's iPhone", tokenHash: sha256(token) });
-      expect(typeof file[0].createdAt).toBe("string");
-      expect(typeof file[0].lastSeenAt).toBe("string");
+      expect(file[0]).toMatchObject({ id, name: "Deepak's iPhone", token_hash: sha256(token) });
+      expect(typeof file[0].created_at).toBe("string");
+      expect(typeof file[0].last_seen_at).toBe("string");
       // list() never exposes the hash
-      expect(store.list()).toEqual([{ id, name: "Deepak's iPhone", createdAt: file[0].createdAt as string, lastSeenAt: file[0].lastSeenAt as string }]);
+      expect(store.list()).toEqual([{ id, name: "Deepak's iPhone", created_at: file[0].created_at as string, last_seen_at: file[0].last_seen_at as string }]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -53,7 +53,7 @@ describe("device store", () => {
     }
   });
 
-  test("a new instance reads the file; lastSeenAt moves on verify but writes are throttled", () => {
+  test("a new instance reads the file; last_seen_at moves on verify but writes are throttled", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-devices-"));
     try {
       const path = join(dir, "devices.json");
@@ -78,7 +78,7 @@ describe("device store", () => {
         must(
           onDisk(path).find((d) => d.id === a.id),
           "a's record",
-        ).lastSeenAt,
+        ).last_seen_at,
       ).toBe("2026-09-07T10:00:00.000Z");
       // 2 min later: persisted
       now += 90_000;
@@ -87,7 +87,7 @@ describe("device store", () => {
         must(
           onDisk(path).find((d) => d.id === a.id),
           "a's record",
-        ).lastSeenAt,
+        ).last_seen_at,
       ).toBe("2026-09-07T10:02:00.000Z");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -101,14 +101,14 @@ describe("device store", () => {
       let now = Date.parse("2026-09-08T10:00:00Z");
       const store = new DeviceStore(path, { now: () => now });
       const seen: string[] = [];
-      store.onSeen = (d) => seen.push(d.lastVia ?? "?");
+      store.onSeen = (d) => seen.push(d.last_via ?? "?");
       const a = store.mint("a");
-      expect(store.list()[0]).not.toHaveProperty("lastVia"); // never seen: the canvas shows no route
+      expect(store.list()[0]).not.toHaveProperty("last_via"); // never seen: the canvas shows no route
       // First request, seconds after pairing: the route is new, so it is written despite the throttle.
       now += 5_000;
       store.verify(a.token, "lan");
-      expect(store.list()[0].lastVia).toBe("lan");
-      expect(onDisk(path)[0].lastVia).toBe("lan");
+      expect(store.list()[0].last_via).toBe("lan");
+      expect(onDisk(path)[0].last_via).toBe("lan");
       expect(seen).toEqual(["lan"]);
       // Same route seconds later: throttled, no write, no callback.
       now += 5_000;
@@ -117,14 +117,14 @@ describe("device store", () => {
       // The phone leaves the Wi‑Fi for the tailnet: written at once.
       now += 5_000;
       store.verify(a.token, "tailscale");
-      expect(store.list()[0].lastVia).toBe("tailscale");
-      expect(onDisk(path)[0].lastVia).toBe("tailscale");
+      expect(store.list()[0].last_via).toBe("tailscale");
+      expect(onDisk(path)[0].last_via).toBe("tailscale");
       expect(seen).toEqual(["lan", "tailscale"]);
       // A verify without a route (a caller that does not know) keeps the last one.
       now += 120_000;
       store.verify(a.token);
-      expect(store.list()[0].lastVia).toBe("tailscale");
-      expect(new DeviceStore(path).list()[0].lastVia).toBe("tailscale");
+      expect(store.list()[0].last_via).toBe("tailscale");
+      expect(new DeviceStore(path).list()[0].last_via).toBe("tailscale");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -268,8 +268,8 @@ export { dayLabel, unreadBoundary } from "../shared/thread";
  * The line above the card's message box: what the agent is doing after your reply, or what it wants beyond a reply.
  * None for a plain wait: the box's own "Message atlas" already says it is your turn.
  */
-export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, chat: "idle" | "thinking" | "streaming"): string | null {
-  const who = item.agentName ?? "The agent";
+export function cardNotice(item: Pick<AttentionItem, "status" | "agent_name">, chat: "idle" | "thinking" | "streaming"): string | null {
+  const who = item.agent_name ?? "The agent";
   if (chat === "streaming") return `${who} is writing`;
   if (chat === "thinking" || item.status === "running") return `${who} is working`;
   if (item.status === "approval") return `${who} needs your approval`;
@@ -283,13 +283,13 @@ export function cardNotice(item: Pick<AttentionItem, "status" | "agentName">, ch
  * agent is doing while it works, and nothing on a quiet conversation.
  */
 export function threadNotice(
-  item: Pick<AttentionItem, "status" | "agentName"> | null | undefined,
+  item: Pick<AttentionItem, "status" | "agent_name"> | null | undefined,
   waiting: boolean,
   chat: "idle" | "thinking" | "streaming",
   agentName: string | null,
 ): string | null {
   if (item && waiting) return cardNotice(item, chat);
-  if (chat !== "idle") return cardNotice({ status: "done", agentName: item?.agentName ?? agentName }, chat);
+  if (chat !== "idle") return cardNotice({ status: "done", agent_name: item?.agent_name ?? agentName }, chat);
   return null;
 }
 

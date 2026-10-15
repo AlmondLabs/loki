@@ -122,8 +122,8 @@ export class SkillSources {
   }
 
   /** A global skill's provenance in a few words: the checkout its link points into, or the repo the lock file names; null when neither. */
-  describeGlobal(g: { name: string; path: string; isLink: boolean }): string | null {
-    if (g.isLink) return localSource(g.path).label;
+  describeGlobal(g: { name: string; path: string; is_link: boolean }): string | null {
+    if (g.is_link) return localSource(g.path).label;
     const locked = readLock(this.opts.lockFile ?? DEFAULT_LOCK).find((e) => e.name === g.name);
     return locked ? locked.source : null;
   }
@@ -174,7 +174,7 @@ export class SkillSources {
       mkdirSync(dirname(stage), { recursive: true });
       cpSync(upstream, stage, { recursive: true, filter: keep });
       log("skills:staged", { agentId, name, label: source.label, changed: changed.length, stage });
-      return { outcome: "reconcile", label: source.label, changed, upstreamPath: stage, prompt: reconcilePrompt(name, source.label, stage, changed) };
+      return { outcome: "reconcile", label: source.label, changed, upstream_path: stage, prompt: reconcilePrompt(name, source.label, stage, changed) };
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

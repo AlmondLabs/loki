@@ -18,7 +18,7 @@ const entry = (scope: string, name: string, title = name): WidgetManifestEntry =
   type: "stat",
   data: {},
   hash: "h",
-  updatedAt: 0,
+  updated_at: 0,
 });
 const diff = (d: Partial<WidgetsDiff>): WidgetsDiff => ({ added: [], changed: [], removed: [], removedEntries: [], initial: false, ...d });
 
@@ -32,7 +32,7 @@ describe("WidgetLog", () => {
     log.record(diff({ changed: [entry("d1", "trip", "Trip v2")] }), t + WIDGET_LOG_COLLAPSE_MS + 1);
     log.record(diff({ removed: ["d1/trip"], removedEntries: [entry("d1", "trip", "Trip v2")] }), t + 2 * WIDGET_LOG_COLLAPSE_MS + 2);
     const rows = log.read("d1");
-    expect(rows.map((r) => [r.change, r.at, r.scope, r.widgetId, r.name, r.title, r.kind])).toEqual([
+    expect(rows.map((r) => [r.change, r.at, r.scope, r.widget_id, r.name, r.title, r.kind])).toEqual([
       ["added", t, "d1", "d1/trip", "trip", "Trip", "json"],
       ["changed", t + WIDGET_LOG_COLLAPSE_MS + 1, "d1", "d1/trip", "trip", "Trip v2", "json"],
       ["removed", t + 2 * WIDGET_LOG_COLLAPSE_MS + 2, "d1", "d1/trip", "trip", "Trip v2", "json"],
@@ -55,7 +55,7 @@ describe("WidgetLog", () => {
     const second = log.record(diff({ changed: [entry("d1", "trip", "two")] }), t + 10_000);
     const third = log.record(diff({ changed: [entry("d1", "trip", "three")] }), t + 20_000);
     const rows = log.read("d1");
-    expect(rows.map((r) => [r.widgetId, r.change, r.title, r.at])).toEqual([
+    expect(rows.map((r) => [r.widget_id, r.change, r.title, r.at])).toEqual([
       ["d1/other", "added", "other", t + 1],
       ["d1/trip", "changed", "three", t + 20_000],
     ]);
@@ -97,7 +97,7 @@ describe("WidgetLog", () => {
       expect(existsSync(join(dir, "d1.json"))).toBe(true);
       expect(JSON.parse(readFileSync(join(dir, "d2.json"), "utf8"))).toHaveLength(1);
       const b = new WidgetLog(dir);
-      expect(b.read("d1").map((r) => [r.widgetId, r.at])).toEqual([["d1/trip", 42]]);
+      expect(b.read("d1").map((r) => [r.widget_id, r.at])).toEqual([["d1/trip", 42]]);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, "d3.json"), "{nope");
       expect(b.read("d3")).toEqual([]);
@@ -112,7 +112,7 @@ describe("WidgetLog", () => {
     log.expect("d1/trip", "removed", "you", t);
     log.expect("d1/lesson", "added", "loki", t);
     log.record(diff({ added: [entry("d1", "lesson"), entry("d1", "other")], removed: ["d1/trip"], removedEntries: [entry("d1", "trip")] }), t + 500);
-    expect(log.read("d1").map((r) => [r.widgetId, r.change, r.by])).toEqual([
+    expect(log.read("d1").map((r) => [r.widget_id, r.change, r.by])).toEqual([
       ["d1/lesson", "added", "loki"],
       ["d1/other", "added", "agent"],
       ["d1/trip", "removed", "you"],
@@ -134,7 +134,7 @@ describe("WidgetLog", () => {
     log.expect("d1/b", "removed", "you", 0);
     log.record(diff({ changed: [entry("d1", "a")] }), 100);
     log.record(diff({ removed: ["d1/b"], removedEntries: [entry("d1", "b")] }), WIDGET_LOG_EXPECT_MS + 1);
-    expect(log.read("d1").map((r) => [r.widgetId, r.by])).toEqual([
+    expect(log.read("d1").map((r) => [r.widget_id, r.by])).toEqual([
       ["d1/a", "agent"],
       ["d1/b", "agent"],
     ]);
@@ -194,7 +194,7 @@ describe("widget_change frames", () => {
     const [frame, scope] = sent[0] as [{ type: string; entry: WidgetLogEntry }, string | undefined];
     expect(scope).toBeUndefined();
     expect(frame.type).toBe("widget_change");
-    expect(frame.entry).toMatchObject({ scope: "d1", widgetId: "d1/trip", change: "added", at: 7 });
+    expect(frame.entry).toMatchObject({ scope: "d1", widget_id: "d1/trip", change: "added", at: 7 });
   });
 
   test("a change on desk A reaches a socket connected to desk B", async () => {
@@ -211,7 +211,7 @@ describe("widget_change frames", () => {
         b.onmessage = (ev) => resolve(JSON.parse(String(ev.data)) as Record<string, unknown>);
       });
       broadcastWidgetChanges(new WidgetLog(null), diff({ added: [entry("desk_a", "trip")] }), (m, scope) => bridge.broadcast(m, scope), 9);
-      expect(await got).toMatchObject({ type: "widget_change", entry: { scope: "desk_a", widgetId: "desk_a/trip" } });
+      expect(await got).toMatchObject({ type: "widget_change", entry: { scope: "desk_a", widget_id: "desk_a/trip" } });
       b.close();
     } finally {
       bridge.close();

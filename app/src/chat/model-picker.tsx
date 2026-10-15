@@ -29,8 +29,8 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
     const existing = groups.get(entry.handle);
     if (existing) {
       existing.entries.push(entry);
-      existing.isDefault ||= entry.isDefault === true;
-      existing.isFeatured ||= entry.isFeatured === true;
+      existing.isDefault ||= entry.is_default === true;
+      existing.isFeatured ||= entry.is_featured === true;
       existing.available &&= entry.available !== false;
       if (entry.recent !== undefined) existing.recent = Math.min(existing.recent ?? entry.recent, entry.recent);
     } else {
@@ -38,8 +38,8 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
         handle: entry.handle,
         entries: [entry],
         label: entry.label,
-        isDefault: entry.isDefault === true,
-        isFeatured: entry.isFeatured === true,
+        isDefault: entry.is_default === true,
+        isFeatured: entry.is_featured === true,
         available: entry.available !== false,
         ...(entry.recent !== undefined ? { recent: entry.recent } : {}),
       });
@@ -51,11 +51,11 @@ export function groupModelEntries(entries: ModelEntry[]): ModelGroup[] {
 /** The entry to pick when a model is chosen: the one at `preferredEffort`, else the default, the featured, medium, high, or the first. */
 export function preferredModelEntry(group: ModelGroup, preferredEffort: ReasoningEffort | null): ModelEntry {
   return (
-    (preferredEffort ? group.entries.find((entry) => entry.reasoningEffort === preferredEffort) : undefined) ??
-    group.entries.find((entry) => entry.isDefault) ??
-    group.entries.find((entry) => entry.isFeatured) ??
-    group.entries.find((entry) => entry.reasoningEffort === "medium") ??
-    group.entries.find((entry) => entry.reasoningEffort === "high") ??
+    (preferredEffort ? group.entries.find((entry) => entry.reasoning_effort === preferredEffort) : undefined) ??
+    group.entries.find((entry) => entry.is_default) ??
+    group.entries.find((entry) => entry.is_featured) ??
+    group.entries.find((entry) => entry.reasoning_effort === "medium") ??
+    group.entries.find((entry) => entry.reasoning_effort === "high") ??
     group.entries[0]
   );
 }
@@ -65,8 +65,8 @@ export function effortEntriesFor(entries: ModelEntry[], handle: string | null | 
   if (!handle) return [];
   const byEffort = new Map<ReasoningEffort, ModelEntry>();
   for (const entry of entries) {
-    if (entry.handle !== handle || !entry.reasoningEffort || byEffort.has(entry.reasoningEffort)) continue;
-    byEffort.set(entry.reasoningEffort, entry);
+    if (entry.handle !== handle || !entry.reasoning_effort || byEffort.has(entry.reasoning_effort)) continue;
+    byEffort.set(entry.reasoning_effort, entry);
   }
   return REASONING_EFFORTS.flatMap((effort) => {
     const entry = byEffort.get(effort);
@@ -99,7 +99,7 @@ const EFFORT_SUFFIX = /\s*[([]?\b(none|no reasoning|minimal|low|medium|high|x-?h
 
 /** A group's name: its presets' label, without the effort word when it offers several. */
 function groupName(group: ModelGroup): string {
-  const efforts = group.entries.filter((entry) => entry.reasoningEffort).length;
+  const efforts = group.entries.filter((entry) => entry.reasoning_effort).length;
   return (efforts > 1 && group.label.replace(EFFORT_SUFFIX, "")) || group.label || shortModel(group.handle);
 }
 
@@ -258,7 +258,7 @@ export function ModelChoices({ view, entries, current, currentEffort, loading, q
     content = (
       <div className="loki-model-card" role="group" aria-label="Effort">
         {efforts.map((entry) => {
-          const effort = entry.reasoningEffort;
+          const effort = entry.reasoning_effort;
           return effort && option(effort, sentence(effortLabel(effort)), null, effort === currentEffort, () => onPick(selectionOf(entry)));
         })}
       </div>

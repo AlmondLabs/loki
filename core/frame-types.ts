@@ -15,18 +15,18 @@ export interface LocalAgent {
   description: string | null;
   model: string | null;
   /** Provider, effort, thinking, context window… as the agent record keeps them (Letta's shape, which imported agents carry). */
-  modelSettings: Record<string, unknown>;
+  model_settings: Record<string, unknown>;
   tags: string[];
   favourite: boolean;
   /** The first line of the system prompt, for orientation; the prompt is the agent record's, not editable here. */
-  systemHead: string | null;
+  system_head: string | null;
 }
 
 /** One file of an agent's memory, its path relative to the memory root with forward slashes, as the `agent` frame lists them. */
 export interface MemoryFile {
   path: string;
   bytes: number;
-  modifiedAt: string;
+  modified_at: string;
 }
 
 /** One skill in an agent's memory (its skills/ folder), named by its folder. */
@@ -75,14 +75,14 @@ export type MemorySkillInfo = MemorySkill & SkillProvenance;
 export type RefreshOutcome =
   | { outcome: "current"; label: string }
   | { outcome: "replaced"; label: string; changed: string[]; sha: string | null }
-  | { outcome: "reconcile"; label: string; changed: string[]; upstreamPath: string; prompt: string };
+  | { outcome: "reconcile"; label: string; changed: string[]; upstream_path: string; prompt: string };
 
 /** One skill in the global skills folder (~/.agents/skills), as `skills_global` lists them. */
 export interface GlobalSkill {
   name: string;
   /** Where the folder really is (the link target), or the folder itself. */
   path: string;
-  isLink: boolean;
+  is_link: boolean;
   description: string | null;
   /** Where it came from, when known (mod/skill-sources.ts describeGlobal): the checkout a link points into, or the repo the `skills` CLI recorded. */
   source?: string | null;
@@ -91,7 +91,7 @@ export interface GlobalSkill {
 /** An agent's reflection passes as the `reflection_state` frame reports them. */
 export interface ReflectionState {
   /** The newest memory commit a reflection pass made, or null when no pass has changed memory. */
-  lastCommit: MemoryCommit | null;
+  last_commit: MemoryCommit | null;
 }
 
 /** One task as the mod reads it from beads and sends it in the `tasks` frames; times are ISO, and `closedAt` is null while it is open. */
@@ -103,10 +103,10 @@ export interface Task {
   priority: number;
   labels: string[];
   assignee: string | null;
-  createdAt: string;
-  updatedAt: string;
-  closedAt: string | null;
-  /** Free-form; loki uses by/agent/agentId/conversation/desk/folder and assignedTo/assignedDesk/assignedAgent. */
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  /** Free-form; loki uses by/agent/agent_id/conversation/desk/folder and assigned_to/assigned_desk/assigned_agent. */
   metadata: Record<string, string>;
 }
 
@@ -115,28 +115,28 @@ export type DeviceVia = "tailscale" | "lan";
 
 /** What the inbox decides on, from the mod's view of each chat: who spoke last, and the assistant's last words. */
 export interface LocalDigest {
-  lastRole: "user" | "assistant" | null;
-  lastAssistantText: string | null;
+  last_role: "user" | "assistant" | null;
+  last_assistant_text: string | null;
   /** Who sent the last message into the conversation: the inbox's score tells a reply to you from a cron's report by it. */
-  lastAsk: AskedBy | null;
+  last_ask: AskedBy | null;
 }
 
 /** One open chat in the Inbox list the mod sends (`inbox`): the conversation, its agent, and its digest. Archived chats are left out. */
 export interface InboxRow extends LocalDigest {
   id: string;
-  agentId: string;
-  agentName: string | null;
+  agent_id: string;
+  agent_name: string | null;
   title: string | null;
-  lastMessageAt: string | null;
+  last_message_at: string | null;
   archived: false;
 }
 
 /** The folders chats have worked in lately (`folders`), for the folder picker. */
 export interface RecentFolders {
   /** agentId → folders, most recently used first. */
-  byAgent: Record<string, string[]>;
+  by_agent: Record<string, string[]>;
   /** conversationDirName → folder, for the desk you are on. */
-  byConversation: Record<string, string>;
+  by_conversation: Record<string, string>;
 }
 
 /** Whether a path is a folder a chat can work in, and its git branch (`folder_status`, the answer to folder_check); `reason` says why not when `ok` is false. */
@@ -159,7 +159,7 @@ export interface LanStatus {
   host: string | null;
   port: number;
   /** A built canvas was found to serve. */
-  appServed: boolean;
+  app_served: boolean;
   /** A bind error (EADDRINUSE …) or a missing network; null when all is well. */
   error: string | null;
   /** Which route the QR encodes: the tailnet (Addendum 3) or the Wi‑Fi. Persisted when the user chose; else tailscale iff it runs. */
@@ -182,7 +182,7 @@ export interface TailscaleStatus {
   /** The MagicDNS name, lower-cased, no trailing dot: `my-macbook-pro.tail1234.ts.net`. */
   name: string | null;
   /** `https://<name>` when `tailscale serve` proxies 443 to the listener; else null. */
-  serveUrl: string | null;
+  serve_url: string | null;
   /** The CLI's complaint (trimmed, ≤ 400 chars), or null when all is well. */
   error: string | null;
 }
@@ -195,11 +195,11 @@ export interface DeskInfo {
   title: string | null;
   status: DeskStatus;
   /** Which agent owns the conversation behind this desk. */
-  agentName: string | null;
-  agentId: string | null;
+  agent_name: string | null;
+  agent_id: string | null;
   /** The model this conversation runs on: its own override, else the agent's. */
   model: string | null;
-  reasoningEffort: ReasoningEffort | null;
+  reasoning_effort: ReasoningEffort | null;
   /** The permission mode the daemon keeps for this conversation (default: unrestricted). */
   mode?: string | null;
 }
@@ -207,31 +207,31 @@ export interface DeskInfo {
 /** One desk in the `desks` list: its conversation's details, its scope, how many widgets it holds, and when it was last active. */
 export interface DeskSummary extends DeskInfo {
   scope: Scope;
-  conversationId: string | null;
+  conversation_id: string | null;
   /** Pinned in loki's pins file (mod/pins.ts). */
   pinned?: boolean;
   widgets: number;
   active: boolean;
-  lastActive: string | null;
+  last_active: string | null;
 }
 
 /** A paired phone as the canvas sees it: never its token hash (mod/devices.ts DeviceRecord adds that). */
 export interface DeviceSummary {
   id: string;
   name: string;
-  createdAt: string;
-  lastSeenAt: string;
+  created_at: string;
+  last_seen_at: string;
   /** Which route the phone's last request came in by (mod/lan.ts requestVia); absent for a phone not seen since this field existed. */
-  lastVia?: DeviceVia;
+  last_via?: DeviceVia;
 }
 
 /** One MCP tool as Settings shows it (daemon/mcp/): its hints, whether it skips search, and its definition's cost. */
 export interface McpToolView {
   name: string;
   description: string;
-  readOnly: boolean;
+  read_only: boolean;
   destructive: boolean;
-  alwaysLoad: boolean;
+  always_load: boolean;
   /** About how many tokens its definition costs when loaded (name, description and schema, four characters a token). */
   tokens: number;
 }
@@ -246,7 +246,7 @@ export interface McpServerView {
   /** `signin`: a remote server waiting for an OAuth sign-in (`signIn.url`). */
   state: "starting" | "connected" | "down" | "signin";
   /** A remote server that signs in with OAuth (one with no Authorization header of its own); null for any other. */
-  signIn: { url: string | null; signedIn: boolean } | null;
+  sign_in: { url: string | null; signed_in: boolean } | null;
   error: string | null;
   purpose: string | null;
   tools: McpToolView[];
@@ -254,7 +254,7 @@ export interface McpServerView {
   tokens: number;
   config: { command: string; args: string[]; env: Record<string, string>; cwd: string | null } | { url: string; headers: Record<string, string> };
   /** The agents it is switched off for. */
-  offFor: string[];
+  off_for: string[];
 }
 
 /** The MCP servers Settings shows (`chat_mcp`), with the problems found reading mcp.json and where that file is. */
@@ -262,5 +262,5 @@ export interface McpView {
   servers: McpServerView[];
   /** Entries in mcp.json that could not be read, one line each. */
   problems: string[];
-  configPath: string;
+  config_path: string;
 }

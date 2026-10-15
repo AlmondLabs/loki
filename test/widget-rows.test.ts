@@ -15,7 +15,7 @@ const entry = (over: Partial<WidgetLogEntry> = {}): WidgetLogEntry => ({
   id: "e1",
   at: T0 + 5 * 60_000,
   scope: "desk-a",
-  widgetId: "desk-a/revenue",
+  widget_id: "desk-a/revenue",
   name: "revenue",
   title: "Revenue chart",
   kind: "json",
@@ -119,7 +119,7 @@ describe("widget rows: gone widgets", () => {
 
 describe("widget rows: the per-desk store", () => {
   test("a live entry lands under its own desk, for when that desk next opens", () => {
-    const s = withEntry({}, entry({ scope: "desk-b", widgetId: "desk-b/sleep" }));
+    const s = withEntry({}, entry({ scope: "desk-b", widget_id: "desk-b/sleep" }));
     expect(Object.keys(s)).toEqual(["desk-b"]);
     expect(s["desk-b"].map((e) => e.id)).toEqual(["e1"]);
   });
@@ -147,7 +147,7 @@ describe("widget rows: the per-desk store", () => {
     ]);
   });
   test("history for one desk leaves the others alone; garbage is dropped", () => {
-    const s = withEntry({}, entry({ scope: "desk-b", widgetId: "desk-b/x" }));
+    const s = withEntry({}, entry({ scope: "desk-b", widget_id: "desk-b/x" }));
     const next = withHistoryLog(s, "desk-a", [entry(), { nope: true } as unknown as WidgetLogEntry]);
     expect(next["desk-b"]).toBe(s["desk-b"]);
     expect(next["desk-a"].map((e) => e.id)).toEqual(["e1"]);

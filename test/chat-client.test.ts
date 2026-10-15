@@ -8,8 +8,11 @@ describe("the daemon's chat client", () => {
     let loop: "running" | "idle" = "running";
     const request = ((type: string, payload: Record<string, unknown>) => {
       if (type !== "chat_open") return Promise.resolve({ ok: false, error: "unexpected" });
-      opened.push(String(payload.conversationId));
-      return Promise.resolve({ ok: true, reply: { agentId: payload.agentId, conversationId: payload.conversationId, loop, mode: "unrestricted", cwd: null } });
+      opened.push(String(payload.conversation_id));
+      return Promise.resolve({
+        ok: true,
+        reply: { agent_id: payload.agent_id, conversation_id: payload.conversation_id, loop, mode: "unrestricted", cwd: null },
+      });
     }) as unknown as FrameRequest;
     let reconnect = () => {};
     const client = new FrameChatClient({ request, onChatEvent: () => () => {}, onReconnect: (fn) => ((reconnect = fn), () => {}) });

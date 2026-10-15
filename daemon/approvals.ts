@@ -113,7 +113,7 @@ export class Approvals {
   decide(requestId: string, allow: boolean, message?: string, always = false): boolean {
     const p = this.pending.get(requestId);
     if (p?.event.kind !== "approval") return false;
-    if (allow && always && p.event.toolName) this.setAlways(p.event.toolName, true);
+    if (allow && always && p.event.tool_name) this.setAlways(p.event.tool_name, true);
     p.settle({ allow, ...(message ? { message } : {}) });
     return true;
   }
@@ -146,10 +146,10 @@ export class Approvals {
   }
 
   /** Ask every client following the chat, and wait for the first answer or the turn's abort. */
-  ask<T>(agentId: string, conversationId: string, event: ChatEvent & { requestId: string }, signal: AbortSignal | undefined): Promise<T> {
+  ask<T>(agentId: string, conversationId: string, event: ChatEvent & { request_id: string }, signal: AbortSignal | undefined): Promise<T> {
     return new Promise<T>((resolvePromise, reject) => {
       const done = () => {
-        this.pending.delete(event.requestId);
+        this.pending.delete(event.request_id);
         signal?.removeEventListener("abort", onAbort);
         this.push(agentId, conversationId, [{ kind: "loop", state: "running" }]);
       };
@@ -159,7 +159,7 @@ export class Approvals {
       };
       if (signal?.aborted) return reject(new Error("the turn was stopped"));
       signal?.addEventListener("abort", onAbort, { once: true });
-      this.pending.set(event.requestId, {
+      this.pending.set(event.request_id, {
         agentId,
         conversationId,
         event,
@@ -203,7 +203,12 @@ export class Approvals {
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";
     const conversationId = chat?.id || `conversation-${api.conversationId}`;
-    return this.ask<Decision>(agentId, conversationId, { kind: "approval", requestId: `approval-${callId}`, toolName: name, input: args }, context.abortSignal);
+    return this.ask<Decision>(
+      agentId,
+      conversationId,
+      { kind: "approval", request_id: `approval-${callId}`, tool_name: name, input: args },
+      context.abortSignal,
+    );
   }
 }
 

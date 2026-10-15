@@ -19,10 +19,10 @@ export function agentChips(agents: Array<{ id: string; name: string }>, desks: D
   const byId = new Map<string, { id: string; name: string | null; count: number }>();
   for (const a of agents) byId.set(a.id, { id: a.id, name: a.name, count: 0 });
   for (const d of desks) {
-    if (d.status !== "live" || !d.agentId) continue;
-    const chip = byId.get(d.agentId);
+    if (d.status !== "live" || !d.agent_id) continue;
+    const chip = byId.get(d.agent_id);
     if (chip) chip.count++;
-    else byId.set(d.agentId, { id: d.agentId, name: d.agentName, count: 1 });
+    else byId.set(d.agent_id, { id: d.agent_id, name: d.agent_name, count: 1 });
   }
   return [...byId.values()];
 }
@@ -30,8 +30,8 @@ export function agentChips(agents: Array<{ id: string; name: string }>, desks: D
 /** The filter: one agent (or null for all) and a lowercased query against title, scope and agent name. */
 export function deskMatches(d: DeskSummary, agentFilter: string | null, q: string): boolean {
   return (
-    (!agentFilter || d.agentId === agentFilter) &&
-    (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agentName ?? "").toLowerCase().includes(q))
+    (!agentFilter || d.agent_id === agentFilter) &&
+    (!q || (d.title ?? "").toLowerCase().includes(q) || d.scope.toLowerCase().includes(q) || (d.agent_name ?? "").toLowerCase().includes(q))
   );
 }
 
@@ -39,7 +39,7 @@ export function deskMatches(d: DeskSummary, agentFilter: string | null, q: strin
 export function liveDesks(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
   return desks
     .filter((d) => d.status === "live" && d.scope !== "shared" && deskMatches(d, agentFilter, q))
-    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.lastActive ?? "").localeCompare(a.lastActive ?? ""));
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || (b.last_active ?? "").localeCompare(a.last_active ?? ""));
 }
 
 /** The picker's sections when nothing is typed: waiting on you, pinned, and the rest. */
@@ -58,7 +58,7 @@ export interface Section {
  */
 export function sectionDesks(desks: DeskSummary[], agentFilter: string | null, items: AttentionItem[]): Section[] {
   const live = liveDesks(desks, agentFilter, "");
-  const waits = new Set(items.filter((i) => i.status === "approval" || i.status === "question").map((i) => `${i.agentId}/${i.id}`));
+  const waits = new Set(items.filter((i) => i.status === "approval" || i.status === "question").map((i) => `${i.agent_id}/${i.id}`));
   const placed = new Set<string>();
   const take = (pick: (d: DeskSummary) => boolean): DeskSummary[] => {
     const out: DeskSummary[] = [];
@@ -69,7 +69,7 @@ export function sectionDesks(desks: DeskSummary[], agentFilter: string | null, i
     }
     return out;
   };
-  const waiting = take((d) => waits.has(`${d.agentId}/${d.conversationId}`));
+  const waiting = take((d) => waits.has(`${d.agent_id}/${d.conversation_id}`));
   const pinned = take((d) => !!d.pinned);
   const rest = take(() => true);
   const sections: Section[] = [
@@ -195,7 +195,7 @@ function TreeSheet({
 
   const marks = useMemo(() => {
     const m = new Map<string, AttentionItem>();
-    for (const i of items) m.set(`${i.agentId}/${i.id}`, i);
+    for (const i of items) m.set(`${i.agent_id}/${i.id}`, i);
     return m;
   }, [items]);
 
@@ -324,7 +324,7 @@ function TreeSheet({
               <DeskRow
                 key={d.scope}
                 desk={d}
-                mark={marks.get(`${d.agentId}/${d.conversationId}`)}
+                mark={marks.get(`${d.agent_id}/${d.conversation_id}`)}
                 here={d.scope === current}
                 showFace={!agentFilter}
                 index={starts[si] + i}
@@ -544,7 +544,7 @@ function DeskRow({
       }}
     >
       <Mark item={mark} status={d.status} />
-      {showFace && (d.agentId ? <AgentFace name={d.agentName} src={avatarUrl(d.agentId)} size={18} /> : <AgentChip name={d.agentName} size={9.5} />)}
+      {showFace && (d.agent_id ? <AgentFace name={d.agent_name} src={avatarUrl(d.agent_id)} size={18} /> : <AgentChip name={d.agent_name} size={9.5} />)}
       <span
         style={{
           flex: 1,
@@ -565,7 +565,7 @@ function DeskRow({
         {d.title ?? (d.status === "live" ? "new chat" : d.scope)}
         {here && <span style={{ color: "var(--loki-muted)", marginLeft: 8, fontSize: 10.5, fontFamily: "var(--loki-font)" }}>· here</span>}
       </span>
-      <span className="loki-meta">{when(d.lastActive)}</span>
+      <span className="loki-meta">{when(d.last_active)}</span>
     </div>
   );
 }

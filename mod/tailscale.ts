@@ -18,7 +18,7 @@ export type TailscaleExec = (bin: string, args: string[], timeoutMs?: number) =>
 export interface TailscaleOptions {
   /** The CLI path. undefined → findTailscale(); null → treat as not installed (tests). */
   bin?: string | null;
-  /** The listener's port: what `serve` proxies to and what serveUrl must match. */
+  /** The listener's port: what `serve` proxies to and what serve_url must match. */
   port: number;
   /** Run the CLI; default execFile. Tests inject recorded output. */
   exec?: TailscaleExec;
@@ -145,7 +145,7 @@ export class Tailscale {
 
   /** The last status without asking the CLI; before the first status() an "unknown" with `installed` filled in. */
   cached(): TailscaleStatus {
-    return this.last ?? { installed: this.bin !== null, running: false, ip: null, name: null, serveUrl: null, error: null };
+    return this.last ?? { installed: this.bin !== null, running: false, ip: null, name: null, serve_url: null, error: null };
   }
 
   /** Ask the CLI (or the cache, inside ttlMs). Never rejects. */
@@ -191,14 +191,14 @@ export class Tailscale {
   private async read(): Promise<TailscaleStatus> {
     if (!this.bin && this.givenBin === undefined) this.bin = findTailscale(); // installed since we last looked
     const bin = this.bin;
-    if (!bin) return { installed: false, running: false, ip: null, name: null, serveUrl: null, error: null };
+    if (!bin) return { installed: false, running: false, ip: null, name: null, serve_url: null, error: null };
     let running = false;
     let ip: string | null = null;
     let name: string | null = null;
     try {
       ({ running, ip, name } = parseStatus(await this.exec(bin, ["status", "--json"], STATUS_TIMEOUT)));
     } catch (err) {
-      return { installed: true, running: false, ip: null, name: null, serveUrl: null, error: clip(err) };
+      return { installed: true, running: false, ip: null, name: null, serve_url: null, error: clip(err) };
     }
     let serveUrl: string | null = null;
     let error: string | null = null;
@@ -209,7 +209,7 @@ export class Tailscale {
         error = clip(err);
       }
     }
-    return { installed: true, running, ip, name, serveUrl, error };
+    return { installed: true, running, ip, name, serve_url: serveUrl, error };
   }
 }
 

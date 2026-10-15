@@ -54,7 +54,7 @@ export function listGlobalSkills(dir = globalSkillsDir()): GlobalSkill[] {
     } catch {
       // name only
     }
-    out.push({ name, path: target, isLink, description });
+    out.push({ name, path: target, is_link: isLink, description });
   }
   return out;
 }

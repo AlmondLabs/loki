@@ -5,7 +5,7 @@ import { Button, Field } from "../components";
 
 /** This phone as the mod knows it once paired (`GET /me`): its device id and name. */
 export interface Me {
-  deviceId: string;
+  device_id: string;
   name: string;
 }
 
