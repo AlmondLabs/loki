@@ -182,12 +182,17 @@ export function findFreeSpot(obstacles: Rect[], size: Size = DEFAULT_SIZE, opts:
   return best;
 }
 
+/** A widget's layout entry, or undefined for one this desk has not placed: the record answers for any id. */
+const layoutOf = (state: DeskState, id: string): WidgetLayout | undefined => state.layout[id];
+/** A widget's gesture overrides, or undefined when it has none. */
+const overlayOf = (state: DeskState, id: string): Record<string, unknown> | undefined => state.overlay[id];
+
 /**
  * Give a widget a layout entry if it has none, in the first free spot given
  * everything else on screen (this desk plus the shared widgets shown with it).
  */
 export function ensureLayout(state: DeskState, id: string, obstacles: Rect[] = occupiedRects(state), size: Size = DEFAULT_SIZE): DeskState {
-  if (state.layout[id]) return state;
+  if (layoutOf(state, id)) return state;
   return {
     ...state,
     layout: { ...state.layout, [id]: { position: findFreeSpot(obstacles, size), z: topZ(state.layout) + 1 } },
@@ -200,7 +205,7 @@ export function ensureLayout(state: DeskState, id: string, obstacles: Rect[] = o
 export const MIN_FRAME = { w: 80, h: 40 };
 
 export function applyMeasure(state: DeskState, id: string, size: Size): DeskState {
-  const l = state.layout[id];
+  const l = layoutOf(state, id);
   if (!l) return state;
   const w = Math.round(size.w);
   const h = Math.round(size.h);
@@ -265,25 +270,22 @@ export function applyGesture(state: DeskState, g: Gesture): DeskState {
 
 /** Drop gesture overrides for a widget — used when the agent rewrites its file. */
 export function clearOverlay(state: DeskState, id: string): DeskState {
-  if (!state.overlay[id]) return state;
-  const overlay = { ...state.overlay };
-  delete overlay[id];
+  if (!overlayOf(state, id)) return state;
+  const { [id]: _, ...overlay } = state.overlay;
   return { ...state, overlay, rev: state.rev + 1 };
 }
 
 /** Drop everything the desk knows about a widget (its file is gone). */
 export function forgetWidget(state: DeskState, id: string): DeskState {
-  if (!state.layout[id] && !state.overlay[id]) return state;
-  const layout = { ...state.layout };
-  const overlay = { ...state.overlay };
-  delete layout[id];
-  delete overlay[id];
+  if (!layoutOf(state, id) && !overlayOf(state, id)) return state;
+  const { [id]: _l, ...layout } = state.layout;
+  const { [id]: _o, ...overlay } = state.overlay;
   return { ...state, layout, overlay, rev: state.rev + 1 };
 }
 
 /** Un-hide a widget (its file changed after the user minimised it, so the agent meant it). */
 export function reveal(state: DeskState, id: string): DeskState {
-  const l = state.layout[id];
+  const l = layoutOf(state, id);
   if (!l?.hidden) return state;
   return { ...state, layout: { ...state.layout, [id]: { ...l, hidden: false } }, rev: state.rev + 1 };
 }

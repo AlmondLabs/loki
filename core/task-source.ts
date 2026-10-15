@@ -97,7 +97,8 @@ export function sourceMetadata(s: TaskSource): Record<string, string> {
 
 /** The source a task was filed from, read back from its metadata; null for a task not filed from a message. */
 export function taskSource(t: Task): (TaskSource & { conversation: string | null; agentId: string | null }) | null {
-  const md = t.metadata;
+  // The metadata is the task file's, read from disk: any key may be missing.
+  const md: Partial<Record<string, string>> = t.metadata;
   if ((md.origin !== "message" && md.origin !== "selection") || (md.msgRole !== "user" && md.msgRole !== "assistant") || !md.msgKey) return null;
   return {
     origin: md.origin,
@@ -113,7 +114,7 @@ export function taskSource(t: Task): (TaskSource & { conversation: string | null
 /** Whether a task came from this message: its key, or failing that (the text read back differently) its role and time. */
 export function fromMessage(t: Task, row: { role: string; text: string; at?: string }): boolean {
   const s = taskSource(t);
-  if (!s || s.role !== row.role) return false;
+  if (s?.role !== row.role) return false;
   return s.key === messageKey(row.role, row.text) || (!!s.at && s.at === row.at);
 }
 
@@ -125,7 +126,7 @@ export function tasksByMessage(tasks: Task[], conversation: string): Map<string,
   const byKey = new Map<string, Task[]>();
   for (const t of tasks) {
     const s = taskSource(t);
-    if (!s || s.conversation !== conversation) continue;
+    if (s?.conversation !== conversation) continue;
     for (const k of s.at ? [s.key, `${s.role}@${s.at}`] : [s.key]) byKey.set(k, [...(byKey.get(k) ?? []), t]);
   }
   return byKey;

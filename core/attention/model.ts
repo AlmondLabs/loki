@@ -163,8 +163,9 @@ export function chatStatusOf(l: Live | undefined): "idle" | "thinking" | "stream
  * un-flagged, so the caller can send it. Null while the turn runs or when nothing waits.
  */
 export function takeQueued(l: Live, now = new Date().toISOString()): QueuedSend | null {
-  if (l.inTurn || l.queued.length === 0) return null;
-  const next = l.queued.shift()!;
+  if (l.inTurn) return null;
+  const next = l.queued.shift();
+  if (!next) return null;
   l.thread.unqueue(next.text, now); // its time is when it went out, not when it was typed
   return next;
 }

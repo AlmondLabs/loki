@@ -219,7 +219,10 @@ export interface HarnessRow {
   /** Tool calls that failed, of all tool calls. */
   toolFailureRate: number | null;
 }
-export type Spread = { p50: number | null; p90: number | null };
+export interface Spread {
+  p50: number | null;
+  p90: number | null;
+}
 
 export interface PassRow {
   job: string;
@@ -232,7 +235,7 @@ export interface PassRow {
 }
 
 /** A turn as the harness section reads it from a turn_finished line; null for a line from before the daemon measured turns. */
-type MeasuredTurn = {
+interface MeasuredTurn {
   model: string;
   version: string;
   ttft: number | null;
@@ -244,7 +247,7 @@ type MeasuredTurn = {
   error: boolean;
   tools: number;
   toolFailures: number;
-};
+}
 function measuredTurn(p: Record<string, unknown>): MeasuredTurn | null {
   if (typeof p.total_ms !== "number") return null;
   return {
@@ -273,7 +276,7 @@ const ratio = (n: number, of: number) => (of ? n / of : null);
 
 function harnessRows(turns: MeasuredTurn[], keyOf: (t: MeasuredTurn) => string): HarnessRow[] {
   const groups = new Map<string, MeasuredTurn[]>();
-  for (const t of turns) (groups.get(keyOf(t)) ?? groups.set(keyOf(t), []).get(keyOf(t))!).push(t);
+  for (const t of turns) entry(groups, keyOf(t), () => []).push(t);
   const sum = (ts: MeasuredTurn[], pick: (t: MeasuredTurn) => number) => ts.reduce((n, t) => n + pick(t), 0);
   return [...groups.entries()]
     .map(([key, ts]) => ({
@@ -309,9 +312,10 @@ function passRows(
     row.runs++;
     row.outcomes[run.outcome] = (row.outcomes[run.outcome] ?? 0) + 1;
     for (const [kind, n] of Object.entries(run.items)) row.items[kind] = (row.items[kind] ?? 0) + num(n);
-    if (run.requestId && cost.has(run.requestId)) {
+    const spent = run.requestId ? cost.get(run.requestId) : undefined;
+    if (spent !== undefined) {
       row.costed++;
-      row.spent += cost.get(run.requestId)!;
+      row.spent += spent;
     }
     byJob.set(run.job, row);
   }
@@ -331,6 +335,14 @@ const rankBucket = (rank: number): string => (rank >= 4 ? "4+" : String(Math.max
 const tally = (m: Map<string, number>, key: string, n = 1) => m.set(key, (m.get(key) ?? 0) + n);
 const ranked = (m: Map<string, number>, limit = Infinity): Array<[string, number]> =>
   [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit);
+/** A property's value as a breakdown key: a string as it is, anything else as JSON. */
+const label = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
+/** The map's value for `key`, made and set first when it has none. */
+function entry<K, V>(map: Map<K, V>, key: K, make: () => V): V {
+  let v = map.get(key);
+  if (v === undefined) map.set(key, (v = make()));
+  return v;
+}
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 function median(values: number[]): number | null {
   if (!values.length) return null;
@@ -396,7 +408,7 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
     row[p.$device_type]++;
     rows.set(e.event, row);
     if (typeof p.$session_id === "string") {
-      (eventSessions.get(e.event) ?? eventSessions.set(e.event, new Set()).get(e.event)!).add(p.$session_id);
+      entry(eventSessions, e.event, () => new Set()).add(p.$session_id);
       const span = sessionSpan.get(p.$session_id);
       if (span) {
         span.first = Math.min(span.first, t);
@@ -404,7 +416,11 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       } else sessionSpan.set(p.$session_id, { device: p.$device_type, first: t, last: t });
     }
     const by = BREAKDOWN[e.event];
-    if (by && p[by] !== undefined && p[by] !== null) tally(breakdown.get(e.event) ?? breakdown.set(e.event, new Map()).get(e.event)!, String(p[by]));
+    if (by && p[by] !== undefined && p[by] !== null)
+      tally(
+        entry(breakdown, e.event, () => new Map<string, number>()),
+        label(p[by]),
+      );
     activeDays.add(`${when.getFullYear()}-${when.getMonth()}-${when.getDate()}`);
     hours[when.getHours()]++;
     weekdays[when.getDay()]++;
@@ -428,8 +444,9 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       e.event === "question_answered" ||
       e.event === "approval_decided" ||
       (e.event === "inbox_card_decided" && ENGAGED_ACTIONS.has(String(p.action)));
-    if (answered && desk && waiting.has(desk)) {
-      respond.push((t - waiting.get(desk)!) / 60_000);
+    const waitedFrom = answered && desk ? waiting.get(desk) : undefined;
+    if (desk && waitedFrom !== undefined) {
+      respond.push((t - waitedFrom) / 60_000);
       waiting.delete(desk);
     }
     if ((e.event === "approval_decided" || e.event === "question_answered") && typeof p.wait_ms === "number") decide.push(p.wait_ms / 60_000);
@@ -437,7 +454,8 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
       engagement.shown++;
       if (typeof p.rank === "number") {
         const bucket = rankBucket(p.rank);
-        byRank.get(bucket)!.shown++;
+        const slot = byRank.get(bucket);
+        if (slot) slot.shown++;
         if (desk) showing.set(desk, { bucket, engaged: false });
       }
     }
@@ -452,7 +470,8 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
         continue;
       }
       engagement.cards++;
-      const r = byReason.get(String(p.reason ?? "unknown")) ?? { cards: 0, engaged: 0 };
+      const reason = p.reason === undefined || p.reason === null ? "unknown" : label(p.reason);
+      const r = byReason.get(reason) ?? { cards: 0, engaged: 0 };
       r.cards++;
       if (engaged) {
         engagement.engaged++;
@@ -461,14 +480,15 @@ export function analyticsReport(all: AnalyticsEvent[], { now, days }: { now: num
         const shownAs = desk ? showing.get(desk) : undefined;
         if (shownAs && !shownAs.engaged) {
           shownAs.engaged = true;
-          byRank.get(shownAs.bucket)!.engaged++;
+          const slot = byRank.get(shownAs.bucket);
+          if (slot) slot.engaged++;
         }
         if (typeof p.rank === "number") {
           engagedRanks.push(p.rank);
           if (p.rank === 1) engagement.top++;
         }
       }
-      byReason.set(String(p.reason ?? "unknown"), r);
+      byReason.set(reason, r);
     }
     if (e.event === "inbox_pass_completed") {
       inbox.passes++;
@@ -536,7 +556,7 @@ export function formatAnalyticsReport(r: AnalyticsReport): string {
   const w = r.window;
   const out: string[] = [];
   out.push(
-    `analytics · last ${w.days} days${w.from ? ` · ${w.from.slice(0, 10)} → ${w.to!.slice(0, 10)}` : ""} · ${w.events} events on ${w.activeDays} active day${w.activeDays === 1 ? "" : "s"}`,
+    `analytics · last ${w.days} days${w.from && w.to ? ` · ${w.from.slice(0, 10)} → ${w.to.slice(0, 10)}` : ""} · ${w.events} events on ${w.activeDays} active day${w.activeDays === 1 ? "" : "s"}`,
   );
   if (!w.events) return out.join("\n");
   const s = r.sessions;

@@ -41,20 +41,23 @@ export function isReasoningEffort(value: unknown): value is ReasoningEffort {
  * is the reply's `available_handles`: a list marks every other handle unavailable; null (the lookup failed) or
  * absent (an older harness) marks none.
  */
+/** A wire field as text: a string as it is, a number or boolean written out, anything else empty. */
+const wireText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+
 export function modelEntriesFromWire(value: unknown, availableHandles?: unknown): ModelEntry[] {
   if (!Array.isArray(value)) return [];
   const reachable = Array.isArray(availableHandles) ? new Set(availableHandles.filter((h): h is string => typeof h === "string")) : null;
   return value.flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const entry = raw as Record<string, unknown>;
-    const id = String(entry.id ?? entry.handle ?? "");
-    const handle = String(entry.handle ?? entry.id ?? "");
+    const id = wireText(entry.id ?? entry.handle);
+    const handle = wireText(entry.handle ?? entry.id);
     if (!handle) return [];
     const updateArgs = entry.updateArgs && typeof entry.updateArgs === "object" ? (entry.updateArgs as Record<string, unknown>) : null;
     const base: ModelEntry = {
       id,
       handle,
-      label: String(entry.label ?? entry.handle ?? ""),
+      label: wireText(entry.label ?? entry.handle),
       ...(typeof entry.description === "string" ? { description: entry.description } : {}),
       ...(entry.isDefault === true ? { isDefault: true } : {}),
       ...(entry.isFeatured === true ? { isFeatured: true } : {}),
@@ -70,7 +73,7 @@ function reasoningEffortsFromWireEntry(entry: Record<string, unknown>, updateArg
 
   const capabilities =
     entry.reasoning_capabilities && typeof entry.reasoning_capabilities === "object" ? (entry.reasoning_capabilities as Record<string, unknown>) : null;
-  const advertised = Array.isArray(entry.reasoning_levels)
+  const advertised: unknown[] | null = Array.isArray(entry.reasoning_levels)
     ? entry.reasoning_levels
     : Array.isArray(entry.reasoningLevels)
       ? entry.reasoningLevels
@@ -118,5 +121,8 @@ export function reasoningEffortFromSettings(value: unknown): ReasoningEffort | n
 export function withRecent(entries: ModelEntry[], recent: readonly string[]): ModelEntry[] {
   if (!recent.length) return entries;
   const rank = new Map(recent.map((h, i) => [h, i]));
-  return entries.map((entry) => (rank.has(entry.handle) ? { ...entry, recent: rank.get(entry.handle)! } : entry));
+  return entries.map((entry) => {
+    const recentRank = rank.get(entry.handle);
+    return recentRank === undefined ? entry : { ...entry, recent: recentRank };
+  });
 }

@@ -23,7 +23,7 @@ export interface FileAttachment {
 /** What the message box holds: images (sent inside the message) and files (sent as their path). */
 export type Attachment = ImageAttachment | FileAttachment;
 
-export const isFileAttachment = (a: Attachment): a is FileAttachment => (a as FileAttachment).kind === "file";
+export const isFileAttachment = (a: Attachment): a is FileAttachment => "kind" in a;
 
 const xmlAttr = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -141,11 +141,11 @@ export function askQuestions(input: unknown): AskQuestion[] {
   const qs = (input as { questions?: unknown } | null)?.questions;
   if (!Array.isArray(qs)) return [];
   const out: AskQuestion[] = [];
-  for (const q of qs as Array<Record<string, unknown>>) {
+  for (const q of qs as Array<Record<string, unknown> | null>) {
     if (typeof q?.question !== "string" || !q.question.trim()) continue;
     const options = Array.isArray(q.options)
-      ? (q.options as Array<Record<string, unknown>>)
-          .filter((o) => typeof o?.label === "string" && o.label.trim())
+      ? (q.options as Array<Record<string, unknown> | null>)
+          .filter((o): o is Record<string, unknown> => typeof o?.label === "string" && o.label.trim() !== "")
           .map((o) => ({ label: o.label as string, description: typeof o.description === "string" ? o.description : undefined }))
       : [];
     out.push({ question: q.question, header: typeof q.header === "string" ? q.header : undefined, options, multiSelect: q.multiSelect === true });

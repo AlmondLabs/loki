@@ -7,16 +7,20 @@ import type { Step } from "./thread.ts";
  */
 
 /** A pi-ai message as either source stores it: user, assistant, toolResult or system. */
-export type PiMessage = {
+export interface PiMessage {
   role?: string;
   content?: unknown;
   toolCallId?: unknown;
   isError?: unknown;
   timestamp?: unknown;
-};
+}
 
 /** A pi-durable transcript entry: its kind, the messages it gives the model, and its own data. */
-export type PiEntry = { kind: string; model?: readonly PiMessage[]; data?: unknown };
+export interface PiEntry {
+  kind: string;
+  model?: readonly PiMessage[];
+  data?: unknown;
+}
 
 /** When a message was written, from its numeric timestamp; null when it has none. */
 export function messageAt(m: PiMessage): string | null {

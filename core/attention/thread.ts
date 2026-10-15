@@ -1,5 +1,5 @@
 import { extractHarnessEvents, messageFiles, stripHarnessMarkup, toolLabel, toolStep, withResult } from "../harness.ts";
-import type { FileRef, ToolStep, TranscriptRow } from "./transcript.ts";
+import type { FileRef, TranscriptRow } from "./transcript.ts";
 
 /**
  * A chat's thread, built in one place (GLOSSARY.md: ThreadModel). Every source of a conversation, the history page
@@ -109,9 +109,12 @@ export class ThreadModel {
     const out = [...(this.history ?? []), ...this.tail.map((r) => this.copyOf(r))];
     if (this.streamingText) {
       const at = this.streamingAt ?? undefined;
-      const was = this.streamingRow;
-      if (!was || was.text !== this.streamingText || was.at !== at) this.streamingRow = { role: "assistant", text: this.streamingText, ...rowAt(at) };
-      out.push(this.streamingRow!);
+      let row = this.streamingRow;
+      if (row?.text !== this.streamingText || row.at !== at) {
+        row = { role: "assistant", text: this.streamingText, ...rowAt(at) };
+        this.streamingRow = row;
+      }
+      out.push(row);
     }
     return out;
   }
@@ -313,9 +316,10 @@ export class ThreadModel {
     const lastPage = (this.history ?? []).reduce((m, r) => (instant(r.at) > m ? instant(r.at) : m), -Infinity);
     const sinceLastPage = (k: string): number | undefined => {
       const list = byText.get(k);
-      for (let n = (list?.length ?? 0) - 1; n >= 0; n--) {
-        const i = list![n];
-        if (!(instant(rows[i].at) <= lastPage)) return list!.splice(n, 1)[0];
+      if (!list) return undefined;
+      for (let n = list.length - 1; n >= 0; n--) {
+        const i = list[n];
+        if (!(instant(rows[i].at) <= lastPage)) return list.splice(n, 1)[0];
       }
       return undefined;
     };
@@ -426,10 +430,12 @@ export class ThreadModel {
     this.args.delete(id);
     // The row is replaced, not changed in place: a row that changed is a new object.
     const onto = (rows: TranscriptRow[] | null): boolean => {
-      let i = (rows?.length ?? 0) - 1;
-      while (i >= 0 && rows![i].tool?.id !== id) i--;
-      if (i < 0) return false;
-      rows![i] = { ...rows![i], tool: withResult(rows![i].tool!, output, failed) };
+      if (!rows) return false;
+      let i = rows.length - 1;
+      while (i >= 0 && rows[i].tool?.id !== id) i--;
+      const row = rows[i];
+      if (i < 0 || !row.tool) return false;
+      rows[i] = { ...row, tool: withResult(row.tool, output, failed) };
       return true;
     };
     if (!onto(this.tail) && !onto(this.history)) return false;

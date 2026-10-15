@@ -64,7 +64,7 @@ export function mergeQueue(queue: AttentionItem[], items: AttentionItem[], decid
     const id = idOf(i);
     if (known.has(id)) return false;
     const prev = lastDecision.get(id);
-    return !prev || prev.stamp !== stampOf(i);
+    return prev?.stamp !== stampOf(i);
   });
   const next = keep.length ? [keep[0], ...byScore([...keep.slice(1), ...fresh])] : byScore(fresh);
   // The kept items are the queue's own objects, so identity says whether anything moved.
