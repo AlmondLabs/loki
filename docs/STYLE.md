@@ -197,7 +197,10 @@ commit.
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`; `!` after the
   scope for a breaking change.
 - Scopes are loki's areas: `chat`, `tasks`, `mcp`, `learn`, `phone`, `desk`, `inbox`, `agents`, `settings`, `daemon`,
-  `mod`, `core`, `shell`, `release`, `deps`. The scope may be left out for changes across the tree.
+  `mod`, `core`, `app`, `shell`, `release`, `deps`, `style` (this guide and its tooling). The scope may be left out for
+  changes across the tree. The list lives in `scripts/check-pr-title.ts`; a new area adds its scope there and here.
+- What changed starts lowercase (names inside it keep their capitals: `fix(phone): pair over Tailscale`). GitHub's own
+  `Revert "…"` titles pass as they are.
 - The subject fits in 72 characters. The body says why, in sentences, wrapped near 72.
 - Examples: `feat(tasks): add task from a chat message`, `fix(mcp): retry sign-in after a refused state`,
   `ci: pin the windows runner`.

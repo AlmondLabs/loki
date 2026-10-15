@@ -24,7 +24,9 @@ function nameProblem(path: string): string | null {
   // test-node/ has no rule of its own: beside its .node-test.ts files sit the helpers they start or import, named like any module.
   if (name.endsWith(".tsx") && /^[A-Z][A-Za-z0-9]*$/.test(stem)) {
     const source = readFileSync(join(ROOT, path), "utf8");
-    return new RegExp(`export (async )?(function|const|class) ${stem}\\b`).test(source) ? null : `a PascalCase file exports the component it is named after (${stem})`;
+    return new RegExp(`export (async )?(function|const|class) ${stem}\\b`).test(source)
+      ? null
+      : `a PascalCase file exports the component it is named after (${stem})`;
   }
   if (/^use[A-Z][A-Za-z0-9]*$/.test(stem)) return /\.tsx?$/.test(name) ? null : "a hook's file is .ts or .tsx";
   return /^[a-z0-9]+(-[a-z0-9]+)*$/.test(stem) ? null : "kebab-case (components PascalCase, hooks useX)";

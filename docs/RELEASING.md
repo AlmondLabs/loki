@@ -12,8 +12,8 @@ goes stale, and nothing runs on a schedule.
    rolling `nightly` prerelease, and `Casks/loki-nightly.rb` in the tap. Nightlies are Mac-only. Anyone on
    `brew install --cask almondlabs/loki/loki-nightly` gets it with `brew upgrade`. Only the newest merge matters:
    a nightly build still running is cancelled when the next merge lands.
-2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "release: the next
-   stable": one commit on top of `main` that writes the `main` it was built from to `.github/release.txt`, and a body
+2. **The same merge creates or refreshes the release PR**, branch `release/next`, titled "chore(release): the
+   next stable": one commit on top of `main` that writes the `main` it was built from to `.github/release.txt`, and a body
    listing everything since the last stable and the number it would get if merged now. It is rebuilt from `main` and
    force-pushed by every further merge, and closed when nothing has merged since the last stable. Do not push to it;
    anything that should ship goes through an ordinary PR.
@@ -21,8 +21,8 @@ goes stale, and nothing runs on a schedule.
    the number (below), and publishes `v2026.1011.0` with the `.dmg` and the rendered cask attached, marked latest,
    and pushes `Casks/loki.rb` to the tap. `brew upgrade --cask loki` follows. That merge produces no nightly; the
    stable is that build.
-4. **The Windows and Linux PR** opens once the stable is out, branch `release/preview`, titled "release: Windows and
-   Linux 2026.1011.0": it writes `v2026.1011.0` to `.github/preview.txt`. Merging it builds `main` as it is at that
+4. **The Windows and Linux PR** opens once the stable is out, branch `release/preview`, titled "chore(release): the
+   Windows and Linux preview 2026.1011.0": it writes `v2026.1011.0` to `.github/preview.txt`. Merging it builds `main` as it is at that
    merge on Windows and Linux, stamps `2026.1011.0`, and puts the `-setup.exe`, the AppImage and the `.deb` on that
    release, with the preview line (below) at the top of its notes. It makes no nightly and touches neither the
    `.dmg` nor the casks. It is refreshed by every merge while that stable lacks the files, and closed once it has
@@ -34,8 +34,8 @@ goes stale, and nothing runs on a schedule.
 1. **plan** (`npm run release -- plan`) decides stable, nightly, preview or nothing. On a push, the release PR
    landing is recognised by the push itself changing `.github/release.txt`, and the Windows and Linux PR landing by
    it changing `.github/preview.txt` (a preview of the stable it names, when that release exists; nothing when it
-   does not). Everything else with commits since the last stable is a nightly. Commits titled `release: …`, the two
-   PRs' own, do not count as something to ship. A manual run only refreshes the two PRs.
+   does not). Everything else with commits since the last stable is a nightly. Commits titled `chore(release): …` (or
+   `release: …`, before October 2026), the two PRs' own, do not count as something to ship. A manual run only refreshes the two PRs.
 2. **A nightly or a stable** is the Mac's: one `macos-14` job decides its number (`release.ts version`), stamps it
    (`release.ts set`), smoke-tests the bundle (`npm run smoke`: it starts and signs in, or nothing ships), builds the
    universal `.dmg` with `tauri-apps/tauri-action` (`--target universal-apple-darwin`),

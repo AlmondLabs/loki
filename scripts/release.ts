@@ -149,8 +149,11 @@ export interface Commit {
 
 const TRAILER = /^(Co-Authored-By|Signed-off-by|Reviewed-by|Co-authored-by):/i;
 
-/** The commits that are changes, not the release PR's or the Windows and Linux PR's own (`release: …`). */
-export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !c.subject.startsWith("release: "));
+/**
+ * The commits that are changes, not the release PR's or the Windows and Linux PR's own: `chore(release): …`, or
+ * `release: …` from before the titles followed Conventional Commits (docs/STYLE.md §9).
+ */
+export const shipping = (commits: Commit[]): Commit[] => commits.filter((c) => !/^(chore\(release\)|release): /.test(c.subject));
 
 /** Release notes: one entry per commit since the last stable, newest first; the release commits themselves and trailers are left out. */
 export function releaseNotes(version: string, commits: Commit[]): string {
@@ -298,7 +301,7 @@ export function releasePr({ notes, mainSha, ifMergedNow }: { notes: string; main
   marker: string;
 } {
   return {
-    title: "release: the next stable",
+    title: "chore(release): the next stable",
     marker: `${mainSha}\n`,
     body: [
       `Merging this ships **the next stable of loki**: the tag, the universal \`.dmg\`, the published release and the Homebrew cask, from one workflow run. Its number is decided when it is built, \`YYYY.MMDD.N\` — the UTC day, then that day's count from 0 — so merged now it would be **${ifMergedNow}**. Windows and Linux follow with their own PR once it is out.`,
@@ -413,7 +416,7 @@ export function previewAction({ version, assets, marker }: { version: string; as
 export function previewPr(version: string, repo: string): { title: string; body: string; marker: string } {
   const tag = `v${version}`;
   return {
-    title: `release: Windows and Linux ${version}`,
+    title: `chore(release): the Windows and Linux preview ${version}`,
     marker: `${tag}\n`,
     body: [
       `**Windows and Linux ${version}.** Merging this builds \`main\` as it is at the merge on Windows and Linux and publishes the files on the ${tag} release:`,

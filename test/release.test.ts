@@ -122,8 +122,12 @@ describe("what a run does", () => {
       { sha: "1", subject: "release: Windows and Linux 2026.1011.0 (#15)", body: "" },
       { sha: "2", subject: "release: the next stable", body: "" },
       { sha: "3", subject: "inbox: a priority queue", body: "" },
+      // The titles since they follow Conventional Commits; a change to release.ts itself still ships.
+      { sha: "4", subject: "chore(release): the next stable (#80)", body: "" },
+      { sha: "5", subject: "chore(release): the Windows and Linux preview 2026.1016.0", body: "" },
+      { sha: "6", subject: "fix(release): number a stable after the last tag", body: "" },
     ];
-    expect(shipping(commits).map((c) => c.sha)).toEqual(["3"]);
+    expect(shipping(commits).map((c) => c.sha)).toEqual(["3", "6"]);
     expect(shipping(commits.slice(0, 2))).toEqual([]);
   });
 });
@@ -135,7 +139,7 @@ describe("the release PR: no version of its own", () => {
       mainSha: "f00dfeed",
       ifMergedNow: "2026.1011.0",
     });
-    expect(title).toBe("release: the next stable");
+    expect(title).toBe("chore(release): the next stable");
     expect(title).not.toMatch(/\d{4}\./);
     expect(marker).toBe("f00dfeed\n");
     expect(body).toContain("YYYY.MMDD.N");
@@ -277,7 +281,7 @@ describe("the Windows and Linux PR: their files on the newest stable", () => {
 
   test("the PR says what merging builds, from main, that the files join the Mac's stable, that they are unsigned previews, and where to report", () => {
     const { title, body, marker } = previewPr("2026.1011.0", "owner/loki");
-    expect(title).toBe("release: Windows and Linux 2026.1011.0");
+    expect(title).toBe("chore(release): the Windows and Linux preview 2026.1011.0");
     expect(marker).toBe("v2026.1011.0\n");
     for (const f of ["loki_2026.1011.0_x64-setup.exe", "loki_2026.1011.0_amd64.AppImage", "loki_2026.1011.0_amd64.deb"]) expect(body).toContain(f);
     expect(body).toContain("`main`");
